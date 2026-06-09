@@ -1,0 +1,102 @@
+plugins {
+    id "com.android.application"
+    id "org.jetbrains.kotlin.android"
+    id "org.jetbrains.kotlin.plugin.compose"
+    id "com.google.devtools.ksp"
+    id "com.google.dagger.hilt.android"
+}
+
+def echoReleaseStoreFile = findProperty("ECHO_RELEASE_STORE_FILE") ?: System.getenv("ECHO_RELEASE_STORE_FILE")
+def echoReleaseStorePassword = findProperty("ECHO_RELEASE_STORE_PASSWORD") ?: System.getenv("ECHO_RELEASE_STORE_PASSWORD")
+def echoReleaseKeyAlias = findProperty("ECHO_RELEASE_KEY_ALIAS") ?: System.getenv("ECHO_RELEASE_KEY_ALIAS")
+def echoReleaseKeyPassword = findProperty("ECHO_RELEASE_KEY_PASSWORD") ?: System.getenv("ECHO_RELEASE_KEY_PASSWORD")
+def echoHasReleaseSigning = echoReleaseStoreFile && echoReleaseStorePassword && echoReleaseKeyAlias && echoReleaseKeyPassword
+
+android {
+    namespace "app.echo.next"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "app.echo.next"
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName "0.1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = "UTF-8"
+    }
+
+
+    buildFeatures {
+        compose true
+    }
+
+    signingConfigs {
+        if (echoHasReleaseSigning) {
+            release {
+                storeFile file(echoReleaseStoreFile)
+                storePassword echoReleaseStorePassword
+                keyAlias echoReleaseKeyAlias
+                keyPassword echoReleaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            if (echoHasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+dependencies {
+    implementation platform("androidx.compose:compose-bom:2026.05.00")
+    implementation "androidx.activity:activity-compose:1.9.3"
+    implementation "androidx.lifecycle:lifecycle-viewmodel:2.9.4"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.9.4"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-savedstate:2.9.4"
+    implementation "androidx.navigation:navigation-compose:2.9.4"
+    implementation "androidx.browser:browser:1.8.0"
+    implementation "androidx.compose.foundation:foundation"
+    implementation "androidx.compose.material3:material3"
+    implementation "androidx.compose.ui:ui"
+    implementation "androidx.compose.ui:ui-tooling-preview"
+    implementation "androidx.media3:media3-exoplayer:1.4.1"
+    implementation "androidx.media3:media3-datasource:1.4.1"
+    implementation "androidx.media3:media3-session:1.4.1"
+    implementation "androidx.room:room-runtime:2.7.2"
+    implementation "androidx.room:room-ktx:2.7.2"
+    implementation "com.google.dagger:hilt-android:2.57.2"
+    ksp "androidx.room:room-compiler:2.7.2"
+    ksp "com.google.dagger:hilt-compiler:2.57.2"
+    testImplementation "junit:junit:4.13.2"
+    testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0"
+    testImplementation "org.json:json:20240303"
+    debugImplementation "androidx.compose.ui:ui-tooling"
+    androidTestImplementation "androidx.test:runner:1.6.2"
+    androidTestImplementation "androidx.test:core:1.6.1"
+    androidTestImplementation "androidx.test.ext:junit:1.2.1"
+    androidTestImplementation "androidx.room:room-testing:2.7.2"
+    androidTestImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0"
+}

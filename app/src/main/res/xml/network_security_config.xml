@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain>127.0.0.1</domain>
+        <domain>::1</domain>
+        <!-- Android emulator host loopback -->
+        <domain>10.0.2.2</domain>
+    </domain-config>
+
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- NetEase playback URLs are commonly served as http://m*.music.126.net/... -->
+        <domain includeSubdomains="true">music.126.net</domain>
+    </domain-config>
+</network-security-config>

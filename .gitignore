@@ -1,0 +1,31 @@
+# Gradle / Android build output
+.gradle/
+.kotlin/
+.gradle-user-home*/
+.gradle-tmp/
+build/
+app/build/
+
+# Local Android SDK and machine-specific config
+android-sdk/
+local.properties
+
+# IDE state
+.idea/
+*.iml
+
+# Release signing material
+*.jks
+*.keystore
+keystore.properties
+
+# Logs and local scratch files
+*.log
+captures/
+
+# Local smoke-test / emulator inspection artifacts
+tmp-m3u/
+echo_next_*.db
+screen-*.png
+window.xml
+window-*.xml
