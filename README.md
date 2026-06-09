@@ -1,33 +1,33 @@
 # ECHO NEXT Android
 
-Native Android port of ECHO NEXT.
+ECHO NEXT 的原生 Android 移植版。
 
-This implementation is a native Android music player built around Kotlin/Compose UI surfaces, Java Android lifecycle orchestration, AndroidX Media3 playback, and SQLite persistence. It implements the Android core that ECHO NEXT needs for the current MVP:
+这个实现是一个原生 Android 音乐播放器，围绕 Kotlin/Compose UI 界面、Java Android 生命周期编排、AndroidX Media3 播放，以及 SQLite 持久化构建。它实现了当前 MVP 阶段 ECHO NEXT 需要的 Android 核心能力：
 
-- Local audio discovery through `MediaStore`.
-- System file picker import for selected audio files and folders, with persisted URI access.
-- Local M3U/M3U8 playlist import for stream URLs, playlist import/merge, and playlist M3U8 export.
-- WebDAV remote source setup, sync, and playback through cached remote tracks.
-- Local SQLite library cache for tracks, document imports, streams, WebDAV tracks, favorites, play history, playlists, queue state, playback position, and settings.
-- Playback through AndroidX Media3 `ExoPlayer`.
-- Background playback through AndroidX Media3 `MediaSessionService`.
-- Notification, lock-screen, headset, and Bluetooth media controls through Android media sessions.
-- Automatic pause when wired or Bluetooth output disconnects.
-- Compose-backed library, search, queue, now-playing, network sources, settings, and collection UI.
-- Library grouping for songs, albums, artists, and folders.
-- SQLite-backed favorites, recent plays, most-played records, playlists, and playlist membership.
-- Playlist create, rename, delete, track reorder, remove-track, selected playlist playback, add-to-playlist, selected/current playlist M3U/M3U8 import/merge, and current playlist M3U8 export through the system file creator.
-- Persistent queue, shuffle, repeat off/all/one, playback speed, app volume, and sleep timer.
-- Stream URL normalization/dedupe and stream edit migration for favorites, history, playlists, queue, and playback position.
-- Local sidecar `.lrc` lyrics loading with now-playing active-line display.
-- Optional LRCLIB online lyrics fallback and configurable lyrics timing offset.
-- Theme and accent settings, including system/dark/light, AMOLED, high-contrast, and named palette modes.
+- 通过 `MediaStore` 发现本地音频。
+- 通过系统文件选择器导入选定的音频文件和文件夹，并持久化 URI 访问权限。
+- 导入本地 M3U/M3U8 歌单，用于流 URL、歌单导入/合并，以及歌单 M3U8 导出。
+- 配置 WebDAV 远程来源、同步，并通过已缓存的远程曲目播放。
+- 使用本地 SQLite 曲库缓存曲目、文档导入、流媒体、WebDAV 曲目、收藏、播放历史、歌单、队列状态、播放位置和设置。
+- 通过 AndroidX Media3 `ExoPlayer` 播放。
+- 通过 AndroidX Media3 `MediaSessionService` 后台播放。
+- 通过 Android media session 支持通知、锁屏、耳机和蓝牙媒体控制。
+- 在有线或蓝牙输出断开时自动暂停。
+- 基于 Compose 的曲库、搜索、队列、正在播放、网络来源、设置和收藏集界面。
+- 按歌曲、专辑、艺术家和文件夹对曲库分组。
+- 基于 SQLite 的收藏、最近播放、最多播放记录、歌单和歌单成员关系。
+- 支持创建歌单、重命名歌单、删除歌单、曲目排序、移除曲目、播放选中歌单、添加到歌单、导入/合并选中或当前歌单的 M3U/M3U8，并通过系统文件创建器导出当前歌单为 M3U8。
+- 持久化队列、随机播放、关闭重复/全部重复/单曲重复、播放速度、应用音量和睡眠定时器。
+- 流 URL 规范化/去重，并在收藏、历史、歌单、队列和播放位置中迁移流媒体编辑引用。
+- 加载本地同名 `.lrc` 歌词，并在正在播放界面显示当前歌词行。
+- 可选的 LRCLIB 在线歌词兜底，以及可配置的歌词时间偏移。
+- 主题和强调色设置，包括跟随系统、深色、浅色、AMOLED、高对比度和命名调色板模式。
 
-Desktop-only integrations such as Windows SMTC, tray behavior, global desktop shortcuts, Windows audio hosts, bundled downloader/converter binaries, Electron plugins, Discord presence, and AirPlay helper binaries are intentionally outside the Android MVP. See the root-level Android planning documents for the parity boundary and release checklist.
+Windows SMTC、托盘行为、全局桌面快捷键、Windows 音频宿主、内置下载器/转换器二进制、Electron 插件、Discord 状态和 AirPlay 辅助二进制等仅限桌面端的集成能力，被有意排除在 Android MVP 范围之外。关于功能对齐边界和发布检查清单，请参阅仓库根目录下的 Android 规划文档。
 
-## Current Environment Notes
+## 当前环境说明
 
-The Gradle wrapper is available and command-line verification currently works:
+Gradle wrapper 已可用，当前命令行验证可以正常运行：
 
 ```powershell
 .\gradlew.bat assembleDebug
@@ -37,16 +37,16 @@ The Gradle wrapper is available and command-line verification currently works:
 .\gradlew.bat lintRelease
 ```
 
-These commands passed during the local Androidization verification. On 2026-06-05, `assembleDebugAndroidTest`, `assembleDebug`, `lintDebug`, `assembleRelease`, `bundleRelease`, and `lintRelease` passed after playback queue index hardening, restored-queue play behavior fixes, persisted queue cleanup after track deletion, and media-session lifecycle hardening. `connectedDebugAndroidTest` passed 32 instrumentation tests on the Android 13/API 33 `EchoApi33` emulator, and the scripted single-device `-Connected -DeviceSerial emulator-5554` path passed the same 32 tests on that selected emulator while other devices were attached. The user-designated MuMu-MUSIC Android 12/API 32 instance passed 32 manual single-device instrumentation tests and signed release launch smoke as compatibility confidence. After the icon-first Compose UI pass, the latest debug build installed and launched on MuMu-MUSIC with screenshot evidence at `app/build/tmp/echo-ui-icon-first-mumu-music-20260605-pulled.png`, and the scripted single-device connected path reran 32 instrumentation tests successfully on that same selected device. A temporary smoke key produced signed release APK/AAB artifacts, and the signed release APK installed and launched on the API 33 emulator with `app.echo.next/.MainActivity` resumed; the API 33 release smoke was rerun successfully through `-ReleaseSmoke -DeviceSerial emulator-5554`. On 2026-06-04, the same debug and lint checks passed after M3U/M3U8 parser/export and stream-edit reference migration hardening. Debug APKs are generated under `app/build/outputs/apk/debug/`; release APK/AAB outputs are generated under `app/build/outputs/apk/release/` and `app/build/outputs/bundle/release/`.
+这些命令已在本地 Android 化验证期间通过。2026-06-05，在完成播放队列索引加固、恢复队列播放行为修复、删除曲目后的持久化队列清理，以及 media session 生命周期加固后，`assembleDebugAndroidTest`、`assembleDebug`、`lintDebug`、`assembleRelease`、`bundleRelease` 和 `lintRelease` 均通过。`connectedDebugAndroidTest` 在 Android 13/API 33 的 `EchoApi33` 模拟器上通过了 32 个 instrumentation 测试；脚本化的单设备 `-Connected -DeviceSerial emulator-5554` 路径也在指定模拟器上通过了同样的 32 个测试，当时还有其他设备处于连接状态。用户指定的 MuMu-MUSIC Android 12/API 32 实例通过了 32 个手动单设备 instrumentation 测试，并完成了签名 release 启动冒烟测试，作为兼容性信心依据。完成 icon-first Compose UI 调整后，最新 debug 构建已安装并在 MuMu-MUSIC 上启动，截图证据位于 `app/build/tmp/echo-ui-icon-first-mumu-music-20260605-pulled.png`；脚本化单设备 connected 路径也在同一指定设备上重新成功跑完了 32 个 instrumentation 测试。临时冒烟密钥生成了签名 release APK/AAB 产物，签名 release APK 已安装并在 API 33 模拟器上启动，`app.echo.next/.MainActivity` 已恢复；API 33 release 冒烟测试也已通过 `-ReleaseSmoke -DeviceSerial emulator-5554` 重新成功执行。2026-06-04，在完成 M3U/M3U8 解析/导出和流媒体编辑引用迁移加固后，同样的 debug 和 lint 检查也已通过。Debug APK 生成在 `app/build/outputs/apk/debug/` 下；release APK/AAB 输出生成在 `app/build/outputs/apk/release/` 和 `app/build/outputs/bundle/release/` 下。
 
-The repeatable local verification entry point is:
+可重复执行的本地验证入口是：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-release.ps1
 ```
 
-Add `-Connected` for attached-device instrumentation tests, or `-ReleaseSmoke -CreateSmokeKeystore` for a temporary-key signed release smoke on an attached Android 13+/API 33 or newer emulator/device. If multiple targets are attached, pass `-DeviceSerial <serial>`; for connected instrumentation, the script installs the debug APKs and runs `adb shell am instrument` on that selected target only. Use `-AllowPreAndroid13Smoke` only for non-release historical confidence checks.
+添加 `-Connected` 可执行已连接设备的 instrumentation 测试；添加 `-ReleaseSmoke -CreateSmokeKeystore` 可在已连接的 Android 13+/API 33 或更新版本模拟器/设备上，用临时密钥执行签名 release 冒烟测试。如果连接了多个目标，请传入 `-DeviceSerial <serial>`；对于 connected instrumentation，脚本只会在该指定目标上安装 debug APK 并运行 `adb shell am instrument`。`-AllowPreAndroid13Smoke` 仅用于非 release 的历史信心检查。
 
-Local emulator/smoke scratch files such as `screen-*.png`, `window-*.xml`, `echo_next_*.db`, and `tmp-m3u/` are ignored by `.gitignore`.
+本地模拟器/冒烟测试临时文件，例如 `screen-*.png`、`window-*.xml`、`echo_next_*.db` 和 `tmp-m3u/`，已被 `.gitignore` 忽略。
 
-Public release still requires a maintainer-owned production keystore and a physical-device media-control acceptance pass on Android 13+.
+公开发布仍需要维护者持有的生产 keystore，以及在 Android 13+ 实体设备上完成媒体控制验收。
