@@ -196,6 +196,31 @@ class MainActivityViewModelStreamingTest {
     }
 
     @Test
+    fun fetchStreamingPlaylistTracksUsesReadableFallbackNameWhenRemoteTitleIsMissing() = runTest {
+        val provider = FakeStreamingProvider(StreamingProviderName.NETEASE)
+        provider.playlistTitle = ""
+        val viewModel = MainActivityViewModel(
+            SavedStateHandle(),
+            FakeStreamingRepositorySource(
+                listOf(
+                    StreamingRepository(
+                        RegistryStreamingGateway(
+                            StreamingProviderRegistry(listOf(provider))
+                        )
+                    )
+                )
+            )
+        )
+        val resolvedNames = mutableListOf<String>()
+
+        viewModel.fetchStreamingPlaylistTracks(StreamingProviderName.NETEASE, "playlist-42") { name, _ ->
+            resolvedNames += name
+        }.join()
+
+        assertEquals(listOf("Streaming playlist playlist-42"), resolvedNames)
+    }
+
+    @Test
     fun resolveStreamingTrackMatchSearchesLocalSongAndReturnsProviderSongId() = runTest {
         val provider = FakeStreamingProvider(StreamingProviderName.NETEASE)
         provider.searchTracks = listOf(
@@ -308,6 +333,7 @@ class MainActivityViewModelStreamingTest {
         val playlistRequests = mutableListOf<StreamingPlaylistRequest>()
         val searchRequests = mutableListOf<StreamingSearchRequest>()
         var searchTracks: List<StreamingTrack> = emptyList()
+        var playlistTitle: String? = "Remote Playlist"
 
         override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult {
             searchRequests += request
@@ -338,7 +364,7 @@ class MainActivityViewModelStreamingTest {
                 playlist = StreamingPlaylist(
                     provider = descriptor.name,
                     providerPlaylistId = request.providerPlaylistId,
-                    title = "Remote Playlist",
+                    title = playlistTitle.orEmpty(),
                     trackCount = allTracks.size
                 ),
                 tracks = tracks.map { trackId ->

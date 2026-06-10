@@ -56,8 +56,10 @@ data class QueueTrackActions(
 
 data class QueueScreenLabels(
     val title: String = "Queue",
+    val back: String = "Back",
     val clearQueue: String = "Clear queue",
     val empty: String = "Queue is empty",
+    val emptyDescription: String = "Play a track or add music to build the queue.",
     val tracks: String = "tracks",
     val favorite: String = "Favorite",
     val addToPlaylist: String = "Add to playlist",
@@ -80,11 +82,21 @@ object QueueScreenFactory {
         actions: List<QueueTrackActions>,
         onClearQueue: Runnable,
         labels: QueueScreenLabels
+    ): ComposeView = create(context, state, actions, onClearQueue, labels, null)
+
+    @JvmStatic
+    fun create(
+        context: Context,
+        state: StateFlow<MainActivityQueueUiState>,
+        actions: List<QueueTrackActions>,
+        onClearQueue: Runnable,
+        labels: QueueScreenLabels,
+        onBack: Runnable?
     ): ComposeView = ComposeView(context).apply {
         setContent {
             EchoTheme.EchoTheme {
                 val uiState = state.collectAsState()
-                QueueScreen(uiState.value.rows, actions, onClearQueue, labels)
+                QueueScreen(uiState.value.rows, actions, onClearQueue, labels, onBack)
             }
         }
     }
@@ -96,7 +108,8 @@ private fun QueueScreen(
     tracks: List<QueueTrackUiState>,
     actions: List<QueueTrackActions>,
     onClearQueue: Runnable,
-    labels: QueueScreenLabels
+    labels: QueueScreenLabels,
+    onBack: Runnable?
 ) {
     val p = EchoTheme.colors()
     LazyColumn(
@@ -105,32 +118,39 @@ private fun QueueScreen(
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
     ) {
         item(key = "title") {
-            EchoPageTitle(labels.title, subtitle = "${tracks.size} ${labels.tracks}")
+            EchoPageTitle(
+                labels.title,
+                subtitle = "${tracks.size} ${labels.tracks}",
+                backLabel = labels.back,
+                onBack = onBack
+            )
         }
-        item(key = "clear-queue") {
-            Surface(
-                onClick = { onClearQueue.run() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .echoGlassLayer(p, EchoShapes.medium)
-                    .semantics { contentDescription = labels.clearQueue },
-                shape = EchoShapes.medium,
-                color = Color.Transparent
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+        if (tracks.isNotEmpty()) {
+            item(key = "clear-queue") {
+                Surface(
+                    onClick = { onClearQueue.run() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .echoGlassLayer(p, EchoShapes.medium)
+                        .semantics { contentDescription = labels.clearQueue },
+                    shape = EchoShapes.medium,
+                    color = Color.Transparent
                 ) {
-                    EchoIcon(EchoIconKind.Delete, Modifier.size(20.dp), p.accent)
-                    Spacer(Modifier.width(8.dp))
-                    Text(labels.clearQueue, style = EchoTypography.bodyMedium, color = p.accent)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        EchoIcon(EchoIconKind.Delete, Modifier.size(20.dp), p.accent)
+                        Spacer(Modifier.width(8.dp))
+                        Text(labels.clearQueue, style = EchoTypography.bodyMedium, color = p.accent)
+                    }
                 }
             }
         }
         if (tracks.isEmpty()) {
             item(key = "empty") {
-                EchoEmptyCard(labels.empty)
+                EchoStateCard(labels.empty, labels.emptyDescription, icon = EchoIconKind.Queue)
             }
         }
         itemsIndexed(
@@ -165,6 +185,8 @@ private fun QueueTrackRow(
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                TrackCurrentIndicator(track.current, height = 46.dp)
+                Spacer(Modifier.width(7.dp))
                 QueueArtwork(track.albumArtUri, track.title, track.subtitle)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {

@@ -21,6 +21,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,6 +34,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import app.echo.next.MainActivityTrackListUiState
 import app.echo.next.R
 import kotlinx.coroutines.flow.StateFlow
@@ -143,13 +148,19 @@ private fun TrackListScreen(
     labels: TrackListLabels
 ) {
     val p = EchoTheme.colors()
+    val titleBackAction = headerActions.firstOrNull { isBackAction(it.label) }
+    val visibleHeaderActions = if (titleBackAction != null) headerActions.drop(1) else headerActions
     LazyColumn(
         modifier = Modifier.echoPageBackground(),
         contentPadding = echoPagePadding(),
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
     ) {
         item(key = "title") {
-            EchoPageTitle(title)
+            EchoPageTitle(
+                title,
+                backLabel = titleBackAction?.label,
+                onBack = titleBackAction?.onClick
+            )
         }
         if (modeActions.isNotEmpty()) {
             item(key = "modes") {
@@ -163,7 +174,7 @@ private fun TrackListScreen(
             HeaderMetricRow(metric)
         }
         itemsIndexed(
-            items = headerActions,
+            items = visibleHeaderActions,
             key = { index, action -> "action:${action.label}:$index" }
         ) { _, action ->
             HeaderActionRow(action)
@@ -316,6 +327,8 @@ private fun TrackRow(track: TrackRowUiState, actions: TrackRowActions, labels: T
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            TrackCurrentIndicator(track.current)
+            Spacer(Modifier.width(7.dp))
             TrackArtwork(track.albumArtUri, track.title, track.subtitle)
             Spacer(Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -354,7 +367,7 @@ private fun TrackRow(track: TrackRowUiState, actions: TrackRowActions, labels: T
                 maxLines = 1
             )
             Row(
-                modifier = Modifier.width(if (track.showPlaylistAction) 66.dp else 32.dp),
+                modifier = Modifier.width(actionRailWidth(track, actions)),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 MiniIconBtn(
@@ -370,20 +383,57 @@ private fun TrackRow(track: TrackRowUiState, actions: TrackRowActions, labels: T
                         onClick = { actions.onAddToPlaylist.run() }
                     )
                 }
-                actions.onEdit?.let { onEdit ->
-                    MiniIconBtn(
-                        icon = EchoIconKind.Edit,
-                        desc = labels.editLabel,
-                        onClick = { onEdit.run() }
-                    )
+                if (actions.onEdit != null || actions.onDelete != null) {
+                    TrackMoreMenu(actions, labels)
                 }
-                actions.onDelete?.let { onDelete ->
-                    MiniIconBtn(
-                        icon = EchoIconKind.Delete,
-                        desc = labels.deleteLabel,
-                        onClick = { onDelete.run() }
-                    )
-                }
+            }
+        }
+    }
+}
+
+private fun actionRailWidth(track: TrackRowUiState, actions: TrackRowActions): androidx.compose.ui.unit.Dp {
+    var count = 1
+    if (track.showPlaylistAction) {
+        count += 1
+    }
+    if (actions.onEdit != null || actions.onDelete != null) {
+        count += 1
+    }
+    return (count * 35 - 4).dp
+}
+
+@Composable
+private fun TrackMoreMenu(actions: TrackRowActions, labels: TrackListLabels) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        MiniIconBtn(
+            icon = EchoIconKind.More,
+            desc = labels.editLabel + " / " + labels.deleteLabel,
+            onClick = { expanded = true }
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            actions.onEdit?.let { onEdit ->
+                DropdownMenuItem(
+                    text = { Text(labels.editLabel) },
+                    leadingIcon = { EchoIcon(EchoIconKind.Edit, Modifier.size(18.dp), EchoTheme.colors().muted) },
+                    onClick = {
+                        expanded = false
+                        onEdit.run()
+                    }
+                )
+            }
+            actions.onDelete?.let { onDelete ->
+                DropdownMenuItem(
+                    text = { Text(labels.deleteLabel) },
+                    leadingIcon = { EchoIcon(EchoIconKind.Delete, Modifier.size(18.dp), EchoTheme.colors().muted) },
+                    onClick = {
+                        expanded = false
+                        onDelete.run()
+                    }
+                )
             }
         }
     }
@@ -427,13 +477,16 @@ private fun MiniIconBtn(
 }
 
 private fun iconForHeaderAction(label: String): EchoIconKind = when {
-    label.contains("Back", ignoreCase = true) || label.contains("\u8fd4\u56de") -> EchoIconKind.Back
+    isBackAction(label) -> EchoIconKind.Back
     label.contains("Play", ignoreCase = true) || label.contains("\u64ad\u653e") -> EchoIconKind.Play
     label.contains("Sync", ignoreCase = true) || label.contains("\u540c\u6b65") -> EchoIconKind.Sync
     label.contains("Delete", ignoreCase = true) || label.contains("\u5220\u9664") -> EchoIconKind.Delete
     label.contains("Import", ignoreCase = true) || label.contains("\u5bfc\u5165") || label.contains("\u5bfc\u51fa") -> EchoIconKind.Import
     else -> EchoIconKind.Action
 }
+
+private fun isBackAction(label: String): Boolean =
+    label.contains("Back", ignoreCase = true) || label.contains("\u8fd4\u56de")
 
 private fun iconForLibraryMode(mode: String): EchoIconKind = when (mode) {
     "albums" -> EchoIconKind.Collections

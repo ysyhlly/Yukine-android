@@ -80,6 +80,30 @@ class EchoThemePresetContractTest {
     }
 
     @Test
+    fun primaryThemeOptionsStayFocusedWhileAdvancedOptionsKeepLegacyModes() {
+        val primary = EchoTheme.primaryModeOptions().toList()
+        val advanced = EchoTheme.advancedModeOptions().toList()
+
+        assertEquals(
+            listOf(
+                EchoTheme.MODE_SYSTEM,
+                EchoTheme.MODE_LIGHT,
+                EchoTheme.MODE_DARK,
+                EchoTheme.MODE_AMOLED
+            ),
+            primary
+        )
+        assertTrue(advanced.contains(EchoTheme.MODE_CONTRAST))
+        assertTrue(advanced.contains(EchoTheme.MODE_GRAPHITE))
+        EchoThemePresets.ids.forEach { preset ->
+            assertTrue("Advanced mode options missing preset: $preset", advanced.contains(preset))
+        }
+        primary.forEach { mode ->
+            assertTrue("Advanced options should not duplicate primary mode: $mode", !advanced.contains(mode))
+        }
+    }
+
+    @Test
     fun outfitFontResourceIsBundledForGlobalTypography() {
         assertEquals(0f, EchoTypography.display.letterSpacing.value)
         assertEquals(EchoTypography.display.fontFamily, EchoTypography.body.fontFamily)

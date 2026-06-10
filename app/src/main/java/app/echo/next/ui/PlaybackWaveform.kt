@@ -10,10 +10,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.produceState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.HashSet
 import java.util.LinkedHashMap
 import kotlin.math.max
 import kotlin.math.sqrt
@@ -37,19 +39,34 @@ fun rememberPlaybackWaveform(
         if (value != null) {
             return@produceState
         }
-        val appContext = context.applicationContext
-        val waveform = withContext(Dispatchers.IO) {
-            PlaybackWaveformCache.extract(appContext, contentUriString, dataPath, durationMs, barCount)
+        if (!PlaybackWaveformCache.beginGeneration(key)) {
+            repeat(20) {
+                delay(120L)
+                value = PlaybackWaveformCache.get(key)
+                if (value != null) {
+                    return@produceState
+                }
+            }
+            return@produceState
         }
-        if (waveform != null) {
-            PlaybackWaveformCache.put(key, waveform)
+        try {
+            val appContext = context.applicationContext
+            val waveform = withContext(Dispatchers.IO) {
+                PlaybackWaveformCache.extract(appContext, contentUriString, dataPath, durationMs, barCount)
+            }
+            if (waveform != null) {
+                PlaybackWaveformCache.put(key, waveform)
+            }
+            value = waveform
+        } finally {
+            PlaybackWaveformCache.finishGeneration(key)
         }
-        value = waveform
     }
 }
 
 internal object PlaybackWaveformCache {
     private const val MAX_ENTRIES = 24
+    private val inFlight = HashSet<String>()
     private val cache = object : LinkedHashMap<String, FloatArray>(MAX_ENTRIES, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, FloatArray>?): Boolean {
             return size > MAX_ENTRIES
@@ -62,6 +79,19 @@ internal object PlaybackWaveformCache {
     @Synchronized
     fun put(key: String, waveform: FloatArray) {
         cache[key] = waveform
+    }
+
+    @Synchronized
+    fun beginGeneration(key: String): Boolean {
+        if (cache.containsKey(key)) {
+            return false
+        }
+        return inFlight.add(key)
+    }
+
+    @Synchronized
+    fun finishGeneration(key: String) {
+        inFlight.remove(key)
     }
 
     fun key(

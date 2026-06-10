@@ -34,6 +34,8 @@ internal class CollectionsRenderController(
 
         fun confirmClearPlayHistory()
 
+        fun requestBack()
+
         fun playTrackList(tracks: List<Track>, index: Int)
 
         fun toggleFavorite(track: Track)
@@ -111,6 +113,7 @@ internal class CollectionsRenderController(
             text(languageMode, "favorites"),
             favoriteTracks,
             text(languageMode, "no.favorites"),
+            text(languageMode, "no.favorites.description"),
             text(languageMode, "play.favorites"),
             null,
             currentTrack,
@@ -123,6 +126,7 @@ internal class CollectionsRenderController(
             text(languageMode, "recent"),
             tracksFromRecords(recentRecords),
             text(languageMode, "no.recent.tracks"),
+            text(languageMode, "no.recent.tracks.description"),
             text(languageMode, "play.recent"),
             recordDetails(recentRecords, showPlayCount = false, languageMode),
             currentTrack,
@@ -135,6 +139,7 @@ internal class CollectionsRenderController(
             text(languageMode, "most.played"),
             tracksFromRecords(mostPlayedRecords),
             text(languageMode, "no.play.history"),
+            text(languageMode, "no.play.history.description"),
             text(languageMode, "play.most.played"),
             recordDetails(mostPlayedRecords, showPlayCount = true, languageMode),
             currentTrack,
@@ -177,15 +182,18 @@ internal class CollectionsRenderController(
 
         val state = CollectionsUiState(
             text(languageMode, "tab.collections"),
+            text(languageMode, "back"),
             metrics,
             topActionRows,
             trackSections,
             text(languageMode, "playlists"),
             text(languageMode, "no.playlists"),
+            text(languageMode, "no.playlists.description"),
             playlistRows,
             selectedPlaylistId >= 0L,
             selectedPlaylistName(playlists, selectedPlaylistId, languageMode),
             text(languageMode, "no.tracks.in.playlist"),
+            text(languageMode, "no.tracks.in.playlist.description"),
             selectedPlaylistActionRows,
             selectedPlaylistRows,
             text(languageMode, "favorite"),
@@ -198,6 +206,7 @@ internal class CollectionsRenderController(
             text(languageMode, "remove")
         )
         val actions = CollectionsActions(
+            Runnable { listener.requestBack() },
             topActions,
             trackSectionActions,
             playlistActions,
@@ -224,6 +233,7 @@ internal class CollectionsRenderController(
         title: String,
         tracks: List<Track>,
         emptyText: String,
+        emptyDescription: String,
         playActionLabel: String,
         details: List<String>?,
         currentTrack: Track?,
@@ -250,7 +260,7 @@ internal class CollectionsRenderController(
                 )
             )
         }
-        sections.add(CollectionTrackSectionUiState(key, title, emptyText, playActionLabel, rows))
+        sections.add(CollectionTrackSectionUiState(key, title, emptyText, emptyDescription, playActionLabel, rows))
         sectionActions.add(CollectionTrackSectionActions(Runnable {
             listener.playTrackList(tracks, 0)
         }, rowActions))

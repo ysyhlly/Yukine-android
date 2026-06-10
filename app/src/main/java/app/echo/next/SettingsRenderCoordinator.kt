@@ -16,8 +16,57 @@ internal class SettingsRenderCoordinator(
 
     fun render(settingsPage: String) {
         when (settingsPage) {
+            MainRoutes.SETTINGS_APPEARANCE_GROUP -> {
+                renderer.renderAppearanceGroup(
+                    settingsStore.languageMode(),
+                    settingsStore.themeMode(),
+                    settingsStore.accentMode()
+                )
+            }
+            MainRoutes.SETTINGS_PLAYBACK_GROUP -> {
+                renderer.renderPlaybackGroup(
+                    settingsStore.languageMode(),
+                    settingsStore.playbackSpeed(),
+                    settingsStore.appVolume(),
+                    settingsStore.concurrentPlaybackEnabled(),
+                    playbackStore.snapshot().sleepTimerRemainingMs
+                )
+            }
+            MainRoutes.SETTINGS_LIBRARY_GROUP -> {
+                val allTracks = libraryStore.allTracks()
+                renderer.renderLibraryGroup(
+                    settingsStore.languageMode(),
+                    allTracks.size,
+                    LibraryGrouping.uniqueAlbumCount(allTracks),
+                    LibraryGrouping.uniqueArtistCount(allTracks),
+                    permissionController.hasAudioPermission()
+                )
+            }
+            MainRoutes.SETTINGS_LYRICS_GROUP -> {
+                val currentOffsetMs = lyricsController?.offsetMs() ?: 0L
+                val currentOnlineLyricsEnabled = lyricsController?.onlineEnabled() == true
+                renderer.renderLyricsGroup(settingsStore.languageMode(), currentOffsetMs, currentOnlineLyricsEnabled)
+            }
+            MainRoutes.SETTINGS_SOURCES_GROUP -> {
+                renderer.renderSourcesGroup(
+                    settingsStore.languageMode(),
+                    settingsStore.streamingAudioQuality(),
+                    streamingGatewaySettingsStore.configured()
+                )
+            }
+            MainRoutes.SETTINGS_ABOUT_GROUP -> {
+                renderer.renderAboutGroup(
+                    settingsStore.languageMode(),
+                    permissionController.hasAudioPermission(),
+                    permissionController.hasNotificationPermission(),
+                    playbackConnectionController.isBound()
+                )
+            }
             MainRoutes.SETTINGS_APPEARANCE -> {
                 renderer.renderTheme(settingsStore.languageMode(), settingsStore.themeMode())
+            }
+            MainRoutes.SETTINGS_ADVANCED_THEME -> {
+                renderer.renderAdvancedTheme(settingsStore.languageMode(), settingsStore.themeMode())
             }
             MainRoutes.SETTINGS_ACCENT -> {
                 renderer.renderAccent(settingsStore.languageMode(), settingsStore.accentMode())

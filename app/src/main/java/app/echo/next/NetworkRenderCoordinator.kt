@@ -18,6 +18,7 @@ internal class NetworkRenderCoordinator(
     ) {
         when (networkPage) {
             MainRoutes.NETWORK_STREAMING -> renderStreamingNetwork()
+            MainRoutes.NETWORK_STREAMING_HUB -> renderStreamingNetwork()
             MainRoutes.NETWORK_STREAM_LIST -> renderStreamList(languageMode, searchQuery)
             MainRoutes.NETWORK_WEBDAV -> renderWebDavNetwork(languageMode)
             MainRoutes.NETWORK_WEBDAV_TRACKS -> renderWebDavTrackList(languageMode, searchQuery)

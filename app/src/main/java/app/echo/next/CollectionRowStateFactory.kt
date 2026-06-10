@@ -32,10 +32,13 @@ internal object CollectionRowStateFactory {
             source.lastStatus
         )
 
-    private fun trackCountLabel(count: Int, languageMode: String): String {
-        if (AppLanguage.isChinese(languageMode)) {
-            return "$count ${AppLanguage.text(languageMode, "tracks")}"
+    @JvmStatic
+    fun trackCountLabel(count: Int, languageMode: String): String {
+        if (count == 1) {
+            return AppLanguage.text(languageMode, "track.count.one")
         }
-        return if (count == 1) "1 track" else "$count tracks"
+        return AppLanguage.text(languageMode, "track.count.prefix") +
+            count +
+            AppLanguage.text(languageMode, "track.count.suffix")
     }
 }

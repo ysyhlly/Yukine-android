@@ -49,4 +49,16 @@ class NowBarWaveformRangeTest {
         assertEquals(1f, waveformCachedProgressForDraw(0f, 0), 0.0001f)
         assertEquals(1f, waveformCachedProgressForDraw(2f, 0), 0.0001f)
     }
+
+    @Test
+    fun liveWaveformPeakOnlyMovesWhilePlaying() {
+        assertEquals(0.42f, liveWaveformPeak(0.42f, 4, 0.35f, false), 0.0001f)
+
+        val first = liveWaveformPeak(0.42f, 4, 0.05f, true)
+        val second = liveWaveformPeak(0.42f, 4, 0.55f, true)
+
+        assertTrue("playing waveform should breathe instead of staying static", kotlin.math.abs(first - second) > 0.001f)
+        assertTrue(first in 0.06f..1f)
+        assertTrue(second in 0.06f..1f)
+    }
 }

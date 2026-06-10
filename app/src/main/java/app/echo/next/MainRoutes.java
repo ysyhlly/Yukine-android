@@ -19,7 +19,14 @@ public final class MainRoutes {
     public static final String NETWORK_SOURCES = "network_sources";
 
     public static final String SETTINGS_HOME = "settings_home";
+    public static final String SETTINGS_APPEARANCE_GROUP = "settings_appearance_group";
+    public static final String SETTINGS_PLAYBACK_GROUP = "settings_playback_group";
+    public static final String SETTINGS_LIBRARY_GROUP = "settings_library_group";
+    public static final String SETTINGS_LYRICS_GROUP = "settings_lyrics_group";
+    public static final String SETTINGS_SOURCES_GROUP = "settings_sources_group";
+    public static final String SETTINGS_ABOUT_GROUP = "settings_about_group";
     public static final String SETTINGS_APPEARANCE = "settings_appearance";
+    public static final String SETTINGS_ADVANCED_THEME = "settings_advanced_theme";
     public static final String SETTINGS_ACCENT = "settings_accent";
     public static final String SETTINGS_LANGUAGE = "settings_language";
     public static final String SETTINGS_PLAYBACK_SPEED = "settings_playback_speed";

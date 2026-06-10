@@ -30,7 +30,7 @@ internal object NowPlayingStateFactory {
             "${playbackState.currentIndex + 1} / ${playbackState.queueSize}",
             AppLanguage.text(languageMode, "duration"),
             Track.formatDuration(playbackState.durationMs),
-            playbackState.errorMessage,
+            PlaybackErrorMessageLocalizer.localize(playbackState.errorMessage, languageMode),
             track.albumArtUri,
             AppLanguage.text(languageMode, "lyrics"),
             lyricsStatus,

@@ -89,6 +89,7 @@ public final class EchoPlaybackService extends MediaSessionService {
     private static final int STREAMING_BACK_BUFFER_MS = 30000;
     private static final long AUDIO_CACHE_MAX_BYTES = 1024L * 1024L * 1024L;
     private static final float WAVEFORM_PROGRESS_STEP = 0.015f;
+    private static final int WAVEFORM_BAR_COUNT = 96;
     private final LocalBinder binder = new LocalBinder();
     private final CopyOnWriteArrayList<Track> queue = new CopyOnWriteArrayList<>();
     private final Set<PlaybackStateListener> listeners = new CopyOnWriteArraySet<>();
@@ -123,6 +124,7 @@ public final class EchoPlaybackService extends MediaSessionService {
     private String waveformTrackKey = "";
     private String waveformGeneratingKey = "";
     private float waveformGeneratedProgress;
+    private int waveformGeneratedBarCount;
     private PlaybackWaveformSnapshot waveformSnapshot = PlaybackWaveformSnapshot.empty();
     private String errorMessage = "";
     private Track lastMarkedTrack;
@@ -241,6 +243,29 @@ public final class EchoPlaybackService extends MediaSessionService {
             @Override
             public void seekTo(long positionMs) {
                 EchoPlaybackService.this.seekTo(positionMs);
+            }
+
+            @Override
+            public boolean isCommandAvailable(int command) {
+                if (isAppQueueNavigationCommand(command)) {
+                    return true;
+                }
+                return super.isCommandAvailable(command);
+            }
+
+            @Override
+            public Player.Commands getAvailableCommands() {
+                return new Player.Commands.Builder()
+                        .addAll(super.getAvailableCommands())
+                        .addAll(
+                                Player.COMMAND_SEEK_TO_PREVIOUS,
+                                Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+                                Player.COMMAND_SEEK_TO_PREVIOUS_WINDOW,
+                                Player.COMMAND_SEEK_TO_NEXT,
+                                Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+                                Player.COMMAND_SEEK_TO_NEXT_WINDOW
+                        )
+                        .build();
             }
 
             @Override
@@ -1077,6 +1102,15 @@ public final class EchoPlaybackService extends MediaSessionService {
         return appRepeatMode == REPEAT_ONE ? Player.REPEAT_MODE_ONE : Player.REPEAT_MODE_OFF;
     }
 
+    static boolean isAppQueueNavigationCommand(int command) {
+        return command == Player.COMMAND_SEEK_TO_PREVIOUS
+                || command == Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM
+                || command == Player.COMMAND_SEEK_TO_PREVIOUS_WINDOW
+                || command == Player.COMMAND_SEEK_TO_NEXT
+                || command == Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM
+                || command == Player.COMMAND_SEEK_TO_NEXT_WINDOW;
+    }
+
     private void createPlayerIfNeeded() {
         if (player != null) {
             return;
@@ -1357,6 +1391,7 @@ public final class EchoPlaybackService extends MediaSessionService {
         waveformTrackKey = key;
         waveformGeneratingKey = "";
         waveformGeneratedProgress = 0.0f;
+        waveformGeneratedBarCount = 0;
         waveformSnapshot = PlaybackWaveformSnapshot.empty();
     }
 
@@ -1365,14 +1400,24 @@ public final class EchoPlaybackService extends MediaSessionService {
         if (cacheKey == null || cacheKey.isEmpty() || cachedProgress <= 0.005f) {
             return;
         }
-        if (cachedProgress - waveformGeneratedProgress < WAVEFORM_PROGRESS_STEP && waveformSnapshot.hasBars()) {
+        int targetGeneratedBars = Math.max(1, Math.min(
+                WAVEFORM_BAR_COUNT,
+                (int) Math.ceil(WAVEFORM_BAR_COUNT * Math.min(1.0f, cachedProgress))
+        ));
+        int currentGeneratedBars = Math.max(waveformGeneratedBarCount, waveformSnapshot.generatedBars);
+        if (targetGeneratedBars <= currentGeneratedBars && waveformSnapshot.hasBars()) {
+            return;
+        }
+        if (cachedProgress - waveformGeneratedProgress < WAVEFORM_PROGRESS_STEP
+                && targetGeneratedBars <= currentGeneratedBars + 1
+                && waveformSnapshot.hasBars()) {
             return;
         }
         long cachedBytes = continuousCachedBytes(cacheKey);
         if (cachedBytes <= 0L) {
             return;
         }
-        final String taskKey = waveformKey(track) + "|" + ((int) (cachedProgress * 1000f));
+        final String taskKey = waveformKey(track) + "|" + targetGeneratedBars;
         if (taskKey.equals(waveformGeneratingKey)) {
             return;
         }
@@ -1403,6 +1448,7 @@ public final class EchoPlaybackService extends MediaSessionService {
                 }
                 waveformGeneratingKey = "";
                 waveformGeneratedProgress = waveformCachedProgress;
+                waveformGeneratedBarCount = Math.max(waveformGeneratedBarCount, targetGeneratedBars);
                 waveformSnapshot = PlaybackWaveformMergePolicy.merge(
                         waveformSnapshot,
                         generated,

@@ -117,7 +117,7 @@ public final class DocumentMusicImporter {
                 uri,
                 "document:" + uri.toString(),
                 0L,
-                null
+                EmbeddedArtwork.uriIfEmbeddedPicture(context, uri)
         );
         return audioSpecParser.enrich(track);
     }

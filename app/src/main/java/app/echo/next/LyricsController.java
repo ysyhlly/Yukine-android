@@ -14,9 +14,14 @@ final class LyricsController {
         void onLyricsChanged();
     }
 
+    interface LanguageProvider {
+        String languageMode();
+    }
+
     private final MainExecutors executors;
     private final Handler mainHandler;
     private final LyricsRepository repository;
+    private final LanguageProvider languageProvider;
     private final Listener listener;
     private final ArrayList<LyricsLine> lines = new ArrayList<>();
 
@@ -24,18 +29,21 @@ final class LyricsController {
     private long requestToken;
     private boolean onlineEnabled;
     private long offsetMs;
-    private String status = "Lyrics not loaded";
+    private StatusKind statusKind = StatusKind.NOT_LOADED;
+    private int loadedLineCount;
 
     LyricsController(
             MainExecutors executors,
             Handler mainHandler,
             boolean onlineEnabled,
             long offsetMs,
+            LanguageProvider languageProvider,
             Listener listener
     ) {
         this.executors = executors;
         this.mainHandler = mainHandler;
         this.repository = new LyricsRepository();
+        this.languageProvider = languageProvider;
         this.onlineEnabled = onlineEnabled;
         this.offsetMs = offsetMs;
         this.listener = listener;
@@ -50,7 +58,7 @@ final class LyricsController {
     }
 
     String status() {
-        return status;
+        return statusText();
     }
 
     boolean onlineEnabled() {
@@ -76,12 +84,19 @@ final class LyricsController {
     }
 
     void load(final Track track) {
+        load(track, "");
+    }
+
+    void load(final Track track, final String neteaseProviderTrackId) {
         final long token = ++requestToken;
         trackId = track == null ? -1L : track.id;
         lines.clear();
-        status = track == null
-                ? "No track selected"
-                : (onlineEnabled ? "Loading lyrics" : "Loading local lyrics");
+        loadedLineCount = 0;
+        statusKind = track == null
+                ? StatusKind.NO_TRACK
+                : (onlineEnabled || (neteaseProviderTrackId != null && !neteaseProviderTrackId.trim().isEmpty())
+                        ? StatusKind.LOADING
+                        : StatusKind.LOADING_LOCAL);
         notifyChanged();
         if (track == null) {
             return;
@@ -92,7 +107,11 @@ final class LyricsController {
         executors.lyrics(new Runnable() {
             @Override
             public void run() {
-                final List<LyricsLine> loadedLines = repository.loadForTrack(track, requestOnline);
+                final List<LyricsLine> loadedLines = repository.loadForTrack(
+                        track,
+                        requestOnline,
+                        neteaseProviderTrackId
+                );
                 mainHandler.post(new Runnable() {
                     @Override
                     public void run() {
@@ -101,9 +120,10 @@ final class LyricsController {
                         }
                         lines.clear();
                         lines.addAll(loadedLines);
-                        status = loadedLines.isEmpty()
-                                ? (requestOnline ? "No lyrics found" : "No local lyrics found")
-                                : "Loaded lyrics: " + loadedLines.size() + " lines";
+                        loadedLineCount = loadedLines.size();
+                        statusKind = loadedLines.isEmpty()
+                                ? (requestOnline ? StatusKind.NOT_FOUND : StatusKind.LOCAL_NOT_FOUND)
+                                : StatusKind.LOADED;
                         notifyChanged();
                     }
                 });
@@ -115,5 +135,38 @@ final class LyricsController {
         if (listener != null) {
             listener.onLyricsChanged();
         }
+    }
+
+    private String statusText() {
+        String languageMode = languageProvider == null ? AppLanguage.MODE_SYSTEM : languageProvider.languageMode();
+        switch (statusKind) {
+            case NO_TRACK:
+                return AppLanguage.text(languageMode, "no.track.selected");
+            case LOADING:
+                return AppLanguage.text(languageMode, "loading.lyrics");
+            case LOADING_LOCAL:
+                return AppLanguage.text(languageMode, "loading.local.lyrics");
+            case NOT_FOUND:
+                return AppLanguage.text(languageMode, "no.lyrics.found");
+            case LOCAL_NOT_FOUND:
+                return AppLanguage.text(languageMode, "no.local.lyrics.found");
+            case LOADED:
+                return AppLanguage.text(languageMode, "loaded.lyrics.prefix")
+                        + loadedLineCount
+                        + AppLanguage.text(languageMode, "loaded.lyrics.suffix");
+            case NOT_LOADED:
+            default:
+                return AppLanguage.text(languageMode, "lyrics.not.loaded");
+        }
+    }
+
+    private enum StatusKind {
+        NOT_LOADED,
+        NO_TRACK,
+        LOADING,
+        LOADING_LOCAL,
+        NOT_FOUND,
+        LOCAL_NOT_FOUND,
+        LOADED
     }
 }

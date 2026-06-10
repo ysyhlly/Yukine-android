@@ -38,6 +38,7 @@ data class CollectionTrackSectionUiState(
     val key: String,
     val title: String,
     val emptyText: String,
+    val emptyDescription: String,
     val playActionLabel: String,
     val rows: List<TrackRowUiState>
 )
@@ -49,15 +50,18 @@ data class CollectionTrackSectionActions(
 
 data class CollectionsUiState(
     val title: String,
+    val backLabel: String = "",
     val metrics: List<CollectionMetricUiState>,
     val topActions: List<CollectionActionUiState>,
     val trackSections: List<CollectionTrackSectionUiState>,
     val playlistTitle: String,
     val playlistEmptyText: String,
+    val playlistEmptyDescription: String,
     val playlists: List<PlaylistRowUiState>,
     val selectedPlaylistVisible: Boolean,
     val selectedPlaylistTitle: String,
     val selectedPlaylistEmptyText: String,
+    val selectedPlaylistEmptyDescription: String,
     val selectedPlaylistTopActions: List<CollectionActionUiState>,
     val selectedPlaylistTracks: List<PlaylistTrackUiState>,
     val favoriteLabel: String = "Favorite",
@@ -71,6 +75,7 @@ data class CollectionsUiState(
 )
 
 data class CollectionsActions(
+    val onBack: Runnable?,
     val topActions: List<Runnable>,
     val trackSections: List<CollectionTrackSectionActions>,
     val playlistActions: List<PlaylistRowActions>,
@@ -101,7 +106,11 @@ private fun CollectionsScreen(state: CollectionsUiState, actions: CollectionsAct
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
     ) {
         item(key = "page-title") {
-            EchoPageTitle(state.title.ifBlank { "Collections" })
+            EchoPageTitle(
+                state.title.ifBlank { "Collections" },
+                backLabel = state.backLabel,
+                onBack = if (state.selectedPlaylistVisible) actions.onBack else null
+            )
         }
         if (state.metrics.isNotEmpty()) {
             item(key = "overview-title") {
@@ -121,7 +130,7 @@ private fun CollectionsScreen(state: CollectionsUiState, actions: CollectionsAct
             }
             if (section.rows.isEmpty()) {
                 item(key = "section-empty:${section.key}") {
-                    MessageRow(section.emptyText)
+                    MessageRow(section.emptyText, section.emptyDescription)
                 }
             } else {
                 item(key = "section-action:${section.key}") {
@@ -146,7 +155,7 @@ private fun CollectionsScreen(state: CollectionsUiState, actions: CollectionsAct
         }
         if (state.playlists.isEmpty()) {
             item(key = "playlists-empty") {
-                MessageRow(state.playlistEmptyText)
+                MessageRow(state.playlistEmptyText, state.playlistEmptyDescription, EchoIconKind.Collections)
             }
         } else {
             itemsIndexed(
@@ -165,7 +174,7 @@ private fun CollectionsScreen(state: CollectionsUiState, actions: CollectionsAct
             }
             if (state.selectedPlaylistTracks.isEmpty()) {
                 item(key = "selected-playlist-empty") {
-                    MessageRow(state.selectedPlaylistEmptyText)
+                    MessageRow(state.selectedPlaylistEmptyText, state.selectedPlaylistEmptyDescription, EchoIconKind.Queue)
                 }
             } else {
                 itemsIndexed(
@@ -249,8 +258,8 @@ private fun SectionTitle(title: String) {
 }
 
 @Composable
-private fun MessageRow(message: String) {
-    EchoEmptyCard(message)
+private fun MessageRow(message: String, description: String, icon: EchoIconKind = EchoIconKind.Library) {
+    EchoStateCard(message, description, icon = icon)
 }
 
 @Composable
@@ -268,6 +277,8 @@ private fun CollectionTrackRow(track: TrackRowUiState, actions: TrackRowActions,
         color = if (track.current) bg else Color.Transparent
     ) {
         Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            TrackCurrentIndicator(track.current, height = 46.dp)
+            Spacer(Modifier.width(7.dp))
             AsyncArtwork(
                 uri = track.albumArtUri,
                 title = track.title,
@@ -339,6 +350,8 @@ private fun CollectionPlaylistTrackRow(track: PlaylistTrackUiState, actions: Pla
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                TrackCurrentIndicator(track.current, height = 46.dp)
+                Spacer(Modifier.width(7.dp))
                 AsyncArtwork(
                     uri = track.albumArtUri,
                     title = track.title,

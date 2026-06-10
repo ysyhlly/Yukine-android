@@ -82,6 +82,7 @@ public final class MainActivity extends ComponentActivity {
     private MainLibraryStore libraryStore;
     private MainSettingsStore settingsStore;
     private MainPlaybackStore playbackStore;
+    private StatusMessageController statusMessageController;
     private MainPermissionController permissionController;
     private MainUiShellController uiShellController;
     private DocumentPickerController documentPickerController;
@@ -194,6 +195,7 @@ public final class MainActivity extends ComponentActivity {
                 () -> settingsStore == null
                         ? StreamingQualityPreference.defaultValue()
                         : settingsStore.streamingAudioQuality(),
+                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 streamingResolvedPlaybackController
         );
         streamingAuthCallbackController = new StreamingAuthCallbackController(streamingActionsController);
@@ -201,6 +203,17 @@ public final class MainActivity extends ComponentActivity {
         routeController = new MainRouteController(viewModel);
         statePublisher = new MainStatePublisher(viewModel);
         playbackStore = new MainPlaybackStore(viewModel);
+        statusMessageController = new StatusMessageController(new StatusMessageController.Host() {
+            @Override
+            public String languageMode() {
+                return settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode();
+            }
+
+            @Override
+            public void updateStatus(String message) {
+                uiShellController.updateStatus(message);
+            }
+        });
         permissionController = new MainPermissionController(this, new MainPermissionController.Listener() {
             @Override
             public void onAudioPermissionResult() {
@@ -258,6 +271,14 @@ public final class MainActivity extends ComponentActivity {
                 Track track = playbackStore.snapshot().currentTrack;
                 if (track != null) {
                     toggleFavorite(track);
+                }
+            }
+
+            @Override
+            public void onAddCurrentToPlaylist() {
+                Track track = playbackStore.snapshot().currentTrack;
+                if (track != null) {
+                    showAddToPlaylistDialog(track);
                 }
             }
 
@@ -607,6 +628,11 @@ public final class MainActivity extends ComponentActivity {
             }
 
             @Override
+            public void requestBack() {
+                MainActivity.this.handleAppBack();
+            }
+
+            @Override
             public void publishQueue(ArrayList<QueueTrackUiState> rows) {
                 MainActivity.this.publishQueueUiState(rows);
             }
@@ -728,7 +754,12 @@ public final class MainActivity extends ComponentActivity {
                     }
                 }
         );
-        streamingSearchRenderController = new StreamingSearchRenderController(this, viewModel, streamingSearchEventController);
+        streamingSearchRenderController = new StreamingSearchRenderController(
+                this,
+                viewModel,
+                () -> settingsStore.languageMode(),
+                streamingSearchEventController
+        );
         libraryGroupsRenderController = new LibraryGroupsRenderController(this, viewModel, new LibraryGroupsRenderController.Listener() {
             @Override
             public void selectLibraryGroup(String key, String title) {
@@ -786,6 +817,11 @@ public final class MainActivity extends ComponentActivity {
             @Override
             public void confirmClearPlayHistory() {
                 MainActivity.this.confirmClearPlayHistory();
+            }
+
+            @Override
+            public void requestBack() {
+                MainActivity.this.handleAppBack();
             }
 
             @Override
@@ -1183,7 +1219,7 @@ public final class MainActivity extends ComponentActivity {
 
                     @Override
                     public void onRemoteSourceTested(String status) {
-                        setStatus(localizeStatus(status));
+                        setStatus(status);
                         loadCollections();
                     }
 
@@ -1220,6 +1256,12 @@ public final class MainActivity extends ComponentActivity {
                 mainHandler,
                 loadedOnlineLyricsEnabled,
                 loadedLyricsOffsetMs,
+                new LyricsController.LanguageProvider() {
+                    @Override
+                    public String languageMode() {
+                        return settingsStore.languageMode();
+                    }
+                },
                 new LyricsController.Listener() {
                     @Override
                     public void onLyricsChanged() {
@@ -1229,6 +1271,7 @@ public final class MainActivity extends ComponentActivity {
         );
         SettingsPageEventController settingsPageEventController = new SettingsPageEventController(
                 page -> MainActivity.this.navigateSettingsPage(page),
+                () -> MainActivity.this.navigateToNetworkTabPage(NETWORK_HOME),
                 () -> MainActivity.this.loadLibrary(false),
                 new SettingsPageEventController.AudioPicker() {
                     @Override
@@ -1629,7 +1672,10 @@ public final class MainActivity extends ComponentActivity {
 
     private void loadLibrary(final boolean allowCachedFirst) {
         final boolean canScan = permissionController.hasAudioPermission();
-        setStatus(canScan ? "Loading library" : "Audio permission required");
+        setStatus(AppLanguage.text(
+                settingsStore.languageMode(),
+                canScan ? "loading.library" : "audio.permission.required"
+        ));
         libraryActionsController.loadLibrary(allowCachedFirst, canScan);
     }
 
@@ -1651,15 +1697,15 @@ public final class MainActivity extends ComponentActivity {
 
     private void importSelectedAudioUris(final List<Uri> uris) {
         if (uris.isEmpty()) {
-            setStatus("Status");
+            setStatus(AppLanguage.text(settingsStore.languageMode(), "no.audio.files.selected"));
             return;
         }
-        setStatus("Status");
+        setStatus(AppLanguage.text(settingsStore.languageMode(), "importing.audio.files"));
         libraryActionsController.importAudioUris(uris);
     }
 
     private void importSelectedAudioFolder(final Uri treeUri) {
-        setStatus("Status");
+        setStatus(AppLanguage.text(settingsStore.languageMode(), "importing.audio.folder"));
         libraryActionsController.importAudioTree(treeUri);
     }
 
@@ -1676,7 +1722,7 @@ public final class MainActivity extends ComponentActivity {
     private void replaceLibrary(List<Track> tracks, Set<Long> favorites, String status) {
         libraryStore.replaceLibrary(tracks, favorites, searchQuery());
         renderAndPersistSelectedTab();
-        setStatus(localizeStatus(status));
+        setStatus(status);
         loadCollections();
         if (libraryActionsController != null) {
             libraryActionsController.parseMissingAudioSpecs();
@@ -1698,11 +1744,37 @@ public final class MainActivity extends ComponentActivity {
 
     private void loadLyrics(final Track track) {
         if (lyricsController != null) {
-            lyricsController.load(track);
+            lyricsController.load(track, neteaseProviderTrackIdForLyrics(track));
         }
     }
 
+    private void ensureLyricsLoaded(final Track track) {
+        if (lyricsController != null && track != null && lyricsController.trackId() != track.id) {
+            lyricsController.load(track, neteaseProviderTrackIdForLyrics(track));
+        }
+    }
+
+    private String neteaseProviderTrackIdForLyrics(Track track) {
+        if (track == null || repository == null) {
+            return "";
+        }
+        app.echo.next.streaming.StreamingProviderName provider =
+                app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.providerName(track.dataPath);
+        if (provider == app.echo.next.streaming.StreamingProviderName.NETEASE) {
+            String directTrackId = app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.providerTrackId(track.dataPath);
+            if (directTrackId != null && !directTrackId.trim().isEmpty()) {
+                return directTrackId.trim();
+            }
+        }
+        String savedTrackId = repository.loadStreamingTrackMatch(
+                track,
+                app.echo.next.streaming.StreamingProviderName.NETEASE.getWireName()
+        );
+        return savedTrackId == null ? "" : savedTrackId.trim();
+    }
+
     private void onLyricsStateChanged() {
+        renderNowBar();
         if (TAB_NOW.equals(selectedTab())) {
             if (!updateNowPlayingContent()) {
                 renderSelectedTab();
@@ -1887,12 +1959,19 @@ public final class MainActivity extends ComponentActivity {
         addVirtualContent(StateScreenFactory.create(this, message, actions));
     }
 
+    private void addStateContent(String title, String description, List<StateScreenAction> actions) {
+        addVirtualContent(StateScreenFactory.create(this, title, description, actions));
+    }
+
     private void updateTabBar() {
         uiShellController.updateTabBar(selectedTab());
     }
 
     private void setStatus(String status) {
-        uiShellController.updateStatus(status);
+        if (statusMessageController == null || uiShellController == null) {
+            return;
+        }
+        statusMessageController.setStatus(status);
     }
 
     private void updateHeaderMode() {
@@ -1928,11 +2007,32 @@ public final class MainActivity extends ComponentActivity {
                     permissionController.requestNeededPermissions();
                 }
             }));
-            addStateContent(AppLanguage.text(settingsStore.languageMode(), "audio.permission.required"), actions);
+            addStateContent(
+                    AppLanguage.text(settingsStore.languageMode(), "audio.permission.required"),
+                    AppLanguage.text(settingsStore.languageMode(), "audio.permission.description"),
+                    actions
+            );
             return;
         }
         if (libraryStore.visibleTracks().isEmpty() && !LIBRARY_PLAYLISTS.equals(libraryMode())) {
-            addStateContent(AppLanguage.text(settingsStore.languageMode(), "no.music"));
+            ArrayList<StateScreenAction> actions = new ArrayList<>();
+            actions.add(new StateScreenAction(AppLanguage.text(settingsStore.languageMode(), "scan.library"), new Runnable() {
+                @Override
+                public void run() {
+                    loadLibrary(false);
+                }
+            }));
+            actions.add(new StateScreenAction(AppLanguage.text(settingsStore.languageMode(), "import.audio.files"), new Runnable() {
+                @Override
+                public void run() {
+                    openAudioFilePicker();
+                }
+            }));
+            addStateContent(
+                    AppLanguage.text(settingsStore.languageMode(), "no.music"),
+                    AppLanguage.text(settingsStore.languageMode(), "no.music.description"),
+                    actions
+            );
             return;
         }
         if (LIBRARY_PLAYLISTS.equals(libraryMode())) {
@@ -2038,12 +2138,13 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private ArrayList<TrackListModeAction> libraryModeActions() {
+        String languageMode = settingsStore.languageMode();
         ArrayList<TrackListModeAction> modes = new ArrayList<>();
-        addLibraryModeAction(modes, "歌曲", LIBRARY_SONGS);
-        addLibraryModeAction(modes, "专辑", LIBRARY_ALBUMS);
-        addLibraryModeAction(modes, "艺人", LIBRARY_ARTISTS);
-        addLibraryModeAction(modes, "文件夹", LIBRARY_FOLDERS);
-        addLibraryModeAction(modes, "歌单", LIBRARY_PLAYLISTS);
+        addLibraryModeAction(modes, AppLanguage.text(languageMode, "songs"), LIBRARY_SONGS);
+        addLibraryModeAction(modes, AppLanguage.text(languageMode, "albums"), LIBRARY_ALBUMS);
+        addLibraryModeAction(modes, AppLanguage.text(languageMode, "artists"), LIBRARY_ARTISTS);
+        addLibraryModeAction(modes, AppLanguage.text(languageMode, "folders"), LIBRARY_FOLDERS);
+        addLibraryModeAction(modes, AppLanguage.text(languageMode, "playlists"), LIBRARY_PLAYLISTS);
         return modes;
     }
 
@@ -2062,6 +2163,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void renderLibraryPlaylists() {
+        String languageMode = settingsStore.languageMode();
         ArrayList<Playlist> playlists = libraryStore.playlists();
         if (selectedPlaylistId() >= 0L && selectedLibraryGroupKey().startsWith("playlist:")) {
             renderLibraryPlaylistTracks();
@@ -2073,7 +2175,7 @@ public final class MainActivity extends ComponentActivity {
             rows.add(new LibraryGroupUiState(
                     "playlist:" + playlist.id,
                     playlist.name,
-                    playlist.trackCount + " 首歌曲"
+                    CollectionRowStateFactory.trackCountLabel(playlist.trackCount, languageMode)
             ));
             actions.add(new LibraryGroupActions(
                     new Runnable() {
@@ -2093,22 +2195,23 @@ public final class MainActivity extends ComponentActivity {
                     playlist.trackCount > 0
             ));
         }
-        publishLibraryGroupsUiState("歌单", rows);
+        publishLibraryGroupsUiState(AppLanguage.text(languageMode, "playlists"), rows);
         addVirtualContent(app.echo.next.ui.LibraryGroupsScreenFactory.create(
                 this,
                 viewModel.getLibraryGroups(),
                 actions,
-                "暂无歌单",
+                AppLanguage.text(languageMode, "no.playlists"),
                 libraryModeActions()
         ));
     }
 
     private void renderLibraryPlaylistTracks() {
+        String languageMode = settingsStore.languageMode();
         ArrayList<Track> tracks = libraryStore.selectedPlaylistTracks();
         ArrayList<TrackListHeaderMetric> headerMetrics = new ArrayList<>();
-        headerMetrics.add(new TrackListHeaderMetric("歌曲", String.valueOf(tracks.size())));
+        headerMetrics.add(new TrackListHeaderMetric(AppLanguage.text(languageMode, "songs"), String.valueOf(tracks.size())));
         ArrayList<TrackListHeaderAction> headerActions = new ArrayList<>();
-        headerActions.add(new TrackListHeaderAction("返回歌单", new Runnable() {
+        headerActions.add(new TrackListHeaderAction(AppLanguage.text(languageMode, "back.to.playlists"), new Runnable() {
             @Override
             public void run() {
                 routeController.clearLibraryGroup();
@@ -2117,7 +2220,7 @@ public final class MainActivity extends ComponentActivity {
             }
         }));
         if (!tracks.isEmpty()) {
-            headerActions.add(new TrackListHeaderAction("播放歌单", new Runnable() {
+            headerActions.add(new TrackListHeaderAction(AppLanguage.text(languageMode, "play.playlist"), new Runnable() {
                 @Override
                 public void run() {
                     playTrackList(tracks, 0);
@@ -2132,7 +2235,7 @@ public final class MainActivity extends ComponentActivity {
                 false,
                 headerMetrics,
                 headerActions,
-                "此歌单暂无歌曲",
+                AppLanguage.text(languageMode, "no.tracks.in.playlist"),
                 libraryModeActions()
         );
     }
@@ -2148,7 +2251,7 @@ public final class MainActivity extends ComponentActivity {
                         if (!tracks.isEmpty()) {
                             playTrackList(tracks, 0);
                         } else {
-                            setStatus("此歌单暂无歌曲");
+                            setStatus(AppLanguage.text(settingsStore.languageMode(), "no.tracks.in.playlist"));
                         }
                     }
                 });
@@ -2240,7 +2343,18 @@ public final class MainActivity extends ComponentActivity {
 
     private void renderQueue() {
         if (playbackService == null) {
-            addStateContent("Message");
+            ArrayList<StateScreenAction> actions = new ArrayList<>();
+            actions.add(new StateScreenAction(AppLanguage.text(settingsStore.languageMode(), "tab.library"), new Runnable() {
+                @Override
+                public void run() {
+                    navigateToTab(TAB_LIBRARY, true, true);
+                }
+            }));
+            addStateContent(
+                    AppLanguage.text(settingsStore.languageMode(), "playback.service.unavailable"),
+                    AppLanguage.text(settingsStore.languageMode(), "playback.service.unavailable.description"),
+                    actions
+            );
             return;
         }
         queueRenderController.render(
@@ -2480,7 +2594,7 @@ public final class MainActivity extends ComponentActivity {
         if (provider == app.echo.next.streaming.StreamingProviderName.MOCK
                 || provider == app.echo.next.streaming.StreamingProviderName.M3U8
                 || provider == app.echo.next.streaming.StreamingProviderName.PLUGIN) {
-            setStatus("请先选择要登录的流媒体音源");
+            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.choose.login.provider"));
             return;
         }
         final android.widget.EditText input = new android.widget.EditText(this);
@@ -2496,7 +2610,7 @@ public final class MainActivity extends ComponentActivity {
         int pad = Math.round(12 * getResources().getDisplayMetrics().density);
         input.setPadding(pad, pad, pad, pad);
         EchoDialog.builder(this)
-                .setTitle("手动填写 Cookie")
+                .setTitle(AppLanguage.text(settingsStore.languageMode(), "streaming.manual.cookie"))
                 .setView(input)
                 .setNegativeButton(AppLanguage.text(settingsStore.languageMode(), "cancel"), null)
                 .setPositiveButton(AppLanguage.text(settingsStore.languageMode(), "ok"), (dialog, which) ->
@@ -2510,14 +2624,14 @@ public final class MainActivity extends ComponentActivity {
     ) {
         String cookie = cookieHeader == null ? "" : cookieHeader.trim();
         if (cookie.isEmpty()) {
-            setStatus("Cookie 为空");
+            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.cookie.empty"));
             return;
         }
         String callbackUri = STREAMING_AUTH_REDIRECT_URI
                 + "?provider=" + provider.getWireName()
                 + "&manualCookie=1";
         viewModel.completeStreamingAuth(provider, callbackUri, cookie, loggedInProvider -> {
-            setStatus("Cookie 已保存");
+            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.cookie.saved"));
             onStreamingLoginSuccess(loggedInProvider);
         });
     }
@@ -3320,7 +3434,8 @@ public final class MainActivity extends ComponentActivity {
 
     private void reloadCurrentLyrics() {
         if (lyricsController != null) {
-            lyricsController.reload(playbackStore.snapshot().currentTrack);
+            Track track = playbackStore.snapshot().currentTrack;
+            lyricsController.load(track, neteaseProviderTrackIdForLyrics(track));
         }
         setStatus(playbackStore.snapshot().currentTrack == null
                 ? AppLanguage.text(settingsStore.languageMode(), "no.track.selected")
@@ -3331,36 +3446,6 @@ public final class MainActivity extends ComponentActivity {
         return libraryStore.remoteSourceName(sourceId);
     }
 
-    private String localizeStatus(String status) {
-        if (status == null || status.trim().isEmpty()) {
-            return "";
-        }
-        String value = status.trim();
-        String languageMode = settingsStore.languageMode();
-        if (value.equals("Status")) {
-            return AppLanguage.text(languageMode, "status");
-        }
-        if (value.equals("Loading library")) {
-            return AppLanguage.text(languageMode, "loading.library");
-        }
-        if (value.equals("Audio permission required")) {
-            return AppLanguage.text(languageMode, "audio.permission.required");
-        }
-        if (value.equals("No tracks to play")) {
-            return AppLanguage.text(languageMode, "no.tracks.to.play");
-        }
-        if (value.equals("Queue is not connected")) {
-            return AppLanguage.text(languageMode, "queue.not.connected");
-        }
-        if (value.equals("Playback service is not connected")) {
-            return AppLanguage.text(languageMode, "playback.service.not.connected");
-        }
-        if (value.startsWith("Status: ")) {
-            return AppLanguage.text(languageMode, "status") + ": " + value.substring("Status: ".length());
-        }
-        return value;
-    }
-
     private void renderNowBar() {
         if (uiShellController == null || playbackStore == null || libraryStore == null) {
             return;
@@ -3369,6 +3454,7 @@ public final class MainActivity extends ComponentActivity {
                 NowBarStateFactory.create(
                         playbackStore.snapshot(),
                         libraryStore.favoriteIds(),
+                        lyricsController,
                         settingsStore.languageMode()
                 )
         );
@@ -3382,10 +3468,12 @@ public final class MainActivity extends ComponentActivity {
         if (snapshot == null || !snapshot.hasTrack()) {
             return;
         }
+        ensureLyricsLoaded(snapshot.currentTrack);
         uiShellController.showNowPlayingOverlay(
                 NowBarStateFactory.create(
                         snapshot,
                         libraryStore.favoriteIds(),
+                        lyricsController,
                         settingsStore.languageMode()
                 )
         );
@@ -3793,7 +3881,7 @@ public final class MainActivity extends ComponentActivity {
             playbackStore.replaceSnapshot(result.snapshot);
         }
         if (result.status != null && !result.status.trim().isEmpty()) {
-            setStatus(localizeStatus(result.status));
+            setStatus(result.status);
         }
         if (result.publishPlaybackState) {
             publishPlaybackState();

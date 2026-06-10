@@ -2,6 +2,7 @@ package app.echo.next.ui
 
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,7 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 data class SettingsMetric(val label: String, val value: String)
-data class SettingsAction(val label: String, val onClick: Runnable)
+data class SettingsAction(val label: String, val onClick: Runnable, val description: String = "")
 
 class SettingsListScrollState(
     var firstVisibleItemIndex: Int = 0,
@@ -98,6 +99,8 @@ private fun SettingsScreen(
     actions: List<SettingsAction>,
     scrollState: SettingsListScrollState
 ) {
+    val titleBackAction = actions.firstOrNull { isBackAction(it.label) }
+    val visibleActions = if (titleBackAction != null) actions.drop(1) else actions
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = scrollState.firstVisibleItemIndex.coerceAtLeast(0),
         initialFirstVisibleItemScrollOffset = scrollState.firstVisibleItemScrollOffset.coerceAtLeast(0)
@@ -114,10 +117,14 @@ private fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
     ) {
         item(key = "title") {
-            EchoPageTitle(title)
+            EchoPageTitle(
+                title,
+                backLabel = titleBackAction?.label,
+                onBack = titleBackAction?.onClick
+            )
         }
         itemsIndexed(
-            items = actions,
+            items = visibleActions,
             key = { index, action -> "action:${action.label}:$index" }
         ) { _, action ->
             SettingsActionButton(action) {
@@ -125,7 +132,7 @@ private fun SettingsScreen(
                 action.onClick.run()
             }
         }
-        if (actions.isNotEmpty() && metrics.isNotEmpty()) {
+        if (visibleActions.isNotEmpty() && metrics.isNotEmpty()) {
             item(key = "metrics-spacer") {
                 Spacer(Modifier.height(6.dp))
             }
@@ -161,14 +168,27 @@ private fun SettingsActionButton(action: SettingsAction, onClick: () -> Unit) {
                 color = p.accent
             )
             Spacer(Modifier.width(12.dp))
-            Text(
-                action.label,
-                style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = p.text,
+            Column(
                 modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    action.label,
+                    style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = p.text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (action.description.isNotBlank()) {
+                    Text(
+                        action.description,
+                        style = EchoTypography.caption,
+                        color = p.muted,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
             EchoIcon(EchoIconKind.ChevronRight, Modifier.size(16.dp), p.muted)
         }
     }
@@ -211,6 +231,9 @@ private fun SettingsMetricRow(metric: SettingsMetric) {
 
 private fun iconForAction(label: String): EchoIconKind {
     fun has(vararg keys: String) = keys.any { label.contains(it, ignoreCase = true) }
+    if (isBackAction(label)) {
+        return EchoIconKind.Back
+    }
     return when {
         // Navigation (startsWith avoids matching "playback")
         label.startsWith("Back", ignoreCase = true) || label.contains("返回") -> EchoIconKind.Back
@@ -243,3 +266,8 @@ private fun iconForAction(label: String): EchoIconKind {
         else -> EchoIconKind.Action
     }
 }
+
+private fun isBackAction(label: String): Boolean =
+    label.startsWith("Back", ignoreCase = true) ||
+        label.contains("\u8fd4\u56de") ||
+        label.contains("杩斿洖")

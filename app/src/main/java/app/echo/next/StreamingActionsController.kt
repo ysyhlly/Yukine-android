@@ -37,10 +37,15 @@ internal class StreamingActionsController(
     private val viewModel: MainActivityViewModel,
     private val redirectUriBase: String,
     private val qualitySource: QualitySource,
+    private val languageSource: LanguageSource,
     private val listener: Listener
 ) : StreamingSearchActionHandler, StreamingAuthCallbackHandler {
     fun interface QualitySource {
         fun streamingAudioQuality(): String
+    }
+
+    fun interface LanguageSource {
+        fun languageMode(): String
     }
 
     interface Listener {
@@ -58,12 +63,12 @@ internal class StreamingActionsController(
         val descriptor = descriptorFor(provider)
         val capability = capabilityFor(provider)
         if (descriptor != null && !(capability?.supportsSearch ?: StreamingCapabilityResolver.canSearch(descriptor))) {
-            viewModel.failStreamingRequest("${descriptor.displayName} 暂不可搜索")
+            viewModel.failStreamingRequest(sourceMessage(descriptor, "streaming.search.unavailable"))
             return
         }
         val mediaTypes = capability?.supportedSearchMediaTypes ?: StreamingCapabilityResolver.supportedSearchMediaTypes(descriptor)
         if (descriptor != null && mediaTypes.isEmpty()) {
-            viewModel.failStreamingRequest("${descriptor.displayName} 暂无可搜索类型")
+            viewModel.failStreamingRequest(sourceMessage(descriptor, "streaming.search.types.unavailable"))
             return
         }
         viewModel.searchStreaming(
@@ -79,15 +84,13 @@ internal class StreamingActionsController(
         val descriptor = descriptorFor(provider)
         val capability = capabilityFor(provider)
         if (descriptor != null && !(capability?.supportsAuth ?: StreamingCapabilityResolver.canAuth(descriptor))) {
-            viewModel.failStreamingRequest("${descriptor.displayName} 暂不支持登录")
+            viewModel.failStreamingRequest(sourceMessage(descriptor, "streaming.auth.unsupported"))
             return
         }
         viewModel.startStreamingAuth(
             provider = provider,
             redirectUri = "$redirectUriBase?provider=${provider.wireName}",
             onLaunchReady = {
-                // Auto-open the login flow as soon as the gateway (or local fallback) responds with
-                // a launch URL — saves the user a second tap.
                 openAuthLaunch()
             }
         )
@@ -112,18 +115,12 @@ internal class StreamingActionsController(
         val descriptor = descriptorFor(track.provider)
         val capability = capabilityFor(track.provider)
         if (descriptor != null && !(capability?.supportsPlayback ?: StreamingCapabilityResolver.canPlayback(descriptor))) {
-            viewModel.failStreamingRequest("${descriptor.displayName} 暂不可播放")
+            viewModel.failStreamingRequest(sourceMessage(descriptor, "streaming.playback.unsupported"))
             return
         }
         if (!track.playable) {
             val reason = track.unavailableReason
-            viewModel.failStreamingRequest(
-                if (reason.isNullOrBlank()) {
-                    "流媒体歌曲暂不可用"
-                } else {
-                    reason
-                }
-            )
+            viewModel.failStreamingRequest(reason?.takeIf { it.isNotBlank() } ?: text("streaming.track.unavailable"))
             return
         }
         viewModel.resolveStreamingPlaybackTrack(
@@ -143,7 +140,7 @@ internal class StreamingActionsController(
         val descriptor = descriptorFor(provider)
         val capability = capabilityFor(provider)
         if (descriptor != null && !(capability?.supportsSearch ?: StreamingCapabilityResolver.canSearch(descriptor))) {
-            viewModel.failStreamingRequest("${descriptor.displayName} 暂不可搜索")
+            viewModel.failStreamingRequest(sourceMessage(descriptor, "streaming.search.unavailable"))
             return
         }
         viewModel.searchNextStreamingPage()
@@ -178,4 +175,10 @@ internal class StreamingActionsController(
     private fun capabilityFor(provider: StreamingProviderName): StreamingProviderCapability? {
         return viewModel.streaming.value.providerCapabilities.firstOrNull { it.provider == provider }
     }
+
+    private fun sourceMessage(descriptor: StreamingProviderDescriptor, suffixKey: String): String {
+        return descriptor.displayName + text(suffixKey)
+    }
+
+    private fun text(key: String): String = AppLanguage.text(languageSource.languageMode(), key)
 }

@@ -8,6 +8,7 @@ class SettingsPageEventControllerTest {
     @Test
     fun forwardsSettingsPageActionsToInjectedHandlers() {
         val navigator = FakeNavigator()
+        val networkSourcesNavigator = FakeNetworkSourcesNavigator()
         val libraryLoader = FakeLibraryLoader()
         val audioPicker = FakeAudioPicker()
         val lyricsActions = FakeLyricsActions()
@@ -16,6 +17,7 @@ class SettingsPageEventControllerTest {
         val streamingGatewayActions = FakeStreamingGatewayActions()
         val controller = SettingsPageEventController(
             navigator,
+            networkSourcesNavigator,
             libraryLoader,
             audioPicker,
             lyricsActions,
@@ -26,6 +28,7 @@ class SettingsPageEventControllerTest {
         )
 
         controller.navigateSettingsPage(MainRoutes.SETTINGS_LIBRARY)
+        controller.openNetworkSources()
         controller.loadLibrary()
         controller.openAudioFilePicker()
         controller.openAudioFolderPicker()
@@ -44,6 +47,7 @@ class SettingsPageEventControllerTest {
         controller.applyStreamingGatewayEndpoint("http://localhost:3301")
 
         assertEquals(listOf("nav:${MainRoutes.SETTINGS_LIBRARY}"), navigator.calls)
+        assertEquals(listOf("network"), networkSourcesNavigator.calls)
         assertEquals(listOf("load"), libraryLoader.calls)
         assertEquals(listOf("file", "folder"), audioPicker.calls)
         assertEquals(listOf("online:true", "reload", "offset:500"), lyricsActions.calls)
@@ -60,6 +64,14 @@ class SettingsPageEventControllerTest {
 
         override fun navigateSettingsPage(page: String) {
             calls.add("nav:$page")
+        }
+    }
+
+    private class FakeNetworkSourcesNavigator : SettingsPageEventController.NetworkSourcesNavigator {
+        val calls = ArrayList<String>()
+
+        override fun openNetworkSources() {
+            calls.add("network")
         }
     }
 

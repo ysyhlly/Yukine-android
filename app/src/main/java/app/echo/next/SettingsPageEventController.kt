@@ -4,6 +4,7 @@ import android.view.View
 
 internal class SettingsPageEventController(
     private val navigator: Navigator,
+    private val networkSourcesNavigator: NetworkSourcesNavigator,
     private val libraryLoader: LibraryLoader,
     private val audioPicker: AudioPicker,
     private val lyricsActions: LyricsActions,
@@ -14,6 +15,10 @@ internal class SettingsPageEventController(
 ) : SettingsPageRenderController.Listener {
     fun interface Navigator {
         fun navigateSettingsPage(page: String)
+    }
+
+    fun interface NetworkSourcesNavigator {
+        fun openNetworkSources()
     }
 
     fun interface LibraryLoader {
@@ -66,6 +71,10 @@ internal class SettingsPageEventController(
 
     override fun navigateSettingsPage(page: String) {
         navigator.navigateSettingsPage(page)
+    }
+
+    override fun openNetworkSources() {
+        networkSourcesNavigator.openNetworkSources()
     }
 
     override fun loadLibrary() {

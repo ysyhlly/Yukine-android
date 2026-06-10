@@ -9,9 +9,8 @@ class MainTabSwipePolicyTest {
     fun adjacentTabMovesBetweenNeighboringTabs() {
         val tabs = tabs()
 
-        assertEquals(MainRoutes.TAB_QUEUE, MainTabSwipePolicy.adjacentTab(tabs, MainRoutes.TAB_COLLECTIONS, true))
-        assertEquals(MainRoutes.TAB_NETWORK, MainTabSwipePolicy.adjacentTab(tabs, MainRoutes.TAB_SETTINGS, false))
-        assertEquals(MainRoutes.TAB_QUEUE, MainTabSwipePolicy.adjacentTab(tabs, MainRoutes.TAB_NETWORK, false))
+        assertEquals(MainRoutes.TAB_SETTINGS, MainTabSwipePolicy.adjacentTab(tabs, MainRoutes.TAB_COLLECTIONS, true))
+        assertEquals(MainRoutes.TAB_COLLECTIONS, MainTabSwipePolicy.adjacentTab(tabs, MainRoutes.TAB_SETTINGS, false))
     }
 
     @Test
@@ -28,8 +27,6 @@ class MainTabSwipePolicyTest {
         MainRoutes.TAB_HOME,
         MainRoutes.TAB_LIBRARY,
         MainRoutes.TAB_COLLECTIONS,
-        MainRoutes.TAB_QUEUE,
-        MainRoutes.TAB_NETWORK,
         MainRoutes.TAB_SETTINGS
     )
 }

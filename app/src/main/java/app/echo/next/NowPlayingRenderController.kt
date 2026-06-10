@@ -51,7 +51,7 @@ internal class NowPlayingRenderController(
             return NowPlayingStateFactory.create(
                 playbackStore.snapshot(),
                 emptyList<LyricsLine>(),
-                "Lyrics not loaded",
+                AppLanguage.text(languageMode, "lyrics.not.loaded"),
                 0L,
                 languageMode
             )

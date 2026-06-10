@@ -21,6 +21,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,6 +60,9 @@ import app.echo.next.playback.EchoPlaybackService
 import kotlin.math.sqrt
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sin
+
+private const val WAVEFORM_TWO_PI = 6.2831855f
 
 data class NowBarState @JvmOverloads constructor(
     val title: String,
@@ -73,6 +82,7 @@ data class NowBarState @JvmOverloads constructor(
     val inOrderLabel: String,
     val repeatLabel: String,
     val repeatOffLabel: String,
+    val nowPlayingLabel: String = "",
     val repeatMode: Int = EchoPlaybackService.REPEAT_ALL,
     val albumArtUri: Uri? = null,
     val trackId: Long = -1L,
@@ -80,7 +90,26 @@ data class NowBarState @JvmOverloads constructor(
     val dataPath: String = "",
     val waveformBars: FloatArray = FloatArray(0),
     val waveformGeneratedBars: Int = 0,
-    val waveformCachedProgress: Float = 0f
+    val waveformCachedProgress: Float = 0f,
+    val lyricsTitle: String = "",
+    val lyricsStatus: String = "",
+    val closeLabel: String = "",
+    val showLyricsLabel: String = "",
+    val showArtworkLabel: String = "",
+    val noLyricsFoundLabel: String = "",
+    val previousLabel: String = "",
+    val playLabel: String = "",
+    val pauseLabel: String = "",
+    val nextLabel: String = "",
+    val queueLabel: String = "",
+    val moreLabel: String = "",
+    val addToPlaylistLabel: String = "",
+    val playbackProgressLabel: String = "",
+    val expandWaveformLabel: String = "",
+    val playbackErrorTitle: String = "",
+    val playbackErrorMessage: String = "",
+    val retryLabel: String = "",
+    val lyrics: List<LyricUiLine> = emptyList()
 )
 
 @Immutable
@@ -95,7 +124,9 @@ private data class NowBarProgressSlice(
     val dataPath: String,
     val waveformBars: FloatArray,
     val waveformGeneratedBars: Int,
-    val waveformCachedProgress: Float
+    val waveformCachedProgress: Float,
+    val playbackProgressLabel: String,
+    val expandWaveformLabel: String
 )
 
 @Immutable
@@ -107,7 +138,13 @@ private data class NowBarTrackSlice(
 )
 
 @Immutable
-private data class NowBarTransportSlice(val playing: Boolean)
+private data class NowBarTransportSlice(
+    val playing: Boolean,
+    val previousLabel: String,
+    val playLabel: String,
+    val pauseLabel: String,
+    val nextLabel: String
+)
 
 @Immutable
 private data class NowBarModeSlice(
@@ -120,6 +157,7 @@ private data class NowBarModeSlice(
     val inOrderLabel: String,
     val repeatLabel: String,
     val repeatOffLabel: String,
+    val queueLabel: String,
     val repeatMode: Int
 )
 
@@ -236,7 +274,9 @@ private fun NowBar(
         dataPath = state.dataPath,
         waveformBars = state.waveformBars,
         waveformGeneratedBars = state.waveformGeneratedBars,
-        waveformCachedProgress = state.waveformCachedProgress
+        waveformCachedProgress = state.waveformCachedProgress,
+        playbackProgressLabel = state.playbackProgressLabel,
+        expandWaveformLabel = state.expandWaveformLabel
     )
     val trackSlice = NowBarTrackSlice(
         artUriString = state.albumArtUri?.toString(),
@@ -254,6 +294,7 @@ private fun NowBar(
         inOrderLabel = state.inOrderLabel,
         repeatLabel = state.repeatLabel,
         repeatOffLabel = state.repeatOffLabel,
+        queueLabel = state.queueLabel,
         repeatMode = state.repeatMode
     )
     EchoGlassSurface(
@@ -267,28 +308,10 @@ private fun NowBar(
                 .fillMaxWidth()
                 .height(barHeight)
         ) {
-            val nowBarBlankCollapseInteraction = remember { MutableInteractionSource() }
-            if (waveformExpanded) {
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onCollapseWaveform
-                        )
-                )
-            }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(barHeight)
-                    .clickable(
-                        enabled = waveformExpanded,
-                        interactionSource = nowBarBlankCollapseInteraction,
-                        indication = null,
-                        onClick = onCollapseWaveform
-                    )
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
@@ -312,7 +335,13 @@ private fun NowBar(
                         modifier = Modifier.weight(1f)
                     )
                     NowBarTransportControls(
-                        slice = NowBarTransportSlice(state.playing),
+                        slice = NowBarTransportSlice(
+                            playing = state.playing,
+                            previousLabel = state.previousLabel,
+                            playLabel = state.playLabel,
+                            pauseLabel = state.pauseLabel,
+                            nextLabel = state.nextLabel
+                        ),
                         onPrevious = onPrevious,
                         onPlayPause = onPlayPause,
                         onNext = onNext,
@@ -350,6 +379,8 @@ private fun NowBarProgressSection(
             durationMs = slice.durationMs,
             playing = slice.playing,
             cachedProgress = slice.waveformCachedProgress,
+            progressLabel = slice.playbackProgressLabel,
+            expandLabel = slice.expandWaveformLabel,
             onExpand = onCollapseWaveform,
             modifier = Modifier
                 .fillMaxWidth()
@@ -361,6 +392,8 @@ private fun NowBarProgressSection(
             durationMs = slice.durationMs,
             playing = slice.playing,
             cachedProgress = slice.waveformCachedProgress,
+            progressLabel = slice.playbackProgressLabel,
+            expandLabel = slice.expandWaveformLabel,
             onExpand = onExpandWaveform,
             modifier = Modifier
                 .fillMaxWidth()
@@ -400,6 +433,7 @@ private fun BottomWaveformProgress(
             serviceWaveformBars = slice.waveformBars,
             serviceWaveformGeneratedBars = slice.waveformGeneratedBars,
             serviceWaveformCachedProgress = slice.waveformCachedProgress,
+            progressLabel = slice.playbackProgressLabel,
             onSeek = onSeek,
             modifier = Modifier
                 .fillMaxWidth()
@@ -414,6 +448,8 @@ private fun CollapsedProgress(
     durationMs: Long,
     playing: Boolean,
     cachedProgress: Float,
+    progressLabel: String,
+    expandLabel: String,
     onExpand: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -422,7 +458,7 @@ private fun CollapsedProgress(
     Canvas(
         modifier = modifier
             .clickable(onClick = onExpand)
-            .semantics { contentDescription = "Expand playback waveform" }
+            .semantics { contentDescription = expandLabel.ifBlank { progressLabel } }
     ) {
         val progress = (scrub.displayPosition.value.toFloat() / scrub.duration.toFloat())
             .coerceIn(0f, 1f)
@@ -509,19 +545,19 @@ private fun NowBarTransportControls(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(EchoIconKind.Previous, "Previous") {
+        IconButton(EchoIconKind.Previous, slice.previousLabel) {
             onCollapseWaveform()
             onPrevious.run()
         }
         IconButton(
             icon = if (slice.playing) EchoIconKind.Pause else EchoIconKind.Play,
-            desc = if (slice.playing) "Pause" else "Play",
+            desc = if (slice.playing) slice.pauseLabel else slice.playLabel,
             accent = true
         ) {
             onCollapseWaveform()
             onPlayPause.run()
         }
-        IconButton(EchoIconKind.Next, "Next") {
+        IconButton(EchoIconKind.Next, slice.nextLabel) {
             onCollapseWaveform()
             onNext.run()
         }
@@ -569,7 +605,7 @@ private fun NowBarModeControls(
         }
         AuxChip(
             icon = EchoIconKind.Queue,
-            label = "\u961f\u5217",
+            label = slice.queueLabel,
             active = false,
             modifier = Modifier.weight(1f)
         ) {
@@ -606,6 +642,7 @@ private fun WaveformProgress(
     serviceWaveformBars: FloatArray,
     serviceWaveformGeneratedBars: Int,
     serviceWaveformCachedProgress: Float,
+    progressLabel: String,
     onSeek: SeekAction,
     modifier: Modifier = Modifier
 ) {
@@ -623,24 +660,34 @@ private fun WaveformProgress(
     val serviceGeneratedBars = serviceWaveformGeneratedBars.coerceIn(0, serviceWaveformBars.size)
     val serviceHasVisibleWaveform = serviceGeneratedBars > 0 &&
         hasVisibleWaveformBars(serviceWaveformBars, serviceGeneratedBars)
+    val placeholderWaveform = remember(trackId, contentUriString, dataPath, durationMs) {
+        streamingWaveformPreviewBars(
+            key = "$trackId|${contentUriString.orEmpty()}|$dataPath|$durationMs",
+            barCount = barCount
+        )
+    }
+    val localWaveformBars = localWaveform
     val waveform = if (serviceHasVisibleWaveform) {
         serviceWaveformBars
     } else {
-        localWaveform
+        localWaveformBars ?: placeholderWaveform
     }
     val generatedBars = if (serviceHasVisibleWaveform) {
         serviceGeneratedBars
+    } else if (localWaveformBars != null) {
+        localWaveformBars.size
     } else {
-        waveform?.size ?: 0
+        placeholderWaveform.size
     }.coerceIn(0, barCount)
     val cachedProgress = waveformCachedProgressForDraw(serviceWaveformCachedProgress, serviceGeneratedBars)
     val visiblePeakRange = remember(waveform, generatedBars) {
         visibleWaveformPeakRange(waveform, generatedBars)
     }
     val scrub = rememberScrubbablePlaybackPosition(positionMs, durationMs, playing)
+    val waveformMotionPhase = rememberLiveWaveformPhase(playing)
     Box(
         modifier = modifier
-            .semantics { contentDescription = "Playback progress" }
+            .semantics { contentDescription = progressLabel }
             .drawWithCache {
                 val trackHeight = size.height
                 val width = size.width
@@ -662,15 +709,7 @@ private fun WaveformProgress(
                         size = Size(width, trackHeight),
                         cornerRadius = CornerRadius(trackHeight / 2f, trackHeight / 2f)
                     )
-                    if (waveformBars == null && playedWidth > 0f) {
-                        drawRoundRect(
-                            color = playedColor.copy(alpha = 0.54f),
-                            topLeft = Offset(0f, 0f),
-                            size = Size(playedWidth, trackHeight),
-                            cornerRadius = CornerRadius(trackHeight / 2f, trackHeight / 2f)
-                        )
-                    }
-                    if (waveformBars != null && generatedBars < barCount && playedWidth > 0f) {
+                    if (generatedBars < barCount && playedWidth > 0f) {
                         val generatedWidth = width * (generatedBars.toFloat() / barCount.toFloat())
                         val pendingPlayedStart = generatedWidth.coerceIn(0f, playedWidth)
                         val pendingPlayedWidth = playedWidth - pendingPlayedStart
@@ -689,15 +728,13 @@ private fun WaveformProgress(
                         val x = index * (barWidth + gap)
                         val played = x + barWidth / 2f <= playedWidth
                         val cached = x + barWidth / 2f <= cachedWidth
-                        if (waveformBars == null) {
-                            continue
-                        }
                         if (index >= generatedBars || (!played && !cached)) {
                             continue
                         }
                         val normalizedPeak = ((waveformBars.getOrElse(index) { 0f } - visibleMinPeak) / visibleSpan)
                             .coerceIn(0f, 1f)
-                        val shapedPeak = sqrt(normalizedPeak).coerceAtLeast(if (played) 0.16f else 0.10f)
+                        val basePeak = sqrt(normalizedPeak).coerceAtLeast(if (played) 0.16f else 0.10f)
+                        val shapedPeak = liveWaveformPeak(basePeak, index, waveformMotionPhase.value, playing)
                         val h = trackHeight * shapedPeak
                         val y = (trackHeight - h) / 2f
                         drawRoundRect(
@@ -775,6 +812,56 @@ internal fun waveformCachedProgressForDraw(serviceCachedProgress: Float, service
     } else {
         1f
     }
+}
+
+@Composable
+private fun rememberLiveWaveformPhase(playing: Boolean): State<Float> {
+    if (!playing) {
+        return remember { mutableStateOf(0f) }
+    }
+    val transition = rememberInfiniteTransition(label = "waveformPulse")
+    return transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 940, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "waveformPulsePhase"
+    )
+}
+
+internal fun liveWaveformPeak(basePeak: Float, index: Int, phase: Float, playing: Boolean): Float {
+    val base = basePeak.coerceIn(0f, 1f)
+    if (!playing) {
+        return base
+    }
+    val primary = sin(phase * WAVEFORM_TWO_PI + index * 0.73f)
+    val secondary = sin(phase * WAVEFORM_TWO_PI * 2f + index * 1.91f + 1.7f)
+    val flutter = primary * 0.055f + secondary * 0.025f
+    return (base * (1f + flutter) + max(0f, flutter) * 0.018f).coerceIn(0.06f, 1f)
+}
+
+internal fun streamingWaveformPreviewBars(key: String, barCount: Int): FloatArray {
+    if (barCount <= 0) {
+        return FloatArray(0)
+    }
+    var seed = key.hashCode()
+    if (seed == 0) {
+        seed = 0x4d595df4
+    }
+    val bars = FloatArray(barCount)
+    var previous = 0.46f
+    for (index in 0 until barCount) {
+        seed = seed * 1103515245 + 12345
+        val noise = ((seed ushr 16) and 0x7fff) / 32767f
+        val phrase = kotlin.math.sin((index + 1) * 0.42f).toFloat() * 0.16f
+        val beat = if (index % 4 == 0) 0.13f else 0f
+        val target = (0.30f + noise * 0.42f + phrase + beat).coerceIn(0.12f, 0.94f)
+        previous = (previous * 0.58f + target * 0.42f).coerceIn(0.10f, 0.96f)
+        bars[index] = previous
+    }
+    return bars
 }
 
 @Composable

@@ -137,6 +137,8 @@ private fun PlaylistTrackRow(
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                TrackCurrentIndicator(track.current, height = 46.dp)
+                Spacer(Modifier.width(7.dp))
                 PlaylistArtwork(track.albumArtUri, track.title, track.subtitle)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {

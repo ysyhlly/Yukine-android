@@ -73,6 +73,7 @@ final class ScrollDirectionFrameLayout extends FrameLayout {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
+        boolean tapAfterDispatch = false;
         switch (ev.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 recycleVelocityTracker();
@@ -130,7 +131,7 @@ final class ScrollDirectionFrameLayout extends FrameLayout {
                     horizontalSwipeListener.onHorizontalSwipe(horizontalSwipeLeft);
                 }
                 if (!movedBeyondTapSlop && tapListener != null) {
-                    tapListener.onTap();
+                    tapAfterDispatch = true;
                 }
                 // fall through
             case MotionEvent.ACTION_CANCEL:
@@ -145,7 +146,11 @@ final class ScrollDirectionFrameLayout extends FrameLayout {
             default:
                 break;
         }
-        return super.dispatchTouchEvent(ev);
+        boolean handled = super.dispatchTouchEvent(ev);
+        if (tapAfterDispatch) {
+            tapListener.onTap();
+        }
+        return handled;
     }
 
     private void lockHorizontalSwipeIfNeeded(float dxFromDown, float dyFromDown) {

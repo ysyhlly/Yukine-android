@@ -266,7 +266,8 @@ internal class MainRouteController(
             selectedTab(),
             networkPage(),
             settingsPage(),
-            selectedLibraryGroupKey()
+            selectedLibraryGroupKey(),
+            selectedPlaylistId()
         )
         if (!result.handled) {
             return result
@@ -275,12 +276,13 @@ internal class MainRouteController(
         val nextLibraryGroupKey = if (result.clearLibraryGroup) "" else selectedLibraryGroupKey()
         val nextLibraryGroupTitle = if (result.clearLibraryGroup) "" else selectedLibraryGroupTitle()
         val nextRemoteSourceId = if (result.clearSelectedRemoteSource) -1L else selectedRemoteSourceId()
+        val nextSelectedPlaylistId = if (result.clearSelectedPlaylist) -1L else selectedPlaylistId()
         update(
             nextSelectedTab,
             libraryMode(),
             nextLibraryGroupKey,
             nextLibraryGroupTitle,
-            selectedPlaylistId(),
+            nextSelectedPlaylistId,
             searchQuery(),
             result.networkPage,
             result.settingsPage,

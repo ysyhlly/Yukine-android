@@ -5,16 +5,27 @@ internal object MainBackNavigationPolicy {
         selectedTab: String,
         networkPage: String,
         settingsPage: String,
-        selectedLibraryGroupKey: String?
+        selectedLibraryGroupKey: String?,
+        selectedPlaylistId: Long
     ): Result {
         if (
             MainRoutes.TAB_LIBRARY == selectedTab &&
             !selectedLibraryGroupKey.isNullOrEmpty()
         ) {
-            return Result.render(selectedTab, networkPage, settingsPage, false, true)
+            return Result.render(
+                selectedTab,
+                networkPage,
+                settingsPage,
+                false,
+                true,
+                selectedLibraryGroupKey.startsWith("playlist:")
+            )
+        }
+        if (MainRoutes.TAB_COLLECTIONS == selectedTab && selectedPlaylistId >= 0L) {
+            return Result.render(selectedTab, networkPage, settingsPage, false, false, true)
         }
         if (MainRoutes.TAB_SETTINGS == selectedTab && MainRoutes.SETTINGS_HOME != settingsPage) {
-            return Result.render(selectedTab, networkPage, MainRoutes.SETTINGS_HOME, false, false)
+            return Result.render(selectedTab, networkPage, SettingsBackStack.parentPage(settingsPage), false, false)
         }
         if (MainRoutes.TAB_NETWORK == selectedTab && MainRoutes.NETWORK_STREAM_LIST == networkPage) {
             return Result.render(selectedTab, MainRoutes.NETWORK_STREAMING, settingsPage, false, false)
@@ -41,7 +52,8 @@ internal object MainBackNavigationPolicy {
         @JvmField val networkPage: String,
         @JvmField val settingsPage: String,
         @JvmField val clearSelectedRemoteSource: Boolean,
-        @JvmField val clearLibraryGroup: Boolean
+        @JvmField val clearLibraryGroup: Boolean,
+        @JvmField val clearSelectedPlaylist: Boolean
     ) {
         companion object {
             fun render(
@@ -49,7 +61,8 @@ internal object MainBackNavigationPolicy {
                 networkPage: String,
                 settingsPage: String,
                 clearSelectedRemoteSource: Boolean,
-                clearLibraryGroup: Boolean
+                clearLibraryGroup: Boolean,
+                clearSelectedPlaylist: Boolean = false
             ): Result {
                 return Result(
                     true,
@@ -58,7 +71,8 @@ internal object MainBackNavigationPolicy {
                     networkPage,
                     settingsPage,
                     clearSelectedRemoteSource,
-                    clearLibraryGroup
+                    clearLibraryGroup,
+                    clearSelectedPlaylist
                 )
             }
 
@@ -75,12 +89,13 @@ internal object MainBackNavigationPolicy {
                     networkPage,
                     settingsPage,
                     clearSelectedRemoteSource,
+                    false,
                     false
                 )
             }
 
             fun notHandled(): Result {
-                return Result(false, false, "", "", "", false, false)
+                return Result(false, false, "", "", "", false, false, false)
             }
         }
     }

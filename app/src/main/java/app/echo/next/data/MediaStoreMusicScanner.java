@@ -72,7 +72,7 @@ public final class MediaStoreMusicScanner {
                         uri,
                         dataPath,
                         albumId,
-                        albumArtUri(albumId)
+                        EmbeddedArtwork.uriIfEmbeddedPicture(context, uri)
                 );
                 tracks.add(audioSpecParser.enrich(track));
             }
@@ -93,11 +93,4 @@ public final class MediaStoreMusicScanner {
                 || text.contains("通话录音");
     }
 
-    private Uri albumArtUri(long albumId) {
-        if (albumId <= 0L) {
-            return null;
-        }
-        Uri albumArt = Uri.parse("content://media/external/audio/albumart");
-        return ContentUris.withAppendedId(albumArt, albumId);
-    }
 }

@@ -2,15 +2,24 @@ package app.echo.next.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,7 +65,9 @@ fun echoPagePadding(
 fun EchoPageTitle(
     title: String,
     modifier: Modifier = Modifier,
-    subtitle: String? = null
+    subtitle: String? = null,
+    backLabel: String? = null,
+    onBack: Runnable? = null
 ) {
     val p = EchoTheme.colors()
     if (title.isBlank() && subtitle.isNullOrBlank()) return
@@ -65,24 +76,43 @@ fun EchoPageTitle(
         shape = EchoShapes.large,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
     ) {
-        androidx.compose.foundation.layout.Column {
-            if (title.isNotBlank()) {
-                Text(
-                    title,
-                    style = EchoTypography.display.copy(fontSize = 22.sp, lineHeight = 28.sp),
-                    color = p.heading,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (onBack != null) {
+                Surface(
+                    onClick = { onBack.run() },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .semantics { contentDescription = backLabel ?: "Back" },
+                    shape = EchoShapes.small,
+                    color = Color.Transparent
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        EchoIcon(EchoIconKind.Back, Modifier.size(20.dp), p.muted)
+                    }
+                }
+                Spacer(Modifier.width(10.dp))
             }
-            if (!subtitle.isNullOrBlank()) {
-                Text(
-                    subtitle,
-                    style = EchoTypography.caption,
-                    color = p.muted,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+            Column(Modifier.weight(1f)) {
+                if (title.isNotBlank()) {
+                    Text(
+                        title,
+                        style = EchoTypography.display.copy(fontSize = 22.sp, lineHeight = 28.sp),
+                        color = p.heading,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (!subtitle.isNullOrBlank()) {
+                    Text(
+                        subtitle,
+                        style = EchoTypography.caption,
+                        color = p.muted,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }

@@ -5,6 +5,7 @@ import android.view.View
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -12,6 +13,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
@@ -31,11 +33,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,10 +57,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -72,13 +84,28 @@ import kotlin.math.max
 private data class ArtworkSlice(val artUriString: String?)
 
 @Immutable
+private data class LyricsSlice(
+    val title: String,
+    val status: String,
+    val showArtworkLabel: String,
+    val noLyricsFoundLabel: String,
+    val lines: List<LyricUiLine>
+)
+
+@Immutable
 private data class TrackInfoSlice(
     val title: String,
     val subtitle: String
 )
 
 @Immutable
-private data class TransportSlice(val playing: Boolean)
+private data class TransportSlice(
+    val playing: Boolean,
+    val previousLabel: String,
+    val playLabel: String,
+    val pauseLabel: String,
+    val nextLabel: String
+)
 
 @Immutable
 private data class ModeSlice(
@@ -88,7 +115,19 @@ private data class ModeSlice(
     val shuffleEnabled: Boolean,
     val shuffleLabel: String,
     val repeatLabel: String,
-    val repeatOffLabel: String
+    val repeatOffLabel: String,
+    val queueLabel: String
+)
+
+@Immutable
+private data class MoreMenuSlice(
+    val moreLabel: String,
+    val favorite: Boolean,
+    val favoriteLabel: String,
+    val favoritedLabel: String,
+    val addToPlaylistLabel: String,
+    val queueLabel: String,
+    val toggleViewLabel: String
 )
 
 @Immutable
@@ -97,8 +136,18 @@ private data class ProgressSlice(
     val durationMs: Long,
     val playing: Boolean,
     val elapsed: String,
-    val duration: String
+    val duration: String,
+    val playbackProgressLabel: String
 )
+
+@Immutable
+private data class PlaybackErrorSlice(
+    val title: String,
+    val message: String,
+    val retryLabel: String
+) {
+    val visible: Boolean get() = message.isNotBlank()
+}
 
 /**
  * Resident full-screen player. The [ComposeView] is created once (at shell build time) and kept in
@@ -121,6 +170,7 @@ class NowPlayingOverlayController(
     private val onPlayPause: Runnable,
     private val onNext: Runnable,
     private val onFavorite: Runnable,
+    private val onAddToPlaylist: Runnable,
     private val onShuffle: Runnable,
     private val onRepeat: Runnable,
     private val onQueue: Runnable,
@@ -147,6 +197,7 @@ class NowPlayingOverlayController(
                         onPlayPause = onPlayPause,
                         onNext = onNext,
                         onFavorite = onFavorite,
+                        onAddToPlaylist = onAddToPlaylist,
                         onShuffle = onShuffle,
                         onRepeat = onRepeat,
                         onQueue = onQueue,
@@ -195,6 +246,7 @@ private fun NowPlayingOverlay(
     onPlayPause: Runnable,
     onNext: Runnable,
     onFavorite: Runnable,
+    onAddToPlaylist: Runnable,
     onShuffle: Runnable,
     onRepeat: Runnable,
     onQueue: Runnable,
@@ -236,20 +288,56 @@ private fun NowPlayingOverlay(
             }
             val titleGap = if (compact) 12.dp else 26.dp
             val transportGap = if (compact) 12.dp else 28.dp
+            var showingLyrics by remember(state.trackId) { mutableStateOf(false) }
 
-            Column(Modifier.fillMaxSize()) {
+            if (showingLyrics) {
+                LyricsOverlayPage(
+                    state = state,
+                    compact = compact,
+                    onDismiss = onDismiss,
+                    onToggle = { showingLyrics = false },
+                    onPrevious = onPrevious,
+                    onPlayPause = onPlayPause,
+                    onNext = onNext,
+                    onFavorite = onFavorite,
+                    onAddToPlaylist = onAddToPlaylist,
+                    onShuffle = onShuffle,
+                    onRepeat = onRepeat,
+                    onQueue = onQueue,
+                    onSeek = onSeek
+                )
+            } else {
+                Column(Modifier.fillMaxSize()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CircleIconButton(EchoIconKind.ArrowDown, "Close") { onDismiss.run() }
+                    CircleIconButton(EchoIconKind.ArrowDown, state.closeLabel) { onDismiss.run() }
                     Spacer(Modifier.width(16.dp))
                     Text(
-                        "正在播放",
+                        state.nowPlayingLabel,
                         style = EchoTypography.title,
                         color = p.text,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    NowPlayingMoreMenu(
+                        slice = MoreMenuSlice(
+                            moreLabel = state.moreLabel,
+                            favorite = state.favorite,
+                            favoriteLabel = state.favoriteLabel,
+                            favoritedLabel = state.favoritedLabel,
+                            addToPlaylistLabel = state.addToPlaylistLabel,
+                            queueLabel = state.queueLabel,
+                            toggleViewLabel = state.showLyricsLabel
+                        ),
+                        toggleIcon = EchoIconKind.Lyrics,
+                        onFavorite = onFavorite,
+                        onAddToPlaylist = onAddToPlaylist,
+                        onQueue = onQueue,
+                        onToggleView = { showingLyrics = true }
                     )
                 }
                 Spacer(Modifier.height(topGap))
@@ -257,8 +345,10 @@ private fun NowPlayingOverlay(
                     slice = ArtworkSlice(state.albumArtUri?.toString()),
                     title = state.title,
                     subtitle = state.subtitle,
+                    showLyricsLabel = state.showLyricsLabel,
                     artworkMax = artworkMax,
-                    compact = compact
+                    compact = compact,
+                    onToggle = { showingLyrics = true }
                 )
                 Spacer(Modifier.height(artworkGap))
                 Row(
@@ -278,7 +368,8 @@ private fun NowPlayingOverlay(
                         shuffleEnabled = state.shuffleEnabled,
                         shuffleLabel = state.shuffleLabel,
                         repeatLabel = state.repeatLabel,
-                        repeatOffLabel = state.repeatOffLabel
+                        repeatOffLabel = state.repeatOffLabel,
+                        queueLabel = state.queueLabel
                     )
                     CircleIconButton(
                         EchoIconKind.Heart,
@@ -287,19 +378,35 @@ private fun NowPlayingOverlay(
                     ) { onFavorite.run() }
                 }
                 Spacer(Modifier.height(titleGap))
+                PlaybackErrorBanner(
+                    slice = PlaybackErrorSlice(
+                        title = state.playbackErrorTitle,
+                        message = state.playbackErrorMessage,
+                        retryLabel = state.retryLabel
+                    ),
+                    compact = compact,
+                    onRetry = { onPlayPause.run() }
+                )
                 ProgressSection(
                     slice = ProgressSlice(
                         positionMs = state.positionMs,
                         durationMs = state.durationMs,
                         playing = state.playing,
                         elapsed = state.elapsed,
-                        duration = state.duration
+                        duration = state.duration,
+                        playbackProgressLabel = state.playbackProgressLabel
                     ),
                     onSeek = onSeek
                 )
                 Spacer(Modifier.height(transportGap))
                 TransportControls(
-                    slice = TransportSlice(state.playing),
+                    slice = TransportSlice(
+                        playing = state.playing,
+                        previousLabel = state.previousLabel,
+                        playLabel = state.playLabel,
+                        pauseLabel = state.pauseLabel,
+                        nextLabel = state.nextLabel
+                    ),
                     compact = compact,
                     onPrevious = onPrevious,
                     onPlayPause = onPlayPause,
@@ -314,14 +421,161 @@ private fun NowPlayingOverlay(
                         shuffleEnabled = state.shuffleEnabled,
                         shuffleLabel = state.shuffleLabel,
                         repeatLabel = state.repeatLabel,
-                        repeatOffLabel = state.repeatOffLabel
+                        repeatOffLabel = state.repeatOffLabel,
+                        queueLabel = state.queueLabel
                     ),
                     onShuffle = onShuffle,
                     onRepeat = onRepeat,
                     onQueue = onQueue
                 )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun LyricsOverlayPage(
+    state: NowBarState,
+    compact: Boolean,
+    onDismiss: Runnable,
+    onToggle: () -> Unit,
+    onPrevious: Runnable,
+    onPlayPause: Runnable,
+    onNext: Runnable,
+    onFavorite: Runnable,
+    onAddToPlaylist: Runnable,
+    onShuffle: Runnable,
+    onRepeat: Runnable,
+    onQueue: Runnable,
+    onSeek: SeekAction
+) {
+    val p = EchoTheme.colors()
+    val topGap = if (compact) 26.dp else 42.dp
+    val controlGap = if (compact) 12.dp else 24.dp
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CircleIconButton(EchoIconKind.ArrowDown, state.closeLabel) { onDismiss.run() }
+            Spacer(Modifier.width(16.dp))
+            Text(
+                state.lyricsTitle,
+                style = EchoTypography.title,
+                color = p.text,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(8.dp))
+            NowPlayingMoreMenu(
+                slice = MoreMenuSlice(
+                    moreLabel = state.moreLabel,
+                    favorite = state.favorite,
+                    favoriteLabel = state.favoriteLabel,
+                    favoritedLabel = state.favoritedLabel,
+                    addToPlaylistLabel = state.addToPlaylistLabel,
+                    queueLabel = state.queueLabel,
+                    toggleViewLabel = state.showArtworkLabel
+                ),
+                toggleIcon = EchoIconKind.Mark,
+                onFavorite = onFavorite,
+                onAddToPlaylist = onAddToPlaylist,
+                onQueue = onQueue,
+                onToggleView = onToggle
+            )
+        }
+        Spacer(Modifier.height(topGap))
+        Text(
+            state.title,
+            style = EchoTypography.display.copy(
+                fontSize = if (compact) 26.sp else 30.sp,
+                lineHeight = if (compact) 32.sp else 36.sp
+            ),
+            color = p.heading,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        if (state.subtitle.isNotBlank()) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                state.subtitle,
+                style = EchoTypography.body,
+                color = p.muted,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        Spacer(Modifier.height(if (compact) 22.dp else 38.dp))
+        LyricsStage(
+            slice = LyricsSlice(
+                title = state.lyricsTitle,
+                status = state.lyricsStatus,
+                showArtworkLabel = state.showArtworkLabel,
+                noLyricsFoundLabel = state.noLyricsFoundLabel,
+                lines = state.lyrics
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            onToggle = onToggle
+        )
+        Spacer(Modifier.height(controlGap))
+        PlaybackErrorBanner(
+            slice = PlaybackErrorSlice(
+                title = state.playbackErrorTitle,
+                message = state.playbackErrorMessage,
+                retryLabel = state.retryLabel
+            ),
+            compact = compact,
+            onRetry = { onPlayPause.run() }
+        )
+        ProgressSection(
+            slice = ProgressSlice(
+                positionMs = state.positionMs,
+                durationMs = state.durationMs,
+                playing = state.playing,
+                elapsed = state.elapsed,
+                duration = state.duration,
+                playbackProgressLabel = state.playbackProgressLabel
+            ),
+            onSeek = onSeek
+        )
+        Spacer(Modifier.height(controlGap))
+        TransportControls(
+            slice = TransportSlice(
+                playing = state.playing,
+                previousLabel = state.previousLabel,
+                playLabel = state.playLabel,
+                pauseLabel = state.pauseLabel,
+                nextLabel = state.nextLabel
+            ),
+            compact = compact,
+            onPrevious = onPrevious,
+            onPlayPause = onPlayPause,
+            onNext = onNext
+        )
+        Spacer(Modifier.height(if (compact) 10.dp else 18.dp))
+        ModeControls(
+            slice = ModeSlice(
+                favorite = state.favorite,
+                favoriteLabel = state.favoriteLabel,
+                favoritedLabel = state.favoritedLabel,
+                shuffleEnabled = state.shuffleEnabled,
+                shuffleLabel = state.shuffleLabel,
+                repeatLabel = state.repeatLabel,
+                repeatOffLabel = state.repeatOffLabel,
+                queueLabel = state.queueLabel
+            ),
+            onShuffle = onShuffle,
+            onRepeat = onRepeat,
+            onQueue = onQueue
+        )
     }
 }
 
@@ -330,31 +584,167 @@ private fun ArtworkSection(
     slice: ArtworkSlice,
     title: String,
     subtitle: String,
+    showLyricsLabel: String,
     artworkMax: androidx.compose.ui.unit.Dp,
-    compact: Boolean
+    compact: Boolean,
+    onToggle: () -> Unit
 ) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     val uri = remember(slice.artUriString) { slice.artUriString?.let { android.net.Uri.parse(it) } }
-    Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center
-    ) {
-        AsyncArtwork(
-            uri = uri,
-            title = title,
-            subtitle = subtitle,
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = artworkMax)
-                .aspectRatio(1f)
-                .clip(EchoShapes.full),
-            cornerRadius = 16.dp,
-            fallbackTextSize = if (compact) 46.sp else 54.sp,
-            targetSize = 512.dp,
-            backgroundColor = p.surfaceVariant,
-            fallbackResId = R.drawable.ic_echo_launcher
-        )
+    AsyncArtwork(
+        uri = uri,
+        title = title,
+        subtitle = subtitle,
+        modifier = Modifier
+            .fillMaxWidth()
+            .widthIn(max = artworkMax)
+            .aspectRatio(1f)
+            .clip(EchoShapes.full)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onToggle
+            )
+            .echoPressScale(interaction)
+            .semantics { contentDescription = showLyricsLabel },
+        cornerRadius = 16.dp,
+        fallbackTextSize = if (compact) 46.sp else 54.sp,
+        targetSize = 512.dp,
+        backgroundColor = p.surfaceVariant,
+        fallbackResId = R.drawable.ic_echo_launcher
+    )
+}
+
+@Composable
+private fun LyricsStage(
+    slice: LyricsSlice,
+    modifier: Modifier = Modifier,
+    onToggle: () -> Unit
+) {
+    val p = EchoTheme.colors()
+    val activeIndex = slice.lines.indexOfFirst { it.active }
+    val listState = rememberLazyListState()
+    val interaction = remember { MutableInteractionSource() }
+    var viewportHeightPx by remember { mutableStateOf(0) }
+    LaunchedEffect(activeIndex, slice.lines.size, viewportHeightPx) {
+        if (activeIndex >= 0 && activeIndex < slice.lines.size) {
+            listState.animateScrollToItem(
+                activeIndex,
+                scrollOffset = centeredLyricScrollOffset(viewportHeightPx)
+            )
+        }
     }
+    Column(
+        modifier = modifier
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onToggle
+            )
+            .echoPressScale(interaction)
+            .semantics { contentDescription = slice.showArtworkLabel }
+    ) {
+        if (slice.lines.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    EchoIcon(EchoIconKind.Lyrics, Modifier.size(28.dp), p.muted)
+                    Text(
+                        slice.status.ifBlank { slice.noLyricsFoundLabel },
+                        style = EchoTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                        color = p.heading.copy(alpha = 0.82f),
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        slice.title,
+                        style = EchoTypography.caption,
+                        color = p.muted,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .onSizeChanged { viewportHeightPx = it.height },
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 52.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                itemsIndexed(
+                    items = slice.lines,
+                    key = { index, line -> "$index:${line.text.hashCode()}" }
+                ) { _, line ->
+                    OverlayLyricRow(line)
+                }
+            }
+        }
+    }
+}
+
+private fun centeredLyricScrollOffset(viewportHeightPx: Int): Int {
+    if (viewportHeightPx <= 0) {
+        return 0
+    }
+    return -(viewportHeightPx / 2 - ACTIVE_LYRIC_ESTIMATED_HEIGHT_PX / 2).coerceAtLeast(0)
+}
+
+private const val ACTIVE_LYRIC_ESTIMATED_HEIGHT_PX = 64
+
+@Composable
+private fun OverlayLyricRow(line: LyricUiLine) {
+    val p = EchoTheme.colors()
+    val color by animateColorAsState(
+        targetValue = if (line.active) p.heading else p.muted.copy(alpha = 0.68f),
+        animationSpec = tween(durationMillis = EchoMotion.CROSSFADE_MS),
+        label = "lyricColor"
+    )
+    val alpha by animateFloatAsState(
+        targetValue = if (line.active) 1f else 0.72f,
+        animationSpec = EchoMotion.floatSpring(),
+        label = "lyricAlpha"
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (line.active) 1.045f else 1f,
+        animationSpec = EchoMotion.floatSpring(),
+        label = "lyricScale"
+    )
+    val lift by animateFloatAsState(
+        targetValue = if (line.active) -5f else 0f,
+        animationSpec = EchoMotion.floatSpring(),
+        label = "lyricLift"
+    )
+    Text(
+        text = line.text,
+        style = if (line.active) {
+            EchoTypography.body.copy(fontWeight = FontWeight.SemiBold, fontSize = 21.sp, lineHeight = 29.sp)
+        } else {
+            EchoTypography.body.copy(fontSize = 18.sp, lineHeight = 25.sp)
+        },
+        color = color,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                this.alpha = alpha
+                scaleX = scale
+                scaleY = scale
+                translationY = lift
+            }
+            .padding(horizontal = 12.dp, vertical = if (line.active) 7.dp else 5.dp),
+        maxLines = 3,
+        overflow = TextOverflow.Ellipsis
+    )
 }
 
 @Composable
@@ -390,6 +780,67 @@ private fun TrackInfoSection(
 }
 
 @Composable
+private fun PlaybackErrorBanner(
+    slice: PlaybackErrorSlice,
+    compact: Boolean,
+    onRetry: () -> Unit
+) {
+    AnimatedVisibility(
+        visible = slice.visible,
+        enter = fadeIn(animationSpec = tween(durationMillis = EchoMotion.FAST_CROSSFADE_MS)),
+        exit = fadeOut(animationSpec = tween(durationMillis = EchoMotion.FAST_CROSSFADE_MS))
+    ) {
+        val p = EchoTheme.colors()
+        val interaction = remember { MutableInteractionSource() }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = if (compact) 10.dp else 14.dp)
+                .echoGlassLayer(p, EchoShapes.medium)
+                .padding(horizontal = 14.dp, vertical = if (compact) 10.dp else 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            EchoIcon(EchoIconKind.Refresh, Modifier.size(22.dp), p.accent)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    slice.title,
+                    style = EchoTypography.label,
+                    color = p.heading,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    slice.message,
+                    style = EchoTypography.caption,
+                    color = p.muted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Surface(
+                onClick = onRetry,
+                interactionSource = interaction,
+                modifier = Modifier
+                    .echoPressScale(interaction)
+                    .semantics { contentDescription = slice.retryLabel },
+                shape = EchoShapes.full,
+                color = p.accentSoft.copy(alpha = 0.72f)
+            ) {
+                Text(
+                    slice.retryLabel,
+                    style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+                    color = p.accent,
+                    maxLines = 1,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ProgressSection(
     slice: ProgressSlice,
     onSeek: SeekAction
@@ -400,6 +851,7 @@ private fun ProgressSection(
         durationMs = slice.durationMs,
         playing = slice.playing,
         onSeek = onSeek,
+        progressLabel = slice.playbackProgressLabel,
         modifier = Modifier
             .fillMaxWidth()
             .height(30.dp)
@@ -431,7 +883,7 @@ private fun TransportControls(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        LargeTransportButton(EchoIconKind.Previous, "Previous") { onPrevious.run() }
+        LargeTransportButton(EchoIconKind.Previous, slice.previousLabel) { onPrevious.run() }
         val interaction = remember { MutableInteractionSource() }
         Surface(
             onClick = { onPlayPause.run() },
@@ -439,7 +891,7 @@ private fun TransportControls(
             modifier = Modifier
                 .size(playButtonSize)
                 .echoPressScale(interaction)
-                .semantics { contentDescription = if (slice.playing) "Pause" else "Play" },
+                .semantics { contentDescription = if (slice.playing) slice.pauseLabel else slice.playLabel },
             shape = CircleShape,
             color = p.accent
         ) {
@@ -458,7 +910,7 @@ private fun TransportControls(
                 }
             }
         }
-        LargeTransportButton(EchoIconKind.Next, "Next") { onNext.run() }
+        LargeTransportButton(EchoIconKind.Next, slice.nextLabel) { onNext.run() }
     }
 }
 
@@ -480,7 +932,64 @@ private fun ModeControls(
             slice.repeatLabel,
             active = slice.repeatLabel != slice.repeatOffLabel
         ) { onRepeat.run() }
-        CircleIconButton(EchoIconKind.Queue, "Queue") { onQueue.run() }
+        CircleIconButton(EchoIconKind.Queue, slice.queueLabel) { onQueue.run() }
+    }
+}
+
+@Composable
+private fun NowPlayingMoreMenu(
+    slice: MoreMenuSlice,
+    toggleIcon: EchoIconKind,
+    onFavorite: Runnable,
+    onAddToPlaylist: Runnable,
+    onQueue: Runnable,
+    onToggleView: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val p = EchoTheme.colors()
+    Box {
+        CircleIconButton(EchoIconKind.More, slice.moreLabel) {
+            expanded = true
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text(if (slice.favorite) slice.favoritedLabel else slice.favoriteLabel) },
+                leadingIcon = {
+                    EchoIcon(EchoIconKind.Heart, Modifier.size(18.dp), if (slice.favorite) p.accent else p.muted)
+                },
+                onClick = {
+                    expanded = false
+                    onFavorite.run()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text(slice.addToPlaylistLabel) },
+                leadingIcon = { EchoIcon(EchoIconKind.PlaylistAdd, Modifier.size(18.dp), p.muted) },
+                onClick = {
+                    expanded = false
+                    onAddToPlaylist.run()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text(slice.queueLabel) },
+                leadingIcon = { EchoIcon(EchoIconKind.Queue, Modifier.size(18.dp), p.muted) },
+                onClick = {
+                    expanded = false
+                    onQueue.run()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text(slice.toggleViewLabel) },
+                leadingIcon = { EchoIcon(toggleIcon, Modifier.size(18.dp), p.muted) },
+                onClick = {
+                    expanded = false
+                    onToggleView()
+                }
+            )
+        }
     }
 }
 
@@ -546,6 +1055,7 @@ private fun ScrubProgress(
     durationMs: Long,
     playing: Boolean,
     onSeek: SeekAction,
+    progressLabel: String,
     modifier: Modifier = Modifier
 ) {
     val p = EchoTheme.colors()
@@ -554,7 +1064,7 @@ private fun ScrubProgress(
     // lambda reads this State, so the smooth motion only redraws the Canvas — it never recomposes.
     Canvas(
         modifier = modifier
-            .semantics { contentDescription = "Playback progress" }
+            .semantics { contentDescription = progressLabel }
             .pointerInput(scrub.seekEnabled, scrub.duration) {
                 awaitEachGesture {
                     val down = awaitFirstDown()

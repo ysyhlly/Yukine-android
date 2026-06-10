@@ -184,6 +184,18 @@ object EchoTheme {
         *EchoThemePresets.ids
     )
 
+    @JvmStatic fun primaryModeOptions(): Array<String> = arrayOf(
+        MODE_SYSTEM,
+        MODE_LIGHT,
+        MODE_DARK,
+        MODE_AMOLED
+    )
+
+    @JvmStatic fun advancedModeOptions(): Array<String> {
+        val primary = primaryModeOptions().toSet()
+        return modeOptions().filterNot { primary.contains(it) }.toTypedArray()
+    }
+
     @JvmStatic fun normalizeMode(mode: String?): String {
         val clean = mode?.trim()
         return when (clean) {

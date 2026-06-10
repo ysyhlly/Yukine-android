@@ -54,6 +54,8 @@ final class MainUiShellController {
 
         void onFavorite();
 
+        void onAddCurrentToPlaylist();
+
         void onShuffle();
 
         void onBottomPlaybackMode();
@@ -143,15 +145,13 @@ final class MainUiShellController {
 
             @Override
             public boolean dispatchTouchEvent(MotionEvent event) {
+                boolean collapseAfterDispatch = false;
                 switch (event.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
                         downX = event.getRawX();
                         downY = event.getRawY();
                         moved = false;
                         downInsideNowBar = isPointInsideNowBar(downX, downY);
-                        if (!downInsideNowBar) {
-                            collapseNowBarWaveform();
-                        }
                         break;
                     case MotionEvent.ACTION_MOVE:
                         if (Math.abs(event.getRawX() - downX) > touchSlop
@@ -163,7 +163,7 @@ final class MainUiShellController {
                         if (!moved
                                 && !downInsideNowBar
                                 && !isPointInsideNowBar(event.getRawX(), event.getRawY())) {
-                            collapseNowBarWaveform();
+                            collapseAfterDispatch = true;
                         }
                         break;
                     case MotionEvent.ACTION_CANCEL:
@@ -173,7 +173,11 @@ final class MainUiShellController {
                     default:
                         break;
                 }
-                return super.dispatchTouchEvent(event);
+                boolean handled = super.dispatchTouchEvent(event);
+                if (collapseAfterDispatch) {
+                    collapseNowBarWaveform();
+                }
+                return handled;
             }
         };
         rootFrame = frame;
@@ -212,7 +216,7 @@ final class MainUiShellController {
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        tabBarController = new TabBarController(activity, localizedTabs(languageMode), initialRoute, new TabSelectAction() {
+        tabBarController = new TabBarController(activity, localizedTabs(languageMode), visibleMainTab(initialRoute), new TabSelectAction() {
             @Override
             public void select(String tabKey, boolean userInitiated) {
                 listener.onTabSelected(tabKey, userInitiated);
@@ -257,7 +261,7 @@ final class MainUiShellController {
                 collapseNowBarWaveform();
             }
         });
-        ArrayList<String> contentRoutes = tabRouteKeys();
+        ArrayList<String> contentRoutes = contentRouteKeys();
         contentRouteHostController = new ContentRouteHostController(activity, contentRoutes, initialRoute, new ContentRouteSelectAction() {
             @Override
             public void select(String route) {
@@ -370,6 +374,12 @@ final class MainUiShellController {
                     @Override
                     public void run() {
                         listener.onFavorite();
+                    }
+                },
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        listener.onAddCurrentToPlaylist();
                     }
                 },
                 new Runnable() {
@@ -494,7 +504,7 @@ final class MainUiShellController {
 
     void updateTabBar(String selectedTab) {
         if (tabBarController != null) {
-            tabBarController.updateSelected(selectedTab);
+            tabBarController.updateSelected(visibleMainTab(selectedTab));
         }
     }
 
@@ -520,6 +530,7 @@ final class MainUiShellController {
             return;
         }
         String selected = listener.selectedTab();
+        selected = visibleMainTab(selected);
         String nextTab = MainTabSwipePolicy.adjacentTab(tabRoutes, selected, next);
         if (nextTab == null) {
             return;
@@ -664,9 +675,24 @@ final class MainUiShellController {
         routes.add(MainRoutes.TAB_HOME);
         routes.add(MainRoutes.TAB_LIBRARY);
         routes.add(MainRoutes.TAB_COLLECTIONS);
-        routes.add(MainRoutes.TAB_QUEUE);
-        routes.add(MainRoutes.TAB_NETWORK);
         routes.add(MainRoutes.TAB_SETTINGS);
         return routes;
+    }
+
+    private ArrayList<String> contentRouteKeys() {
+        ArrayList<String> routes = tabRouteKeys();
+        routes.add(MainRoutes.TAB_QUEUE);
+        routes.add(MainRoutes.TAB_NETWORK);
+        return routes;
+    }
+
+    private static String visibleMainTab(String route) {
+        if (MainRoutes.TAB_NETWORK.equals(route)) {
+            return MainRoutes.TAB_SETTINGS;
+        }
+        if (MainRoutes.TAB_QUEUE.equals(route) || MainRoutes.TAB_NOW.equals(route)) {
+            return MainRoutes.TAB_HOME;
+        }
+        return route;
     }
 }

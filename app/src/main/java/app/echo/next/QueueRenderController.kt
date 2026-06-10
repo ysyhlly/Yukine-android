@@ -26,6 +26,8 @@ internal class QueueRenderController(
 
         fun confirmClearQueue()
 
+        fun requestBack()
+
         fun publishQueue(rows: ArrayList<QueueTrackUiState>)
 
         fun addVirtualContent(view: View)
@@ -34,19 +36,15 @@ internal class QueueRenderController(
     }
 
     fun render(queue: List<Track>?, playbackState: PlaybackStateSnapshot?, favoriteIds: Set<Long>, languageMode: String) {
-        if (queue.isNullOrEmpty()) {
-            listener.addStateContent(AppLanguage.text(languageMode, "queue.empty"))
-            return
-        }
-
+        val queueTracks = queue ?: emptyList()
         val rows = ArrayList<QueueTrackUiState>()
         val actions = ArrayList<QueueTrackActions>()
         val currentTrack = playbackState?.currentTrack
-        for (index in queue.indices) {
-            val track = queue[index]
+        for (index in queueTracks.indices) {
+            val track = queueTracks[index]
             rows.add(
                 TrackRowStateFactory.queueRow(
-                    TrackRowKeyPolicy.occurrenceKey(queue, index),
+                    TrackRowKeyPolicy.occurrenceKey(queueTracks, index),
                     track,
                     currentTrack,
                     favoriteIds
@@ -54,7 +52,7 @@ internal class QueueRenderController(
             )
             actions.add(
                 QueueTrackActions(
-                    Runnable { listener.playTrackList(queue, index) },
+                    Runnable { listener.playTrackList(queueTracks, index) },
                     Runnable { listener.toggleFavorite(track) },
                     Runnable { listener.showAddToPlaylist(track) },
                     Runnable { listener.removeQueueTrack(track) }
@@ -71,13 +69,16 @@ internal class QueueRenderController(
                 Runnable { listener.confirmClearQueue() },
                 QueueScreenLabels(
                     title = AppLanguage.text(languageMode, "tab.queue"),
+                    back = AppLanguage.text(languageMode, "back"),
                     clearQueue = AppLanguage.text(languageMode, "clear.queue.title"),
                     empty = AppLanguage.text(languageMode, "queue.empty"),
+                    emptyDescription = AppLanguage.text(languageMode, "queue.empty.description"),
                     tracks = AppLanguage.text(languageMode, "tracks"),
                     favorite = AppLanguage.text(languageMode, "favorite"),
                     addToPlaylist = AppLanguage.text(languageMode, "add.to.playlist"),
                     remove = AppLanguage.text(languageMode, "remove")
-                )
+                ),
+                Runnable { listener.requestBack() }
             )
         )
     }

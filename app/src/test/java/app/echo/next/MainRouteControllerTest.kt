@@ -74,6 +74,115 @@ class MainRouteControllerTest {
         assertEquals(MainRoutes.SETTINGS_HOME, state.settingsPage)
     }
 
+    @Test
+    fun backNavigationReturnsConcreteSettingsPageToItsGroup() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_SETTINGS,
+            settingsPage = MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY
+        )
+
+        val result = controller.applyBackNavigation()
+
+        assertEquals(true, result.handled)
+        assertEquals(MainRoutes.SETTINGS_SOURCES_GROUP, controller.current().settingsPage)
+    }
+
+    @Test
+    fun backNavigationReturnsSettingsGroupToSettingsHome() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_SETTINGS,
+            settingsPage = MainRoutes.SETTINGS_PLAYBACK_GROUP
+        )
+
+        val result = controller.applyBackNavigation()
+
+        assertEquals(true, result.handled)
+        assertEquals(MainRoutes.SETTINGS_HOME, controller.current().settingsPage)
+    }
+
+    @Test
+    fun backNavigationReturnsAdvancedThemePageToThemePage() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_SETTINGS,
+            settingsPage = MainRoutes.SETTINGS_ADVANCED_THEME
+        )
+
+        val result = controller.applyBackNavigation()
+
+        assertEquals(true, result.handled)
+        assertEquals(MainRoutes.SETTINGS_APPEARANCE, controller.current().settingsPage)
+    }
+
+    @Test
+    fun backNavigationReturnsStreamingHubToNetworkHome() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_NETWORK,
+            networkPage = MainRoutes.NETWORK_STREAMING_HUB,
+            selectedRemoteSourceId = 42L
+        )
+
+        val result = controller.applyBackNavigation()
+
+        assertEquals(true, result.handled)
+        assertEquals(false, result.navigateTab)
+        val state = controller.current()
+        assertEquals(MainRoutes.TAB_NETWORK, state.selectedTab)
+        assertEquals(MainRoutes.NETWORK_HOME, state.networkPage)
+        assertEquals(-1L, state.selectedRemoteSourceId)
+    }
+
+    @Test
+    fun backNavigationReturnsStreamListToStreamingEntry() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_NETWORK,
+            networkPage = MainRoutes.NETWORK_STREAM_LIST,
+            selectedRemoteSourceId = 42L
+        )
+
+        val result = controller.applyBackNavigation()
+
+        assertEquals(true, result.handled)
+        assertEquals(false, result.navigateTab)
+        val state = controller.current()
+        assertEquals(MainRoutes.TAB_NETWORK, state.selectedTab)
+        assertEquals(MainRoutes.NETWORK_STREAMING, state.networkPage)
+        assertEquals(42L, state.selectedRemoteSourceId)
+    }
+
+    @Test
+    fun backNavigationClosesLibraryPlaylistDetailCompletely() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_LIBRARY,
+            libraryMode = LibraryGrouping.PLAYLISTS,
+            selectedLibraryGroupKey = "playlist:7",
+            selectedLibraryGroupTitle = "Favorites",
+            selectedPlaylistId = 7L
+        )
+
+        val result = controller.applyBackNavigation()
+
+        assertEquals(true, result.handled)
+        val state = controller.current()
+        assertEquals("", state.selectedLibraryGroupKey)
+        assertEquals("", state.selectedLibraryGroupTitle)
+        assertEquals(-1L, state.selectedPlaylistId)
+    }
+
+    @Test
+    fun backNavigationClosesSelectedCollectionsPlaylist() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_COLLECTIONS,
+            selectedPlaylistId = 7L
+        )
+
+        val result = controller.applyBackNavigation()
+
+        assertEquals(true, result.handled)
+        val state = controller.current()
+        assertEquals(MainRoutes.TAB_COLLECTIONS, state.selectedTab)
+        assertEquals(-1L, state.selectedPlaylistId)
+    }
+
     private fun controllerWith(
         selectedTab: String,
         libraryMode: String = LibraryGrouping.SONGS,

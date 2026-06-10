@@ -1,5 +1,9 @@
 # ECHO NEXT Android
 
+Release manual checklist: [docs/RELEASE_EXPERIENCE_CHECKLIST.md](docs/RELEASE_EXPERIENCE_CHECKLIST.md)
+
+Playback service stability matrix: [docs/PLAYBACK_SERVICE_STABILITY_MATRIX.md](docs/PLAYBACK_SERVICE_STABILITY_MATRIX.md)
+
 ECHO NEXT 的原生 Android 移植版。
 
 这个实现是一个原生 Android 音乐播放器，围绕 Kotlin/Compose UI 界面、Java Android 生命周期编排、AndroidX Media3 播放，以及 SQLite 持久化构建。它实现了当前 MVP 阶段 ECHO NEXT 需要的 Android 核心能力：

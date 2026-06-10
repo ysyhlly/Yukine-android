@@ -76,7 +76,7 @@ public final class Track implements Parcelable {
         this.contentUri = contentUri == null ? Uri.EMPTY : contentUri;
         this.dataPath = dataPath == null ? "" : dataPath;
         this.albumId = Math.max(albumId, 0L);
-        this.albumArtUri = albumArtUri;
+        this.albumArtUri = sanitizeAlbumArtUri(albumArtUri);
         this.codec = cleanCodec(codec);
         this.bitrateKbps = Math.max(bitrateKbps, 0);
         this.sampleRateHz = Math.max(sampleRateHz, 0);
@@ -217,6 +217,17 @@ public final class Track implements Parcelable {
             trimmed = trimmed.substring("audio/".length());
         }
         return trimmed;
+    }
+
+    private static Uri sanitizeAlbumArtUri(Uri value) {
+        if (value == null) {
+            return null;
+        }
+        String text = value.toString().toLowerCase(Locale.ROOT);
+        if (text.startsWith("content://media/") && text.contains("/audio/albumart")) {
+            return null;
+        }
+        return value;
     }
 
     private static void appendSeparator(StringBuilder builder) {

@@ -592,7 +592,7 @@ class MainActivityViewModel @Inject constructor(
         streamingState.value = streamingState.value.copy(
             loading = false,
             loadingMore = false,
-            errorMessage = message?.takeIf { it.isNotBlank() } ?: "流媒体请求失败"
+            errorMessage = message?.takeIf { it.isNotBlank() } ?: "Streaming request failed"
         )
     }
 
@@ -903,7 +903,7 @@ class MainActivityViewModel @Inject constructor(
             }.onFailure { error ->
                 streamingState.value = streamingState.value.copy(
                     playlistImporting = false,
-                    errorMessage = error.message ?: "姝屽崟瀵煎叆澶辫触"
+                    errorMessage = error.message ?: "Playlist import failed"
                 )
                 updateStreamingDiagnostics()
             }
@@ -954,7 +954,7 @@ class MainActivityViewModel @Inject constructor(
                 streamingState.value = streamingState.value.copy(
                     userPlaylists = emptyList(),
                     userPlaylistsLoading = false,
-                    errorMessage = error.message ?: "鏃犳硶鍔犺浇璐︽埛姝屽崟"
+                    errorMessage = error.message ?: "Could not load account playlists"
                 )
                 updateStreamingDiagnostics()
             }
@@ -1095,7 +1095,7 @@ class MainActivityViewModel @Inject constructor(
                 )
                 updateStreamingDiagnostics()
                 val name = result.first?.takeIf { it.isNotBlank() }
-                    ?: "娴佸獟浣撴瓕鍗?$providerPlaylistId"
+                    ?: "Streaming playlist $providerPlaylistId"
                 onResolved.onResult(name, result.second)
             }.onFailure { error ->
                 failStreamingRequest(error.message)

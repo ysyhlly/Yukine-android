@@ -22,6 +22,8 @@ internal class SettingsPageRenderController(
     interface Listener {
         fun navigateSettingsPage(page: String)
 
+        fun openNetworkSources()
+
         fun loadLibrary()
 
         fun openAudioFilePicker()
@@ -77,18 +79,75 @@ internal class SettingsPageRenderController(
         metrics.add(SettingsMetric(text(languageMode, "notification.permission"), if (notificationPermissionGranted) text(languageMode, "granted") else text(languageMode, "missing")))
         metrics.add(SettingsMetric(text(languageMode, "playback.service"), if (playbackServiceConnected) text(languageMode, "connected") else text(languageMode, "disconnected")))
         val actions = ArrayList<SettingsAction>()
+        addGroupNavigationAction(actions, languageMode, "appearance", MainRoutes.SETTINGS_APPEARANCE_GROUP)
+        addGroupNavigationAction(actions, languageMode, "playback", MainRoutes.SETTINGS_PLAYBACK_GROUP)
+        addGroupNavigationAction(actions, languageMode, "library", MainRoutes.SETTINGS_LIBRARY_GROUP)
+        addGroupNavigationAction(actions, languageMode, "lyrics", MainRoutes.SETTINGS_LYRICS_GROUP)
+        addGroupNavigationAction(actions, languageMode, "sources", MainRoutes.SETTINGS_SOURCES_GROUP)
+        addGroupNavigationAction(actions, languageMode, "about", MainRoutes.SETTINGS_ABOUT_GROUP)
+        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "tab.settings")))
+    }
+
+    fun renderAppearanceGroup(languageMode: String, themeMode: String, accentMode: String) {
+        val metrics = ArrayList<SettingsMetric>()
+        metrics.add(SettingsMetric(text(languageMode, "theme"), AppLanguage.themeLabel(themeMode, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "accent"), AppLanguage.accentLabel(accentMode, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "language"), AppLanguage.labelFor(languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "description"), groupDescription(languageMode, "appearance")))
+        val actions = ArrayList<SettingsAction>()
+        addBackAction(actions, languageMode)
         addNavigationAction(actions, text(languageMode, "appearance"), MainRoutes.SETTINGS_APPEARANCE)
         addNavigationAction(actions, text(languageMode, "accent"), MainRoutes.SETTINGS_ACCENT)
         addNavigationAction(actions, text(languageMode, "language"), MainRoutes.SETTINGS_LANGUAGE)
+        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, groupTitle(languageMode, "appearance")))
+    }
+
+    fun renderPlaybackGroup(languageMode: String, playbackSpeed: Float, appVolume: Float, concurrentPlaybackEnabled: Boolean, remainingMs: Long) {
+        val metrics = ArrayList<SettingsMetric>()
+        metrics.add(SettingsMetric(text(languageMode, "playback.speed"), playbackSpeedLabel(playbackSpeed)))
+        metrics.add(SettingsMetric(text(languageMode, "app.volume"), appVolumeLabel(appVolume)))
+        metrics.add(SettingsMetric(text(languageMode, "concurrent.playback"), if (concurrentPlaybackEnabled) text(languageMode, "enabled") else text(languageMode, "disabled")))
+        metrics.add(SettingsMetric(text(languageMode, "sleep.timer"), sleepTimerLabel(remainingMs, languageMode)))
+        val actions = ArrayList<SettingsAction>()
+        addBackAction(actions, languageMode)
         addNavigationAction(actions, text(languageMode, "playback.speed"), MainRoutes.SETTINGS_PLAYBACK_SPEED)
         addNavigationAction(actions, text(languageMode, "app.volume"), MainRoutes.SETTINGS_APP_VOLUME)
-        addNavigationAction(actions, text(languageMode, "streaming.audio.quality"), MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY)
         addNavigationAction(actions, text(languageMode, "concurrent.playback"), MainRoutes.SETTINGS_CONCURRENT_PLAYBACK)
         addNavigationAction(actions, text(languageMode, "sleep.timer"), MainRoutes.SETTINGS_SLEEP_TIMER)
-        addNavigationAction(actions, text(languageMode, "lyrics"), MainRoutes.SETTINGS_LYRICS)
-        addNavigationAction(actions, text(languageMode, "library"), MainRoutes.SETTINGS_LIBRARY)
-        addNavigationAction(actions, text(languageMode, "streaming.gateway"), MainRoutes.SETTINGS_STREAMING_GATEWAY)
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "tab.settings")))
+        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, groupTitle(languageMode, "playback")))
+    }
+
+    fun renderLibraryGroup(languageMode: String, songCount: Int, albumCount: Int, artistCount: Int, audioPermissionGranted: Boolean) {
+        renderLibrary(languageMode, songCount, albumCount, artistCount, audioPermissionGranted)
+    }
+
+    fun renderLyricsGroup(languageMode: String, offsetMs: Long, onlineLyricsEnabled: Boolean) {
+        renderLyrics(languageMode, offsetMs, onlineLyricsEnabled)
+    }
+
+    fun renderSourcesGroup(languageMode: String, quality: String, gatewayConfigured: Boolean) {
+        val normalizedQuality = StreamingQualityPreference.normalize(quality)
+        val metrics = ArrayList<SettingsMetric>()
+        metrics.add(SettingsMetric(text(languageMode, "streaming.audio.quality"), streamingQualityLabel(normalizedQuality, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "streaming.gateway"), if (gatewayConfigured) text(languageMode, "connected") else text(languageMode, "missing")))
+        metrics.add(SettingsMetric(text(languageMode, "description"), groupDescription(languageMode, "sources")))
+        val actions = ArrayList<SettingsAction>()
+        addBackAction(actions, languageMode)
+        actions.add(SettingsAction(text(languageMode, "remote.music.sources"), Runnable { listener.openNetworkSources() }))
+        addNavigationAction(actions, text(languageMode, "streaming.audio.quality"), MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY)
+        addNavigationAction(actions, text(languageMode, "advanced") + " · " + text(languageMode, "streaming.gateway"), MainRoutes.SETTINGS_STREAMING_GATEWAY)
+        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, groupTitle(languageMode, "sources")))
+    }
+
+    fun renderAboutGroup(languageMode: String, audioPermissionGranted: Boolean, notificationPermissionGranted: Boolean, playbackServiceConnected: Boolean) {
+        val metrics = ArrayList<SettingsMetric>()
+        metrics.add(SettingsMetric(text(languageMode, "version"), "0.1.0"))
+        metrics.add(SettingsMetric(text(languageMode, "audio.permission"), if (audioPermissionGranted) text(languageMode, "granted") else text(languageMode, "missing")))
+        metrics.add(SettingsMetric(text(languageMode, "notification.permission"), if (notificationPermissionGranted) text(languageMode, "granted") else text(languageMode, "missing")))
+        metrics.add(SettingsMetric(text(languageMode, "playback.service"), if (playbackServiceConnected) text(languageMode, "connected") else text(languageMode, "disconnected")))
+        val actions = ArrayList<SettingsAction>()
+        addBackAction(actions, languageMode)
+        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, groupTitle(languageMode, "about")))
     }
 
     fun renderStreamingGateway(languageMode: String, endpoint: String, configured: Boolean) {
@@ -97,7 +156,7 @@ internal class SettingsPageRenderController(
         metrics.add(SettingsMetric(text(languageMode, "endpoint"), endpoint))
         metrics.add(SettingsMetric(text(languageMode, "description"), text(languageMode, "streaming.gateway.description")))
         val actions = ArrayList<SettingsAction>()
-        addBackAction(actions, languageMode)
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_STREAMING_GATEWAY)
         addStreamingGatewayOption(actions, languageMode, endpoint, StreamingGatewaySettingsStore.EMULATOR_HOST_ENDPOINT, "streaming.gateway.emulator")
         addStreamingGatewayOption(actions, languageMode, endpoint, StreamingGatewaySettingsStore.LOCALHOST_ENDPOINT, "streaming.gateway.localhost")
         addStreamingGatewayOption(actions, languageMode, endpoint, StreamingGatewaySettingsStore.UNCONFIGURED_ENDPOINT, "disable")
@@ -111,7 +170,7 @@ internal class SettingsPageRenderController(
         metrics.add(SettingsMetric(text(languageMode, "artists"), artistCount.toString()))
         metrics.add(SettingsMetric(text(languageMode, "audio.permission"), if (audioPermissionGranted) text(languageMode, "granted") else text(languageMode, "missing")))
         val actions = ArrayList<SettingsAction>()
-        addBackAction(actions, languageMode)
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_LIBRARY)
         actions.add(SettingsAction(text(languageMode, "scan.library"), Runnable { listener.loadLibrary() }))
         actions.add(SettingsAction(text(languageMode, "import.audio.files"), Runnable { listener.openAudioFilePicker() }))
         actions.add(SettingsAction(text(languageMode, "import.audio.folder"), Runnable { listener.openAudioFolderPicker() }))
@@ -125,7 +184,7 @@ internal class SettingsPageRenderController(
         metrics.add(SettingsMetric(text(languageMode, "provider"), "LRCLIB"))
         metrics.add(SettingsMetric(text(languageMode, "local.lyrics"), text(languageMode, "same.name.lrc")))
         val actions = ArrayList<SettingsAction>()
-        addBackAction(actions, languageMode)
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_LYRICS)
         actions.add(
             SettingsAction(
                 if (onlineLyricsEnabled) text(languageMode, "disable.online.lyrics") else text(languageMode, "enable.online.lyrics"),
@@ -146,7 +205,7 @@ internal class SettingsPageRenderController(
         metrics.add(SettingsMetric(text(languageMode, "sleep.timer"), sleepTimerLabel(remainingMs, languageMode)))
         metrics.add(SettingsMetric(text(languageMode, "description"), text(languageMode, "sleep.timer.description")))
         val actions = ArrayList<SettingsAction>()
-        addBackAction(actions, languageMode)
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_SLEEP_TIMER)
         addSleepTimerOption(actions, languageMode, 15)
         addSleepTimerOption(actions, languageMode, 30)
         addSleepTimerOption(actions, languageMode, 45)
@@ -161,7 +220,7 @@ internal class SettingsPageRenderController(
         metrics.add(SettingsMetric(text(languageMode, "playback.speed"), playbackSpeedLabel(playbackSpeed)))
         metrics.add(SettingsMetric(text(languageMode, "description"), text(languageMode, "speed.description")))
         val actions = ArrayList<SettingsAction>()
-        addBackAction(actions, languageMode)
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_PLAYBACK_SPEED)
         addPlaybackSpeedOption(actions, languageMode, playbackSpeed, 0.5f)
         addPlaybackSpeedOption(actions, languageMode, playbackSpeed, 0.75f)
         addPlaybackSpeedOption(actions, languageMode, playbackSpeed, 1.0f)
@@ -176,7 +235,7 @@ internal class SettingsPageRenderController(
         metrics.add(SettingsMetric(text(languageMode, "app.volume"), appVolumeLabel(appVolume)))
         metrics.add(SettingsMetric(text(languageMode, "description"), text(languageMode, "volume.description")))
         val actions = ArrayList<SettingsAction>()
-        addBackAction(actions, languageMode)
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_APP_VOLUME)
         addAppVolumeOption(actions, languageMode, appVolume, 0.5f)
         addAppVolumeOption(actions, languageMode, appVolume, 0.7f)
         addAppVolumeOption(actions, languageMode, appVolume, 0.85f)
@@ -190,7 +249,7 @@ internal class SettingsPageRenderController(
         metrics.add(SettingsMetric(text(languageMode, "streaming.audio.quality"), streamingQualityLabel(normalizedQuality, languageMode)))
         metrics.add(SettingsMetric(text(languageMode, "description"), text(languageMode, "streaming.quality.description")))
         val actions = ArrayList<SettingsAction>()
-        addBackAction(actions, languageMode)
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY)
         StreamingQualityPreference.options().forEach { option ->
             addStreamingQualityOption(actions, languageMode, normalizedQuality, option)
         }
@@ -202,7 +261,7 @@ internal class SettingsPageRenderController(
         metrics.add(SettingsMetric(text(languageMode, "concurrent.playback"), if (concurrentPlaybackEnabled) text(languageMode, "enabled") else text(languageMode, "disabled")))
         metrics.add(SettingsMetric(text(languageMode, "description"), text(languageMode, "concurrent.playback.description")))
         val actions = ArrayList<SettingsAction>()
-        addBackAction(actions, languageMode)
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_CONCURRENT_PLAYBACK)
         actions.add(
             SettingsAction(
                 if (concurrentPlaybackEnabled) text(languageMode, "disable.concurrent.playback") else text(languageMode, "enable.concurrent.playback"),
@@ -217,11 +276,32 @@ internal class SettingsPageRenderController(
         metrics.add(SettingsMetric(text(languageMode, "theme"), AppLanguage.themeLabel(themeMode, languageMode)))
         metrics.add(SettingsMetric(text(languageMode, "options"), text(languageMode, "theme.options")))
         val actions = ArrayList<SettingsAction>()
-        addBackAction(actions, languageMode)
-        EchoTheme.modeOptions().forEach { mode ->
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_APPEARANCE)
+        EchoTheme.primaryModeOptions().forEach { mode ->
             addThemeOption(actions, languageMode, themeMode, mode)
         }
+        if (EchoTheme.advancedModeOptions().isNotEmpty()) {
+            actions.add(
+                SettingsAction(
+                    text(languageMode, "advanced.themes"),
+                    Runnable { listener.navigateSettingsPage(MainRoutes.SETTINGS_ADVANCED_THEME) },
+                    text(languageMode, "advanced.themes.description")
+                )
+            )
+        }
         listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "appearance")))
+    }
+
+    fun renderAdvancedTheme(languageMode: String, themeMode: String) {
+        val metrics = ArrayList<SettingsMetric>()
+        metrics.add(SettingsMetric(text(languageMode, "theme"), AppLanguage.themeLabel(themeMode, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "description"), text(languageMode, "advanced.themes.description")))
+        val actions = ArrayList<SettingsAction>()
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_ADVANCED_THEME)
+        EchoTheme.advancedModeOptions().forEach { mode ->
+            addThemeOption(actions, languageMode, themeMode, mode)
+        }
+        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "advanced.themes")))
     }
 
     fun renderAccent(languageMode: String, accentMode: String) {
@@ -229,7 +309,7 @@ internal class SettingsPageRenderController(
         metrics.add(SettingsMetric(text(languageMode, "accent"), AppLanguage.accentLabel(accentMode, languageMode)))
         metrics.add(SettingsMetric(text(languageMode, "options"), text(languageMode, "accent.options")))
         val actions = ArrayList<SettingsAction>()
-        addBackAction(actions, languageMode)
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_ACCENT)
         addAccentOption(actions, languageMode, accentMode, EchoTheme.ACCENT_BLUE)
         addAccentOption(actions, languageMode, accentMode, EchoTheme.ACCENT_TEAL)
         addAccentOption(actions, languageMode, accentMode, EchoTheme.ACCENT_ROSE)
@@ -250,7 +330,7 @@ internal class SettingsPageRenderController(
         metrics.add(SettingsMetric(text(languageMode, "language"), AppLanguage.labelFor(languageMode)))
         metrics.add(SettingsMetric(text(languageMode, "options"), text(languageMode, "language.options")))
         val actions = ArrayList<SettingsAction>()
-        addBackAction(actions, languageMode)
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_LANGUAGE)
         addLanguageOption(actions, languageMode, AppLanguage.MODE_SYSTEM)
         addLanguageOption(actions, languageMode, AppLanguage.MODE_CHINESE)
         addLanguageOption(actions, languageMode, AppLanguage.MODE_ENGLISH)
@@ -261,8 +341,22 @@ internal class SettingsPageRenderController(
         actions.add(SettingsAction(label, Runnable { listener.navigateSettingsPage(page) }))
     }
 
+    private fun addGroupNavigationAction(actions: ArrayList<SettingsAction>, languageMode: String, key: String, page: String) {
+        actions.add(SettingsAction(groupTitle(languageMode, key), Runnable { listener.navigateSettingsPage(page) }, groupDescription(languageMode, key)))
+    }
+
+    private fun groupTitle(languageMode: String, key: String): String =
+        text(languageMode, "settings.group.$key")
+
+    private fun groupDescription(languageMode: String, key: String): String =
+        text(languageMode, "settings.group.$key.description")
+
     private fun addBackAction(actions: ArrayList<SettingsAction>, languageMode: String) {
         addNavigationAction(actions, text(languageMode, "back"), MainRoutes.SETTINGS_HOME)
+    }
+
+    private fun addBackAction(actions: ArrayList<SettingsAction>, languageMode: String, currentPage: String) {
+        addNavigationAction(actions, text(languageMode, "back"), SettingsBackStack.parentPage(currentPage))
     }
 
     private fun addLyricsOffsetOption(actions: ArrayList<SettingsAction>, languageMode: String, currentOffsetMs: Long, offsetMs: Long) {

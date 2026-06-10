@@ -32,6 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import app.echo.next.data.EmbeddedArtwork
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -73,6 +74,9 @@ object ArtworkLoader {
     }
 
     private fun decodeSampledBitmap(context: Context, uri: Uri, targetPx: Int): Bitmap? {
+        if (EmbeddedArtwork.isEmbeddedArtworkUri(uri)) {
+            return decodeSampledEmbeddedArtwork(context, uri, targetPx)
+        }
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         runCatching {
             openArtworkStream(context, uri)?.use { input ->
@@ -91,6 +95,20 @@ object ArtworkLoader {
                 BitmapFactory.decodeStream(input, null, options)
             }
         }.getOrNull()
+    }
+
+    private fun decodeSampledEmbeddedArtwork(context: Context, uri: Uri, targetPx: Int): Bitmap? {
+        val bytes = EmbeddedArtwork.read(context, uri) ?: return null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            return null
+        }
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight, targetPx)
+            inPreferredConfig = Bitmap.Config.RGB_565
+        }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     }
 
     private fun openArtworkStream(context: Context, uri: Uri): java.io.InputStream? {

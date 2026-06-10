@@ -50,6 +50,7 @@ enum class EchoIconKind {
     Refresh,
     Language,
     ChevronRight,
+    More,
     Sparkle
 }
 
@@ -292,6 +293,11 @@ fun EchoIcon(
                 // Navigation chevron pointing right
                 drawLine(color, Offset(w * 0.4f, h * 0.28f), Offset(w * 0.64f, h * 0.5f), strokeWidth = stroke.width, cap = StrokeCap.Round)
                 drawLine(color, Offset(w * 0.64f, h * 0.5f), Offset(w * 0.4f, h * 0.72f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            }
+            EchoIconKind.More -> {
+                drawCircle(color, radius = w * 0.055f, center = Offset(w * 0.28f, h * 0.5f))
+                drawCircle(color, radius = w * 0.055f, center = Offset(w * 0.5f, h * 0.5f))
+                drawCircle(color, radius = w * 0.055f, center = Offset(w * 0.72f, h * 0.5f))
             }
             EchoIconKind.Sparkle -> {
                 // Four-point sparkle / star for daily recommendations.

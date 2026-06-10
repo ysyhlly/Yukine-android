@@ -34,7 +34,6 @@ import app.echo.next.streaming.StreamingArtist
 import app.echo.next.streaming.StreamingCapabilityResolver
 import app.echo.next.streaming.StreamingMvItem
 import app.echo.next.streaming.StreamingPlaylist
-import app.echo.next.streaming.StreamingProviderCapability
 import app.echo.next.streaming.StreamingProviderHealth
 import app.echo.next.streaming.StreamingProviderName
 import app.echo.next.streaming.StreamingProviderStatus
@@ -58,6 +57,55 @@ data class StreamingSearchActions(
     val onHeartbeatRecommend: Runnable,
     val onPasteImport: Runnable,
     val onInputCookie: Runnable
+)
+
+data class StreamingSearchLabels(
+    val title: String,
+    val back: String,
+    val searchPrefix: String,
+    val searchSuffix: String,
+    val sourceDefault: String,
+    val searchUnavailableSuffix: String,
+    val importPlaylistFromStreaming: String,
+    val loadAccountPlaylists: String,
+    val importLikedTracks: String,
+    val dailyRecommendations: String,
+    val heartbeatRecommendations: String,
+    val backupAccountConnection: String,
+    val accountActions: String,
+    val discoverMusic: String,
+    val advancedTools: String,
+    val loadingAccountPlaylists: String,
+    val accountPlaylists: String,
+    val openLoginPrefix: String,
+    val openLoginSuffix: String,
+    val loading: String,
+    val streamingRequestFailed: String,
+    val playlistImportFailed: String,
+    val accountPlaylistsFailed: String,
+    val matchingLocalTracks: String,
+    val playlistImportPrefix: String,
+    val matched: String,
+    val unresolved: String,
+    val results: String,
+    val matchedStreamingTracks: String,
+    val songs: String,
+    val albums: String,
+    val artists: String,
+    val playlists: String,
+    val videos: String,
+    val noResults: String,
+    val loadMore: String,
+    val playResolvedTrack: String,
+    val signedIn: String,
+    val onlineAuthenticated: String,
+    val online: String,
+    val unavailable: String,
+    val ready: String,
+    val needsAccount: String,
+    val disabled: String,
+    val error: String,
+    val trackCountSuffix: String
 )
 
 fun interface ProviderAction {
@@ -85,19 +133,24 @@ object StreamingSearchScreenFactory {
     fun create(
         context: Context,
         state: StateFlow<MainActivityStreamingState>,
+        labels: StreamingSearchLabels,
         actions: StreamingSearchActions
     ): ComposeView = ComposeView(context).apply {
         setContent {
             EchoTheme.EchoTheme {
                 val uiState = state.collectAsState()
-                StreamingSearchScreen(uiState.value, actions)
+                StreamingSearchScreen(uiState.value, labels, actions)
             }
         }
     }
 }
 
 @Composable
-private fun StreamingSearchScreen(state: MainActivityStreamingState, actions: StreamingSearchActions) {
+private fun StreamingSearchScreen(
+    state: MainActivityStreamingState,
+    labels: StreamingSearchLabels,
+    actions: StreamingSearchActions
+) {
     val p = EchoTheme.colors()
     val provider = state.providers.firstOrNull { it.name == state.selectedProvider }
     val selectedCapability = state.providerCapabilities.firstOrNull { it.provider == state.selectedProvider }
@@ -110,10 +163,12 @@ private fun StreamingSearchScreen(state: MainActivityStreamingState, actions: St
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
     ) {
         item(key = "title") {
-            EchoPageTitle("流媒体", subtitle = provider?.displayName)
-        }
-        item(key = "back") {
-            ActionRow("返回", EchoIconKind.Back) { actions.onBack.run() }
+            EchoPageTitle(
+                labels.title,
+                subtitle = provider?.displayName,
+                backLabel = labels.back,
+                onBack = actions.onBack
+            )
         }
         if (state.providers.isNotEmpty()) {
             itemsIndexed(
@@ -126,7 +181,7 @@ private fun StreamingSearchScreen(state: MainActivityStreamingState, actions: St
                 ProviderRow(
                     name = item.displayName,
                     selected = item.name == state.selectedProvider,
-                    status = providerStatusText(item.statusMessage, item.status, health, authState),
+                    status = providerStatusText(item.statusMessage, item.status, health, authState, labels),
                     supportsAuth = capability?.supportsAuth ?: StreamingCapabilityResolver.canAuth(item),
                     connected = authState.connected,
                     onSelect = { actions.onSelectProvider.run(item.name) },
@@ -135,114 +190,89 @@ private fun StreamingSearchScreen(state: MainActivityStreamingState, actions: St
                 )
             }
         }
-        item(key = "search") {
-            val query = state.searchQuery.ifBlank { "echo" }
-            if (canSearch) {
-                ActionRow("搜索 \"$query\"", EchoIconKind.Search) { actions.onSearch.run(query) }
-            } else {
-                MessageRow("${provider?.displayName ?: "音源"} 暂不可搜索")
+        state.pendingAuthLaunch?.let { launch ->
+            item(key = "auth-launch:${launch.provider.wireName}") {
+                ActionRow(labels.openLoginPrefix + launch.provider.wireName + labels.openLoginSuffix, EchoIconKind.Action) {
+                    actions.onOpenAuthLaunch.run()
+                }
             }
         }
-        item(key = "import-from-streaming") {
-            ActionRow("从流媒体导入歌单", EchoIconKind.PlaylistAdd) { actions.onPasteImport.run() }
-        }
-        item(key = "load-account-playlists") {
-            ActionRow("加载账户歌单", EchoIconKind.Collections) { actions.onLoadUserPlaylists.run() }
-        }
-        item(key = "import-liked-tracks") {
-            ActionRow("导入流媒体收藏", EchoIconKind.Heart) { actions.onImportLikedTracks.run() }
+        item(key = "account-actions-title") {
+            SectionTitle(labels.accountActions)
         }
         if (state.selectedProvider == StreamingProviderName.NETEASE) {
             item(key = "daily-recommend") {
-                ActionRow("每日推荐", EchoIconKind.Sparkle) { actions.onDailyRecommend.run() }
+                ActionRow(labels.dailyRecommendations, EchoIconKind.Sparkle) { actions.onDailyRecommend.run() }
             }
             item(key = "heartbeat-recommend") {
-                ActionRow("心动推荐", EchoIconKind.Heart) { actions.onHeartbeatRecommend.run() }
+                ActionRow(labels.heartbeatRecommendations, EchoIconKind.Heart) { actions.onHeartbeatRecommend.run() }
             }
         }
-        item(key = "manual-cookie") {
-            ActionRow("手动填写 Cookie", EchoIconKind.Edit) { actions.onInputCookie.run() }
+        item(key = "load-account-playlists") {
+            ActionRow(labels.loadAccountPlaylists, EchoIconKind.Collections) { actions.onLoadUserPlaylists.run() }
+        }
+        item(key = "import-liked-tracks") {
+            ActionRow(labels.importLikedTracks, EchoIconKind.Heart) { actions.onImportLikedTracks.run() }
         }
         if (state.userPlaylistsLoading) {
             item(key = "account-playlists-loading") {
-                MessageRow("正在加载账户歌单")
+                MessageRow(labels.loadingAccountPlaylists)
             }
         }
         if (state.userPlaylists.isNotEmpty()) {
             item(key = "account-playlists-title") {
-                SectionTitle("账户歌单")
+                SectionTitle(labels.accountPlaylists)
             }
             itemsIndexed(
                 items = state.userPlaylists,
                 key = { _, item -> "user-playlist:${item.provider.wireName}:${item.providerPlaylistId}" }
             ) { _, item ->
-                StreamingPlaylistRow(item) { actions.onImportPlaylist.run(item) }
+                StreamingPlaylistRow(item, labels) { actions.onImportPlaylist.run(item) }
             }
         }
-        state.pendingAuthLaunch?.let { launch ->
-            item(key = "auth-launch:${launch.provider.wireName}") {
-                ActionRow("打开 ${launch.provider.wireName} 登录", EchoIconKind.Action) {
-                    actions.onOpenAuthLaunch.run()
-                }
+        item(key = "discover-title") {
+            SectionTitle(labels.discoverMusic)
+        }
+        item(key = "search") {
+            val query = state.searchQuery.ifBlank { "echo" }
+            if (canSearch) {
+                ActionRow(labels.searchPrefix + query + labels.searchSuffix, EchoIconKind.Search) { actions.onSearch.run(query) }
+            } else {
+                MessageRow((provider?.displayName ?: labels.sourceDefault) + labels.searchUnavailableSuffix)
             }
         }
-        if (provider != null) {
-            item(key = "provider-metadata") {
-                MetricRow("音源", provider.displayName)
-            }
-            item(key = "provider-capabilities") {
-                val value = capabilityLabels(provider, selectedCapability).joinToString(" / ")
-                MetricRow("能力", value.ifBlank { "无" })
-            }
-            item(key = "provider-actions") {
-                val value = actionLabels(provider, selectedCapability).joinToString(" / ")
-                MetricRow("操作", value.ifBlank { "无" })
-            }
-            selectedHealth?.let { health ->
-                item(key = "provider-health") {
-                    MetricRow("健康状态", providerHealthText(health))
-                }
-            }
-            if (StreamingCapabilityResolver.canFavorites(provider)) {
-                item(key = "provider-favorites") {
-                    CapabilityRow("支持收藏同步", EchoIconKind.Heart)
-                }
-            }
-            if (StreamingCapabilityResolver.canPlaylists(provider)) {
-                item(key = "provider-playlists") {
-                    CapabilityRow("支持歌单", EchoIconKind.PlaylistAdd)
-                }
-            }
+        item(key = "import-from-streaming") {
+            ActionRow(labels.importPlaylistFromStreaming, EchoIconKind.PlaylistAdd) { actions.onPasteImport.run() }
         }
         if (state.loading && !state.loadingMore) {
             item(key = "loading") {
-                MessageRow("加载中")
+                MessageRow(labels.loading)
             }
         }
         if (state.playlistImporting) {
             item(key = "playlist-importing") {
-                MessageRow("正在匹配本地歌曲到流媒体")
+                MessageRow(labels.matchingLocalTracks)
             }
         }
         state.playlistImportSummary?.let { summary ->
             item(key = "playlist-import-title") {
-                SectionTitle("歌单导入：${summary.playlistName}")
+                SectionTitle(labels.playlistImportPrefix + summary.playlistName)
             }
             item(key = "playlist-import-meta") {
                 MetricRow(
-                    "匹配",
+                    labels.matched,
                     "${summary.matchedTracks.size} / ${summary.totalRequested} (${summary.matchRatePercent}%)"
                 )
             }
             if (summary.unresolvedTracks.isNotEmpty()) {
                 item(key = "playlist-import-unresolved") {
-                    MetricRow("未匹配", "${summary.unresolvedTracks.size}")
+                    MetricRow(labels.unresolved, "${summary.unresolvedTracks.size}")
                 }
             }
         }
         state.errorMessage?.takeIf { it.isNotBlank() }?.let { message ->
             item(key = "error") {
-                MessageRow(message)
+                MessageRow(streamingErrorMessage(message, labels))
             }
         }
         val tracks = result?.tracks.orEmpty()
@@ -253,13 +283,13 @@ private fun StreamingSearchScreen(state: MainActivityStreamingState, actions: St
         val displayedCount = tracks.size + albums.size + artists.size + playlists.size + mvs.size
         if (result != null) {
             item(key = "result-meta") {
-                MetricRow("结果", "$displayedCount${result.total?.let { " / $it" }.orEmpty()}")
+                MetricRow(labels.results, "$displayedCount${result.total?.let { " / $it" }.orEmpty()}")
             }
         }
         val importedTracks = state.playlistImportSummary?.matchedTracks.orEmpty()
         if (importedTracks.isNotEmpty()) {
             item(key = "imported-tracks-title") {
-                SectionTitle("已匹配的流媒体歌曲")
+                SectionTitle(labels.matchedStreamingTracks)
             }
             itemsIndexed(
                 items = importedTracks,
@@ -272,7 +302,7 @@ private fun StreamingSearchScreen(state: MainActivityStreamingState, actions: St
         }
         if (tracks.isNotEmpty()) {
             item(key = "tracks-title") {
-                SectionTitle("歌曲")
+                SectionTitle(labels.songs)
             }
             itemsIndexed(
                 items = tracks,
@@ -285,18 +315,18 @@ private fun StreamingSearchScreen(state: MainActivityStreamingState, actions: St
         }
         if (albums.isNotEmpty()) {
             item(key = "albums-title") {
-                SectionTitle("专辑")
+                SectionTitle(labels.albums)
             }
             itemsIndexed(
                 items = albums,
                 key = { _, album -> "album:${album.provider.wireName}:${album.providerAlbumId}" }
             ) { _, album ->
-                StreamingAlbumRow(album)
+                StreamingAlbumRow(album, labels)
             }
         }
         if (artists.isNotEmpty()) {
             item(key = "artists-title") {
-                SectionTitle("艺人")
+                SectionTitle(labels.artists)
             }
             itemsIndexed(
                 items = artists,
@@ -307,18 +337,18 @@ private fun StreamingSearchScreen(state: MainActivityStreamingState, actions: St
         }
         if (playlists.isNotEmpty()) {
             item(key = "playlists-title") {
-                SectionTitle("歌单")
+                SectionTitle(labels.playlists)
             }
             itemsIndexed(
                 items = playlists,
                 key = { _, playlist -> "playlist:${playlist.provider.wireName}:${playlist.providerPlaylistId}" }
             ) { _, playlist ->
-                StreamingPlaylistRow(playlist) { actions.onImportPlaylist.run(playlist) }
+                StreamingPlaylistRow(playlist, labels) { actions.onImportPlaylist.run(playlist) }
             }
         }
         if (mvs.isNotEmpty()) {
             item(key = "mvs-title") {
-                SectionTitle("视频")
+                SectionTitle(labels.videos)
             }
             itemsIndexed(
                 items = mvs,
@@ -329,40 +359,31 @@ private fun StreamingSearchScreen(state: MainActivityStreamingState, actions: St
         }
         if (result != null && displayedCount == 0 && !state.loading) {
             item(key = "empty") {
-                MessageRow("没有找到流媒体结果")
+                MessageRow(labels.noResults)
             }
         }
         if (state.loadingMore) {
             item(key = "loading-more") {
-                MessageRow("加载更多")
+                MessageRow(labels.loadMore)
             }
         } else if (result?.hasMore == true && canSearch) {
             item(key = "next-page") {
-                ActionRow("加载更多", EchoIconKind.Next) { actions.onNextPage.run() }
+                ActionRow(labels.loadMore, EchoIconKind.Next) { actions.onNextPage.run() }
             }
         }
         state.resolvedPlaybackTrack?.let { track ->
             item(key = "play-resolved") {
-                ActionRow("播放已解析歌曲", EchoIconKind.Play) {
+                ActionRow(labels.playResolvedTrack, EchoIconKind.Play) {
                     actions.onPlayResolvedTrack.run(track)
                 }
             }
         }
-        if (state.diagnostics.totalRequests > 0 || state.diagnostics.recentLogs.isNotEmpty()) {
-            item(key = "debug-title") {
-                SectionTitle("调试")
+        if (state.selectedProvider == StreamingProviderName.NETEASE) {
+            item(key = "advanced-tools-title") {
+                SectionTitle(labels.advancedTools)
             }
-            item(key = "debug-requests") {
-                MetricRow("请求数", state.diagnostics.totalRequests.toString())
-            }
-            item(key = "debug-cache") {
-                MetricRow("缓存命中率", "${state.diagnostics.cacheHitRate}% (${state.diagnostics.cacheHits})")
-            }
-            itemsIndexed(
-                items = state.diagnostics.recentLogs.take(5),
-                key = { index, item -> "debug-log:$index:${item.timestampMs}:${item.operation}" }
-            ) { _, log ->
-                MetricRow("最近日志", streamingLogText(log))
+            item(key = "manual-account-connect") {
+                ActionRow(labels.backupAccountConnection, EchoIconKind.Edit) { actions.onInputCookie.run() }
             }
         }
     }
@@ -376,113 +397,37 @@ private fun trackProviderSupportsPlayback(state: MainActivityStreamingState, tra
     return StreamingCapabilityResolver.canPlayback(descriptor)
 }
 
-private fun capabilityLabels(
-    provider: app.echo.next.streaming.StreamingProviderDescriptor,
-    capability: StreamingProviderCapability?
-): List<String> {
-    return listOfNotNull(
-        "搜索".takeIf { capability?.supportsSearch ?: provider.capabilities.supportsSearch },
-        "播放".takeIf { capability?.supportsPlayback ?: provider.capabilities.supportsPlayback },
-        "歌词".takeIf { capability?.supportsLyrics ?: provider.capabilities.supportsLyrics },
-        "视频".takeIf { capability?.supportsMv ?: provider.capabilities.supportsMv },
-        "登录".takeIf { capability?.supportsAuth ?: provider.capabilities.supportsAuth },
-        "收藏".takeIf { capability?.supportsFavorites ?: provider.capabilities.supportsFavorites },
-        "歌单".takeIf { capability?.supportsPlaylists ?: provider.capabilities.supportsPlaylists }
-    )
-}
-
-private fun actionLabels(
-    provider: app.echo.next.streaming.StreamingProviderDescriptor,
-    capability: StreamingProviderCapability?
-): List<String> {
-    return capability?.actions?.map { actionLabel(it) } ?: StreamingCapabilityResolver.actionLabels(provider).map { actionLabel(it) }
-}
-
-private fun actionLabel(value: String): String {
-    val normalized = value.trim()
-        .replace("-", "_")
-        .replace(" ", "_")
-        .lowercase()
-    return when (normalized) {
-        "search", "cansearch" -> "搜索"
-        "play", "playback", "resolveplayback", "stream", "source" -> "播放"
-        "auth", "login", "signin", "oauth", "connectaccount" -> "登录"
-        "logout", "signout", "disconnect" -> "退出登录"
-        "favorites", "favorite", "likes", "like" -> "收藏"
-        "playlists", "playlist" -> "歌单"
-        "lyrics", "lyric" -> "歌词"
-        "mv", "video", "videos" -> "视频"
-        "health", "status" -> "健康"
-        "capabilities", "capability" -> "能力"
-        "account", "profile" -> "账号"
-        "refresh", "sync" -> "刷新"
-        else -> value.takeIf { it.any { char -> char in '\u4e00'..'\u9fff' } } ?: "扩展操作"
-    }
-}
-
 private fun providerStatusText(
     message: String?,
     status: StreamingProviderStatus,
     health: StreamingProviderHealth?,
-    authState: app.echo.next.streaming.StreamingAuthState? = null
+    authState: app.echo.next.streaming.StreamingAuthState? = null,
+    labels: StreamingSearchLabels
 ): String {
     if (authState?.connected == true) {
         val name = authState.accountDisplayName?.takeIf { it.isNotBlank() }
-        return if (name != null) "已登录 · $name" else "已登录"
+        return if (name != null) "${labels.signedIn} - $name" else labels.signedIn
     }
     health?.let {
         if (it.available) {
-            return if (it.authenticated) "在线，已认证" else "在线"
+            return if (it.authenticated) labels.onlineAuthenticated else labels.online
         }
-        return it.errorMessage ?: "不可用"
+        return it.errorMessage ?: labels.unavailable
     }
     return message ?: when (status) {
-        StreamingProviderStatus.READY -> "就绪"
-        StreamingProviderStatus.NEEDS_ACCOUNT -> "需要登录"
-        StreamingProviderStatus.DISABLED -> "已停用"
-        StreamingProviderStatus.ERROR -> "异常"
+        StreamingProviderStatus.READY -> labels.ready
+        StreamingProviderStatus.NEEDS_ACCOUNT -> labels.needsAccount
+        StreamingProviderStatus.DISABLED -> labels.disabled
+        StreamingProviderStatus.ERROR -> labels.error
     }
 }
 
-private fun providerHealthText(health: StreamingProviderHealth): String {
-    return if (health.available) {
-        listOfNotNull(
-            "可用",
-            "已认证".takeIf { health.authenticated },
-            health.latencyMs?.let { "${it}ms" }
-        ).joinToString(" / ")
-    } else {
-        listOfNotNull(
-            "不可用",
-            health.errorCode?.wireName,
-            health.errorMessage
-        ).joinToString(" / ")
-    }
-}
-
-private fun streamingLogText(log: app.echo.next.streaming.StreamingGatewayLogEntry): String {
-    val source = log.provider?.wireName ?: "gateway"
-    val outcome = when {
-        log.cacheHit -> "缓存命中"
-        log.errorCode != null -> "错误 ${log.errorCode.wireName}"
-        else -> "成功"
-    }
-    return "${operationLabel(log.operation)} / $source / ${log.durationMs}ms / $outcome"
-}
-
-private fun operationLabel(value: String): String {
-    return when (value) {
-        "providers" -> "音源"
-        "capabilities" -> "能力"
-        "health" -> "健康"
-        "search" -> "搜索"
-        "playlist" -> "歌单"
-        "playback" -> "播放"
-        "auth" -> "认证"
-        "auth_start" -> "开始登录"
-        "auth_complete" -> "完成登录"
-        "auth_sign_out" -> "退出登录"
-        else -> value
+private fun streamingErrorMessage(message: String, labels: StreamingSearchLabels): String {
+    return when (message.trim()) {
+        "Streaming request failed" -> labels.streamingRequestFailed
+        "Playlist import failed" -> labels.playlistImportFailed
+        "Could not load account playlists" -> labels.accountPlaylistsFailed
+        else -> message
     }
 }
 
@@ -576,10 +521,10 @@ private fun ProviderRow(
 }
 
 @Composable
-private fun StreamingAlbumRow(album: StreamingAlbum) {
+private fun StreamingAlbumRow(album: StreamingAlbum, labels: StreamingSearchLabels) {
     StreamingInfoRow(
         title = album.title,
-        subtitle = listOfNotNull(album.artist, album.trackCount?.let { "$it 首" }).joinToString(" - "),
+        subtitle = listOfNotNull(album.artist, album.trackCount?.let { "$it${labels.trackCountSuffix}" }).joinToString(" - "),
         icon = EchoIconKind.Collections
     )
 }
@@ -594,12 +539,16 @@ private fun StreamingArtistRow(artist: StreamingArtist) {
 }
 
 @Composable
-private fun StreamingPlaylistRow(playlist: StreamingPlaylist, onImport: (() -> Unit)? = null) {
+private fun StreamingPlaylistRow(
+    playlist: StreamingPlaylist,
+    labels: StreamingSearchLabels,
+    onImport: (() -> Unit)? = null
+) {
     StreamingInfoRow(
         title = playlist.title,
         subtitle = listOfNotNull(
             playlist.creator,
-            playlist.trackCount?.let { "$it 首" },
+            playlist.trackCount?.let { "$it${labels.trackCountSuffix}" },
             playlist.description
         ).joinToString(" - ").ifBlank { playlist.provider.wireName },
         icon = EchoIconKind.PlaylistAdd,
@@ -682,34 +631,6 @@ private fun StreamingInfoRowBody(
         }
         if (trailingIcon != null) {
             EchoIcon(trailingIcon, Modifier.size(16.dp), p.muted)
-        }
-    }
-}
-
-@Composable
-private fun CapabilityRow(label: String, icon: EchoIconKind) {
-    val p = EchoTheme.colors()
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .echoGlassLayer(p, EchoShapes.medium)
-            .semantics { contentDescription = label },
-        shape = EchoShapes.medium,
-        color = Color.Transparent
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            EchoIcon(icon, Modifier.size(22.dp), p.accent)
-            Spacer(Modifier.width(12.dp))
-            Text(
-                label,
-                style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = p.text,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
         }
     }
 }
