@@ -520,6 +520,8 @@ final class AppLanguage {
                 return "\u6d77\u6d0b";
             case EchoTheme.MODE_DAYLIGHT:
                 return "\u65e5\u5149";
+            case EchoTheme.MODE_DYNAMIC:
+                return "\u52a8\u6001\u53d6\u8272";
             default:
                 return "\u8ddf\u968f\u7cfb\u7edf";
         }
@@ -583,6 +585,8 @@ final class AppLanguage {
                 return "Ocean";
             case EchoTheme.MODE_DAYLIGHT:
                 return "Daylight";
+            case EchoTheme.MODE_DYNAMIC:
+                return "Material You";
             default:
                 return "Follow system";
         }

@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -137,6 +138,7 @@ object EchoShapes {
 
 object EchoTheme {
     const val MODE_SYSTEM   = "system"
+    const val MODE_DYNAMIC  = "dynamic"
     const val MODE_DARK     = "dark"
     const val MODE_LIGHT    = "light"
     const val MODE_AMOLED   = "amoled"
@@ -169,8 +171,15 @@ object EchoTheme {
     @JvmStatic fun setAccent(accent: String?) { accentState.value = normalizeAccent(accent) }
     @JvmStatic fun currentAccent(): String    { return accentState.value }
 
+    @JvmStatic fun dynamicColorAvailable(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+    private fun dynamicOption(): Array<String> =
+        if (dynamicColorAvailable()) arrayOf(MODE_DYNAMIC) else emptyArray()
+
     @JvmStatic fun modeOptions(): Array<String> = arrayOf(
         MODE_SYSTEM,
+        *dynamicOption(),
         MODE_DARK,
         MODE_LIGHT,
         MODE_AMOLED,
@@ -186,6 +195,7 @@ object EchoTheme {
 
     @JvmStatic fun primaryModeOptions(): Array<String> = arrayOf(
         MODE_SYSTEM,
+        *dynamicOption(),
         MODE_LIGHT,
         MODE_DARK,
         MODE_AMOLED
@@ -199,6 +209,7 @@ object EchoTheme {
     @JvmStatic fun normalizeMode(mode: String?): String {
         val clean = mode?.trim()
         return when (clean) {
+            MODE_DYNAMIC -> if (dynamicColorAvailable()) MODE_DYNAMIC else MODE_SYSTEM
             MODE_DARK -> MODE_DARK; MODE_LIGHT -> MODE_LIGHT
             MODE_AMOLED -> MODE_AMOLED; MODE_CONTRAST -> MODE_CONTRAST
             MODE_GRAPHITE -> MODE_GRAPHITE; MODE_MIST -> MODE_MIST
@@ -215,6 +226,7 @@ object EchoTheme {
     }
 
     @JvmStatic fun labelFor(mode: String?): String = when (normalizeMode(mode)) {
+        MODE_DYNAMIC -> "Material You"
         MODE_DARK -> "Dark"; MODE_LIGHT -> "Light"
         MODE_AMOLED -> "AMOLED"; MODE_CONTRAST -> "Contrast"
         MODE_GRAPHITE -> "Graphite"; MODE_MIST -> "Mist"
@@ -277,8 +289,9 @@ object EchoTheme {
 
     @Composable
     fun colors(): EchoPalette {
-        val mode   = modeState.value
+        val mode   = normalizeMode(modeState.value)
         val accent = accentState.value
+        val context = LocalContext.current
         val dark = when (mode) {
             MODE_DARK -> true; MODE_LIGHT -> false
             MODE_AMOLED -> true; MODE_CONTRAST -> true
@@ -286,6 +299,9 @@ object EchoTheme {
             MODE_MIDNIGHT -> true; MODE_FOREST -> true
             MODE_OCEAN -> true; MODE_DAYLIGHT -> false
             else -> isSystemInDarkTheme()
+        }
+        if (mode == MODE_DYNAMIC) {
+            dynamicPalette(context, dark)?.let { return it }
         }
         return paletteForMode(mode, dark, accent)
     }
@@ -336,8 +352,50 @@ object EchoTheme {
         }
     }
 
-    private fun paletteForContext(context: Context): EchoPalette =
-        paletteForMode(modeState.value, isDark(context), accentState.value)
+    private fun paletteForContext(context: Context): EchoPalette {
+        val mode = normalizeMode(modeState.value)
+        if (mode == MODE_DYNAMIC) {
+            dynamicPalette(context, isDark(context))?.let { return it }
+        }
+        return paletteForMode(mode, isDark(context), accentState.value)
+    }
+
+    /**
+     * Material You: derive a full [EchoPalette] from the device's wallpaper-based dynamic color
+     * scheme (Android 12 / API 31+). Returns null on older devices so callers fall back to the
+     * curated palettes.
+     */
+    private fun dynamicPalette(context: Context, dark: Boolean): EchoPalette? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return null
+        }
+        val scheme = if (dark) {
+            dynamicDarkColorScheme(context)
+        } else {
+            dynamicLightColorScheme(context)
+        }
+        return EchoPalette(
+            background = scheme.background,
+            surface = scheme.surface,
+            surfaceVariant = scheme.surfaceVariant,
+            panel = scheme.surfaceVariant,
+            accent = scheme.primary,
+            accentSoft = scheme.primary.copy(alpha = if (dark) 0.20f else 0.14f),
+            text = scheme.onSurface,
+            muted = scheme.onSurfaceVariant,
+            highlight = scheme.primary.copy(alpha = 0.12f),
+            border = scheme.outlineVariant,
+            onAccent = scheme.onPrimary,
+            backgroundAlt = scheme.surface,
+            backgroundDeep = scheme.background,
+            heading = scheme.onSurface,
+            subtle = scheme.onSurfaceVariant,
+            accentStrong = scheme.primary,
+            secondary = scheme.secondary,
+            success = scheme.tertiary,
+            shadow = Color.Black
+        )
+    }
 
     private fun paletteForMode(mode: String, dark: Boolean, accent: String): EchoPalette {
         val normalized = normalizeMode(mode)

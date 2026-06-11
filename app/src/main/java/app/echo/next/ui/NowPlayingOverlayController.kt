@@ -37,6 +37,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Surface
@@ -52,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -69,7 +71,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.echo.next.R
-import kotlin.math.max
 
 /**
  * Immutable, primitive-only slices of [NowBarState] handed to the individual sections of the
@@ -259,14 +260,14 @@ private fun NowPlayingOverlay(
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        p.accentSoft.copy(alpha = 0.92f),
+                        p.accentSoft.copy(alpha = 0.34f),
                         p.background,
-                        p.backgroundDeep.copy(alpha = 0.98f)
+                        p.background
                     )
                 )
             )
             .systemBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 18.dp)
+            .padding(horizontal = 26.dp, vertical = 18.dp)
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val compact = maxHeight < 820.dp
@@ -351,32 +352,12 @@ private fun NowPlayingOverlay(
                     onToggle = { showingLyrics = true }
                 )
                 Spacer(Modifier.height(artworkGap))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TrackInfoSection(
-                        slice = TrackInfoSlice(state.title, state.subtitle),
-                        compact = compact,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    val modeSlice = ModeSlice(
-                        favorite = state.favorite,
-                        favoriteLabel = state.favoriteLabel,
-                        favoritedLabel = state.favoritedLabel,
-                        shuffleEnabled = state.shuffleEnabled,
-                        shuffleLabel = state.shuffleLabel,
-                        repeatLabel = state.repeatLabel,
-                        repeatOffLabel = state.repeatOffLabel,
-                        queueLabel = state.queueLabel
-                    )
-                    CircleIconButton(
-                        EchoIconKind.Heart,
-                        if (modeSlice.favorite) modeSlice.favoritedLabel else modeSlice.favoriteLabel,
-                        active = modeSlice.favorite
-                    ) { onFavorite.run() }
-                }
+                TrackInfoSection(
+                    slice = TrackInfoSlice(state.title, state.subtitle),
+                    compact = compact,
+                    centered = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(Modifier.height(titleGap))
                 PlaybackErrorBanner(
                     slice = PlaybackErrorSlice(
@@ -424,6 +405,7 @@ private fun NowPlayingOverlay(
                         repeatOffLabel = state.repeatOffLabel,
                         queueLabel = state.queueLabel
                     ),
+                    onFavorite = onFavorite,
                     onShuffle = onShuffle,
                     onRepeat = onRepeat,
                     onQueue = onQueue
@@ -572,6 +554,7 @@ private fun LyricsOverlayPage(
                 repeatOffLabel = state.repeatOffLabel,
                 queueLabel = state.queueLabel
             ),
+            onFavorite = onFavorite,
             onShuffle = onShuffle,
             onRepeat = onRepeat,
             onQueue = onQueue
@@ -592,28 +575,41 @@ private fun ArtworkSection(
     val p = EchoTheme.colors()
     val interaction = remember { MutableInteractionSource() }
     val uri = remember(slice.artUriString) { slice.artUriString?.let { android.net.Uri.parse(it) } }
-    AsyncArtwork(
-        uri = uri,
-        title = title,
-        subtitle = subtitle,
-        modifier = Modifier
-            .fillMaxWidth()
-            .widthIn(max = artworkMax)
-            .aspectRatio(1f)
-            .clip(EchoShapes.full)
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                onClick = onToggle
-            )
-            .echoPressScale(interaction)
-            .semantics { contentDescription = showLyricsLabel },
-        cornerRadius = 16.dp,
-        fallbackTextSize = if (compact) 46.sp else 54.sp,
-        targetSize = 512.dp,
-        backgroundColor = p.surfaceVariant,
-        fallbackResId = R.drawable.ic_echo_launcher
-    )
+    val artworkShape = RoundedCornerShape(28.dp)
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        AsyncArtwork(
+            uri = uri,
+            title = title,
+            subtitle = subtitle,
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = artworkMax)
+                .aspectRatio(1f)
+                .shadow(
+                    elevation = if (compact) 16.dp else 26.dp,
+                    shape = artworkShape,
+                    clip = false,
+                    ambientColor = p.shadow.copy(alpha = 0.5f),
+                    spotColor = p.accent.copy(alpha = 0.45f)
+                )
+                .clip(artworkShape)
+                .clickable(
+                    interactionSource = interaction,
+                    indication = null,
+                    onClick = onToggle
+                )
+                .echoPressScale(interaction)
+                .semantics { contentDescription = showLyricsLabel },
+            cornerRadius = 28.dp,
+            fallbackTextSize = if (compact) 46.sp else 54.sp,
+            targetSize = 512.dp,
+            backgroundColor = p.surfaceVariant,
+            fallbackResId = R.drawable.ic_echo_launcher
+        )
+    }
 }
 
 @Composable
@@ -751,6 +747,7 @@ private fun OverlayLyricRow(line: LyricUiLine) {
 private fun TrackInfoSection(
     slice: TrackInfoSlice,
     compact: Boolean,
+    centered: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val p = EchoTheme.colors()
@@ -758,13 +755,19 @@ private fun TrackInfoSection(
     val titleLineHeight = if (compact) 33.sp else 36.sp
     val subtitleSize = if (compact) 16.sp else 18.sp
     val subtitleLineHeight = if (compact) 22.sp else 24.sp
-    Column(modifier) {
+    val textAlign = if (centered) TextAlign.Center else TextAlign.Start
+    Column(
+        modifier = modifier,
+        horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start
+    ) {
         Text(
             slice.title,
             style = EchoTypography.display.copy(fontSize = titleSize, lineHeight = titleLineHeight),
             color = p.heading,
             maxLines = 2,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            textAlign = textAlign,
+            modifier = if (centered) Modifier.fillMaxWidth() else Modifier
         )
         if (slice.subtitle.isNotBlank()) {
             Spacer(Modifier.height(6.dp))
@@ -773,7 +776,9 @@ private fun TrackInfoSection(
                 style = EchoTypography.body.copy(fontSize = subtitleSize, lineHeight = subtitleLineHeight),
                 color = p.muted,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                textAlign = textAlign,
+                modifier = if (centered) Modifier.fillMaxWidth() else Modifier
             )
         }
     }
@@ -917,6 +922,7 @@ private fun TransportControls(
 @Composable
 private fun ModeControls(
     slice: ModeSlice,
+    onFavorite: Runnable,
     onShuffle: Runnable,
     onRepeat: Runnable,
     onQueue: Runnable
@@ -926,6 +932,11 @@ private fun ModeControls(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        CircleIconButton(
+            EchoIconKind.Heart,
+            if (slice.favorite) slice.favoritedLabel else slice.favoriteLabel,
+            active = slice.favorite
+        ) { onFavorite.run() }
         CircleIconButton(EchoIconKind.Shuffle, slice.shuffleLabel, active = slice.shuffleEnabled) { onShuffle.run() }
         CircleIconButton(
             EchoIconKind.Repeat,
@@ -1036,15 +1047,14 @@ private fun LargeTransportButton(icon: EchoIconKind, desc: String, onClick: () -
         onClick = onClick,
         interactionSource = interaction,
         modifier = Modifier
-            .size(64.dp)
-            .echoGlassLayer(p, CircleShape)
+            .size(60.dp)
             .echoPressScale(interaction)
             .semantics { contentDescription = desc },
         shape = CircleShape,
         color = Color.Transparent
     ) {
         Box(contentAlignment = Alignment.Center) {
-            EchoIcon(icon, Modifier.size(38.dp), p.text)
+            EchoIcon(icon, Modifier.size(34.dp), p.text)
         }
     }
 }
@@ -1085,29 +1095,32 @@ private fun ScrubProgress(
     ) {
         val progress = (scrub.displayPosition.value.toFloat() / scrub.duration.toFloat())
             .coerceIn(0f, 1f)
-        val trackHeight = 10.dp.toPx()
+        val trackHeight = 6.dp.toPx()
         val centerY = size.height / 2f
         val radius = CornerRadius(trackHeight / 2f, trackHeight / 2f)
         drawRoundRect(
-            color = p.surfaceVariant.copy(alpha = 0.82f),
+            color = p.surfaceVariant.copy(alpha = 0.55f),
             topLeft = Offset(0f, centerY - trackHeight / 2f),
             size = Size(size.width, trackHeight),
             cornerRadius = radius
         )
         drawRoundRect(
-            color = p.onAccent.copy(alpha = 0.92f),
+            color = p.accent,
             topLeft = Offset(0f, centerY - trackHeight / 2f),
             size = Size(size.width * progress, trackHeight),
             cornerRadius = radius
         )
-        val thumbWidth = max(5.dp.toPx(), trackHeight * 0.56f)
-        val thumbHeight = 42.dp.toPx()
-        val thumbX = (size.width * progress).coerceIn(thumbWidth / 2f, size.width - thumbWidth / 2f)
-        drawRoundRect(
-            color = p.text,
-            topLeft = Offset(thumbX - thumbWidth / 2f, centerY - thumbHeight / 2f),
-            size = Size(thumbWidth, thumbHeight),
-            cornerRadius = CornerRadius(thumbWidth / 2f, thumbWidth / 2f)
+        val thumbRadius = 8.dp.toPx()
+        val thumbX = (size.width * progress).coerceIn(thumbRadius, size.width - thumbRadius)
+        drawCircle(
+            color = p.onAccent.copy(alpha = 0.9f),
+            radius = thumbRadius + 2.dp.toPx(),
+            center = Offset(thumbX, centerY)
+        )
+        drawCircle(
+            color = p.accent,
+            radius = thumbRadius,
+            center = Offset(thumbX, centerY)
         )
     }
 }
