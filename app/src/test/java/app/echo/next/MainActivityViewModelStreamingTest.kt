@@ -244,7 +244,7 @@ class MainActivityViewModelStreamingTest {
         )
         val importCalls = mutableListOf<StreamingLocalImportCall>()
         val imported = mutableListOf<StreamingLocalPlaylistImportResult>()
-        viewModel.bindStreamingLocalPlaylistImporter { playlistName, importProvider, providerPlaylistId, tracks, linkBlank ->
+        viewModel.bindStreamingLocalPlaylistOperations(FakeStreamingLocalPlaylistOperations(importer = { playlistName, importProvider, providerPlaylistId, tracks, linkBlank ->
             importCalls += StreamingLocalImportCall(
                 playlistName = playlistName,
                 provider = importProvider,
@@ -253,7 +253,7 @@ class MainActivityViewModelStreamingTest {
                 linkWhenProviderPlaylistIdBlank = linkBlank
             )
             PlaylistImportResult(7L, playlistName, tracks.size, tracks.size, tracks.size, 0)
-        }
+        }))
 
         viewModel.importStreamingPlaylistToLocal(StreamingProviderName.NETEASE, "playlist-1") { result ->
             imported += result
@@ -291,10 +291,10 @@ class MainActivityViewModelStreamingTest {
         )
         var importCalls = 0
         val imported = mutableListOf<StreamingLocalPlaylistImportResult>()
-        viewModel.bindStreamingLocalPlaylistImporter { playlistName, _, _, tracks, _ ->
+        viewModel.bindStreamingLocalPlaylistOperations(FakeStreamingLocalPlaylistOperations(importer = { playlistName, _, _, tracks, _ ->
             importCalls += 1
             PlaylistImportResult(7L, playlistName, tracks.size, tracks.size, tracks.size, 0)
-        }
+        }))
 
         viewModel.importStreamingPlaylistToLocal(StreamingProviderName.NETEASE, "playlist-empty") { result ->
             imported += result
@@ -334,7 +334,7 @@ class MainActivityViewModelStreamingTest {
         )
         val importCalls = mutableListOf<StreamingLocalImportCall>()
         val imported = mutableListOf<StreamingLocalPlaylistImportResult>()
-        viewModel.bindStreamingLocalPlaylistImporter { playlistName, importProvider, providerPlaylistId, tracks, linkBlank ->
+        viewModel.bindStreamingLocalPlaylistOperations(FakeStreamingLocalPlaylistOperations(importer = { playlistName, importProvider, providerPlaylistId, tracks, linkBlank ->
             importCalls += StreamingLocalImportCall(
                 playlistName = playlistName,
                 provider = importProvider,
@@ -343,7 +343,7 @@ class MainActivityViewModelStreamingTest {
                 linkWhenProviderPlaylistIdBlank = linkBlank
             )
             PlaylistImportResult(9L, playlistName, tracks.size, tracks.size, tracks.size, 0)
-        }
+        }))
 
         viewModel.importStreamingLikedTracksToLocal(StreamingProviderName.NETEASE, "Liked from NetEase") { result ->
             imported += result
@@ -357,6 +357,26 @@ class MainActivityViewModelStreamingTest {
         assertEquals(2, imported.single().playlistAddedCount)
         assertFalse(imported.single().empty)
         assertFalse(viewModel.streaming.value.loading)
+    }
+
+    @Test
+    fun prepareStreamingPlaylistSyncTargetResolvesLinkedPlaylist() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        val linked = link(15L)
+        val resolvedIds = mutableListOf<Long>()
+        viewModel.bindStreamingLocalPlaylistOperations(FakeStreamingLocalPlaylistOperations(linkResolver = { playlistId ->
+            resolvedIds += playlistId
+            if (playlistId == linked.localPlaylistId) linked else null
+        }))
+
+        val missing = viewModel.prepareStreamingPlaylistSyncTarget(12L)
+        val target = viewModel.prepareStreamingPlaylistSyncTarget(15L)
+
+        assertEquals(listOf(12L, 15L), resolvedIds)
+        assertTrue(missing?.missingLink == true)
+        assertEquals(linked, target?.link)
+        assertFalse(target?.missingLink == true)
+        assertNull(viewModel.prepareStreamingPlaylistSyncTarget(-1L))
     }
 
     @Test
@@ -376,14 +396,14 @@ class MainActivityViewModelStreamingTest {
         )
         val syncCalls = mutableListOf<StreamingLocalSyncCall>()
         val synced = mutableListOf<StreamingLocalPlaylistSyncResult>()
-        viewModel.bindStreamingLocalPlaylistSyncer { link, tracks ->
+        viewModel.bindStreamingLocalPlaylistOperations(FakeStreamingLocalPlaylistOperations(syncer = { link, tracks ->
             syncCalls += StreamingLocalSyncCall(
                 playlistId = link.localPlaylistId,
                 providerPlaylistId = link.providerPlaylistId,
                 trackIds = tracks.map { it.providerTrackId }
             )
             StreamingLocalPlaylistSyncResult(link.localPlaylistId, tracks.size, false)
-        }
+        }))
 
         viewModel.syncStreamingPlaylistToLocal(link(15L)) { result ->
             synced += result
@@ -427,14 +447,14 @@ class MainActivityViewModelStreamingTest {
         )
         val syncCalls = mutableListOf<StreamingLocalSyncCall>()
         val synced = mutableListOf<StreamingLocalPlaylistSyncResult>()
-        viewModel.bindStreamingLocalPlaylistSyncer { link, tracks ->
+        viewModel.bindStreamingLocalPlaylistOperations(FakeStreamingLocalPlaylistOperations(syncer = { link, tracks ->
             syncCalls += StreamingLocalSyncCall(
                 playlistId = link.localPlaylistId,
                 providerPlaylistId = link.providerPlaylistId,
                 trackIds = tracks.map { it.providerTrackId }
             )
             StreamingLocalPlaylistSyncResult(link.localPlaylistId, tracks.size, false)
-        }
+        }))
 
         viewModel.syncStreamingPlaylistToLocal(
             StreamingPlaylistSyncStore.LinkedPlaylist(
@@ -461,10 +481,10 @@ class MainActivityViewModelStreamingTest {
         val viewModel = MainActivityViewModel(SavedStateHandle())
         val ensureCalls = mutableListOf<StreamingLoginPlaylistCall>()
         val ensured = mutableListOf<StreamingLoginPlaylistResult>()
-        viewModel.bindStreamingLoginPlaylistEnsurer { playlistName, provider ->
+        viewModel.bindStreamingLocalPlaylistOperations(FakeStreamingLocalPlaylistOperations(ensurer = { playlistName, provider ->
             ensureCalls += StreamingLoginPlaylistCall(playlistName, provider)
             StreamingLoginPlaylistResult(23L, playlistName)
-        }
+        }))
 
         viewModel.ensureStreamingLoginPlaylist(
             playlistName = "My NetEase Playlist",
@@ -480,6 +500,113 @@ class MainActivityViewModelStreamingTest {
         assertEquals(listOf(StreamingLoginPlaylistResult(23L, "My NetEase Playlist")), ensured)
         assertEquals(StreamingProviderName.NETEASE, viewModel.streaming.value.selectedProvider)
         assertFalse(viewModel.streaming.value.loading)
+    }
+
+    @Test
+    fun prepareStreamingLoginPlaylistRequestUsesProviderDisplayName() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+        viewModel.updateStreamingProviders(
+            listOf(
+                providerDescriptor(
+                    provider = StreamingProviderName.NETEASE,
+                    displayName = "NetEase Cloud",
+                    supportsSearch = true
+                )
+            )
+        )
+
+        val request = viewModel.prepareStreamingLoginPlaylistRequest(StreamingProviderName.NETEASE)
+
+        assertEquals(StreamingProviderName.NETEASE, request.provider)
+        assertEquals("My NetEase Cloud Playlist", request.playlistName)
+    }
+
+    @Test
+    fun prepareStreamingLoginPlaylistRequestFallsBackToProviderWireName() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+
+        val request = viewModel.prepareStreamingLoginPlaylistRequest(StreamingProviderName.SPOTIFY)
+
+        assertEquals(StreamingProviderName.SPOTIFY, request.provider)
+        assertEquals("My spotify Playlist", request.playlistName)
+    }
+
+    @Test
+    fun prepareStreamingLikedPlaylistNameUsesProviderDisplayName() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+        viewModel.updateStreamingProviders(
+            listOf(
+                providerDescriptor(
+                    provider = StreamingProviderName.NETEASE,
+                    displayName = "NetEase Cloud",
+                    supportsSearch = true
+                )
+            )
+        )
+
+        assertEquals(
+            "NetEase Cloud Favorites",
+            viewModel.prepareStreamingLikedPlaylistName(StreamingProviderName.NETEASE)
+        )
+    }
+
+    @Test
+    fun prepareStreamingPlaybackStatusTextUsesGatewayLanguageAndQualityLabel() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        val languageMode = AppLanguage.MODE_ENGLISH
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = languageMode
+        })
+
+        val statusText = viewModel.prepareStreamingPlaybackStatusText(StreamingAudioQuality.HIGH)
+        val qualityLabel = SettingsPageRenderController.streamingQualityLabel(
+            StreamingQualityPreference.valueFor(StreamingAudioQuality.HIGH),
+            languageMode
+        )
+
+        assertEquals(AppLanguage.text(languageMode, "streaming.resolving"), statusText.resolving)
+        assertEquals(AppLanguage.text(languageMode, "streaming.resolve.failed"), statusText.resolveFailed)
+        assertEquals(
+            AppLanguage.text(languageMode, "streaming.quality.downgrading") + qualityLabel,
+            statusText.qualityDowngrading
+        )
+        assertEquals(
+            AppLanguage.text(languageMode, "streaming.quality.downgraded") + qualityLabel,
+            statusText.qualityDowngraded
+        )
+    }
+
+    @Test
+    fun prepareStreamingStatusTextBuildsSettingsAndDialogLabels() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        val languageMode = AppLanguage.MODE_ENGLISH
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = languageMode
+        })
+
+        val statusText = viewModel.prepareStreamingStatusText(StreamingQualityPreference.HIGH)
+        val qualityLabel = SettingsPageRenderController.streamingQualityLabel(
+            StreamingQualityPreference.HIGH,
+            languageMode
+        )
+
+        assertEquals(
+            AppLanguage.text(languageMode, "streaming.quality.applied") + qualityLabel,
+            statusText.streamingQualityApplied
+        )
+        assertEquals(
+            AppLanguage.text(languageMode, "streaming.playlist.load.success.title"),
+            viewModel.streamingPlaylistLoadedDialogTitle()
+        )
     }
 
     @Test
@@ -648,6 +775,409 @@ class MainActivityViewModelStreamingTest {
     }
 
     @Test
+    fun prepareHeartbeatRecommendationSeedRequestCollectsCandidatesAndDirectSeed() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        val serviceTrack = localTrack(id = 10L)
+        val queuedTrack = localTrack(id = 11L)
+        val store = FakeStreamingTrackMatchStore().apply {
+            heartbeatCandidates = listOf(serviceTrack, queuedTrack)
+            heartbeatQueueSnapshot = listOf(serviceTrack, queuedTrack)
+            providerTrackIdFromCandidateResult = " seed-11 "
+            heartbeatSeedMissLogMessage = "Heartbeat seed missing provider=netease"
+        }
+        viewModel.bindStreamingTrackMatchStore(store)
+
+        val request = viewModel.prepareHeartbeatRecommendationSeedRequest(
+            StreamingProviderName.NETEASE,
+            playbackSnapshot(serviceTrack, 0, 2, true),
+            listOf(serviceTrack),
+            playbackSnapshot(queuedTrack, 1, 2, true),
+            listOf(queuedTrack)
+        )
+
+        assertEquals(listOf(serviceTrack, queuedTrack), request.candidates)
+        assertEquals("seed-11", request.seedTrackId)
+        assertEquals("seed-11", request.playlistId)
+        assertEquals("Heartbeat seed missing provider=netease", request.seedMissingMessage)
+        assertTrue(request.hasSeed)
+        assertTrue(request.hasCandidates)
+    }
+
+    @Test
+    fun prepareHeartbeatRecommendationSeedRequestFallsBackToStoreSnapshotForDiagnostics() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        val storeTrack = localTrack(id = 12L)
+        val store = FakeStreamingTrackMatchStore().apply {
+            heartbeatQueueSnapshot = listOf(storeTrack)
+            heartbeatSeedMissLogMessage = "Heartbeat seed missing provider=netease"
+        }
+        viewModel.bindStreamingTrackMatchStore(store)
+        val storeSnapshot = playbackSnapshot(storeTrack, 0, 1, true)
+
+        val request = viewModel.prepareHeartbeatRecommendationSeedRequest(
+            StreamingProviderName.NETEASE,
+            null,
+            null,
+            storeSnapshot,
+            null
+        )
+
+        assertFalse(request.hasSeed)
+        assertFalse(request.hasCandidates)
+        assertEquals(storeSnapshot, store.lastHeartbeatSeedMissSnapshot)
+        assertEquals(storeSnapshot, store.lastHeartbeatSeedMissStoreSnapshot)
+        assertEquals(listOf(storeTrack), store.lastHeartbeatSeedMissQueue)
+    }
+
+    @Test
+    fun prepareStreamingDailyRecommendationRequestPrefersNetEaseAndStopsHeartbeatMode() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.updateStreamingProviders(
+            listOf(
+                providerDescriptor(StreamingProviderName.NETEASE, "NetEase", true),
+                providerDescriptor(StreamingProviderName.SPOTIFY, "Spotify", true)
+            ),
+            emptyList(),
+            emptyList()
+        )
+        viewModel.startHeartbeatRecommendationLoading(StreamingProviderName.NETEASE)
+
+        val request = viewModel.prepareStreamingDailyRecommendationRequest(StreamingProviderName.SPOTIFY)
+
+        assertEquals(StreamingProviderName.NETEASE, request?.provider)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_SYSTEM, "streaming.recommend.daily.loading"), request?.loadingStatus)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_SYSTEM, "streaming.recommend.daily.empty"), request?.emptyStatus)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_SYSTEM, "streaming.recommend.daily"), request?.title)
+        assertFalse(viewModel.canContinueHeartbeatRecommendationLoading(StreamingProviderName.NETEASE))
+    }
+
+    @Test
+    fun prepareStreamingHeartbeatRecommendationRequestUsesNetEaseAndStartsLoading() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.updateStreamingProviders(
+            listOf(providerDescriptor(StreamingProviderName.NETEASE, "NetEase", true)),
+            emptyList(),
+            emptyList()
+        )
+
+        val request = viewModel.prepareStreamingHeartbeatRecommendationRequest(StreamingProviderName.QQ_MUSIC)
+
+        assertEquals(StreamingProviderName.NETEASE, request?.provider)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_SYSTEM, "streaming.recommend.heartbeat.loading"), request?.loadingStatus)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_SYSTEM, "streaming.recommend.heartbeat.empty"), request?.emptyStatus)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_SYSTEM, "streaming.recommend.heartbeat.playing"), request?.playingStatus)
+        assertTrue(viewModel.canContinueHeartbeatRecommendationLoading(StreamingProviderName.NETEASE))
+    }
+
+    @Test
+    fun streamingRecommendationFallbackStatusesUseGatewayLanguage() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        val languageMode = AppLanguage.MODE_ENGLISH
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = languageMode
+        })
+
+        assertEquals(
+            AppLanguage.text(languageMode, "streaming.recommend.daily.empty"),
+            viewModel.streamingDailyRecommendationEmptyStatus()
+        )
+        assertEquals(
+            AppLanguage.text(languageMode, "streaming.recommend.heartbeat.empty"),
+            viewModel.streamingHeartbeatRecommendationEmptyStatus()
+        )
+    }
+
+    @Test
+    fun prepareStreamingRecommendationPresentationBuildsReadyStatus() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+
+        val presentation = viewModel.prepareStreamingRecommendationPresentation(
+            tracks = listOf(
+                StreamingTrack(
+                    provider = StreamingProviderName.NETEASE,
+                    providerTrackId = "daily-1",
+                    title = "Daily 1",
+                    artist = "Artist"
+                ),
+                StreamingTrack(
+                    provider = StreamingProviderName.NETEASE,
+                    providerTrackId = "daily-2",
+                    title = "Daily 2",
+                    artist = "Artist"
+                )
+            ),
+            emptyStatus = "empty",
+            title = "Daily"
+        )
+
+        assertFalse(presentation.empty)
+        assertEquals("Daily", presentation.title)
+        assertEquals("Daily (2)", presentation.readyStatus)
+        assertEquals(listOf("streaming:netease:daily-1", "streaming:netease:daily-2"), presentation.tracks.map { it.dataPath })
+    }
+
+    @Test
+    fun prepareHeartbeatRecommendationPresentationBuildsReadyStatus() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+
+        val presentation = viewModel.prepareHeartbeatRecommendationPresentation(
+            tracks = listOf(
+                StreamingTrack(
+                    provider = StreamingProviderName.NETEASE,
+                    providerTrackId = "heart-1",
+                    title = "Heart 1",
+                    artist = "Artist"
+                )
+            ),
+            emptyStatus = "empty",
+            playingStatus = "Playing"
+        )
+
+        assertFalse(presentation.empty)
+        assertEquals("Playing", presentation.title)
+        assertEquals("Playing (1)", presentation.readyStatus)
+        assertEquals(listOf("streaming:netease:heart-1"), presentation.tracks.map { it.dataPath })
+    }
+
+    @Test
+    fun prepareHeartbeatRecommendationAppendPresentationBuildsAppendStatus() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        val languageMode = AppLanguage.MODE_ENGLISH
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = languageMode
+        })
+
+        val presentation = viewModel.prepareHeartbeatRecommendationAppendPresentation(
+            listOf(
+                StreamingTrack(
+                    provider = StreamingProviderName.NETEASE,
+                    providerTrackId = "heart-2",
+                    title = "Heart 2",
+                    artist = "Artist"
+                )
+            )
+        )
+        val empty = viewModel.prepareHeartbeatRecommendationAppendPresentation(emptyList())
+        val playingStatus = AppLanguage.text(languageMode, "streaming.recommend.heartbeat.playing")
+
+        assertFalse(presentation.empty)
+        assertEquals(playingStatus, presentation.title)
+        assertEquals("$playingStatus (+1)", presentation.readyStatus)
+        assertEquals(listOf("streaming:netease:heart-2"), presentation.tracks.map { it.dataPath })
+        assertTrue(empty.empty)
+        assertEquals(
+            AppLanguage.text(languageMode, "streaming.recommend.heartbeat.empty"),
+            empty.emptyStatus
+        )
+    }
+
+    @Test
+    fun prepareStreamingHeartbeatRecommendationRequestReturnsNullWithoutNetEaseProvider() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+
+        assertNull(viewModel.prepareStreamingHeartbeatRecommendationRequest(StreamingProviderName.SPOTIFY))
+        assertNull(viewModel.prepareStreamingDailyRecommendationRequest(StreamingProviderName.SPOTIFY))
+    }
+
+    @Test
+    fun prepareStreamingPlaylistImportPresentationBuildsStatus() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+
+        val success = viewModel.prepareStreamingPlaylistImportPresentation(
+            StreamingLocalPlaylistImportResult(
+                playlistName = "Remote Mix",
+                playlistAddedCount = 12,
+                empty = false
+            )
+        )
+        val empty = viewModel.prepareStreamingPlaylistImportPresentation(
+            StreamingLocalPlaylistImportResult(empty = true)
+        )
+
+        assertFalse(success.empty)
+        assertEquals("Imported playlist: Remote Mix (12)", success.status)
+        assertTrue(success.showLoadedDialog)
+        assertTrue(empty.empty)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.playlist.empty"), empty.status)
+    }
+
+    @Test
+    fun prepareStreamingLikedImportPresentationBuildsStatus() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+
+        val success = viewModel.prepareStreamingLikedImportPresentation(
+            StreamingLocalPlaylistImportResult(
+                playlistName = "Liked Songs",
+                playlistAddedCount = 8,
+                empty = false
+            )
+        )
+        val empty = viewModel.prepareStreamingLikedImportPresentation(
+            StreamingLocalPlaylistImportResult(empty = true)
+        )
+
+        assertFalse(success.empty)
+        assertEquals("Imported favorites: Liked Songs (8)", success.status)
+        assertTrue(success.showLoadedDialog)
+        assertTrue(empty.empty)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.liked.empty"), empty.status)
+    }
+
+    @Test
+    fun prepareStreamingPlaylistSyncPresentationBuildsStatus() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+
+        val success = viewModel.prepareStreamingPlaylistSyncPresentation(
+            StreamingLocalPlaylistSyncResult(playlistId = 7L, syncedCount = 5, empty = false)
+        )
+        val empty = viewModel.prepareStreamingPlaylistSyncPresentation(
+            StreamingLocalPlaylistSyncResult(empty = true)
+        )
+
+        assertFalse(success.empty)
+        assertEquals("Streaming playlist synced (5)", success.status)
+        assertTrue(empty.empty)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.playlist.empty"), empty.status)
+    }
+
+    @Test
+    fun prepareStreamingLoginPlaylistPresentationBuildsStatusAndPlaylistId() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+        val request = StreamingLoginPlaylistRequest(
+            provider = StreamingProviderName.NETEASE,
+            playlistName = "My NetEase Cloud Playlist"
+        )
+
+        val success = viewModel.prepareStreamingLoginPlaylistPresentation(
+            request,
+            StreamingLoginPlaylistResult(playlistId = 42L, playlistName = request.playlistName)
+        )
+        val fallback = viewModel.prepareStreamingLoginPlaylistPresentation(request, null)
+
+        assertEquals("Created streaming playlist: My NetEase Cloud Playlist", success.status)
+        assertEquals(42L, success.playlistId)
+        assertEquals("Created streaming playlist: My NetEase Cloud Playlist", fallback.status)
+        assertEquals(-1L, fallback.playlistId)
+    }
+
+    @Test
+    fun prepareStreamingPlaylistExportRequestValidatesTracksAndBuildsStatus() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+        val tracks = listOf(localTrack(1L), localTrack(2L))
+
+        val valid = viewModel.prepareStreamingPlaylistExportRequest("Road Trip", tracks)
+        val empty = viewModel.prepareStreamingPlaylistExportRequest("Road Trip", emptyList())
+        val missingName = viewModel.prepareStreamingPlaylistExportRequest("", tracks)
+
+        assertTrue(valid.valid)
+        assertEquals("Road Trip", valid.playlistName)
+        assertEquals(tracks, valid.tracks)
+        assertEquals("Matched ...", valid.status)
+        assertFalse(empty.valid)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.no.tracks.to.import"), empty.status)
+        assertFalse(missingName.valid)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.no.tracks.to.import"), missingName.status)
+    }
+
+    @Test
+    fun prepareStreamingFavoritesExportRequestBuildsFavoritesRequest() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+        val tracks = listOf(localTrack(7L))
+
+        val valid = viewModel.prepareStreamingFavoritesExportRequest(tracks)
+        val empty = viewModel.prepareStreamingFavoritesExportRequest(emptyList())
+
+        assertTrue(valid.valid)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "favorites"), valid.playlistName)
+        assertEquals(tracks, valid.tracks)
+        assertEquals("Matched ...", valid.status)
+        assertFalse(empty.valid)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.no.tracks.to.import"), empty.status)
+    }
+
+    @Test
+    fun prepareStreamingImportProviderPickerRequestBuildsTitleAndEmptyStatus() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+        val searchable = providerDescriptor(
+            provider = StreamingProviderName.NETEASE,
+            displayName = "NetEase",
+            supportsSearch = true
+        )
+
+        val valid = viewModel.prepareStreamingImportProviderPickerRequest(listOf(searchable), true)
+        val empty = viewModel.prepareStreamingImportProviderPickerRequest(emptyList(), true)
+
+        assertTrue(valid.valid)
+        assertEquals("Choose streaming provider", valid.title)
+        assertEquals(listOf(StreamingProviderName.NETEASE), valid.pickerState.providers.map { it.name })
+        assertFalse(empty.valid)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.no.providers"), empty.emptyStatus)
+    }
+
+    @Test
+    fun prepareStreamingPlaylistExportPresentationBuildsMatchedStatus() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+
+        val full = viewModel.prepareStreamingPlaylistExportPresentation(
+            StreamingPlaylistImportStatus(matchedCount = 8, totalRequested = 10, unresolvedCount = 2)
+        )
+        val exact = viewModel.prepareStreamingPlaylistExportPresentation(
+            StreamingPlaylistImportStatus(matchedCount = 4, totalRequested = 4, unresolvedCount = 0)
+        )
+
+        assertEquals("Matched 8 / 10 (2 unresolved)", full.status)
+        assertEquals("Matched 4 / 4", exact.status)
+    }
+
+    @Test
+    fun prepareStreamingPlaylistSyncStartRequestBuildsMissingAndStartedStates() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+        viewModel.bindStreamingLocalPlaylistOperations(
+            FakeStreamingLocalPlaylistOperations(linkResolver = { localPlaylistId ->
+                if (localPlaylistId == 9L) link(localPlaylistId) else null
+            })
+        )
+
+        val valid = viewModel.prepareStreamingPlaylistSyncStartRequest(9L)
+        val missing = viewModel.prepareStreamingPlaylistSyncStartRequest(5L)
+        val invalid = viewModel.prepareStreamingPlaylistSyncStartRequest(-1L)
+
+        assertTrue(valid?.valid == true)
+        assertEquals(link(9L), valid?.link)
+        assertEquals("Syncing streaming playlists", valid?.status)
+        assertFalse(missing?.valid == true)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.not.linked"), missing?.status)
+        assertNull(invalid)
+    }
+
+    @Test
     fun streamingSearchActionUsesSelectedProviderCapabilities() = runTest {
         val provider = FakeStreamingProvider(StreamingProviderName.NETEASE)
         provider.searchTracks = listOf(
@@ -756,14 +1286,80 @@ class MainActivityViewModelStreamingTest {
     }
 
     @Test
+    fun prepareCurrentStreamingQueueResolveTargetSelectsCurrentPlaceholder() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        val local = localTrack(id = 1L)
+        val current = streamingPlaceholderTrack(id = 2L, providerTrackId = "play-2")
+        val next = streamingPlaceholderTrack(id = 3L, providerTrackId = "play-3")
+
+        val target = viewModel.prepareCurrentStreamingQueueResolveTarget(
+            snapshot = playbackSnapshot(
+                currentTrack = current,
+                currentIndex = 5,
+                queueSize = 3,
+                playing = true
+            ),
+            queue = listOf(local, current, next)
+        )
+
+        assertEquals(listOf(local, current, next), target?.tracks)
+        assertEquals(2, target?.index)
+        assertNull(
+            viewModel.prepareCurrentStreamingQueueResolveTarget(
+                snapshot = playbackSnapshot(
+                    currentTrack = local,
+                    currentIndex = 0,
+                    queueSize = 1,
+                    playing = true
+                ),
+                queue = listOf(local)
+            )
+        )
+    }
+
+    @Test
+    fun prepareCurrentStreamingQueueResolveTargetFallsBackToSnapshotTrack() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        val current = streamingPlaceholderTrack(id = 2L, providerTrackId = "play-2")
+
+        val target = viewModel.prepareCurrentStreamingQueueResolveTarget(
+            snapshot = playbackSnapshot(
+                currentTrack = current,
+                currentIndex = 7,
+                queueSize = 0,
+                playing = true
+            ),
+            queue = emptyList()
+        )
+
+        assertEquals(listOf(current), target?.tracks)
+        assertEquals(0, target?.index)
+    }
+
+    @Test
     fun recoverStreamingBufferingSchedulesRecoveryAndReturnsResolvedTrack() = runTest {
         val provider = FakeStreamingProvider(StreamingProviderName.NETEASE)
         provider.playbackUrl = { trackId -> "mock://playback/$trackId.mp3" }
         val viewModel = viewModelWithProvider(provider)
         val taskQueue = FakeStreamingPlaybackTaskQueue()
+        val planner = FakeStreamingPlaybackResolvePlanner()
         val current = resolvedStreamingTrack(id = 3L, providerTrackId = "recover-3")
         val resolved = mutableListOf<StreamingRecoveryResolution?>()
-        viewModel.bindStreamingPlaybackCoordinator(ResolveStreamingPlaybackUseCase(), taskQueue)
+        planner.recoveryRequest = StreamingRecoveryRequest(
+            key = "recover-3:high",
+            provider = StreamingProviderName.NETEASE,
+            providerTrackId = "recover-3",
+            quality = StreamingAudioQuality.HIGH,
+            metadata = StreamingTrack(
+                provider = StreamingProviderName.NETEASE,
+                providerTrackId = "recover-3",
+                title = "Recover 3",
+                artist = "Artist",
+                album = "Streaming",
+                durationMs = 120_000L
+            )
+        )
+        viewModel.bindStreamingPlaybackCoordinator(planner, taskQueue)
 
         val recoveryQuality = viewModel.recoverStreamingBuffering(
             snapshot = playbackSnapshot(
@@ -788,7 +1384,183 @@ class MainActivityViewModelStreamingTest {
         )
         assertEquals(listOf(34_000L), resolved.map { it?.positionMs })
         assertEquals(listOf(StreamingAudioQuality.HIGH), resolved.map { it?.quality })
+        assertEquals(listOf("recover-3:high"), planner.clearedRecoveryKeys)
         assertFalse(viewModel.streaming.value.loading)
+    }
+
+    @Test
+    fun prepareRecommendationTrackListMapsStreamingTracksToPlaceholders() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+
+        val target = viewModel.prepareRecommendationTrackList(
+            listOf(
+                StreamingTrack(
+                    provider = StreamingProviderName.NETEASE,
+                    providerTrackId = "daily-1",
+                    title = "Daily 1",
+                    artist = "Artist"
+                )
+            )
+        )
+
+        assertEquals(1, target.tracks.size)
+        assertEquals("Daily 1", target.tracks.first().title)
+        assertEquals("streaming:netease:daily-1", target.tracks.first().dataPath)
+    }
+
+    @Test
+    fun prepareHeartbeatRecommendationListsDeduplicateAcrossPlaylistAndAppend() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        val first = StreamingTrack(
+            provider = StreamingProviderName.NETEASE,
+            providerTrackId = "heart-1",
+            title = "Heart 1",
+            artist = "Artist"
+        )
+        val duplicate = first.copy(title = "Heart 1 duplicate")
+        val second = StreamingTrack(
+            provider = StreamingProviderName.NETEASE,
+            providerTrackId = "heart-2",
+            title = "Heart 2",
+            artist = "Artist"
+        )
+
+        val playlist = viewModel.prepareHeartbeatRecommendationPlaylist(listOf(first, duplicate))
+        val append = viewModel.prepareHeartbeatRecommendationAppend(listOf(first, second))
+
+        assertEquals(listOf("streaming:netease:heart-1"), playlist.tracks.map { it.dataPath })
+        assertEquals(listOf("streaming:netease:heart-2"), append.tracks.map { it.dataPath })
+    }
+
+    @Test
+    fun streamingImportProviderPickerFiltersMockAndOptionallyRequiresSearch() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        val searchable = providerDescriptor(
+            provider = StreamingProviderName.NETEASE,
+            displayName = "NetEase",
+            supportsSearch = true
+        )
+        val accountOnly = providerDescriptor(
+            provider = StreamingProviderName.SPOTIFY,
+            displayName = "Spotify",
+            supportsSearch = false
+        )
+        val mock = providerDescriptor(
+            provider = StreamingProviderName.MOCK,
+            displayName = "Mock",
+            supportsSearch = true
+        )
+
+        val playlistImport = viewModel.streamingImportProviderPickerState(
+            listOf(searchable, accountOnly, mock),
+            requireSearch = true
+        )
+        val likedImport = viewModel.streamingImportProviderPickerState(
+            listOf(searchable, accountOnly, mock),
+            requireSearch = false
+        )
+
+        assertEquals(listOf(StreamingProviderName.NETEASE), playlistImport.providers.map { it.name })
+        assertEquals(listOf("NetEase"), playlistImport.labels.toList())
+        assertEquals(
+            listOf(StreamingProviderName.NETEASE, StreamingProviderName.SPOTIFY),
+            likedImport.providers.map { it.name }
+        )
+        assertEquals(listOf("NetEase", "Spotify"), likedImport.labels.toList())
+    }
+
+    @Test
+    fun streamingPlaylistImportStatusSummarizesImportResult() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        val summary = app.echo.next.streaming.StreamingPlaylistImporter.StreamingPlaylistImportSummary(
+            provider = StreamingProviderName.NETEASE,
+            playlistName = "Remote",
+            matchedTracks = listOf(
+                StreamingTrack(
+                    provider = StreamingProviderName.NETEASE,
+                    providerTrackId = "matched-1",
+                    title = "Matched 1",
+                    artist = "Artist"
+                ),
+                StreamingTrack(
+                    provider = StreamingProviderName.NETEASE,
+                    providerTrackId = "matched-2",
+                    title = "Matched 2",
+                    artist = "Artist"
+                )
+            ),
+            unresolvedTracks = listOf(localTrack(7L)),
+            errors = emptyList()
+        )
+
+        val status = viewModel.streamingPlaylistImportStatus(summary)
+
+        assertEquals(2, status.matchedCount)
+        assertEquals(3, status.totalRequested)
+        assertEquals(1, status.unresolvedCount)
+    }
+
+    @Test
+    fun prepareStreamingPlaylistImportTargetParsesLinksAndFallbackIds() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+
+        val link = viewModel.prepareStreamingPlaylistImportTarget(
+            "https://music.163.com/#/playlist?id=123456",
+            StreamingProviderName.QQ_MUSIC
+        )
+        val rawId = viewModel.prepareStreamingPlaylistImportTarget(
+            "abc-123",
+            StreamingProviderName.SPOTIFY
+        )
+        val invalid = viewModel.prepareStreamingPlaylistImportTarget(
+            "not a playlist link",
+            StreamingProviderName.NETEASE
+        )
+
+        assertEquals(StreamingProviderName.NETEASE, link.provider)
+        assertEquals("123456", link.providerPlaylistId)
+        assertFalse(link.invalid)
+        assertEquals(StreamingProviderName.SPOTIFY, rawId.provider)
+        assertEquals("abc-123", rawId.providerPlaylistId)
+        assertTrue(invalid.invalid)
+    }
+
+    @Test
+    fun prepareStreamingPlaylistImportDialogStateBuildsTitleAndHint() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+
+        val state = viewModel.prepareStreamingPlaylistImportDialogState()
+
+        assertEquals("Import playlist from streaming", state.title)
+        assertEquals("Paste playlist link or ID", state.hint)
+    }
+
+    @Test
+    fun prepareStreamingPlaylistImportStartRequestBuildsStatusAndTarget() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+
+        val valid = viewModel.prepareStreamingPlaylistImportStartRequest(
+            "https://music.163.com/#/playlist?id=123456",
+            StreamingProviderName.QQ_MUSIC
+        )
+        val invalid = viewModel.prepareStreamingPlaylistImportStartRequest(
+            "not a playlist link",
+            StreamingProviderName.NETEASE
+        )
+
+        assertTrue(valid.valid)
+        assertEquals(StreamingProviderName.NETEASE, valid.provider)
+        assertEquals("123456", valid.providerPlaylistId)
+        assertEquals("Resolving streaming track", valid.resolvingStatus)
+        assertEquals("Could not recognize playlist link", valid.invalidStatus)
+        assertFalse(invalid.valid)
+        assertEquals("Could not recognize playlist link", invalid.invalidStatus)
     }
 
     @Test
@@ -813,6 +1585,48 @@ class MainActivityViewModelStreamingTest {
         assertEquals(listOf("echo-next://streaming-auth?provider=spotify|cookie=1"), gatewaySource.completeAuthCalls)
         assertEquals(listOf(StreamingProviderName.SPOTIFY), gateway.loginSuccessProviders)
         assertTrue(viewModel.streaming.value.authStates[StreamingProviderName.SPOTIFY]?.connected == true)
+    }
+
+    @Test
+    fun prepareManualCookieDialogStateRejectsNonAccountProviders() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+
+        assertTrue(viewModel.prepareManualCookieDialogState(StreamingProviderName.MOCK).unavailable)
+        assertTrue(viewModel.prepareManualCookieDialogState(StreamingProviderName.M3U8).unavailable)
+        assertTrue(viewModel.prepareManualCookieDialogState(StreamingProviderName.PLUGIN).unavailable)
+        val valid = viewModel.prepareManualCookieDialogState(StreamingProviderName.NETEASE)
+        assertFalse(valid.unavailable)
+        assertEquals("Enter account info manually", valid.title)
+        assertEquals("MUSIC_U=...; os=pc; appver=...", valid.hint)
+        assertEquals("Choose a streaming source to sign in", valid.unavailableStatus)
+    }
+
+    @Test
+    fun prepareManualCookieAuthRequestTrimsCookieAndBuildsCallback() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        viewModel.bindStreamingActionGateway(FakeStreamingActionGateway().apply {
+            language = AppLanguage.MODE_ENGLISH
+        })
+
+        val request = viewModel.prepareManualCookieAuthRequest(
+            StreamingProviderName.NETEASE,
+            "  MUSIC_U=abc; os=pc  "
+        )
+
+        assertEquals(StreamingProviderName.NETEASE, request?.provider)
+        assertEquals(
+            "echo-next://streaming-auth?provider=netease&manualCookie=1",
+            request?.callbackUri
+        )
+        assertEquals("MUSIC_U=abc; os=pc", request?.cookieHeader)
+        assertEquals("Account info is empty", viewModel.manualCookieEmptyStatus())
+        assertEquals("Account info is empty", request?.emptyStatus)
+        assertEquals("Account info saved", request?.savedStatus)
+        assertNull(viewModel.prepareManualCookieAuthRequest(StreamingProviderName.NETEASE, "   "))
+        assertNull(viewModel.prepareManualCookieAuthRequest(StreamingProviderName.MOCK, "cookie=1"))
     }
 
     private fun searchResult(
@@ -873,7 +1687,8 @@ class MainActivityViewModelStreamingTest {
                     StreamingRepository(
                         RegistryStreamingGateway(
                             StreamingProviderRegistry(listOf(provider))
-                        )
+                        ),
+                        playbackTrackAdapter = FakePlaybackTrackAdapter()
                     )
                 )
             )
@@ -913,6 +1728,11 @@ class MainActivityViewModelStreamingTest {
         val trackId: Long,
         val provider: StreamingProviderName,
         val providerTrackId: String
+    )
+
+    private data class StreamingTrackMatchCandidatesCall(
+        val provider: StreamingProviderName,
+        val candidateTrackIds: List<Long>
     )
 
     private fun link(playlistId: Long): StreamingPlaylistSyncStore.LinkedPlaylist =
@@ -955,6 +1775,23 @@ class MainActivityViewModelStreamingTest {
             120_000L,
             Uri.EMPTY,
             "streaming:${StreamingProviderName.NETEASE.wireName}:$providerTrackId"
+        )
+
+    private fun providerDescriptor(
+        provider: StreamingProviderName,
+        displayName: String,
+        supportsSearch: Boolean
+    ): StreamingProviderDescriptor =
+        StreamingProviderDescriptor(
+            name = provider,
+            displayName = displayName,
+            capabilities = StreamingProviderCapabilities(
+                supportsSearch = supportsSearch,
+                supportsPlayback = true,
+                supportsAuth = true,
+                supportsPlaylists = true
+            ),
+            auth = StreamingAuthState()
         )
 
     private fun playbackSnapshot(
@@ -1001,6 +1838,82 @@ class MainActivityViewModelStreamingTest {
         }
     }
 
+    private class FakeStreamingPlaybackResolvePlanner : StreamingPlaybackResolvePlanner {
+        var recoveryRequest: StreamingRecoveryRequest? = null
+        val clearedRecoveryKeys = mutableListOf<String?>()
+
+        override fun prepare(tracks: List<Track>?, index: Int): ResolveStreamingPlaybackRequest? = null
+
+        override fun replaceResolvedTrack(
+            request: ResolveStreamingPlaybackRequest,
+            resolved: Track
+        ): ArrayList<Track> = ArrayList(request.tracks)
+
+        override fun prepareNextPreResolve(
+            snapshot: PlaybackStateSnapshot?,
+            queue: List<Track>?
+        ): StreamingPreResolveRequest? = null
+
+        override fun clearPreResolve(key: String?) = Unit
+
+        override fun prepareRecovery(
+            snapshot: PlaybackStateSnapshot?,
+            selectedQuality: StreamingAudioQuality,
+            adaptiveQuality: StreamingAudioQuality
+        ): StreamingRecoveryRequest? = recoveryRequest
+
+        override fun clearRecovery(key: String?) {
+            clearedRecoveryKeys += key
+        }
+    }
+
+    private class FakeStreamingLocalPlaylistOperations(
+        private val importer: (
+            playlistName: String,
+            provider: StreamingProviderName,
+            providerPlaylistId: String,
+            streamingTracks: List<StreamingTrack>,
+            linkWhenProviderPlaylistIdBlank: Boolean
+        ) -> PlaylistImportResult = { _, _, _, tracks, _ ->
+            PlaylistImportResult(-1L, "", tracks.size, tracks.size, tracks.size, 0)
+        },
+        private val syncer: (
+            link: StreamingPlaylistSyncStore.LinkedPlaylist,
+            streamingTracks: List<StreamingTrack>
+        ) -> StreamingLocalPlaylistSyncResult = { link, tracks ->
+            StreamingLocalPlaylistSyncResult(link.localPlaylistId, tracks.size, false)
+        },
+        private val ensurer: (
+            playlistName: String,
+            provider: StreamingProviderName
+        ) -> StreamingLoginPlaylistResult = { playlistName, _ ->
+            StreamingLoginPlaylistResult(playlistName = playlistName)
+        },
+        private val linkResolver: (localPlaylistId: Long) -> StreamingPlaylistSyncStore.LinkedPlaylist? = { null }
+    ) : StreamingLocalPlaylistOperations {
+        override fun importStreamingPlaylist(
+            playlistName: String,
+            provider: StreamingProviderName,
+            providerPlaylistId: String,
+            streamingTracks: List<StreamingTrack>,
+            linkWhenProviderPlaylistIdBlank: Boolean
+        ): PlaylistImportResult =
+            importer(playlistName, provider, providerPlaylistId, streamingTracks, linkWhenProviderPlaylistIdBlank)
+
+        override fun syncStreamingPlaylist(
+            link: StreamingPlaylistSyncStore.LinkedPlaylist,
+            streamingTracks: List<StreamingTrack>
+        ): StreamingLocalPlaylistSyncResult = syncer(link, streamingTracks)
+
+        override fun ensureStreamingLoginPlaylist(
+            playlistName: String,
+            provider: StreamingProviderName
+        ): StreamingLoginPlaylistResult = ensurer(playlistName, provider)
+
+        override fun linkedPlaylist(localPlaylistId: Long): StreamingPlaylistSyncStore.LinkedPlaylist? =
+            linkResolver(localPlaylistId)
+    }
+
     private class FakePlaybackTrackAdapter : StreamingPlaybackTrackAdapter {
         override fun toTrack(source: StreamingPlaybackSource, metadata: StreamingTrack?): Track {
             return Track(
@@ -1030,8 +1943,15 @@ class MainActivityViewModelStreamingTest {
 
     private class FakeStreamingTrackMatchStore : StreamingTrackMatchStore {
         var loadedProviderTrackId: String = ""
+        var providerTrackIdFromCandidateResult: String = ""
+        var heartbeatCandidates: List<Track> = emptyList()
+        var heartbeatQueueSnapshot: List<Track> = emptyList()
+        var heartbeatSeedMissLogMessage: String = ""
         val directProviderTrackIds = mutableMapOf<Long, String>()
         val events = mutableListOf<Any>()
+        var lastHeartbeatSeedMissSnapshot: PlaybackStateSnapshot? = null
+        var lastHeartbeatSeedMissStoreSnapshot: PlaybackStateSnapshot? = null
+        var lastHeartbeatSeedMissQueue: List<Track?>? = null
 
         override fun directProviderTrackId(track: Track, provider: StreamingProviderName): String {
             events += StreamingTrackMatchDirectCall(track.id, provider)
@@ -1049,6 +1969,44 @@ class MainActivityViewModelStreamingTest {
             providerTrackId: String
         ) {
             events += StreamingTrackMatchSaveCall(track.id, provider, providerTrackId)
+        }
+
+        override fun providerTrackIdFromCandidates(
+            candidates: List<Track?>?,
+            provider: StreamingProviderName?
+        ): String {
+            if (provider != null) {
+                events += StreamingTrackMatchCandidatesCall(
+                    provider,
+                    candidates.orEmpty().mapNotNull { it?.id }
+                )
+            }
+            return providerTrackIdFromCandidateResult
+        }
+
+        override fun heartbeatSeedCandidates(
+            serviceSnapshot: PlaybackStateSnapshot?,
+            serviceQueue: List<Track?>?,
+            storeSnapshot: PlaybackStateSnapshot?,
+            viewModelQueue: List<Track?>?
+        ): List<Track> = heartbeatCandidates
+
+        override fun snapshotQueueForHeartbeat(
+            serviceQueue: List<Track?>?,
+            viewModelQueue: List<Track?>?,
+            storeSnapshot: PlaybackStateSnapshot?
+        ): List<Track> = heartbeatQueueSnapshot
+
+        override fun heartbeatSeedMissMessage(
+            provider: StreamingProviderName?,
+            snapshot: PlaybackStateSnapshot?,
+            storeSnapshot: PlaybackStateSnapshot?,
+            queue: List<Track?>?
+        ): String {
+            lastHeartbeatSeedMissSnapshot = snapshot
+            lastHeartbeatSeedMissStoreSnapshot = storeSnapshot
+            lastHeartbeatSeedMissQueue = queue
+            return heartbeatSeedMissLogMessage
         }
     }
 
@@ -1133,12 +2091,13 @@ class MainActivityViewModelStreamingTest {
 
     private class FakeStreamingActionGateway : MainActivityStreamingActionGateway {
         var quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS
+        var language: String = AppLanguage.MODE_SYSTEM
         val playedTrackIds = mutableListOf<Long>()
         val loginSuccessProviders = mutableListOf<StreamingProviderName>()
 
         override fun streamingPlaybackQuality(): StreamingAudioQuality = quality
 
-        override fun languageMode(): String = AppLanguage.MODE_SYSTEM
+        override fun languageMode(): String = language
 
         override fun openAuthLaunch(launch: MainActivityStreamingAuthLaunch?): Boolean = true
 

@@ -64,14 +64,10 @@ public final class MainActivity extends ComponentActivity {
     private static final String LIBRARY_ARTISTS = LibraryGrouping.ARTISTS;
     private static final String LIBRARY_FOLDERS = LibraryGrouping.FOLDERS;
     private static final String LIBRARY_PLAYLISTS = LibraryGrouping.PLAYLISTS;
-    private static final String STREAMING_AUTH_REDIRECT_URI = "echo-next://streaming-auth";
-
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final MainExecutors executors = new MainExecutors();
     private final StreamingPlaybackTaskScheduler streamingPlaybackTaskScheduler = new StreamingPlaybackTaskScheduler();
     private final ResolveStreamingPlaybackUseCase resolveStreamingPlaybackUseCase = new ResolveStreamingPlaybackUseCase();
-    private final StreamingHeartbeatRecommendationUseCase heartbeatRecommendationUseCase =
-            new StreamingHeartbeatRecommendationUseCase();
     private StreamingTrackMatchUseCase streamingTrackMatchUseCase;
     private ToggleFavoriteUseCase toggleFavoriteUseCase;
     private LoadPlaylistTracksUseCase loadPlaylistTracksUseCase;
@@ -106,10 +102,6 @@ public final class MainActivity extends ComponentActivity {
     private SettingsRenderCoordinator settingsRenderCoordinator;
     private TrackListRenderController trackListRenderController;
     private app.echo.next.streaming.StreamingPlaylistSyncStore streamingPlaylistSyncStore;
-    private ImportStreamingPlaylistUseCase importStreamingPlaylistUseCase;
-    private SyncStreamingPlaylistUseCase syncStreamingPlaylistUseCase;
-    private EnsureStreamingLoginPlaylistUseCase ensureStreamingLoginPlaylistUseCase;
-    private GetStreamingPlaylistLinkUseCase getStreamingPlaylistLinkUseCase;
     private QueueRenderController queueRenderController;
     private NetworkSourcesRenderController networkSourcesRenderController;
     private NetworkMenuRenderController networkMenuRenderController;
@@ -693,7 +685,10 @@ public final class MainActivity extends ComponentActivity {
                         if (playlist == null) {
                             return;
                         }
-                        MainActivity.this.importStreamingPlaylist(playlist.getProvider(), playlist.getProviderPlaylistId());
+                        MainActivity.this.importStreamingPlaylistFromProviderRef(
+                                playlist.getProvider(),
+                                playlist.getProviderPlaylistId()
+                        );
                     }
 
                     @Override
@@ -897,10 +892,20 @@ public final class MainActivity extends ComponentActivity {
                 ).execute()
         );
         streamingPlaylistSyncStore = new app.echo.next.streaming.StreamingPlaylistSyncStore(this);
-        importStreamingPlaylistUseCase = new ImportStreamingPlaylistUseCase(
+        final ImportStreamingPlaylistUseCase importStreamingPlaylistUseCase = new ImportStreamingPlaylistUseCase(
                 new MusicLibraryStreamingPlaylistImportOperations(repository, streamingPlaylistSyncStore)
         );
-        viewModel.bindStreamingLocalPlaylistImporter(new StreamingLocalPlaylistImporter() {
+        final SyncStreamingPlaylistUseCase syncStreamingPlaylistUseCase = new SyncStreamingPlaylistUseCase(
+                new MusicLibraryStreamingPlaylistSyncOperations(repository, streamingPlaylistSyncStore)
+        );
+        final EnsureStreamingLoginPlaylistUseCase ensureStreamingLoginPlaylistUseCase = new EnsureStreamingLoginPlaylistUseCase(
+                new MusicLibraryStreamingLoginPlaylistOperations(repository, streamingPlaylistSyncStore)
+        );
+        final GetStreamingPlaylistLinkUseCase streamingPlaylistLinkUseCase =
+                new GetStreamingPlaylistLinkUseCase(
+                        new StreamingPlaylistSyncStoreLinkOperations(streamingPlaylistSyncStore)
+                );
+        viewModel.bindStreamingLocalPlaylistOperations(new StreamingLocalPlaylistOperations() {
             @Override
             public app.echo.next.model.PlaylistImportResult importStreamingPlaylist(
                     String playlistName,
@@ -917,11 +922,7 @@ public final class MainActivity extends ComponentActivity {
                         linkWhenProviderPlaylistIdBlank
                 );
             }
-        });
-        syncStreamingPlaylistUseCase = new SyncStreamingPlaylistUseCase(
-                new MusicLibraryStreamingPlaylistSyncOperations(repository, streamingPlaylistSyncStore)
-        );
-        viewModel.bindStreamingLocalPlaylistSyncer(new StreamingLocalPlaylistSyncer() {
+
             @Override
             public StreamingLocalPlaylistSyncResult syncStreamingPlaylist(
                     app.echo.next.streaming.StreamingPlaylistSyncStore.LinkedPlaylist link,
@@ -934,11 +935,7 @@ public final class MainActivity extends ComponentActivity {
                         result.getEmpty()
                 );
             }
-        });
-        ensureStreamingLoginPlaylistUseCase = new EnsureStreamingLoginPlaylistUseCase(
-                new MusicLibraryStreamingLoginPlaylistOperations(repository, streamingPlaylistSyncStore)
-        );
-        viewModel.bindStreamingLoginPlaylistEnsurer(new StreamingLoginPlaylistEnsurer() {
+
             @Override
             public StreamingLoginPlaylistResult ensureStreamingLoginPlaylist(
                     String playlistName,
@@ -951,10 +948,12 @@ public final class MainActivity extends ComponentActivity {
                         result.getPlaylistName()
                 );
             }
+
+            @Override
+            public app.echo.next.streaming.StreamingPlaylistSyncStore.LinkedPlaylist linkedPlaylist(long localPlaylistId) {
+                return streamingPlaylistLinkUseCase.execute(localPlaylistId);
+            }
         });
-        getStreamingPlaylistLinkUseCase = new GetStreamingPlaylistLinkUseCase(
-                new StreamingPlaylistSyncStoreLinkOperations(streamingPlaylistSyncStore)
-        );
         streamingTrackMatchUseCase = new StreamingTrackMatchUseCase(
                 new MusicLibraryStreamingTrackMatchOperations(repository)
         );
@@ -982,6 +981,57 @@ public final class MainActivity extends ComponentActivity {
                     String providerTrackId
             ) {
                 streamingTrackMatchUseCase.saveProviderTrackId(track, provider, providerTrackId);
+            }
+
+            @Override
+            public String providerTrackIdFromCandidates(
+                    List<Track> candidates,
+                    app.echo.next.streaming.StreamingProviderName provider
+            ) {
+                return streamingTrackMatchUseCase.providerTrackIdFromCandidates(candidates, provider);
+            }
+
+            @Override
+            public List<Track> heartbeatSeedCandidates(
+                    PlaybackStateSnapshot serviceSnapshot,
+                    List<Track> serviceQueue,
+                    PlaybackStateSnapshot storeSnapshot,
+                    List<Track> viewModelQueue
+            ) {
+                return streamingTrackMatchUseCase.heartbeatSeedCandidates(
+                        serviceSnapshot,
+                        serviceQueue,
+                        storeSnapshot,
+                        viewModelQueue
+                );
+            }
+
+            @Override
+            public List<Track> snapshotQueueForHeartbeat(
+                    List<Track> serviceQueue,
+                    List<Track> viewModelQueue,
+                    PlaybackStateSnapshot storeSnapshot
+            ) {
+                return streamingTrackMatchUseCase.snapshotQueueForHeartbeat(
+                        serviceQueue,
+                        viewModelQueue,
+                        storeSnapshot
+                );
+            }
+
+            @Override
+            public String heartbeatSeedMissMessage(
+                    app.echo.next.streaming.StreamingProviderName provider,
+                    PlaybackStateSnapshot snapshot,
+                    PlaybackStateSnapshot storeSnapshot,
+                    List<Track> queue
+            ) {
+                return streamingTrackMatchUseCase.heartbeatSeedMissMessage(
+                        provider,
+                        snapshot,
+                        storeSnapshot,
+                        queue
+                );
             }
         });
         toggleFavoriteUseCase = new ToggleFavoriteUseCase(
@@ -1145,8 +1195,14 @@ public final class MainActivity extends ComponentActivity {
                         uiShellController.applyThemeSurface();
                         renderSelectedTab();
                         renderNowBar();
-                        setStatus(AppLanguage.text(settingsStore.languageMode(), "theme.applied")
-                                + AppLanguage.themeLabel(settingsStore.themeMode(), settingsStore.languageMode()));
+                        setStatus(settingsViewModel.prepareAppliedStatusText(
+                                settingsStore.languageMode(),
+                                settingsStore.themeMode(),
+                                settingsStore.accentMode(),
+                                settingsStore.playbackSpeed(),
+                                settingsStore.appVolume(),
+                                settingsStore.lyricsOffsetMs()
+                        ).getThemeApplied());
                     }
 
                     @Override
@@ -1154,8 +1210,14 @@ public final class MainActivity extends ComponentActivity {
                         settingsStore.setAccentMode(accent);
                         renderSelectedTab();
                         renderNowBar();
-                        setStatus(AppLanguage.text(settingsStore.languageMode(), "accent.applied")
-                                + AppLanguage.accentLabel(settingsStore.accentMode(), settingsStore.languageMode()));
+                        setStatus(settingsViewModel.prepareAppliedStatusText(
+                                settingsStore.languageMode(),
+                                settingsStore.themeMode(),
+                                settingsStore.accentMode(),
+                                settingsStore.playbackSpeed(),
+                                settingsStore.appVolume(),
+                                settingsStore.lyricsOffsetMs()
+                        ).getAccentApplied());
                     }
 
                     @Override
@@ -1164,8 +1226,14 @@ public final class MainActivity extends ComponentActivity {
                         uiShellController.updateLanguage(settingsStore.languageMode());
                         renderSelectedTab();
                         renderNowBar();
-                        setStatus(AppLanguage.text(settingsStore.languageMode(), "language.applied")
-                                + AppLanguage.labelFor(settingsStore.languageMode()));
+                        setStatus(settingsViewModel.prepareAppliedStatusText(
+                                settingsStore.languageMode(),
+                                settingsStore.themeMode(),
+                                settingsStore.accentMode(),
+                                settingsStore.playbackSpeed(),
+                                settingsStore.appVolume(),
+                                settingsStore.lyricsOffsetMs()
+                        ).getLanguageApplied());
                     }
 
                     @Override
@@ -1176,8 +1244,14 @@ public final class MainActivity extends ComponentActivity {
                         }
                         renderSelectedTab();
                         renderNowBar();
-                        setStatus(AppLanguage.text(settingsStore.languageMode(), "speed.applied")
-                                + SettingsPageRenderController.playbackSpeedLabel(settingsStore.playbackSpeed()));
+                        setStatus(settingsViewModel.prepareAppliedStatusText(
+                                settingsStore.languageMode(),
+                                settingsStore.themeMode(),
+                                settingsStore.accentMode(),
+                                settingsStore.playbackSpeed(),
+                                settingsStore.appVolume(),
+                                settingsStore.lyricsOffsetMs()
+                        ).getPlaybackSpeedApplied());
                     }
 
                     @Override
@@ -1188,19 +1262,23 @@ public final class MainActivity extends ComponentActivity {
                         }
                         renderSelectedTab();
                         renderNowBar();
-                        setStatus(AppLanguage.text(settingsStore.languageMode(), "volume.applied")
-                                + SettingsPageRenderController.appVolumeLabel(settingsStore.appVolume()));
+                        setStatus(settingsViewModel.prepareAppliedStatusText(
+                                settingsStore.languageMode(),
+                                settingsStore.themeMode(),
+                                settingsStore.accentMode(),
+                                settingsStore.playbackSpeed(),
+                                settingsStore.appVolume(),
+                                settingsStore.lyricsOffsetMs()
+                        ).getAppVolumeApplied());
                     }
 
                     @Override
                     public void onStreamingAudioQualityApplied(String quality) {
                         settingsStore.setStreamingAudioQuality(quality);
                         renderSelectedTab();
-                        setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.quality.applied")
-                                + SettingsPageRenderController.streamingQualityLabel(
-                                settingsStore.streamingAudioQuality(),
-                                settingsStore.languageMode()
-                        ));
+                        setStatus(viewModel.prepareStreamingStatusText(
+                                settingsStore.streamingAudioQuality()
+                        ).getStreamingQualityApplied());
                     }
 
                     @Override
@@ -1208,9 +1286,17 @@ public final class MainActivity extends ComponentActivity {
                         if (lyricsViewModel != null) {
                             lyricsViewModel.setOnlineEnabled(enabled);
                         }
+                        SettingsAppliedStatusText statusText = settingsViewModel.prepareAppliedStatusText(
+                                settingsStore.languageMode(),
+                                settingsStore.themeMode(),
+                                settingsStore.accentMode(),
+                                settingsStore.playbackSpeed(),
+                                settingsStore.appVolume(),
+                                settingsStore.lyricsOffsetMs()
+                        );
                         setStatus(enabled
-                                ? AppLanguage.text(settingsStore.languageMode(), "online.lyrics.enabled")
-                                : AppLanguage.text(settingsStore.languageMode(), "online.lyrics.disabled"));
+                                ? statusText.getOnlineLyricsEnabled()
+                                : statusText.getOnlineLyricsDisabled());
                         reloadCurrentLyrics();
                         renderSelectedTab();
                     }
@@ -1221,9 +1307,17 @@ public final class MainActivity extends ComponentActivity {
                         if (playbackService != null) {
                             playbackService.setConcurrentPlaybackEnabled(settingsStore.concurrentPlaybackEnabled());
                         }
+                        SettingsAppliedStatusText statusText = settingsViewModel.prepareAppliedStatusText(
+                                settingsStore.languageMode(),
+                                settingsStore.themeMode(),
+                                settingsStore.accentMode(),
+                                settingsStore.playbackSpeed(),
+                                settingsStore.appVolume(),
+                                settingsStore.lyricsOffsetMs()
+                        );
                         setStatus(enabled
-                                ? AppLanguage.text(settingsStore.languageMode(), "concurrent.playback.enabled")
-                                : AppLanguage.text(settingsStore.languageMode(), "concurrent.playback.disabled"));
+                                ? statusText.getConcurrentPlaybackEnabled()
+                                : statusText.getConcurrentPlaybackDisabled());
                         renderSelectedTab();
                     }
 
@@ -1232,8 +1326,14 @@ public final class MainActivity extends ComponentActivity {
                         if (lyricsViewModel != null) {
                             lyricsViewModel.setOffsetMs(offsetMs);
                         }
-                        setStatus(AppLanguage.text(settingsStore.languageMode(), "lyrics.offset.applied")
-                                + SettingsPageRenderController.lyricsOffsetLabel(offsetMs));
+                        setStatus(settingsViewModel.prepareAppliedStatusText(
+                                settingsStore.languageMode(),
+                                settingsStore.themeMode(),
+                                settingsStore.accentMode(),
+                                settingsStore.playbackSpeed(),
+                                settingsStore.appVolume(),
+                                offsetMs
+                        ).getLyricsOffsetApplied());
                         renderSelectedTab();
                         if (TAB_NOW.equals(selectedTab())) {
                             renderNowBar();
@@ -2611,71 +2711,56 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void importSelectedPlaylistToStreaming() {
-        long playlistId = selectedPlaylistId();
-        if (playlistId < 0L) {
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.no.tracks.to.import"));
+        StreamingPlaylistExportRequest request = viewModel.prepareStreamingPlaylistExportRequest(
+                selectedPlaylistName(),
+                libraryStore.selectedPlaylistTracks()
+        );
+        setStatus(request.getStatus());
+        if (!request.getValid()) {
             return;
         }
-        java.util.List<Track> tracks = libraryStore.selectedPlaylistTracks();
-        if (tracks == null || tracks.isEmpty()) {
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.no.tracks.to.import"));
-            return;
-        }
-        showStreamingProviderPicker(selectedPlaylistName(), tracks);
+        showStreamingProviderPicker(request.getPlaylistName(), request.getTracks());
     }
 
     private void importFavoritesToStreaming() {
-        java.util.List<Track> tracks = libraryStore.favoriteTracks();
-        if (tracks == null || tracks.isEmpty()) {
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.no.tracks.to.import"));
+        StreamingPlaylistExportRequest request = viewModel.prepareStreamingFavoritesExportRequest(
+                libraryStore.favoriteTracks()
+        );
+        setStatus(request.getStatus());
+        if (!request.getValid()) {
             return;
         }
-        showStreamingProviderPicker(
-                AppLanguage.text(settingsStore.languageMode(), "favorites"),
-                tracks
-        );
+        showStreamingProviderPicker(request.getPlaylistName(), request.getTracks());
     }
 
     private void syncSelectedPlaylistFromStreaming() {
-        long playlistId = routeController.selectedPlaylistId();
-        if (playlistId < 0L) {
+        StreamingPlaylistSyncStartRequest request = viewModel.prepareStreamingPlaylistSyncStartRequest(
+                routeController.selectedPlaylistId()
+        );
+        if (request == null) {
             return;
         }
-        app.echo.next.streaming.StreamingPlaylistSyncStore.LinkedPlaylist link =
-                getStreamingPlaylistLinkUseCase.execute(playlistId);
-        if (link == null) {
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.not.linked"));
+        setStatus(request.getStatus());
+        if (!request.getValid() || request.getLink() == null) {
             return;
         }
-        setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.sync.started"));
-        syncOneStreamingPlaylist(link);
+        syncOneStreamingPlaylist(request.getLink());
     }
 
     private void showStreamingProviderPicker(String playlistName, java.util.List<Track> tracks) {
-        java.util.List<app.echo.next.streaming.StreamingProviderDescriptor> providers =
-                viewModel.getStreaming().getValue().getProviders();
-        java.util.List<app.echo.next.streaming.StreamingProviderDescriptor> selectable = new ArrayList<>();
-        for (app.echo.next.streaming.StreamingProviderDescriptor descriptor : providers) {
-            if (descriptor == null) continue;
-            if (!descriptor.getCapabilities().getSupportsSearch()) continue;
-            if (descriptor.getName() == app.echo.next.streaming.StreamingProviderName.MOCK) {
-                // Skip the offline mock; users do not want to import their library into a demo provider.
-                continue;
-            }
-            selectable.add(descriptor);
-        }
-        if (selectable.isEmpty()) {
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.no.providers"));
+        StreamingProviderPickerRequest request = viewModel.prepareStreamingImportProviderPickerRequest(
+                viewModel.getStreaming().getValue().getProviders(),
+                true
+        );
+        if (!request.getValid()) {
+            setStatus(request.getEmptyStatus());
             return;
         }
-        final String[] labels = new String[selectable.size()];
-        for (int i = 0; i < selectable.size(); i++) {
-            labels[i] = selectable.get(i).getDisplayName();
-        }
         EchoDialog.builder(this)
-                .setTitle(AppLanguage.text(settingsStore.languageMode(), "choose.streaming.provider"))
-                .setItems(labels, (dialog, which) -> {
-                    app.echo.next.streaming.StreamingProviderDescriptor descriptor = selectable.get(which);
+                .setTitle(request.getTitle())
+                .setItems(request.getPickerState().getLabels(), (dialog, which) -> {
+                    app.echo.next.streaming.StreamingProviderDescriptor descriptor =
+                            request.getPickerState().getProviders().get(which);
                     runStreamingPlaylistImport(descriptor.getName(), playlistName, tracks);
                 })
                 .setNegativeButton(AppLanguage.text(settingsStore.languageMode(), "cancel"), null)
@@ -2687,36 +2772,26 @@ public final class MainActivity extends ComponentActivity {
             String playlistName,
             java.util.List<Track> tracks
     ) {
-        setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.import.matched.prefix") + "...");
+        setStatus(viewModel.prepareStreamingPlaylistExportRequest(playlistName, tracks).getStatus());
         navigateToNetworkTabPage(NETWORK_STREAMING);
-        viewModel.importPlaylistToStreamingJava(provider, playlistName, tracks, summary -> {
-            if (summary == null) {
-                return;
-            }
-            String status = AppLanguage.text(settingsStore.languageMode(), "streaming.import.matched.prefix")
-                    + summary.getMatchedTracks().size()
-                    + " / "
-                    + summary.getTotalRequested();
-            if (!summary.getUnresolvedTracks().isEmpty()) {
-                status = status + " (" + summary.getUnresolvedTracks().size()
-                        + AppLanguage.text(settingsStore.languageMode(), "streaming.import.unresolved.suffix") + ")";
-            }
-            setStatus(status);
+        viewModel.importPlaylistToStreamingJava(provider, playlistName, tracks, importStatus -> {
+            setStatus(viewModel.prepareStreamingPlaylistExportPresentation(importStatus).getStatus());
         });
     }
 
     // ---- Import a streaming playlist INTO the local library ----
 
     private void showImportStreamingPlaylistDialog() {
+        StreamingPlaylistImportDialogState dialogState = viewModel.prepareStreamingPlaylistImportDialogState();
         final android.widget.EditText input = new android.widget.EditText(this);
         input.setSingleLine(true);
-        input.setHint(AppLanguage.text(settingsStore.languageMode(), "streaming.paste.playlist.link"));
+        input.setHint(dialogState.getHint());
         input.setTextColor(EchoTheme.textArgb(this));
         input.setHintTextColor(EchoTheme.mutedArgb(this));
         int pad = Math.round(12 * getResources().getDisplayMetrics().density);
         input.setPadding(pad, pad, pad, pad);
         EchoDialog.builder(this)
-                .setTitle(AppLanguage.text(settingsStore.languageMode(), "streaming.import.playlist.from"))
+                .setTitle(dialogState.getTitle())
                 .setView(input)
                 .setNegativeButton(AppLanguage.text(settingsStore.languageMode(), "cancel"), null)
                 .setPositiveButton(AppLanguage.text(settingsStore.languageMode(), "ok"), (dialog, which) ->
@@ -2725,12 +2800,11 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showStreamingCookieDialog() {
-        final app.echo.next.streaming.StreamingProviderName provider =
-                viewModel.getStreaming().getValue().getSelectedProvider();
-        if (provider == app.echo.next.streaming.StreamingProviderName.MOCK
-                || provider == app.echo.next.streaming.StreamingProviderName.M3U8
-                || provider == app.echo.next.streaming.StreamingProviderName.PLUGIN) {
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.choose.login.provider"));
+        final StreamingManualCookieDialogState dialogState = viewModel.prepareManualCookieDialogState(
+                viewModel.getStreaming().getValue().getSelectedProvider()
+        );
+        if (dialogState.getUnavailable() || dialogState.getProvider() == null) {
+            setStatus(dialogState.getUnavailableStatus());
             return;
         }
         final android.widget.EditText input = new android.widget.EditText(this);
@@ -2740,17 +2814,17 @@ public final class MainActivity extends ComponentActivity {
         input.setInputType(android.text.InputType.TYPE_CLASS_TEXT
                 | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        input.setHint("MUSIC_U=...; os=pc; appver=...");
+        input.setHint(dialogState.getHint());
         input.setTextColor(EchoTheme.textArgb(this));
         input.setHintTextColor(EchoTheme.mutedArgb(this));
         int pad = Math.round(12 * getResources().getDisplayMetrics().density);
         input.setPadding(pad, pad, pad, pad);
         EchoDialog.builder(this)
-                .setTitle(AppLanguage.text(settingsStore.languageMode(), "streaming.manual.cookie"))
+                .setTitle(dialogState.getTitle())
                 .setView(input)
                 .setNegativeButton(AppLanguage.text(settingsStore.languageMode(), "cancel"), null)
                 .setPositiveButton(AppLanguage.text(settingsStore.languageMode(), "ok"), (dialog, which) ->
-                        saveStreamingCookie(provider, input.getText().toString()))
+                        saveStreamingCookie(dialogState.getProvider(), input.getText().toString()))
                 .show();
     }
 
@@ -2758,53 +2832,67 @@ public final class MainActivity extends ComponentActivity {
             app.echo.next.streaming.StreamingProviderName provider,
             String cookieHeader
     ) {
-        String cookie = cookieHeader == null ? "" : cookieHeader.trim();
-        if (cookie.isEmpty()) {
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.cookie.empty"));
+        StreamingManualCookieAuthRequest request = viewModel.prepareManualCookieAuthRequest(provider, cookieHeader);
+        if (request == null) {
+            setStatus(viewModel.manualCookieEmptyStatus());
             return;
         }
-        String callbackUri = STREAMING_AUTH_REDIRECT_URI
-                + "?provider=" + provider.getWireName()
-                + "&manualCookie=1";
-        viewModel.completeStreamingAuth(provider, callbackUri, cookie, loggedInProvider -> {
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.cookie.saved"));
+        viewModel.completeStreamingAuth(request.getProvider(), request.getCallbackUri(), request.getCookieHeader(), loggedInProvider -> {
+            setStatus(request.getSavedStatus());
             onStreamingLoginSuccess(loggedInProvider);
         });
     }
 
     private void importStreamingPlaylistFromLink(String linkOrId) {
-        app.echo.next.streaming.StreamingProviderName fallback =
-                viewModel.getStreaming().getValue().getSelectedProvider();
-        app.echo.next.streaming.StreamingPlaylistLinkParser.ParsedPlaylistRef ref =
-                app.echo.next.streaming.StreamingPlaylistLinkParser.INSTANCE.parse(linkOrId, fallback);
-        if (ref == null) {
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.playlist.link.invalid"));
+        StreamingPlaylistImportStartRequest request = viewModel.prepareStreamingPlaylistImportStartRequest(
+                linkOrId,
+                viewModel.getStreaming().getValue().getSelectedProvider()
+        );
+        if (!request.getValid() || request.getProvider() == null) {
+            setStatus(request.getInvalidStatus());
             return;
         }
-        importStreamingPlaylist(ref.getProvider(), ref.getProviderPlaylistId());
+        importStreamingPlaylist(request.getProvider(), request.getProviderPlaylistId(), request.getResolvingStatus());
+    }
+
+    private void importStreamingPlaylistFromProviderRef(
+            app.echo.next.streaming.StreamingProviderName provider,
+            String providerPlaylistId
+    ) {
+        StreamingPlaylistImportStartRequest request = viewModel.prepareStreamingPlaylistImportStartRequest(
+                providerPlaylistId,
+                provider
+        );
+        if (!request.getValid() || request.getProvider() == null) {
+            setStatus(request.getInvalidStatus());
+            return;
+        }
+        importStreamingPlaylist(request.getProvider(), request.getProviderPlaylistId(), request.getResolvingStatus());
     }
 
     private void importStreamingPlaylist(
         app.echo.next.streaming.StreamingProviderName provider,
-            String providerPlaylistId
+            String providerPlaylistId,
+            String resolvingStatus
     ) {
-        setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.resolving"));
+        setStatus(resolvingStatus);
         viewModel.importStreamingPlaylistToLocal(provider, providerPlaylistId, result -> {
-            if (result == null || result.getEmpty()) {
-                setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.playlist.empty"));
+            StreamingLocalPlaylistImportPresentation presentation =
+                    viewModel.prepareStreamingPlaylistImportPresentation(result);
+            setStatus(presentation.getStatus());
+            if (presentation.getEmpty()) {
                 return;
             }
-            String status = AppLanguage.text(settingsStore.languageMode(), "streaming.playlist.imported.prefix")
-                    + result.getPlaylistName() + " (" + result.getPlaylistAddedCount() + ")";
-            setStatus(status);
-            showStreamingPlaylistLoadedDialog(status);
+            if (presentation.getShowLoadedDialog()) {
+                showStreamingPlaylistLoadedDialog(presentation.getStatus());
+            }
             loadCollections();
         });
     }
 
     private void showStreamingPlaylistLoadedDialog(String message) {
         EchoDialog.builder(this)
-                .setTitle(AppLanguage.text(settingsStore.languageMode(), "streaming.playlist.load.success.title"))
+                .setTitle(viewModel.streamingPlaylistLoadedDialogTitle())
                 .setMessage(message)
                 .setPositiveButton(AppLanguage.text(settingsStore.languageMode(), "ok"), null)
                 .show();
@@ -2813,29 +2901,18 @@ public final class MainActivity extends ComponentActivity {
     // ---- Pull the user's liked/favorite tracks FROM streaming INTO a local playlist ----
 
     private void showImportStreamingFavoritesProviderPicker() {
-        java.util.List<app.echo.next.streaming.StreamingProviderDescriptor> providers =
-                viewModel.getStreaming().getValue().getProviders();
-        java.util.List<app.echo.next.streaming.StreamingProviderDescriptor> selectable = new ArrayList<>();
-        for (app.echo.next.streaming.StreamingProviderDescriptor descriptor : providers) {
-            if (descriptor == null) continue;
-            if (descriptor.getName() == app.echo.next.streaming.StreamingProviderName.MOCK) {
-                // Skip the offline mock; it has no real account favorites to pull.
-                continue;
-            }
-            selectable.add(descriptor);
-        }
-        if (selectable.isEmpty()) {
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.no.providers"));
+        StreamingProviderPickerRequest request = viewModel.prepareStreamingImportProviderPickerRequest(
+                viewModel.getStreaming().getValue().getProviders(),
+                false
+        );
+        if (!request.getValid()) {
+            setStatus(request.getEmptyStatus());
             return;
         }
-        final String[] labels = new String[selectable.size()];
-        for (int i = 0; i < selectable.size(); i++) {
-            labels[i] = selectable.get(i).getDisplayName();
-        }
         EchoDialog.builder(this)
-                .setTitle(AppLanguage.text(settingsStore.languageMode(), "choose.streaming.provider"))
-                .setItems(labels, (dialog, which) ->
-                        importStreamingLikedTracks(selectable.get(which).getName()))
+                .setTitle(request.getTitle())
+                .setItems(request.getPickerState().getLabels(), (dialog, which) ->
+                        importStreamingLikedTracks(request.getPickerState().getProviders().get(which).getName()))
                 .setNegativeButton(AppLanguage.text(settingsStore.languageMode(), "cancel"), null)
                 .show();
     }
@@ -2844,31 +2921,20 @@ public final class MainActivity extends ComponentActivity {
         if (provider == null) {
             return;
         }
-        // Resolve a friendly provider display name for the playlist title.
-        String displayName = provider.getWireName();
-        for (app.echo.next.streaming.StreamingProviderDescriptor desc : viewModel.getStreaming().getValue().getProviders()) {
-            if (desc.getName() == provider) {
-                displayName = desc.getDisplayName();
-                break;
-            }
-        }
-        final String languageMode = settingsStore.languageMode();
-        final String playlistName =
-                AppLanguage.text(languageMode, "streaming.liked.playlist.prefix")
-                        + displayName
-                        + AppLanguage.text(languageMode, "streaming.liked.playlist.suffix");
+        final String playlistName = viewModel.prepareStreamingLikedPlaylistName(provider);
 
-        setStatus(AppLanguage.text(languageMode, "streaming.resolving"));
+        setStatus(viewModel.prepareStreamingPlaybackStatusText(null).getResolving());
         navigateToNetworkTabPage(NETWORK_STREAMING);
         viewModel.importStreamingLikedTracksToLocal(provider, playlistName, result -> {
-            if (result == null || result.getEmpty()) {
-                setStatus(AppLanguage.text(languageMode, "streaming.liked.empty"));
+            StreamingLocalPlaylistImportPresentation presentation =
+                    viewModel.prepareStreamingLikedImportPresentation(result);
+            setStatus(presentation.getStatus());
+            if (presentation.getEmpty()) {
                 return;
             }
-            String status = AppLanguage.text(languageMode, "streaming.liked.imported.prefix")
-                    + result.getPlaylistName() + " (" + result.getPlaylistAddedCount() + ")";
-            setStatus(status);
-            showStreamingPlaylistLoadedDialog(status);
+            if (presentation.getShowLoadedDialog()) {
+                showStreamingPlaylistLoadedDialog(presentation.getStatus());
+            }
             loadCollections();
         });
     }
@@ -2879,19 +2945,18 @@ public final class MainActivity extends ComponentActivity {
      * and the next track is pre-resolved by the existing prefetch path.
      */
     private void playStreamingDailyRecommendations(app.echo.next.streaming.StreamingProviderName provider) {
-        provider = recommendationProvider(provider);
-        if (provider == null) {
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.recommend.daily.empty"));
+        StreamingDailyRecommendationRequest request =
+                viewModel.prepareStreamingDailyRecommendationRequest(provider);
+        if (request == null) {
+            setStatus(viewModel.streamingDailyRecommendationEmptyStatus());
             return;
         }
-        stopHeartbeatRecommendationMode();
-        final String languageMode = settingsStore.languageMode();
-        setStatus(AppLanguage.text(languageMode, "streaming.recommend.daily.loading"));
-        viewModel.fetchDailyRecommendations(provider, streamingTracks ->
+        setStatus(request.getLoadingStatus());
+        viewModel.fetchDailyRecommendations(request.getProvider(), streamingTracks ->
                 openRecommendationPlaylist(
                         streamingTracks,
-                        AppLanguage.text(languageMode, "streaming.recommend.daily.empty"),
-                        AppLanguage.text(languageMode, "streaming.recommend.daily")
+                        request.getEmptyStatus(),
+                        request.getTitle()
                 ));
     }
 
@@ -2900,60 +2965,49 @@ public final class MainActivity extends ComponentActivity {
      * returned list immediately.
      */
     private void playStreamingHeartbeatRecommendations(app.echo.next.streaming.StreamingProviderName provider) {
-        provider = recommendationProvider(provider);
-        if (provider == null) {
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.recommend.heartbeat.empty"));
+        StreamingHeartbeatRecommendationRequest request =
+                viewModel.prepareStreamingHeartbeatRecommendationRequest(provider);
+        if (request == null) {
+            setStatus(viewModel.streamingHeartbeatRecommendationEmptyStatus());
             return;
         }
-        final String languageMode = settingsStore.languageMode();
-        setStatus(AppLanguage.text(languageMode, "streaming.recommend.heartbeat.loading"));
-        heartbeatRecommendationUseCase.startLoading(provider);
-        List<Track> seedCandidates = heartbeatSeedCandidates();
-        String seedTrackId = streamingProviderTrackIdFromCandidates(seedCandidates, provider);
-        String playlistId = seedTrackId;
-        if (seedTrackId == null || seedTrackId.isEmpty()) {
-            resolveHeartbeatSeedFromQueue(provider, seedCandidates, languageMode);
+        setStatus(request.getLoadingStatus());
+        HeartbeatRecommendationSeedRequest seedRequest = heartbeatRecommendationSeedRequest(request.getProvider());
+        if (seedRequest.getHasSeed()) {
+            fetchHeartbeatRecommendations(
+                    request,
+                    seedRequest.getSeedTrackId(),
+                    seedRequest.getPlaylistId()
+            );
             return;
         }
-        fetchHeartbeatRecommendations(provider, seedTrackId, playlistId, languageMode);
+        resolveHeartbeatSeedFromQueue(request, seedRequest);
     }
 
     private void fetchHeartbeatRecommendations(
-            app.echo.next.streaming.StreamingProviderName provider,
+            StreamingHeartbeatRecommendationRequest request,
             String seedTrackId,
-            String playlistId,
-            String languageMode
+            String playlistId
     ) {
-        viewModel.fetchHeartbeatRecommendations(provider, seedTrackId, playlistId, streamingTracks ->
+        viewModel.fetchHeartbeatRecommendations(request.getProvider(), seedTrackId, playlistId, streamingTracks ->
                 playHeartbeatRecommendationTracks(
                         streamingTracks,
-                        AppLanguage.text(languageMode, "streaming.recommend.heartbeat.result.empty"),
-                        AppLanguage.text(languageMode, "streaming.recommend.heartbeat.playing")
+                        request.getEmptyStatus(),
+                        request.getPlayingStatus()
                 ));
     }
 
-    private app.echo.next.streaming.StreamingProviderName recommendationProvider(
-            app.echo.next.streaming.StreamingProviderName requested
+    private HeartbeatRecommendationSeedRequest heartbeatRecommendationSeedRequest(
+            app.echo.next.streaming.StreamingProviderName provider
     ) {
-        if (requested == app.echo.next.streaming.StreamingProviderName.NETEASE) {
-            return requested;
-        }
-        for (app.echo.next.streaming.StreamingProviderDescriptor provider : viewModel.getStreaming().getValue().getProviders()) {
-            if (provider.getName() == app.echo.next.streaming.StreamingProviderName.NETEASE) {
-                return app.echo.next.streaming.StreamingProviderName.NETEASE;
-            }
-        }
-        return app.echo.next.streaming.StreamingProviderName.NETEASE;
-    }
-
-    private List<Track> heartbeatSeedCandidates() {
         PlaybackStateSnapshot serviceSnapshot = playbackService == null ? null : playbackService.snapshot();
         List<Track> serviceQueue = playbackService == null ? null : playbackService.queueSnapshot();
         PlaybackStateSnapshot storeSnapshot = playbackStore == null ? null : playbackStore.snapshot();
         List<Track> viewModelQueue = viewModel == null || viewModel.getPlayback().getValue() == null
                 ? null
                 : viewModel.getPlayback().getValue().getQueue();
-        return streamingTrackMatchUseCase.heartbeatSeedCandidates(
+        return viewModel.prepareHeartbeatRecommendationSeedRequest(
+                provider,
                 serviceSnapshot,
                 serviceQueue,
                 storeSnapshot,
@@ -2961,94 +3015,42 @@ public final class MainActivity extends ComponentActivity {
         );
     }
 
-    private String streamingProviderTrackIdFromCandidates(
-            List<Track> candidates,
-            app.echo.next.streaming.StreamingProviderName provider
-    ) {
-        return streamingTrackMatchUseCase.providerTrackIdFromCandidates(candidates, provider);
-    }
-
-    private String currentStreamingProviderTrackId(app.echo.next.streaming.StreamingProviderName provider) {
-        return streamingProviderTrackIdFromCandidates(heartbeatSeedCandidates(), provider);
-    }
-
     private void resolveHeartbeatSeedFromQueue(
-            app.echo.next.streaming.StreamingProviderName provider,
-            List<Track> candidates,
-            String languageMode
+            StreamingHeartbeatRecommendationRequest recommendationRequest,
+            HeartbeatRecommendationSeedRequest seedRequest
     ) {
-        if (candidates == null || candidates.isEmpty()) {
-            logHeartbeatSeedMiss(provider, snapshotQueueForHeartbeat());
-            heartbeatRecommendationUseCase.markLoadingFinished();
-            setStatus(AppLanguage.text(languageMode, "streaming.recommend.heartbeat.empty"));
+        if (!seedRequest.getHasCandidates()) {
+            logHeartbeatSeedMiss(seedRequest);
+            viewModel.markHeartbeatRecommendationLoadingFinished();
+            setStatus(recommendationRequest.getEmptyStatus());
             return;
         }
-        viewModel.resolveHeartbeatRecommendationSeed(provider, candidates, resolvedTrackId -> {
-            if (!heartbeatRecommendationUseCase.canContinueLoading(provider)) {
+        viewModel.resolveHeartbeatRecommendationSeed(
+                recommendationRequest.getProvider(),
+                seedRequest.getCandidates(),
+                resolvedTrackId -> {
+            if (!viewModel.canContinueHeartbeatRecommendationLoading(recommendationRequest.getProvider())) {
                 return;
             }
             if (resolvedTrackId != null && !resolvedTrackId.isEmpty()) {
-                fetchHeartbeatRecommendations(provider, resolvedTrackId, resolvedTrackId, languageMode);
+                fetchHeartbeatRecommendations(recommendationRequest, resolvedTrackId, resolvedTrackId);
                 return;
             }
-            logHeartbeatSeedMiss(provider, snapshotQueueForHeartbeat());
-            heartbeatRecommendationUseCase.markLoadingFinished();
-            setStatus(AppLanguage.text(languageMode, "streaming.recommend.heartbeat.empty"));
+            logHeartbeatSeedMiss(seedRequest);
+            viewModel.markHeartbeatRecommendationLoadingFinished();
+            setStatus(recommendationRequest.getEmptyStatus());
         });
-    }
-
-    private List<Track> snapshotQueueForHeartbeat() {
-        List<Track> serviceQueue = playbackService == null ? null : playbackService.queueSnapshot();
-        List<Track> viewModelQueue = viewModel == null || viewModel.getPlayback().getValue() == null
-                ? null
-                : viewModel.getPlayback().getValue().getQueue();
-        PlaybackStateSnapshot storeSnapshot = playbackStore == null ? null : playbackStore.snapshot();
-        return streamingTrackMatchUseCase.snapshotQueueForHeartbeat(
-                serviceQueue,
-                viewModelQueue,
-                storeSnapshot
-        );
     }
 
     private String streamingProviderTrackId(Track track, app.echo.next.streaming.StreamingProviderName provider) {
         return streamingTrackMatchUseCase.directProviderTrackId(track, provider);
     }
 
-    private void logHeartbeatSeedMiss(
-            app.echo.next.streaming.StreamingProviderName provider,
-            List<Track> queue
-    ) {
-        StringBuilder builder = new StringBuilder();
-        builder.append("Heartbeat seed missing provider=").append(provider == null ? "null" : provider.getWireName());
-        PlaybackStateSnapshot snapshot = playbackService == null ? playbackStore.snapshot() : playbackService.snapshot();
-        PlaybackStateSnapshot storeSnapshot = playbackStore == null ? null : playbackStore.snapshot();
-        builder.append(", currentIndex=").append(snapshot == null ? -1 : snapshot.currentIndex);
-        builder.append(", queueSize=").append(queue == null ? 0 : queue.size());
-        if (snapshot != null && snapshot.currentTrack != null) {
-            builder.append(", snapshotDataPath=").append(snapshot.currentTrack.dataPath);
-            builder.append(", snapshotTitle=").append(snapshot.currentTrack.title);
+    private void logHeartbeatSeedMiss(HeartbeatRecommendationSeedRequest request) {
+        if (request == null || request.getSeedMissingMessage() == null || request.getSeedMissingMessage().isEmpty()) {
+            return;
         }
-        if (storeSnapshot != null && storeSnapshot.currentTrack != null && storeSnapshot != snapshot) {
-            builder.append(", storeDataPath=").append(storeSnapshot.currentTrack.dataPath);
-            builder.append(", storeTitle=").append(storeSnapshot.currentTrack.title);
-        }
-        if (queue != null) {
-            int limit = Math.min(queue.size(), 5);
-            for (int i = 0; i < limit; i++) {
-                Track track = queue.get(i);
-                builder.append(", q").append(i).append("=");
-                if (track == null) {
-                    builder.append("null");
-                } else {
-                    builder.append(track.dataPath).append("|").append(track.title).append("|").append(track.artist);
-                }
-            }
-        }
-        Log.w(TAG, builder.toString());
-    }
-
-    private String currentStreamingProviderPlaylistId(app.echo.next.streaming.StreamingProviderName provider) {
-        return currentStreamingProviderTrackId(provider);
+        Log.w(TAG, request.getSeedMissingMessage());
     }
 
     /**
@@ -3061,17 +3063,14 @@ public final class MainActivity extends ComponentActivity {
             String emptyStatus,
             String title
     ) {
-        if (streamingTracks == null || streamingTracks.isEmpty()) {
-            setStatus(emptyStatus);
+        StreamingRecommendationPresentation presentation =
+                viewModel.prepareStreamingRecommendationPresentation(streamingTracks, emptyStatus, title);
+        if (presentation.getEmpty()) {
+            setStatus(presentation.getEmptyStatus());
             return;
         }
-        ArrayList<Track> placeholders = placeholderTracksFor(streamingTracks);
-        if (placeholders.isEmpty()) {
-            setStatus(emptyStatus);
-            return;
-        }
-        libraryStore.showRecommendationStreamList(title, placeholders);
-        setStatus(title + " (" + placeholders.size() + ")");
+        libraryStore.showRecommendationStreamList(presentation.getTitle(), presentation.getTracks());
+        setStatus(presentation.getReadyStatus());
         navigateToNetworkTabPage(NETWORK_STREAM_LIST);
         renderSelectedTab();
     }
@@ -3081,56 +3080,26 @@ public final class MainActivity extends ComponentActivity {
             String emptyStatus,
             String playingStatus
     ) {
-        ArrayList<Track> placeholders = heartbeatRecommendationUseCase.playlistPlaceholders(streamingTracks);
-        if (placeholders.isEmpty()) {
-            setStatus(emptyStatus);
+        StreamingRecommendationPresentation presentation =
+                viewModel.prepareHeartbeatRecommendationPresentation(streamingTracks, emptyStatus, playingStatus);
+        if (presentation.getEmpty()) {
+            setStatus(presentation.getEmptyStatus());
             return;
         }
-        setStatus(playingStatus + " (" + placeholders.size() + ")");
+        setStatus(presentation.getReadyStatus());
         ensurePlaybackServiceStarted();
-        playHeartbeatRecommendationTrackList(placeholders, 0);
-    }
-
-    private ArrayList<Track> placeholderTracksFor(
-            java.util.List<app.echo.next.streaming.StreamingTrack> streamingTracks
-    ) {
-        ArrayList<Track> placeholders = new ArrayList<>();
-        if (streamingTracks == null) {
-            return placeholders;
-        }
-        for (app.echo.next.streaming.StreamingTrack streamingTrack : streamingTracks) {
-            if (streamingTrack == null) {
-                continue;
-            }
-            placeholders.add(app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.placeholderTrack(streamingTrack));
-        }
-        return placeholders;
-    }
-
-    private ArrayList<Track> heartbeatPlaceholderTracksFor(
-            java.util.List<app.echo.next.streaming.StreamingTrack> streamingTracks
-    ) {
-        return heartbeatRecommendationUseCase.appendPlaceholders(streamingTracks);
+        playHeartbeatRecommendationTrackList(presentation.getTracks(), 0);
     }
 
     private void onStreamingLoginSuccess(app.echo.next.streaming.StreamingProviderName provider) {
-        // Build the local playlist name, for example "My NetEase Playlist".
-        String displayName = provider.getWireName();
-        for (app.echo.next.streaming.StreamingProviderDescriptor desc : viewModel.getStreaming().getValue().getProviders()) {
-            if (desc.getName() == provider) {
-                displayName = desc.getDisplayName();
-                break;
-            }
-        }
-        String languageMode = settingsStore.languageMode();
-        String prefix = AppLanguage.text(languageMode, "streaming.my.playlist.prefix");
-        String suffix = AppLanguage.text(languageMode, "streaming.my.playlist.suffix");
-        final String playlistName = prefix + displayName + suffix;
+        final StreamingLoginPlaylistRequest request = viewModel.prepareStreamingLoginPlaylistRequest(provider);
 
-        viewModel.ensureStreamingLoginPlaylist(playlistName, provider, result -> {
-            setStatus(AppLanguage.text(languageMode, "streaming.playlist.created") + ": " + playlistName);
-            if (result != null && result.getPlaylistId() >= 0L) {
-                routeController.setSelectedPlaylistId(result.getPlaylistId());
+        viewModel.ensureStreamingLoginPlaylist(request.getPlaylistName(), request.getProvider(), result -> {
+            StreamingLoginPlaylistPresentation presentation =
+                    viewModel.prepareStreamingLoginPlaylistPresentation(request, result);
+            setStatus(presentation.getStatus());
+            if (presentation.getPlaylistId() >= 0L) {
+                routeController.setSelectedPlaylistId(presentation.getPlaylistId());
             }
             loadCollections();
         });
@@ -3144,11 +3113,12 @@ public final class MainActivity extends ComponentActivity {
 
     private void syncOneStreamingPlaylist(app.echo.next.streaming.StreamingPlaylistSyncStore.LinkedPlaylist link) {
         viewModel.syncStreamingPlaylistToLocal(link, result -> {
-            if (result == null || result.getEmpty()) {
-                setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.playlist.empty"));
+            StreamingLocalPlaylistSyncPresentation presentation =
+                    viewModel.prepareStreamingPlaylistSyncPresentation(result);
+            setStatus(presentation.getStatus());
+            if (presentation.getEmpty()) {
                 return;
             }
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.sync.complete") + " (" + result.getSyncedCount() + ")");
             loadCollections();
         });
     }
@@ -3273,7 +3243,7 @@ public final class MainActivity extends ComponentActivity {
         if (playbackService == null) {
             pendingPlaybackTracks = tracks == null ? Collections.emptyList() : new ArrayList<>(tracks);
             pendingPlaybackIndex = index;
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.resolving"));
+            setStatus(viewModel.prepareStreamingPlaybackStatusText(null).getResolving());
             return;
         }
         if (resolveAndPlayStreamingTrack(tracks, index)) {
@@ -3298,7 +3268,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void stopHeartbeatRecommendationMode() {
-        heartbeatRecommendationUseCase.stop();
+        viewModel.stopHeartbeatRecommendationMode();
     }
 
     private void skipToPrevious() {
@@ -3312,15 +3282,12 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void togglePlayback() {
+        if (resolveCurrentStreamingQueueTrackIfNeeded()) {
+            return;
+        }
         PlaybackStateSnapshot snapshot = playbackService == null
                 ? playbackStore.snapshot()
                 : playbackService.snapshot();
-        if (snapshot != null
-                && app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.isUnresolvedStreamingTrack(snapshot.currentTrack)) {
-            if (resolveCurrentStreamingQueueTrackIfNeeded()) {
-                return;
-            }
-        }
         List<Track> fallbackTracks = libraryStore == null
                 ? Collections.emptyList()
                 : libraryStore.visibleTracks();
@@ -3333,17 +3300,11 @@ public final class MainActivity extends ComponentActivity {
         if (playbackService == null) {
             return false;
         }
-        PlaybackStateSnapshot snapshot = playbackService.snapshot();
-        if (snapshot == null
-                || !app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.isUnresolvedStreamingTrack(snapshot.currentTrack)) {
-            return false;
-        }
-        List<Track> queue = playbackService.queueSnapshot();
-        if (queue == null || queue.isEmpty()) {
-            return resolveAndPlayStreamingTrack(Collections.singletonList(snapshot.currentTrack), 0);
-        }
-        int safeIndex = Math.max(0, Math.min(snapshot.currentIndex, queue.size() - 1));
-        return resolveAndPlayStreamingTrack(queue, safeIndex);
+        StreamingQueueResolveTarget target = viewModel.prepareCurrentStreamingQueueResolveTarget(
+                playbackService.snapshot(),
+                playbackService.queueSnapshot()
+        );
+        return target != null && resolveAndPlayStreamingTrack(target.getTracks(), target.getIndex());
     }
 
     private void preResolveNextStreamingTrack(PlaybackStateSnapshot snapshot) {
@@ -3369,32 +3330,28 @@ public final class MainActivity extends ComponentActivity {
         if (playbackService == null) {
             return;
         }
-        HeartbeatRefillRequest refill = heartbeatRecommendationUseCase.prepareRefill(snapshot);
+        HeartbeatRefillRequest refill = viewModel.prepareHeartbeatRecommendationRefill(snapshot);
         if (refill == null) {
             return;
         }
         final app.echo.next.streaming.StreamingProviderName provider = refill.getProvider();
-        String seedTrackId = currentStreamingProviderTrackId(provider);
-        String playlistId = currentStreamingProviderPlaylistId(provider);
-        if (seedTrackId == null || seedTrackId.isEmpty()) {
+        HeartbeatRecommendationSeedRequest request = heartbeatRecommendationSeedRequest(provider);
+        if (!request.getHasSeed()) {
             stopHeartbeatRecommendationMode();
             return;
         }
-        viewModel.fetchHeartbeatRecommendations(provider, seedTrackId, playlistId, streamingTracks -> {
-            if (!heartbeatRecommendationUseCase.accepts(provider) || playbackService == null) {
-                heartbeatRecommendationUseCase.markLoadingFinished(provider);
+        viewModel.fetchHeartbeatRecommendations(provider, request.getSeedTrackId(), request.getPlaylistId(), streamingTracks -> {
+            if (!viewModel.acceptsHeartbeatRecommendationRefill(provider) || playbackService == null) {
+                viewModel.markHeartbeatRecommendationRefillFinished(provider);
                 return;
             }
-            ArrayList<Track> placeholders = heartbeatPlaceholderTracksFor(streamingTracks);
-            if (placeholders.isEmpty()) {
-                placeholders = placeholderTracksFor(streamingTracks);
-            }
-            if (placeholders.isEmpty()) {
+            StreamingRecommendationPresentation presentation =
+                    viewModel.prepareHeartbeatRecommendationAppendPresentation(streamingTracks);
+            if (presentation.getEmpty()) {
                 return;
             }
-            nowPlayingViewModel.appendToQueue(placeholders);
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.recommend.heartbeat.playing")
-                    + " (+" + placeholders.size() + ")");
+            nowPlayingViewModel.appendToQueue(presentation.getTracks());
+            setStatus(presentation.getReadyStatus());
         });
     }
 
@@ -3423,21 +3380,13 @@ public final class MainActivity extends ComponentActivity {
                         return;
                     }
                     nowPlayingViewModel.replaceCurrentTrackAndResume(resolved.getTrack(), resolved.getPositionMs());
-                    setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.quality.downgraded")
-                            + SettingsPageRenderController.streamingQualityLabel(
-                            StreamingQualityPreference.valueFor(resolved.getQuality()),
-                            settingsStore.languageMode()
-                    ));
+                    setStatus(viewModel.prepareStreamingPlaybackStatusText(resolved.getQuality()).getQualityDowngraded());
                 }
         );
         if (recoveryQuality == null) {
             return;
         }
-        setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.quality.downgrading")
-                + SettingsPageRenderController.streamingQualityLabel(
-                StreamingQualityPreference.valueFor(recoveryQuality),
-                settingsStore.languageMode()
-        ));
+        setStatus(viewModel.prepareStreamingPlaybackStatusText(recoveryQuality).getQualityDowngrading());
     }
 
     private app.echo.next.streaming.StreamingAudioQuality selectedStreamingQuality() {
@@ -3456,7 +3405,7 @@ public final class MainActivity extends ComponentActivity {
                 adaptiveStreamingQuality(),
                 resolved -> {
                     if (resolved == null) {
-                        setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.resolve.failed"));
+                        setStatus(viewModel.prepareStreamingPlaybackStatusText(null).getResolveFailed());
                         return;
                     }
                     applyPlaybackActionResult(
@@ -3465,7 +3414,7 @@ public final class MainActivity extends ComponentActivity {
                 }
         );
         if (scheduled) {
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.resolving"));
+            setStatus(viewModel.prepareStreamingPlaybackStatusText(null).getResolving());
         }
         return scheduled;
     }

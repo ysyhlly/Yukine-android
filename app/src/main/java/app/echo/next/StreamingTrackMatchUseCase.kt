@@ -99,6 +99,42 @@ internal class StreamingTrackMatchUseCase(
         return queue
     }
 
+    fun heartbeatSeedMissMessage(
+        provider: StreamingProviderName?,
+        snapshot: PlaybackStateSnapshot?,
+        storeSnapshot: PlaybackStateSnapshot?,
+        queue: List<Track?>?
+    ): String {
+        val builder = StringBuilder()
+        builder.append("Heartbeat seed missing provider=")
+            .append(provider?.wireName ?: "null")
+        builder.append(", currentIndex=")
+            .append(snapshot?.currentIndex ?: -1)
+        builder.append(", queueSize=")
+            .append(queue?.size ?: 0)
+        snapshot?.currentTrack?.let { track ->
+            builder.append(", snapshotDataPath=").append(track.dataPath)
+            builder.append(", snapshotTitle=").append(track.title)
+        }
+        if (storeSnapshot != null && storeSnapshot.currentTrack != null && storeSnapshot !== snapshot) {
+            builder.append(", storeDataPath=").append(storeSnapshot.currentTrack.dataPath)
+            builder.append(", storeTitle=").append(storeSnapshot.currentTrack.title)
+        }
+        queue.orEmpty().take(5).forEachIndexed { index, track ->
+            builder.append(", q").append(index).append("=")
+            if (track == null) {
+                builder.append("null")
+            } else {
+                builder.append(track.dataPath)
+                    .append("|")
+                    .append(track.title)
+                    .append("|")
+                    .append(track.artist)
+            }
+        }
+        return builder.toString()
+    }
+
     fun providerTrackIdFor(track: Track?, provider: StreamingProviderName?): String {
         val directTrackId = directProviderTrackId(track, provider)
         if (directTrackId.isNotEmpty()) {

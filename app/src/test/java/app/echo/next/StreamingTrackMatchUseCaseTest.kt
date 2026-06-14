@@ -6,6 +6,7 @@ import app.echo.next.playback.PlaybackStateSnapshot
 import app.echo.next.streaming.StreamingPlaybackAdapter
 import app.echo.next.streaming.StreamingProviderName
 import app.echo.next.streaming.StreamingTrack
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -115,6 +116,28 @@ class StreamingTrackMatchUseCaseTest {
         )
 
         assertEquals(listOf(1L, 2L, 3L, 4L), result.map { it.id })
+    }
+
+    @Test
+    fun heartbeatSeedMissMessageIncludesSnapshotStoreAndQueueContext() {
+        val useCase = StreamingTrackMatchUseCase(FakeStreamingTrackMatchOperations())
+        val snapshotTrack = localTrack(id = 1L, dataPath = "snapshot-path")
+        val storeTrack = localTrack(id = 2L, dataPath = "store-path")
+        val queueTrack = localTrack(id = 3L, dataPath = "queue-path")
+
+        val message = useCase.heartbeatSeedMissMessage(
+            provider = StreamingProviderName.NETEASE,
+            snapshot = snapshot(currentTrack = snapshotTrack, currentIndex = 2, queueSize = 4),
+            storeSnapshot = snapshot(currentTrack = storeTrack),
+            queue = listOf(queueTrack)
+        )
+
+        assertTrue(message.contains("Heartbeat seed missing provider=netease"))
+        assertTrue(message.contains("currentIndex=2"))
+        assertTrue(message.contains("queueSize=1"))
+        assertTrue(message.contains("snapshotDataPath=snapshot-path"))
+        assertTrue(message.contains("storeDataPath=store-path"))
+        assertTrue(message.contains("q0=queue-path|Local|Artist"))
     }
 
     @Test

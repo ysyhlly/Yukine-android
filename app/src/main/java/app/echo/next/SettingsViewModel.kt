@@ -25,6 +25,19 @@ data class SettingsUiState(
     val items: List<SettingsItem> = emptyList()
 )
 
+data class SettingsAppliedStatusText(
+    val themeApplied: String = "",
+    val accentApplied: String = "",
+    val languageApplied: String = "",
+    val playbackSpeedApplied: String = "",
+    val appVolumeApplied: String = "",
+    val onlineLyricsEnabled: String = "",
+    val onlineLyricsDisabled: String = "",
+    val concurrentPlaybackEnabled: String = "",
+    val concurrentPlaybackDisabled: String = "",
+    val lyricsOffsetApplied: String = ""
+)
+
 sealed interface SettingsEvent {
     data class NavigateSettingsPage(val page: String) : SettingsEvent
     data object OpenNetworkSources : SettingsEvent
@@ -202,6 +215,35 @@ class SettingsViewModel @JvmOverloads constructor(
         val normalizedOffsetMs = normalizeLyricsOffsetMs(offsetMs)
         appliedListener?.onLyricsOffsetApplied(normalizedOffsetMs)
         savePreference(SettingsPreferenceKey.LyricsOffsetMs, normalizedOffsetMs)
+    }
+
+    fun prepareAppliedStatusText(
+        languageMode: String,
+        themeMode: String,
+        accentMode: String,
+        playbackSpeed: Float,
+        appVolume: Float,
+        lyricsOffsetMs: Long
+    ): SettingsAppliedStatusText {
+        val normalizedLanguageMode = AppLanguage.normalizeMode(languageMode)
+        return SettingsAppliedStatusText(
+            themeApplied = AppLanguage.text(normalizedLanguageMode, "theme.applied") +
+                    AppLanguage.themeLabel(themeMode, normalizedLanguageMode),
+            accentApplied = AppLanguage.text(normalizedLanguageMode, "accent.applied") +
+                    AppLanguage.accentLabel(accentMode, normalizedLanguageMode),
+            languageApplied = AppLanguage.text(normalizedLanguageMode, "language.applied") +
+                    AppLanguage.labelFor(normalizedLanguageMode),
+            playbackSpeedApplied = AppLanguage.text(normalizedLanguageMode, "speed.applied") +
+                    SettingsPageRenderController.playbackSpeedLabel(playbackSpeed),
+            appVolumeApplied = AppLanguage.text(normalizedLanguageMode, "volume.applied") +
+                    SettingsPageRenderController.appVolumeLabel(appVolume),
+            onlineLyricsEnabled = AppLanguage.text(normalizedLanguageMode, "online.lyrics.enabled"),
+            onlineLyricsDisabled = AppLanguage.text(normalizedLanguageMode, "online.lyrics.disabled"),
+            concurrentPlaybackEnabled = AppLanguage.text(normalizedLanguageMode, "concurrent.playback.enabled"),
+            concurrentPlaybackDisabled = AppLanguage.text(normalizedLanguageMode, "concurrent.playback.disabled"),
+            lyricsOffsetApplied = AppLanguage.text(normalizedLanguageMode, "lyrics.offset.applied") +
+                    SettingsPageRenderController.lyricsOffsetLabel(lyricsOffsetMs)
+        )
     }
 
     private fun SettingsAction.toSettingsItem(): SettingsItem {

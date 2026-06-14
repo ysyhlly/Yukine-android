@@ -7,7 +7,7 @@ import app.echo.next.streaming.StreamingProviderName
 import app.echo.next.streaming.StreamingTrack
 import java.util.ArrayList
 
-internal data class HeartbeatRefillRequest(
+data class HeartbeatRefillRequest(
     val provider: StreamingProviderName
 )
 
