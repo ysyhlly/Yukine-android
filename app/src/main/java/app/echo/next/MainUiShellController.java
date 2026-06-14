@@ -18,6 +18,9 @@ import androidx.activity.ComponentActivity;
 import java.util.ArrayList;
 import java.util.List;
 
+import app.echo.next.NowPlayingEvent;
+import app.echo.next.NowPlayingEventHandler;
+import app.echo.next.NowPlayingUiState;
 import app.echo.next.model.Track;
 import app.echo.next.ui.AppTabUiState;
 import app.echo.next.ui.ContentRouteHostController;
@@ -46,6 +49,8 @@ final class MainUiShellController {
 
         String selectedTab();
 
+        void onNowPlayingEvent(NowPlayingEvent event);
+
         void onPrevious();
 
         void onPlayPause();
@@ -53,8 +58,6 @@ final class MainUiShellController {
         void onNext();
 
         void onFavorite();
-
-        void onAddCurrentToPlaylist();
 
         void onShuffle();
 
@@ -136,6 +139,16 @@ final class MainUiShellController {
     }
 
     void build(String initialRoute, String languageMode) {
+        final View legacyRoot = createLegacyRootView(initialRoute, languageMode);
+        EchoAppHost.install(activity, new EchoLegacyRootFactory() {
+            @Override
+            public View create() {
+                return legacyRoot;
+            }
+        });
+    }
+
+    private View createLegacyRootView(String initialRoute, String languageMode) {
         FrameLayout frame = new FrameLayout(activity) {
             private final int touchSlop = ViewConfiguration.get(activity).getScaledTouchSlop();
             private float downX;
@@ -344,7 +357,7 @@ final class MainUiShellController {
         // visibility toggle + animation instead of a fresh Compose inflation.
         nowPlayingOverlayController = new NowPlayingOverlayController(
                 activity,
-                NowBarController.emptyState(),
+                new NowPlayingUiState(),
                 new Runnable() {
                     @Override
                     public void run() {
@@ -352,59 +365,13 @@ final class MainUiShellController {
                         listener.onCloseNowPlayingOverlay();
                     }
                 },
-                new Runnable() {
+                new NowPlayingEventHandler() {
                     @Override
-                    public void run() {
-                        listener.onPrevious();
-                    }
-                },
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        listener.onPlayPause();
-                    }
-                },
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        listener.onNext();
-                    }
-                },
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        listener.onFavorite();
-                    }
-                },
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        listener.onAddCurrentToPlaylist();
-                    }
-                },
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        listener.onShuffle();
-                    }
-                },
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        listener.onRepeat();
-                    }
-                },
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        hideNowPlayingOverlay();
-                        listener.onOpenQueueFromNowPlayingOverlay();
-                    }
-                },
-                new SeekAction() {
-                    @Override
-                    public void seekTo(long positionMs) {
-                        listener.onSeek(positionMs);
+                    public void onEvent(NowPlayingEvent event) {
+                        if (event instanceof NowPlayingEvent.OpenQueue) {
+                            hideNowPlayingOverlay();
+                        }
+                        listener.onNowPlayingEvent(event);
                     }
                 }
         );
@@ -413,7 +380,7 @@ final class MainUiShellController {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
-        activity.setContentView(frame);
+        return frame;
     }
 
     private void applySafeAreaInsets(View root) {
@@ -566,6 +533,9 @@ final class MainUiShellController {
         if (nowBarController != null) {
             nowBarController.updateState(state);
         }
+    }
+
+    void updateNowPlayingOverlay(NowPlayingUiState state) {
         if (nowPlayingOverlayController != null) {
             nowPlayingOverlayController.updateState(state);
         }
@@ -628,8 +598,8 @@ final class MainUiShellController {
         });
     }
 
-    void showNowPlayingOverlay(NowBarState state) {
-        if (rootFrame == null || state == null || !state.getCanExpand() || nowPlayingOverlayController == null) {
+    void showNowPlayingOverlay(NowPlayingUiState state) {
+        if (rootFrame == null || state == null || !state.getOverlayState().getCanExpand() || nowPlayingOverlayController == null) {
             return;
         }
         Window window = activity.getWindow();

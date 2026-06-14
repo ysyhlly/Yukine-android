@@ -1,9 +1,10 @@
-﻿package app.echo.next
+package app.echo.next
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.echo.next.model.Playlist
+import app.echo.next.model.PlaylistImportResult
 import app.echo.next.model.RemoteSource
 import app.echo.next.model.Track
 import app.echo.next.model.TrackPlayRecord
@@ -11,6 +12,7 @@ import app.echo.next.playback.PlaybackStateSnapshot
 import app.echo.next.streaming.StreamingAudioQuality
 import app.echo.next.streaming.StreamingAuthKind
 import app.echo.next.streaming.StreamingAuthState
+import app.echo.next.streaming.StreamingCapabilityResolver
 import app.echo.next.streaming.StreamingGatewayDiagnostics
 import app.echo.next.streaming.StreamingMediaType
 import app.echo.next.streaming.StreamingPlaybackSource
@@ -20,6 +22,7 @@ import app.echo.next.streaming.StreamingProviderHealth
 import app.echo.next.streaming.StreamingProviderName
 import app.echo.next.streaming.StreamingRepository
 import app.echo.next.streaming.StreamingSearchResult
+import app.echo.next.streaming.StreamingPlaylistSyncStore
 import app.echo.next.streaming.StreamingTrack
 import app.echo.next.streaming.StreamingTrackMatchPolicy
 import app.echo.next.ui.HomeDashboardUiState
@@ -32,10 +35,16 @@ import app.echo.next.ui.TrackRowUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.URI
+import java.net.URLDecoder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+
+private const val STREAMING_AUTH_REDIRECT_URI = "echo-next://streaming-auth"
 
 data class MainActivityRouteState(
     val selectedTab: String = MainRoutes.TAB_HOME,
@@ -127,9 +136,32 @@ data class MainActivityStreamingAuthLaunch(
     val kind: StreamingAuthKind
 )
 
+data class ResolvedStreamingTrackList(
+    val tracks: List<Track> = emptyList(),
+    val index: Int = 0
+)
+
+data class StreamingRecoveryResolution(
+    val track: Track,
+    val quality: StreamingAudioQuality,
+    val positionMs: Long
+)
+
 /** Java-friendly single-arg callback (avoids java.util.function.Consumer which needs API 24). */
 fun interface StreamingCallback<T> {
     fun onResult(value: T)
+}
+
+fun interface StreamingPlaybackTask {
+    fun run(onComplete: Runnable)
+}
+
+interface StreamingPlaybackTaskQueue {
+    fun scheduleCurrentPlaybackRecovery(task: StreamingPlaybackTask)
+
+    fun scheduleCurrentUrlResolve(task: StreamingPlaybackTask)
+
+    fun scheduleNextUrlResolve(task: StreamingPlaybackTask)
 }
 
 /** Java-friendly two-arg callback (avoids java.util.function.BiConsumer which needs API 24). */
@@ -137,12 +169,61 @@ fun interface StreamingBiCallback<A, B> {
     fun onResult(first: A, second: B)
 }
 
+data class StreamingLocalPlaylistImportResult(
+    val playlistName: String = "",
+    val playlistAddedCount: Int = 0,
+    val empty: Boolean = false
+)
+
+fun interface StreamingLocalPlaylistImporter {
+    fun importStreamingPlaylist(
+        playlistName: String,
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        streamingTracks: List<StreamingTrack>,
+        linkWhenProviderPlaylistIdBlank: Boolean
+    ): PlaylistImportResult
+}
+
+data class StreamingLocalPlaylistSyncResult(
+    val playlistId: Long = -1L,
+    val syncedCount: Int = 0,
+    val empty: Boolean = false
+)
+
+fun interface StreamingLocalPlaylistSyncer {
+    fun syncStreamingPlaylist(
+        link: StreamingPlaylistSyncStore.LinkedPlaylist,
+        streamingTracks: List<StreamingTrack>
+    ): StreamingLocalPlaylistSyncResult
+}
+
+data class StreamingLoginPlaylistResult(
+    val playlistId: Long = -1L,
+    val playlistName: String = ""
+)
+
+fun interface StreamingLoginPlaylistEnsurer {
+    fun ensureStreamingLoginPlaylist(
+        playlistName: String,
+        provider: StreamingProviderName
+    ): StreamingLoginPlaylistResult
+}
+
+interface StreamingTrackMatchStore {
+    fun directProviderTrackId(track: Track, provider: StreamingProviderName): String = ""
+
+    fun providerTrackIdFor(track: Track, provider: StreamingProviderName): String
+
+    fun saveProviderTrackId(track: Track, provider: StreamingProviderName, providerTrackId: String)
+}
+
 @HiltViewModel
 class MainActivityViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val streamingRepositorySource: StreamingRepositorySource = EmptyStreamingRepositorySource,
     private val dashboardRepository: app.echo.next.dashboard.DashboardRepository? = null
-) : ViewModel() {
+) : ViewModel(), StreamingSearchActionHandler, StreamingAuthCallbackHandler {
     private var streamingRepository: StreamingRepository = streamingRepositorySource.current()
     private val routeState = MutableStateFlow(MainActivityRouteStateStore.restore(savedStateHandle))
     private val libraryState = MutableStateFlow(MainActivityLibraryState())
@@ -157,6 +238,13 @@ class MainActivityViewModel @Inject constructor(
     private val playlistListState = MutableStateFlow(MainActivityPlaylistListUiState())
     private val networkSourcesState = MutableStateFlow(MainActivityNetworkSourcesUiState())
     private val streamingState = MutableStateFlow(MainActivityStreamingState())
+    private var streamingLocalPlaylistImporter: StreamingLocalPlaylistImporter? = null
+    private var streamingLocalPlaylistSyncer: StreamingLocalPlaylistSyncer? = null
+    private var streamingLoginPlaylistEnsurer: StreamingLoginPlaylistEnsurer? = null
+    private var streamingTrackMatchStore: StreamingTrackMatchStore? = null
+    private var streamingActionGateway: MainActivityStreamingActionGateway? = null
+    private var streamingPlaybackPlanner: StreamingPlaybackResolvePlanner? = null
+    private var streamingPlaybackTaskQueue: StreamingPlaybackTaskQueue? = null
     private var lastHistoryRefreshTrackId = -1L
 
     val state: StateFlow<MainActivityRouteState> = routeState.asStateFlow()
@@ -174,6 +262,18 @@ class MainActivityViewModel @Inject constructor(
     fun configureStreamingRepository(): Job {
         streamingRepository = streamingRepositorySource.current()
         return clearExpiredStreamingCache()
+    }
+
+    fun bindStreamingActionGateway(gateway: MainActivityStreamingActionGateway?) {
+        streamingActionGateway = gateway
+    }
+
+    fun bindStreamingPlaybackCoordinator(
+        planner: StreamingPlaybackResolvePlanner?,
+        taskQueue: StreamingPlaybackTaskQueue?
+    ) {
+        streamingPlaybackPlanner = planner
+        streamingPlaybackTaskQueue = taskQueue
     }
 
     fun clearExpiredStreamingCache(): Job {
@@ -260,6 +360,17 @@ class MainActivityViewModel @Inject constructor(
         }
         libraryState.value = current.copy(favoriteTrackIds = nextFavoriteIds)
         return nextValue
+    }
+
+    fun setFavorite(trackId: Long, favorite: Boolean) {
+        val current = libraryState.value
+        val nextFavoriteIds = current.favoriteTrackIds.toMutableSet()
+        if (favorite) {
+            nextFavoriteIds.add(trackId)
+        } else {
+            nextFavoriteIds.remove(trackId)
+        }
+        libraryState.value = current.copy(favoriteTrackIds = nextFavoriteIds)
     }
 
     fun updatePlayback(snapshot: MainActivityPlaybackState) {
@@ -596,6 +707,159 @@ class MainActivityViewModel @Inject constructor(
         )
     }
 
+    override fun selectProvider(provider: StreamingProviderName) {
+        selectStreamingProvider(provider)
+    }
+
+    override fun search(query: String) {
+        val provider = streamingState.value.selectedProvider
+        val descriptor = descriptorFor(provider)
+        val capability = capabilityFor(provider)
+        if (descriptor != null && !(capability?.supportsSearch ?: StreamingCapabilityResolver.canSearch(descriptor))) {
+            failStreamingRequest(sourceMessage(descriptor, "streaming.search.unavailable"))
+            return
+        }
+        val mediaTypes = capability?.supportedSearchMediaTypes ?: StreamingCapabilityResolver.supportedSearchMediaTypes(descriptor)
+        if (descriptor != null && mediaTypes.isEmpty()) {
+            failStreamingRequest(sourceMessage(descriptor, "streaming.search.types.unavailable"))
+            return
+        }
+        searchStreaming(
+            provider = provider,
+            query = query,
+            mediaTypes = mediaTypes.ifEmpty { setOf(StreamingMediaType.TRACK) },
+            page = 1,
+            pageSize = 20
+        )
+    }
+
+    override fun login(provider: StreamingProviderName) {
+        val descriptor = descriptorFor(provider)
+        val capability = capabilityFor(provider)
+        if (descriptor != null && !(capability?.supportsAuth ?: StreamingCapabilityResolver.canAuth(descriptor))) {
+            failStreamingRequest(sourceMessage(descriptor, "streaming.auth.unsupported"))
+            return
+        }
+        startStreamingAuth(
+            provider = provider,
+            redirectUri = STREAMING_AUTH_REDIRECT_URI + "?provider=${provider.wireName}",
+            onLaunchReady = {
+                openAuthLaunch()
+            }
+        )
+    }
+
+    override fun signOut(provider: StreamingProviderName) {
+        val descriptor = descriptorFor(provider)
+        if (descriptor != null && !descriptor.capabilities.supportsAuth) {
+            return
+        }
+        signOutStreaming(provider)
+    }
+
+    override fun openAuthLaunch() {
+        val gateway = streamingActionGateway ?: return
+        if (gateway.openAuthLaunch(streamingState.value.pendingAuthLaunch)) {
+            clearStreamingAuthLaunch()
+        }
+    }
+
+    override fun playStreamingTrack(track: StreamingTrack) {
+        val descriptor = descriptorFor(track.provider)
+        val capability = capabilityFor(track.provider)
+        if (descriptor != null && !(capability?.supportsPlayback ?: StreamingCapabilityResolver.canPlayback(descriptor))) {
+            failStreamingRequest(sourceMessage(descriptor, "streaming.playback.unsupported"))
+            return
+        }
+        if (!track.playable) {
+            val reason = track.unavailableReason
+            failStreamingRequest(reason?.takeIf { it.isNotBlank() } ?: text("streaming.track.unavailable"))
+            return
+        }
+        resolveStreamingPlaybackTrack(
+            provider = track.provider,
+            providerTrackId = track.providerTrackId,
+            quality = streamingActionGateway?.streamingPlaybackQuality() ?: StreamingAudioQuality.LOSSLESS,
+            metadata = track
+        )
+    }
+
+    override fun playResolvedTrack(track: Track) {
+        streamingActionGateway?.playResolvedTrack(track)
+    }
+
+    override fun loadNextPage() {
+        val provider = streamingState.value.selectedProvider
+        val descriptor = descriptorFor(provider)
+        val capability = capabilityFor(provider)
+        if (descriptor != null && !(capability?.supportsSearch ?: StreamingCapabilityResolver.canSearch(descriptor))) {
+            failStreamingRequest(sourceMessage(descriptor, "streaming.search.unavailable"))
+            return
+        }
+        searchNextStreamingPage()
+    }
+
+    override fun handleAuthCallback(callbackUri: String?, cookieHeader: String?): Boolean {
+        val uri = callbackUri
+            ?.takeIf { it.isNotBlank() }
+            ?.let { runCatching { URI(it) }.getOrNull() }
+            ?: return false
+        if (uri.scheme != "echo-next" || uri.host != "streaming-auth") {
+            return false
+        }
+        val providerValue = queryParameter(uri.rawQuery, "provider")
+        val selectedProvider = streamingState.value.selectedProvider
+        val parsedProvider = providerValue
+            ?.takeIf { it.isNotBlank() }
+            ?.let(StreamingProviderName::fromWireName)
+        val provider = parsedProvider ?: selectedProvider
+        completeStreamingAuth(provider, uri.toString(), cookieHeader) { loggedInProvider ->
+            streamingActionGateway?.onStreamingLoginSuccess(loggedInProvider)
+        }
+        clearStreamingAuthLaunch()
+        return true
+    }
+
+    private fun queryParameter(rawQuery: String?, name: String): String? {
+        if (rawQuery.isNullOrBlank()) {
+            return null
+        }
+        return rawQuery
+            .split("&")
+            .asSequence()
+            .mapNotNull { part ->
+                val separator = part.indexOf('=')
+                val key = if (separator >= 0) part.substring(0, separator) else part
+                if (decodeQueryValue(key) != name) {
+                    null
+                } else {
+                    val value = if (separator >= 0) part.substring(separator + 1) else ""
+                    decodeQueryValue(value)
+                }
+            }
+            .firstOrNull()
+    }
+
+    private fun decodeQueryValue(value: String): String {
+        return runCatching { URLDecoder.decode(value, "UTF-8") }.getOrDefault(value)
+    }
+
+    private fun descriptorFor(provider: StreamingProviderName): StreamingProviderDescriptor? {
+        return streamingState.value.providers.firstOrNull { it.name == provider }
+    }
+
+    private fun capabilityFor(provider: StreamingProviderName): StreamingProviderCapability? {
+        return streamingState.value.providerCapabilities.firstOrNull { it.provider == provider }
+    }
+
+    private fun sourceMessage(descriptor: StreamingProviderDescriptor, suffixKey: String): String {
+        return descriptor.displayName + text(suffixKey)
+    }
+
+    private fun text(key: String): String {
+        return AppLanguage.text(streamingActionGateway?.languageMode() ?: AppLanguage.MODE_SYSTEM, key)
+    }
+
     fun refreshStreamingProviders(): Job {
         beginStreamingRequest()
         return viewModelScope.launch {
@@ -728,6 +992,102 @@ class MainActivityViewModel @Inject constructor(
         }
     }
 
+    fun resolveHeartbeatRecommendationSeed(
+        provider: StreamingProviderName,
+        candidates: List<Track>?,
+        onResolved: StreamingCallback<String>
+    ): Job {
+        val seedCandidates = candidates.orEmpty()
+        if (seedCandidates.isEmpty()) {
+            streamingState.value = streamingState.value.copy(
+                loading = false,
+                errorMessage = null
+            )
+            return viewModelScope.launch {
+                onResolved.onResult("")
+            }
+        }
+        beginStreamingRequest()
+        return viewModelScope.launch {
+            val resolvedTrackId = resolveHeartbeatRecommendationSeedId(provider, seedCandidates)
+            streamingState.value = streamingState.value.copy(
+                loading = false,
+                errorMessage = null
+            )
+            updateStreamingDiagnostics()
+            onResolved.onResult(resolvedTrackId)
+        }
+    }
+
+    private suspend fun resolveHeartbeatRecommendationSeedId(
+        provider: StreamingProviderName,
+        candidates: List<Track>
+    ): String {
+        val store = streamingTrackMatchStore
+        for (track in candidates) {
+            val directTrackId = store?.directProviderTrackId(track, provider).orEmpty().trim()
+            if (directTrackId.isNotEmpty()) {
+                saveHeartbeatSeedMatch(store, track, provider, directTrackId)
+                return directTrackId
+            }
+            val cachedTrackId = withContext(Dispatchers.IO) {
+                store?.providerTrackIdFor(track, provider).orEmpty().trim()
+            }
+            if (cachedTrackId.isNotEmpty()) {
+                return cachedTrackId
+            }
+            val resolvedTrackId = searchHeartbeatSeedMatch(provider, track)
+            if (resolvedTrackId.isNotEmpty()) {
+                saveHeartbeatSeedMatch(store, track, provider, resolvedTrackId)
+                return resolvedTrackId
+            }
+        }
+        return ""
+    }
+
+    private suspend fun searchHeartbeatSeedMatch(
+        provider: StreamingProviderName,
+        track: Track
+    ): String {
+        val query = StreamingTrackMatchPolicy.searchQuery(track)
+        if (query.isBlank()) {
+            return ""
+        }
+        return runCatching {
+            val result = streamingRepository.search(
+                provider = provider,
+                query = query,
+                mediaTypes = setOf(StreamingMediaType.TRACK),
+                page = 1,
+                pageSize = 5,
+                useCache = false
+            )
+            StreamingTrackMatchPolicy.pickBestCandidate(track, result.tracks)
+                ?.providerTrackId
+                .orEmpty()
+                .trim()
+        }.getOrElse { error ->
+            failStreamingRequest(error.message)
+            updateStreamingDiagnostics()
+            ""
+        }
+    }
+
+    private suspend fun saveHeartbeatSeedMatch(
+        store: StreamingTrackMatchStore?,
+        track: Track,
+        provider: StreamingProviderName,
+        providerTrackId: String
+    ) {
+        val cleanTrackId = providerTrackId.trim()
+        if (cleanTrackId.isEmpty()) {
+            return
+        }
+        withContext(Dispatchers.IO) {
+            store?.saveProviderTrackId(track, provider, cleanTrackId)
+        }
+    }
+
     fun resolveStreamingPlayback(
         provider: StreamingProviderName,
         providerTrackId: String,
@@ -798,6 +1158,101 @@ class MainActivityViewModel @Inject constructor(
                 onResolved.onResult(null)
             }
         }
+    }
+
+    fun preResolveNextStreamingTrack(
+        snapshot: PlaybackStateSnapshot?,
+        queue: List<Track>?,
+        quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
+        onResolved: StreamingBiCallback<Long, Track?>
+    ): Boolean {
+        val planner = streamingPlaybackPlanner ?: return false
+        val taskQueue = streamingPlaybackTaskQueue ?: return false
+        val request = planner.prepareNextPreResolve(snapshot, queue) ?: return false
+        taskQueue.scheduleNextUrlResolve(
+            StreamingPlaybackTask { onComplete ->
+                resolveStreamingTrackForPlayback(
+                    request.provider,
+                    request.providerTrackId,
+                    request.metadata,
+                    quality
+                ) { resolved ->
+                    planner.clearPreResolve(request.key)
+                    onResolved.onResult(request.oldTrackId, resolved)
+                    onComplete.run()
+                }
+            }
+        )
+        return true
+    }
+
+    fun resolveStreamingTrackListForPlayback(
+        tracks: List<Track>?,
+        index: Int,
+        quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
+        onResolved: StreamingCallback<ResolvedStreamingTrackList?>
+    ): Boolean {
+        val planner = streamingPlaybackPlanner ?: return false
+        val taskQueue = streamingPlaybackTaskQueue ?: return false
+        val request = planner.prepare(tracks, index) ?: return false
+        taskQueue.scheduleCurrentUrlResolve(
+            StreamingPlaybackTask { onComplete ->
+                resolveStreamingTrackForPlayback(
+                    request.provider,
+                    request.providerTrackId,
+                    request.metadata,
+                    quality
+                ) { resolved ->
+                    if (resolved == null) {
+                        onResolved.onResult(null)
+                        onComplete.run()
+                        return@resolveStreamingTrackForPlayback
+                    }
+                    onResolved.onResult(
+                        ResolvedStreamingTrackList(
+                            tracks = planner.replaceResolvedTrack(request, resolved),
+                            index = request.index
+                        )
+                    )
+                    onComplete.run()
+                }
+            }
+        )
+        return true
+    }
+
+    fun recoverStreamingBuffering(
+        snapshot: PlaybackStateSnapshot?,
+        selectedQuality: StreamingAudioQuality,
+        adaptiveQuality: StreamingAudioQuality,
+        onResolved: StreamingCallback<StreamingRecoveryResolution?>
+    ): StreamingAudioQuality? {
+        val planner = streamingPlaybackPlanner ?: return null
+        val taskQueue = streamingPlaybackTaskQueue ?: return null
+        val request = planner.prepareRecovery(snapshot, selectedQuality, adaptiveQuality) ?: return null
+        taskQueue.scheduleCurrentPlaybackRecovery(
+            StreamingPlaybackTask { onComplete ->
+                resolveStreamingTrackForPlayback(
+                    request.provider,
+                    request.providerTrackId,
+                    request.metadata,
+                    request.quality
+                ) { resolved ->
+                    planner.clearRecovery(request.key)
+                    onResolved.onResult(
+                        resolved?.let {
+                            StreamingRecoveryResolution(
+                                track = it,
+                                quality = request.quality,
+                                positionMs = snapshot?.positionMs ?: 0L
+                            )
+                        }
+                    )
+                    onComplete.run()
+                }
+            }
+        )
+        return request.quality
     }
 
     fun refreshStreamingAuthState(provider: StreamingProviderName) {
@@ -931,6 +1386,58 @@ class MainActivityViewModel @Inject constructor(
         }
     }
 
+    fun bindStreamingLocalPlaylistImporter(importer: StreamingLocalPlaylistImporter?) {
+        streamingLocalPlaylistImporter = importer
+    }
+
+    fun bindStreamingLocalPlaylistSyncer(syncer: StreamingLocalPlaylistSyncer?) {
+        streamingLocalPlaylistSyncer = syncer
+    }
+
+    fun bindStreamingLoginPlaylistEnsurer(ensurer: StreamingLoginPlaylistEnsurer?) {
+        streamingLoginPlaylistEnsurer = ensurer
+    }
+
+    fun bindStreamingTrackMatchStore(store: StreamingTrackMatchStore?) {
+        streamingTrackMatchStore = store
+    }
+
+    fun loadStreamingProviderTrackId(
+        track: Track,
+        provider: StreamingProviderName,
+        onResolved: StreamingCallback<String>
+    ): Job {
+        return viewModelScope.launch {
+            val providerTrackId = withContext(Dispatchers.IO) {
+                streamingTrackMatchStore?.providerTrackIdFor(track, provider).orEmpty()
+            }
+            onResolved.onResult(providerTrackId)
+        }
+    }
+
+    fun streamingProviderTrackIdFor(track: Track?, provider: StreamingProviderName?): String {
+        if (track == null || provider == null) {
+            return ""
+        }
+        return streamingTrackMatchStore?.providerTrackIdFor(track, provider).orEmpty()
+    }
+
+    fun saveStreamingProviderTrackId(
+        track: Track?,
+        provider: StreamingProviderName?,
+        providerTrackId: String?
+    ): Job {
+        return viewModelScope.launch {
+            val cleanTrackId = providerTrackId?.trim().orEmpty()
+            if (track == null || provider == null || cleanTrackId.isEmpty()) {
+                return@launch
+            }
+            withContext(Dispatchers.IO) {
+                streamingTrackMatchStore?.saveProviderTrackId(track, provider, cleanTrackId)
+            }
+        }
+    }
+
     /**
      * Loads the playlists saved on the user's account for the given provider (requires the
      * gateway's userPlaylists endpoint). Results are kept on [MainActivityStreamingState.userPlaylists].
@@ -1059,50 +1566,217 @@ class MainActivityViewModel @Inject constructor(
         providerPlaylistId: String,
         onResolved: StreamingBiCallback<String, List<app.echo.next.streaming.StreamingTrack>>
     ): Job {
-        val pageSize = 2000
         beginStreamingRequest()
         return viewModelScope.launch {
             runCatching {
-                val tracks = ArrayList<app.echo.next.streaming.StreamingTrack>()
-                var playlistName: String? = null
-                var page = 1
-                var total: Int? = null
-                while (true) {
-                    val detail = streamingRepository.playlist(
-                        provider = provider,
-                        providerPlaylistId = providerPlaylistId,
-                        page = page,
-                        pageSize = pageSize,
-                        useCache = false
-                    )
-                    if (playlistName.isNullOrBlank()) {
-                        playlistName = detail.playlist?.title?.takeIf { it.isNotBlank() }
-                    }
-                    total = detail.total ?: total
-                    tracks.addAll(detail.tracks)
-
-                    val reachedTotal = total?.let { expected -> tracks.size >= expected } == true
-                    if (!detail.hasMore || detail.tracks.isEmpty() || reachedTotal) {
-                        break
-                    }
-                    page += 1
-                }
-                playlistName to tracks
+                loadStreamingPlaylistTracks(provider, providerPlaylistId)
             }.onSuccess { result ->
                 streamingState.value = streamingState.value.copy(
                     loading = false,
                     errorMessage = null
                 )
                 updateStreamingDiagnostics()
-                val name = result.first?.takeIf { it.isNotBlank() }
-                    ?: "Streaming playlist $providerPlaylistId"
-                onResolved.onResult(name, result.second)
+                onResolved.onResult(result.first, result.second)
             }.onFailure { error ->
                 failStreamingRequest(error.message)
                 updateStreamingDiagnostics()
                 onResolved.onResult("", emptyList())
             }
         }
+    }
+
+    fun importStreamingPlaylistToLocal(
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        onImported: StreamingCallback<StreamingLocalPlaylistImportResult>
+    ): Job {
+        beginStreamingRequest()
+        return viewModelScope.launch {
+            runCatching {
+                val (playlistName, tracks) = loadStreamingPlaylistTracks(provider, providerPlaylistId)
+                if (tracks.isEmpty()) {
+                    return@runCatching StreamingLocalPlaylistImportResult(
+                        playlistName = playlistName,
+                        empty = true
+                    )
+                }
+                importStreamingTracksToLocal(
+                    playlistName = playlistName,
+                    provider = provider,
+                    providerPlaylistId = providerPlaylistId,
+                    tracks = tracks,
+                    linkWhenProviderPlaylistIdBlank = false
+                )
+            }.onSuccess { result ->
+                streamingState.value = streamingState.value.copy(
+                    loading = false,
+                    errorMessage = null
+                )
+                updateStreamingDiagnostics()
+                onImported.onResult(result)
+            }.onFailure { error ->
+                failStreamingRequest(error.message)
+                updateStreamingDiagnostics()
+                onImported.onResult(StreamingLocalPlaylistImportResult(empty = true))
+            }
+        }
+    }
+
+    fun importStreamingLikedTracksToLocal(
+        provider: StreamingProviderName,
+        playlistName: String,
+        onImported: StreamingCallback<StreamingLocalPlaylistImportResult>
+    ): Job {
+        beginStreamingRequest()
+        return viewModelScope.launch {
+            runCatching {
+                val tracks = streamingRepository.userLikedTracks(provider)
+                if (tracks.isEmpty()) {
+                    return@runCatching StreamingLocalPlaylistImportResult(
+                        playlistName = playlistName,
+                        empty = true
+                    )
+                }
+                importStreamingTracksToLocal(
+                    playlistName = playlistName,
+                    provider = provider,
+                    providerPlaylistId = "",
+                    tracks = tracks,
+                    linkWhenProviderPlaylistIdBlank = true
+                )
+            }.onSuccess { result ->
+                streamingState.value = streamingState.value.copy(
+                    loading = false,
+                    errorMessage = null
+                )
+                updateStreamingDiagnostics()
+                onImported.onResult(result)
+            }.onFailure { error ->
+                failStreamingRequest(error.message)
+                updateStreamingDiagnostics()
+                onImported.onResult(StreamingLocalPlaylistImportResult(empty = true))
+            }
+        }
+    }
+
+    fun syncStreamingPlaylistToLocal(
+        link: StreamingPlaylistSyncStore.LinkedPlaylist,
+        onSynced: StreamingCallback<StreamingLocalPlaylistSyncResult>
+    ): Job {
+        beginStreamingRequest()
+        return viewModelScope.launch {
+            runCatching {
+                val tracks = if (link.providerPlaylistId.isNullOrBlank()) {
+                    streamingRepository.userLikedTracks(link.provider)
+                } else {
+                    loadStreamingPlaylistTracks(link.provider, link.providerPlaylistId).second
+                }
+                val syncer = streamingLocalPlaylistSyncer
+                    ?: error("Streaming local playlist syncer is not bound")
+                withContext(Dispatchers.IO) {
+                    syncer.syncStreamingPlaylist(link, tracks)
+                }
+            }.onSuccess { result ->
+                streamingState.value = streamingState.value.copy(
+                    loading = false,
+                    errorMessage = null
+                )
+                updateStreamingDiagnostics()
+                onSynced.onResult(result)
+            }.onFailure { error ->
+                failStreamingRequest(error.message)
+                updateStreamingDiagnostics()
+                onSynced.onResult(StreamingLocalPlaylistSyncResult(empty = true))
+            }
+        }
+    }
+
+    fun ensureStreamingLoginPlaylist(
+        playlistName: String,
+        provider: StreamingProviderName,
+        onEnsured: StreamingCallback<StreamingLoginPlaylistResult>
+    ): Job {
+        beginStreamingRequest()
+        return viewModelScope.launch {
+            runCatching {
+                val ensurer = streamingLoginPlaylistEnsurer
+                    ?: error("Streaming login playlist ensurer is not bound")
+                withContext(Dispatchers.IO) {
+                    ensurer.ensureStreamingLoginPlaylist(playlistName, provider)
+                }
+            }.onSuccess { result ->
+                streamingState.value = streamingState.value.copy(
+                    loading = false,
+                    errorMessage = null,
+                    selectedProvider = provider
+                )
+                updateStreamingDiagnostics()
+                onEnsured.onResult(result)
+            }.onFailure { error ->
+                failStreamingRequest(error.message)
+                updateStreamingDiagnostics()
+                onEnsured.onResult(StreamingLoginPlaylistResult(playlistName = playlistName))
+            }
+        }
+    }
+
+    private suspend fun loadStreamingPlaylistTracks(
+        provider: StreamingProviderName,
+        providerPlaylistId: String
+    ): Pair<String, List<StreamingTrack>> {
+        val pageSize = 2000
+        val tracks = ArrayList<StreamingTrack>()
+        var playlistName: String? = null
+        var page = 1
+        var total: Int? = null
+        while (true) {
+            val detail = streamingRepository.playlist(
+                provider = provider,
+                providerPlaylistId = providerPlaylistId,
+                page = page,
+                pageSize = pageSize,
+                useCache = false
+            )
+            if (playlistName.isNullOrBlank()) {
+                playlistName = detail.playlist?.title?.takeIf { it.isNotBlank() }
+            }
+            total = detail.total ?: total
+            tracks.addAll(detail.tracks)
+
+            val reachedTotal = total?.let { expected -> tracks.size >= expected } == true
+            if (!detail.hasMore || detail.tracks.isEmpty() || reachedTotal) {
+                break
+            }
+            page += 1
+        }
+        val name = playlistName?.takeIf { it.isNotBlank() }
+            ?: "Streaming playlist $providerPlaylistId"
+        return name to tracks
+    }
+
+    private suspend fun importStreamingTracksToLocal(
+        playlistName: String,
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        tracks: List<StreamingTrack>,
+        linkWhenProviderPlaylistIdBlank: Boolean
+    ): StreamingLocalPlaylistImportResult {
+        val importer = streamingLocalPlaylistImporter
+            ?: error("Streaming local playlist importer is not bound")
+        val result = withContext(Dispatchers.IO) {
+            importer.importStreamingPlaylist(
+                playlistName,
+                provider,
+                providerPlaylistId,
+                tracks,
+                linkWhenProviderPlaylistIdBlank
+            )
+        }
+        return StreamingLocalPlaylistImportResult(
+            playlistName = result.playlistName,
+            playlistAddedCount = result.playlistAddedCount,
+            empty = result.isEmpty
+        )
     }
 }
 

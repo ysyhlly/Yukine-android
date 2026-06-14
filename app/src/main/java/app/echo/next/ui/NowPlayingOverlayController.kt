@@ -70,6 +70,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.echo.next.NowPlayingEvent
+import app.echo.next.NowPlayingEventHandler
+import app.echo.next.NowPlayingUiState
 import app.echo.next.R
 
 /**
@@ -165,19 +168,11 @@ private data class PlaybackErrorSlice(
  */
 class NowPlayingOverlayController(
     context: Context,
-    initialState: NowBarState,
+    initialState: NowPlayingUiState,
     private val onDismiss: Runnable,
-    private val onPrevious: Runnable,
-    private val onPlayPause: Runnable,
-    private val onNext: Runnable,
-    private val onFavorite: Runnable,
-    private val onAddToPlaylist: Runnable,
-    private val onShuffle: Runnable,
-    private val onRepeat: Runnable,
-    private val onQueue: Runnable,
-    private val onSeek: SeekAction
+    private val eventHandler: NowPlayingEventHandler
 ) {
-    private val state: MutableState<NowBarState> = mutableStateOf(initialState)
+    private val state: MutableState<NowPlayingUiState> = mutableStateOf(initialState)
     private val visible: MutableState<Boolean> = mutableStateOf(false)
 
     val view: ComposeView = ComposeView(context).apply {
@@ -192,24 +187,26 @@ class NowPlayingOverlayController(
                         slideOutVertically(tween(durationMillis = 220)) { fullHeight -> fullHeight / 6 }
                 ) {
                     NowPlayingOverlay(
-                        state = state.value,
+                        state = state.value.overlayState,
+                        lyricsVisible = state.value.lyricsVisible,
                         onDismiss = onDismiss,
-                        onPrevious = onPrevious,
-                        onPlayPause = onPlayPause,
-                        onNext = onNext,
-                        onFavorite = onFavorite,
-                        onAddToPlaylist = onAddToPlaylist,
-                        onShuffle = onShuffle,
-                        onRepeat = onRepeat,
-                        onQueue = onQueue,
-                        onSeek = onSeek
+                        onPrevious = Runnable { eventHandler.onEvent(NowPlayingEvent.Previous) },
+                        onPlayPause = Runnable { eventHandler.onEvent(NowPlayingEvent.PlayPause) },
+                        onNext = Runnable { eventHandler.onEvent(NowPlayingEvent.Next) },
+                        onFavorite = Runnable { eventHandler.onEvent(NowPlayingEvent.ToggleFavorite) },
+                        onAddToPlaylist = Runnable { eventHandler.onEvent(NowPlayingEvent.AddToPlaylist) },
+                        onShuffle = Runnable { eventHandler.onEvent(NowPlayingEvent.ToggleShuffle) },
+                        onRepeat = Runnable { eventHandler.onEvent(NowPlayingEvent.CycleRepeatMode) },
+                        onQueue = Runnable { eventHandler.onEvent(NowPlayingEvent.OpenQueue) },
+                        onToggleLyrics = Runnable { eventHandler.onEvent(NowPlayingEvent.ToggleLyrics) },
+                        onSeek = SeekAction { positionMs -> eventHandler.onEvent(NowPlayingEvent.SeekTo(positionMs)) }
                     )
                 }
             }
         }
     }
 
-    fun updateState(nextState: NowBarState) {
+    fun updateState(nextState: NowPlayingUiState) {
         state.value = nextState
     }
 
@@ -242,6 +239,7 @@ class NowPlayingOverlayController(
 @Composable
 private fun NowPlayingOverlay(
     state: NowBarState,
+    lyricsVisible: Boolean,
     onDismiss: Runnable,
     onPrevious: Runnable,
     onPlayPause: Runnable,
@@ -251,6 +249,7 @@ private fun NowPlayingOverlay(
     onShuffle: Runnable,
     onRepeat: Runnable,
     onQueue: Runnable,
+    onToggleLyrics: Runnable,
     onSeek: SeekAction
 ) {
     val p = EchoTheme.colors()
@@ -289,14 +288,20 @@ private fun NowPlayingOverlay(
             }
             val titleGap = if (compact) 12.dp else 26.dp
             val transportGap = if (compact) 12.dp else 28.dp
-            var showingLyrics by remember(state.trackId) { mutableStateOf(false) }
+            var showingLyrics by remember(state.trackId) { mutableStateOf(lyricsVisible) }
+            LaunchedEffect(lyricsVisible, state.trackId) {
+                showingLyrics = lyricsVisible
+            }
 
             if (showingLyrics) {
                 LyricsOverlayPage(
                     state = state,
                     compact = compact,
                     onDismiss = onDismiss,
-                    onToggle = { showingLyrics = false },
+                    onToggle = {
+                        showingLyrics = false
+                        onToggleLyrics.run()
+                    },
                     onPrevious = onPrevious,
                     onPlayPause = onPlayPause,
                     onNext = onNext,
@@ -338,7 +343,10 @@ private fun NowPlayingOverlay(
                         onFavorite = onFavorite,
                         onAddToPlaylist = onAddToPlaylist,
                         onQueue = onQueue,
-                        onToggleView = { showingLyrics = true }
+                        onToggleView = {
+                            showingLyrics = true
+                            onToggleLyrics.run()
+                        }
                     )
                 }
                 Spacer(Modifier.height(topGap))
@@ -349,7 +357,10 @@ private fun NowPlayingOverlay(
                     showLyricsLabel = state.showLyricsLabel,
                     artworkMax = artworkMax,
                     compact = compact,
-                    onToggle = { showingLyrics = true }
+                    onToggle = {
+                        showingLyrics = true
+                        onToggleLyrics.run()
+                    }
                 )
                 Spacer(Modifier.height(artworkGap))
                 TrackInfoSection(

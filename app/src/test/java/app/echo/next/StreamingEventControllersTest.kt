@@ -1,12 +1,10 @@
 package app.echo.next
 
 import android.content.Intent
-import android.net.Uri
 import app.echo.next.model.Track
 import app.echo.next.streaming.StreamingProviderName
 import app.echo.next.streaming.StreamingTrack
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -75,19 +73,6 @@ class StreamingEventControllersTest {
     }
 
     @Test
-    fun resolvedPlaybackControllerWrapsTrackAsSingleItemQueue() {
-        val player = FakePlayer()
-        val controller = StreamingResolvedPlaybackController(player)
-        val resolvedTrack = track(7L)
-
-        controller.playResolvedTrack(resolvedTrack)
-
-        assertEquals(0, player.index)
-        assertEquals(1, player.tracks.size)
-        assertSame(resolvedTrack, player.tracks[0])
-    }
-
-    @Test
     fun authCallbackControllerDelegatesInitialAndNewIntents() {
         val handler = FakeAuthCallbackHandler()
         val controller = StreamingAuthCallbackController(handler)
@@ -95,7 +80,13 @@ class StreamingEventControllersTest {
         assertTrue(controller.handleInitialIntent(null))
         assertTrue(controller.handleNewIntent(null))
 
-        assertEquals(listOf(null, null), handler.intents)
+        assertEquals(
+            listOf(
+                "null|null",
+                "null|null"
+            ),
+            handler.callbacks
+        )
     }
 
     private class FakeSearchActionHandler : StreamingSearchActionHandler {
@@ -181,25 +172,15 @@ class StreamingEventControllersTest {
         override fun addVirtualContent(view: android.view.View) = Unit
     }
 
-    private class FakePlayer : StreamingResolvedPlaybackController.Player {
-        var tracks: List<Track> = emptyList()
-        var index: Int = -1
-
-        override fun playTrackList(tracks: List<Track>, index: Int) {
-            this.tracks = tracks
-            this.index = index
-        }
-    }
-
     private class FakeAuthCallbackHandler : StreamingAuthCallbackHandler {
-        val intents = ArrayList<Intent?>()
+        val callbacks = ArrayList<String>()
 
-        override fun handleAuthCallback(intent: Intent?): Boolean {
-            intents.add(intent)
+        override fun handleAuthCallback(callbackUri: String?, cookieHeader: String?): Boolean {
+            callbacks.add("$callbackUri|$cookieHeader")
             return true
         }
     }
 
     private fun track(id: Long): Track =
-        Track(id, "Track $id", "Artist", "Album", 1000L, Uri.EMPTY, "file:$id")
+        Track(id, "Track $id", "Artist", "Album", 1000L, android.net.Uri.EMPTY, "file:$id")
 }

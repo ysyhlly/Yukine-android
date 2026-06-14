@@ -15,7 +15,7 @@ import java.util.ArrayList
 
 internal class TrackListRenderController(
     private val context: Context,
-    private val viewModel: MainActivityViewModel,
+    private val viewModel: LibraryViewModel,
     private val listener: Listener
 ) {
     interface Listener {
@@ -73,7 +73,7 @@ internal class TrackListRenderController(
             )
         }
 
-        listener.publishTrackList(title, rows)
+        viewModel.updateTrackList(title, rows)
         listener.addVirtualContent(
             TrackListScreenFactory.create(
                 context,

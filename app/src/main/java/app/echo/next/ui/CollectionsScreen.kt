@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.echo.next.R
+import kotlinx.coroutines.flow.StateFlow
 
 data class CollectionMetricUiState(val label: String, val value: String)
 data class CollectionActionUiState(val label: String)
@@ -93,6 +95,20 @@ object CollectionsScreenFactory {
         setContent {
             EchoTheme.EchoTheme {
                 CollectionsScreen(state, actions)
+            }
+        }
+    }
+
+    @JvmStatic
+    fun create(
+        context: Context,
+        state: StateFlow<CollectionsUiState>,
+        actions: CollectionsActions
+    ): ComposeView = ComposeView(context).apply {
+        setContent {
+            EchoTheme.EchoTheme {
+                val uiState = state.collectAsState()
+                CollectionsScreen(uiState.value, actions)
             }
         }
     }

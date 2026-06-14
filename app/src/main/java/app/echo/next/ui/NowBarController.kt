@@ -213,7 +213,12 @@ class NowBarController(
     }
 
     fun currentHeightDp(): Int {
-        return if (waveformExpanded.value) 132 else 104
+        val height = if (waveformExpanded.value) {
+            EchoMobileLayoutMetrics.nowBarExpandedHeight
+        } else {
+            EchoMobileLayoutMetrics.nowBarHeight
+        }
+        return height.value.toInt()
     }
 
     companion object {

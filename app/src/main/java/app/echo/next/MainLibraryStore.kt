@@ -1,6 +1,5 @@
 package app.echo.next
 
-import app.echo.next.data.MusicLibraryRepository
 import app.echo.next.model.Playlist
 import app.echo.next.model.RemoteSource
 import app.echo.next.model.Track
@@ -9,7 +8,7 @@ import java.util.ArrayList
 import java.util.HashSet
 
 internal class MainLibraryStore(
-    private val repository: MusicLibraryRepository,
+    private val searchUseCase: LibrarySearchUseCase,
     private val viewModel: MainActivityViewModel
 ) {
     private var recommendationStreamTitle: String = ""
@@ -53,10 +52,10 @@ internal class MainLibraryStore(
 
     fun replaceLibrary(tracks: List<Track>, favorites: Set<Long>, searchQuery: String?) {
         val cachedTracks = ArrayList(tracks)
-        viewModel.replaceLibrary(cachedTracks, repository.search(cachedTracks, searchQuery), HashSet(favorites))
+        viewModel.replaceLibrary(cachedTracks, searchUseCase.execute(cachedTracks, searchQuery), HashSet(favorites))
     }
 
-    fun applyCollections(snapshot: LibraryActionsController.CollectionsSnapshot) {
+    fun applyCollections(snapshot: LibraryCollectionsResult) {
         viewModel.applyCollections(
             HashSet(snapshot.favoriteIds),
             ArrayList(snapshot.favoriteTracks),
@@ -73,11 +72,15 @@ internal class MainLibraryStore(
     }
 
     fun applySearch(query: String?) {
-        viewModel.updateVisibleTracks(repository.search(allTracks(), query))
+        viewModel.updateVisibleTracks(searchUseCase.execute(allTracks(), query))
     }
 
     fun toggleFavorite(trackId: Long): Boolean {
         return viewModel.toggleFavorite(trackId)
+    }
+
+    fun setFavorite(trackId: Long, favorite: Boolean) {
+        viewModel.setFavorite(trackId, favorite)
     }
 
     fun selectedPlaylistName(selectedPlaylistId: Long): String {
@@ -132,7 +135,7 @@ internal class MainLibraryStore(
     }
 
     fun filteredTracks(tracks: List<Track>, searchQuery: String?): ArrayList<Track> {
-        return ArrayList(repository.search(tracks, searchQuery))
+        return ArrayList(searchUseCase.execute(tracks, searchQuery))
     }
 
     fun streamTrackDetails(tracks: List<Track>): ArrayList<String> {

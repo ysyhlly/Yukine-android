@@ -1,6 +1,5 @@
 package app.echo.next
 
-import app.echo.next.data.MusicLibraryRepository
 import app.echo.next.ui.EchoTheme
 
 internal class MainSettingsStore {
@@ -12,14 +11,14 @@ internal class MainSettingsStore {
     private var streamingAudioQuality: String = StreamingQualityPreference.defaultValue()
     private var concurrentPlaybackEnabled: Boolean = false
 
-    fun load(repository: MusicLibraryRepository) {
-        themeMode = EchoTheme.normalizeMode(repository.loadThemeMode())
-        accentMode = EchoTheme.normalizeAccent(repository.loadAccentMode())
-        languageMode = AppLanguage.normalizeMode(repository.loadLanguageMode())
-        playbackSpeed = repository.loadPlaybackSpeed()
-        appVolume = repository.loadAppVolume()
-        streamingAudioQuality = StreamingQualityPreference.normalize(repository.loadStreamingAudioQuality())
-        concurrentPlaybackEnabled = repository.loadConcurrentPlaybackEnabled()
+    fun load(preferences: LoadedSettingsPreferences) {
+        themeMode = preferences.themeMode
+        accentMode = preferences.accentMode
+        languageMode = preferences.languageMode
+        playbackSpeed = preferences.playbackSpeed
+        appVolume = preferences.appVolume
+        streamingAudioQuality = preferences.streamingAudioQuality
+        concurrentPlaybackEnabled = preferences.concurrentPlaybackEnabled
         EchoTheme.setMode(themeMode)
         EchoTheme.setAccent(accentMode)
     }

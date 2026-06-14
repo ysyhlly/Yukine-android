@@ -6,26 +6,12 @@ import org.junit.Test
 
 class SettingsPageEventControllerTest {
     @Test
-    fun forwardsSettingsPageActionsToInjectedHandlers() {
-        val navigator = FakeNavigator()
-        val networkSourcesNavigator = FakeNetworkSourcesNavigator()
-        val libraryLoader = FakeLibraryLoader()
-        val audioPicker = FakeAudioPicker()
-        val lyricsActions = FakeLyricsActions()
-        val playbackTimer = FakePlaybackTimer()
-        val settingsActions = FakeSettingsActions()
-        val streamingGatewayActions = FakeStreamingGatewayActions()
-        val controller = SettingsPageEventController(
-            navigator,
-            networkSourcesNavigator,
-            libraryLoader,
-            audioPicker,
-            lyricsActions,
-            playbackTimer,
-            settingsActions,
-            streamingGatewayActions,
-            FakeContentSink()
-        )
+    fun forwardsSettingsPageActionsThroughViewModel() {
+        val gateway = FakeSettingsGateway()
+        val viewModel = SettingsViewModel().apply {
+            bindGateway(gateway)
+        }
+        val controller = SettingsPageEventController(viewModel, FakeContentSink())
 
         controller.navigateSettingsPage(MainRoutes.SETTINGS_LIBRARY)
         controller.openNetworkSources()
@@ -46,45 +32,45 @@ class SettingsPageEventControllerTest {
         controller.applyLanguageMode(AppLanguage.MODE_ENGLISH)
         controller.applyStreamingGatewayEndpoint("http://localhost:3301")
 
-        assertEquals(listOf("nav:${MainRoutes.SETTINGS_LIBRARY}"), navigator.calls)
-        assertEquals(listOf("network"), networkSourcesNavigator.calls)
-        assertEquals(listOf("load"), libraryLoader.calls)
-        assertEquals(listOf("file", "folder"), audioPicker.calls)
-        assertEquals(listOf("online:true", "reload", "offset:500"), lyricsActions.calls)
-        assertEquals(listOf("start:30", "cancel"), playbackTimer.calls)
         assertEquals(
-            listOf("speed:1.25", "volume:0.7", "quality:high", "concurrent:true", "theme:dark", "accent:teal", "language:${AppLanguage.MODE_ENGLISH}"),
-            settingsActions.calls
+            listOf(
+                "nav:${MainRoutes.SETTINGS_LIBRARY}",
+                "network",
+                "load",
+                "file",
+                "folder",
+                "online:true",
+                "reload",
+                "offset:500",
+                "start:30",
+                "cancel",
+                "speed:1.25",
+                "volume:0.7",
+                "quality:high",
+                "concurrent:true",
+                "theme:dark",
+                "accent:teal",
+                "language:${AppLanguage.MODE_ENGLISH}",
+                "endpoint:http://localhost:3301"
+            ),
+            gateway.calls
         )
-        assertEquals(listOf("endpoint:http://localhost:3301"), streamingGatewayActions.calls)
     }
 
-    private class FakeNavigator : SettingsPageEventController.Navigator {
+    private class FakeSettingsGateway : SettingsGateway {
         val calls = ArrayList<String>()
 
         override fun navigateSettingsPage(page: String) {
             calls.add("nav:$page")
         }
-    }
-
-    private class FakeNetworkSourcesNavigator : SettingsPageEventController.NetworkSourcesNavigator {
-        val calls = ArrayList<String>()
 
         override fun openNetworkSources() {
             calls.add("network")
         }
-    }
-
-    private class FakeLibraryLoader : SettingsPageEventController.LibraryLoader {
-        val calls = ArrayList<String>()
 
         override fun loadLibrary() {
             calls.add("load")
         }
-    }
-
-    private class FakeAudioPicker : SettingsPageEventController.AudioPicker {
-        val calls = ArrayList<String>()
 
         override fun openAudioFilePicker() {
             calls.add("file")
@@ -93,10 +79,6 @@ class SettingsPageEventControllerTest {
         override fun openAudioFolderPicker() {
             calls.add("folder")
         }
-    }
-
-    private class FakeLyricsActions : SettingsPageEventController.LyricsActions {
-        val calls = ArrayList<String>()
 
         override fun setOnlineLyricsEnabled(enabled: Boolean) {
             calls.add("online:$enabled")
@@ -109,10 +91,6 @@ class SettingsPageEventControllerTest {
         override fun applyLyricsOffset(offsetMs: Long) {
             calls.add("offset:$offsetMs")
         }
-    }
-
-    private class FakePlaybackTimer : SettingsPageEventController.PlaybackTimer {
-        val calls = ArrayList<String>()
 
         override fun startSleepTimer(minutes: Int) {
             calls.add("start:$minutes")
@@ -121,10 +99,6 @@ class SettingsPageEventControllerTest {
         override fun cancelSleepTimer() {
             calls.add("cancel")
         }
-    }
-
-    private class FakeSettingsActions : SettingsPageEventController.SettingsActions {
-        val calls = ArrayList<String>()
 
         override fun applyPlaybackSpeed(speed: Float) {
             calls.add("speed:$speed")
@@ -153,12 +127,8 @@ class SettingsPageEventControllerTest {
         override fun applyLanguageMode(languageMode: String) {
             calls.add("language:$languageMode")
         }
-    }
 
-    private class FakeStreamingGatewayActions : SettingsPageEventController.StreamingGatewayActions {
-        val calls = ArrayList<String>()
-
-        override fun applyEndpoint(endpoint: String) {
+        override fun applyStreamingGatewayEndpoint(endpoint: String) {
             calls.add("endpoint:$endpoint")
         }
     }

@@ -18,6 +18,7 @@ import java.net.HttpURLConnection;
 import java.net.ProtocolException;
 import java.net.SocketTimeoutException;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -28,6 +29,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -45,6 +48,9 @@ public final class WebDavClient {
     private static final String[] AUDIO_EXTENSIONS = {
             ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus", ".alac"
     };
+    private static final Pattern HTML_HREF_PATTERN = Pattern.compile(
+            "(?is)<a\\s+[^>]*href\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))"
+    );
     private static final TrustManager[] TRUST_ALL_WEB_DAV_CERTS = new TrustManager[]{
             new X509TrustManager() {
                 @Override
@@ -99,8 +105,7 @@ public final class WebDavClient {
             throw new IllegalStateException("目录过多，已停止扫描");
         }
 
-        Document document = readDirectory(source, normalizedDirectory);
-        ArrayList<WebDavEntry> entries = parseEntries(source, normalizedDirectory, document);
+        ArrayList<WebDavEntry> entries = readDirectoryEntries(source, normalizedDirectory);
         ScanStats stats = new ScanStats();
         stats.directoryCount = 1;
         for (WebDavEntry entry : entries) {
@@ -129,7 +134,7 @@ public final class WebDavClient {
         return stats;
     }
 
-    private Document readDirectory(RemoteSource source, String directoryUrl) throws Exception {
+    private ArrayList<WebDavEntry> readDirectoryEntries(RemoteSource source, String directoryUrl) throws Exception {
         HttpURLConnection connection = open(source, directoryUrl);
         try {
             setRequestMethod(connection, "PROPFIND");
@@ -151,13 +156,18 @@ public final class WebDavClient {
                 throw new IllegalStateException("WebDAV returned an empty response. Check that the URL points to a WebDAV directory.");
             }
             if (isHtmlResponse(connection.getContentType(), responseBody)) {
-                throw new IllegalStateException("WebDAV returned an HTML page instead of a directory listing. Check URL, account, port, and reverse proxy path."
+                ArrayList<WebDavEntry> htmlEntries = parseHtmlEntries(source, directoryUrl, connection.getContentType(), responseBody);
+                if (!htmlEntries.isEmpty()) {
+                    return htmlEntries;
+                }
+                throw new IllegalStateException("WebDAV returned an HTML page but no audio files or folders were found. Check URL, account, port, and reverse proxy path."
                         + responseHint(connection.getContentType(), responseBody));
             }
             try (InputStream input = new ByteArrayInputStream(responseBody)) {
                 DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
                 factory.setNamespaceAware(true);
-                return factory.newDocumentBuilder().parse(input);
+                Document document = factory.newDocumentBuilder().parse(input);
+                return parseEntries(source, directoryUrl, document);
             } catch (Exception error) {
                 throw new IllegalStateException("WebDAV directory XML parse failed: " + cleanMessage(error)
                         + responseHint(connection.getContentType(), responseBody), error);
@@ -165,6 +175,77 @@ public final class WebDavClient {
         } finally {
             connection.disconnect();
         }
+    }
+
+    private ArrayList<WebDavEntry> parseHtmlEntries(
+            RemoteSource source,
+            String currentDirectoryUrl,
+            String contentType,
+            byte[] responseBody
+    ) {
+        ArrayList<WebDavEntry> entries = new ArrayList<>();
+        HashSet<String> seen = new HashSet<>();
+        String html = decodeBody(contentType, responseBody);
+        String current = trimRight(currentDirectoryUrl, "/");
+        Matcher matcher = HTML_HREF_PATTERN.matcher(html);
+        while (matcher.find()) {
+            String rawHref = firstNonEmpty(matcher.group(1), matcher.group(2), matcher.group(3));
+            String href = decodeHtmlAttribute(rawHref).trim();
+            if (shouldSkipHtmlHref(href)) {
+                continue;
+            }
+            String entryUrl = absoluteUrl(source, currentDirectoryUrl, href);
+            String normalizedEntry = trimRight(entryUrl, "/");
+            if (normalizedEntry.equals(current) || !seen.add(normalizedEntry)) {
+                continue;
+            }
+            String name = displayName(href);
+            boolean directory = href.endsWith("/") || entryUrl.endsWith("/");
+            if (!directory && !isAudio(name)) {
+                continue;
+            }
+            entries.add(new WebDavEntry(href, entryUrl, directory));
+        }
+        return entries;
+    }
+
+    private String firstNonEmpty(String first, String second, String third) {
+        if (first != null && !first.isEmpty()) {
+            return first;
+        }
+        if (second != null && !second.isEmpty()) {
+            return second;
+        }
+        return third == null ? "" : third;
+    }
+
+    private boolean shouldSkipHtmlHref(String href) {
+        if (href == null || href.trim().isEmpty()) {
+            return true;
+        }
+        String clean = href.trim();
+        String lower = clean.toLowerCase(Locale.ROOT);
+        return clean.equals(".")
+                || clean.equals("./")
+                || clean.equals("..")
+                || clean.equals("../")
+                || clean.startsWith("?")
+                || clean.startsWith("#")
+                || lower.startsWith("javascript:")
+                || lower.startsWith("mailto:");
+    }
+
+    private String decodeHtmlAttribute(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        return value
+                .replace("&amp;", "&")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'")
+                .replace("&apos;", "'")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">");
     }
 
     private byte[] readResponseBody(HttpURLConnection connection, boolean success) throws Exception {
@@ -324,10 +405,13 @@ public final class WebDavClient {
         if (href.startsWith("http://") || href.startsWith("https://")) {
             return href;
         }
-        Uri base = Uri.parse(source.baseUrl);
-        String prefix = base.getScheme() + "://" + base.getEncodedAuthority();
         if (href.startsWith("/")) {
-            return prefix + href;
+            try {
+                URL base = new URL(source.baseUrl);
+                return base.getProtocol() + "://" + base.getAuthority() + href;
+            } catch (Exception ignored) {
+                return href;
+            }
         }
         try {
             return new URL(new URL(ensureTrailingSlash(currentDirectoryUrl)), href).toString();
@@ -370,7 +454,18 @@ public final class WebDavClient {
         }
         int slash = clean.lastIndexOf('/');
         String name = slash >= 0 ? clean.substring(slash + 1) : clean;
-        return Uri.decode(name == null || name.isEmpty() ? clean : name);
+        return urlDecode(name == null || name.isEmpty() ? clean : name);
+    }
+
+    private String urlDecode(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        try {
+            return URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8.name());
+        } catch (Exception ignored) {
+            return value;
+        }
     }
 
     private String stripExtension(String name) {

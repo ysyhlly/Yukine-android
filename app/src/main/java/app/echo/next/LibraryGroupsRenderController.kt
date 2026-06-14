@@ -13,7 +13,7 @@ import java.util.ArrayList
 
 internal class LibraryGroupsRenderController(
     private val context: Context,
-    private val viewModel: MainActivityViewModel,
+    private val viewModel: LibraryViewModel,
     private val listener: Listener
 ) {
     interface Listener {
@@ -69,7 +69,7 @@ internal class LibraryGroupsRenderController(
         }
 
         val title = LibraryGrouping.modeTitle(libraryMode)
-        listener.publishLibraryGroups(title, groupRows)
+        viewModel.updateLibraryGroups(title, groupRows)
         listener.addVirtualContent(
             LibraryGroupsScreenFactory.create(
                 context,

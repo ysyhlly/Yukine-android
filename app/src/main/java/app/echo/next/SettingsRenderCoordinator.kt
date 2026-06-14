@@ -7,7 +7,7 @@ internal class SettingsRenderCoordinator(
     private val permissionController: MainPermissionController,
     private val playbackConnectionController: PlaybackServiceConnectionController,
     private val playbackStore: MainPlaybackStore,
-    private val lyricsController: LyricsController?,
+    private val lyricsViewModel: LyricsViewModel?,
     private val streamingGatewaySettingsStore: StreamingGatewaySettingsStore
 ) {
     fun scrollToTopOnNextRender() {
@@ -43,8 +43,8 @@ internal class SettingsRenderCoordinator(
                 )
             }
             MainRoutes.SETTINGS_LYRICS_GROUP -> {
-                val currentOffsetMs = lyricsController?.offsetMs() ?: 0L
-                val currentOnlineLyricsEnabled = lyricsController?.onlineEnabled() == true
+                val currentOffsetMs = lyricsViewModel?.offsetMs() ?: 0L
+                val currentOnlineLyricsEnabled = lyricsViewModel?.onlineEnabled() == true
                 renderer.renderLyricsGroup(settingsStore.languageMode(), currentOffsetMs, currentOnlineLyricsEnabled)
             }
             MainRoutes.SETTINGS_SOURCES_GROUP -> {
@@ -90,8 +90,8 @@ internal class SettingsRenderCoordinator(
                 renderer.renderSleepTimer(settingsStore.languageMode(), playbackStore.snapshot().sleepTimerRemainingMs)
             }
             MainRoutes.SETTINGS_LYRICS -> {
-                val currentOffsetMs = lyricsController?.offsetMs() ?: 0L
-                val currentOnlineLyricsEnabled = lyricsController?.onlineEnabled() == true
+                val currentOffsetMs = lyricsViewModel?.offsetMs() ?: 0L
+                val currentOnlineLyricsEnabled = lyricsViewModel?.onlineEnabled() == true
                 renderer.renderLyrics(settingsStore.languageMode(), currentOffsetMs, currentOnlineLyricsEnabled)
             }
             MainRoutes.SETTINGS_LIBRARY -> {

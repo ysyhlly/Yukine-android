@@ -11,16 +11,17 @@ internal object NowBarStateFactory {
     fun create(
         playbackState: PlaybackStateSnapshot,
         favoriteIds: Set<Long>,
-        lyricsController: LyricsController?,
+        lyricsState: LyricsState?,
         languageMode: String
     ): NowBarState {
+        val state = lyricsState ?: LyricsState()
         return create(
             playbackState = playbackState,
             favoriteIds = favoriteIds,
             languageMode = languageMode,
-            lyrics = lyricsController?.lines().orEmpty(),
-            lyricsStatus = lyricsController?.status().orEmpty(),
-            lyricsOffsetMs = lyricsController?.offsetMs() ?: 0L
+            lyrics = state.lines,
+            lyricsStatus = LyricsStatusText.status(languageMode, state.statusKind, state.loadedLineCount),
+            lyricsOffsetMs = state.offsetMs
         )
     }
 

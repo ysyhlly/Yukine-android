@@ -3,142 +3,83 @@ package app.echo.next
 import android.view.View
 
 internal class SettingsPageEventController(
-    private val navigator: Navigator,
-    private val networkSourcesNavigator: NetworkSourcesNavigator,
-    private val libraryLoader: LibraryLoader,
-    private val audioPicker: AudioPicker,
-    private val lyricsActions: LyricsActions,
-    private val playbackTimer: PlaybackTimer,
-    private val settingsActions: SettingsActions,
-    private val streamingGatewayActions: StreamingGatewayActions,
+    private val viewModel: SettingsViewModel,
     private val contentSink: ContentSink
 ) : SettingsPageRenderController.Listener {
-    fun interface Navigator {
-        fun navigateSettingsPage(page: String)
-    }
-
-    fun interface NetworkSourcesNavigator {
-        fun openNetworkSources()
-    }
-
-    fun interface LibraryLoader {
-        fun loadLibrary()
-    }
-
-    interface AudioPicker {
-        fun openAudioFilePicker()
-
-        fun openAudioFolderPicker()
-    }
-
-    interface LyricsActions {
-        fun setOnlineLyricsEnabled(enabled: Boolean)
-
-        fun reloadCurrentLyrics()
-
-        fun applyLyricsOffset(offsetMs: Long)
-    }
-
-    interface PlaybackTimer {
-        fun startSleepTimer(minutes: Int)
-
-        fun cancelSleepTimer()
-    }
-
-    interface SettingsActions {
-        fun applyPlaybackSpeed(speed: Float)
-
-        fun applyAppVolume(volume: Float)
-
-        fun applyStreamingAudioQuality(quality: String)
-
-        fun setConcurrentPlaybackEnabled(enabled: Boolean)
-
-        fun applyThemeMode(mode: String)
-
-        fun applyAccentMode(accent: String)
-
-        fun applyLanguageMode(languageMode: String)
-    }
-
-    fun interface StreamingGatewayActions {
-        fun applyEndpoint(endpoint: String)
-    }
-
     fun interface ContentSink {
         fun addVirtualContent(view: View)
     }
 
     override fun navigateSettingsPage(page: String) {
-        navigator.navigateSettingsPage(page)
+        viewModel.onEvent(SettingsEvent.NavigateSettingsPage(page))
     }
 
     override fun openNetworkSources() {
-        networkSourcesNavigator.openNetworkSources()
+        viewModel.onEvent(SettingsEvent.OpenNetworkSources)
     }
 
     override fun loadLibrary() {
-        libraryLoader.loadLibrary()
+        viewModel.onEvent(SettingsEvent.LoadLibrary)
     }
 
     override fun openAudioFilePicker() {
-        audioPicker.openAudioFilePicker()
+        viewModel.onEvent(SettingsEvent.OpenAudioFilePicker)
     }
 
     override fun openAudioFolderPicker() {
-        audioPicker.openAudioFolderPicker()
+        viewModel.onEvent(SettingsEvent.OpenAudioFolderPicker)
     }
 
     override fun setOnlineLyricsEnabled(enabled: Boolean) {
-        lyricsActions.setOnlineLyricsEnabled(enabled)
+        viewModel.onEvent(SettingsEvent.SetOnlineLyricsEnabled(enabled))
     }
 
     override fun reloadCurrentLyrics() {
-        lyricsActions.reloadCurrentLyrics()
+        viewModel.onEvent(SettingsEvent.ReloadCurrentLyrics)
     }
 
     override fun applyLyricsOffset(offsetMs: Long) {
-        lyricsActions.applyLyricsOffset(offsetMs)
+        viewModel.onEvent(SettingsEvent.ApplyLyricsOffset(offsetMs))
     }
 
     override fun startSleepTimer(minutes: Int) {
-        playbackTimer.startSleepTimer(minutes)
+        viewModel.onEvent(SettingsEvent.StartSleepTimer(minutes))
     }
 
     override fun cancelSleepTimer() {
-        playbackTimer.cancelSleepTimer()
+        viewModel.onEvent(SettingsEvent.CancelSleepTimer)
     }
 
     override fun applyPlaybackSpeed(speed: Float) {
-        settingsActions.applyPlaybackSpeed(speed)
+        viewModel.onEvent(SettingsEvent.ApplyPlaybackSpeed(speed))
     }
 
     override fun applyAppVolume(volume: Float) {
-        settingsActions.applyAppVolume(volume)
+        viewModel.onEvent(SettingsEvent.ApplyAppVolume(volume))
     }
 
     override fun applyStreamingAudioQuality(quality: String) {
-        settingsActions.applyStreamingAudioQuality(quality)
+        viewModel.onEvent(SettingsEvent.ApplyStreamingAudioQuality(quality))
     }
 
     override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
-        settingsActions.setConcurrentPlaybackEnabled(enabled)
+        viewModel.onEvent(SettingsEvent.SetConcurrentPlaybackEnabled(enabled))
     }
 
     override fun applyThemeMode(mode: String) {
-        settingsActions.applyThemeMode(mode)
+        viewModel.onEvent(SettingsEvent.ApplyThemeMode(mode))
     }
 
     override fun applyAccentMode(accent: String) {
-        settingsActions.applyAccentMode(accent)
+        viewModel.onEvent(SettingsEvent.ApplyAccentMode(accent))
     }
 
     override fun applyLanguageMode(languageMode: String) {
-        settingsActions.applyLanguageMode(languageMode)
+        viewModel.onEvent(SettingsEvent.ApplyLanguageMode(languageMode))
     }
 
     override fun applyStreamingGatewayEndpoint(endpoint: String) {
-        streamingGatewayActions.applyEndpoint(endpoint)
+        viewModel.onEvent(SettingsEvent.ApplyStreamingGatewayEndpoint(endpoint))
     }
 
     override fun addVirtualContent(view: View) {

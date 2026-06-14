@@ -15,13 +15,13 @@ import dagger.hilt.android.AndroidEntryPoint;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import javax.inject.Inject;
 
 import app.echo.next.data.MusicLibraryRepository;
 import app.echo.next.model.Playlist;
+import app.echo.next.model.PlaylistImportResult;
 import app.echo.next.model.RemoteSource;
 import app.echo.next.model.Track;
 import app.echo.next.playback.EchoPlaybackService;
@@ -69,6 +69,13 @@ public final class MainActivity extends ComponentActivity {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final MainExecutors executors = new MainExecutors();
     private final StreamingPlaybackTaskScheduler streamingPlaybackTaskScheduler = new StreamingPlaybackTaskScheduler();
+    private final ResolveStreamingPlaybackUseCase resolveStreamingPlaybackUseCase = new ResolveStreamingPlaybackUseCase();
+    private final StreamingHeartbeatRecommendationUseCase heartbeatRecommendationUseCase =
+            new StreamingHeartbeatRecommendationUseCase();
+    private StreamingTrackMatchUseCase streamingTrackMatchUseCase;
+    private ToggleFavoriteUseCase toggleFavoriteUseCase;
+    private LoadPlaylistTracksUseCase loadPlaylistTracksUseCase;
+    private LoadLyricsSettingsUseCase loadLyricsSettingsUseCase;
 
     @Inject
     StreamingGatewaySettingsStore streamingGatewaySettingsStore;
@@ -77,6 +84,11 @@ public final class MainActivity extends ComponentActivity {
     MusicLibraryRepository repository;
 
     private MainActivityViewModel viewModel;
+    private NowPlayingViewModel nowPlayingViewModel;
+    private LibraryViewModel libraryViewModel;
+    private CollectionsViewModel collectionsViewModel;
+    private SettingsViewModel settingsViewModel;
+    private NetworkSourcesViewModel networkSourcesViewModel;
     private MainRouteController routeController;
     private MainStatePublisher statePublisher;
     private MainLibraryStore libraryStore;
@@ -86,59 +98,39 @@ public final class MainActivity extends ComponentActivity {
     private MainPermissionController permissionController;
     private MainUiShellController uiShellController;
     private DocumentPickerController documentPickerController;
-    private PlaybackActionsController playbackActionsController;
     private PlaybackServiceConnectionController playbackServiceConnectionController;
     private PlaybackStateUpdateController playbackStateUpdateController;
     private PlaybackStateEventController playbackStateEventController;
     private MainTabRenderDispatcher tabRenderDispatcher;
     private NetworkRenderCoordinator networkRenderCoordinator;
     private SettingsRenderCoordinator settingsRenderCoordinator;
-    private LibraryActionsController libraryActionsController;
     private TrackListRenderController trackListRenderController;
     private app.echo.next.streaming.StreamingPlaylistSyncStore streamingPlaylistSyncStore;
+    private ImportStreamingPlaylistUseCase importStreamingPlaylistUseCase;
+    private SyncStreamingPlaylistUseCase syncStreamingPlaylistUseCase;
+    private EnsureStreamingLoginPlaylistUseCase ensureStreamingLoginPlaylistUseCase;
+    private GetStreamingPlaylistLinkUseCase getStreamingPlaylistLinkUseCase;
     private QueueRenderController queueRenderController;
     private NetworkSourcesRenderController networkSourcesRenderController;
     private NetworkMenuRenderController networkMenuRenderController;
     private NetworkTrackListRenderController networkTrackListRenderController;
     private StreamingGatewayEventController streamingGatewayEventController;
     private StreamingGatewayController streamingGatewayController;
-    private StreamingResolvedPlaybackController streamingResolvedPlaybackController;
-    private StreamingActionsController streamingActionsController;
     private StreamingAuthCallbackController streamingAuthCallbackController;
     private StreamingSearchEventController streamingSearchEventController;
     private StreamingSearchRenderController streamingSearchRenderController;
-    private NetworkActionsController networkActionsController;
+    private NetworkActionsViewModel networkActionsViewModel;
     private NetworkRequestController networkRequestController;
     private HomeDashboardRenderController homeDashboardRenderController;
     private LibraryGroupsRenderController libraryGroupsRenderController;
     private CollectionsRenderController collectionsRenderController;
     private NowPlayingRenderController nowPlayingRenderController;
-    private SettingsActionsController settingsActionsController;
-    private PlaylistActionsController playlistActionsController;
     private PlaylistExportController playlistExportController;
-    private LyricsController lyricsController;
+    private LyricsViewModel lyricsViewModel;
     private EchoPlaybackService playbackService;
     private List<Track> pendingPlaybackTracks = Collections.emptyList();
     private int pendingPlaybackIndex = -1;
-    private String preResolvingStreamingKey = "";
-    private String streamingRecoveryKey = "";
-    private String lastStreamingRecoveryKey = "";
-    private String lastPreResolveAttemptKey = "";
-    private long lastPreResolveAttemptAtMs;
-    private long lastPreResolveCurrentTrackId = -1L;
-    private long lastStreamingRecoveryAtMs;
     private boolean scrollContentToTopOnNextRender;
-    private boolean heartbeatRecommendationModeActive;
-    private boolean heartbeatRecommendationLoading;
-    private long lastHeartbeatRecommendationRefillAtMs;
-    private app.echo.next.streaming.StreamingProviderName heartbeatRecommendationProvider;
-    private final HashSet<String> heartbeatRecommendationSeenKeys = new HashSet<>();
-    private static final long STREAMING_PRERESOLVE_REMAINING_MS = 45000L;
-    private static final float STREAMING_PRERESOLVE_PROGRESS = 0.70f;
-    private static final long STREAMING_PRERESOLVE_RETRY_MS = 120000L;
-    private static final long STREAMING_RECOVERY_COOLDOWN_MS = 20000L;
-    private static final int HEARTBEAT_RECOMMENDATION_REFILL_REMAINING = 5;
-    private static final long HEARTBEAT_RECOMMENDATION_REFILL_RETRY_MS = 30000L;
 
     private NetworkDialogController networkDialogController;
     private PlaylistDialogController playlistDialogController;
@@ -148,6 +140,21 @@ public final class MainActivity extends ComponentActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         viewModel = new ViewModelProvider(this).get(MainActivityViewModel.class);
+        viewModel.bindStreamingActionGateway(new ActivityStreamingActionGateway());
+        viewModel.bindStreamingPlaybackCoordinator(
+                resolveStreamingPlaybackUseCase,
+                new ActivityStreamingPlaybackTaskQueue()
+        );
+        nowPlayingViewModel = new ViewModelProvider(this).get(NowPlayingViewModel.class);
+        nowPlayingViewModel.bindGateway(new ActivityNowPlayingGateway());
+        nowPlayingViewModel.bindPlaybackGateway(new ActivityNowPlayingPlaybackGateway());
+        lyricsViewModel = new ViewModelProvider(this).get(LyricsViewModel.class);
+        libraryViewModel = new ViewModelProvider(this).get(LibraryViewModel.class);
+        libraryViewModel.bindGateway(new ActivityLibraryGateway());
+        collectionsViewModel = new ViewModelProvider(this).get(CollectionsViewModel.class);
+        settingsViewModel = new ViewModelProvider(this).get(SettingsViewModel.class);
+        settingsViewModel.bindGateway(new ActivitySettingsGateway());
+        networkSourcesViewModel = new ViewModelProvider(this).get(NetworkSourcesViewModel.class);
         streamingGatewayEventController = new StreamingGatewayEventController(
                 viewModel,
                 new StreamingGatewayEventController.Host() {
@@ -174,31 +181,7 @@ public final class MainActivity extends ComponentActivity {
         );
         streamingGatewayController.configureRepository();
         streamingGatewayEventController.refreshStreamingProviders();
-        streamingResolvedPlaybackController = new StreamingResolvedPlaybackController(
-                new StreamingResolvedPlaybackController.Player() {
-                    @Override
-                    public void playTrackList(List<Track> tracks, int index) {
-                        MainActivity.this.playTrackList(tracks, index);
-                    }
-                },
-                new StreamingResolvedPlaybackController.LoginListener() {
-                    @Override
-                    public void onStreamingLoginSuccess(app.echo.next.streaming.StreamingProviderName provider) {
-                        MainActivity.this.onStreamingLoginSuccess(provider);
-                    }
-                }
-        );
-        streamingActionsController = new StreamingActionsController(
-                this,
-                viewModel,
-                STREAMING_AUTH_REDIRECT_URI,
-                () -> settingsStore == null
-                        ? StreamingQualityPreference.defaultValue()
-                        : settingsStore.streamingAudioQuality(),
-                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
-                streamingResolvedPlaybackController
-        );
-        streamingAuthCallbackController = new StreamingAuthCallbackController(streamingActionsController);
+        streamingAuthCallbackController = new StreamingAuthCallbackController(viewModel);
         streamingAuthCallbackController.handleInitialIntent(getIntent());
         routeController = new MainRouteController(viewModel);
         statePublisher = new MainStatePublisher(viewModel);
@@ -223,8 +206,7 @@ public final class MainActivity extends ComponentActivity {
         uiShellController = new MainUiShellController(this, new MainUiShellController.Listener() {
             @Override
             public void onSearchChanged(String query) {
-                routeController.setSearchQuery(query);
-                applySearch();
+                handleLibraryEvent(new LibraryEvent.Search(query));
             }
 
             @Override
@@ -252,39 +234,33 @@ public final class MainActivity extends ComponentActivity {
             }
 
             @Override
+            public void onNowPlayingEvent(NowPlayingEvent event) {
+                handleNowPlayingEvent(event);
+            }
+
+            @Override
             public void onPrevious() {
-                skipToPrevious();
+                handleNowPlayingEvent(NowPlayingEvent.Previous.INSTANCE);
             }
 
             @Override
             public void onPlayPause() {
-                togglePlayback();
+                handleNowPlayingEvent(NowPlayingEvent.PlayPause.INSTANCE);
             }
 
             @Override
             public void onNext() {
-                skipToNext();
+                handleNowPlayingEvent(NowPlayingEvent.Next.INSTANCE);
             }
 
             @Override
             public void onFavorite() {
-                Track track = playbackStore.snapshot().currentTrack;
-                if (track != null) {
-                    toggleFavorite(track);
-                }
-            }
-
-            @Override
-            public void onAddCurrentToPlaylist() {
-                Track track = playbackStore.snapshot().currentTrack;
-                if (track != null) {
-                    showAddToPlaylistDialog(track);
-                }
+                handleNowPlayingEvent(NowPlayingEvent.ToggleFavorite.INSTANCE);
             }
 
             @Override
             public void onShuffle() {
-                toggleShuffle();
+                handleNowPlayingEvent(NowPlayingEvent.ToggleShuffle.INSTANCE);
             }
 
             @Override
@@ -294,12 +270,12 @@ public final class MainActivity extends ComponentActivity {
 
             @Override
             public void onRepeat() {
-                cycleRepeat();
+                handleNowPlayingEvent(NowPlayingEvent.CycleRepeatMode.INSTANCE);
             }
 
             @Override
             public void onSeek(long positionMs) {
-                playbackActionsController.seekTo(playbackService, positionMs);
+                handleNowPlayingEvent(new NowPlayingEvent.SeekTo(positionMs));
             }
 
             @Override
@@ -314,7 +290,7 @@ public final class MainActivity extends ComponentActivity {
 
             @Override
             public void onOpenQueueFromNowPlayingOverlay() {
-                MainActivity.this.navigateToTab(TAB_QUEUE, true, true);
+                handleNowPlayingEvent(NowPlayingEvent.OpenQueue.INSTANCE);
             }
         });
         documentPickerController = new DocumentPickerController(this, new DocumentPickerController.Listener() {
@@ -351,7 +327,14 @@ public final class MainActivity extends ComponentActivity {
 
             @Override
             public void exportPlaylist(Uri exportUri, long playlistId, String playlistName) {
-                libraryActionsController.exportPlaylist(exportUri, playlistId, playlistName);
+                libraryViewModel.exportPlaylistJava(
+                        exportUri,
+                        playlistId,
+                        playlistName,
+                        exported -> setStatus(exported
+                                ? AppLanguage.text(settingsStore.languageMode(), "playlist.exported")
+                                : AppLanguage.text(settingsStore.languageMode(), "playlist.export.failed"))
+                );
             }
 
             @Override
@@ -359,7 +342,6 @@ public final class MainActivity extends ComponentActivity {
                 MainActivity.this.setStatus(status);
             }
         });
-        playbackActionsController = new PlaybackActionsController(this);
         playbackStateUpdateController = new PlaybackStateUpdateController();
         playbackStateEventController = new PlaybackStateEventController(
                 mainHandler,
@@ -379,7 +361,7 @@ public final class MainActivity extends ComponentActivity {
 
                     @Override
                     public long currentLyricsTrackId() {
-                        return lyricsController == null ? -1L : lyricsController.trackId();
+                        return lyricsViewModel == null ? -1L : lyricsViewModel.trackId();
                     }
 
                     @Override
@@ -494,20 +476,20 @@ public final class MainActivity extends ComponentActivity {
                 MainActivity.this.renderSettings();
             }
         });
-        trackListRenderController = new TrackListRenderController(this, viewModel, new TrackListRenderController.Listener() {
+        trackListRenderController = new TrackListRenderController(this, libraryViewModel, new TrackListRenderController.Listener() {
             @Override
             public void playTrackList(List<Track> tracks, int index) {
-                MainActivity.this.playTrackList(tracks, index);
+                handleLibraryEvent(new LibraryEvent.PlayTrackList(tracks, index));
             }
 
             @Override
             public void toggleFavorite(Track track) {
-                MainActivity.this.toggleFavorite(track);
+                handleLibraryEvent(new LibraryEvent.ToggleFavorite(track));
             }
 
             @Override
             public void showAddToPlaylist(Track track) {
-                MainActivity.this.showAddToPlaylistDialog(track);
+                handleLibraryEvent(new LibraryEvent.AddToPlaylist(track));
             }
 
             @Override
@@ -609,7 +591,7 @@ public final class MainActivity extends ComponentActivity {
 
             @Override
             public void toggleFavorite(Track track) {
-                MainActivity.this.toggleFavorite(track);
+                handleLibraryEvent(new LibraryEvent.ToggleFavorite(track));
             }
 
             @Override
@@ -699,7 +681,7 @@ public final class MainActivity extends ComponentActivity {
             }
         });
         streamingSearchEventController = new StreamingSearchEventController(
-                streamingActionsController,
+                viewModel,
                 new StreamingSearchEventController.Navigator() {
                     @Override
                     public void backToNetworkHome() {
@@ -760,11 +742,10 @@ public final class MainActivity extends ComponentActivity {
                 () -> settingsStore.languageMode(),
                 streamingSearchEventController
         );
-        libraryGroupsRenderController = new LibraryGroupsRenderController(this, viewModel, new LibraryGroupsRenderController.Listener() {
+        libraryGroupsRenderController = new LibraryGroupsRenderController(this, libraryViewModel, new LibraryGroupsRenderController.Listener() {
             @Override
             public void selectLibraryGroup(String key, String title) {
-                routeController.selectLibraryGroup(key, title);
-                renderSelectedTab();
+                handleLibraryEvent(new LibraryEvent.OpenGroup(key, title));
             }
 
             @Override
@@ -774,13 +755,12 @@ public final class MainActivity extends ComponentActivity {
 
             @Override
             public void closeLibraryGroup() {
-                routeController.clearLibraryGroup();
-                renderSelectedTab();
+                handleLibraryEvent(LibraryEvent.BackFromGroup.INSTANCE);
             }
 
             @Override
             public void playTrackList(List<Track> tracks, int index) {
-                MainActivity.this.playTrackList(tracks, index);
+                handleLibraryEvent(new LibraryEvent.PlayTrackList(tracks, index));
             }
 
             @Override
@@ -803,7 +783,7 @@ public final class MainActivity extends ComponentActivity {
                 MainActivity.this.addVirtualContent(view);
             }
         });
-        collectionsRenderController = new CollectionsRenderController(this, new CollectionsRenderController.Listener() {
+        collectionsRenderController = new CollectionsRenderController(this, collectionsViewModel, new CollectionsRenderController.Listener() {
             @Override
             public void showCreatePlaylist() {
                 MainActivity.this.showCreatePlaylistDialog();
@@ -831,7 +811,7 @@ public final class MainActivity extends ComponentActivity {
 
             @Override
             public void toggleFavorite(Track track) {
-                MainActivity.this.toggleFavorite(track);
+                handleLibraryEvent(new LibraryEvent.ToggleFavorite(track));
             }
 
             @Override
@@ -906,85 +886,259 @@ public final class MainActivity extends ComponentActivity {
             }
         });
         syncRouteFieldsFromViewModel();
-        libraryStore = new MainLibraryStore(repository, viewModel);
-        settingsStore = new MainSettingsStore();
-        settingsStore.load(repository);
-        streamingPlaylistSyncStore = new app.echo.next.streaming.StreamingPlaylistSyncStore(this);
-        boolean loadedOnlineLyricsEnabled = repository.loadOnlineLyricsEnabled();
-        long loadedLyricsOffsetMs = repository.loadLyricsOffsetMs();
-        libraryActionsController = new LibraryActionsController(
-                repository,
-                executors,
-                mainHandler,
-                getContentResolver(),
-                new LibraryActionsController.Listener() {
-                    @Override
-                    public void onLibraryLoaded(List<Track> tracks, Set<Long> favorites, String status) {
-                        replaceLibrary(tracks, favorites, status);
-                    }
-
-                    @Override
-                    public void onLibraryLoadFailed(String status) {
-                        setStatus(status);
-                        renderSelectedTab();
-                    }
-
-                    @Override
-                    public void onStreamM3uImported(List<Track> tracks, Set<Long> favorites, String status) {
-                        replaceLibrary(tracks, favorites, status);
-                        navigateToNetworkTabPage(NETWORK_STREAMING);
-                    }
-
-                    @Override
-                    public void onPlaylistImported(long playlistId, List<Track> tracks, Set<Long> favorites, String status) {
-                        if (playlistId >= 0L) {
-                            routeController.setSelectedPlaylistId(playlistId);
-                        }
-                        replaceLibrary(tracks, favorites, status);
-                    }
-
-                    @Override
-                    public void onPlaylistExported(boolean exported) {
-                        setStatus(exported
-                                ? AppLanguage.text(settingsStore.languageMode(), "playlist.exported")
-                                : AppLanguage.text(settingsStore.languageMode(), "playlist.export.failed"));
-                    }
-
-                    @Override
-                    public void onCollectionsLoaded(LibraryActionsController.CollectionsSnapshot snapshot) {
-                        routeController.setSelectedPlaylistId(snapshot.selectedPlaylistId);
-                        libraryStore.applyCollections(snapshot);
-                        renderNowBar();
-                        if (TAB_COLLECTIONS.equals(selectedTab())
-                                || (TAB_LIBRARY.equals(selectedTab()) && LIBRARY_PLAYLISTS.equals(libraryMode()))
-                                || TAB_NETWORK.equals(selectedTab())
-                                || TAB_SETTINGS.equals(selectedTab())) {
-                            renderSelectedTab();
-                        }
-                    }
-
-                    @Override
-                    public void onPlayHistoryCleared(int removed) {
-                        libraryStore.clearPlayHistory();
-                        setStatus(AppLanguage.text(settingsStore.languageMode(), "cleared.play.history.prefix") + removed);
-                        loadCollections();
-                    }
-
-                    @Override
-                    public void onFavoriteSaved() {
-                        loadCollections();
-                    }
-
-                    @Override
-                    public void onAudioSpecsParsed(int updatedCount, List<Track> tracks, Set<Long> favorites) {
-                        applyBackgroundAudioSpecs(tracks, favorites, updatedCount);
-                    }
-                }
+        libraryStore = new MainLibraryStore(
+                new LibrarySearchUseCase(new MusicLibrarySearchOperations(repository)),
+                viewModel
         );
-        settingsActionsController = new SettingsActionsController(
-                repository,
-                executors,
-                new SettingsActionsController.Listener() {
+        settingsStore = new MainSettingsStore();
+        settingsStore.load(
+                new LoadSettingsPreferencesUseCase(
+                        new MusicLibrarySettingsPreferenceLoadOperations(repository)
+                ).execute()
+        );
+        streamingPlaylistSyncStore = new app.echo.next.streaming.StreamingPlaylistSyncStore(this);
+        importStreamingPlaylistUseCase = new ImportStreamingPlaylistUseCase(
+                new MusicLibraryStreamingPlaylistImportOperations(repository, streamingPlaylistSyncStore)
+        );
+        viewModel.bindStreamingLocalPlaylistImporter(new StreamingLocalPlaylistImporter() {
+            @Override
+            public app.echo.next.model.PlaylistImportResult importStreamingPlaylist(
+                    String playlistName,
+                    app.echo.next.streaming.StreamingProviderName provider,
+                    String providerPlaylistId,
+                    List<app.echo.next.streaming.StreamingTrack> streamingTracks,
+                    boolean linkWhenProviderPlaylistIdBlank
+            ) {
+                return importStreamingPlaylistUseCase.execute(
+                        playlistName,
+                        provider,
+                        providerPlaylistId,
+                        streamingTracks,
+                        linkWhenProviderPlaylistIdBlank
+                );
+            }
+        });
+        syncStreamingPlaylistUseCase = new SyncStreamingPlaylistUseCase(
+                new MusicLibraryStreamingPlaylistSyncOperations(repository, streamingPlaylistSyncStore)
+        );
+        viewModel.bindStreamingLocalPlaylistSyncer(new StreamingLocalPlaylistSyncer() {
+            @Override
+            public StreamingLocalPlaylistSyncResult syncStreamingPlaylist(
+                    app.echo.next.streaming.StreamingPlaylistSyncStore.LinkedPlaylist link,
+                    List<app.echo.next.streaming.StreamingTrack> streamingTracks
+            ) {
+                SyncStreamingPlaylistResult result = syncStreamingPlaylistUseCase.execute(link, streamingTracks);
+                return new StreamingLocalPlaylistSyncResult(
+                        result.getPlaylistId(),
+                        result.getSyncedCount(),
+                        result.getEmpty()
+                );
+            }
+        });
+        ensureStreamingLoginPlaylistUseCase = new EnsureStreamingLoginPlaylistUseCase(
+                new MusicLibraryStreamingLoginPlaylistOperations(repository, streamingPlaylistSyncStore)
+        );
+        viewModel.bindStreamingLoginPlaylistEnsurer(new StreamingLoginPlaylistEnsurer() {
+            @Override
+            public StreamingLoginPlaylistResult ensureStreamingLoginPlaylist(
+                    String playlistName,
+                    app.echo.next.streaming.StreamingProviderName provider
+            ) {
+                EnsureStreamingLoginPlaylistResult result =
+                        ensureStreamingLoginPlaylistUseCase.execute(playlistName, provider);
+                return new StreamingLoginPlaylistResult(
+                        result.getPlaylistId(),
+                        result.getPlaylistName()
+                );
+            }
+        });
+        getStreamingPlaylistLinkUseCase = new GetStreamingPlaylistLinkUseCase(
+                new StreamingPlaylistSyncStoreLinkOperations(streamingPlaylistSyncStore)
+        );
+        streamingTrackMatchUseCase = new StreamingTrackMatchUseCase(
+                new MusicLibraryStreamingTrackMatchOperations(repository)
+        );
+        viewModel.bindStreamingTrackMatchStore(new StreamingTrackMatchStore() {
+            @Override
+            public String directProviderTrackId(
+                    Track track,
+                    app.echo.next.streaming.StreamingProviderName provider
+            ) {
+                return streamingTrackMatchUseCase.directProviderTrackId(track, provider);
+            }
+
+            @Override
+            public String providerTrackIdFor(
+                    Track track,
+                    app.echo.next.streaming.StreamingProviderName provider
+            ) {
+                return streamingTrackMatchUseCase.providerTrackIdFor(track, provider);
+            }
+
+            @Override
+            public void saveProviderTrackId(
+                    Track track,
+                    app.echo.next.streaming.StreamingProviderName provider,
+                    String providerTrackId
+            ) {
+                streamingTrackMatchUseCase.saveProviderTrackId(track, provider, providerTrackId);
+            }
+        });
+        toggleFavoriteUseCase = new ToggleFavoriteUseCase(
+                new MusicLibraryFavoriteOperations(repository)
+        );
+        libraryViewModel.bindFavoriteWriter(new LibraryFavoriteWriter() {
+            @Override
+            public boolean writeFavorite(Track track, boolean favorite) {
+                return toggleFavoriteUseCase.execute(track, favorite);
+            }
+        });
+
+        loadPlaylistTracksUseCase = new LoadPlaylistTracksUseCase(
+                new MusicLibraryPlaylistTrackOperations(repository)
+        );
+        libraryViewModel.bindPlaylistTrackLoader(new LibraryPlaylistTrackLoader() {
+            @Override
+            public List<Track> loadPlaylistTracks(long playlistId) {
+                return loadPlaylistTracksUseCase.execute(playlistId);
+            }
+        });
+        loadLyricsSettingsUseCase = new LoadLyricsSettingsUseCase(
+                new MusicLibraryLyricsSettingsOperations(repository)
+        );
+        LoadedLyricsSettings loadedLyricsSettings = loadLyricsSettingsUseCase.execute();
+        LibraryCollectionOperations libraryCollectionOperations =
+                new MusicLibraryCollectionOperations(repository);
+        LibraryImportOperations libraryImportOperations =
+                new MusicLibraryImportOperations(repository);        libraryViewModel.bindCollectionGateway(new LibraryCollectionGateway() {
+            @Override
+            public LibraryCollectionsResult loadCollections(long selectedPlaylistId) {
+                LibraryCollectionsSnapshot loaded = new LoadLibraryCollectionsUseCase(libraryCollectionOperations)
+                        .execute(selectedPlaylistId);
+                return new LibraryCollectionsResult(
+                        loaded.selectedPlaylistId,
+                        loaded.favoriteIds,
+                        loaded.favoriteTracks,
+                        loaded.recentRecords,
+                        loaded.mostPlayedRecords,
+                        loaded.playlists,
+                        loaded.remoteSources,
+                        loaded.selectedPlaylistTracks
+                );
+            }
+
+            @Override
+            public int clearPlayHistory() {
+                return new ClearPlayHistoryUseCase(libraryCollectionOperations).execute();
+            }
+
+            @Override
+            public void setFavorite(long trackId, boolean favorite) {
+                new SetLibraryFavoriteUseCase(libraryCollectionOperations).execute(trackId, favorite);
+            }
+        });
+        libraryViewModel.bindImportGateway(new LibraryImportGateway() {
+            private final LoadLibraryUseCase loadLibraryUseCase = new LoadLibraryUseCase(libraryImportOperations);
+            private final ImportAudioUrisUseCase importAudioUrisUseCase = new ImportAudioUrisUseCase(libraryImportOperations);
+            private final ImportAudioTreeUseCase importAudioTreeUseCase = new ImportAudioTreeUseCase(libraryImportOperations);
+            private final ParseMissingAudioSpecsUseCase parseMissingAudioSpecsUseCase = new ParseMissingAudioSpecsUseCase(libraryImportOperations);
+
+            @Override
+            public LibraryLoadResultUi loadCached() {
+                LibraryLoadResult result = loadLibraryUseCase.cached();
+                return new LibraryLoadResultUi(result.getTracks(), result.getFavorites(), "Library updated");
+            }
+
+            @Override
+            public LibraryLoadResultUi refresh() {
+                LibraryLoadResult result = loadLibraryUseCase.refresh();
+                return new LibraryLoadResultUi(result.getTracks(), result.getFavorites(), "Library updated");
+            }
+
+            @Override
+            public LibraryLoadResultUi importAudioUris(List<Uri> uris) {
+                LibraryLoadResult result = importAudioUrisUseCase.execute(uris);
+                return new LibraryLoadResultUi(result.getTracks(), result.getFavorites(), "Library updated");
+            }
+
+            @Override
+            public LibraryLoadResultUi importAudioTree(Uri treeUri) {
+                LibraryLoadResult result = importAudioTreeUseCase.execute(treeUri);
+                return new LibraryLoadResultUi(result.getTracks(), result.getFavorites(), "Library updated");
+            }
+
+            @Override
+            public LibraryAudioSpecsResultUi parseMissingAudioSpecs() {
+                AudioSpecsParseResult result = parseMissingAudioSpecsUseCase.execute();
+                return new LibraryAudioSpecsResultUi(
+                        result.getUpdatedCount(),
+                        result.getTracks(),
+                        result.getFavorites()
+                );
+            }
+        });
+        libraryViewModel.bindDocumentGateway(new LibraryDocumentGateway() {
+            private final LoadLibraryUseCase loadLibraryUseCase = new LoadLibraryUseCase(libraryImportOperations);
+            private final ImportStreamM3uTextUseCase importStreamM3uTextUseCase = new ImportStreamM3uTextUseCase(libraryImportOperations);
+            private final ImportPlaylistM3uTextUseCase importPlaylistM3uTextUseCase = new ImportPlaylistM3uTextUseCase(libraryImportOperations);
+            private final LoadPlaylistExportTracksUseCase loadPlaylistExportTracksUseCase = new LoadPlaylistExportTracksUseCase(libraryImportOperations);
+
+            @Override
+            public LibraryLoadResultUi importStreamM3u(Uri playlistUri) {
+                M3uDocumentHelper.ReadResult playlistRead = M3uDocumentHelper.readText(getContentResolver(), playlistUri);
+                StreamM3uImportResult imported = playlistRead.success
+                        ? importStreamM3uTextUseCase.execute(playlistRead.text)
+                        : null;
+                LibraryLoadResult fallback = imported == null ? loadLibraryUseCase.cached() : null;
+                String status = M3uDocumentHelper.localImportStatus(
+                        playlistRead,
+                        imported == null ? null : imported.getImportResult()
+                );
+                return new LibraryLoadResultUi(
+                        imported == null ? fallback.getTracks() : imported.getTracks(),
+                        imported == null ? fallback.getFavorites() : imported.getFavorites(),
+                        status
+                );
+            }
+
+            @Override
+            public LibraryPlaylistImportResultUi importPlaylistM3u(Uri playlistUri) {
+                M3uDocumentHelper.ReadResult playlistRead = M3uDocumentHelper.readText(getContentResolver(), playlistUri);
+                PlaylistM3uImportResult imported = playlistRead.success
+                        ? importPlaylistM3uTextUseCase.execute(
+                                playlistRead.text,
+                                M3uDocumentHelper.playlistFallbackName(playlistUri)
+                        )
+                        : null;
+                LibraryLoadResult fallback = imported == null ? loadLibraryUseCase.cached() : null;
+                PlaylistImportResult importResult = imported == null ? null : imported.getImportResult();
+                long playlistId = importResult != null && importResult.playlistId >= 0L ? importResult.playlistId : -1L;
+                String status = M3uDocumentHelper.playlistImportStatus(playlistRead, importResult);
+                return new LibraryPlaylistImportResultUi(
+                        playlistId,
+                        imported == null ? fallback.getTracks() : imported.getTracks(),
+                        imported == null ? fallback.getFavorites() : imported.getFavorites(),
+                        status
+                );
+            }
+
+            @Override
+            public boolean exportPlaylist(Uri exportUri, long playlistId, String playlistName) {
+                List<Track> tracks = loadPlaylistExportTracksUseCase.execute(playlistId);
+                return M3uDocumentHelper.writeText(
+                        getContentResolver(),
+                        exportUri,
+                        M3uDocumentHelper.buildPlaylistText(playlistName, tracks)
+                );
+            }
+        });
+        settingsViewModel.bindPreferenceGateway(update ->
+                new ApplySettingsPreferenceUseCase(
+                        new MusicLibrarySettingsPreferenceOperations(repository)
+                ).execute(update)
+        );
+        settingsViewModel.bindAppliedListener(
+                new SettingsAppliedListener() {
                     @Override
                     public void onThemeModeApplied(String mode) {
                         settingsStore.setThemeMode(mode);
@@ -1051,8 +1205,8 @@ public final class MainActivity extends ComponentActivity {
 
                     @Override
                     public void onOnlineLyricsEnabledApplied(boolean enabled) {
-                        if (lyricsController != null) {
-                            lyricsController.setOnlineEnabled(enabled);
+                        if (lyricsViewModel != null) {
+                            lyricsViewModel.setOnlineEnabled(enabled);
                         }
                         setStatus(enabled
                                 ? AppLanguage.text(settingsStore.languageMode(), "online.lyrics.enabled")
@@ -1075,8 +1229,8 @@ public final class MainActivity extends ComponentActivity {
 
                     @Override
                     public void onLyricsOffsetApplied(long offsetMs) {
-                        if (lyricsController != null) {
-                            lyricsController.setOffsetMs(offsetMs);
+                        if (lyricsViewModel != null) {
+                            lyricsViewModel.setOffsetMs(offsetMs);
                         }
                         setStatus(AppLanguage.text(settingsStore.languageMode(), "lyrics.offset.applied")
                                 + SettingsPageRenderController.lyricsOffsetLabel(offsetMs));
@@ -1087,86 +1241,74 @@ public final class MainActivity extends ComponentActivity {
                     }
                 }
         );
-        playlistActionsController = new PlaylistActionsController(
-                repository,
-                executors,
-                mainHandler,
-                new PlaylistActionsController.Listener() {
-                    @Override
-                    public void onDefaultPlaylistTrackAdded(long playlistId, boolean added) {
-                        setStatus(added
-                                ? AppLanguage.text(settingsStore.languageMode(), "added.to.playlist")
-                                : AppLanguage.text(settingsStore.languageMode(), "could.not.add.to.playlist"));
-                        routeController.setSelectedPlaylistId(playlistId);
-                        loadCollections();
-                    }
+        PlaylistActionOperations playlistActionOperations =
+                new MusicLibraryPlaylistActionOperations(repository);
+        libraryViewModel.bindPlaylistActionGateway(new LibraryPlaylistActionGateway() {
+            private final AddToDefaultPlaylistUseCase addToDefaultPlaylistUseCase = new AddToDefaultPlaylistUseCase(playlistActionOperations);
+            private final CreatePlaylistUseCase createPlaylistUseCase = new CreatePlaylistUseCase(playlistActionOperations);
+            private final RenamePlaylistUseCase renamePlaylistUseCase = new RenamePlaylistUseCase(playlistActionOperations);
+            private final DeletePlaylistUseCase deletePlaylistUseCase = new DeletePlaylistUseCase(playlistActionOperations);
+            private final AddTrackToPlaylistUseCase addTrackToPlaylistUseCase = new AddTrackToPlaylistUseCase(playlistActionOperations);
+            private final RemoveTrackFromPlaylistUseCase removeTrackFromPlaylistUseCase = new RemoveTrackFromPlaylistUseCase(playlistActionOperations);
+            private final MovePlaylistTrackUseCase movePlaylistTrackUseCase = new MovePlaylistTrackUseCase(playlistActionOperations);
 
-                    @Override
-                    public void onPlaylistCreated(long playlistId) {
-                        if (playlistId >= 0L) {
-                            routeController.setSelectedPlaylistId(playlistId);
-                        }
-                        setStatus(AppLanguage.text(settingsStore.languageMode(), "playlist.created"));
-                        loadCollections();
-                    }
+            @Override
+            public LibraryDefaultPlaylistAddResultUi addToDefaultPlaylist(Track track) {
+                DefaultPlaylistAddResult result = addToDefaultPlaylistUseCase.execute(track);
+                return result == null ? null : new LibraryDefaultPlaylistAddResultUi(result.playlistId, result.added);
+            }
 
-                    @Override
-                    public void onPlaylistRenamed(long playlistId, boolean renamed) {
-                        if (renamed) {
-                            routeController.setSelectedPlaylistId(playlistId);
-                        }
-                        setStatus(renamed
-                                ? AppLanguage.text(settingsStore.languageMode(), "playlist.renamed")
-                                : AppLanguage.text(settingsStore.languageMode(), "playlist.rename.failed"));
-                        loadCollections();
-                    }
+            @Override
+            public long createPlaylist(String name) {
+                return createPlaylistUseCase.execute(name);
+            }
 
-                    @Override
-                    public void onPlaylistDeleted(long playlistId, String name, boolean deleted) {
-                        if (deleted && selectedPlaylistId() == playlistId) {
-                            routeController.setSelectedPlaylistId(-1L);
-                        }
-                        setStatus(deleted
-                                ? AppLanguage.text(settingsStore.languageMode(), "deleted.playlist.prefix") + name
-                                : AppLanguage.text(settingsStore.languageMode(), "could.not.delete.playlist"));
-                        loadCollections();
-                    }
+            @Override
+            public boolean renamePlaylist(long playlistId, String name) {
+                return renamePlaylistUseCase.execute(playlistId, name);
+            }
 
-                    @Override
-                    public void onSelectedPlaylistTrackRemoved(long playlistId, Track track) {
-                        routeController.setSelectedPlaylistId(playlistId);
-                        setStatus(AppLanguage.text(settingsStore.languageMode(), "removed.from.playlist.prefix") + track.title);
-                        loadCollections();
-                    }
+            @Override
+            public boolean deletePlaylist(long playlistId) {
+                return deletePlaylistUseCase.execute(playlistId);
+            }
 
-                    @Override
-                    public void onSelectedPlaylistTrackMoved(long playlistId, Track track, int direction, boolean moved) {
-                        routeController.setSelectedPlaylistId(playlistId);
-                        if (moved) {
-                            setStatus((direction < 0
-                                    ? AppLanguage.text(settingsStore.languageMode(), "moved.up.prefix")
-                                    : AppLanguage.text(settingsStore.languageMode(), "moved.down.prefix")) + track.title);
-                        } else {
-                            setStatus(AppLanguage.text(settingsStore.languageMode(), "move.failed"));
-                        }
-                        loadCollections();
-                    }
+            @Override
+            public boolean removeTrackFromPlaylist(long playlistId, Track track) {
+                return removeTrackFromPlaylistUseCase.execute(playlistId, track);
+            }
 
-                    @Override
-                    public void onTrackAddedToPlaylist(long playlistId, boolean added) {
-                        routeController.setSelectedPlaylistId(playlistId);
-                        setStatus(added
-                                ? AppLanguage.text(settingsStore.languageMode(), "added.to.playlist")
-                                : AppLanguage.text(settingsStore.languageMode(), "could.not.add.to.playlist"));
-                        loadCollections();
-                    }
-                }
+            @Override
+            public boolean movePlaylistTrack(long playlistId, Track track, int trackIndex, int direction) {
+                return movePlaylistTrackUseCase.execute(playlistId, track, trackIndex, direction);
+            }
+
+            @Override
+            public boolean addTrackToPlaylist(long playlistId, long trackId) {
+                return addTrackToPlaylistUseCase.execute(playlistId, trackId);
+            }
+        });
+        WebDavSourceOperations webDavSourceOperations =
+                new MusicLibraryWebDavSourceOperations(repository);
+        NetworkLibraryOperations networkLibraryOperations =
+                new MusicLibraryNetworkLibraryOperations(repository);
+        networkActionsViewModel = new ViewModelProvider(this).get(NetworkActionsViewModel.class);
+        networkActionsViewModel.bindUseCases(
+                new NetworkActionUseCases(
+                        new TestWebDavSourceUseCase(webDavSourceOperations),
+                        new SyncWebDavSourceUseCase(webDavSourceOperations),
+                        new SyncAllWebDavSourcesUseCase(webDavSourceOperations),
+                        new AddStreamUrlUseCase(networkLibraryOperations),
+                        new UpdateStreamUrlUseCase(networkLibraryOperations),
+                        new ImportStreamPlaylistUseCase(networkLibraryOperations),
+                        new DeleteAllStreamsUseCase(networkLibraryOperations),
+                        new DeleteNetworkTrackUseCase(networkLibraryOperations),
+                        new DeleteRemoteSourceUseCase(networkLibraryOperations),
+                        new SaveWebDavSourceUseCase(networkLibraryOperations)
+                )
         );
-        networkActionsController = new NetworkActionsController(
-                repository,
-                executors,
-                mainHandler,
-                new NetworkActionsController.Listener() {
+        networkActionsViewModel.bindListener(
+                new NetworkActionsViewModel.Listener() {
                     @Override
                     public void onStreamAdded(List<Track> cached, Set<Long> favorites, String status) {
                         replaceLibrary(cached, favorites, status);
@@ -1237,7 +1379,7 @@ public final class MainActivity extends ComponentActivity {
                 }
         );
         networkRequestController = new NetworkRequestController(
-                networkActionsController,
+                networkActionsViewModel,
                 new NetworkRequestController.Labels() {
                     @Override
                     public String text(String key) {
@@ -1251,107 +1393,26 @@ public final class MainActivity extends ComponentActivity {
                     }
                 }
         );
-        lyricsController = new LyricsController(
-                executors,
-                mainHandler,
-                loadedOnlineLyricsEnabled,
-                loadedLyricsOffsetMs,
-                new LyricsController.LanguageProvider() {
-                    @Override
-                    public String languageMode() {
-                        return settingsStore.languageMode();
-                    }
-                },
-                new LyricsController.Listener() {
-                    @Override
-                    public void onLyricsChanged() {
-                        onLyricsStateChanged();
-                    }
-                }
+        lyricsViewModel.configure(
+                new LoadTrackLyricsUseCaseLyricsLoader(
+                        new LoadTrackLyricsUseCase(new LyricsRepositoryLoadOperations())
+                ),
+                loadedLyricsSettings.onlineLyricsEnabled,
+                loadedLyricsSettings.lyricsOffsetMs
         );
+        lyricsViewModel.bindListener(new LyricsStateListener() {
+            @Override
+            public void onLyricsStateChanged() {
+                onLyricsStateChanged();
+            }
+        });
         SettingsPageEventController settingsPageEventController = new SettingsPageEventController(
-                page -> MainActivity.this.navigateSettingsPage(page),
-                () -> MainActivity.this.navigateToNetworkTabPage(NETWORK_HOME),
-                () -> MainActivity.this.loadLibrary(false),
-                new SettingsPageEventController.AudioPicker() {
-                    @Override
-                    public void openAudioFilePicker() {
-                        MainActivity.this.openAudioFilePicker();
-                    }
-
-                    @Override
-                    public void openAudioFolderPicker() {
-                        MainActivity.this.openAudioFolderPicker();
-                    }
-                },
-                new SettingsPageEventController.LyricsActions() {
-                    @Override
-                    public void setOnlineLyricsEnabled(boolean enabled) {
-                        MainActivity.this.setOnlineLyricsEnabled(enabled);
-                    }
-
-                    @Override
-                    public void reloadCurrentLyrics() {
-                        MainActivity.this.reloadCurrentLyrics();
-                    }
-
-                    @Override
-                    public void applyLyricsOffset(long offsetMs) {
-                        MainActivity.this.applyLyricsOffset(offsetMs);
-                    }
-                },
-                new SettingsPageEventController.PlaybackTimer() {
-                    @Override
-                    public void startSleepTimer(int minutes) {
-                        MainActivity.this.startSleepTimer(minutes);
-                    }
-
-                    @Override
-                    public void cancelSleepTimer() {
-                        MainActivity.this.cancelSleepTimer();
-                    }
-                },
-                new SettingsPageEventController.SettingsActions() {
-                    @Override
-                    public void applyPlaybackSpeed(float speed) {
-                        MainActivity.this.applyPlaybackSpeed(speed);
-                    }
-
-                    @Override
-                    public void applyAppVolume(float volume) {
-                        MainActivity.this.applyAppVolume(volume);
-                    }
-
-                    @Override
-                    public void setConcurrentPlaybackEnabled(boolean enabled) {
-                        MainActivity.this.setConcurrentPlaybackEnabled(enabled);
-                    }
-
-                    @Override
-                    public void applyThemeMode(String mode) {
-                        MainActivity.this.applyThemeMode(mode);
-                    }
-
-                    @Override
-                    public void applyAccentMode(String accent) {
-                        MainActivity.this.applyAccentMode(accent);
-                    }
-
-                    @Override
-                    public void applyLanguageMode(String languageMode) {
-                        MainActivity.this.applyLanguageMode(languageMode);
-                    }
-
-                    @Override
-                    public void applyStreamingAudioQuality(String quality) {
-                        MainActivity.this.applyStreamingAudioQuality(quality);
-                    }
-                },
-                endpoint -> MainActivity.this.applyStreamingGatewayEndpoint(endpoint),
+                settingsViewModel,
                 view -> MainActivity.this.addVirtualContent(view)
         );
         SettingsPageRenderController settingsPageRenderController = new SettingsPageRenderController(
                 this,
+                settingsViewModel,
                 settingsPageEventController
         );
         settingsRenderCoordinator = new SettingsRenderCoordinator(
@@ -1361,7 +1422,7 @@ public final class MainActivity extends ComponentActivity {
                 permissionController,
                 playbackServiceConnectionController,
                 playbackStore,
-                lyricsController,
+                lyricsViewModel,
                 streamingGatewaySettingsStore
         );
         NetworkDialogEventController networkDialogEventController = new NetworkDialogEventController(networkRequestController);
@@ -1509,7 +1570,7 @@ public final class MainActivity extends ComponentActivity {
                 () -> MainActivity.this.renderAndPersistSelectedTab(),
                 view -> MainActivity.this.addVirtualContent(view)
         );
-        networkSourcesRenderController = new NetworkSourcesRenderController(this, viewModel, networkSourcesEventController);
+        networkSourcesRenderController = new NetworkSourcesRenderController(this, networkSourcesViewModel, networkSourcesEventController);
         networkRenderCoordinator = new NetworkRenderCoordinator(
                 libraryStore,
                 networkMenuRenderController,
@@ -1529,7 +1590,7 @@ public final class MainActivity extends ComponentActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Manual sync only — no automatic periodic sync
+        // Manual sync only; no automatic periodic sync.
     }
 
     @Override
@@ -1676,7 +1737,15 @@ public final class MainActivity extends ComponentActivity {
                 settingsStore.languageMode(),
                 canScan ? "loading.library" : "audio.permission.required"
         ));
-        libraryActionsController.loadLibrary(allowCachedFirst, canScan);
+        libraryViewModel.loadLibraryJava(
+                allowCachedFirst,
+                canScan,
+                result -> replaceLibrary(result.getTracks(), result.getFavorites(), result.getStatus()),
+                status -> {
+                    setStatus(status);
+                    renderSelectedTab();
+                }
+        );
     }
 
     private void openAudioFilePicker() {
@@ -1701,22 +1770,42 @@ public final class MainActivity extends ComponentActivity {
             return;
         }
         setStatus(AppLanguage.text(settingsStore.languageMode(), "importing.audio.files"));
-        libraryActionsController.importAudioUris(uris);
+        libraryViewModel.importAudioUrisJava(
+                uris,
+                result -> replaceLibrary(result.getTracks(), result.getFavorites(), result.getStatus())
+        );
     }
 
     private void importSelectedAudioFolder(final Uri treeUri) {
         setStatus(AppLanguage.text(settingsStore.languageMode(), "importing.audio.folder"));
-        libraryActionsController.importAudioTree(treeUri);
+        libraryViewModel.importAudioTreeJava(
+                treeUri,
+                result -> replaceLibrary(result.getTracks(), result.getFavorites(), result.getStatus())
+        );
     }
 
     private void importSelectedM3uFile(final Uri playlistUri) {
         setStatus(AppLanguage.text(settingsStore.languageMode(), "importing.m3u.playlist"));
-        libraryActionsController.importStreamM3u(playlistUri);
+        libraryViewModel.importStreamM3uJava(
+                playlistUri,
+                result -> {
+                    replaceLibrary(result.getTracks(), result.getFavorites(), result.getStatus());
+                    navigateToNetworkTabPage(NETWORK_STREAMING);
+                }
+        );
     }
 
     private void importSelectedPlaylistM3uFile(final Uri playlistUri) {
         setStatus(AppLanguage.text(settingsStore.languageMode(), "import.playlist.m3u"));
-        libraryActionsController.importPlaylistM3u(playlistUri);
+        libraryViewModel.importPlaylistM3uJava(
+                playlistUri,
+                result -> {
+                    if (result.getPlaylistId() >= 0L) {
+                        routeController.setSelectedPlaylistId(result.getPlaylistId());
+                    }
+                    replaceLibrary(result.getTracks(), result.getFavorites(), result.getStatus());
+                }
+        );
     }
 
     private void replaceLibrary(List<Track> tracks, Set<Long> favorites, String status) {
@@ -1724,9 +1813,11 @@ public final class MainActivity extends ComponentActivity {
         renderAndPersistSelectedTab();
         setStatus(status);
         loadCollections();
-        if (libraryActionsController != null) {
-            libraryActionsController.parseMissingAudioSpecs();
-        }
+        libraryViewModel.parseMissingAudioSpecsJava(result -> applyBackgroundAudioSpecs(
+                result.getTracks(),
+                result.getFavorites(),
+                result.getUpdatedCount()
+        ));
     }
 
     private void applyBackgroundAudioSpecs(List<Track> tracks, Set<Long> favorites, int updatedCount) {
@@ -1739,38 +1830,39 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void loadCollections() {
-        libraryActionsController.loadCollections(selectedPlaylistId());
+        libraryViewModel.loadCollectionsJava(selectedPlaylistId(), result -> {
+            routeController.setSelectedPlaylistId(result.getSelectedPlaylistId());
+            libraryStore.applyCollections(result);
+            renderNowBar();
+            if (TAB_COLLECTIONS.equals(selectedTab())
+                    || (TAB_LIBRARY.equals(selectedTab()) && LIBRARY_PLAYLISTS.equals(libraryMode()))
+                    || TAB_NETWORK.equals(selectedTab())
+                    || TAB_SETTINGS.equals(selectedTab())) {
+                renderSelectedTab();
+            }
+        });
     }
 
     private void loadLyrics(final Track track) {
-        if (lyricsController != null) {
-            lyricsController.load(track, neteaseProviderTrackIdForLyrics(track));
+        if (lyricsViewModel != null) {
+            lyricsViewModel.load(track, neteaseProviderTrackIdForLyrics(track));
         }
     }
 
     private void ensureLyricsLoaded(final Track track) {
-        if (lyricsController != null && track != null && lyricsController.trackId() != track.id) {
-            lyricsController.load(track, neteaseProviderTrackIdForLyrics(track));
+        if (lyricsViewModel != null && track != null && lyricsViewModel.trackId() != track.id) {
+            lyricsViewModel.load(track, neteaseProviderTrackIdForLyrics(track));
         }
     }
 
+    private LyricsState lyricsState() {
+        return lyricsViewModel == null ? new LyricsState() : lyricsViewModel.stateSnapshot();
+    }
     private String neteaseProviderTrackIdForLyrics(Track track) {
-        if (track == null || repository == null) {
-            return "";
-        }
-        app.echo.next.streaming.StreamingProviderName provider =
-                app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.providerName(track.dataPath);
-        if (provider == app.echo.next.streaming.StreamingProviderName.NETEASE) {
-            String directTrackId = app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.providerTrackId(track.dataPath);
-            if (directTrackId != null && !directTrackId.trim().isEmpty()) {
-                return directTrackId.trim();
-            }
-        }
-        String savedTrackId = repository.loadStreamingTrackMatch(
+        return viewModel.streamingProviderTrackIdFor(
                 track,
-                app.echo.next.streaming.StreamingProviderName.NETEASE.getWireName()
+                app.echo.next.streaming.StreamingProviderName.NETEASE
         );
-        return savedTrackId == null ? "" : savedTrackId.trim();
     }
 
     private void onLyricsStateChanged() {
@@ -1785,6 +1877,25 @@ public final class MainActivity extends ComponentActivity {
     private void applySearch() {
         libraryStore.applySearch(searchQuery());
         renderAndPersistSelectedTab();
+    }
+
+    private void publishLibraryState() {
+        if (libraryViewModel == null) {
+            return;
+        }
+        libraryViewModel.updateState(
+                routeController == null ? null : routeController.current(),
+                viewModel == null ? null : viewModel.getLibrary().getValue()
+        );
+    }
+
+    private void handleLibraryEvent(LibraryEvent event) {
+        if (libraryViewModel == null || event == null) {
+            return;
+        }
+        publishLibraryState();
+        libraryViewModel.onEvent(event);
+        publishLibraryState();
     }
 
     private void renderAndPersistSelectedTab() {
@@ -1999,6 +2110,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void renderLibrary() {
+        publishLibraryState();
         if (!permissionController.hasAudioPermission()) {
             ArrayList<StateScreenAction> actions = new ArrayList<>();
             actions.add(new StateScreenAction(AppLanguage.text(settingsStore.languageMode(), "grant.access"), new Runnable() {
@@ -2152,12 +2264,7 @@ public final class MainActivity extends ComponentActivity {
         modes.add(new TrackListModeAction(label, mode, mode.equals(libraryMode()), new Runnable() {
             @Override
             public void run() {
-                routeController.setLibraryMode(mode);
-                routeController.clearLibraryGroup();
-                if (!LIBRARY_PLAYLISTS.equals(mode)) {
-                    routeController.setSelectedPlaylistId(-1L);
-                }
-                renderSelectedTab();
+                handleLibraryEvent(new LibraryEvent.ChangeGroupMode(mode));
             }
         }));
     }
@@ -2181,15 +2288,13 @@ public final class MainActivity extends ComponentActivity {
                     new Runnable() {
                         @Override
                         public void run() {
-                            routeController.selectLibraryGroup("playlist:" + playlist.id, playlist.name);
-                            routeController.setSelectedPlaylistId(playlist.id);
-                            loadCollections();
+                            handleLibraryEvent(new LibraryEvent.OpenPlaylist(playlist.id, playlist.name));
                         }
                     },
                     new Runnable() {
                         @Override
                         public void run() {
-                            playLibraryPlaylist(playlist.id);
+                            handleLibraryEvent(new LibraryEvent.PlayPlaylist(playlist.id));
                         }
                     },
                     playlist.trackCount > 0
@@ -2214,16 +2319,14 @@ public final class MainActivity extends ComponentActivity {
         headerActions.add(new TrackListHeaderAction(AppLanguage.text(languageMode, "back.to.playlists"), new Runnable() {
             @Override
             public void run() {
-                routeController.clearLibraryGroup();
-                routeController.setSelectedPlaylistId(-1L);
-                renderSelectedTab();
+                handleLibraryEvent(LibraryEvent.BackFromGroup.INSTANCE);
             }
         }));
         if (!tracks.isEmpty()) {
             headerActions.add(new TrackListHeaderAction(AppLanguage.text(languageMode, "play.playlist"), new Runnable() {
                 @Override
                 public void run() {
-                    playTrackList(tracks, 0);
+                    handleLibraryEvent(new LibraryEvent.PlayTrackList(tracks, 0));
                 }
             }));
         }
@@ -2238,25 +2341,6 @@ public final class MainActivity extends ComponentActivity {
                 AppLanguage.text(languageMode, "no.tracks.in.playlist"),
                 libraryModeActions()
         );
-    }
-
-    private void playLibraryPlaylist(final long playlistId) {
-        executors.io(new Runnable() {
-            @Override
-            public void run() {
-                final List<Track> tracks = repository.loadPlaylistTracks(playlistId);
-                mainHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (!tracks.isEmpty()) {
-                            playTrackList(tracks, 0);
-                        } else {
-                            setStatus(AppLanguage.text(settingsStore.languageMode(), "no.tracks.in.playlist"));
-                        }
-                    }
-                });
-            }
-        });
     }
 
     private void renderLibraryGroups() {
@@ -2289,7 +2373,11 @@ public final class MainActivity extends ComponentActivity {
 
     private void clearPlayHistory() {
         setStatus(AppLanguage.text(settingsStore.languageMode(), "clearing.play.history"));
-        libraryActionsController.clearPlayHistory();
+        libraryViewModel.clearPlayHistoryJava(removed -> {
+            libraryStore.clearPlayHistory();
+            setStatus(AppLanguage.text(settingsStore.languageMode(), "cleared.play.history.prefix") + removed);
+            loadCollections();
+        });
     }
 
     private String selectedPlaylistName() {
@@ -2310,7 +2398,13 @@ public final class MainActivity extends ComponentActivity {
 
     private void showAddToPlaylistDialog(final Track track) {
         if (libraryStore.playlists().isEmpty()) {
-            playlistActionsController.addToDefaultPlaylist(track);
+            libraryViewModel.addToDefaultPlaylistJava(track, (playlistId, added) -> {
+                setStatus(added
+                        ? AppLanguage.text(settingsStore.languageMode(), "added.to.playlist")
+                        : AppLanguage.text(settingsStore.languageMode(), "could.not.add.to.playlist"));
+                routeController.setSelectedPlaylistId(playlistId);
+                loadCollections();
+            });
             return;
         }
 
@@ -2318,27 +2412,69 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void createPlaylist(final String name) {
-        playlistActionsController.createPlaylist(name);
+        libraryViewModel.createPlaylistJava(name, playlistId -> {
+            if (playlistId >= 0L) {
+                routeController.setSelectedPlaylistId(playlistId);
+            }
+            setStatus(AppLanguage.text(settingsStore.languageMode(), "playlist.created"));
+            loadCollections();
+        });
     }
 
     private void renamePlaylist(final long playlistId, final String name) {
-        playlistActionsController.renamePlaylist(playlistId, name);
+        libraryViewModel.renamePlaylistJava(playlistId, name, (renamedPlaylistId, renamed) -> {
+            if (renamed) {
+                routeController.setSelectedPlaylistId(renamedPlaylistId);
+            }
+            setStatus(renamed
+                    ? AppLanguage.text(settingsStore.languageMode(), "playlist.renamed")
+                    : AppLanguage.text(settingsStore.languageMode(), "playlist.rename.failed"));
+            loadCollections();
+        });
     }
 
     private void deletePlaylist(final long playlistId, final String name) {
-        playlistActionsController.deletePlaylist(playlistId, name);
+        libraryViewModel.deletePlaylistJava(playlistId, name, (deletedPlaylistId, deletedName, deleted) -> {
+            if (deleted && selectedPlaylistId() == deletedPlaylistId) {
+                routeController.setSelectedPlaylistId(-1L);
+            }
+            setStatus(deleted
+                    ? AppLanguage.text(settingsStore.languageMode(), "deleted.playlist.prefix") + deletedName
+                    : AppLanguage.text(settingsStore.languageMode(), "could.not.delete.playlist"));
+            loadCollections();
+        });
     }
 
     private void removeSelectedPlaylistTrack(final long playlistId, final Track track) {
-        playlistActionsController.removeSelectedPlaylistTrack(playlistId, track);
+        libraryViewModel.removeSelectedPlaylistTrackJava(playlistId, track, (removedPlaylistId, removedTrack) -> {
+            routeController.setSelectedPlaylistId(removedPlaylistId);
+            setStatus(AppLanguage.text(settingsStore.languageMode(), "removed.from.playlist.prefix") + removedTrack.title);
+            loadCollections();
+        });
     }
 
     private void moveSelectedPlaylistTrack(final long playlistId, final Track track, final int trackIndex, final int direction) {
-        playlistActionsController.moveSelectedPlaylistTrack(playlistId, track, trackIndex, direction);
+        libraryViewModel.moveSelectedPlaylistTrackJava(playlistId, track, trackIndex, direction, (movedPlaylistId, movedTrack, movedDirection, moved) -> {
+            routeController.setSelectedPlaylistId(movedPlaylistId);
+            if (moved) {
+                setStatus((movedDirection < 0
+                        ? AppLanguage.text(settingsStore.languageMode(), "moved.up.prefix")
+                        : AppLanguage.text(settingsStore.languageMode(), "moved.down.prefix")) + movedTrack.title);
+            } else {
+                setStatus(AppLanguage.text(settingsStore.languageMode(), "move.failed"));
+            }
+            loadCollections();
+        });
     }
 
     private void addTrackToPlaylist(final long playlistId, final long trackId) {
-        playlistActionsController.addTrackToPlaylist(playlistId, trackId);
+        libraryViewModel.addTrackToPlaylistJava(playlistId, trackId, (addedPlaylistId, added) -> {
+            routeController.setSelectedPlaylistId(addedPlaylistId);
+            setStatus(added
+                    ? AppLanguage.text(settingsStore.languageMode(), "added.to.playlist")
+                    : AppLanguage.text(settingsStore.languageMode(), "could.not.add.to.playlist"));
+            loadCollections();
+        });
     }
 
     private void renderQueue() {
@@ -2366,11 +2502,11 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void removeQueueTrack(Track track) {
-        applyPlaybackActionResult(playbackActionsController.removeQueueTrack(playbackService, track));
+        applyPlaybackActionResult(nowPlayingViewModel.removeQueueTrack(track));
     }
 
     private void confirmClearQueue() {
-        if (!playbackActionsController.hasQueue(playbackService)) {
+        if (!nowPlayingViewModel.hasQueue()) {
             setStatus(AppLanguage.text(settingsStore.languageMode(), "queue.empty"));
             return;
         }
@@ -2378,7 +2514,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void clearQueue() {
-        applyPlaybackActionResult(playbackActionsController.clearQueue(playbackService));
+        applyPlaybackActionResult(nowPlayingViewModel.clearQueue());
     }
 
     private void renderNowPlaying() {
@@ -2387,13 +2523,13 @@ public final class MainActivity extends ComponentActivity {
             addStateContent(AppLanguage.text(settingsStore.languageMode(), "no.track.selected"));
             return;
         }
-        if (!nowPlayingRenderController.render(playbackStore, lyricsController, settingsStore.languageMode())) {
+        if (!nowPlayingRenderController.render(playbackStore, lyricsState(), settingsStore.languageMode())) {
             addStateContent(AppLanguage.text(settingsStore.languageMode(), "no.track.selected"));
         }
     }
 
     private boolean updateNowPlayingContent() {
-        return nowPlayingRenderController.update(playbackStore, lyricsController, settingsStore.languageMode());
+        return nowPlayingRenderController.update(playbackStore, lyricsState(), settingsStore.languageMode());
     }
 
     private void renderNetwork() {
@@ -2409,7 +2545,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void syncUpdatedStreamQueue(long oldTrackId, Track updated) {
-        playbackActionsController.replaceQueuedTrack(playbackService, oldTrackId, updated);
+        nowPlayingViewModel.replaceQueuedTrack(oldTrackId, updated);
     }
 
     private void playRemoteSourceTracks(RemoteSource source) {
@@ -2442,7 +2578,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void retainPlaybackTracks(List<Track> tracksToKeep) {
-        playbackActionsController.retainTracks(playbackService, tracksToKeep);
+        nowPlayingViewModel.retainTracks(tracksToKeep);
     }
 
     private void testRemoteSource(final long sourceId) {
@@ -2459,15 +2595,15 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void applyThemeMode(String nextMode) {
-        settingsActionsController.applyThemeMode(nextMode);
+        settingsViewModel.applyThemeMode(nextMode);
     }
 
     private void applyAccentMode(String nextAccent) {
-        settingsActionsController.applyAccentMode(nextAccent);
+        settingsViewModel.applyAccentMode(nextAccent);
     }
 
     private void applyLanguageMode(String nextLanguageMode) {
-        settingsActionsController.applyLanguageMode(nextLanguageMode);
+        settingsViewModel.applyLanguageMode(nextLanguageMode);
     }
 
     private void applyStreamingGatewayEndpoint(String endpoint) {
@@ -2506,7 +2642,7 @@ public final class MainActivity extends ComponentActivity {
             return;
         }
         app.echo.next.streaming.StreamingPlaylistSyncStore.LinkedPlaylist link =
-                streamingPlaylistSyncStore.getLink(playlistId);
+                getStreamingPlaylistLinkUseCase.execute(playlistId);
         if (link == null) {
             setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.not.linked"));
             return;
@@ -2523,7 +2659,7 @@ public final class MainActivity extends ComponentActivity {
             if (descriptor == null) continue;
             if (!descriptor.getCapabilities().getSupportsSearch()) continue;
             if (descriptor.getName() == app.echo.next.streaming.StreamingProviderName.MOCK) {
-                // Skip the offline mock — users do not want to import their library into a demo provider.
+                // Skip the offline mock; users do not want to import their library into a demo provider.
                 continue;
             }
             selectable.add(descriptor);
@@ -2649,45 +2785,20 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void importStreamingPlaylist(
-            app.echo.next.streaming.StreamingProviderName provider,
+        app.echo.next.streaming.StreamingProviderName provider,
             String providerPlaylistId
     ) {
         setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.resolving"));
-        viewModel.fetchStreamingPlaylistTracks(provider, providerPlaylistId, (name, streamingTracks) -> {
-            if (streamingTracks == null || streamingTracks.isEmpty()) {
+        viewModel.importStreamingPlaylistToLocal(provider, providerPlaylistId, result -> {
+            if (result == null || result.getEmpty()) {
                 setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.playlist.empty"));
                 return;
             }
-            ArrayList<Track> placeholders = new ArrayList<>();
-            for (app.echo.next.streaming.StreamingTrack streamingTrack : streamingTracks) {
-                if (streamingTrack == null) {
-                    continue;
-                }
-                placeholders.add(
-                        app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.placeholderTrack(streamingTrack)
-                );
-            }
-            final String playlistName = name;
-            final app.echo.next.streaming.StreamingProviderName finalProvider = provider;
-            final String finalProviderPlaylistId = providerPlaylistId;
-            executors.io(() -> {
-                app.echo.next.model.PlaylistImportResult result =
-                        repository.importStreamingPlaylist(playlistName, placeholders);
-                if (result.playlistId >= 0L && finalProviderPlaylistId != null && !finalProviderPlaylistId.trim().isEmpty()) {
-                    streamingPlaylistSyncStore.linkPlaylist(
-                            result.playlistId,
-                            finalProvider,
-                            finalProviderPlaylistId.trim()
-                    );
-                }
-                mainHandler.post(() -> {
-                    String status = AppLanguage.text(settingsStore.languageMode(), "streaming.playlist.imported.prefix")
-                            + result.playlistName + " (" + result.playlistAddedCount + ")";
-                    setStatus(status);
-                    showStreamingPlaylistLoadedDialog(status);
-                    loadCollections();
-                });
-            });
+            String status = AppLanguage.text(settingsStore.languageMode(), "streaming.playlist.imported.prefix")
+                    + result.getPlaylistName() + " (" + result.getPlaylistAddedCount() + ")";
+            setStatus(status);
+            showStreamingPlaylistLoadedDialog(status);
+            loadCollections();
         });
     }
 
@@ -2708,7 +2819,7 @@ public final class MainActivity extends ComponentActivity {
         for (app.echo.next.streaming.StreamingProviderDescriptor descriptor : providers) {
             if (descriptor == null) continue;
             if (descriptor.getName() == app.echo.next.streaming.StreamingProviderName.MOCK) {
-                // Skip the offline mock — it has no real account favorites to pull.
+                // Skip the offline mock; it has no real account favorites to pull.
                 continue;
             }
             selectable.add(descriptor);
@@ -2746,40 +2857,19 @@ public final class MainActivity extends ComponentActivity {
                 AppLanguage.text(languageMode, "streaming.liked.playlist.prefix")
                         + displayName
                         + AppLanguage.text(languageMode, "streaming.liked.playlist.suffix");
-        final app.echo.next.streaming.StreamingProviderName finalProvider = provider;
 
         setStatus(AppLanguage.text(languageMode, "streaming.resolving"));
         navigateToNetworkTabPage(NETWORK_STREAMING);
-        viewModel.fetchUserLikedTracks(provider, streamingTracks -> {
-            if (streamingTracks == null || streamingTracks.isEmpty()) {
+        viewModel.importStreamingLikedTracksToLocal(provider, playlistName, result -> {
+            if (result == null || result.getEmpty()) {
                 setStatus(AppLanguage.text(languageMode, "streaming.liked.empty"));
                 return;
             }
-            ArrayList<Track> placeholders = new ArrayList<>();
-            for (app.echo.next.streaming.StreamingTrack streamingTrack : streamingTracks) {
-                if (streamingTrack == null) {
-                    continue;
-                }
-                placeholders.add(
-                        app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.placeholderTrack(streamingTrack)
-                );
-            }
-            executors.io(() -> {
-                app.echo.next.model.PlaylistImportResult result =
-                        repository.importStreamingPlaylist(playlistName, placeholders);
-                // Link the imported playlist to the provider's favorites (empty providerPlaylistId)
-                // so it can be refreshed later via the periodic / manual sync path.
-                if (result.playlistId >= 0L) {
-                    streamingPlaylistSyncStore.linkPlaylist(result.playlistId, finalProvider, "");
-                }
-                mainHandler.post(() -> {
-                    String status = AppLanguage.text(languageMode, "streaming.liked.imported.prefix")
-                            + result.playlistName + " (" + result.playlistAddedCount + ")";
-                    setStatus(status);
-                    showStreamingPlaylistLoadedDialog(status);
-                    loadCollections();
-                });
-            });
+            String status = AppLanguage.text(languageMode, "streaming.liked.imported.prefix")
+                    + result.getPlaylistName() + " (" + result.getPlaylistAddedCount() + ")";
+            setStatus(status);
+            showStreamingPlaylistLoadedDialog(status);
+            loadCollections();
         });
     }
 
@@ -2817,8 +2907,7 @@ public final class MainActivity extends ComponentActivity {
         }
         final String languageMode = settingsStore.languageMode();
         setStatus(AppLanguage.text(languageMode, "streaming.recommend.heartbeat.loading"));
-        heartbeatRecommendationLoading = true;
-        heartbeatRecommendationProvider = provider;
+        heartbeatRecommendationUseCase.startLoading(provider);
         List<Track> seedCandidates = heartbeatSeedCandidates();
         String seedTrackId = streamingProviderTrackIdFromCandidates(seedCandidates, provider);
         String playlistId = seedTrackId;
@@ -2858,88 +2947,25 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private List<Track> heartbeatSeedCandidates() {
-        ArrayList<Track> candidates = new ArrayList<>();
-        HashSet<String> seen = new HashSet<>();
-
         PlaybackStateSnapshot serviceSnapshot = playbackService == null ? null : playbackService.snapshot();
-        PlaybackStateSnapshot storeSnapshot = playbackStore == null ? null : playbackStore.snapshot();
-        addHeartbeatSnapshotCandidates(candidates, seen, serviceSnapshot, playbackService == null ? null : playbackService.queueSnapshot());
-        if (storeSnapshot != serviceSnapshot) {
-            addHeartbeatSnapshotCandidates(candidates, seen, storeSnapshot, viewModel.getPlayback().getValue().getQueue());
-        }
-
         List<Track> serviceQueue = playbackService == null ? null : playbackService.queueSnapshot();
-        if (serviceQueue != null) {
-            for (Track track : serviceQueue) {
-                addHeartbeatSeedCandidate(candidates, seen, track);
-            }
-        }
-
-        List<Track> viewModelQueue = viewModel.getPlayback().getValue().getQueue();
-        if (viewModelQueue != null) {
-            for (Track track : viewModelQueue) {
-                addHeartbeatSeedCandidate(candidates, seen, track);
-            }
-        }
-        return candidates;
-    }
-
-    private void addHeartbeatSnapshotCandidates(
-            ArrayList<Track> candidates,
-            HashSet<String> seen,
-            PlaybackStateSnapshot snapshot,
-            List<Track> queue
-    ) {
-        if (snapshot != null) {
-            addHeartbeatSeedCandidate(candidates, seen, snapshot.currentTrack);
-            if (queue != null
-                    && !queue.isEmpty()
-                    && snapshot.currentIndex >= 0
-                    && snapshot.currentIndex < queue.size()) {
-                addHeartbeatSeedCandidate(candidates, seen, queue.get(snapshot.currentIndex));
-            }
-        }
-    }
-
-    private void addHeartbeatSeedCandidate(ArrayList<Track> candidates, HashSet<String> seen, Track track) {
-        if (track == null) {
-            return;
-        }
-        String key = heartbeatSeedCandidateKey(track);
-        if (key.isEmpty() || seen.contains(key)) {
-            return;
-        }
-        seen.add(key);
-        candidates.add(track);
-    }
-
-    private String heartbeatSeedCandidateKey(Track track) {
-        if (track == null) {
-            return "";
-        }
-        if (track.dataPath != null && !track.dataPath.isEmpty()) {
-            return "path:" + track.dataPath;
-        }
-        if (track.contentUri != null && !track.contentUri.toString().isEmpty()) {
-            return "uri:" + track.contentUri;
-        }
-        return "id:" + track.id + "|" + track.title + "|" + track.artist + "|" + track.durationMs;
+        PlaybackStateSnapshot storeSnapshot = playbackStore == null ? null : playbackStore.snapshot();
+        List<Track> viewModelQueue = viewModel == null || viewModel.getPlayback().getValue() == null
+                ? null
+                : viewModel.getPlayback().getValue().getQueue();
+        return streamingTrackMatchUseCase.heartbeatSeedCandidates(
+                serviceSnapshot,
+                serviceQueue,
+                storeSnapshot,
+                viewModelQueue
+        );
     }
 
     private String streamingProviderTrackIdFromCandidates(
             List<Track> candidates,
             app.echo.next.streaming.StreamingProviderName provider
     ) {
-        if (candidates == null) {
-            return null;
-        }
-        for (Track track : candidates) {
-            String trackId = streamingProviderTrackId(track, provider);
-            if (trackId != null && !trackId.isEmpty()) {
-                return trackId;
-            }
-        }
-        return null;
+        return streamingTrackMatchUseCase.providerTrackIdFromCandidates(candidates, provider);
     }
 
     private String currentStreamingProviderTrackId(app.echo.next.streaming.StreamingProviderName provider) {
@@ -2953,219 +2979,39 @@ public final class MainActivity extends ComponentActivity {
     ) {
         if (candidates == null || candidates.isEmpty()) {
             logHeartbeatSeedMiss(provider, snapshotQueueForHeartbeat());
-            heartbeatRecommendationLoading = false;
+            heartbeatRecommendationUseCase.markLoadingFinished();
             setStatus(AppLanguage.text(languageMode, "streaming.recommend.heartbeat.empty"));
             return;
         }
-        resolveHeartbeatSeedAt(provider, candidates, languageMode, 0);
-    }
-
-    private void resolveHeartbeatSeedAt(
-            app.echo.next.streaming.StreamingProviderName provider,
-            List<Track> candidates,
-            String languageMode,
-            int index
-    ) {
-        if (index >= candidates.size()) {
-            logHeartbeatSeedMiss(provider, snapshotQueueForHeartbeat());
-            heartbeatRecommendationLoading = false;
-            setStatus(AppLanguage.text(languageMode, "streaming.recommend.heartbeat.empty"));
-            return;
-        }
-        final Track track = candidates.get(index);
-        final String directTrackId = streamingProviderTrackId(track, provider);
-        if (directTrackId != null && !directTrackId.isEmpty()) {
-            cacheHeartbeatSeedMatch(track, provider, directTrackId);
-            fetchHeartbeatRecommendations(provider, directTrackId, directTrackId, languageMode);
-            return;
-        }
-        executors.io(() -> {
-            final String cachedTrackId = repository.loadStreamingTrackMatch(track, provider.getWireName());
-            mainHandler.post(() -> {
-                if (!heartbeatRecommendationLoading || provider != heartbeatRecommendationProvider) {
-                    return;
-                }
-                if (cachedTrackId != null && !cachedTrackId.isEmpty()) {
-                    fetchHeartbeatRecommendations(provider, cachedTrackId, cachedTrackId, languageMode);
-                    return;
-                }
-                resolveHeartbeatSeedBySearch(provider, candidates, languageMode, index);
-            });
-        });
-    }
-
-    private void cacheHeartbeatSeedMatch(
-            Track track,
-            app.echo.next.streaming.StreamingProviderName provider,
-            String providerTrackId
-    ) {
-        if (track == null
-                || provider == null
-                || providerTrackId == null
-                || providerTrackId.trim().isEmpty()) {
-            return;
-        }
-        executors.io(() -> repository.saveStreamingTrackMatch(
-                track,
-                provider.getWireName(),
-                providerTrackId.trim()
-        ));
-    }
-
-    private void resolveHeartbeatSeedBySearch(
-            app.echo.next.streaming.StreamingProviderName provider,
-            List<Track> candidates,
-            String languageMode,
-            int index
-    ) {
-        final Track track = candidates.get(index);
-        viewModel.resolveStreamingTrackMatch(provider, track, streamingTrack -> {
-            if (!heartbeatRecommendationLoading || provider != heartbeatRecommendationProvider) {
+        viewModel.resolveHeartbeatRecommendationSeed(provider, candidates, resolvedTrackId -> {
+            if (!heartbeatRecommendationUseCase.canContinueLoading(provider)) {
                 return;
             }
-            if (streamingTrack != null
-                    && streamingTrack.getProviderTrackId() != null
-                    && !streamingTrack.getProviderTrackId().isEmpty()) {
-                final String resolvedTrackId = streamingTrack.getProviderTrackId();
-                executors.io(() -> repository.saveStreamingTrackMatch(track, provider.getWireName(), resolvedTrackId));
+            if (resolvedTrackId != null && !resolvedTrackId.isEmpty()) {
                 fetchHeartbeatRecommendations(provider, resolvedTrackId, resolvedTrackId, languageMode);
                 return;
             }
-            resolveHeartbeatSeedAt(provider, candidates, languageMode, index + 1);
+            logHeartbeatSeedMiss(provider, snapshotQueueForHeartbeat());
+            heartbeatRecommendationUseCase.markLoadingFinished();
+            setStatus(AppLanguage.text(languageMode, "streaming.recommend.heartbeat.empty"));
         });
     }
 
     private List<Track> snapshotQueueForHeartbeat() {
-        ArrayList<Track> queue = new ArrayList<>();
-        HashSet<String> seen = new HashSet<>();
-        if (playbackService != null) {
-            for (Track track : playbackService.queueSnapshot()) {
-                addHeartbeatSeedCandidate(queue, seen, track);
-            }
-        }
-        if (viewModel != null && viewModel.getPlayback().getValue() != null) {
-            for (Track track : viewModel.getPlayback().getValue().getQueue()) {
-                addHeartbeatSeedCandidate(queue, seen, track);
-            }
-        }
+        List<Track> serviceQueue = playbackService == null ? null : playbackService.queueSnapshot();
+        List<Track> viewModelQueue = viewModel == null || viewModel.getPlayback().getValue() == null
+                ? null
+                : viewModel.getPlayback().getValue().getQueue();
         PlaybackStateSnapshot storeSnapshot = playbackStore == null ? null : playbackStore.snapshot();
-        if (storeSnapshot != null) {
-            addHeartbeatSeedCandidate(queue, seen, storeSnapshot.currentTrack);
-        }
-        return queue;
+        return streamingTrackMatchUseCase.snapshotQueueForHeartbeat(
+                serviceQueue,
+                viewModelQueue,
+                storeSnapshot
+        );
     }
 
     private String streamingProviderTrackId(Track track, app.echo.next.streaming.StreamingProviderName provider) {
-        if (track == null || track.dataPath == null) {
-            return null;
-        }
-        app.echo.next.streaming.StreamingProviderName currentProvider =
-                app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.providerName(track.dataPath);
-        if (currentProvider != provider) {
-            return neteaseTrackIdFromLocation(track, provider);
-        }
-        String trackId = app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.providerTrackId(track.dataPath);
-        if (trackId != null && !trackId.isEmpty()) {
-            return trackId;
-        }
-        return neteaseTrackIdFromLocation(track, provider);
-    }
-
-    private String neteaseTrackIdFromLocation(
-            Track track,
-            app.echo.next.streaming.StreamingProviderName provider
-    ) {
-        if (track == null || provider != app.echo.next.streaming.StreamingProviderName.NETEASE) {
-            return null;
-        }
-        String trackId = neteaseTrackIdFromText(track.dataPath);
-        if (trackId != null && !trackId.isEmpty()) {
-            return trackId;
-        }
-        return neteaseTrackIdFromText(track.contentUri == null ? null : track.contentUri.toString());
-    }
-
-    private String neteaseTrackIdFromText(String value) {
-        if (value == null || value.isEmpty()) {
-            return null;
-        }
-        String lowerValue = value.toLowerCase(java.util.Locale.ROOT);
-        String streamingId = neteaseIdAfterMarker(value, lowerValue, "streaming:netease:");
-        if (streamingId != null && !streamingId.isEmpty()) {
-            return streamingId;
-        }
-        streamingId = neteaseIdAfterMarker(value, lowerValue, "stream:netease:");
-        if (streamingId != null && !streamingId.isEmpty()) {
-            return streamingId;
-        }
-        streamingId = neteaseIdAfterMarker(value, lowerValue, "netease:");
-        if (streamingId != null && !streamingId.isEmpty()) {
-            return streamingId;
-        }
-        if (!lowerValue.contains("music.163.com") && !lowerValue.contains("music.126.net")) {
-            return null;
-        }
-        String id = neteaseQueryValue(value, "id=");
-        if (id != null && !id.isEmpty()) {
-            return id;
-        }
-        id = neteaseQueryValue(value, "songid=");
-        if (id != null && !id.isEmpty()) {
-            return id;
-        }
-        int songStart = lowerValue.indexOf("/song/");
-        if (songStart < 0) {
-            return null;
-        }
-        int digitStart = -1;
-        for (int i = songStart + "/song/".length(); i < value.length(); i++) {
-            if (Character.isDigit(value.charAt(i))) {
-                digitStart = i;
-                break;
-            }
-        }
-        if (digitStart < 0) {
-            return null;
-        }
-        int digitEnd = digitStart;
-        while (digitEnd < value.length() && Character.isDigit(value.charAt(digitEnd))) {
-            digitEnd++;
-        }
-        return value.substring(digitStart, digitEnd);
-    }
-
-    private String neteaseIdAfterMarker(String value, String lowerValue, String marker) {
-        int markerStart = lowerValue.indexOf(marker);
-        if (markerStart < 0) {
-            return null;
-        }
-        int start = markerStart + marker.length();
-        while (start < value.length() && !Character.isDigit(value.charAt(start))) {
-            start++;
-        }
-        int end = start;
-        while (end < value.length() && Character.isDigit(value.charAt(end))) {
-            end++;
-        }
-        return end > start ? value.substring(start, end) : null;
-    }
-
-    private String neteaseQueryValue(String value, String key) {
-        String lowerValue = value.toLowerCase(java.util.Locale.ROOT);
-        String lowerKey = key.toLowerCase(java.util.Locale.ROOT);
-        int start = lowerValue.indexOf(lowerKey);
-        if (start < 0) {
-            return null;
-        }
-        start += lowerKey.length();
-        while (start < value.length() && !Character.isDigit(value.charAt(start))) {
-            start++;
-        }
-        int end = start;
-        while (end < value.length() && Character.isDigit(value.charAt(end))) {
-            end++;
-        }
-        return end > start ? value.substring(start, end) : null;
+        return streamingTrackMatchUseCase.directProviderTrackId(track, provider);
     }
 
     private void logHeartbeatSeedMiss(
@@ -3235,15 +3081,11 @@ public final class MainActivity extends ComponentActivity {
             String emptyStatus,
             String playingStatus
     ) {
-        heartbeatRecommendationLoading = false;
-        heartbeatRecommendationSeenKeys.clear();
-        ArrayList<Track> placeholders = heartbeatPlaceholderTracksFor(streamingTracks);
+        ArrayList<Track> placeholders = heartbeatRecommendationUseCase.playlistPlaceholders(streamingTracks);
         if (placeholders.isEmpty()) {
-            stopHeartbeatRecommendationMode();
             setStatus(emptyStatus);
             return;
         }
-        heartbeatRecommendationModeActive = true;
         setStatus(playingStatus + " (" + placeholders.size() + ")");
         ensurePlaybackServiceStarted();
         playHeartbeatRecommendationTrackList(placeholders, 0);
@@ -3268,39 +3110,11 @@ public final class MainActivity extends ComponentActivity {
     private ArrayList<Track> heartbeatPlaceholderTracksFor(
             java.util.List<app.echo.next.streaming.StreamingTrack> streamingTracks
     ) {
-        ArrayList<Track> placeholders = new ArrayList<>();
-        if (streamingTracks == null) {
-            return placeholders;
-        }
-        for (app.echo.next.streaming.StreamingTrack streamingTrack : streamingTracks) {
-            if (streamingTrack == null) {
-                continue;
-            }
-            String key = streamingTrackKey(streamingTrack);
-            if (key.isEmpty() || heartbeatRecommendationSeenKeys.contains(key)) {
-                continue;
-            }
-            heartbeatRecommendationSeenKeys.add(key);
-            placeholders.add(app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.placeholderTrack(streamingTrack));
-        }
-        return placeholders;
-    }
-
-    private String streamingTrackKey(app.echo.next.streaming.StreamingTrack streamingTrack) {
-        if (streamingTrack == null
-                || streamingTrack.getProvider() == null
-                || streamingTrack.getProviderTrackId() == null) {
-            return "";
-        }
-        String providerTrackId = streamingTrack.getProviderTrackId().trim();
-        if (providerTrackId.isEmpty()) {
-            return "";
-        }
-        return streamingTrack.getProvider().getWireName() + ":" + providerTrackId;
+        return heartbeatRecommendationUseCase.appendPlaceholders(streamingTracks);
     }
 
     private void onStreamingLoginSuccess(app.echo.next.streaming.StreamingProviderName provider) {
-        // Build playlist name: "我的网易云歌单" / "My NetEase Playlist"
+        // Build the local playlist name, for example "My NetEase Playlist".
         String displayName = provider.getWireName();
         for (app.echo.next.streaming.StreamingProviderDescriptor desc : viewModel.getStreaming().getValue().getProviders()) {
             if (desc.getName() == provider) {
@@ -3312,31 +3126,13 @@ public final class MainActivity extends ComponentActivity {
         String prefix = AppLanguage.text(languageMode, "streaming.my.playlist.prefix");
         String suffix = AppLanguage.text(languageMode, "streaming.my.playlist.suffix");
         final String playlistName = prefix + displayName + suffix;
-        final app.echo.next.streaming.StreamingProviderName finalProvider = provider;
 
-        executors.io(() -> {
-            long playlistId = repository.createPlaylist(playlistName);
-            if (playlistId < 0L) {
-                // Playlist already exists — find it and still link
-                for (app.echo.next.model.Playlist pl : repository.loadPlaylists()) {
-                    if (playlistName.equals(pl.name)) {
-                        playlistId = pl.id;
-                        break;
-                    }
-                }
+        viewModel.ensureStreamingLoginPlaylist(playlistName, provider, result -> {
+            setStatus(AppLanguage.text(languageMode, "streaming.playlist.created") + ": " + playlistName);
+            if (result != null && result.getPlaylistId() >= 0L) {
+                routeController.setSelectedPlaylistId(result.getPlaylistId());
             }
-            if (playlistId >= 0L) {
-                // Link for sync (empty providerPlaylistId = user favorites/liked songs)
-                streamingPlaylistSyncStore.linkPlaylist(playlistId, finalProvider, "");
-            }
-            final long finalPlaylistId = playlistId;
-            mainHandler.post(() -> {
-                setStatus(AppLanguage.text(languageMode, "streaming.playlist.created") + ": " + playlistName);
-                if (finalPlaylistId >= 0L) {
-                    routeController.setSelectedPlaylistId(finalPlaylistId);
-                }
-                loadCollections();
-            });
+            loadCollections();
         });
     }
 
@@ -3347,95 +3143,51 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void syncOneStreamingPlaylist(app.echo.next.streaming.StreamingPlaylistSyncStore.LinkedPlaylist link) {
-        if (link.getProviderPlaylistId() == null || link.getProviderPlaylistId().isEmpty()) {
-            // Sync user's liked/saved tracks
-            viewModel.fetchUserLikedTracks(link.getProvider(), tracks -> {
-                if (tracks == null || tracks.isEmpty()) {
-                    streamingPlaylistSyncStore.markSynced(link.getLocalPlaylistId());
-                    setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.playlist.empty"));
-                    return;
-                }
-                ArrayList<Track> placeholders = new ArrayList<>();
-                for (app.echo.next.streaming.StreamingTrack t : tracks) {
-                    if (t != null) {
-                        placeholders.add(app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.placeholderTrack(t));
-                    }
-                }
-                final long playlistId = link.getLocalPlaylistId();
-                final int count = placeholders.size();
-                executors.io(() -> {
-                    repository.syncStreamingPlaylist(playlistId, placeholders);
-                    streamingPlaylistSyncStore.markSynced(playlistId);
-                    mainHandler.post(() -> {
-                        setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.sync.complete") + " (" + count + ")");
-                        loadCollections();
-                    });
-                });
-            });
-        } else {
-            // Sync a specific streaming playlist by ID
-            viewModel.fetchStreamingPlaylistTracks(link.getProvider(), link.getProviderPlaylistId(), (name, tracks) -> {
-                if (tracks == null || tracks.isEmpty()) {
-                    streamingPlaylistSyncStore.markSynced(link.getLocalPlaylistId());
-                    setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.playlist.empty"));
-                    return;
-                }
-                ArrayList<Track> placeholders = new ArrayList<>();
-                for (app.echo.next.streaming.StreamingTrack t : tracks) {
-                    if (t != null) {
-                        placeholders.add(app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.placeholderTrack(t));
-                    }
-                }
-                final long playlistId = link.getLocalPlaylistId();
-                final int count = placeholders.size();
-                executors.io(() -> {
-                    repository.syncStreamingPlaylist(playlistId, placeholders);
-                    streamingPlaylistSyncStore.markSynced(playlistId);
-                    mainHandler.post(() -> {
-                        setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.sync.complete") + " (" + count + ")");
-                        loadCollections();
-                    });
-                });
-            });
-        }
+        viewModel.syncStreamingPlaylistToLocal(link, result -> {
+            if (result == null || result.getEmpty()) {
+                setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.playlist.empty"));
+                return;
+            }
+            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.sync.complete") + " (" + result.getSyncedCount() + ")");
+            loadCollections();
+        });
     }
-
     private void applyPlaybackSpeed(float speed) {
-        settingsActionsController.applyPlaybackSpeed(speed);
+        settingsViewModel.applyPlaybackSpeed(speed);
     }
 
     private void applyAppVolume(float volume) {
-        settingsActionsController.applyAppVolume(volume);
+        settingsViewModel.applyAppVolume(volume);
     }
 
     private void applyStreamingAudioQuality(String quality) {
-        settingsActionsController.applyStreamingAudioQuality(quality);
+        settingsViewModel.applyStreamingAudioQuality(quality);
     }
 
     private void setConcurrentPlaybackEnabled(boolean enabled) {
-        settingsActionsController.setConcurrentPlaybackEnabled(enabled);
+        settingsViewModel.setConcurrentPlaybackEnabled(enabled);
     }
 
     private void startSleepTimer(int minutes) {
-        applyPlaybackActionResult(playbackActionsController.startSleepTimer(playbackService, minutes));
+        applyPlaybackActionResult(nowPlayingViewModel.startSleepTimer(minutes));
     }
 
     private void cancelSleepTimer() {
-        applyPlaybackActionResult(playbackActionsController.cancelSleepTimer(playbackService));
+        applyPlaybackActionResult(nowPlayingViewModel.cancelSleepTimer());
     }
 
     private void setOnlineLyricsEnabled(boolean enabled) {
-        settingsActionsController.setOnlineLyricsEnabled(enabled);
+        settingsViewModel.setOnlineLyricsEnabled(enabled);
     }
 
     private void applyLyricsOffset(long offsetMs) {
-        settingsActionsController.applyLyricsOffset(offsetMs);
+        settingsViewModel.applyLyricsOffset(offsetMs);
     }
 
     private void reloadCurrentLyrics() {
-        if (lyricsController != null) {
+        if (lyricsViewModel != null) {
             Track track = playbackStore.snapshot().currentTrack;
-            lyricsController.load(track, neteaseProviderTrackIdForLyrics(track));
+            lyricsViewModel.load(track, neteaseProviderTrackIdForLyrics(track));
         }
         setStatus(playbackStore.snapshot().currentTrack == null
                 ? AppLanguage.text(settingsStore.languageMode(), "no.track.selected")
@@ -3450,14 +3202,9 @@ public final class MainActivity extends ComponentActivity {
         if (uiShellController == null || playbackStore == null || libraryStore == null) {
             return;
         }
-        uiShellController.updateNowBar(
-                NowBarStateFactory.create(
-                        playbackStore.snapshot(),
-                        libraryStore.favoriteIds(),
-                        lyricsController,
-                        settingsStore.languageMode()
-                )
-        );
+        NowPlayingUiState state = publishNowPlayingState(playbackStore.snapshot());
+        uiShellController.updateNowBar(state.getOverlayState());
+        uiShellController.updateNowPlayingOverlay(state);
     }
 
     private void openNowPlayingOverlay() {
@@ -3469,24 +3216,47 @@ public final class MainActivity extends ComponentActivity {
             return;
         }
         ensureLyricsLoaded(snapshot.currentTrack);
-        uiShellController.showNowPlayingOverlay(
-                NowBarStateFactory.create(
-                        snapshot,
-                        libraryStore.favoriteIds(),
-                        lyricsController,
-                        settingsStore.languageMode()
-                )
-        );
+        NowPlayingUiState state = publishNowPlayingState(snapshot);
+        uiShellController.showNowPlayingOverlay(state);
     }
 
-    private void toggleFavorite(Track track) {
-        if (track == null) {
+    private NowPlayingUiState publishNowPlayingState(PlaybackStateSnapshot snapshot) {
+        if (nowPlayingViewModel == null) {
+            return new NowPlayingUiState();
+        }
+        nowPlayingViewModel.updateState(
+                snapshot,
+                libraryStore == null ? Collections.<Long>emptySet() : libraryStore.favoriteIds(),
+                lyricsState(),
+                settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()
+        );
+        return nowPlayingViewModel.getUiState().getValue();
+    }
+
+    private void handleNowPlayingEvent(NowPlayingEvent event) {
+        if (nowPlayingViewModel == null || event == null) {
             return;
         }
-        boolean favorite = libraryStore.toggleFavorite(track.id);
-        executors.io(() -> repository.setFavorite(track, favorite));
-        renderNowBar();
-        renderSelectedTab();
+        if (playbackStore != null && libraryStore != null) {
+            publishNowPlayingState(playbackStore.snapshot());
+        }
+        nowPlayingViewModel.onEvent(event);
+        handleNowPlayingEffects();
+    }
+
+    private void handleNowPlayingEffects() {
+        if (nowPlayingViewModel == null) {
+            return;
+        }
+        for (NowPlayingEffect effect : nowPlayingViewModel.drainEffects()) {
+            if (effect instanceof NowPlayingEffect.OpenQueue) {
+                navigateToTab(TAB_QUEUE, true, true);
+            } else if (effect instanceof NowPlayingEffect.OpenAddToPlaylist) {
+                showAddToPlaylistDialog(((NowPlayingEffect.OpenAddToPlaylist) effect).getTrack());
+            } else if (effect instanceof NowPlayingEffect.ShowMessage) {
+                setStatus(((NowPlayingEffect.ShowMessage) effect).getMessage());
+            }
+        }
     }
 
     private void playTrackList(List<Track> tracks, int index) {
@@ -3509,7 +3279,7 @@ public final class MainActivity extends ComponentActivity {
         if (resolveAndPlayStreamingTrack(tracks, index)) {
             return;
         }
-        applyPlaybackActionResult(playbackActionsController.playTrackList(playbackService, tracks, index));
+        applyPlaybackActionResult(nowPlayingViewModel.playTrackList(tracks, index));
     }
 
     private void playPendingTracksIfNeeded() {
@@ -3528,19 +3298,16 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void stopHeartbeatRecommendationMode() {
-        heartbeatRecommendationModeActive = false;
-        heartbeatRecommendationLoading = false;
-        heartbeatRecommendationProvider = null;
-        heartbeatRecommendationSeenKeys.clear();
+        heartbeatRecommendationUseCase.stop();
     }
 
     private void skipToPrevious() {
-        playbackActionsController.skipToPrevious(playbackService);
+        nowPlayingViewModel.skipToPrevious();
         resolveCurrentStreamingQueueTrackIfNeeded();
     }
 
     private void skipToNext() {
-        playbackActionsController.skipToNext(playbackService);
+        nowPlayingViewModel.skipToNext();
         resolveCurrentStreamingQueueTrackIfNeeded();
     }
 
@@ -3558,11 +3325,7 @@ public final class MainActivity extends ComponentActivity {
                 ? Collections.emptyList()
                 : libraryStore.visibleTracks();
         applyPlaybackActionResult(
-                playbackActionsController.togglePlayback(
-                        playbackService,
-                        snapshot,
-                        fallbackTracks
-                )
+                nowPlayingViewModel.togglePlayback(snapshot, fallbackTracks)
         );
     }
 
@@ -3588,108 +3351,38 @@ public final class MainActivity extends ComponentActivity {
             return;
         }
         maybeAppendHeartbeatRecommendations(snapshot);
-        if (snapshot.queueSize <= 1) {
-            return;
-        }
-        if (app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.isUnresolvedStreamingTrack(snapshot.currentTrack)) {
-            return;
-        }
-        long duration = snapshot.durationMs;
-        long currentTrackId = snapshot.currentTrack == null ? -1L : snapshot.currentTrack.id;
-        boolean earlyWarmup = currentTrackId > 0L && currentTrackId != lastPreResolveCurrentTrackId;
-        boolean nearEnd = false;
-        if (duration > 0L) {
-            long remaining = duration - snapshot.positionMs;
-            float progress = snapshot.positionMs / (float) duration;
-            nearEnd = remaining <= STREAMING_PRERESOLVE_REMAINING_MS || progress >= STREAMING_PRERESOLVE_PROGRESS;
-        }
-        if (!earlyWarmup && !nearEnd) {
-            return;
-        }
-        if (earlyWarmup) {
-            lastPreResolveCurrentTrackId = currentTrackId;
-        }
         List<Track> queue = playbackService.queueSnapshot();
-        if (queue == null || queue.isEmpty()) {
-            return;
-        }
-        int nextIndex = snapshot.currentIndex + 1;
-        if (nextIndex >= queue.size()) {
-            nextIndex = 0;
-        }
-        if (nextIndex == snapshot.currentIndex) {
-            return;
-        }
-        Track next = queue.get(nextIndex);
-        if (!app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.isUnresolvedStreamingTrack(next)) {
-            return;
-        }
-        app.echo.next.streaming.StreamingProviderName provider =
-                app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.providerName(next.dataPath);
-        String providerTrackId =
-                app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.providerTrackId(next.dataPath);
-        if (provider == null || providerTrackId == null || providerTrackId.trim().isEmpty()) {
-            return;
-        }
-        final String key = provider.getWireName() + ":" + providerTrackId;
-        long now = System.currentTimeMillis();
-        if (key.equals(preResolvingStreamingKey)
-                || (key.equals(lastPreResolveAttemptKey)
-                && now - lastPreResolveAttemptAtMs < STREAMING_PRERESOLVE_RETRY_MS)) {
-            return;
-        }
-        preResolvingStreamingKey = key;
-        lastPreResolveAttemptKey = key;
-        lastPreResolveAttemptAtMs = now;
-        final long oldTrackId = next.id;
-        streamingPlaybackTaskScheduler.schedule(StreamingPlaybackTaskScheduler.Priority.NEXT_URL_RESOLVE, completion -> {
-            viewModel.resolveStreamingTrackForPlayback(provider, providerTrackId, streamingMetadataFor(next, provider, providerTrackId), adaptiveStreamingQuality(), resolved -> {
-                if (key.equals(preResolvingStreamingKey)) {
-                preResolvingStreamingKey = "";
-            }
-            if (resolved == null) {
-                completion.complete();
-                return;
-            }
-            playbackActionsController.replaceQueuedTrack(playbackService, oldTrackId, resolved);
-            if (playbackService != null) {
-                playbackService.precacheTrack(resolved);
-            }
-            completion.complete();
-        });
-        });
+        viewModel.preResolveNextStreamingTrack(
+                snapshot,
+                queue,
+                adaptiveStreamingQuality(),
+                (oldTrackId, resolved) -> {
+                    if (resolved == null) {
+                        return;
+                    }
+                    nowPlayingViewModel.replaceQueuedTrack(oldTrackId, resolved);
+                    nowPlayingViewModel.precacheTrack(resolved);
+                });
     }
 
     private void maybeAppendHeartbeatRecommendations(PlaybackStateSnapshot snapshot) {
-        if (!heartbeatRecommendationModeActive
-                || heartbeatRecommendationLoading
-                || heartbeatRecommendationProvider == null
-                || playbackService == null
-                || snapshot == null
-                || !snapshot.playing) {
+        if (playbackService == null) {
             return;
         }
-        int remaining = snapshot.queueSize - snapshot.currentIndex - 1;
-        if (remaining > HEARTBEAT_RECOMMENDATION_REFILL_REMAINING) {
+        HeartbeatRefillRequest refill = heartbeatRecommendationUseCase.prepareRefill(snapshot);
+        if (refill == null) {
             return;
         }
-        long now = System.currentTimeMillis();
-        if (now - lastHeartbeatRecommendationRefillAtMs < HEARTBEAT_RECOMMENDATION_REFILL_RETRY_MS) {
-            return;
-        }
-        lastHeartbeatRecommendationRefillAtMs = now;
-        heartbeatRecommendationLoading = true;
-        final app.echo.next.streaming.StreamingProviderName provider = heartbeatRecommendationProvider;
+        final app.echo.next.streaming.StreamingProviderName provider = refill.getProvider();
         String seedTrackId = currentStreamingProviderTrackId(provider);
         String playlistId = currentStreamingProviderPlaylistId(provider);
         if (seedTrackId == null || seedTrackId.isEmpty()) {
-            heartbeatRecommendationLoading = false;
             stopHeartbeatRecommendationMode();
             return;
         }
         viewModel.fetchHeartbeatRecommendations(provider, seedTrackId, playlistId, streamingTracks -> {
-            heartbeatRecommendationLoading = false;
-            if (!heartbeatRecommendationModeActive || provider != heartbeatRecommendationProvider || playbackService == null) {
+            if (!heartbeatRecommendationUseCase.accepts(provider) || playbackService == null) {
+                heartbeatRecommendationUseCase.markLoadingFinished(provider);
                 return;
             }
             ArrayList<Track> placeholders = heartbeatPlaceholderTracksFor(streamingTracks);
@@ -3699,7 +3392,7 @@ public final class MainActivity extends ComponentActivity {
             if (placeholders.isEmpty()) {
                 return;
             }
-            playbackService.appendToQueue(placeholders);
+            nowPlayingViewModel.appendToQueue(placeholders);
             setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.recommend.heartbeat.playing")
                     + " (+" + placeholders.size() + ")");
         });
@@ -3719,161 +3412,81 @@ public final class MainActivity extends ComponentActivity {
         if (playbackService == null || snapshot == null) {
             return;
         }
-        Track current = snapshot.currentTrack;
-        if (!app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.isStreamingTrack(current)
-                || app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.isUnresolvedStreamingTrack(current)) {
+        app.echo.next.streaming.StreamingAudioQuality selectedQuality = selectedStreamingQuality();
+        app.echo.next.streaming.StreamingAudioQuality adaptiveQuality = adaptiveStreamingQuality();
+        app.echo.next.streaming.StreamingAudioQuality recoveryQuality = viewModel.recoverStreamingBuffering(
+                snapshot,
+                selectedQuality,
+                adaptiveQuality,
+                resolved -> {
+                    if (resolved == null) {
+                        return;
+                    }
+                    nowPlayingViewModel.replaceCurrentTrackAndResume(resolved.getTrack(), resolved.getPositionMs());
+                    setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.quality.downgraded")
+                            + SettingsPageRenderController.streamingQualityLabel(
+                            StreamingQualityPreference.valueFor(resolved.getQuality()),
+                            settingsStore.languageMode()
+                    ));
+                }
+        );
+        if (recoveryQuality == null) {
             return;
         }
-        app.echo.next.streaming.StreamingProviderName provider =
-                app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.providerName(current.dataPath);
-        String providerTrackId =
-                app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.providerTrackId(current.dataPath);
-        if (provider == null || providerTrackId == null || providerTrackId.trim().isEmpty()) {
-            return;
-        }
-        app.echo.next.streaming.StreamingAudioQuality recoveryQuality = recoveryStreamingQuality();
-        if (recoveryQuality == adaptiveStreamingQuality()) {
-            return;
-        }
-        String key = provider.getWireName() + ":" + providerTrackId + ":" + recoveryQuality.name();
-        long now = System.currentTimeMillis();
-        if (key.equals(streamingRecoveryKey)
-                || (key.equals(lastStreamingRecoveryKey)
-                && now - lastStreamingRecoveryAtMs < STREAMING_RECOVERY_COOLDOWN_MS)) {
-            return;
-        }
-        streamingRecoveryKey = key;
-        lastStreamingRecoveryKey = key;
-        lastStreamingRecoveryAtMs = now;
         setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.quality.downgrading")
                 + SettingsPageRenderController.streamingQualityLabel(
                 StreamingQualityPreference.valueFor(recoveryQuality),
                 settingsStore.languageMode()
         ));
-        streamingPlaybackTaskScheduler.schedule(StreamingPlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY, completion ->
-                viewModel.resolveStreamingTrackForPlayback(
-                        provider,
-                        providerTrackId,
-                        streamingMetadataFor(current, provider, providerTrackId),
-                        recoveryQuality,
-                        resolved -> {
-                            if (key.equals(streamingRecoveryKey)) {
-                                streamingRecoveryKey = "";
-                            }
-                            if (resolved == null || playbackService == null) {
-                                completion.complete();
-                                return;
-                            }
-                            playbackService.replaceCurrentTrackAndResume(resolved, snapshot.positionMs);
-                            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.quality.downgraded")
-                                    + SettingsPageRenderController.streamingQualityLabel(
-                                    StreamingQualityPreference.valueFor(recoveryQuality),
-                                    settingsStore.languageMode()
-                            ));
-                            completion.complete();
-                        }
-                )
-        );
     }
 
-    private app.echo.next.streaming.StreamingAudioQuality recoveryStreamingQuality() {
+    private app.echo.next.streaming.StreamingAudioQuality selectedStreamingQuality() {
         String selected = settingsStore == null
                 ? StreamingQualityPreference.defaultValue()
                 : settingsStore.streamingAudioQuality();
-        app.echo.next.streaming.StreamingAudioQuality activeQuality = StreamingQualityPreference.AUTO.equals(
+        return StreamingQualityPreference.AUTO.equals(
                 StreamingQualityPreference.normalize(selected)
         ) ? adaptiveStreamingQuality() : StreamingQualityPreference.ceilingFor(selected);
-        switch (activeQuality) {
-            case HIRES:
-                return app.echo.next.streaming.StreamingAudioQuality.LOSSLESS;
-            case LOSSLESS:
-                return app.echo.next.streaming.StreamingAudioQuality.HIGH;
-            case HIGH:
-                return app.echo.next.streaming.StreamingAudioQuality.STANDARD;
-            default:
-                return app.echo.next.streaming.StreamingAudioQuality.STANDARD;
-        }
     }
 
     private boolean resolveAndPlayStreamingTrack(List<Track> tracks, int index) {
-        if (tracks == null || tracks.isEmpty()) {
-            return false;
-        }
-        int safeIndex = Math.max(0, Math.min(index, tracks.size() - 1));
-        Track selected = tracks.get(safeIndex);
-        if (!app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.isUnresolvedStreamingTrack(selected)) {
-            return false;
-        }
-        app.echo.next.streaming.StreamingProviderName provider =
-                app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.providerName(selected.dataPath);
-        String providerTrackId =
-                app.echo.next.streaming.StreamingPlaybackAdapter.INSTANCE.providerTrackId(selected.dataPath);
-        if (provider == null || providerTrackId == null || providerTrackId.trim().isEmpty()) {
-            return false;
-        }
-        setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.resolving"));
-        streamingPlaybackTaskScheduler.schedule(StreamingPlaybackTaskScheduler.Priority.CURRENT_URL_RESOLVE, completion ->
-                viewModel.resolveStreamingTrackForPlayback(provider, providerTrackId, streamingMetadataFor(selected, provider, providerTrackId), adaptiveStreamingQuality(), resolved -> {
+        boolean scheduled = viewModel.resolveStreamingTrackListForPlayback(
+                tracks,
+                index,
+                adaptiveStreamingQuality(),
+                resolved -> {
                     if (resolved == null) {
                         setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.resolve.failed"));
-                        completion.complete();
                         return;
                     }
-                    ArrayList<Track> resolvedTracks = new ArrayList<>(tracks);
-                    resolvedTracks.set(safeIndex, resolved);
                     applyPlaybackActionResult(
-                            playbackActionsController.playTrackList(playbackService, resolvedTracks, safeIndex)
+                            nowPlayingViewModel.playTrackList(resolved.getTracks(), resolved.getIndex())
                     );
-                    completion.complete();
-                })
+                }
         );
-        return true;
-    }
-
-    private app.echo.next.streaming.StreamingTrack streamingMetadataFor(
-            Track track,
-            app.echo.next.streaming.StreamingProviderName provider,
-            String providerTrackId
-    ) {
-        if (track == null) {
-            return null;
+        if (scheduled) {
+            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.resolving"));
         }
-        String coverUrl = track.albumArtUri == null ? null : track.albumArtUri.toString();
-        return new app.echo.next.streaming.StreamingTrack(
-                provider,
-                providerTrackId,
-                track.title,
-                track.artist,
-                Collections.emptyList(),
-                track.album,
-                null,
-                track.durationMs,
-                coverUrl,
-                coverUrl,
-                Collections.emptySet(),
-                false,
-                true,
-                null
-        );
+        return scheduled;
     }
 
     private void toggleShuffle() {
         applyPlaybackActionResult(
-                playbackActionsController.toggleShuffle(playbackService, playbackStore.snapshot())
+                nowPlayingViewModel.toggleShuffle(playbackStore.snapshot())
         );
     }
 
     private void cycleBottomPlaybackMode() {
         applyPlaybackActionResult(
-                playbackActionsController.cycleBottomPlaybackMode(playbackService, playbackStore.snapshot())
+                nowPlayingViewModel.cycleBottomPlaybackMode(playbackStore.snapshot())
         );
     }
 
     private void cycleRepeat() {
-        applyPlaybackActionResult(playbackActionsController.cycleRepeat(playbackService));
+        applyPlaybackActionResult(nowPlayingViewModel.cycleRepeat());
     }
 
-    private void applyPlaybackActionResult(PlaybackActionsController.Result result) {
+    private void applyPlaybackActionResult(PlaybackActionResultUi result) {
         if (result == null) {
             return;
         }
@@ -3895,6 +3508,440 @@ public final class MainActivity extends ComponentActivity {
         if (result.navigateNow) {
             routeController.setSelectedTab(TAB_NOW);
             renderSelectedTab();
+        }
+    }
+
+    private final class ActivityLibraryGateway implements LibraryGateway {
+        @Override
+        public void playTrackList(List<Track> tracks, int index) {
+            MainActivity.this.playTrackList(tracks, index);
+        }
+
+        @Override
+        public void showStatusKey(String key) {
+            MainActivity.this.setStatus(AppLanguage.text(settingsStore.languageMode(), key));
+        }
+
+        @Override
+        public void applyFavorite(long trackId, boolean favorite) {
+            libraryStore.setFavorite(trackId, favorite);
+            publishLibraryState();
+            renderNowBar();
+            renderSelectedTab();
+        }
+
+        @Override
+        public void addToPlaylist(Track track) {
+            MainActivity.this.showAddToPlaylistDialog(track);
+        }
+
+        @Override
+        public void changeGroupMode(String mode) {
+            routeController.setLibraryMode(mode);
+            routeController.clearLibraryGroup();
+            if (!LIBRARY_PLAYLISTS.equals(mode)) {
+                routeController.setSelectedPlaylistId(-1L);
+            }
+            renderSelectedTab();
+        }
+
+        @Override
+        public void openGroup(String key, String title) {
+            routeController.selectLibraryGroup(key, title);
+            renderSelectedTab();
+        }
+
+        @Override
+        public void openPlaylist(long playlistId, String title) {
+            routeController.selectLibraryGroup("playlist:" + playlistId, title);
+            routeController.setSelectedPlaylistId(playlistId);
+            loadCollections();
+        }
+
+        @Override
+        public void backFromGroup() {
+            routeController.clearLibraryGroup();
+            routeController.setSelectedPlaylistId(-1L);
+            renderSelectedTab();
+        }
+
+        @Override
+        public void search(String query) {
+            routeController.setSearchQuery(query);
+            applySearch();
+        }
+
+        @Override
+        public void importFiles() {
+            openAudioFilePicker();
+        }
+
+        @Override
+        public void scanLibrary() {
+            loadLibrary(false);
+        }
+    }
+
+    private final class ActivityStreamingActionGateway implements MainActivityStreamingActionGateway {
+        @Override
+        public app.echo.next.streaming.StreamingAudioQuality streamingPlaybackQuality() {
+            return MainActivity.this.adaptiveStreamingQuality();
+        }
+
+        @Override
+        public String languageMode() {
+            return settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode();
+        }
+
+        @Override
+        public boolean openAuthLaunch(MainActivityStreamingAuthLaunch launch) {
+            return StreamingAuthLauncher.INSTANCE.launch(MainActivity.this, launch);
+        }
+
+        @Override
+        public void playResolvedTrack(Track track) {
+            ArrayList<Track> tracks = new ArrayList<>();
+            tracks.add(track);
+            MainActivity.this.playTrackList(tracks, 0);
+        }
+
+        @Override
+        public void onStreamingLoginSuccess(app.echo.next.streaming.StreamingProviderName provider) {
+            MainActivity.this.onStreamingLoginSuccess(provider);
+        }
+    }
+
+    private final class ActivityStreamingPlaybackTaskQueue implements StreamingPlaybackTaskQueue {
+        @Override
+        public void scheduleCurrentPlaybackRecovery(StreamingPlaybackTask task) {
+            if (task == null) {
+                return;
+            }
+            streamingPlaybackTaskScheduler.schedule(
+                    StreamingPlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY,
+                    completion -> task.run(completion::complete)
+            );
+        }
+
+        @Override
+        public void scheduleCurrentUrlResolve(StreamingPlaybackTask task) {
+            if (task == null) {
+                return;
+            }
+            streamingPlaybackTaskScheduler.schedule(
+                    StreamingPlaybackTaskScheduler.Priority.CURRENT_URL_RESOLVE,
+                    completion -> task.run(completion::complete)
+            );
+        }
+
+        @Override
+        public void scheduleNextUrlResolve(StreamingPlaybackTask task) {
+            if (task == null) {
+                return;
+            }
+            streamingPlaybackTaskScheduler.schedule(
+                    StreamingPlaybackTaskScheduler.Priority.NEXT_URL_RESOLVE,
+                    completion -> task.run(completion::complete)
+            );
+        }
+    }
+
+    private final class ActivityNowPlayingGateway implements NowPlayingGateway {
+        @Override
+        public void playPause() {
+            MainActivity.this.togglePlayback();
+        }
+
+        @Override
+        public void next() {
+            MainActivity.this.skipToNext();
+        }
+
+        @Override
+        public void previous() {
+            MainActivity.this.skipToPrevious();
+        }
+
+        @Override
+        public void seekTo(long positionMs) {
+            nowPlayingViewModel.seekTo(positionMs);
+        }
+
+        @Override
+        public void toggleFavorite() {
+            Track track = playbackStore == null ? null : playbackStore.snapshot().currentTrack;
+            if (track != null) {
+                handleLibraryEvent(new LibraryEvent.ToggleFavorite(track));
+            }
+        }
+
+        @Override
+        public void toggleShuffle() {
+            MainActivity.this.toggleShuffle();
+        }
+
+        @Override
+        public void cycleRepeatMode() {
+            MainActivity.this.cycleRepeat();
+        }
+
+        @Override
+        public String statusMessage(String key) {
+            return AppLanguage.text(
+                    settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                    key
+            );
+        }
+    }
+
+    private final class ActivityNowPlayingPlaybackGateway implements NowPlayingPlaybackGateway {
+        @Override
+        public boolean serviceConnected() {
+            return playbackService != null;
+        }
+
+        @Override
+        public void startPlaybackService(String action) {
+            Intent intent = new Intent(MainActivity.this, EchoPlaybackService.class);
+            if (action != null) {
+                intent.setAction(action);
+            }
+            MainActivity.this.startService(intent);
+        }
+
+        @Override
+        public PlaybackStateSnapshot snapshot() {
+            return playbackService == null ? null : playbackService.snapshot();
+        }
+
+        @Override
+        public List<Track> queueSnapshot() {
+            return playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot();
+        }
+
+        @Override
+        public void skipToPrevious() {
+            if (playbackService != null) {
+                playbackService.skipToPrevious();
+            }
+        }
+
+        @Override
+        public void skipToNext() {
+            if (playbackService != null) {
+                playbackService.skipToNext();
+            }
+        }
+
+        @Override
+        public void seekTo(long positionMs) {
+            if (playbackService != null) {
+                playbackService.seekTo(positionMs);
+            }
+        }
+
+        @Override
+        public void removeTracksById(Set<Long> trackIds) {
+            if (playbackService != null) {
+                playbackService.removeTracksById(trackIds);
+            }
+        }
+
+        @Override
+        public void clearQueue() {
+            if (playbackService != null) {
+                playbackService.clearQueue();
+            }
+        }
+
+        @Override
+        public void replaceQueuedTrack(Track updated) {
+            if (playbackService != null) {
+                playbackService.replaceQueuedTrack(updated);
+            }
+        }
+
+        @Override
+        public void replaceQueuedTrackById(long oldTrackId, Track updated) {
+            if (playbackService != null) {
+                playbackService.replaceQueuedTrackById(oldTrackId, updated);
+            }
+        }
+
+        @Override
+        public void retainTracksById(Set<Long> trackIds) {
+            if (playbackService != null) {
+                playbackService.retainTracksById(trackIds);
+            }
+        }
+
+        @Override
+        public void precacheTrack(Track track) {
+            if (playbackService != null) {
+                playbackService.precacheTrack(track);
+            }
+        }
+
+        @Override
+        public void appendToQueue(List<Track> tracks) {
+            if (playbackService != null) {
+                playbackService.appendToQueue(tracks);
+            }
+        }
+
+        @Override
+        public void replaceCurrentTrackAndResume(Track track, long positionMs) {
+            if (playbackService != null) {
+                playbackService.replaceCurrentTrackAndResume(track, positionMs);
+            }
+        }
+
+        @Override
+        public void startSleepTimerMinutes(int minutes) {
+            if (playbackService != null) {
+                playbackService.startSleepTimerMinutes(minutes);
+            }
+        }
+
+        @Override
+        public void cancelSleepTimer() {
+            if (playbackService != null) {
+                playbackService.cancelSleepTimer();
+            }
+        }
+
+        @Override
+        public void playQueue(List<Track> tracks, int index) {
+            if (playbackService != null) {
+                playbackService.playQueue(new ArrayList<>(tracks), index);
+            }
+        }
+
+        @Override
+        public void pause() {
+            if (playbackService != null) {
+                playbackService.pause();
+            }
+        }
+
+        @Override
+        public void play() {
+            if (playbackService != null) {
+                playbackService.play();
+            }
+        }
+
+        @Override
+        public void setShuffleEnabled(boolean enabled) {
+            if (playbackService != null) {
+                playbackService.setShuffleEnabled(enabled);
+            }
+        }
+
+        @Override
+        public void cycleRepeatMode() {
+            if (playbackService != null) {
+                playbackService.cycleRepeatMode();
+            }
+        }
+
+        @Override
+        public void setRepeatMode(int repeatMode) {
+            if (playbackService != null) {
+                playbackService.setRepeatMode(repeatMode);
+            }
+        }
+    }
+
+    private final class ActivitySettingsGateway implements SettingsGateway {
+        @Override
+        public void navigateSettingsPage(String page) {
+            MainActivity.this.navigateSettingsPage(page);
+        }
+
+        @Override
+        public void openNetworkSources() {
+            MainActivity.this.navigateToNetworkTabPage(NETWORK_HOME);
+        }
+
+        @Override
+        public void loadLibrary() {
+            MainActivity.this.loadLibrary(false);
+        }
+
+        @Override
+        public void openAudioFilePicker() {
+            MainActivity.this.openAudioFilePicker();
+        }
+
+        @Override
+        public void openAudioFolderPicker() {
+            MainActivity.this.openAudioFolderPicker();
+        }
+
+        @Override
+        public void setOnlineLyricsEnabled(boolean enabled) {
+            MainActivity.this.setOnlineLyricsEnabled(enabled);
+        }
+
+        @Override
+        public void reloadCurrentLyrics() {
+            MainActivity.this.reloadCurrentLyrics();
+        }
+
+        @Override
+        public void applyLyricsOffset(long offsetMs) {
+            MainActivity.this.applyLyricsOffset(offsetMs);
+        }
+
+        @Override
+        public void startSleepTimer(int minutes) {
+            MainActivity.this.startSleepTimer(minutes);
+        }
+
+        @Override
+        public void cancelSleepTimer() {
+            MainActivity.this.cancelSleepTimer();
+        }
+
+        @Override
+        public void applyPlaybackSpeed(float speed) {
+            MainActivity.this.applyPlaybackSpeed(speed);
+        }
+
+        @Override
+        public void applyAppVolume(float volume) {
+            MainActivity.this.applyAppVolume(volume);
+        }
+
+        @Override
+        public void applyStreamingAudioQuality(String quality) {
+            MainActivity.this.applyStreamingAudioQuality(quality);
+        }
+
+        @Override
+        public void setConcurrentPlaybackEnabled(boolean enabled) {
+            MainActivity.this.setConcurrentPlaybackEnabled(enabled);
+        }
+
+        @Override
+        public void applyThemeMode(String mode) {
+            MainActivity.this.applyThemeMode(mode);
+        }
+
+        @Override
+        public void applyAccentMode(String accent) {
+            MainActivity.this.applyAccentMode(accent);
+        }
+
+        @Override
+        public void applyLanguageMode(String languageMode) {
+            MainActivity.this.applyLanguageMode(languageMode);
+        }
+
+        @Override
+        public void applyStreamingGatewayEndpoint(String endpoint) {
+            MainActivity.this.applyStreamingGatewayEndpoint(endpoint);
         }
     }
 }

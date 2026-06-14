@@ -13,7 +13,7 @@ import java.util.ArrayList
 
 internal class NetworkSourcesRenderController(
     private val context: Context,
-    private val viewModel: MainActivityViewModel,
+    private val viewModel: NetworkSourcesViewModel,
     private val listener: Listener
 ) {
     interface Listener {
@@ -62,11 +62,11 @@ internal class NetworkSourcesRenderController(
         }
 
         val title = AppLanguage.text(languageMode, "remote.music.sources")
-        listener.publishNetworkSources(title, rows)
+        viewModel.updateSources(title, remoteSources, rows)
         listener.addVirtualContent(
             NetworkSourcesScreenFactory.create(
                 context,
-                viewModel.networkSources,
+                viewModel.screen,
                 actions,
                 headerActions,
                 AppLanguage.text(languageMode, "no.remote.sources"),

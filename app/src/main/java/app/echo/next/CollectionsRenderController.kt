@@ -25,6 +25,7 @@ import java.util.Date
 
 internal class CollectionsRenderController(
     private val context: Context,
+    private val viewModel: CollectionsViewModel,
     private val listener: Listener
 ) {
     interface Listener {
@@ -76,6 +77,16 @@ internal class CollectionsRenderController(
         playbackState: PlaybackStateSnapshot?,
         favoriteIds: Set<Long>
     ) {
+        val fallbackPlaylistTitle = text(languageMode, "playlist")
+        viewModel.updateCollections(
+            favoriteTracks,
+            recentRecords,
+            mostPlayedRecords,
+            playlists,
+            selectedPlaylistTracks,
+            selectedPlaylistId,
+            fallbackPlaylistTitle
+        )
         val metrics = ArrayList<CollectionMetricUiState>()
         metrics.add(CollectionMetricUiState(text(languageMode, "favorites"), favoriteTracks.size.toString()))
         metrics.add(CollectionMetricUiState(text(languageMode, "recent"), recentRecords.size.toString()))
@@ -191,7 +202,7 @@ internal class CollectionsRenderController(
             text(languageMode, "no.playlists.description"),
             playlistRows,
             selectedPlaylistId >= 0L,
-            selectedPlaylistName(playlists, selectedPlaylistId, languageMode),
+            selectedPlaylistName(playlists, selectedPlaylistId, fallbackPlaylistTitle),
             text(languageMode, "no.tracks.in.playlist"),
             text(languageMode, "no.tracks.in.playlist.description"),
             selectedPlaylistActionRows,
@@ -213,7 +224,8 @@ internal class CollectionsRenderController(
             selectedPlaylistActions,
             selectedPlaylistTrackActions
         )
-        listener.addVirtualContent(CollectionsScreenFactory.create(context, state, actions))
+        viewModel.updateScreen(state)
+        listener.addVirtualContent(CollectionsScreenFactory.create(context, viewModel.screen, actions))
     }
 
     private fun addCollectionAction(
@@ -339,13 +351,13 @@ internal class CollectionsRenderController(
         return tracks
     }
 
-    private fun selectedPlaylistName(playlists: List<Playlist>, selectedPlaylistId: Long, languageMode: String): String {
+    private fun selectedPlaylistName(playlists: List<Playlist>, selectedPlaylistId: Long, fallbackPlaylistTitle: String): String {
         for (playlist in playlists) {
             if (playlist.id == selectedPlaylistId) {
                 return playlist.name
             }
         }
-        return text(languageMode, "playlist")
+        return fallbackPlaylistTitle
     }
 
     private fun playCountLabel(count: Int, languageMode: String): String =

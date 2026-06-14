@@ -15,6 +15,7 @@ import kotlin.math.roundToInt
 
 internal class SettingsPageRenderController(
     private val context: Context,
+    private val viewModel: SettingsViewModel,
     private val listener: Listener
 ) {
     private val scrollState = SettingsListScrollState()
@@ -63,6 +64,15 @@ internal class SettingsPageRenderController(
         scrollState.scrollToTop()
     }
 
+    private fun renderSettingsScreen(
+        title: String,
+        metrics: List<SettingsMetric>,
+        actions: List<SettingsAction>
+    ) {
+        viewModel.updatePage(title, metrics, actions)
+        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, title))
+    }
+
     fun renderHome(
         themeMode: String,
         accentMode: String,
@@ -85,7 +95,7 @@ internal class SettingsPageRenderController(
         addGroupNavigationAction(actions, languageMode, "lyrics", MainRoutes.SETTINGS_LYRICS_GROUP)
         addGroupNavigationAction(actions, languageMode, "sources", MainRoutes.SETTINGS_SOURCES_GROUP)
         addGroupNavigationAction(actions, languageMode, "about", MainRoutes.SETTINGS_ABOUT_GROUP)
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "tab.settings")))
+        renderSettingsScreen(text(languageMode, "tab.settings"), metrics, actions)
     }
 
     fun renderAppearanceGroup(languageMode: String, themeMode: String, accentMode: String) {
@@ -99,7 +109,7 @@ internal class SettingsPageRenderController(
         addNavigationAction(actions, text(languageMode, "appearance"), MainRoutes.SETTINGS_APPEARANCE)
         addNavigationAction(actions, text(languageMode, "accent"), MainRoutes.SETTINGS_ACCENT)
         addNavigationAction(actions, text(languageMode, "language"), MainRoutes.SETTINGS_LANGUAGE)
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, groupTitle(languageMode, "appearance")))
+        renderSettingsScreen(groupTitle(languageMode, "appearance"), metrics, actions)
     }
 
     fun renderPlaybackGroup(languageMode: String, playbackSpeed: Float, appVolume: Float, concurrentPlaybackEnabled: Boolean, remainingMs: Long) {
@@ -114,7 +124,7 @@ internal class SettingsPageRenderController(
         addNavigationAction(actions, text(languageMode, "app.volume"), MainRoutes.SETTINGS_APP_VOLUME)
         addNavigationAction(actions, text(languageMode, "concurrent.playback"), MainRoutes.SETTINGS_CONCURRENT_PLAYBACK)
         addNavigationAction(actions, text(languageMode, "sleep.timer"), MainRoutes.SETTINGS_SLEEP_TIMER)
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, groupTitle(languageMode, "playback")))
+        renderSettingsScreen(groupTitle(languageMode, "playback"), metrics, actions)
     }
 
     fun renderLibraryGroup(languageMode: String, songCount: Int, albumCount: Int, artistCount: Int, audioPermissionGranted: Boolean) {
@@ -136,7 +146,7 @@ internal class SettingsPageRenderController(
         actions.add(SettingsAction(text(languageMode, "remote.music.sources"), Runnable { listener.openNetworkSources() }))
         addNavigationAction(actions, text(languageMode, "streaming.audio.quality"), MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY)
         addNavigationAction(actions, text(languageMode, "advanced") + " · " + text(languageMode, "streaming.gateway"), MainRoutes.SETTINGS_STREAMING_GATEWAY)
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, groupTitle(languageMode, "sources")))
+        renderSettingsScreen(groupTitle(languageMode, "sources"), metrics, actions)
     }
 
     fun renderAboutGroup(languageMode: String, audioPermissionGranted: Boolean, notificationPermissionGranted: Boolean, playbackServiceConnected: Boolean) {
@@ -147,7 +157,7 @@ internal class SettingsPageRenderController(
         metrics.add(SettingsMetric(text(languageMode, "playback.service"), if (playbackServiceConnected) text(languageMode, "connected") else text(languageMode, "disconnected")))
         val actions = ArrayList<SettingsAction>()
         addBackAction(actions, languageMode)
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, groupTitle(languageMode, "about")))
+        renderSettingsScreen(groupTitle(languageMode, "about"), metrics, actions)
     }
 
     fun renderStreamingGateway(languageMode: String, endpoint: String, configured: Boolean) {
@@ -160,7 +170,7 @@ internal class SettingsPageRenderController(
         addStreamingGatewayOption(actions, languageMode, endpoint, StreamingGatewaySettingsStore.EMULATOR_HOST_ENDPOINT, "streaming.gateway.emulator")
         addStreamingGatewayOption(actions, languageMode, endpoint, StreamingGatewaySettingsStore.LOCALHOST_ENDPOINT, "streaming.gateway.localhost")
         addStreamingGatewayOption(actions, languageMode, endpoint, StreamingGatewaySettingsStore.UNCONFIGURED_ENDPOINT, "disable")
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "streaming.gateway")))
+        renderSettingsScreen(text(languageMode, "streaming.gateway"), metrics, actions)
     }
 
     fun renderLibrary(languageMode: String, songCount: Int, albumCount: Int, artistCount: Int, audioPermissionGranted: Boolean) {
@@ -174,7 +184,7 @@ internal class SettingsPageRenderController(
         actions.add(SettingsAction(text(languageMode, "scan.library"), Runnable { listener.loadLibrary() }))
         actions.add(SettingsAction(text(languageMode, "import.audio.files"), Runnable { listener.openAudioFilePicker() }))
         actions.add(SettingsAction(text(languageMode, "import.audio.folder"), Runnable { listener.openAudioFolderPicker() }))
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "library")))
+        renderSettingsScreen(text(languageMode, "library"), metrics, actions)
     }
 
     fun renderLyrics(languageMode: String, offsetMs: Long, onlineLyricsEnabled: Boolean) {
@@ -197,7 +207,7 @@ internal class SettingsPageRenderController(
         addLyricsOffsetOption(actions, languageMode, offsetMs, 0L)
         addLyricsOffsetOption(actions, languageMode, offsetMs, 500L)
         addLyricsOffsetOption(actions, languageMode, offsetMs, 1000L)
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "lyrics")))
+        renderSettingsScreen(text(languageMode, "lyrics"), metrics, actions)
     }
 
     fun renderSleepTimer(languageMode: String, remainingMs: Long) {
@@ -212,7 +222,7 @@ internal class SettingsPageRenderController(
         addSleepTimerOption(actions, languageMode, 60)
         addSleepTimerOption(actions, languageMode, 90)
         actions.add(SettingsAction(text(languageMode, "cancel.sleep.timer"), Runnable { listener.cancelSleepTimer() }))
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "sleep.timer")))
+        renderSettingsScreen(text(languageMode, "sleep.timer"), metrics, actions)
     }
 
     fun renderPlaybackSpeed(languageMode: String, playbackSpeed: Float) {
@@ -227,7 +237,7 @@ internal class SettingsPageRenderController(
         addPlaybackSpeedOption(actions, languageMode, playbackSpeed, 1.25f)
         addPlaybackSpeedOption(actions, languageMode, playbackSpeed, 1.5f)
         addPlaybackSpeedOption(actions, languageMode, playbackSpeed, 2.0f)
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "playback.speed")))
+        renderSettingsScreen(text(languageMode, "playback.speed"), metrics, actions)
     }
 
     fun renderAppVolume(languageMode: String, appVolume: Float) {
@@ -240,7 +250,7 @@ internal class SettingsPageRenderController(
         addAppVolumeOption(actions, languageMode, appVolume, 0.7f)
         addAppVolumeOption(actions, languageMode, appVolume, 0.85f)
         addAppVolumeOption(actions, languageMode, appVolume, 1.0f)
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "app.volume")))
+        renderSettingsScreen(text(languageMode, "app.volume"), metrics, actions)
     }
 
     fun renderStreamingAudioQuality(languageMode: String, quality: String) {
@@ -253,7 +263,7 @@ internal class SettingsPageRenderController(
         StreamingQualityPreference.options().forEach { option ->
             addStreamingQualityOption(actions, languageMode, normalizedQuality, option)
         }
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "streaming.audio.quality")))
+        renderSettingsScreen(text(languageMode, "streaming.audio.quality"), metrics, actions)
     }
 
     fun renderConcurrentPlayback(languageMode: String, concurrentPlaybackEnabled: Boolean) {
@@ -268,7 +278,7 @@ internal class SettingsPageRenderController(
                 Runnable { listener.setConcurrentPlaybackEnabled(!concurrentPlaybackEnabled) }
             )
         )
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "concurrent.playback")))
+        renderSettingsScreen(text(languageMode, "concurrent.playback"), metrics, actions)
     }
 
     fun renderTheme(languageMode: String, themeMode: String) {
@@ -289,7 +299,7 @@ internal class SettingsPageRenderController(
                 )
             )
         }
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "appearance")))
+        renderSettingsScreen(text(languageMode, "appearance"), metrics, actions)
     }
 
     fun renderAdvancedTheme(languageMode: String, themeMode: String) {
@@ -301,7 +311,7 @@ internal class SettingsPageRenderController(
         EchoTheme.advancedModeOptions().forEach { mode ->
             addThemeOption(actions, languageMode, themeMode, mode)
         }
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "advanced.themes")))
+        renderSettingsScreen(text(languageMode, "advanced.themes"), metrics, actions)
     }
 
     fun renderAccent(languageMode: String, accentMode: String) {
@@ -322,7 +332,7 @@ internal class SettingsPageRenderController(
         addAccentOption(actions, languageMode, accentMode, EchoTheme.ACCENT_INDIGO)
         addAccentOption(actions, languageMode, accentMode, EchoTheme.ACCENT_PINE)
         addAccentOption(actions, languageMode, accentMode, EchoTheme.ACCENT_PEACH)
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "accent")))
+        renderSettingsScreen(text(languageMode, "accent"), metrics, actions)
     }
 
     fun renderLanguage(languageMode: String) {
@@ -334,7 +344,7 @@ internal class SettingsPageRenderController(
         addLanguageOption(actions, languageMode, AppLanguage.MODE_SYSTEM)
         addLanguageOption(actions, languageMode, AppLanguage.MODE_CHINESE)
         addLanguageOption(actions, languageMode, AppLanguage.MODE_ENGLISH)
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, text(languageMode, "language")))
+        renderSettingsScreen(text(languageMode, "language"), metrics, actions)
     }
 
     private fun addNavigationAction(actions: ArrayList<SettingsAction>, label: String, page: String) {
