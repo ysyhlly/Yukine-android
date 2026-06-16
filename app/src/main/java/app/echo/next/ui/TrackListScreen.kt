@@ -1,6 +1,5 @@
 package app.echo.next.ui
 
-import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,10 +15,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,7 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -36,9 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import app.echo.next.MainActivityTrackListUiState
 import app.echo.next.R
-import kotlinx.coroutines.flow.StateFlow
 
 data class TrackRowUiState(
     val id: Long,
@@ -77,67 +73,8 @@ data class TrackListLabels(
     val deleteLabel: String = "Delete"
 )
 
-object TrackListScreenFactory {
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityTrackListUiState>,
-        actions: List<TrackRowActions>
-    ): ComposeView = create(context, state, actions, emptyList(), emptyList())
-
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityTrackListUiState>,
-        actions: List<TrackRowActions>,
-        headerMetrics: List<TrackListHeaderMetric>,
-        headerActions: List<TrackListHeaderAction>
-    ): ComposeView = create(context, state, actions, headerMetrics, headerActions, "")
-
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityTrackListUiState>,
-        actions: List<TrackRowActions>,
-        headerMetrics: List<TrackListHeaderMetric>,
-        headerActions: List<TrackListHeaderAction>,
-        emptyText: String
-    ): ComposeView = create(context, state, actions, headerMetrics, headerActions, emptyText, emptyList())
-
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityTrackListUiState>,
-        actions: List<TrackRowActions>,
-        headerMetrics: List<TrackListHeaderMetric>,
-        headerActions: List<TrackListHeaderAction>,
-        emptyText: String,
-        modeActions: List<TrackListModeAction>
-    ): ComposeView = create(context, state, actions, headerMetrics, headerActions, emptyText, modeActions, TrackListLabels())
-
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityTrackListUiState>,
-        actions: List<TrackRowActions>,
-        headerMetrics: List<TrackListHeaderMetric>,
-        headerActions: List<TrackListHeaderAction>,
-        emptyText: String,
-        modeActions: List<TrackListModeAction>,
-        labels: TrackListLabels
-    ): ComposeView = ComposeView(context).apply {
-        setContent {
-            EchoTheme.EchoTheme {
-                val uiState = state.collectAsState()
-                TrackListScreen(uiState.value.title, uiState.value.rows, actions, headerMetrics, headerActions, emptyText, modeActions, labels)
-            }
-        }
-    }
-
-}
-
 @Composable
-private fun TrackListScreen(
+internal fun TrackListScreen(
     title: String,
     tracks: List<TrackRowUiState>,
     actions: List<TrackRowActions>,
@@ -151,7 +88,7 @@ private fun TrackListScreen(
     val titleBackAction = headerActions.firstOrNull { isBackAction(it.label) }
     val visibleHeaderActions = if (titleBackAction != null) headerActions.drop(1) else headerActions
     LazyColumn(
-        modifier = Modifier.echoPageBackground(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = echoPagePadding(),
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
     ) {
@@ -184,7 +121,7 @@ private fun TrackListScreen(
             key = { _, track -> track.id }
         ) { i, track ->
             actions.getOrNull(i)?.let { action ->
-                TrackRow(track, action, labels)
+                TrackRow(track, action, labels, Modifier.echoEnter(i.coerceAtMost(8)))
             }
         }
         if (tracks.isEmpty() && emptyText.isNotBlank()) {
@@ -276,10 +213,13 @@ private fun HeaderMetricRow(metric: TrackListHeaderMetric) {
 @Composable
 private fun HeaderActionRow(action: TrackListHeaderAction) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = { action.onClick.run() },
+        interactionSource = interaction,
         modifier = Modifier
             .fillMaxWidth()
+            .echoPressScale(interaction)
             .echoGlassLayer(p, EchoShapes.medium)
             .semantics { contentDescription = action.label },
         shape = EchoShapes.medium,
@@ -312,6 +252,7 @@ private fun HeaderMessageRow(message: String) {
 @Composable
 private fun TrackRow(track: TrackRowUiState, actions: TrackRowActions, labels: TrackListLabels, modifier: Modifier = Modifier) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     val bg by androidx.compose.animation.animateColorAsState(
         targetValue = if (track.current) p.accentSoft else p.surface,
         animationSpec = EchoMotion.colorSpring(),
@@ -319,7 +260,10 @@ private fun TrackRow(track: TrackRowUiState, actions: TrackRowActions, labels: T
     )
     Surface(
         onClick = { actions.onPlay.run() },
-        modifier = modifier.echoGlassLayer(p, EchoShapes.medium),
+        interactionSource = interaction,
+        modifier = modifier
+            .echoPressScale(interaction)
+            .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = if (track.current) bg else Color.Transparent
     ) {

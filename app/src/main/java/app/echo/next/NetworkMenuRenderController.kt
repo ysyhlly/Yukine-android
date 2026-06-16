@@ -1,14 +1,10 @@
 package app.echo.next
 
-import android.content.Context
-import android.view.View
 import app.echo.next.ui.SettingsAction
 import app.echo.next.ui.SettingsMetric
-import app.echo.next.ui.SettingsScreenFactory
 import java.util.ArrayList
 
 internal class NetworkMenuRenderController(
-    private val context: Context,
     private val listener: Listener
 ) {
     interface Listener {
@@ -30,7 +26,7 @@ internal class NetworkMenuRenderController(
 
         fun playAllWebDavTracks()
 
-        fun addVirtualContent(view: View)
+        fun publishNetworkMenu(title: String, metrics: List<SettingsMetric>, actions: List<SettingsAction>)
     }
 
     fun renderHome(languageMode: String, remoteSourceCount: Int, streamTrackCount: Int, webDavSourceCount: Int) {
@@ -49,7 +45,8 @@ internal class NetworkMenuRenderController(
         actions.add(SettingsAction(text(languageMode, "remote.sources"), Runnable {
             listener.navigateNetworkPage(MainRoutes.NETWORK_SOURCES)
         }))
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, title = text(languageMode, "tab.network")))
+        val title = text(languageMode, "tab.network")
+        listener.publishNetworkMenu(title, metrics, actions)
     }
 
     fun renderStreaming(languageMode: String, streamTrackCount: Int) {
@@ -79,7 +76,8 @@ internal class NetworkMenuRenderController(
         actions.add(SettingsAction(text(languageMode, "delete.streams"), Runnable {
             listener.confirmDeleteAllStreams()
         }))
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, title = text(languageMode, "streaming")))
+        val title = text(languageMode, "streaming")
+        listener.publishNetworkMenu(title, metrics, actions)
     }
 
     fun renderWebDav(languageMode: String, webDavSourceCount: Int, webDavTrackCount: Int) {
@@ -107,7 +105,8 @@ internal class NetworkMenuRenderController(
         actions.add(SettingsAction(text(languageMode, "manage.sources"), Runnable {
             listener.navigateNetworkPage(MainRoutes.NETWORK_SOURCES)
         }))
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, title = text(languageMode, "webdav")))
+        val title = text(languageMode, "webdav")
+        listener.publishNetworkMenu(title, metrics, actions)
     }
 
     private fun text(languageMode: String, key: String): String = AppLanguage.text(languageMode, key)

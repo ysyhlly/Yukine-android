@@ -1,6 +1,5 @@
 package app.echo.next.ui
 
-import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,21 +18,17 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.echo.next.MainActivityPlaylistTracksUiState
 import app.echo.next.R
-import kotlinx.coroutines.flow.StateFlow
 
 data class PlaylistTrackUiState(
     val key: String,
@@ -65,31 +60,6 @@ data class PlaylistTrackLabels(
     val removeLabel: String = "Remove"
 )
 
-object PlaylistTrackScreenFactory {
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityPlaylistTracksUiState>,
-        actions: List<PlaylistTrackActions>
-    ): ComposeView = create(context, state, actions, PlaylistTrackLabels())
-
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityPlaylistTracksUiState>,
-        actions: List<PlaylistTrackActions>,
-        labels: PlaylistTrackLabels
-    ): ComposeView = ComposeView(context).apply {
-        setContent {
-            EchoTheme.EchoTheme {
-                val uiState = state.collectAsState()
-                PlaylistTrackScreen(uiState.value.title, uiState.value.rows, actions, labels)
-            }
-        }
-    }
-
-}
-
 @Composable
 private fun PlaylistTrackScreen(
     title: String,
@@ -98,7 +68,7 @@ private fun PlaylistTrackScreen(
     labels: PlaylistTrackLabels
 ) {
     LazyColumn(
-        modifier = Modifier.echoPageBackground(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = echoPagePadding(),
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
     ) {

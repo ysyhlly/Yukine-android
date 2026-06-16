@@ -1,6 +1,5 @@
 package app.echo.next.ui
 
-import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -28,7 +27,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,9 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -46,9 +42,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.echo.next.MainActivityHomeDashboardUiState
 import app.echo.next.R
-import kotlinx.coroutines.flow.StateFlow
 
 /** Number of natural-week columns shown in the recap heatmap (desktop parity). */
 internal const val HEATMAP_WEEK_COLUMNS = 12
@@ -118,36 +112,15 @@ data class HomeDashboardActions(
     val onShuffleAll: Runnable,
     val onRecentTabChanged: (Int) -> Unit,
     val onDailyRecommend: Runnable = Runnable { },
-    val onHeartbeatRecommend: Runnable = Runnable { }
+    val onHeartbeatRecommend: Runnable = Runnable { },
+    val onOpenCollections: Runnable = Runnable { }
 )
 
-object HomeDashboardScreenFactory {
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityHomeDashboardUiState>,
-        actions: HomeDashboardActions
-    ): ComposeView = ComposeView(context).apply {
-        setContent {
-            EchoTheme.EchoTheme {
-                val uiState = state.collectAsState()
-                HomeDashboardScreen(uiState.value.content, actions)
-            }
-        }
-    }
-}
-
 @Composable
-private fun HomeDashboardScreen(state: HomeDashboardUiState, actions: HomeDashboardActions) {
+internal fun HomeDashboardScreen(state: HomeDashboardUiState, actions: HomeDashboardActions) {
     val p = EchoTheme.colors()
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(p.backgroundAlt, p.background, p.surfaceVariant.copy(alpha = 0.34f))
-                )
-            ),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -190,46 +163,43 @@ private fun HeroSection(state: HomeDashboardUiState, actions: HomeDashboardActio
 @Composable
 private fun HeroPanel(state: HomeDashboardUiState, actions: HomeDashboardActions) {
     val p = EchoTheme.colors()
-    EchoGlassSurface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = EchoShapes.large,
-        contentPadding = PaddingValues(16.dp)
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            // Badge
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(p.accent)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    "今日回声",
-                    style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
-                    color = p.accent
-                )
-            }
-            // Title
-            Text(
-                state.heroTitle,
-                style = EchoTypography.display.copy(fontSize = 22.sp, lineHeight = 28.sp),
-                color = p.heading,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+        // Badge
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(p.accent)
             )
-            // Subtitle
+            Spacer(Modifier.width(6.dp))
             Text(
-                state.heroSubtitle.ifBlank { "接上最近播放，或者从最近入库里挑一张封面开始。" },
-                style = EchoTypography.body,
-                color = p.muted,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                "今日回声",
+                style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+                color = p.accent
             )
-            // Action buttons (wrap for mobile)
-            HeroActionButtons(actions)
         }
+        // Title
+        Text(
+            state.heroTitle,
+            style = EchoTypography.display.copy(fontSize = 22.sp, lineHeight = 28.sp),
+            color = p.heading,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        // Subtitle
+        Text(
+            state.heroSubtitle.ifBlank { "接上最近播放，或者从最近入库里挑一张封面开始。" },
+            style = EchoTypography.body,
+            color = p.muted,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        // Action buttons
+        HeroActionButtons(actions)
     }
 }
 
@@ -263,6 +233,7 @@ private fun HeroActionButtons(actions: HomeDashboardActions) {
         }
         item { HeroSecondaryButton("队列", EchoIconKind.Queue) { actions.onViewQueue.run() } }
         item { HeroSecondaryButton("随机", EchoIconKind.Shuffle) { actions.onShuffleAll.run() } }
+        item { HeroSecondaryButton("收藏", EchoIconKind.Heart) { actions.onOpenCollections.run() } }
         item { HeroSecondaryButton("刷新", EchoIconKind.Sync) { actions.onRefresh.run() } }
     }
 }
@@ -294,9 +265,12 @@ private fun HeroSecondaryButton(label: String, icon: EchoIconKind, onClick: () -
 @Composable
 private fun NowPlayingCard(state: HomeDashboardUiState, actions: HomeDashboardActions) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = { actions.onOpenNowPlaying.run() },
+        interactionSource = interaction,
         modifier = Modifier
+            .echoPressScale(interaction)
             .fillMaxWidth()
             .semantics { contentDescription = "正在播放" },
         shape = EchoShapes.large,
@@ -312,10 +286,10 @@ private fun NowPlayingCard(state: HomeDashboardUiState, actions: HomeDashboardAc
                 uri = state.continueAlbumArtUri,
                 title = state.continueTitle,
                 subtitle = state.continueSubtitle,
-                modifier = Modifier.size(72.dp),
+                modifier = Modifier.size(56.dp),
                 cornerRadius = 10.dp,
-                fallbackTextSize = 18.sp,
-                targetSize = 72.dp,
+                fallbackTextSize = 16.sp,
+                targetSize = 56.dp,
                 backgroundColor = p.surfaceVariant,
                 fallbackResId = R.drawable.ic_stat_echo
             )
@@ -418,9 +392,12 @@ private fun StatGrid(stats: List<HomeDashboardStatUiState>, actions: HomeDashboa
 @Composable
 private fun StatCard(stat: HomeDashboardStatUiState, action: Runnable?, modifier: Modifier = Modifier) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = { action?.run() },
+        interactionSource = interaction,
         modifier = modifier
+            .echoPressScale(interaction)
             .heightIn(min = 80.dp)
             .semantics { contentDescription = stat.label },
         shape = EchoShapes.medium,
@@ -431,15 +408,7 @@ private fun StatCard(stat: HomeDashboardStatUiState, action: Runnable?, modifier
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(EchoShapes.small)
-                    .background(p.accentSoft),
-                contentAlignment = Alignment.Center
-            ) {
-                EchoIcon(iconForMode(stat.mode), Modifier.size(20.dp), p.accent)
-            }
+            EchoIcon(iconForMode(stat.mode), Modifier.size(22.dp), p.accent)
             Column {
                 Text(
                     stat.value,
@@ -516,9 +485,12 @@ private fun RecentActivitySection(state: HomeDashboardUiState, actions: HomeDash
 @Composable
 private fun CompactRecentCard(item: HomeDashboardRecentUiState, action: Runnable?) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = { action?.run() },
+        interactionSource = interaction,
         modifier = Modifier
+            .echoPressScale(interaction)
             .width(120.dp)
             .semantics { contentDescription = item.title },
         shape = EchoShapes.medium,
@@ -800,30 +772,18 @@ private fun RecommendationCard(
         modifier = modifier
             .echoPressScale(interaction)
             .semantics { contentDescription = title },
-        shape = EchoShapes.large,
+        shape = EchoShapes.medium,
         color = p.surface
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(p.accentSoft.copy(alpha = 0.55f), p.surface)
-                    )
-                )
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(p.accent),
-                contentAlignment = Alignment.Center
-            ) {
-                EchoIcon(icon, Modifier.size(22.dp), p.onAccent)
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            EchoIcon(icon, Modifier.size(22.dp), p.accent)
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
                     title,
                     style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
@@ -833,7 +793,7 @@ private fun RecommendationCard(
                 )
                 Text(
                     subtitle,
-                    style = EchoTypography.caption,
+                    style = EchoTypography.small,
                     color = p.muted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis

@@ -1,6 +1,5 @@
 package app.echo.next.ui
 
-import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -20,10 +20,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -55,45 +55,8 @@ class SettingsListScrollState(
     }
 }
 
-object SettingsScreenFactory {
-    @JvmStatic
-    fun create(
-        context: Context,
-        metrics: List<SettingsMetric>,
-        actions: List<SettingsAction>
-    ): ComposeView = create(context, metrics, actions, SettingsListScrollState(), "Settings")
-
-    fun create(
-        context: Context,
-        metrics: List<SettingsMetric>,
-        actions: List<SettingsAction>,
-        scrollState: SettingsListScrollState
-    ): ComposeView = create(context, metrics, actions, scrollState, "Settings")
-
-    fun create(
-        context: Context,
-        metrics: List<SettingsMetric>,
-        actions: List<SettingsAction>,
-        title: String
-    ): ComposeView = create(context, metrics, actions, SettingsListScrollState(), title)
-
-    fun create(
-        context: Context,
-        metrics: List<SettingsMetric>,
-        actions: List<SettingsAction>,
-        scrollState: SettingsListScrollState,
-        title: String
-    ): ComposeView = ComposeView(context).apply {
-        setContent {
-            EchoTheme.EchoTheme {
-                SettingsScreen(title, metrics, actions, scrollState)
-            }
-        }
-    }
-}
-
 @Composable
-private fun SettingsScreen(
+fun SettingsScreen(
     title: String,
     metrics: List<SettingsMetric>,
     actions: List<SettingsAction>,
@@ -111,7 +74,7 @@ private fun SettingsScreen(
         }
     }
     LazyColumn(
-        modifier = Modifier.echoPageBackground(),
+        modifier = Modifier.fillMaxSize(),
         state = listState,
         contentPadding = echoPagePadding(),
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
@@ -126,8 +89,8 @@ private fun SettingsScreen(
         itemsIndexed(
             items = visibleActions,
             key = { index, action -> "action:${action.label}:$index" }
-        ) { _, action ->
-            SettingsActionButton(action) {
+        ) { index, action ->
+            SettingsActionButton(action, Modifier.echoEnter(index.coerceAtMost(8))) {
                 scrollState.save(listState)
                 action.onClick.run()
             }
@@ -147,12 +110,15 @@ private fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsActionButton(action: SettingsAction, onClick: () -> Unit) {
+private fun SettingsActionButton(action: SettingsAction, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = onClick,
-        modifier = Modifier
+        interactionSource = interaction,
+        modifier = modifier
             .fillMaxWidth()
+            .echoPressScale(interaction)
             .echoGlassLayer(p, EchoShapes.medium)
             .semantics { contentDescription = action.label },
         shape = EchoShapes.medium,

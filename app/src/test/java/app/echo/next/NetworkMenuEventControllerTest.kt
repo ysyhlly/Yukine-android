@@ -1,7 +1,6 @@
 package app.echo.next
 
 import android.net.Uri
-import android.view.View
 import app.echo.next.model.RemoteSource
 import app.echo.next.model.Track
 import org.junit.Assert.assertEquals
@@ -117,9 +116,7 @@ class NetworkMenuEventControllerTest {
                 { tracks, index -> events.add("play:${tracks.first().id}@$index") },
                 { key -> "label:$key" },
                 { status -> events.add("status:$status") },
-                object : NetworkMenuEventController.ContentSink {
-                    override fun addVirtualContent(view: View) = Unit
-                }
+                object : NetworkMenuEventController.ContentSink {}
             )
     }
 

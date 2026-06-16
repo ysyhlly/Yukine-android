@@ -1,12 +1,9 @@
 package app.echo.next
 
-import android.content.Context
-import android.view.View
 import app.echo.next.ui.EchoTheme
 import app.echo.next.ui.SettingsAction
 import app.echo.next.ui.SettingsListScrollState
 import app.echo.next.ui.SettingsMetric
-import app.echo.next.ui.SettingsScreenFactory
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
@@ -14,7 +11,6 @@ import kotlin.math.round
 import kotlin.math.roundToInt
 
 internal class SettingsPageRenderController(
-    private val context: Context,
     private val viewModel: SettingsViewModel,
     private val listener: Listener
 ) {
@@ -57,7 +53,10 @@ internal class SettingsPageRenderController(
 
         fun applyStreamingGatewayEndpoint(endpoint: String)
 
-        fun addVirtualContent(view: View)
+        fun publishSettingsChrome(
+            actions: List<SettingsAction>,
+            scrollState: SettingsListScrollState
+        )
     }
 
     fun scrollToTopOnNextRender() {
@@ -70,7 +69,7 @@ internal class SettingsPageRenderController(
         actions: List<SettingsAction>
     ) {
         viewModel.updatePage(title, metrics, actions)
-        listener.addVirtualContent(SettingsScreenFactory.create(context, metrics, actions, scrollState, title))
+        listener.publishSettingsChrome(actions, scrollState)
     }
 
     fun renderHome(

@@ -1,33 +1,40 @@
 package app.echo.next
 
-import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.viewinterop.AndroidView
+import app.echo.next.navigation.EchoNavHostBridge
+import app.echo.next.navigation.EchoNavHostState
+import app.echo.next.navigation.EchoTabItem
+import app.echo.next.navigation.TabRoute
+import app.echo.next.queue.QueueViewModel
 import app.echo.next.ui.EchoTheme
 
-fun interface EchoLegacyRootFactory {
-    fun create(): View
+/**
+ * Java-implementable wiring for the single-Activity Compose shell.
+ *
+ * MainActivity (Java) provides ViewModels and route callbacks; [EchoAppHost.installNavHost]
+ * mounts the pure Compose NavHost entry.
+ */
+interface EchoNavHostMount {
+    fun tabs(): List<EchoTabItem>
+    fun queueViewModel(): QueueViewModel
+    fun hostState(): EchoNavHostState
+    fun onTabChanged(tab: TabRoute) {}
 }
 
 object EchoAppHost {
+    /** Mounts the single-Activity Compose NavHost shell. */
     @JvmStatic
-    fun install(activity: ComponentActivity, legacyRootFactory: EchoLegacyRootFactory) {
+    fun installNavHost(activity: ComponentActivity, mount: EchoNavHostMount) {
         activity.setContent {
-            EchoApp(legacyRootFactory)
+            EchoTheme.EchoTheme {
+                EchoNavHostBridge(
+                    tabs = mount.tabs(),
+                    queueViewModel = mount.queueViewModel(),
+                    hostState = mount.hostState(),
+                    onTabChanged = { tab -> mount.onTabChanged(tab) }
+                )
+            }
         }
-    }
-}
-
-@Composable
-fun EchoApp(legacyRootFactory: EchoLegacyRootFactory) {
-    EchoTheme.EchoTheme {
-        AndroidView(
-            factory = { legacyRootFactory.create() },
-            modifier = Modifier.fillMaxSize()
-        )
     }
 }

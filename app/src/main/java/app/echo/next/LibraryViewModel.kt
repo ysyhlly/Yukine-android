@@ -136,6 +136,10 @@ data class LibraryDefaultPlaylistAddResultUi(
     val added: Boolean = false
 )
 
+data class LibraryPlaylistActionPresentation(
+    val status: String = ""
+)
+
 interface LibraryPlaylistActionGateway {
     fun addToDefaultPlaylist(track: Track?): LibraryDefaultPlaylistAddResultUi?
 
@@ -662,6 +666,75 @@ class LibraryViewModel @JvmOverloads constructor(
         addTrackToPlaylist(playlistId, trackId) { added -> onAdded?.onAdded(playlistId, added) }
     }
 
+    fun defaultPlaylistAddPresentation(
+        added: Boolean,
+        languageMode: String
+    ): LibraryPlaylistActionPresentation =
+        LibraryPlaylistActionPresentation(
+            status = text(
+                languageMode,
+                if (added) "added.to.playlist" else "could.not.add.to.playlist"
+            )
+        )
+
+    fun playlistCreatedPresentation(languageMode: String): LibraryPlaylistActionPresentation =
+        LibraryPlaylistActionPresentation(status = text(languageMode, "playlist.created"))
+
+    fun playlistRenamedPresentation(
+        renamed: Boolean,
+        languageMode: String
+    ): LibraryPlaylistActionPresentation =
+        LibraryPlaylistActionPresentation(
+            status = text(
+                languageMode,
+                if (renamed) "playlist.renamed" else "playlist.rename.failed"
+            )
+        )
+
+    fun playlistDeletedPresentation(
+        deletedName: String?,
+        deleted: Boolean,
+        languageMode: String
+    ): LibraryPlaylistActionPresentation =
+        LibraryPlaylistActionPresentation(
+            status = if (deleted) {
+                text(languageMode, "deleted.playlist.prefix") + deletedName.orEmpty()
+            } else {
+                text(languageMode, "could.not.delete.playlist")
+            }
+        )
+
+    fun selectedPlaylistTrackRemovedPresentation(
+        track: Track?,
+        languageMode: String
+    ): LibraryPlaylistActionPresentation =
+        LibraryPlaylistActionPresentation(
+            status = text(languageMode, "removed.from.playlist.prefix") + (track?.title ?: "")
+        )
+
+    fun selectedPlaylistTrackMovedPresentation(
+        track: Track?,
+        direction: Int,
+        moved: Boolean,
+        languageMode: String
+    ): LibraryPlaylistActionPresentation =
+        LibraryPlaylistActionPresentation(
+            status = if (moved) {
+                text(
+                    languageMode,
+                    if (direction < 0) "moved.up.prefix" else "moved.down.prefix"
+                ) + (track?.title ?: "")
+            } else {
+                text(languageMode, "move.failed")
+            }
+        )
+
+    fun trackAddedToPlaylistPresentation(
+        added: Boolean,
+        languageMode: String
+    ): LibraryPlaylistActionPresentation =
+        defaultPlaylistAddPresentation(added, languageMode)
+
     fun updateTrackList(title: String, rows: List<TrackRowUiState>) {
         trackListState.value = MainActivityTrackListUiState(title, rows.toList())
     }
@@ -669,4 +742,7 @@ class LibraryViewModel @JvmOverloads constructor(
     fun updateLibraryGroups(title: String, rows: List<LibraryGroupUiState>) {
         libraryGroupsState.value = MainActivityLibraryGroupsUiState(title, rows.toList())
     }
+
+    private fun text(languageMode: String, key: String): String =
+        AppLanguage.text(languageMode, key)
 }

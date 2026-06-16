@@ -1,20 +1,16 @@
 package app.echo.next
 
-import android.content.Context
-import android.view.View
 import app.echo.next.model.Track
 import app.echo.next.playback.PlaybackStateSnapshot
 import app.echo.next.ui.TrackListHeaderAction
 import app.echo.next.ui.TrackListHeaderMetric
 import app.echo.next.ui.TrackListLabels
 import app.echo.next.ui.TrackListModeAction
-import app.echo.next.ui.TrackListScreenFactory
 import app.echo.next.ui.TrackRowActions
 import app.echo.next.ui.TrackRowUiState
 import java.util.ArrayList
 
 internal class TrackListRenderController(
-    private val context: Context,
     private val viewModel: LibraryViewModel,
     private val listener: Listener
 ) {
@@ -31,7 +27,14 @@ internal class TrackListRenderController(
 
         fun publishTrackList(title: String, rows: ArrayList<TrackRowUiState>)
 
-        fun addVirtualContent(view: View)
+        fun publishTrackListChrome(
+            actions: List<TrackRowActions>,
+            headerMetrics: List<TrackListHeaderMetric>,
+            headerActions: List<TrackListHeaderAction>,
+            emptyText: String,
+            modeActions: List<TrackListModeAction>,
+            labels: TrackListLabels
+        )
     }
 
     fun render(
@@ -74,17 +77,33 @@ internal class TrackListRenderController(
         }
 
         viewModel.updateTrackList(title, rows)
-        listener.addVirtualContent(
-            TrackListScreenFactory.create(
-                context,
-                viewModel.trackList,
-                actions,
-                headerMetrics,
-                headerActions,
-                emptyText,
-                modeActions,
-                labels
+        listener.publishTrackListChrome(actions, headerMetrics, headerActions, emptyText, modeActions, labels)
+    }
+
+    fun renderRecommendation(title: String, tracks: List<Track>) {
+        val rows = ArrayList<TrackRowUiState>()
+        val actions = ArrayList<TrackRowActions>()
+        for (index in tracks.indices) {
+            val track = tracks[index]
+            rows.add(
+                TrackRowStateFactory.trackRow(track, null, emptySet(), "", true)
             )
+            actions.add(
+                TrackRowActions(
+                    Runnable { listener.playTrackList(tracks, index) },
+                    Runnable { listener.toggleFavorite(track) },
+                    Runnable { listener.showAddToPlaylist(track) }
+                )
+            )
+        }
+        viewModel.updateTrackList(title, rows)
+        listener.publishTrackListChrome(
+            actions,
+            listOf(TrackListHeaderMetric("曲目", "${tracks.size}")),
+            emptyList(),
+            "",
+            emptyList(),
+            TrackListLabels()
         )
     }
 }

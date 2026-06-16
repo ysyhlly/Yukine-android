@@ -1,43 +1,23 @@
 package app.echo.next.ui
 
-import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.echo.next.MainActivityPlaylistListUiState
-import kotlinx.coroutines.flow.StateFlow
 
 data class PlaylistRowUiState(val name: String, val subtitle: String, val selected: Boolean)
 data class PlaylistRowActions(val onSelect: Runnable, val onRename: Runnable, val onDelete: Runnable)
-
-object PlaylistListScreenFactory {
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityPlaylistListUiState>,
-        actions: List<PlaylistRowActions>
-    ): ComposeView = ComposeView(context).apply {
-        setContent {
-            EchoTheme.EchoTheme {
-                val uiState = state.collectAsState()
-                PlaylistListScreen(uiState.value.title, uiState.value.rows, actions)
-            }
-        }
-    }
-
-}
 
 @Composable
 private fun PlaylistListScreen(
@@ -45,7 +25,7 @@ private fun PlaylistListScreen(
 ) {
     val p = EchoTheme.colors()
     LazyColumn(
-        modifier = Modifier.echoPageBackground(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = echoPagePadding(),
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
     ) {

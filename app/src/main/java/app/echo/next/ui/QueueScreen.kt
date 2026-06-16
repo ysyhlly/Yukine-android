@@ -1,6 +1,5 @@
 package app.echo.next.ui
 
-import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,21 +18,17 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.echo.next.MainActivityQueueUiState
 import app.echo.next.R
-import kotlinx.coroutines.flow.StateFlow
 
 data class QueueTrackUiState(
     val key: String,
@@ -66,45 +61,8 @@ data class QueueScreenLabels(
     val remove: String = "Remove"
 )
 
-object QueueScreenFactory {
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityQueueUiState>,
-        actions: List<QueueTrackActions>,
-        onClearQueue: Runnable
-    ): ComposeView = create(context, state, actions, onClearQueue, QueueScreenLabels())
-
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityQueueUiState>,
-        actions: List<QueueTrackActions>,
-        onClearQueue: Runnable,
-        labels: QueueScreenLabels
-    ): ComposeView = create(context, state, actions, onClearQueue, labels, null)
-
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityQueueUiState>,
-        actions: List<QueueTrackActions>,
-        onClearQueue: Runnable,
-        labels: QueueScreenLabels,
-        onBack: Runnable?
-    ): ComposeView = ComposeView(context).apply {
-        setContent {
-            EchoTheme.EchoTheme {
-                val uiState = state.collectAsState()
-                QueueScreen(uiState.value.rows, actions, onClearQueue, labels, onBack)
-            }
-        }
-    }
-
-}
-
 @Composable
-private fun QueueScreen(
+internal fun QueueScreen(
     tracks: List<QueueTrackUiState>,
     actions: List<QueueTrackActions>,
     onClearQueue: Runnable,
@@ -113,7 +71,7 @@ private fun QueueScreen(
 ) {
     val p = EchoTheme.colors()
     LazyColumn(
-        modifier = Modifier.echoPageBackground(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = echoPagePadding(),
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
     ) {

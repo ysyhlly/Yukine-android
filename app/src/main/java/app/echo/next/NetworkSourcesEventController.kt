@@ -1,9 +1,11 @@
 package app.echo.next
 
-import android.view.View
 import app.echo.next.model.RemoteSource
 import app.echo.next.model.Track
+import app.echo.next.ui.NetworkSourceActions
+import app.echo.next.ui.NetworkSourceLabels
 import app.echo.next.ui.NetworkSourceUiState
+import app.echo.next.ui.TrackListHeaderAction
 import java.util.ArrayList
 
 internal class NetworkSourcesEventController(
@@ -16,8 +18,7 @@ internal class NetworkSourcesEventController(
     private val labels: Labels,
     private val statusSink: StatusSink,
     private val statePublisher: MainStatePublisher,
-    private val renderer: Renderer,
-    private val contentSink: ContentSink
+    private val renderer: Renderer
 ) : NetworkSourcesRenderController.Listener {
     interface LibrarySource {
         fun remoteSourceName(sourceId: Long): String
@@ -47,10 +48,6 @@ internal class NetworkSourcesEventController(
 
     fun interface Renderer {
         fun renderAndPersistSelectedTab()
-    }
-
-    fun interface ContentSink {
-        fun addVirtualContent(view: View)
     }
 
     override fun backToNetwork() {
@@ -94,7 +91,10 @@ internal class NetworkSourcesEventController(
         statePublisher.publishNetworkSources(title, rows)
     }
 
-    override fun addVirtualContent(view: View) {
-        contentSink.addVirtualContent(view)
-    }
+    override fun publishNetworkSourcesChrome(
+        actions: List<NetworkSourceActions>,
+        headerActions: List<TrackListHeaderAction>,
+        emptyText: String,
+        labels: NetworkSourceLabels
+    ) = Unit
 }

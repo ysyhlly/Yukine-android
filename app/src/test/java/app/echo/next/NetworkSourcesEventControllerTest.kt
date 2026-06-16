@@ -1,7 +1,6 @@
 package app.echo.next
 
 import android.net.Uri
-import android.view.View
 import androidx.lifecycle.SavedStateHandle
 import app.echo.next.model.RemoteSource
 import app.echo.next.model.Track
@@ -114,10 +113,7 @@ class NetworkSourcesEventControllerTest {
                 { key -> "label:$key" },
                 { status -> events.add("status:$status") },
                 statePublisher,
-                { events.add("render") },
-                object : NetworkSourcesEventController.ContentSink {
-                    override fun addVirtualContent(view: View) = Unit
-                }
+                { events.add("render") }
             )
     }
 

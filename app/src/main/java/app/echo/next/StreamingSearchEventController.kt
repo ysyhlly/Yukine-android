@@ -1,10 +1,11 @@
 package app.echo.next
 
-import android.view.View
 import app.echo.next.model.Track
 import app.echo.next.streaming.StreamingPlaylist
 import app.echo.next.streaming.StreamingProviderName
 import app.echo.next.streaming.StreamingTrack
+import app.echo.next.ui.StreamingSearchActions
+import app.echo.next.ui.StreamingSearchLabels
 
 internal class StreamingSearchEventController(
     private val actionsController: StreamingSearchActionHandler,
@@ -30,7 +31,7 @@ internal class StreamingSearchEventController(
     }
 
     interface ContentSink {
-        fun addVirtualContent(view: View)
+        fun publishStreamingSearchChrome(labels: StreamingSearchLabels, actions: StreamingSearchActions) = Unit
     }
 
     override fun backToNetworkHome() {
@@ -97,7 +98,7 @@ internal class StreamingSearchEventController(
         navigator.inputProviderCookie()
     }
 
-    override fun addVirtualContent(view: View) {
-        contentSink.addVirtualContent(view)
+    override fun publishStreamingSearchChrome(labels: StreamingSearchLabels, actions: StreamingSearchActions) {
+        contentSink.publishStreamingSearchChrome(labels, actions)
     }
 }

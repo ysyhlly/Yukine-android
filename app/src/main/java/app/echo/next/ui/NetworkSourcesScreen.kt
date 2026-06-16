@@ -1,6 +1,5 @@
 package app.echo.next.ui
 
-import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,18 +16,14 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import app.echo.next.MainActivityNetworkSourcesUiState
-import kotlinx.coroutines.flow.StateFlow
 
 data class NetworkSourceUiState(
     val id: Long, val title: String, val subtitle: String, val status: String
@@ -48,43 +43,8 @@ data class NetworkSourceLabels(
     val deleteLabel: String = "Delete"
 )
 
-object NetworkSourcesScreenFactory {
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityNetworkSourcesUiState>,
-        actions: List<NetworkSourceActions>
-    ): ComposeView = create(context, state, actions, emptyList(), "")
-
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityNetworkSourcesUiState>,
-        actions: List<NetworkSourceActions>,
-        headerActions: List<TrackListHeaderAction>,
-        emptyText: String
-    ): ComposeView = create(context, state, actions, headerActions, emptyText, NetworkSourceLabels())
-
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityNetworkSourcesUiState>,
-        actions: List<NetworkSourceActions>,
-        headerActions: List<TrackListHeaderAction>,
-        emptyText: String,
-        labels: NetworkSourceLabels
-    ): ComposeView = ComposeView(context).apply {
-        setContent {
-            EchoTheme.EchoTheme {
-                val uiState = state.collectAsState()
-                NetworkSourcesScreen(uiState.value.title, uiState.value.rows, actions, headerActions, emptyText, labels)
-            }
-        }
-    }
-}
-
 @Composable
-private fun NetworkSourcesScreen(
+internal fun NetworkSourcesScreen(
     title: String,
     sources: List<NetworkSourceUiState>,
     actions: List<NetworkSourceActions>,
@@ -96,7 +56,7 @@ private fun NetworkSourcesScreen(
     val titleBackAction = headerActions.firstOrNull { isBackAction(it.label) }
     val visibleHeaderActions = if (titleBackAction != null) headerActions.drop(1) else headerActions
     LazyColumn(
-        modifier = Modifier.echoPageBackground(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = echoPagePadding(),
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
     ) {

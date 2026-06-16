@@ -1,6 +1,5 @@
 package app.echo.next.ui
 
-import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,18 +17,14 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import app.echo.next.MainActivityLibraryGroupsUiState
-import kotlinx.coroutines.flow.StateFlow
 
 data class LibraryGroupUiState(val id: String, val title: String, val subtitle: String)
 data class LibraryGroupActions @JvmOverloads constructor(
@@ -38,42 +33,8 @@ data class LibraryGroupActions @JvmOverloads constructor(
     val playEnabled: Boolean = true
 )
 
-object LibraryGroupsScreenFactory {
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityLibraryGroupsUiState>,
-        actions: List<LibraryGroupActions>
-    ): ComposeView = create(context, state, actions, "")
-
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityLibraryGroupsUiState>,
-        actions: List<LibraryGroupActions>,
-        emptyText: String
-    ): ComposeView = create(context, state, actions, emptyText, emptyList())
-
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityLibraryGroupsUiState>,
-        actions: List<LibraryGroupActions>,
-        emptyText: String,
-        modeActions: List<TrackListModeAction>
-    ): ComposeView = ComposeView(context).apply {
-        setContent {
-            EchoTheme.EchoTheme {
-                val uiState = state.collectAsState()
-                LibraryGroupsScreen(uiState.value.title, uiState.value.rows, actions, emptyText, modeActions)
-            }
-        }
-    }
-
-}
-
 @Composable
-private fun LibraryGroupsScreen(
+internal fun LibraryGroupsScreen(
     title: String,
     groups: List<LibraryGroupUiState>,
     actions: List<LibraryGroupActions>,
@@ -82,7 +43,7 @@ private fun LibraryGroupsScreen(
 ) {
     val p = EchoTheme.colors()
     LazyColumn(
-        modifier = Modifier.echoPageBackground(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = echoPagePadding(),
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
     ) {

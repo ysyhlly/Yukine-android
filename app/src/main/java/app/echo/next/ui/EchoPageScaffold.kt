@@ -28,11 +28,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 object EchoPageDefaults {
-    val horizontalPadding: Dp = 16.dp
-    val topPadding: Dp = 12.dp
+    val horizontalPadding: Dp = 18.dp
+    val topPadding: Dp = 16.dp
     val bottomPadding: Dp = 100.dp
-    val itemSpacing: Dp = 12.dp
-    val sectionSpacing: Dp = 16.dp
+    val itemSpacing: Dp = 16.dp
+    val sectionSpacing: Dp = 22.dp
 }
 
 @Composable
@@ -43,9 +43,8 @@ fun Modifier.echoPageBackground(): Modifier {
         .background(
             Brush.verticalGradient(
                 listOf(
-                    p.backgroundAlt,
                     p.background,
-                    p.surfaceVariant.copy(alpha = 0.34f)
+                    p.backgroundAlt
                 )
             )
         )

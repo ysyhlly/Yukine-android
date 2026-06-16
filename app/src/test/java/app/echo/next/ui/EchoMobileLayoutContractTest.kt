@@ -21,7 +21,7 @@ class EchoMobileLayoutContractTest {
 
     @Test
     fun mobileShellMetricsMatchDesktopInspiredP0LayoutContract() {
-        assertEquals(124f, EchoMobileLayoutMetrics.nowBarHeight.value)
+        assertEquals(112f, EchoMobileLayoutMetrics.nowBarHeight.value)
         assertEquals(48f, EchoMobileLayoutMetrics.nowBarArtworkSize.value)
         assertEquals(6f, EchoMobileLayoutMetrics.nowBarArtworkCornerRadius.value)
         assertEquals(18f, EchoMobileLayoutMetrics.nowBarProgressHeight.value)

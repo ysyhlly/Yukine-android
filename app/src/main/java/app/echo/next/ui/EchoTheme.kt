@@ -64,6 +64,13 @@ data class EchoPalette(
     val accentArgb: Int get() = accent.toArgb()
 }
 
+/**
+ * Shares the active [EchoPalette] across the whole composition so `EchoTheme.colors()` resolves
+ * to a single cached instance instead of recomputing per call site. `null` means no provider is
+ * present (callers fall back to computing directly).
+ */
+val LocalEchoPalette = staticCompositionLocalOf<EchoPalette?> { null }
+
 // ── Typography scale ────────────────────────────────────────────────────────
 
 object EchoTypography {
@@ -128,10 +135,10 @@ object EchoTypography {
 // ── Shape system ────────────────────────────────────────────────────────────
 
 object EchoShapes {
-    val small = RoundedCornerShape(6.dp)
-    val medium = RoundedCornerShape(8.dp)
-    val large = RoundedCornerShape(12.dp)
-    val full = RoundedCornerShape(16.dp)
+    val small = RoundedCornerShape(8.dp)
+    val medium = RoundedCornerShape(14.dp)
+    val large = RoundedCornerShape(20.dp)
+    val full = RoundedCornerShape(28.dp)
 }
 
 // ── Main theme object (Java-facing state holder) ────────────────────────────
@@ -287,23 +294,37 @@ object EchoTheme {
 
     // ── The single Compose entry point ──────────────────────────────────────
 
+    /**
+     * Compute the active palette for the current mode/accent/dark state. Heavy: builds a full
+     * [EchoPalette] with many [Color] objects and blend math. Callers should prefer [colors],
+     * which caches this behind a [remember] + [CompositionLocal] so the whole tree shares one
+     * instance instead of recomputing on every recomposition (14+ call sites per screen).
+     */
     @Composable
-    fun colors(): EchoPalette {
+    private fun computeColors(): EchoPalette {
         val mode   = normalizeMode(modeState.value)
         val accent = accentState.value
         val context = LocalContext.current
+        val systemDark = isSystemInDarkTheme()
         val dark = when (mode) {
             MODE_DARK -> true; MODE_LIGHT -> false
             MODE_AMOLED -> true; MODE_CONTRAST -> true
             MODE_GRAPHITE -> true; MODE_MIST -> false
             MODE_MIDNIGHT -> true; MODE_FOREST -> true
             MODE_OCEAN -> true; MODE_DAYLIGHT -> false
-            else -> isSystemInDarkTheme()
+            else -> systemDark
         }
-        if (mode == MODE_DYNAMIC) {
-            dynamicPalette(context, dark)?.let { return it }
+        return remember(mode, accent, dark) {
+            if (mode == MODE_DYNAMIC) {
+                dynamicPalette(context, dark)?.let { return@remember it }
+            }
+            paletteForMode(mode, dark, accent)
         }
-        return paletteForMode(mode, dark, accent)
+    }
+
+    @Composable
+    fun colors(): EchoPalette {
+        return LocalEchoPalette.current ?: computeColors()
     }
 
     /**
@@ -312,11 +333,10 @@ object EchoTheme {
      */
     @Composable
     fun EchoTheme(content: @Composable () -> Unit) {
-        val p = colors()
-        val scheme = colorSchemeFrom(p)
-        MaterialTheme(
-            colorScheme = scheme,
-            typography = Typography(
+        val p = computeColors()
+        val scheme = remember(p) { colorSchemeFrom(p) }
+        val typography = remember {
+            Typography(
                 displayLarge = EchoTypography.display,
                 headlineLarge = EchoTypography.headline,
                 titleLarge = EchoTypography.title,
@@ -325,16 +345,25 @@ object EchoTheme {
                 labelLarge = EchoTypography.label,
                 bodySmall = EchoTypography.caption,
                 labelSmall = EchoTypography.small
-            ),
-            shapes = Shapes(
+            )
+        }
+        val shapes = remember {
+            Shapes(
                 extraSmall = EchoShapes.small,
                 small = EchoShapes.small,
                 medium = EchoShapes.medium,
                 large = EchoShapes.large,
                 extraLarge = EchoShapes.full
             )
-        ) {
-            content()
+        }
+        CompositionLocalProvider(LocalEchoPalette provides p) {
+            MaterialTheme(
+                colorScheme = scheme,
+                typography = typography,
+                shapes = shapes
+            ) {
+                content()
+            }
         }
     }
 
@@ -464,21 +493,38 @@ object EchoTheme {
     private fun defaultPalette(dark: Boolean, accent: String): EchoPalette {
         val a = AccentPalettes.accent(dark, accent)
         return if (dark) EchoPalette(
-            background = Color(0xFF0E1117),
-            surface = Color(0xFF161A22),
-            surfaceVariant = Color(0xFF1C212C),
-            panel = Color(0xFF212836),
+            background = blendWithAccent(Color(0xFF0C1018), a, 0.16f),
+            surface = blendWithAccent(Color(0xFF141820), a, 0.14f),
+            surfaceVariant = blendWithAccent(Color(0xFF1A2028), a, 0.15f),
+            panel = blendWithAccent(Color(0xFF1E2530), a, 0.14f),
             accent = a, accentSoft = a.copy(alpha = 0.18f),
             text = Color(0xFFE4E8F0), muted = Color(0xFF9AA3B4),
-            highlight = a.copy(alpha = 0.13f), border = Color(0xFF2A3040), onAccent = Color.White
+            highlight = a.copy(alpha = 0.13f),
+            border = blendWithAccent(Color(0xFF283040), a, 0.14f),
+            onAccent = Color.White,
+            backgroundAlt = blendWithAccent(Color(0xFF101620), a, 0.18f)
         ) else EchoPalette(
-            background = Color(0xFFF5F6F8),
+            background = blendWithAccent(Color(0xFFF7F9FF), a, 0.02f),
             surface = Color(0xFFFFFFFF),
-            surfaceVariant = Color(0xFFEEF0F4),
-            panel = Color(0xFFE6E9F0),
-            accent = a, accentSoft = a.copy(alpha = 0.12f),
-            text = Color(0xFF191C22), muted = Color(0xFF6B7180),
-            highlight = a.copy(alpha = 0.08f), border = Color(0xFFDFE2E8), onAccent = Color.White
+            surfaceVariant = blendWithAccent(Color(0xFFF0F3FA), a, 0.03f),
+            panel = blendWithAccent(Color(0xFFE8ECF4), a, 0.03f),
+            accent = a, accentSoft = a.copy(alpha = 0.08f),
+            text = Color(0xFF1A1F2B), muted = Color(0xFF6B7490),
+            highlight = a.copy(alpha = 0.06f),
+            border = blendWithAccent(Color(0xFFE2E6EE), a, 0.04f),
+            onAccent = Color.White,
+            backgroundAlt = Color(0xFFFCFDFF)
+        )
+    }
+
+    /** Blend a base color toward the accent to tint backgrounds with the theme color. */
+    private fun blendWithAccent(base: Color, accent: Color, ratio: Float): Color {
+        val inv = 1f - ratio
+        return Color(
+            red = base.red * inv + accent.red * ratio,
+            green = base.green * inv + accent.green * ratio,
+            blue = base.blue * inv + accent.blue * ratio,
+            alpha = 1f
         )
     }
 

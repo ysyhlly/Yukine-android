@@ -1,6 +1,5 @@
 package app.echo.next.ui
 
-import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -31,7 +30,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,7 +45,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -161,97 +158,33 @@ private data class NowBarModeSlice(
     val repeatMode: Int
 )
 
-class NowBarController(
-    context: Context,
-    private val onPrevious: Runnable,
-    private val onPlayPause: Runnable,
-    private val onNext: Runnable,
-    private val onFavorite: Runnable,
-    private val onShuffle: Runnable,
-    private val onRepeat: Runnable,
-    private val onOpenNowPlaying: Runnable,
-    private val onOpenQueue: Runnable,
-    private val onSeek: SeekAction
-) {
-    private val state: MutableState<NowBarState> = mutableStateOf(emptyState())
-    private val waveformExpanded: MutableState<Boolean> = mutableStateOf(false)
-    private var waveformTrackKey: String = ""
-
-    val view: ComposeView = ComposeView(context).apply {
-        setContent {
-            EchoTheme.EchoTheme {
-                NowBar(
-                    state = state.value,
-                    waveformExpanded = waveformExpanded.value,
-                    onExpandWaveform = { waveformExpanded.value = true },
-                    onCollapseWaveform = { waveformExpanded.value = false },
-                    onPrevious = onPrevious,
-                    onPlayPause = onPlayPause,
-                    onNext = onNext,
-                    onFavorite = onFavorite,
-                    onShuffle = onShuffle,
-                    onRepeat = onRepeat,
-                    onOpenNowPlaying = onOpenNowPlaying,
-                    onOpenQueue = onOpenQueue,
-                    onSeek = onSeek
-                )
-            }
-        }
-    }
-
-    fun updateState(nextState: NowBarState) {
-        val nextTrackKey = "${nextState.trackId}|${nextState.contentUri}|${nextState.dataPath}"
-        if (nextTrackKey != waveformTrackKey) {
-            waveformTrackKey = nextTrackKey
-            waveformExpanded.value = false
-        }
-        state.value = nextState
-    }
-
-    fun collapseWaveform() {
-        waveformExpanded.value = false
-    }
-
-    fun currentHeightDp(): Int {
-        val height = if (waveformExpanded.value) {
-            EchoMobileLayoutMetrics.nowBarExpandedHeight
-        } else {
-            EchoMobileLayoutMetrics.nowBarHeight
-        }
-        return height.value.toInt()
-    }
-
-    companion object {
-        @JvmStatic
-        fun emptyState() = NowBarState(
-            title = "No track selected",
-            subtitle = "",
-            elapsed = Track.formatDuration(0),
-            duration = Track.formatDuration(0),
-            positionMs = 0,
-            durationMs = 0,
-            playing = false,
-            favorite = false,
-            favoriteEnabled = false,
-            canExpand = false,
-            shuffleEnabled = false,
-            favoriteLabel = "Favorite",
-            favoritedLabel = "Favorited",
-            shuffleLabel = "Shuffle",
-            inOrderLabel = "In order",
-            repeatLabel = "Repeat all",
-            repeatOffLabel = "Repeat off",
-            repeatMode = EchoPlaybackService.REPEAT_ALL
-        )
-    }
-}
+fun nowBarEmptyState() = NowBarState(
+    title = "No track selected",
+    subtitle = "",
+    elapsed = Track.formatDuration(0),
+    duration = Track.formatDuration(0),
+    positionMs = 0,
+    durationMs = 0,
+    playing = false,
+    favorite = false,
+    favoriteEnabled = false,
+    canExpand = false,
+    shuffleEnabled = false,
+    favoriteLabel = "Favorite",
+    favoritedLabel = "Favorited",
+    shuffleLabel = "Shuffle",
+    inOrderLabel = "In order",
+    repeatLabel = "Repeat all",
+    repeatOffLabel = "Repeat off",
+    repeatMode = EchoPlaybackService.REPEAT_ALL
+)
 
 fun interface SeekAction {
     fun seekTo(positionMs: Long)
 }
 
 @Composable
-private fun NowBar(
+fun NowBar(
     state: NowBarState,
     waveformExpanded: Boolean,
     onExpandWaveform: () -> Unit,
@@ -353,7 +286,9 @@ private fun NowBar(
                         onCollapseWaveform = onCollapseWaveform
                     )
                 }
-                NowBarModeControls(modeSlice, onFavorite, onShuffle, onOpenQueue, onCollapseWaveform)
+                if (!waveformExpanded) {
+                    NowBarModeControls(modeSlice, onFavorite, onShuffle, onOpenQueue, onCollapseWaveform)
+                }
             }
             if (waveformExpanded) {
                 BottomWaveformProgress(

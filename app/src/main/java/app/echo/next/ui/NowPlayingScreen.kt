@@ -1,6 +1,5 @@
 package app.echo.next.ui
 
-import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,13 +19,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,29 +47,13 @@ data class NowPlayingUiState(
 
 data class LyricUiLine(val text: String, val active: Boolean)
 
-class NowPlayingController(context: Context, initialState: NowPlayingUiState) {
-    private val state: MutableState<NowPlayingUiState> = mutableStateOf(initialState)
-
-    val view: ComposeView = ComposeView(context).apply {
-        setContent {
-            EchoTheme.EchoTheme {
-                NowPlayingScreen(state.value)
-            }
-        }
-    }
-
-    fun updateState(nextState: NowPlayingUiState) {
-        state.value = nextState
-    }
-}
-
 @Composable
-private fun NowPlayingScreen(state: NowPlayingUiState) {
+fun NowPlayingScreen(state: NowPlayingUiState) {
     val p = EchoTheme.colors()
     val activeLyricIndex = state.lyrics.indexOfFirst { it.active }
 
     LazyColumn(
-        modifier = Modifier.echoPageBackground(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = echoPagePadding(top = 12.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.sectionSpacing)
     ) {

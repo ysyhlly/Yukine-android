@@ -1,13 +1,17 @@
 package app.echo.next
 
-import android.view.View
+import app.echo.next.ui.SettingsAction
+import app.echo.next.ui.SettingsListScrollState
 
 internal class SettingsPageEventController(
     private val viewModel: SettingsViewModel,
     private val contentSink: ContentSink
 ) : SettingsPageRenderController.Listener {
-    fun interface ContentSink {
-        fun addVirtualContent(view: View)
+    interface ContentSink {
+        fun publishSettingsChrome(
+            actions: List<SettingsAction>,
+            scrollState: SettingsListScrollState
+        ) {}
     }
 
     override fun navigateSettingsPage(page: String) {
@@ -82,7 +86,10 @@ internal class SettingsPageEventController(
         viewModel.onEvent(SettingsEvent.ApplyStreamingGatewayEndpoint(endpoint))
     }
 
-    override fun addVirtualContent(view: View) {
-        contentSink.addVirtualContent(view)
+    override fun publishSettingsChrome(
+        actions: List<SettingsAction>,
+        scrollState: SettingsListScrollState
+    ) {
+        contentSink.publishSettingsChrome(actions, scrollState)
     }
 }

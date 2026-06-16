@@ -1,6 +1,5 @@
 package app.echo.next.ui
 
-import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,15 +14,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -31,7 +30,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.echo.next.R
-import kotlinx.coroutines.flow.StateFlow
 
 data class CollectionMetricUiState(val label: String, val value: String)
 data class CollectionActionUiState(val label: String)
@@ -85,39 +83,10 @@ data class CollectionsActions(
     val selectedPlaylistTrackActions: List<PlaylistTrackActions>
 )
 
-object CollectionsScreenFactory {
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: CollectionsUiState,
-        actions: CollectionsActions
-    ): ComposeView = ComposeView(context).apply {
-        setContent {
-            EchoTheme.EchoTheme {
-                CollectionsScreen(state, actions)
-            }
-        }
-    }
-
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<CollectionsUiState>,
-        actions: CollectionsActions
-    ): ComposeView = ComposeView(context).apply {
-        setContent {
-            EchoTheme.EchoTheme {
-                val uiState = state.collectAsState()
-                CollectionsScreen(uiState.value, actions)
-            }
-        }
-    }
-}
-
 @Composable
-private fun CollectionsScreen(state: CollectionsUiState, actions: CollectionsActions) {
+internal fun CollectionsScreen(state: CollectionsUiState, actions: CollectionsActions) {
     LazyColumn(
-        modifier = Modifier.echoPageBackground(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = echoPagePadding(),
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
     ) {
@@ -247,10 +216,13 @@ private fun MetricRow(metric: CollectionMetricUiState, modifier: Modifier = Modi
 @Composable
 private fun ActionRow(label: String, action: Runnable?) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = { action?.run() },
+        interactionSource = interaction,
         modifier = Modifier
             .fillMaxWidth()
+            .echoPressScale(interaction)
             .echoGlassLayer(p, EchoShapes.medium)
             .semantics { contentDescription = label },
         shape = EchoShapes.medium,
