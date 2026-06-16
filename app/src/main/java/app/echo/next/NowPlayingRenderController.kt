@@ -1,33 +1,16 @@
 package app.echo.next
 
-import android.content.Context
-import android.view.View
-import app.echo.next.ui.NowPlayingController
 import app.echo.next.ui.NowPlayingUiState
 
-internal class NowPlayingRenderController(
-    private val context: Context,
-    private val listener: Listener
-) {
-    interface Listener {
-        fun addVirtualContent(view: View)
-    }
-
-    private var controller: NowPlayingController? = null
-
-    fun clear() {
-        controller = null
-    }
+internal class NowPlayingRenderController {
+    fun clear() = Unit
 
     fun render(
         playbackStore: MainPlaybackStore,
         lyricsState: LyricsState?,
         languageMode: String = AppLanguage.MODE_ENGLISH
     ): Boolean {
-        val state = createState(playbackStore, lyricsState, languageMode) ?: return false
-        controller = NowPlayingController(context, state)
-        listener.addVirtualContent(controller!!.view)
-        return true
+        return createState(playbackStore, lyricsState, languageMode) != null
     }
 
     fun update(
@@ -35,10 +18,7 @@ internal class NowPlayingRenderController(
         lyricsState: LyricsState?,
         languageMode: String = AppLanguage.MODE_ENGLISH
     ): Boolean {
-        val currentController = controller ?: return false
-        val state = createState(playbackStore, lyricsState, languageMode) ?: return false
-        currentController.updateState(state)
-        return true
+        return createState(playbackStore, lyricsState, languageMode) != null
     }
 
     private fun createState(

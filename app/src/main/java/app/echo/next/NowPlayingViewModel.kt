@@ -5,8 +5,8 @@ import app.echo.next.model.Track
 import app.echo.next.playback.EchoPlaybackService
 import app.echo.next.playback.PlaybackStateSnapshot
 import app.echo.next.ui.LyricUiLine
-import app.echo.next.ui.NowBarController
 import app.echo.next.ui.NowBarState
+import app.echo.next.ui.nowBarEmptyState
 import java.util.ArrayDeque
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,7 +66,7 @@ data class NowPlayingUiState @JvmOverloads constructor(
     val errorMessage: String? = null,
     val trackId: Long = -1L,
     val currentTrack: Track? = null,
-    val overlayState: NowBarState = NowBarController.emptyState()
+    val overlayState: NowBarState = nowBarEmptyState()
 )
 
 interface NowPlayingGateway {

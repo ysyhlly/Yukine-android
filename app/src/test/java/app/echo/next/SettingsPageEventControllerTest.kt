@@ -1,6 +1,5 @@
 package app.echo.next
 
-import android.view.View
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -133,7 +132,5 @@ class SettingsPageEventControllerTest {
         }
     }
 
-    private class FakeContentSink : SettingsPageEventController.ContentSink {
-        override fun addVirtualContent(view: View) = Unit
-    }
+    private class FakeContentSink : SettingsPageEventController.ContentSink
 }

@@ -1,6 +1,5 @@
 package app.echo.next.ui
 
-import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,11 +16,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -38,7 +35,6 @@ import app.echo.next.streaming.StreamingProviderHealth
 import app.echo.next.streaming.StreamingProviderName
 import app.echo.next.streaming.StreamingProviderStatus
 import app.echo.next.streaming.StreamingTrack
-import kotlinx.coroutines.flow.StateFlow
 
 data class StreamingSearchActions(
     val onBack: Runnable,
@@ -57,7 +53,29 @@ data class StreamingSearchActions(
     val onHeartbeatRecommend: Runnable,
     val onPasteImport: Runnable,
     val onInputCookie: Runnable
-)
+) {
+    companion object {
+        @JvmStatic
+        fun empty(): StreamingSearchActions = StreamingSearchActions(
+            onBack = Runnable {},
+            onSelectProvider = ProviderAction { _ -> },
+            onSearch = QueryAction { _ -> },
+            onLogin = ProviderAction { _ -> },
+            onSignOut = ProviderAction { _ -> },
+            onOpenAuthLaunch = Runnable {},
+            onPlayTrack = StreamingTrackAction { _ -> },
+            onPlayResolvedTrack = TrackAction { _ -> },
+            onNextPage = Runnable {},
+            onImportPlaylist = StreamingPlaylistAction { _ -> },
+            onLoadUserPlaylists = Runnable {},
+            onImportLikedTracks = Runnable {},
+            onDailyRecommend = Runnable {},
+            onHeartbeatRecommend = Runnable {},
+            onPasteImport = Runnable {},
+            onInputCookie = Runnable {}
+        )
+    }
+}
 
 data class StreamingSearchLabels(
     val title: String,
@@ -106,7 +124,59 @@ data class StreamingSearchLabels(
     val disabled: String,
     val error: String,
     val trackCountSuffix: String
-)
+) {
+    companion object {
+        @JvmStatic
+        fun empty(): StreamingSearchLabels = StreamingSearchLabels(
+            title = "Streaming",
+            back = "Back",
+            searchPrefix = "Search ",
+            searchSuffix = "",
+            sourceDefault = "Source",
+            searchUnavailableSuffix = " search unavailable",
+            importPlaylistFromStreaming = "Import playlist",
+            loadAccountPlaylists = "Load account playlists",
+            importLikedTracks = "Import liked tracks",
+            dailyRecommendations = "Daily recommendations",
+            heartbeatRecommendations = "Heartbeat recommendations",
+            backupAccountConnection = "Backup account connection",
+            accountActions = "Account",
+            discoverMusic = "Discover",
+            advancedTools = "Advanced",
+            loadingAccountPlaylists = "Loading playlists",
+            accountPlaylists = "Account playlists",
+            openLoginPrefix = "Open login for ",
+            openLoginSuffix = "",
+            loading = "Loading",
+            streamingRequestFailed = "Streaming request failed",
+            playlistImportFailed = "Playlist import failed",
+            accountPlaylistsFailed = "Could not load account playlists",
+            matchingLocalTracks = "Matching local tracks",
+            playlistImportPrefix = "Import: ",
+            matched = "Matched",
+            unresolved = "Unresolved",
+            results = "Results",
+            matchedStreamingTracks = "Matched tracks",
+            songs = "Songs",
+            albums = "Albums",
+            artists = "Artists",
+            playlists = "Playlists",
+            videos = "Videos",
+            noResults = "No results",
+            loadMore = "Load more",
+            playResolvedTrack = "Play resolved track",
+            signedIn = "Signed in",
+            onlineAuthenticated = "Online authenticated",
+            online = "Online",
+            unavailable = "Unavailable",
+            ready = "Ready",
+            needsAccount = "Needs account",
+            disabled = "Disabled",
+            error = "Error",
+            trackCountSuffix = " tracks"
+        )
+    }
+}
 
 fun interface ProviderAction {
     fun run(provider: StreamingProviderName)
@@ -128,25 +198,8 @@ fun interface TrackAction {
     fun run(track: Track)
 }
 
-object StreamingSearchScreenFactory {
-    @JvmStatic
-    fun create(
-        context: Context,
-        state: StateFlow<MainActivityStreamingState>,
-        labels: StreamingSearchLabels,
-        actions: StreamingSearchActions
-    ): ComposeView = ComposeView(context).apply {
-        setContent {
-            EchoTheme.EchoTheme {
-                val uiState = state.collectAsState()
-                StreamingSearchScreen(uiState.value, labels, actions)
-            }
-        }
-    }
-}
-
 @Composable
-private fun StreamingSearchScreen(
+fun StreamingSearchScreen(
     state: MainActivityStreamingState,
     labels: StreamingSearchLabels,
     actions: StreamingSearchActions
@@ -158,7 +211,7 @@ private fun StreamingSearchScreen(
     val canSearch = selectedCapability?.supportsSearch ?: (provider?.let(StreamingCapabilityResolver::canSearch) == true)
     val result = state.searchResult
     LazyColumn(
-        modifier = Modifier.echoPageBackground(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = echoPagePadding(),
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
     ) {

@@ -374,6 +374,62 @@ class LibraryViewModelTest {
         assertEquals(listOf(true), added)
     }
 
+    @Test
+    fun playlistActionPresentationsBuildLocalizedStatuses() {
+        val viewModel = LibraryViewModel()
+        val languageMode = AppLanguage.MODE_ENGLISH
+        val track = track(7L)
+
+        assertEquals(
+            AppLanguage.text(languageMode, "added.to.playlist"),
+            viewModel.defaultPlaylistAddPresentation(true, languageMode).status
+        )
+        assertEquals(
+            AppLanguage.text(languageMode, "could.not.add.to.playlist"),
+            viewModel.defaultPlaylistAddPresentation(false, languageMode).status
+        )
+        assertEquals(
+            AppLanguage.text(languageMode, "playlist.created"),
+            viewModel.playlistCreatedPresentation(languageMode).status
+        )
+        assertEquals(
+            AppLanguage.text(languageMode, "playlist.renamed"),
+            viewModel.playlistRenamedPresentation(true, languageMode).status
+        )
+        assertEquals(
+            AppLanguage.text(languageMode, "playlist.rename.failed"),
+            viewModel.playlistRenamedPresentation(false, languageMode).status
+        )
+        assertEquals(
+            AppLanguage.text(languageMode, "deleted.playlist.prefix") + "Mix",
+            viewModel.playlistDeletedPresentation("Mix", true, languageMode).status
+        )
+        assertEquals(
+            AppLanguage.text(languageMode, "could.not.delete.playlist"),
+            viewModel.playlistDeletedPresentation("Mix", false, languageMode).status
+        )
+        assertEquals(
+            AppLanguage.text(languageMode, "removed.from.playlist.prefix") + track.title,
+            viewModel.selectedPlaylistTrackRemovedPresentation(track, languageMode).status
+        )
+        assertEquals(
+            AppLanguage.text(languageMode, "moved.up.prefix") + track.title,
+            viewModel.selectedPlaylistTrackMovedPresentation(track, -1, true, languageMode).status
+        )
+        assertEquals(
+            AppLanguage.text(languageMode, "moved.down.prefix") + track.title,
+            viewModel.selectedPlaylistTrackMovedPresentation(track, 1, true, languageMode).status
+        )
+        assertEquals(
+            AppLanguage.text(languageMode, "move.failed"),
+            viewModel.selectedPlaylistTrackMovedPresentation(track, 1, false, languageMode).status
+        )
+        assertEquals(
+            AppLanguage.text(languageMode, "added.to.playlist"),
+            viewModel.trackAddedToPlaylistPresentation(true, languageMode).status
+        )
+    }
+
     private fun track(id: Long): Track {
         return Track(id, "Track $id", "Artist", "Album", 1000L, Uri.EMPTY, "file:$id")
     }
@@ -542,11 +598,10 @@ class LibraryViewModelTest {
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryMainDispatcherRule : TestRule {
-    private val dispatcher = UnconfinedTestDispatcher()
-
     override fun apply(base: Statement, description: Description): Statement {
         return object : Statement() {
             override fun evaluate() {
+                val dispatcher = UnconfinedTestDispatcher()
                 Dispatchers.setMain(dispatcher)
                 try {
                     base.evaluate()

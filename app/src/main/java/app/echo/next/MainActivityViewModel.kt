@@ -404,6 +404,12 @@ interface StreamingTrackMatchStore {
     ): String = ""
 }
 
+data class RecommendationScreenState(
+    val title: String = "",
+    val tracks: List<app.echo.next.model.Track> = emptyList(),
+    val loading: Boolean = false
+)
+
 @HiltViewModel
 class MainActivityViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
@@ -424,6 +430,8 @@ class MainActivityViewModel @Inject constructor(
     private val playlistListState = MutableStateFlow(MainActivityPlaylistListUiState())
     private val networkSourcesState = MutableStateFlow(MainActivityNetworkSourcesUiState())
     private val streamingState = MutableStateFlow(MainActivityStreamingState())
+    private val _recommendationState = MutableStateFlow(RecommendationScreenState())
+    val recommendationScreen: StateFlow<RecommendationScreenState> = _recommendationState.asStateFlow()
     private var streamingLocalPlaylistOperations: StreamingLocalPlaylistOperations? = null
     private var streamingTrackMatchStore: StreamingTrackMatchStore? = null
     private var streamingActionGateway: MainActivityStreamingActionGateway? = null

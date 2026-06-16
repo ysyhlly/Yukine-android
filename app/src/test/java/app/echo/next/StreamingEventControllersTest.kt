@@ -1,6 +1,5 @@
 package app.echo.next
 
-import android.content.Intent
 import app.echo.next.model.Track
 import app.echo.next.streaming.StreamingProviderName
 import app.echo.next.streaming.StreamingTrack
@@ -168,9 +167,7 @@ class StreamingEventControllersTest {
         }
     }
 
-    private class FakeContentSink : StreamingSearchEventController.ContentSink {
-        override fun addVirtualContent(view: android.view.View) = Unit
-    }
+    private class FakeContentSink : StreamingSearchEventController.ContentSink
 
     private class FakeAuthCallbackHandler : StreamingAuthCallbackHandler {
         val callbacks = ArrayList<String>()

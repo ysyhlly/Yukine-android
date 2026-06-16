@@ -132,6 +132,67 @@ class SettingsViewModelTest {
         assertEquals(listener.events, preferenceGateway.events)
     }
 
+    @Test
+    fun prepareAppliedStatusTextBuildsLocalizedSettingsMessages() {
+        val viewModel = SettingsViewModel()
+
+        val status = viewModel.prepareAppliedStatusText(
+            languageMode = AppLanguage.MODE_ENGLISH,
+            themeMode = "dark",
+            accentMode = "teal",
+            playbackSpeed = 1.25f,
+            appVolume = 0.8f,
+            lyricsOffsetMs = -300L
+        )
+
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "theme.applied") +
+                    AppLanguage.themeLabel("dark", AppLanguage.MODE_ENGLISH),
+            status.themeApplied
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "accent.applied") +
+                    AppLanguage.accentLabel("teal", AppLanguage.MODE_ENGLISH),
+            status.accentApplied
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "language.applied") +
+                    AppLanguage.labelFor(AppLanguage.MODE_ENGLISH),
+            status.languageApplied
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "speed.applied") +
+                    SettingsPageRenderController.playbackSpeedLabel(1.25f),
+            status.playbackSpeedApplied
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "volume.applied") +
+                    SettingsPageRenderController.appVolumeLabel(0.8f),
+            status.appVolumeApplied
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "online.lyrics.enabled"),
+            status.onlineLyricsEnabled
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "online.lyrics.disabled"),
+            status.onlineLyricsDisabled
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "concurrent.playback.enabled"),
+            status.concurrentPlaybackEnabled
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "concurrent.playback.disabled"),
+            status.concurrentPlaybackDisabled
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "lyrics.offset.applied") +
+                    SettingsPageRenderController.lyricsOffsetLabel(-300L),
+            status.lyricsOffsetApplied
+        )
+    }
+
     private class FakeSettingsGateway : SettingsGateway {
         val events = mutableListOf<String>()
 

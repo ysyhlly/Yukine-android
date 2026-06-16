@@ -217,7 +217,8 @@ public final class MainActivityArchitectureContractTest {
         String nowBarStateFactory = read("app/src/main/java/app/echo/next/NowBarStateFactory.kt");
         String nowPlayingStateFactory = read("app/src/main/java/app/echo/next/NowPlayingStateFactory.kt");
         String nowPlayingRenderController = read("app/src/main/java/app/echo/next/NowPlayingRenderController.kt");
-        String nowPlayingOverlayController = read("app/src/main/java/app/echo/next/ui/NowPlayingOverlayController.kt");
+        String nowPlayingScreen = read("app/src/main/java/app/echo/next/ui/NowPlayingScreen.kt");
+        String echoNowBar = read("app/src/main/java/app/echo/next/navigation/EchoNowBar.kt");
         String nowPlayingViewModel = read("app/src/main/java/app/echo/next/NowPlayingViewModel.kt");
         String lyricsViewModel = read("app/src/main/java/app/echo/next/LyricsViewModel.kt");
         String queueRenderController = read("app/src/main/java/app/echo/next/QueueRenderController.kt");
@@ -269,30 +270,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(nowBarStateFactory.contains("PlaybackErrorMessageLocalizer.localize(playbackState.errorMessage, languageMode)"));
         assertTrue(nowBarStateFactory.contains("AppLanguage.text(languageMode, \"playback.error.title\")"));
         assertTrue(nowBarStateFactory.contains("AppLanguage.text(languageMode, \"retry.playback\")"));
-        assertTrue(nowPlayingOverlayController.contains("state.nowPlayingLabel"));
-        assertTrue(nowPlayingOverlayController.contains("state.previousLabel"));
-        assertTrue(nowPlayingOverlayController.contains("state.playLabel"));
-        assertTrue(nowPlayingOverlayController.contains("state.pauseLabel"));
-        assertTrue(nowPlayingOverlayController.contains("state.nextLabel"));
-        assertTrue(nowPlayingOverlayController.contains("state.queueLabel"));
-        assertTrue(nowPlayingOverlayController.contains("state.moreLabel"));
-        assertTrue(nowPlayingOverlayController.contains("state.addToPlaylistLabel"));
-        assertTrue(nowPlayingOverlayController.contains("onAddToPlaylist.run()"));
-        assertTrue(nowPlayingOverlayController.contains("state.playbackProgressLabel"));
-        assertTrue(nowPlayingOverlayController.contains("state.playbackErrorMessage"));
-        assertTrue(nowPlayingOverlayController.contains("PlaybackErrorBanner("));
-        assertTrue(nowPlayingOverlayController.contains("onRetry = { onPlayPause.run() }"));
-        assertTrue(nowPlayingOverlayController.contains("NowPlayingMoreMenu("));
-        assertTrue(nowPlayingOverlayController.contains("DropdownMenu("));
-        assertTrue(nowPlayingOverlayController.contains("DropdownMenuItem("));
-        assertTrue(nowPlayingOverlayController.contains("initialState: NowPlayingUiState"));
-        assertTrue(nowPlayingOverlayController.contains("private val eventHandler: NowPlayingEventHandler"));
-        assertTrue(nowPlayingOverlayController.contains("state.value.overlayState"));
-        assertTrue(nowPlayingOverlayController.contains("eventHandler.onEvent(NowPlayingEvent.AddToPlaylist)"));
-        assertTrue(nowPlayingOverlayController.contains("eventHandler.onEvent(NowPlayingEvent.ToggleLyrics)"));
-        assertTrue(nowPlayingOverlayController.contains("showingLyrics = true"));
-        assertTrue(nowPlayingOverlayController.contains("onToggleLyrics.run()"));
-        assertTrue(nowPlayingOverlayController.contains("onToggleView = onToggle"));
+        assertFalse(exists("app/src/main/java/app/echo/next/ui/NowPlayingOverlayController.kt"));
+        assertTrue(nowPlayingScreen.contains("fun NowPlayingScreen(state: NowPlayingUiState)"));
+        assertTrue(nowPlayingScreen.contains("LyricsPanel("));
+        assertTrue(echoNowBar.contains("viewModel.onEvent(NowPlayingEvent.Previous)"));
+        assertTrue(echoNowBar.contains("viewModel.onEvent(NowPlayingEvent.PlayPause)"));
+        assertTrue(echoNowBar.contains("viewModel.onEvent(NowPlayingEvent.Next)"));
+        assertTrue(echoNowBar.contains("viewModel.onEvent(NowPlayingEvent.ToggleFavorite)"));
+        assertTrue(echoNowBar.contains("viewModel.onEvent(NowPlayingEvent.ToggleShuffle)"));
+        assertTrue(echoNowBar.contains("viewModel.onEvent(NowPlayingEvent.CycleRepeatMode)"));
+        assertTrue(echoNowBar.contains("viewModel.onEvent(NowPlayingEvent.SeekTo(positionMs))"));
         assertTrue(nowPlayingViewModel.contains("sealed interface NowPlayingEvent"));
         assertTrue(nowPlayingViewModel.contains("data class NowPlayingUiState"));
         assertTrue(nowPlayingViewModel.contains("data class PlaybackActionResultUi"));
@@ -311,8 +298,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(nowPlayingViewModel.contains("player.startPlaybackService(EchoPlaybackService.ACTION_PREVIOUS)"));
         assertTrue(nowPlayingViewModel.contains("data class OpenAddToPlaylist(val track: Track)"));
         assertTrue(nowPlayingViewModel.contains("emitEffect(NowPlayingEffect.OpenAddToPlaylist(track))"));
-        assertTrue(shellController.contains("void onNowPlayingEvent(NowPlayingEvent event);"));
-        assertTrue(shellController.contains("listener.onNowPlayingEvent(event);"));
+        assertFalse(shellController.contains("void onNowPlayingEvent(NowPlayingEvent event);"));
+        assertFalse(shellController.contains("listener.onNowPlayingEvent(event);"));
         assertFalse(shellController.contains("void onAddCurrentToPlaylist();"));
         assertFalse(shellController.contains("listener.onAddCurrentToPlaylist();"));
         assertTrue(mainActivity.contains("private NowPlayingViewModel nowPlayingViewModel;"));
@@ -330,21 +317,17 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("private void handleNowPlayingEvent(NowPlayingEvent event)"));
         assertTrue(mainActivity.contains("showAddToPlaylistDialog(((NowPlayingEffect.OpenAddToPlaylist) effect).getTrack());"));
         assertFalse(mainActivity.contains("private Track currentTrackForEffect("));
-        assertFalse(nowPlayingOverlayController.contains("\"正在播放\""));
-        assertFalse(nowPlayingOverlayController.contains("\"Close\""));
-        assertFalse(nowPlayingOverlayController.contains("\"Lyrics\""));
-        assertFalse(nowPlayingOverlayController.contains("\"Show lyrics\""));
-        assertFalse(nowPlayingOverlayController.contains("\"Show artwork\""));
-        assertFalse(nowPlayingOverlayController.contains("\"No lyrics found\""));
-        assertFalse(nowPlayingOverlayController.contains("\"Previous\""));
-        assertFalse(nowPlayingOverlayController.contains("\"Pause\""));
-        assertFalse(nowPlayingOverlayController.contains("\"Play\""));
-        assertFalse(nowPlayingOverlayController.contains("\"Next\""));
-        assertFalse(nowPlayingOverlayController.contains("\"Queue\""));
-        assertFalse(nowPlayingOverlayController.contains("\"Playback progress\""));
-        assertTrue(nowPlayingOverlayController.contains("centeredLyricScrollOffset(viewportHeightPx)"));
-        assertTrue(nowPlayingOverlayController.contains("onSizeChanged { viewportHeightPx = it.height }"));
-        assertTrue(nowPlayingOverlayController.contains("ACTIVE_LYRIC_ESTIMATED_HEIGHT_PX"));
+        assertFalse(exists("app/src/main/java/app/echo/next/ui/NowPlayingOverlayController.kt"));
+        assertFalse(nowPlayingScreen.contains("\"Close\""));
+        assertFalse(nowPlayingScreen.contains("\"Show lyrics\""));
+        assertFalse(nowPlayingScreen.contains("\"Show artwork\""));
+        assertFalse(nowPlayingScreen.contains("\"No lyrics found\""));
+        assertFalse(nowPlayingScreen.contains("\"Playback progress\""));
+        assertFalse(echoNowBar.contains("\"Previous\""));
+        assertFalse(echoNowBar.contains("\"Pause\""));
+        assertFalse(echoNowBar.contains("\"Play\""));
+        assertFalse(echoNowBar.contains("\"Next\""));
+        assertFalse(echoNowBar.contains("\"Queue\""));
         assertFalse(exists("app/src/main/java/app/echo/next/LyricsController.java"));
         assertTrue(lyricsViewModel.contains("class LyricsViewModel : ViewModel()"));
         assertTrue(lyricsViewModel.contains("data class LyricsState"));
@@ -365,8 +348,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(nowPlayingStateFactory.contains("LyricUiLine(line.text, index == activeIndex)"));
         assertFalse(exists("app/src/main/java/app/echo/next/NowPlayingRenderController.java"));
         assertTrue(nowPlayingRenderController.contains("internal class NowPlayingRenderController"));
-        assertTrue(nowPlayingRenderController.contains("interface Listener"));
-        assertTrue(nowPlayingRenderController.contains("private var controller: NowPlayingController?"));
+        assertFalse(nowPlayingRenderController.contains("interface Listener"));
+        assertFalse(nowPlayingRenderController.contains("NowPlayingController"));
         assertTrue(nowPlayingRenderController.contains("playbackStore: MainPlaybackStore,\n        lyricsState: LyricsState?,\n        languageMode: String = AppLanguage.MODE_ENGLISH")
                 || nowPlayingRenderController.contains("playbackStore: MainPlaybackStore,\r\n        lyricsState: LyricsState?,\r\n        languageMode: String = AppLanguage.MODE_ENGLISH"));
         assertTrue(nowPlayingRenderController.contains("LyricsStatusText.status(languageMode, state.statusKind, state.loadedLineCount)"));
@@ -377,7 +360,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueRenderController.contains("fun render(queue: List<Track>?"));
         assertTrue(queueRenderController.contains("TrackRowStateFactory.queueRow("));
         assertTrue(queueRenderController.contains("listener.publishQueue(rows)"));
-        assertTrue(queueRenderController.contains("QueueScreenFactory.create("));
+        assertTrue(queueRenderController.contains("listener.publishQueueChrome("));
+        assertFalse(queueRenderController.contains("QueueScreenFactory.create("));
     }
 
     @Test
@@ -437,9 +421,9 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void mainTabRenderDispatcherIsKotlinRouteBoundary() throws Exception {
         String dispatcher = read("app/src/main/java/app/echo/next/MainTabRenderDispatcher.kt");
-        String tabBarController = read("app/src/main/java/app/echo/next/ui/TabBarController.kt");
 
         assertFalse(exists("app/src/main/java/app/echo/next/MainTabRenderDispatcher.java"));
+        assertFalse(exists("app/src/main/java/app/echo/next/ui/TabBarController.kt"));
         assertTrue(dispatcher.contains("internal class MainTabRenderDispatcher"));
         assertTrue(dispatcher.contains("interface Renderer"));
         assertTrue(dispatcher.contains("fun render(selectedTab: String)"));
@@ -447,53 +431,24 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(dispatcher.contains("MainRoutes.TAB_LIBRARY -> renderer.renderLibrary()"));
         assertTrue(dispatcher.contains("MainRoutes.TAB_NETWORK -> renderer.renderNetwork()"));
         assertTrue(dispatcher.contains("else -> renderer.renderSettings()"));
-        assertTrue(tabBarController.contains("fun updateSelected(key: String) {\n        selectedKey.value = key\n        requestedKey.value = \"\"\n    }")
-                || tabBarController.contains("fun updateSelected(key: String) {\r\n        selectedKey.value = key\r\n        requestedKey.value = \"\"\r\n    }"));
-        assertTrue(tabBarController.contains("initialSelectedKey: String"));
-        assertTrue(tabBarController.contains("mutableStateOf(initialTabKey(tabs, initialSelectedKey))"));
-        assertTrue(tabBarController.contains("internal fun initialTabKey(tabs: List<AppTabUiState>, initialSelectedKey: String): String"));
-        assertTrue(tabBarController.contains("private val requestedKey: MutableState<String> =\n        mutableStateOf(\"\")")
-                || tabBarController.contains("private val requestedKey: MutableState<String> =\r\n        mutableStateOf(\"\")"));
-        assertTrue(tabBarController.contains("val requested = requestedKey.value"));
-        assertTrue(tabBarController.contains("if (!shouldAcceptRequestedRoute(route, requested))"));
-        assertTrue(tabBarController.contains("userRequestedRoute = tabKey"));
-        assertTrue(tabBarController.contains("requestedKey.value = tabKey"));
     }
 
     @Test
-    public void contentHostControllerIsKotlinUiBoundary() throws Exception {
-        String controller = read("app/src/main/java/app/echo/next/ContentHostController.kt");
+    public void legacyContentHostControllersAreRemovedFromTheShell() throws Exception {
         String shellController = read("app/src/main/java/app/echo/next/MainUiShellController.java");
 
+        assertFalse(exists("app/src/main/java/app/echo/next/ContentHostController.kt"));
         assertFalse(exists("app/src/main/java/app/echo/next/ContentHostController.java"));
-        assertTrue(controller.contains("internal class ContentHostController"));
-        assertTrue(controller.contains("fun useScrollingContainer(): LinearLayout"));
-        assertTrue(controller.contains("fun useFixedContainer(existingChildren: List<View>): LinearLayout"));
-        assertTrue(controller.contains("fun getScrollView(): ScrollView? = scrollView"));
-        assertTrue(controller.contains("fun prepareHorizontalTransition(next: Boolean)"));
-        assertTrue(controller.contains("fun animateContentIfPending(view: View)"));
-        assertTrue(controller.contains("fun applyBackground()"));
-        assertTrue(controller.contains("routeHost?.let"));
-        assertTrue(controller.contains("FrameLayout.LayoutParams("));
-        String routeHostController = read("app/src/main/java/app/echo/next/ui/ContentRouteHostController.kt");
-        assertTrue(routeHostController.contains("fun selectedRoute(): String = selectedRoute.value"));
-        assertTrue(routeHostController.contains("fun updateSelected(route: String) {\r\n        selectedRoute.value = route\r\n        requestedRoute.value = \"\"\r\n    }")
-                || routeHostController.contains("fun updateSelected(route: String) {\n        selectedRoute.value = route\n        requestedRoute.value = \"\"\n    }"));
-        int routeFlowIndex = routeHostController.indexOf("navController.currentBackStackEntryFlow.collect");
-        assertTrue(routeFlowIndex >= 0);
-        assertTrue(routeHostController.indexOf("if (!shouldAcceptRequestedRoute(route, requested))", routeFlowIndex) <
-                routeHostController.indexOf("selectedRoute.value = route", routeFlowIndex));
-        assertTrue(shellController.contains("new ContentHostController(activity, contentHost, contentRouteHostController.getView())"));
-        assertTrue(shellController.contains("new TabBarController(activity, localizedTabs(languageMode), visibleMainTab(initialRoute)"));
-        assertTrue(shellController.contains("contentHostController.useScrollingContainer()"));
-        assertTrue(shellController.contains("contentHostController.useFixedContainer(existingChildren)"));
-        assertTrue(shellController.contains("contentHost.setOnHorizontalSwipeListener"));
-        assertTrue(shellController.contains("private void selectAdjacentTab(boolean next)"));
-        assertTrue(shellController.contains("String selected = listener.selectedTab();"));
-        assertTrue(shellController.contains("String nextTab = MainTabSwipePolicy.adjacentTab(tabRoutes, selected, next);"));
-        assertFalse(shellController.contains("String selected = contentRouteHostController.selectedRoute();"));
-        assertTrue(shellController.contains("prepareHorizontalContentTransition(next)"));
-        assertTrue(shellController.contains("listener.onTabSelected(nextTab, false)"));
+        assertFalse(exists("app/src/main/java/app/echo/next/ScrollDirectionFrameLayout.java"));
+        assertFalse(exists("app/src/main/java/app/echo/next/ui/ContentRouteHostController.kt"));
+        assertFalse(exists("app/src/main/java/app/echo/next/ui/SearchBarController.kt"));
+        assertFalse(shellController.contains("new ContentHostController("));
+        assertFalse(shellController.contains("new TabBarController("));
+        assertFalse(shellController.contains("contentHostController."));
+        assertFalse(shellController.contains("contentHost.setOnHorizontalSwipeListener"));
+        assertFalse(shellController.contains("contentRouteHostController"));
+        assertFalse(shellController.contains("addVirtualContent"));
+        assertFalse(shellController.contains("animateContentIfPending"));
     }
 
     @Test
@@ -514,8 +469,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(controller.contains("private val viewModel: LibraryViewModel"));
         assertTrue(controller.contains("TrackRowStateFactory.trackRow("));
         assertTrue(controller.contains("viewModel.updateTrackList(title, rows)"));
-        assertTrue(controller.contains("TrackListScreenFactory.create("));
-        assertTrue(controller.contains("viewModel.trackList"));
+        assertTrue(controller.contains("listener.publishTrackListChrome("));
+        assertFalse(controller.contains("TrackListScreenFactory.create("));
         assertTrue(screen.contains("TrackCurrentIndicator(track.current)"));
         assertTrue(screen.contains("TrackMoreMenu(actions, labels)"));
         assertTrue(screen.contains("DropdownMenu("));
@@ -550,8 +505,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(controller.contains("private val viewModel: LibraryViewModel"));
         assertTrue(controller.contains("LibraryGrouping.groupTracks("));
         assertTrue(controller.contains("viewModel.updateLibraryGroups(title, groupRows)"));
-        assertTrue(controller.contains("LibraryGroupsScreenFactory.create("));
-        assertTrue(controller.contains("viewModel.libraryGroups"));
+        assertTrue(controller.contains("listener.publishLibraryGroupsChrome("));
+        assertFalse(controller.contains("LibraryGroupsScreenFactory.create("));
         assertTrue(controller.contains("private fun renderGroupDetail("));
         assertTrue(collectionRowStateFactory.contains("internal object CollectionRowStateFactory"));
         assertTrue(collectionRowStateFactory.contains("@JvmStatic"));
@@ -578,7 +533,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(controller.contains("CollectionsActions("));
         assertTrue(controller.contains("viewModel.updateCollections("));
         assertTrue(controller.contains("viewModel.updateScreen(state)"));
-        assertTrue(controller.contains("CollectionsScreenFactory.create(context, viewModel.screen, actions)"));
+        assertTrue(controller.contains("listener.publishCollectionsActions(actions)"));
+        assertFalse(controller.contains("CollectionsScreenFactory.create("));
         assertTrue(collectionsViewModel.contains("data class PlaylistDetailUiState"));
         assertTrue(collectionsViewModel.contains("val selectedPlaylist: PlaylistDetailUiState? = null"));
         assertTrue(collectionsViewModel.contains("val screen: StateFlow<CollectionsUiState>"));
@@ -611,6 +567,7 @@ public final class MainActivityArchitectureContractTest {
         String sourcesRenderer = read("app/src/main/java/app/echo/next/NetworkSourcesRenderController.kt");
         String sourcesViewModel = read("app/src/main/java/app/echo/next/NetworkSourcesViewModel.kt");
         String sourcesEvents = read("app/src/main/java/app/echo/next/NetworkSourcesEventController.kt");
+        String networkDestination = read("app/src/main/java/app/echo/next/network/NetworkDestination.kt");
 
         assertFalse(exists("app/src/main/java/app/echo/next/NetworkRenderCoordinator.java"));
         assertFalse(exists("app/src/main/java/app/echo/next/NetworkMenuRenderController.java"));
@@ -632,8 +589,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(menuRenderer.contains("fun renderHome("));
         assertTrue(menuRenderer.contains("fun renderStreaming("));
         assertTrue(menuRenderer.contains("fun renderWebDav("));
-        assertTrue(menuRenderer.contains("SettingsScreenFactory.create(context, metrics, actions, title = text(languageMode, \"tab.network\"))"));
+        assertTrue(menuRenderer.contains("listener.publishNetworkMenu(title, metrics, actions)"));
         assertTrue(menuRenderer.contains("MainRoutes.NETWORK_STREAMING"));
+        assertTrue(networkDestination.contains("MainRoutes.NETWORK_STREAMING_HUB ->"));
+        assertTrue(networkDestination.contains("StreamingSearchScreen("));
+        assertFalse(networkDestination.contains("This network page is not available yet."));
         assertTrue(menuEvents.contains("internal class NetworkMenuEventController"));
         assertTrue(menuEvents.contains(": NetworkMenuRenderController.Listener"));
         assertTrue(menuEvents.contains("interface LibrarySource"));
@@ -642,7 +602,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(menuEvents.contains("deleteConfirmation.confirmDeleteAllStreams()"));
         assertTrue(menuEvents.contains("requests.syncAllWebDavSources(sourceIds)"));
         assertTrue(mainActivity.contains("NetworkMenuEventController networkMenuEventController"));
-        assertTrue(mainActivity.contains("new NetworkMenuRenderController(this, networkMenuEventController)"));
+        assertTrue(mainActivity.contains("new NetworkMenuRenderController(networkMenuEventController)"));
         assertFalse(mainActivity.contains("new NetworkMenuRenderController(this, new NetworkMenuRenderController.Listener()"));
         assertFalse(mainActivity.contains("private void playAllStreams("));
         assertFalse(mainActivity.contains("private void playAllWebDavTracks("));
@@ -662,8 +622,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(sourcesRenderer.contains("fun render(languageMode: String, remoteSources: List<RemoteSource>, allTracks: List<Track>)"));
         assertTrue(sourcesRenderer.contains("CollectionRowStateFactory.networkSourceRow("));
         assertTrue(sourcesRenderer.contains("viewModel.updateSources(title, remoteSources, rows)"));
-        assertTrue(sourcesRenderer.contains("NetworkSourcesScreenFactory.create("));
-        assertTrue(sourcesRenderer.contains("viewModel.screen"));
+        assertTrue(sourcesRenderer.contains("listener.publishNetworkSourcesChrome("));
+        assertFalse(sourcesRenderer.contains("NetworkSourcesScreenFactory.create("));
         assertTrue(sourcesViewModel.contains("data class NetworkSourcesUiState"));
         assertTrue(sourcesViewModel.contains("val screen: StateFlow<MainActivityNetworkSourcesUiState>"));
         assertTrue(sourcesEvents.contains("internal class NetworkSourcesEventController"));
@@ -673,7 +633,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(sourcesEvents.contains("requestController.syncRemoteSource(sourceId, librarySource.remoteSourceName(sourceId))"));
         assertTrue(sourcesEvents.contains("statePublisher.publishNetworkSources(title, rows)"));
         assertTrue(mainActivity.contains("NetworkSourcesEventController networkSourcesEventController"));
-        assertTrue(mainActivity.contains("new NetworkSourcesRenderController(this, networkSourcesViewModel, networkSourcesEventController)"));
+        assertTrue(mainActivity.contains("new NetworkSourcesRenderController("));
+        assertTrue(mainActivity.contains("networkSourcesEventController.syncRemoteSource(sourceId)"));
+        assertTrue(mainActivity.contains("networkSourcesEventController.publishNetworkSources(title, rows)"));
+        assertTrue(mainActivity.contains("navNetworkSourceActions = new ArrayList<>(actions)"));
         assertFalse(mainActivity.contains("new NetworkSourcesRenderController(this, viewModel, new NetworkSourcesRenderController.Listener()"));
         assertFalse(mainActivity.contains("private void publishNetworkSourcesUiState("));
         assertFalse(mainActivity.contains("private void showEditWebDavDialog("));
@@ -820,6 +783,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(settingsViewModel.contains("fun applyThemeMode(nextMode: String)"));
         assertTrue(settingsViewModel.contains("EchoTheme.normalizeMode(nextMode)"));
         assertTrue(settingsViewModel.contains("savePreference(SettingsPreferenceKey.ThemeMode, mode)"));
+        assertTrue(settingsViewModel.contains("data class SettingsAppliedStatusText("));
+        assertTrue(settingsViewModel.contains("fun prepareAppliedStatusText("));
         assertFalse(settingsViewModel.contains("repository.saveThemeMode("));
         assertTrue(settingsViewModel.contains("fun applyPlaybackSpeed(speed: Float)"));
         assertTrue(settingsViewModel.contains("private fun normalizePlaybackSpeed(speed: Float): Float"));
@@ -827,6 +792,20 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("settingsViewModel.bindPreferenceGateway"));
         assertTrue(mainActivity.contains("settingsViewModel.bindAppliedListener"));
         assertTrue(mainActivity.contains("new SettingsAppliedListener()"));
+        assertTrue(mainActivity.contains("settingsViewModel.prepareAppliedStatusText("));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"theme.applied\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"accent.applied\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"language.applied\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"speed.applied\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"volume.applied\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"online.lyrics.enabled\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"online.lyrics.disabled\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"concurrent.playback.enabled\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"concurrent.playback.disabled\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"lyrics.offset.applied\")"));
+        assertFalse(mainActivity.contains("SettingsPageRenderController.playbackSpeedLabel(settingsStore.playbackSpeed())"));
+        assertFalse(mainActivity.contains("SettingsPageRenderController.appVolumeLabel(settingsStore.appVolume())"));
+        assertFalse(mainActivity.contains("SettingsPageRenderController.lyricsOffsetLabel(offsetMs)"));
         assertFalse(mainActivity.contains("private SettingsActionsController settingsActionsController"));
         assertFalse(mainActivity.contains("settingsActionsController."));
         assertTrue(preferenceUseCase.contains("internal class ApplySettingsPreferenceUseCase"));
@@ -841,6 +820,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(libraryViewModel.contains("fun removeSelectedPlaylistTrack("));
         assertTrue(libraryViewModel.contains("fun moveSelectedPlaylistTrack("));
         assertTrue(libraryViewModel.contains("fun addTrackToPlaylist("));
+        assertTrue(libraryViewModel.contains("data class LibraryPlaylistActionPresentation("));
+        assertTrue(libraryViewModel.contains("fun defaultPlaylistAddPresentation("));
+        assertTrue(libraryViewModel.contains("fun playlistCreatedPresentation("));
+        assertTrue(libraryViewModel.contains("fun playlistRenamedPresentation("));
+        assertTrue(libraryViewModel.contains("fun playlistDeletedPresentation("));
+        assertTrue(libraryViewModel.contains("fun selectedPlaylistTrackRemovedPresentation("));
+        assertTrue(libraryViewModel.contains("fun selectedPlaylistTrackMovedPresentation("));
+        assertTrue(libraryViewModel.contains("fun trackAddedToPlaylistPresentation("));
         assertTrue(mainActivity.contains("libraryViewModel.bindPlaylistActionGateway"));
         assertTrue(mainActivity.contains("libraryViewModel.addToDefaultPlaylistJava"));
         assertTrue(mainActivity.contains("libraryViewModel.createPlaylistJava"));
@@ -849,6 +836,24 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("libraryViewModel.removeSelectedPlaylistTrackJava"));
         assertTrue(mainActivity.contains("libraryViewModel.moveSelectedPlaylistTrackJava"));
         assertTrue(mainActivity.contains("libraryViewModel.addTrackToPlaylistJava"));
+        assertTrue(mainActivity.contains("libraryViewModel.defaultPlaylistAddPresentation("));
+        assertTrue(mainActivity.contains("libraryViewModel.playlistCreatedPresentation("));
+        assertTrue(mainActivity.contains("libraryViewModel.playlistRenamedPresentation("));
+        assertTrue(mainActivity.contains("libraryViewModel.playlistDeletedPresentation("));
+        assertTrue(mainActivity.contains("libraryViewModel.selectedPlaylistTrackRemovedPresentation("));
+        assertTrue(mainActivity.contains("libraryViewModel.selectedPlaylistTrackMovedPresentation("));
+        assertTrue(mainActivity.contains("libraryViewModel.trackAddedToPlaylistPresentation("));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"added.to.playlist\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"could.not.add.to.playlist\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"playlist.created\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"playlist.renamed\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"playlist.rename.failed\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"deleted.playlist.prefix\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"could.not.delete.playlist\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"removed.from.playlist.prefix\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"moved.up.prefix\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"moved.down.prefix\")"));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"move.failed\")"));
         assertFalse(mainActivity.contains("private PlaylistActionsController playlistActionsController"));
         assertFalse(mainActivity.contains("playlistActionsController."));
         assertTrue(playlistUseCases.contains("internal interface PlaylistActionOperations"));
@@ -1324,9 +1329,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(controller.contains("interface Listener"));
         assertTrue(controller.contains("fun interface LanguageProvider"));
         assertTrue(controller.contains("languageProvider.languageMode()"));
-        assertTrue(controller.contains("StreamingSearchScreenFactory.create"));
+        assertTrue(controller.contains("listener.publishStreamingSearchChrome(labels, actions)"));
+        assertFalse(controller.contains("StreamingSearchScreenFactory.create"));
         assertTrue(controller.contains("StreamingSearchLabels("));
-        assertTrue(controller.contains("viewModel.streaming"));
         assertTrue(controller.contains("StreamingSearchActions"));
         assertTrue(mainActivity.contains("() -> settingsStore.languageMode()"));
         assertTrue(screen.contains("manual-account-connect"));
@@ -1427,10 +1432,7 @@ public final class MainActivityArchitectureContractTest {
         String mainActivity = read("app/src/main/java/app/echo/next/MainActivity.java");
         String nowPlayingViewModel = read("app/src/main/java/app/echo/next/NowPlayingViewModel.kt");
         String nowPlaying = read("app/src/main/java/app/echo/next/ui/NowPlayingScreen.kt");
-        String scrollDirection = read("app/src/main/java/app/echo/next/ScrollDirectionFrameLayout.java");
-        String contentHost = read("app/src/main/java/app/echo/next/ContentHostController.kt");
         String shellController = read("app/src/main/java/app/echo/next/MainUiShellController.java");
-        String searchBar = read("app/src/main/java/app/echo/next/ui/SearchBarController.kt");
         String settingsPage = read("app/src/main/java/app/echo/next/SettingsPageRenderController.kt");
         String settingsScreen = read("app/src/main/java/app/echo/next/ui/SettingsScreen.kt");
         String trackListScreen = read("app/src/main/java/app/echo/next/ui/TrackListScreen.kt");
@@ -1444,8 +1446,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("if (uiShellController.navigateContentRoute(selectedTab()))"));
         assertTrue(mainActivity.contains("uiShellController.navigateContentRoute(selectedTab());\r\n        renderSelectedTabContent();")
                 || mainActivity.contains("uiShellController.navigateContentRoute(selectedTab());\n        renderSelectedTabContent();"));
-        assertTrue(mainActivity.contains("if (!route.equals(selectedTab())) {\r\n                    return;\r\n                }")
-                || mainActivity.contains("if (!route.equals(selectedTab())) {\n                    return;\n                }"));
+        assertTrue(mainActivity.contains("public void onTabChanged(app.echo.next.navigation.TabRoute tab)"));
+        assertTrue(mainActivity.contains("navigateToTab(tab.getRoute(), true, true);"));
         assertTrue(mainActivity.contains("userInitiated && sameTab && previousDirectory.equals(currentDirectoryKey())"));
         assertTrue(mainActivity.contains("private void requestCurrentDirectoryScrollToTop()"));
         assertEquals(2, countOccurrences(mainActivity, "requestCurrentDirectoryScrollToTop()"));
@@ -1464,47 +1466,30 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(settingsScreen.contains("fun scrollToTop()"));
         assertFalse(nowPlayingViewModel.contains("PlaybackActionResultUi(player.snapshot(), null, false, false, true, true)"));
         assertFalse(nowPlaying.contains("animateScrollToItem"));
-        assertTrue(scrollDirection.contains("ev.getRawY()"));
-        assertFalse(scrollDirection.contains("ev.getY()"));
-        assertTrue(searchBar.contains("if (collapsed.value == value)"));
-        assertTrue(searchBar.contains("if (!expanded)"));
-        assertFalse(searchBar.contains("AnimatedVisibility"));
-        assertFalse(searchBar.contains("slideInVertically"));
-        assertFalse(searchBar.contains("slideOutVertically"));
-        assertFalse(searchBar.contains("fadeIn"));
-        assertFalse(searchBar.contains("fadeOut"));
-        assertFalse(searchBar.contains("expandVertically"));
-        assertFalse(searchBar.contains("shrinkVertically"));
+        assertFalse(exists("app/src/main/java/app/echo/next/ScrollDirectionFrameLayout.java"));
+        assertFalse(exists("app/src/main/java/app/echo/next/ContentHostController.kt"));
+        assertFalse(exists("app/src/main/java/app/echo/next/ui/SearchBarController.kt"));
         assertFalse(trackListScreen.contains("Modifier.animateItem()"));
         assertFalse(collectionsScreen.contains("Modifier.animateItem()"));
         assertFalse(queueScreen.contains("Modifier.animateItem()"));
         assertFalse(playlistListScreen.contains("Modifier.animateItem()"));
         assertFalse(playlistTrackScreen.contains("Modifier.animateItem()"));
-        assertEquals(1, countOccurrences(shellController, "animateContentIfPending(view)"));
-        assertTrue(shellController.indexOf("void addVirtualContent(View view)") <
-                shellController.indexOf("animateContentIfPending(view)"));
-        assertTrue(contentHost.contains("view.animate().cancel()"));
-        assertTrue(contentHost.contains("resetAnimationState(view)\r\n        view.alpha = 0f")
-                || contentHost.contains("resetAnimationState(view)\n        view.alpha = 0f"));
-        assertTrue(contentHost.contains("view.setLayerType(View.LAYER_TYPE_HARDWARE, null)"));
-        assertTrue(contentHost.contains("withEndAction"));
-        assertTrue(contentHost.contains("resetAnimationState(view)"));
-        assertTrue(contentHost.contains("const val CONTENT_TRANSITION_MS = 170L"));
+        assertFalse(shellController.contains("addVirtualContent"));
+        assertFalse(shellController.contains("animateContentIfPending"));
     }
 
     @Test
     public void swipeAndWaveformRegressionsStayFixed() throws Exception {
         String mainActivity = read("app/src/main/java/app/echo/next/MainActivity.java");
         String shellController = read("app/src/main/java/app/echo/next/MainUiShellController.java");
-        String scrollDirection = read("app/src/main/java/app/echo/next/ScrollDirectionFrameLayout.java");
-        String nowBar = read("app/src/main/java/app/echo/next/ui/NowBarController.kt");
+        String nowBar = read("app/src/main/java/app/echo/next/ui/NowBar.kt");
         String localWaveform = read("app/src/main/java/app/echo/next/ui/PlaybackWaveform.kt");
         String streamingWaveform = read("app/src/main/java/app/echo/next/playback/StreamingWaveformGenerator.java");
         String playbackService = read("app/src/main/java/app/echo/next/playback/EchoPlaybackService.java");
         String waveformMergePolicy = read("app/src/main/java/app/echo/next/playback/PlaybackWaveformMergePolicy.java");
 
-        assertTrue(shellController.contains("String selectedTab();"));
-        assertTrue(mainActivity.contains("public String selectedTab()"));
+        assertFalse(shellController.contains("String selectedTab();"));
+        assertTrue(mainActivity.contains("private String selectedTab()"));
         assertTrue(mainActivity.contains("if (!TAB_LIBRARY.equals(selectedTab())) {\r\n            return false;\r\n        }")
                 || mainActivity.contains("if (!TAB_LIBRARY.equals(selectedTab())) {\n            return false;\n        }"));
         int horizontalSwipeIndex = mainActivity.indexOf("private boolean handleContentHorizontalSwipe(boolean next)");
@@ -1515,20 +1500,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(nonLibraryReturnIndex > horizontalSwipeIndex);
         assertTrue(librarySwipeModesIndex > nonLibraryReturnIndex);
         assertTrue(setLibraryModeIndex > librarySwipeModesIndex);
-        assertTrue(shellController.contains("String selected = listener.selectedTab();"));
-        assertTrue(shellController.contains("listener.onTabSelected(nextTab, false);"));
+        assertFalse(exists("app/src/main/java/app/echo/next/ScrollDirectionFrameLayout.java"));
+        assertFalse(shellController.contains("selectAdjacentTab"));
+        assertFalse(shellController.contains("listener.onTabSelected(nextTab, false);"));
         assertFalse(shellController.contains("contentRouteHostController.selectedRoute()"));
-        assertTrue(scrollDirection.contains("case MotionEvent.ACTION_UP:"));
-        assertTrue(scrollDirection.contains("lockHorizontalSwipeIfNeeded(ev.getRawX() - downX, ev.getRawY() - downY);"));
-        assertTrue(scrollDirection.contains("horizontalSwipeListener.onHorizontalSwipe(horizontalSwipeLeft);"));
-        assertTrue(scrollDirection.contains("longHorizontalSwipeDistance"));
-        assertTrue(scrollDirection.contains("private void lockHorizontalSwipeIfNeeded(float dxFromDown, float dyFromDown)"));
-        assertTrue(scrollDirection.contains("horizontalSwipeAccepted(dxFromDown)"));
-        assertTrue(scrollDirection.contains("SwipeGesturePolicy.horizontalDistanceDominates"));
-        assertTrue(scrollDirection.contains("SwipeGesturePolicy.verticalDistanceDominates"));
-        assertTrue(scrollDirection.contains("tracking && !horizontalSwipeLocked && !verticalScrollLocked && listener != null"));
-        assertTrue(scrollDirection.contains("verticalScrollLocked = true;"));
-        assertFalse(scrollDirection.contains("horizontalSwipeListener.onHorizontalSwipe(dxFromDown < 0f);"));
+        assertFalse(mainActivity.contains("SwipeGesturePolicy.verticalDistanceDominates"));
+        assertFalse(mainActivity.contains("tracking && !horizontalSwipeLocked && !verticalScrollLocked && listener != null"));
+        assertFalse(mainActivity.contains("verticalScrollLocked = true;"));
+        assertFalse(mainActivity.contains("horizontalSwipeListener.onHorizontalSwipe(dxFromDown < 0f);"));
 
         assertTrue(localWaveform.contains("val energy = FloatArray(barCount)"));
         assertTrue(localWaveform.contains("val rms = sqrt(energy[index] / counts[index])"));
@@ -1594,16 +1573,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(nowBar.contains("val generatedWidth = width * (generatedBars.toFloat() / barCount.toFloat())"));
         assertTrue(nowBar.contains("val pendingPlayedWidth = playedWidth - pendingPlayedStart"));
         assertTrue(nowBar.contains("val railHeight = max(2.dp.toPx(), trackHeight * 0.16f)"));
-        assertTrue(shellController.contains("setOnTapListener"));
-        assertTrue(shellController.contains("collapseNowBarWaveform();"));
-        assertTrue(shellController.contains("public boolean dispatchTouchEvent(MotionEvent event)"));
-        assertTrue(shellController.contains("boolean collapseAfterDispatch = false;"));
-        assertTrue(shellController.contains("boolean handled = super.dispatchTouchEvent(event);"));
-        assertTrue(scrollDirection.contains("boolean tapAfterDispatch = false;"));
-        assertTrue(scrollDirection.contains("boolean handled = super.dispatchTouchEvent(ev);"));
-        assertTrue(shellController.contains("downInsideNowBar = isPointInsideNowBar(downX, downY);"));
-        assertTrue(shellController.contains("&& !isPointInsideNowBar(event.getRawX(), event.getRawY())"));
-        assertTrue(shellController.contains("private boolean isPointInsideNowBar(float rawX, float rawY)"));
+        assertFalse(shellController.contains("setOnTapListener"));
+        assertFalse(shellController.contains("dispatchTouchEvent(MotionEvent event)"));
+        assertFalse(shellController.contains("isPointInsideNowBar"));
+        assertFalse(shellController.contains("collapseNowBarWaveform();"));
         assertFalse(nowBar.contains("nowBarBlankCollapseInteraction"));
         assertFalse(nowBar.contains(".matchParentSize()\n                        .clickable("));
         assertTrue(nowBar.contains("onClick = onCollapseWaveform"));
@@ -1615,17 +1588,21 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
-    public void mainShellIsMountedThroughEchoAppRoot() throws Exception {
+    public void mainShellIsMountedThroughComposeNavHostRoot() throws Exception {
         String echoApp = read("app/src/main/java/app/echo/next/EchoApp.kt");
         String shellController = read("app/src/main/java/app/echo/next/MainUiShellController.java");
+        String mainActivity = read("app/src/main/java/app/echo/next/MainActivity.java");
 
-        assertTrue(echoApp.contains("fun EchoApp("));
-        assertTrue(echoApp.contains("EchoTheme.EchoTheme"));
-        assertTrue(echoApp.contains("AndroidView("));
         assertTrue(echoApp.contains("object EchoAppHost"));
-        assertTrue(echoApp.contains("activity.setContent"));
-        assertTrue(shellController.contains("EchoAppHost.install(activity"));
-        assertTrue(shellController.contains("private View createLegacyRootView("));
+        assertTrue(echoApp.contains("fun installNavHost(activity: ComponentActivity, mount: EchoNavHostMount)"));
+        assertTrue(echoApp.contains("EchoNavHostBridge("));
+        assertTrue(echoApp.contains("EchoTheme.EchoTheme"));
+        assertFalse(echoApp.contains("AndroidView("));
+        assertFalse(echoApp.contains("EchoLegacyRootFactory"));
+        assertFalse(echoApp.contains("fun install(activity"));
+        assertTrue(mainActivity.contains("EchoAppHost.installNavHost(this, new ActivityNavHostMount())"));
+        assertFalse(shellController.contains("EchoAppHost.install(activity"));
+        assertFalse(shellController.contains("private View createLegacyRootView("));
         assertFalse(shellController.contains("activity.setContentView(frame);"));
     }
 

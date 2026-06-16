@@ -1,18 +1,14 @@
 package app.echo.next
 
-import android.content.Context
-import android.view.View
 import app.echo.next.model.Track
 import app.echo.next.ui.LibraryGroupActions
 import app.echo.next.ui.LibraryGroupUiState
-import app.echo.next.ui.LibraryGroupsScreenFactory
 import app.echo.next.ui.TrackListHeaderAction
 import app.echo.next.ui.TrackListHeaderMetric
 import app.echo.next.ui.TrackListModeAction
 import java.util.ArrayList
 
 internal class LibraryGroupsRenderController(
-    private val context: Context,
     private val viewModel: LibraryViewModel,
     private val listener: Listener
 ) {
@@ -27,14 +23,18 @@ internal class LibraryGroupsRenderController(
 
         fun publishLibraryGroups(title: String, rows: ArrayList<LibraryGroupUiState>)
 
+        fun publishLibraryGroupsChrome(
+            actions: List<LibraryGroupActions>,
+            emptyText: String,
+            modeActions: List<TrackListModeAction>
+        )
+
         fun renderTrackList(
             title: String,
             tracks: ArrayList<Track>,
             headerMetrics: ArrayList<TrackListHeaderMetric>,
             headerActions: ArrayList<TrackListHeaderAction>
         )
-
-        fun addVirtualContent(view: View)
     }
 
     fun render(
@@ -69,16 +69,9 @@ internal class LibraryGroupsRenderController(
         }
 
         val title = LibraryGrouping.modeTitle(libraryMode)
+        val emptyText = "No $title groups"
         viewModel.updateLibraryGroups(title, groupRows)
-        listener.addVirtualContent(
-            LibraryGroupsScreenFactory.create(
-                context,
-                viewModel.libraryGroups,
-                groupActions,
-                "No $title groups",
-                modeActions
-            )
-        )
+        listener.publishLibraryGroupsChrome(groupActions, emptyText, modeActions)
     }
 
     private fun renderGroupDetail(selectedLibraryGroupTitle: String, tracks: ArrayList<Track>) {

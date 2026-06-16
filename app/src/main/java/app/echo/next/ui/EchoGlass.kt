@@ -31,10 +31,8 @@ fun EchoGlassSurface(
 }
 
 /**
- * "Paper" soft-block surface. Replaces the former translucent glass (gradient fill + heavy border)
- * with an opaque, calm card: a single solid surface fill, a gentle drop shadow on light themes for
- * a soft lift, and a hairline border on dark themes for separation (where shadows don't read).
- * This keeps the same signature so every former glass call site updates at once.
+ * Paper-like card surface. Light themes get a minimal drop shadow + subtle border for definition.
+ * Dark themes get a hairline border only. The result is a clean, print-quality card feel.
  */
 @Composable
 fun Modifier.echoGlassLayer(
@@ -42,23 +40,21 @@ fun Modifier.echoGlassLayer(
     shape: Shape = EchoShapes.medium
 ): Modifier {
     val dark = palette.background.luminance() < 0.5f
-    val elevation = if (dark) 0.dp else 6.dp
-    val shadowColor = palette.shadow.copy(alpha = if (dark) 0f else 0.16f)
-    return this
-        .shadow(
-            elevation = elevation,
-            shape = shape,
-            clip = false,
-            ambientColor = shadowColor,
-            spotColor = shadowColor
-        )
-        .clip(shape)
-        .background(palette.surface)
-        .then(
-            if (dark) {
-                Modifier.border(1.dp, palette.border.copy(alpha = 0.5f), shape)
-            } else {
-                Modifier
-            }
-        )
+    return if (dark) {
+        this
+            .clip(shape)
+            .background(palette.surface)
+            .border(1.dp, palette.border.copy(alpha = 0.4f), shape)
+    } else {
+        this
+            .shadow(
+                elevation = 1.dp,
+                shape = shape,
+                clip = false,
+                ambientColor = palette.shadow.copy(alpha = 0.05f),
+                spotColor = palette.shadow.copy(alpha = 0.05f)
+            )
+            .clip(shape)
+            .background(palette.surface)
+    }
 }

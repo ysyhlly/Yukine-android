@@ -1,7 +1,5 @@
 package app.echo.next
 
-import android.content.Context
-import android.view.View
 import app.echo.next.model.Playlist
 import app.echo.next.model.Track
 import app.echo.next.model.TrackPlayRecord
@@ -11,7 +9,6 @@ import app.echo.next.ui.CollectionMetricUiState
 import app.echo.next.ui.CollectionTrackSectionActions
 import app.echo.next.ui.CollectionTrackSectionUiState
 import app.echo.next.ui.CollectionsActions
-import app.echo.next.ui.CollectionsScreenFactory
 import app.echo.next.ui.CollectionsUiState
 import app.echo.next.ui.PlaylistRowActions
 import app.echo.next.ui.PlaylistRowUiState
@@ -24,7 +21,6 @@ import java.util.ArrayList
 import java.util.Date
 
 internal class CollectionsRenderController(
-    private val context: Context,
     private val viewModel: CollectionsViewModel,
     private val listener: Listener
 ) {
@@ -63,7 +59,7 @@ internal class CollectionsRenderController(
 
         fun removeSelectedPlaylistTrack(playlistId: Long, track: Track)
 
-        fun addVirtualContent(view: View)
+        fun publishCollectionsActions(actions: CollectionsActions)
     }
 
     fun render(
@@ -225,7 +221,7 @@ internal class CollectionsRenderController(
             selectedPlaylistTrackActions
         )
         viewModel.updateScreen(state)
-        listener.addVirtualContent(CollectionsScreenFactory.create(context, viewModel.screen, actions))
+        listener.publishCollectionsActions(actions)
     }
 
     private fun addCollectionAction(

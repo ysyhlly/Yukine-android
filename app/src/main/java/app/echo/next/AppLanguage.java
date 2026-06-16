@@ -6,7 +6,7 @@ import java.util.Map;
 
 import app.echo.next.ui.EchoTheme;
 
-final class AppLanguage {
+public final class AppLanguage {
     static final String MODE_SYSTEM = "system";
     static final String MODE_CHINESE = "zh";
     static final String MODE_ENGLISH = "en";
@@ -19,6 +19,7 @@ final class AppLanguage {
         put("tab.library", "Library", "\u66f2\u5e93");
         put("tab.collections", "Collections", "\u6536\u85cf");
         put("tab.queue", "Queue", "\u961f\u5217");
+        put("tab.playing", "Playing", "\u64ad\u653e");
         put("tab.now", "Now", "\u5f53\u524d");
         put("tab.network", "Network", "\u7f51\u7edc");
         put("tab.settings", "Settings", "\u8bbe\u7f6e");
@@ -452,7 +453,7 @@ final class AppLanguage {
         return "zh".equalsIgnoreCase(Locale.getDefault().getLanguage());
     }
 
-    static String text(String languageMode, String key) {
+    public static String text(String languageMode, String key) {
         Map<String, String> table = isChinese(languageMode) ? ZH : EN;
         String value = table.get(key);
         return value == null ? key : value;

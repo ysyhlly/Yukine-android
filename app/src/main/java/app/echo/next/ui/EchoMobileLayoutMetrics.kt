@@ -3,8 +3,8 @@ package app.echo.next.ui
 import androidx.compose.ui.unit.dp
 
 object EchoMobileLayoutMetrics {
-    val nowBarHeight = 124.dp
-    val nowBarExpandedHeight = 132.dp
+    val nowBarHeight = 112.dp
+    val nowBarExpandedHeight = 120.dp
     val nowBarArtworkSize = 48.dp
     val nowBarArtworkCornerRadius = 6.dp
     val nowBarProgressHeight = 18.dp

@@ -1,16 +1,12 @@
 package app.echo.next
 
-import android.content.Context
-import android.view.View
 import app.echo.next.model.Track
 import app.echo.next.model.TrackPlayRecord
 import app.echo.next.playback.PlaybackStateSnapshot
 import app.echo.next.ui.HomeDashboardActions
-import app.echo.next.ui.HomeDashboardScreenFactory
 import java.util.ArrayList
 
 internal class HomeDashboardRenderController(
-    private val context: Context,
     private val viewModel: MainActivityViewModel,
     private val listener: Listener
 ) {
@@ -23,8 +19,6 @@ internal class HomeDashboardRenderController(
 
         fun playTrack(track: Track)
 
-        fun addVirtualContent(view: View)
-
         fun refreshLibrary()
 
         fun openQueue()
@@ -33,9 +27,13 @@ internal class HomeDashboardRenderController(
 
         fun openStreaming()
 
+        fun openCollections()
+
         fun playDailyRecommendations()
 
         fun playHeartbeatRecommendations()
+
+        fun publishHomeDashboardActions(actions: HomeDashboardActions)
     }
 
     /**
@@ -81,26 +79,22 @@ internal class HomeDashboardRenderController(
             recentActions.add(Runnable { listener.playTrack(track) })
         }
 
-        listener.addVirtualContent(
-            HomeDashboardScreenFactory.create(
-                context,
-                viewModel.homeDashboard,
-                HomeDashboardActions(
-                    onOpenStat = statActions,
-                    onContinue = Runnable {
-                        val liveTrack = viewModel.playback.value.snapshot.currentTrack ?: continueTrack
-                        listener.continuePlayback(liveTrack)
-                    },
-                    onOpenNowPlaying = Runnable { listener.openNowPlaying() },
-                    onPlayRecent = recentActions,
-                    onRefresh = Runnable { listener.refreshLibrary() },
-                    onViewQueue = Runnable { listener.openQueue() },
-                    onShuffleAll = Runnable { listener.shuffleAll() },
-                    onRecentTabChanged = { /* Tab switching handled locally in Compose */ },
-                    onDailyRecommend = Runnable { listener.playDailyRecommendations() },
-                    onHeartbeatRecommend = Runnable { listener.playHeartbeatRecommendations() }
-                )
-            )
+        val actions = HomeDashboardActions(
+            onOpenStat = statActions,
+            onContinue = Runnable {
+                val liveTrack = viewModel.playback.value.snapshot.currentTrack ?: continueTrack
+                listener.continuePlayback(liveTrack)
+            },
+            onOpenNowPlaying = Runnable { listener.openNowPlaying() },
+            onPlayRecent = recentActions,
+            onRefresh = Runnable { listener.refreshLibrary() },
+            onViewQueue = Runnable { listener.openQueue() },
+            onShuffleAll = Runnable { listener.shuffleAll() },
+            onRecentTabChanged = { /* Tab switching handled locally in Compose */ },
+            onDailyRecommend = Runnable { listener.playDailyRecommendations() },
+            onHeartbeatRecommend = Runnable { listener.playHeartbeatRecommendations() },
+            onOpenCollections = Runnable { listener.openCollections() }
         )
+        listener.publishHomeDashboardActions(actions)
     }
 }

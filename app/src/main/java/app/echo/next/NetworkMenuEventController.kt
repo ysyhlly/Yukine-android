@@ -1,6 +1,7 @@
 package app.echo.next
 
-import android.view.View
+import app.echo.next.ui.SettingsAction
+import app.echo.next.ui.SettingsMetric
 import app.echo.next.model.RemoteSource
 import app.echo.next.model.Track
 import java.util.ArrayList
@@ -63,8 +64,8 @@ internal class NetworkMenuEventController(
         fun setStatus(status: String)
     }
 
-    fun interface ContentSink {
-        fun addVirtualContent(view: View)
+    interface ContentSink {
+        fun publishNetworkMenu(title: String, metrics: List<SettingsMetric>, actions: List<SettingsAction>) = Unit
     }
 
     override fun navigateNetworkPage(page: String) {
@@ -127,7 +128,11 @@ internal class NetworkMenuEventController(
         player.playTrackList(tracks, 0)
     }
 
-    override fun addVirtualContent(view: View) {
-        contentSink.addVirtualContent(view)
+    override fun publishNetworkMenu(
+        title: String,
+        metrics: List<SettingsMetric>,
+        actions: List<SettingsAction>
+    ) {
+        contentSink.publishNetworkMenu(title, metrics, actions)
     }
 }

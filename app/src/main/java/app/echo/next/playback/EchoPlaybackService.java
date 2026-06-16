@@ -102,6 +102,7 @@ public final class EchoPlaybackService extends MediaSessionService {
     private Player sessionPlayer;
     private MediaSession mediaSession;
     private SimpleCache audioCache;
+    private android.net.wifi.WifiManager.WifiLock wifiLock;
     @Inject
     MusicLibraryRepository repository;
     @Inject
@@ -120,6 +121,7 @@ public final class EchoPlaybackService extends MediaSessionService {
     private long lastSavedPositionTrackId = -1L;
     private long lastSavedPositionMs;
     private long lastPositionSaveAtMs;
+    private long lastErrorTrackId = -1L;
     private String lastPrecacheKey = "";
     private String waveformTrackKey = "";
     private String waveformGeneratingKey = "";
@@ -177,6 +179,7 @@ public final class EchoPlaybackService extends MediaSessionService {
             if (playbackState == Player.STATE_READY) {
                 preparing = false;
                 errorMessage = "";
+                lastErrorTrackId = -1L;
                 Track track = currentTrack();
                 if (player.getPlayWhenReady() && track != null && (lastMarkedTrack == null || lastMarkedTrack.id != track.id)) {
                     repository.markPlayed(track.id);
@@ -195,6 +198,14 @@ public final class EchoPlaybackService extends MediaSessionService {
 
         @Override
         public void onIsPlayingChanged(boolean isPlaying) {
+            // Bind the streaming WiFi lock to the real playing state so every path that starts
+            // playback (explicit play, auto-advance, queue tap, restore) keeps WiFi awake, and
+            // every pause/stop releases it. acquire/release are idempotent (guarded by isHeld).
+            if (isPlaying) {
+                acquireWifiLockIfStreaming();
+            } else {
+                releaseWifiLock();
+            }
             publishState();
             startProgressUpdates();
         }
@@ -203,6 +214,29 @@ public final class EchoPlaybackService extends MediaSessionService {
         public void onPlayerError(PlaybackException error) {
             preparing = false;
             Log.w(TAG, "Playback failed for " + debugTrack(currentTrack()), error);
+            // A transient streaming/network hiccup must not leave playback silently stuck.
+            // Retry the current track once; if it fails again, skip to the next track so
+            // playback keeps moving instead of "mysteriously pausing".
+            Track failed = currentTrack();
+            long failedId = failed == null ? -1L : failed.id;
+            boolean isStreaming = failed != null && isHttpUri(failed.contentUri);
+            if (isStreaming && failedId != -1L && failedId != lastErrorTrackId) {
+                lastErrorTrackId = failedId;
+                Log.w(TAG, "Retrying streaming track after error: " + debugTrack(failed));
+                mainHandler.postDelayed(() -> {
+                    if (currentTrack() != null && currentTrack().id == failedId) {
+                        prepareCurrent(true);
+                    }
+                }, 1500L);
+                return;
+            }
+            if (failedId != -1L && queue.size() > 1) {
+                lastErrorTrackId = -1L;
+                Log.w(TAG, "Skipping unplayable track: " + debugTrack(failed));
+                errorMessage = "";
+                skipToNext();
+                return;
+            }
             errorMessage = "无法播放这首歌曲。";
             publishState();
         }
@@ -224,6 +258,12 @@ public final class EchoPlaybackService extends MediaSessionService {
         createPlayerIfNeeded();
         restorePlaybackQueue();
         registerNoisyReceiver();
+        android.net.wifi.WifiManager wifiManager =
+                (android.net.wifi.WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+        if (wifiManager != null) {
+            wifiLock = wifiManager.createWifiLock(
+                    android.net.wifi.WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "echo:playback");
+        }
         publishState();
     }
 
@@ -435,6 +475,7 @@ public final class EchoPlaybackService extends MediaSessionService {
             player.seekTo(0L);
         }
         player.play();
+        acquireWifiLockIfStreaming();
         publishState();
         startProgressUpdates();
     }
@@ -456,6 +497,7 @@ public final class EchoPlaybackService extends MediaSessionService {
         if (player != null && isPlaying()) {
             player.pause();
         }
+        releaseWifiLock();
         persistPlaybackPositionThrottled(true);
         publishState();
     }
@@ -1003,6 +1045,7 @@ public final class EchoPlaybackService extends MediaSessionService {
         currentIndex = -1;
         persistPlaybackQueue();
         mainHandler.removeCallbacks(progressRunnable);
+        releaseWifiLock();
         stopForeground(true);
         publishState();
         stopSelf();
@@ -1126,6 +1169,8 @@ public final class EchoPlaybackService extends MediaSessionService {
                         .setPrioritizeTimeOverSizeThresholds(true)
                         .setBackBuffer(STREAMING_BACK_BUFFER_MS, true)
                         .build())
+                .setWakeMode(androidx.media3.common.C.WAKE_MODE_LOCAL)
+                .setHandleAudioBecomingNoisy(true)
                 .build();
         applyAudioFocusHandling();
         player.addListener(playerListener);
@@ -1514,6 +1559,19 @@ public final class EchoPlaybackService extends MediaSessionService {
         }
         String scheme = uri.getScheme();
         return "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
+    }
+
+    private void acquireWifiLockIfStreaming() {
+        Track track = currentTrack();
+        if (track != null && isHttpUri(track.contentUri) && wifiLock != null && !wifiLock.isHeld()) {
+            wifiLock.acquire();
+        }
+    }
+
+    private void releaseWifiLock() {
+        if (wifiLock != null && wifiLock.isHeld()) {
+            wifiLock.release();
+        }
     }
 
     @OptIn(markerClass = UnstableApi.class)

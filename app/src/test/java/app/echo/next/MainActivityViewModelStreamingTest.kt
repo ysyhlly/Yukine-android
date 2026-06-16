@@ -2294,11 +2294,10 @@ class MainActivityViewModelStreamingTest {
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainDispatcherRule : TestRule {
-    private val dispatcher = UnconfinedTestDispatcher()
-
     override fun apply(base: Statement, description: Description): Statement {
         return object : Statement() {
             override fun evaluate() {
+                val dispatcher = UnconfinedTestDispatcher()
                 Dispatchers.setMain(dispatcher)
                 try {
                     base.evaluate()
