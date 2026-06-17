@@ -1,0 +1,45 @@
+package app.yukine.library
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import app.yukine.MainActivityTrackListUiState
+import app.yukine.ui.TrackListHeaderAction
+import app.yukine.ui.TrackListHeaderMetric
+import app.yukine.ui.TrackListLabels
+import app.yukine.ui.TrackListModeAction
+import app.yukine.ui.TrackListScreen
+import app.yukine.ui.TrackRowActions
+import kotlinx.coroutines.flow.StateFlow
+
+/**
+ * Native Compose destination for track-list screens (Library songs, playlist tracks, network
+ * stream/webdav lists all share [TrackListScreen]).
+ *
+ * Reads title+rows from a [StateFlow] of [MainActivityTrackListUiState] via [collectAsState];
+ * the per-row [actions] and the chrome bits (header metrics/actions, mode actions, labels) are
+ * injected by the host, which reuses the existing TrackListRenderController assembly. Mirrors
+ * the factory's StateFlow→TrackListScreen split so behaviour is identical to the legacy path.
+ */
+@Composable
+fun LibraryTrackListDestination(
+    state: StateFlow<MainActivityTrackListUiState>,
+    actions: List<TrackRowActions>,
+    headerMetrics: List<TrackListHeaderMetric> = emptyList(),
+    headerActions: List<TrackListHeaderAction> = emptyList(),
+    emptyText: String = "",
+    modeActions: List<TrackListModeAction> = emptyList(),
+    labels: TrackListLabels = TrackListLabels()
+) {
+    val uiState by state.collectAsState()
+    TrackListScreen(
+        uiState.title,
+        uiState.rows,
+        actions,
+        headerMetrics,
+        headerActions,
+        emptyText,
+        modeActions,
+        labels
+    )
+}

@@ -30,7 +30,7 @@ Compose UI -> Feature ViewModel -> UseCase -> Repository -> DataSource / Service
 先按包重组，不急于拆 Gradle module：
 
 ```text
-app.echo.next
+app.yukine
   core/
     model/
     common/

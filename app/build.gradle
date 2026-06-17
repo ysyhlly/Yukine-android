@@ -13,11 +13,11 @@ def echoReleaseKeyPassword = findProperty("ECHO_RELEASE_KEY_PASSWORD") ?: System
 def echoHasReleaseSigning = echoReleaseStoreFile && echoReleaseStorePassword && echoReleaseKeyAlias && echoReleaseKeyPassword
 
 android {
-    namespace "app.echo.next"
+    namespace "app.yukine"
     compileSdk 35
 
     defaultConfig {
-        applicationId "app.echo.next"
+        applicationId "app.yukine"
         minSdk 23
         targetSdk 35
         versionCode 1
