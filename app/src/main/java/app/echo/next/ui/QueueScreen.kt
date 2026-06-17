@@ -1,6 +1,8 @@
 package app.echo.next.ui
 
 import android.net.Uri
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,14 +16,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -46,7 +59,8 @@ data class QueueTrackActions(
     val onPlay: Runnable,
     val onFavorite: Runnable,
     val onAddToPlaylist: Runnable,
-    val onRemove: Runnable
+    val onRemove: Runnable,
+    val onMove: (fromIndex: Int, toIndex: Int) -> Unit = { _, _ -> }
 )
 
 data class QueueScreenLabels(
@@ -61,6 +75,7 @@ data class QueueScreenLabels(
     val remove: String = "Remove"
 )
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun QueueScreen(
     tracks: List<QueueTrackUiState>,
@@ -70,7 +85,18 @@ internal fun QueueScreen(
     onBack: Runnable?
 ) {
     val p = EchoTheme.colors()
+    val listState = rememberLazyListState()
+    val dragState = rememberQueueDragState(
+        itemKeyPrefix = "track-",
+        onMove = { fromIndex, toIndex ->
+            actions.getOrNull(fromIndex)?.onMove?.invoke(fromIndex, toIndex)
+        }
+    )
+    LaunchedEffect(tracks.map { it.key }) {
+        dragState.clear()
+    }
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = echoPagePadding(),
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
@@ -113,10 +139,32 @@ internal fun QueueScreen(
         }
         itemsIndexed(
             items = tracks,
-            key = { _, track -> track.key }
+            key = { _, track -> "track-${track.key}" }
         ) { i, track ->
             actions.getOrNull(i)?.let { action ->
-                QueueTrackRow(track, action, labels)
+                QueueTrackRow(
+                    track = track,
+                    actions = action,
+                    labels = labels,
+                    modifier = Modifier
+                        .graphicsLayer {
+                            translationY = dragState.dragOffsetFor("track-${track.key}")
+                            shadowElevation = if (dragState.isDragging("track-${track.key}")) 12.dp.toPx() else 0f
+                        },
+                    dragHandleModifier = Modifier.pointerInput(track.key, tracks.size) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { offset ->
+                                dragState.start(listState.layoutInfo.visibleItemsInfo, "track-${track.key}", offset)
+                            },
+                            onDragCancel = { dragState.clear() },
+                            onDragEnd = { dragState.drop() },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                dragState.drag(listState.layoutInfo.visibleItemsInfo, dragAmount.y)
+                            }
+                        )
+                    }
+                )
             }
         }
     }
@@ -127,7 +175,8 @@ private fun QueueTrackRow(
     track: QueueTrackUiState,
     actions: QueueTrackActions,
     labels: QueueScreenLabels,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    dragHandleModifier: Modifier = Modifier
 ) {
     val p = EchoTheme.colors()
     val bg by androidx.compose.animation.animateColorAsState(
@@ -179,6 +228,7 @@ private fun QueueTrackRow(
                     color = p.muted,
                     modifier = Modifier.padding(horizontal = 6.dp)
                 )
+                QueueDragHandle(dragHandleModifier)
             }
             Spacer(Modifier.height(6.dp))
             Row(
@@ -199,6 +249,88 @@ private fun QueueTrackRow(
             }
         }
     }
+}
+
+@Composable
+private fun QueueDragHandle(modifier: Modifier) {
+    val p = EchoTheme.colors()
+    Surface(
+        modifier = modifier
+            .size(30.dp)
+            .semantics { contentDescription = "Drag to reorder" },
+        shape = EchoShapes.small,
+        color = p.surfaceVariant.copy(alpha = 0.24f)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            EchoIcon(EchoIconKind.More, Modifier.size(15.dp), p.muted)
+        }
+    }
+}
+
+private class QueueDragState(
+    private val itemKeyPrefix: String,
+    private val onMove: (fromIndex: Int, toIndex: Int) -> Unit
+) {
+    private var draggingKey by mutableStateOf<Any?>(null)
+    private var fromAdapterIndex by mutableIntStateOf(-1)
+    private var currentAdapterIndex by mutableIntStateOf(-1)
+    private var draggedItemStart by mutableIntStateOf(0)
+    private var draggedItemSize by mutableIntStateOf(0)
+    private var dragOffset by mutableFloatStateOf(0f)
+
+    fun start(visibleItems: List<LazyListItemInfo>, key: Any, pointerOffset: Offset) {
+        val item = visibleItems.firstOrNull { it.key == key } ?: return
+        draggingKey = key
+        fromAdapterIndex = item.index
+        currentAdapterIndex = item.index
+        draggedItemStart = item.offset
+        draggedItemSize = item.size
+        dragOffset = 0f
+    }
+
+    fun drag(visibleItems: List<LazyListItemInfo>, deltaY: Float) {
+        val key = draggingKey ?: return
+        dragOffset += deltaY
+        val draggedCenter = draggedItemStart + dragOffset + draggedItemSize / 2f
+        val target = visibleItems
+            .filter { it.key != key && it.key.toString().startsWith(itemKeyPrefix) }
+            .firstOrNull { item ->
+                draggedCenter in item.offset.toFloat()..(item.offset + item.size).toFloat()
+            } ?: return
+        currentAdapterIndex = target.index
+    }
+
+    fun drop() {
+        val from = adapterIndexToTrackIndex(fromAdapterIndex)
+        val to = adapterIndexToTrackIndex(currentAdapterIndex)
+        if (from >= 0 && to >= 0 && from != to) {
+            onMove(from, to)
+        }
+        clear()
+    }
+
+    fun clear() {
+        draggingKey = null
+        fromAdapterIndex = -1
+        currentAdapterIndex = -1
+        draggedItemStart = 0
+        draggedItemSize = 0
+        dragOffset = 0f
+    }
+
+    fun isDragging(key: Any): Boolean = draggingKey == key
+
+    fun dragOffsetFor(key: Any): Float = if (draggingKey == key) dragOffset else 0f
+
+    private fun adapterIndexToTrackIndex(index: Int): Int = index - 2
+}
+
+@Composable
+private fun rememberQueueDragState(
+    itemKeyPrefix: String,
+    onMove: (fromIndex: Int, toIndex: Int) -> Unit
+): QueueDragState = remember(itemKeyPrefix, onMove) {
+    QueueDragState(itemKeyPrefix, onMove)
 }
 
 @Composable

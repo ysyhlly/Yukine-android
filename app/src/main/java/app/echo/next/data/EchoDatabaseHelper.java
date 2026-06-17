@@ -45,6 +45,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     private static final String SETTING_PLAYBACK_POSITION_MS = "playback_position_ms";
     private static final String SETTING_SHUFFLE_ENABLED = "shuffle_enabled";
     private static final String SETTING_REPEAT_MODE = "repeat_mode";
+    private static final String SETTING_PLAYBACK_RESUME_REQUESTED = "playback_resume_requested";
 
     public EchoDatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -390,6 +391,14 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
 
     public void saveRepeatMode(int repeatMode) {
         saveSetting(SETTING_REPEAT_MODE, String.valueOf(repeatMode));
+    }
+
+    public boolean loadPlaybackResumeRequested() {
+        return "true".equals(loadSetting(SETTING_PLAYBACK_RESUME_REQUESTED, "false"));
+    }
+
+    public void savePlaybackResumeRequested(boolean requested) {
+        saveSetting(SETTING_PLAYBACK_RESUME_REQUESTED, requested ? "true" : "false");
     }
 
     private String loadSetting(String key, String fallback) {

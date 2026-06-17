@@ -232,20 +232,33 @@ class LocalNeteaseStreamingClient(
         val cookie = authStore?.cookieHeader(StreamingProviderName.NETEASE)?.takeIf { it.isNotBlank() }
             ?: return similarTracks(seedId, count)
         val contextPlaylistId = playlistId?.trim()?.takeIf { it.isNotBlank() } ?: seedId
-        val tracks = runCatching {
-            val body = httpClient.getJson(
-                "/api/playmode/intelligence/list",
-                mapOf(
-                    "id" to seedId,
-                    "pid" to contextPlaylistId,
-                    "sid" to seedId,
-                    "count" to count.coerceIn(1, 100).toString()
-                ),
-                cookie
-            )
-            heartbeatTracksFromBody(body)
-        }.getOrDefault(emptyList())
-        return tracks.ifEmpty { similarTracks(seedId, count) }
+        val seen = HashSet<String>()
+        val accumulated = ArrayList<StreamingTrack>()
+        val maxRounds = 3
+        for (round in 0 until maxRounds) {
+            if (accumulated.size >= count) break
+            val sid = if (round == 0) seedId else accumulated.lastOrNull()?.providerTrackId ?: seedId
+            val batch = runCatching {
+                val body = httpClient.getJson(
+                    "/api/playmode/intelligence/list",
+                    mapOf(
+                        "id" to seedId,
+                        "pid" to contextPlaylistId,
+                        "sid" to sid,
+                        "count" to count.coerceIn(1, 100).toString()
+                    ),
+                    cookie
+                )
+                heartbeatTracksFromBody(body)
+            }.getOrDefault(emptyList())
+            if (batch.isEmpty()) break
+            for (track in batch) {
+                if (seen.add(track.providerTrackId)) {
+                    accumulated.add(track)
+                }
+            }
+        }
+        return accumulated.ifEmpty { similarTracks(seedId, count) }
     }
 
     fun heartbeatRecommendedTracks(count: Int = 30): List<StreamingTrack> {
@@ -257,43 +270,40 @@ class LocalNeteaseStreamingClient(
                 code = StreamingErrorCode.SOURCE_UNAVAILABLE
             )
         val seedId = seed.providerTrackId
-        // Prefer the user's "我喜欢的音乐" playlist as the playlist context; fall back to any playlist.
         val userId = resolveUserId(cookie)
         val playlistId = runCatching { userPlaylists() }.getOrNull()
             ?.let { preferredHeartbeatPlaylistId(it, userId) }
             ?: seedId
-        val body = httpClient.getJson(
-            "/api/playmode/intelligence/list",
-            mapOf(
-                "id" to seedId,
-                "pid" to playlistId,
-                "sid" to seedId,
-                "count" to count.coerceIn(1, 100).toString()
-            ),
-            cookie
-        )
-        val data = body.optJSONObject("data")
-        val list = body.optJSONArray("data")
-            ?: data?.optJSONArray("list")
-            ?: data?.optJSONArray("songs")
-            ?: body.optJSONArray("recommend")
-            ?: body.optJSONArray("songs")
-        val tracks = ArrayList<StreamingTrack>()
-        if (list != null) {
-            for (i in 0 until list.length()) {
-                val entry = list.optJSONObject(i) ?: continue
-                val songObject = entry.optJSONObject("songInfo")
-                    ?: entry.optJSONObject("songInfoDTO")
-                    ?: entry.optJSONObject("song")
-                    ?: entry.optJSONObject("track")
-                    ?: entry.takeIf { it.has("name") }
-                if (songObject != null) {
-                    tracks += track(songObject)
+        val seen = HashSet<String>()
+        val accumulated = ArrayList<StreamingTrack>()
+        val maxRounds = 3
+        for (round in 0 until maxRounds) {
+            if (accumulated.size >= count) break
+            val sid = if (round == 0) seedId else accumulated.lastOrNull()?.providerTrackId ?: seedId
+            val batch = runCatching {
+                val body = httpClient.getJson(
+                    "/api/playmode/intelligence/list",
+                    mapOf(
+                        "id" to seedId,
+                        "pid" to playlistId,
+                        "sid" to sid,
+                        "count" to count.coerceIn(1, 100).toString()
+                    ),
+                    cookie
+                )
+                heartbeatTracksFromBody(body)
+            }.getOrDefault(emptyList())
+            if (batch.isEmpty()) break
+            for (track in batch) {
+                if (seen.add(track.providerTrackId)) {
+                    accumulated.add(track)
                 }
             }
         }
-        // Always keep the seed itself at the front so playback starts from the liked song.
-        return if (tracks.any { it.providerTrackId == seedId }) tracks else listOf(seed) + tracks
+        if (accumulated.isEmpty()) {
+            return listOf(seed)
+        }
+        return if (accumulated.any { it.providerTrackId == seedId }) accumulated else listOf(seed) + accumulated
     }
 
     private fun preferredHeartbeatPlaylistId(playlists: List<StreamingPlaylist>, userId: String): String? {

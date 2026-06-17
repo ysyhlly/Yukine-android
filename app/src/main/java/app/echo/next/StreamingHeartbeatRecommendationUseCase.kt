@@ -13,8 +13,8 @@ data class HeartbeatRefillRequest(
 
 internal class StreamingHeartbeatRecommendationUseCase(
     private val clockMs: () -> Long = { System.currentTimeMillis() },
-    private val refillRemainingThreshold: Int = 5,
-    private val refillRetryMs: Long = 30_000L
+    private val refillRemainingThreshold: Int = 8,
+    private val refillRetryMs: Long = 20_000L
 ) {
     private var active = false
     private var loading = false

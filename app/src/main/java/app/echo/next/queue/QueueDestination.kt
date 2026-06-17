@@ -34,7 +34,8 @@ fun QueueDestination(viewModel: QueueViewModel, modifier: Modifier = Modifier) {
                 onPlay = Runnable { viewModel.onPlayAt(index) },
                 onFavorite = Runnable { viewModel.onToggleFavorite(index) },
                 onAddToPlaylist = Runnable { viewModel.onAddToPlaylist(index) },
-                onRemove = Runnable { viewModel.onRemove(index) }
+                onRemove = Runnable { viewModel.onRemove(index) },
+                onMove = { fromIndex, toIndex -> viewModel.onMove(fromIndex, toIndex) }
             )
         }
     }

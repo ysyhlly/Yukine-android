@@ -1959,6 +1959,9 @@ public final class MainActivity extends ComponentActivity {
             showAddToPlaylistDialog(((app.echo.next.queue.QueueIntent.AddToPlaylist) intent).getTrack());
         } else if (intent instanceof app.echo.next.queue.QueueIntent.Remove) {
             removeQueueTrack(((app.echo.next.queue.QueueIntent.Remove) intent).getTrack());
+        } else if (intent instanceof app.echo.next.queue.QueueIntent.Move) {
+            app.echo.next.queue.QueueIntent.Move move = (app.echo.next.queue.QueueIntent.Move) intent;
+            moveQueueTrack(move.getFromIndex(), move.getToIndex());
         } else if (intent instanceof app.echo.next.queue.QueueIntent.ClearQueue) {
             confirmClearQueue();
         } else if (intent instanceof app.echo.next.queue.QueueIntent.Back) {
@@ -2821,6 +2824,15 @@ public final class MainActivity extends ComponentActivity {
 
     private void clearQueue() {
         applyPlaybackActionResult(nowPlayingViewModel.clearQueue());
+    }
+
+    private void moveQueueTrack(int fromIndex, int toIndex) {
+        if (playbackService == null) {
+            return;
+        }
+        playbackService.moveQueueTrack(fromIndex, toIndex);
+        renderNowBar();
+        renderSelectedTab();
     }
 
     private void renderNowPlaying() {
@@ -3895,6 +3907,13 @@ public final class MainActivity extends ComponentActivity {
         public void clearQueue() {
             if (playbackService != null) {
                 playbackService.clearQueue();
+            }
+        }
+
+        @Override
+        public void moveQueueTrack(int fromIndex, int toIndex) {
+            if (playbackService != null) {
+                playbackService.moveQueueTrack(fromIndex, toIndex);
             }
         }
 

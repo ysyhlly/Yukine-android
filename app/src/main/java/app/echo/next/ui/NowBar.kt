@@ -253,6 +253,7 @@ fun NowBar(
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
+                MiniLyricsStrip(state)
                 NowBarProgressSection(
                     slice = progressSlice,
                     waveformExpanded = waveformExpanded,
@@ -300,6 +301,37 @@ fun NowBar(
                         .padding(horizontal = 12.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun MiniLyricsStrip(state: NowBarState) {
+    val activeLine = state.lyrics.firstOrNull { it.active }?.text
+        ?: state.lyrics.firstOrNull()?.text
+        ?: state.lyricsStatus
+    if (activeLine.isBlank() || !state.canExpand) {
+        Spacer(Modifier.height(0.dp))
+        return
+    }
+    val p = EchoTheme.colors()
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(20.dp)
+            .semantics { contentDescription = state.lyricsTitle.ifBlank { "Lyrics" } },
+        shape = EchoShapes.small,
+        color = p.accentSoft.copy(alpha = 0.32f)
+    ) {
+        Box(contentAlignment = Alignment.CenterStart) {
+            Text(
+                text = activeLine.replace('\n', ' '),
+                style = EchoTypography.small.copy(fontWeight = FontWeight.SemiBold),
+                color = p.accent,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 9.dp)
+            )
         }
     }
 }

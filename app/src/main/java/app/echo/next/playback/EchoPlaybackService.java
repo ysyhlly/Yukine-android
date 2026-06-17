@@ -3,6 +3,8 @@ package app.echo.next.playback;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.app.Notification;
+import android.content.pm.ServiceInfo;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -69,12 +71,16 @@ public final class EchoPlaybackService extends MediaSessionService {
     public static final String ACTION_PREVIOUS = "app.echo.next.action.PREVIOUS";
     public static final String ACTION_NEXT = "app.echo.next.action.NEXT";
     public static final String ACTION_STOP = "app.echo.next.action.STOP";
+    public static final String ACTION_TOGGLE_FAVORITE = "app.echo.next.action.TOGGLE_FAVORITE";
+    public static final String ACTION_RESTORE = "app.echo.next.action.RESTORE";
+    public static final String ACTION_RESTORE_AND_PLAY = "app.echo.next.action.RESTORE_AND_PLAY";
 
     public static final int REPEAT_ALL = 0;
     public static final int REPEAT_ONE = 1;
     public static final int REPEAT_OFF = 2;
 
     private static final String CHANNEL_ID = "echo_next_playback";
+    private static final int NOTIFICATION_ID = 1001;
     private static final String TAG = "EchoPlaybackService";
     private static final long PLAYBACK_POSITION_SAVE_INTERVAL_MS = 5000L;
     private static final int PRECACHE_BYTES = 512 * 1024;
@@ -384,6 +390,12 @@ public final class EchoPlaybackService extends MediaSessionService {
             skipToPrevious();
         } else if (ACTION_NEXT.equals(action)) {
             skipToNext();
+        } else if (ACTION_TOGGLE_FAVORITE.equals(action)) {
+            toggleCurrentFavorite();
+        } else if (ACTION_RESTORE.equals(action)) {
+            restoreLastPlayback(false);
+        } else if (ACTION_RESTORE_AND_PLAY.equals(action)) {
+            restoreLastPlayback(true);
         } else if (ACTION_STOP.equals(action)) {
             stopAndClear();
         }
@@ -426,6 +438,7 @@ public final class EchoPlaybackService extends MediaSessionService {
         clearRestoredPosition();
         persistPlaybackQueue();
         resetCurrentPlaybackPosition();
+        savePlaybackResumeRequested(true);
         prepareCurrent(true);
     }
 
@@ -444,6 +457,7 @@ public final class EchoPlaybackService extends MediaSessionService {
             lastMarkedTrack = null;
             clearRestoredPosition();
             resetCurrentPlaybackPosition();
+            savePlaybackResumeRequested(true);
             prepareCurrent(true);
             return;
         }
@@ -475,6 +489,7 @@ public final class EchoPlaybackService extends MediaSessionService {
             player.seekTo(0L);
         }
         player.play();
+        savePlaybackResumeRequested(true);
         acquireWifiLockIfStreaming();
         publishState();
         startProgressUpdates();
@@ -497,6 +512,7 @@ public final class EchoPlaybackService extends MediaSessionService {
         if (player != null && isPlaying()) {
             player.pause();
         }
+        savePlaybackResumeRequested(false);
         releaseWifiLock();
         persistPlaybackPositionThrottled(true);
         publishState();
@@ -542,6 +558,7 @@ public final class EchoPlaybackService extends MediaSessionService {
         clearRestoredPosition();
         persistPlaybackQueue();
         resetCurrentPlaybackPosition();
+        savePlaybackResumeRequested(true);
         prepareCurrent(true);
     }
 
@@ -560,11 +577,30 @@ public final class EchoPlaybackService extends MediaSessionService {
         clearRestoredPosition();
         persistPlaybackQueue();
         resetCurrentPlaybackPosition();
+        savePlaybackResumeRequested(true);
         prepareCurrent(true);
     }
 
     public List<Track> queueSnapshot() {
         return Collections.unmodifiableList(new ArrayList<>(queue));
+    }
+
+    public void moveQueueTrack(int fromIndex, int toIndex) {
+        if (queue.isEmpty() || fromIndex == toIndex || fromIndex < 0 || fromIndex >= queue.size()) {
+            return;
+        }
+        int targetIndex = Math.max(0, Math.min(toIndex, queue.size() - 1));
+        Track current = currentTrack();
+        Track moved = queue.remove(fromIndex);
+        queue.add(targetIndex, moved);
+        if (current != null) {
+            currentIndex = indexOfTrackOccurrence(current);
+        } else {
+            currentIndex = Math.max(0, Math.min(currentIndex, queue.size() - 1));
+        }
+        persistPlaybackQueue();
+        persistPlaybackPositionThrottled(true);
+        publishState();
     }
 
     public PlaybackStreamingDiagnostics.Snapshot streamingDiagnostics() {
@@ -669,6 +705,28 @@ public final class EchoPlaybackService extends MediaSessionService {
             return;
         }
         stopAndClear();
+    }
+
+    public void toggleCurrentFavorite() {
+        Track track = currentTrack();
+        if (track == null || repository == null) {
+            return;
+        }
+        repository.setFavorite(track, !repository.isFavorite(track.id));
+        publishState();
+    }
+
+    public void restoreLastPlayback(boolean playWhenRestored) {
+        createPlayerIfNeeded();
+        if (queue.isEmpty()) {
+            restorePlaybackQueue();
+        }
+        if (currentTrack() == null) {
+            publishState();
+            return;
+        }
+        boolean shouldPlay = playWhenRestored || (repository != null && repository.loadPlaybackResumeRequested());
+        prepareCurrent(shouldPlay);
     }
 
     public void replaceQueuedTrack(Track replacement) {
@@ -1044,6 +1102,7 @@ public final class EchoPlaybackService extends MediaSessionService {
         queue.clear();
         currentIndex = -1;
         persistPlaybackQueue();
+        savePlaybackResumeRequested(false);
         mainHandler.removeCallbacks(progressRunnable);
         releaseWifiLock();
         stopForeground(true);
@@ -1067,6 +1126,7 @@ public final class EchoPlaybackService extends MediaSessionService {
         }
         if (repeatMode == REPEAT_OFF && currentIndex >= queue.size() - 1) {
             stopAtEndOfQueue();
+            savePlaybackResumeRequested(false);
             return;
         }
         skipToNext();
@@ -1089,6 +1149,7 @@ public final class EchoPlaybackService extends MediaSessionService {
                 createPlayerIfNeeded();
             }
         }
+        savePlaybackResumeRequested(false);
         publishState();
     }
 
@@ -1203,6 +1264,33 @@ public final class EchoPlaybackService extends MediaSessionService {
         restoredPositionMs = repository.loadPlaybackPositionMs();
         errorMessage = "";
         lastMarkedTrack = null;
+    }
+
+    private int indexOfTrackOccurrence(Track target) {
+        if (target == null) {
+            return -1;
+        }
+        for (int i = 0; i < queue.size(); i++) {
+            Track candidate = queue.get(i);
+            if (candidate == target
+                    || (candidate != null
+                    && candidate.id == target.id
+                    && safeEquals(candidate.dataPath, target.dataPath)
+                    && safeEquals(candidate.contentUri, target.contentUri))) {
+                return i;
+            }
+        }
+        return Math.max(0, Math.min(currentIndex, queue.size() - 1));
+    }
+
+    private boolean safeEquals(Object left, Object right) {
+        return left == null ? right == null : left.equals(right);
+    }
+
+    private void savePlaybackResumeRequested(boolean requested) {
+        if (repository != null) {
+            repository.savePlaybackResumeRequested(requested);
+        }
     }
 
     private void replaceCurrentQueueTrack(Track track) {
@@ -1678,8 +1766,47 @@ public final class EchoPlaybackService extends MediaSessionService {
     }
 
     private void updateMediaNotification() {
-        if (mediaSession != null && currentTrack() != null) {
-            onUpdateNotification(mediaSession);
+        Track track = currentTrack();
+        if (track == null) {
+            return;
+        }
+        startPlaybackForeground(playbackNotification(track));
+    }
+
+    private Notification playbackNotification(Track track) {
+        boolean playing = isPlaying() || preparing;
+        String favoriteTitle = repository != null && repository.isFavorite(track.id) ? "已收藏" : "收藏";
+        Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? new Notification.Builder(this, CHANNEL_ID)
+                : new Notification.Builder(this);
+        builder.setSmallIcon(R.drawable.ic_stat_echo)
+                .setContentTitle(track.title)
+                .setContentText(track.subtitle())
+                .setContentIntent(activityPendingIntent())
+                .setShowWhen(false)
+                .setOngoing(playing)
+                .setOnlyAlertOnce(true)
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .addAction(R.drawable.ic_stat_echo, "上一首", serviceActionPendingIntent(ACTION_PREVIOUS, 1))
+                .addAction(
+                        R.drawable.ic_stat_echo,
+                        playing ? "暂停" : "播放",
+                        serviceActionPendingIntent(playing ? ACTION_PAUSE : ACTION_PLAY, 2)
+                )
+                .addAction(R.drawable.ic_stat_echo, "下一首", serviceActionPendingIntent(ACTION_NEXT, 3))
+                .addAction(R.drawable.ic_stat_echo, favoriteTitle, serviceActionPendingIntent(ACTION_TOGGLE_FAVORITE, 4));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            builder.setStyle(new Notification.MediaStyle()
+                    .setShowActionsInCompactView(0, 1, 2));
+        }
+        return builder.build();
+    }
+
+    private void startPlaybackForeground(Notification notification) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+        } else {
+            startForeground(NOTIFICATION_ID, notification);
         }
     }
 
@@ -1687,6 +1814,12 @@ public final class EchoPlaybackService extends MediaSessionService {
         Intent intent = new Intent(this, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         return PendingIntent.getActivity(this, 0, intent, pendingIntentFlags());
+    }
+
+    private PendingIntent serviceActionPendingIntent(String action, int requestCode) {
+        Intent intent = new Intent(this, EchoPlaybackService.class);
+        intent.setAction(action);
+        return PendingIntent.getService(this, requestCode, intent, pendingIntentFlags());
     }
 
     private int pendingIntentFlags() {

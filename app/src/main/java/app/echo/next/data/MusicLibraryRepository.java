@@ -87,6 +87,14 @@ public final class MusicLibraryRepository {
         database.saveRepeatMode(normalizeRepeatMode(repeatMode));
     }
 
+    public boolean loadPlaybackResumeRequested() {
+        return database.loadPlaybackResumeRequested();
+    }
+
+    public void savePlaybackResumeRequested(boolean requested) {
+        database.savePlaybackResumeRequested(requested);
+    }
+
     public List<RemoteSource> loadRemoteSources() {
         return database.loadRemoteSources();
     }

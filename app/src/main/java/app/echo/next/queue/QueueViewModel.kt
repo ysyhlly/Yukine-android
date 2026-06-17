@@ -25,6 +25,7 @@ sealed interface QueueIntent {
     data class ToggleFavorite(val track: Track) : QueueIntent
     data class AddToPlaylist(val track: Track) : QueueIntent
     data class Remove(val track: Track) : QueueIntent
+    data class Move(val fromIndex: Int, val toIndex: Int) : QueueIntent
     data object ClearQueue : QueueIntent
     data object Back : QueueIntent
 }
@@ -127,6 +128,13 @@ class QueueViewModel : ViewModel() {
 
     fun onRemove(index: Int) {
         boundTracks.getOrNull(index)?.let { emit(QueueIntent.Remove(it)) }
+    }
+
+    fun onMove(fromIndex: Int, toIndex: Int) {
+        val tracks = boundTracks
+        if (fromIndex in tracks.indices && toIndex in tracks.indices && fromIndex != toIndex) {
+            emit(QueueIntent.Move(fromIndex, toIndex))
+        }
     }
 
     fun onClearQueue() = emit(QueueIntent.ClearQueue)
