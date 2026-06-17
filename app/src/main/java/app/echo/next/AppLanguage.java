@@ -206,6 +206,10 @@ public final class AppLanguage {
         put("add.to.playlist", "Add to playlist", "\u6dfb\u52a0\u5230\u64ad\u653e\u5217\u8868");
         put("rename", "Rename", "\u91cd\u547d\u540d");
         put("delete", "Delete", "\u5220\u9664");
+        put("delete.group.message.prefix", "Remove \"", "\u4ece\u66f2\u5e93\u79fb\u9664\u201c");
+        put("delete.group.message.middle", "\" and its ", "\u201d\u4e2d\u7684 ");
+        put("delete.group.message.suffix", " tracks from the library?", " \u9996\u6b4c\uff1f");
+        put("deleted.group.prefix", "Removed tracks: ", "\u5df2\u79fb\u9664\u6b4c\u66f2\uff1a");
         put("edit", "Edit", "\u7f16\u8f91");
         put("remove", "Remove", "\u79fb\u9664");
         put("up", "Up", "\u4e0a\u79fb");

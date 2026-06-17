@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -53,13 +54,22 @@ data class TrackRowActions(
     val onFavorite: Runnable,
     val onAddToPlaylist: Runnable,
     val onEdit: Runnable?,
-    val onDelete: Runnable?
+    val onDelete: Runnable?,
+    val onLongPress: Runnable?
 ) {
     constructor(
         onPlay: Runnable,
         onFavorite: Runnable,
         onAddToPlaylist: Runnable
-    ) : this(onPlay, onFavorite, onAddToPlaylist, null, null)
+    ) : this(onPlay, onFavorite, onAddToPlaylist, null, null, null)
+
+    constructor(
+        onPlay: Runnable,
+        onFavorite: Runnable,
+        onAddToPlaylist: Runnable,
+        onEdit: Runnable?,
+        onDelete: Runnable?
+    ) : this(onPlay, onFavorite, onAddToPlaylist, onEdit, onDelete, onDelete)
 }
 
 data class TrackListHeaderMetric(val label: String, val value: String)
@@ -259,9 +269,13 @@ private fun TrackRow(track: TrackRowUiState, actions: TrackRowActions, labels: T
         label = "trackRowBg"
     )
     Surface(
-        onClick = { actions.onPlay.run() },
-        interactionSource = interaction,
         modifier = modifier
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = { actions.onPlay.run() },
+                onLongClick = actions.onLongPress?.let { action -> { action.run() } }
+            )
             .echoPressScale(interaction)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,

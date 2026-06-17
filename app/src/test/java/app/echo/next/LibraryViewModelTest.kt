@@ -161,7 +161,7 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun trackListAndGroupUiStateAreOwnedByLibraryViewModel() {
+    fun trackListAndGroupUiStateAreMutuallyExclusiveForNavHostRouting() {
         val viewModel = LibraryViewModel()
         val trackRows = listOf(
             TrackRowUiState(
@@ -179,12 +179,34 @@ class LibraryViewModelTest {
         val groupRows = listOf(LibraryGroupUiState("artist:a", "Artist A", "1 song"))
 
         viewModel.updateTrackList("Songs", trackRows)
+        viewModel.clearTrackList()
         viewModel.updateLibraryGroups("Artists", groupRows)
 
-        assertEquals("Songs", viewModel.trackList.value.title)
-        assertEquals(trackRows, viewModel.trackList.value.rows)
+        assertEquals("", viewModel.trackList.value.title)
+        assertEquals(emptyList<TrackRowUiState>(), viewModel.trackList.value.rows)
         assertEquals("Artists", viewModel.libraryGroups.value.title)
         assertEquals(groupRows, viewModel.libraryGroups.value.rows)
+
+        viewModel.clearLibraryGroups()
+        viewModel.updateTrackList("Songs", trackRows)
+
+        assertEquals("", viewModel.libraryGroups.value.title)
+        assertEquals(emptyList<LibraryGroupUiState>(), viewModel.libraryGroups.value.rows)
+        assertEquals("Songs", viewModel.trackList.value.title)
+        assertEquals(trackRows, viewModel.trackList.value.rows)
+    }
+
+    @Test
+    fun albumAndArtistGroupsUseRepresentativeArtwork() {
+        val artwork = Uri.parse("content://artwork/album")
+        val tracks = listOf(
+            track(1L),
+            track(2L, artwork)
+        )
+
+        assertEquals(artwork, LibraryGrouping.groupArtworkUri(tracks, LibraryGrouping.ALBUMS))
+        assertEquals(artwork, LibraryGrouping.groupArtworkUri(tracks, LibraryGrouping.ARTISTS))
+        assertEquals(null, LibraryGrouping.groupArtworkUri(tracks, LibraryGrouping.FOLDERS))
     }
 
     @Test
@@ -430,8 +452,8 @@ class LibraryViewModelTest {
         )
     }
 
-    private fun track(id: Long): Track {
-        return Track(id, "Track $id", "Artist", "Album", 1000L, Uri.EMPTY, "file:$id")
+    private fun track(id: Long, albumArtUri: Uri? = null): Track {
+        return Track(id, "Track $id", "Artist", "Album", 1000L, Uri.EMPTY, "file:$id", id, albumArtUri)
     }
 
     private class FakeCollectionGateway : LibraryCollectionGateway {

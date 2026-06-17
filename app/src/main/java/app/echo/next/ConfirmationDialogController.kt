@@ -23,6 +23,8 @@ internal class ConfirmationDialogController(
 
         fun deleteTrack(trackId: Long, status: String)
 
+        fun deleteTracks(trackIds: List<Long>, status: String)
+
         fun deleteRemoteSource(sourceId: Long, name: String)
     }
 
@@ -53,6 +55,20 @@ internal class ConfirmationDialogController(
             text("delete.stream.message.prefix") + track.title + text("delete.message.suffix")
         ) {
             listener.deleteTrack(track.id, text("deleted.stream"))
+        }
+    }
+
+    fun confirmDeleteTracks(title: String, tracks: List<Track>) {
+        val ids = tracks.map { it.id }.filter { it >= 0L }.distinct()
+        if (ids.isEmpty()) {
+            return
+        }
+        val name = title.ifBlank { text("songs") }
+        confirm(
+            text("delete"),
+            text("delete.group.message.prefix") + name + text("delete.group.message.middle") + ids.size + text("delete.group.message.suffix")
+        ) {
+            listener.deleteTracks(ids, text("deleted.group.prefix") + ids.size)
         }
     }
 

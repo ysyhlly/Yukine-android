@@ -234,9 +234,10 @@ class LocalNeteaseStreamingClient(
         val contextPlaylistId = playlistId?.trim()?.takeIf { it.isNotBlank() } ?: seedId
         val seen = HashSet<String>()
         val accumulated = ArrayList<StreamingTrack>()
-        val maxRounds = 3
+        val targetCount = count.coerceIn(1, 100)
+        val maxRounds = 6
         for (round in 0 until maxRounds) {
-            if (accumulated.size >= count) break
+            if (accumulated.size >= targetCount) break
             val sid = if (round == 0) seedId else accumulated.lastOrNull()?.providerTrackId ?: seedId
             val batch = runCatching {
                 val body = httpClient.getJson(
@@ -245,20 +246,37 @@ class LocalNeteaseStreamingClient(
                         "id" to seedId,
                         "pid" to contextPlaylistId,
                         "sid" to sid,
-                        "count" to count.coerceIn(1, 100).toString()
+                        "count" to targetCount.toString()
                     ),
                     cookie
                 )
                 heartbeatTracksFromBody(body)
             }.getOrDefault(emptyList())
             if (batch.isEmpty()) break
+            var addedThisRound = 0
             for (track in batch) {
                 if (seen.add(track.providerTrackId)) {
                     accumulated.add(track)
+                    addedThisRound += 1
+                    if (accumulated.size >= targetCount) {
+                        break
+                    }
+                }
+            }
+            if (addedThisRound == 0) break
+        }
+        if (accumulated.size < targetCount) {
+            val fallback = runCatching { similarTracks(seedId, targetCount) }.getOrDefault(emptyList())
+            for (track in fallback) {
+                if (seen.add(track.providerTrackId)) {
+                    accumulated.add(track)
+                }
+                if (accumulated.size >= targetCount) {
+                    break
                 }
             }
         }
-        return accumulated.ifEmpty { similarTracks(seedId, count) }
+        return accumulated.ifEmpty { similarTracks(seedId, targetCount) }
     }
 
     fun heartbeatRecommendedTracks(count: Int = 30): List<StreamingTrack> {
@@ -276,9 +294,10 @@ class LocalNeteaseStreamingClient(
             ?: seedId
         val seen = HashSet<String>()
         val accumulated = ArrayList<StreamingTrack>()
-        val maxRounds = 3
+        val targetCount = count.coerceIn(1, 100)
+        val maxRounds = 6
         for (round in 0 until maxRounds) {
-            if (accumulated.size >= count) break
+            if (accumulated.size >= targetCount) break
             val sid = if (round == 0) seedId else accumulated.lastOrNull()?.providerTrackId ?: seedId
             val batch = runCatching {
                 val body = httpClient.getJson(
@@ -287,21 +306,39 @@ class LocalNeteaseStreamingClient(
                         "id" to seedId,
                         "pid" to playlistId,
                         "sid" to sid,
-                        "count" to count.coerceIn(1, 100).toString()
+                        "count" to targetCount.toString()
                     ),
                     cookie
                 )
                 heartbeatTracksFromBody(body)
             }.getOrDefault(emptyList())
             if (batch.isEmpty()) break
+            var addedThisRound = 0
             for (track in batch) {
                 if (seen.add(track.providerTrackId)) {
                     accumulated.add(track)
+                    addedThisRound += 1
+                    if (accumulated.size >= targetCount) {
+                        break
+                    }
                 }
             }
+            if (addedThisRound == 0) break
         }
         if (accumulated.isEmpty()) {
             return listOf(seed)
+        }
+        if (accumulated.size < targetCount) {
+            val fallback = runCatching { similarTracks(seedId, targetCount) }.getOrDefault(emptyList())
+            for (track in fallback) {
+                if (track.providerTrackId == seedId) continue
+                if (seen.add(track.providerTrackId)) {
+                    accumulated.add(track)
+                }
+                if (accumulated.size >= targetCount) {
+                    break
+                }
+            }
         }
         return if (accumulated.any { it.providerTrackId == seedId }) accumulated else listOf(seed) + accumulated
     }

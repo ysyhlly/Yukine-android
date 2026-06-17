@@ -1,7 +1,6 @@
 package app.echo.next.navigation
 
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -16,8 +15,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import app.echo.next.collections.CollectionsDestination
 import app.echo.next.home.HomeDestination
 import app.echo.next.library.LibraryGroupsDestination
@@ -139,7 +138,7 @@ fun EchoNavGraph(
         ) {
             QueueDestination(
                 queueViewModel,
-                modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp)
+                modifier = Modifier.fillMaxWidth().fillMaxHeight(0.8f)
             )
         }
     }

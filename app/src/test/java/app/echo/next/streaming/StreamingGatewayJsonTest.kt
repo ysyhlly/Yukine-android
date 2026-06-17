@@ -159,6 +159,36 @@ class StreamingGatewayJsonTest {
     }
 
     @Test
+    fun neteaseTracksAndPlaybackSourcesPreferSongId() {
+        val tracksJson = JSONObject()
+            .put(
+                "tracks",
+                JSONArray().put(
+                    JSONObject()
+                        .put("provider", "netease")
+                        .put("id", "search-item-id")
+                        .put("songId", 260600)
+                        .put("providerTrackId", "wrong-provider-id")
+                        .put("title", "Song")
+                )
+            )
+            .toString()
+        val playbackJson = JSONObject()
+            .put("provider", "netease")
+            .put("id", "gateway-item-id")
+            .put("songId", "260601")
+            .put("providerTrackId", "wrong-playback-id")
+            .put("url", "https://example.test/audio.flac")
+            .toString()
+
+        val track = StreamingGatewayJson.tracks(tracksJson, StreamingProviderName.NETEASE).single()
+        val source = StreamingGatewayJson.playbackSource(playbackJson)
+
+        assertEquals("260600", track.providerTrackId)
+        assertEquals("260601", source.providerTrackId)
+    }
+
+    @Test
     fun searchResultParsesUnifiedItemsAndError() {
         val json = JSONObject()
             .put("provider", "netease")

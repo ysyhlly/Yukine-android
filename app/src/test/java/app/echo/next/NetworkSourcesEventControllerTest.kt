@@ -134,6 +134,8 @@ class NetworkSourcesEventControllerTest {
 
         override fun deleteTrack(trackId: Long, status: String) = Unit
 
+        override fun deleteTracks(trackIds: List<Long>, status: String) = Unit
+
         override fun deleteRemoteSource(sourceId: Long) = Unit
 
         override fun saveWebDavSource(

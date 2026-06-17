@@ -77,12 +77,12 @@ internal class StreamingTrackMatchUseCase(
     ): List<Track> {
         val candidates = mutableListOf<Track>()
         val seen = mutableSetOf<String>()
+        serviceQueue.orEmpty().forEach { addHeartbeatSeedCandidate(candidates, seen, it) }
+        viewModelQueue.orEmpty().forEach { addHeartbeatSeedCandidate(candidates, seen, it) }
         addHeartbeatSnapshotCandidates(candidates, seen, serviceSnapshot, serviceQueue)
         if (storeSnapshot !== serviceSnapshot) {
             addHeartbeatSnapshotCandidates(candidates, seen, storeSnapshot, viewModelQueue)
         }
-        serviceQueue.orEmpty().forEach { addHeartbeatSeedCandidate(candidates, seen, it) }
-        viewModelQueue.orEmpty().forEach { addHeartbeatSeedCandidate(candidates, seen, it) }
         return candidates
     }
 

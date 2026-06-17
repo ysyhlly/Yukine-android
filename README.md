@@ -4,6 +4,31 @@ Release manual checklist: [docs/RELEASE_EXPERIENCE_CHECKLIST.md](docs/RELEASE_EX
 
 Playback service stability matrix: [docs/PLAYBACK_SERVICE_STABILITY_MATRIX.md](docs/PLAYBACK_SERVICE_STABILITY_MATRIX.md)
 
+## 2026-06-17 更新摘要
+
+本轮 Android 版本重点补强了曲库、歌词、通知栏、NowBar、队列和网易云心动推荐体验：
+
+- 曲库页的歌曲、专辑、艺人、文件夹和歌单分组均支持有效选中；专辑和艺人会显示对应封面。
+- 曲库长按操作扩展为可删除文件夹分组、歌单、网络歌曲和批量歌曲，并带确认流程。
+- 应用启动不再无条件扫描歌曲；需要权限或用户手动扫描后再刷新曲库。
+- NowBar 高度和底部按钮布局已调整，显示音频条/波形时不会挤掉歌词条、播放控制或底部导航。
+- 队列页高度提升到接近全屏 80%，并压缩顶部队列占位，让列表内容更靠前。
+- 系统通知栏和媒体会话优先使用当前歌曲封面作为 artwork，并提供更稳定的通知控制图标。
+- 歌词源新增网易云歌词，网易云曲目会优先使用 `songId` 请求歌词；仍保留本地 `.lrc` 与 LRCLIB 兜底。
+- 歌名、作者名、专辑名支持点击复制；歌词行也支持点击复制对应行文本。
+- 心动推荐每批请求提升到 60 首，队列剩余较多时提前自动补货，避免播完停止。
+- 心动推荐 seed 不再只依赖当前歌曲，会优先使用选中歌单歌曲和当前队列歌曲，当前播放歌曲只作为兜底。
+- 网易云心动推荐会多轮滚动拉取，返回过少时用相似歌曲补齐，减少“只有几首歌”的情况。
+
+最新本地验证：
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest
+.\gradlew.bat :app:assembleDebug
+```
+
+以上两项已通过。最新 debug APK 输出为 `app/build/outputs/apk/debug/app-debug.apk`，生成时间为 `2026-06-17 17:24:12`，大小约 `18.3 MB`。
+
 ECHO NEXT 的原生 Android 移植版。
 
 这个实现是一个原生 Android 音乐播放器，围绕 Kotlin/Compose UI 界面、Java Android 生命周期编排、AndroidX Media3 播放，以及 SQLite 持久化构建。它实现了当前 MVP 阶段 ECHO NEXT 需要的 Android 核心能力：

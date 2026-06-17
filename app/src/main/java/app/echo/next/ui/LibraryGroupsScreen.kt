@@ -1,5 +1,6 @@
 package app.echo.next.ui
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,12 +28,20 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import app.echo.next.R
 
-data class LibraryGroupUiState(val id: String, val title: String, val subtitle: String)
+data class LibraryGroupUiState @JvmOverloads constructor(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val artworkUri: Uri? = null
+)
 data class LibraryGroupActions @JvmOverloads constructor(
     val onOpen: Runnable,
     val onPlay: Runnable,
-    val playEnabled: Boolean = true
+    val playEnabled: Boolean = true,
+    val onLongPress: Runnable? = null
 )
 
 @Composable
@@ -131,9 +142,17 @@ private fun GroupMessage(message: String) {
 @Composable
 private fun LibraryGroupRow(group: LibraryGroupUiState, actions: LibraryGroupActions) {
     val p = EchoTheme.colors()
+    val interaction = androidx.compose.runtime.remember { MutableInteractionSource() }
     Surface(
-        onClick = { actions.onOpen.run() },
-        modifier = Modifier.echoGlassLayer(p, EchoShapes.medium),
+        modifier = Modifier
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = { actions.onOpen.run() },
+                onLongClick = actions.onLongPress?.let { action -> { action.run() } }
+            )
+            .echoPressScale(interaction)
+            .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = Color.Transparent
     ) {
@@ -141,15 +160,7 @@ private fun LibraryGroupRow(group: LibraryGroupUiState, actions: LibraryGroupAct
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                modifier = Modifier.size(44.dp),
-                shape = EchoShapes.small,
-                color = p.accentSoft
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    EchoIcon(EchoIconKind.Collections, Modifier.size(22.dp), p.accent)
-                }
-            }
+            LibraryGroupArtwork(group, Modifier.size(44.dp))
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -182,6 +193,34 @@ private fun LibraryGroupRow(group: LibraryGroupUiState, actions: LibraryGroupAct
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun LibraryGroupArtwork(group: LibraryGroupUiState, modifier: Modifier) {
+    val p = EchoTheme.colors()
+    if (group.artworkUri != null) {
+        AsyncArtwork(
+            uri = group.artworkUri,
+            title = group.title,
+            subtitle = group.subtitle,
+            modifier = modifier,
+            cornerRadius = 8.dp,
+            fallbackTextSize = 14.sp,
+            targetSize = 56.dp,
+            backgroundColor = p.surfaceVariant,
+            fallbackResId = R.drawable.ic_stat_echo
+        )
+        return
+    }
+    Surface(
+        modifier = modifier,
+        shape = EchoShapes.small,
+        color = p.accentSoft
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            EchoIcon(EchoIconKind.Collections, Modifier.size(22.dp), p.accent)
         }
     }
 }

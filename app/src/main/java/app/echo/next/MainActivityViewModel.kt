@@ -1608,18 +1608,23 @@ class MainActivityViewModel @Inject constructor(
         serviceSnapshot: PlaybackStateSnapshot?,
         serviceQueue: List<Track?>?,
         storeSnapshot: PlaybackStateSnapshot?,
-        viewModelQueue: List<Track?>?
+        viewModelQueue: List<Track?>?,
+        libraryContextTracks: List<Track?>? = null
     ): HeartbeatRecommendationSeedRequest {
         val store = streamingTrackMatchStore
         val candidates = store?.heartbeatSeedCandidates(
             serviceSnapshot,
-            serviceQueue,
+            mergeHeartbeatSeedQueues(serviceQueue, libraryContextTracks),
             storeSnapshot,
             viewModelQueue
         ).orEmpty()
         val seedTrackId = store?.providerTrackIdFromCandidates(candidates, provider).orEmpty().trim()
         val playlistId = seedTrackId
-        val queue = store?.snapshotQueueForHeartbeat(serviceQueue, viewModelQueue, storeSnapshot).orEmpty()
+        val queue = store?.snapshotQueueForHeartbeat(
+            mergeHeartbeatSeedQueues(serviceQueue, libraryContextTracks),
+            viewModelQueue,
+            storeSnapshot
+        ).orEmpty()
         val diagnosticSnapshot = serviceSnapshot ?: storeSnapshot
         val seedMissingMessage = store?.heartbeatSeedMissMessage(
             provider,
@@ -1633,6 +1638,19 @@ class MainActivityViewModel @Inject constructor(
             playlistId = playlistId,
             seedMissingMessage = seedMissingMessage
         )
+    }
+
+    private fun mergeHeartbeatSeedQueues(
+        primaryQueue: List<Track?>?,
+        contextTracks: List<Track?>?
+    ): List<Track?>? {
+        if (contextTracks.isNullOrEmpty()) {
+            return primaryQueue
+        }
+        if (primaryQueue.isNullOrEmpty()) {
+            return contextTracks
+        }
+        return contextTracks + primaryQueue
     }
 
     fun recoverStreamingBuffering(
@@ -2239,7 +2257,8 @@ class MainActivityViewModel @Inject constructor(
                     app.echo.next.streaming.StreamingHeartbeatRequest(
                         provider = provider,
                         providerTrackId = providerTrackId,
-                        providerPlaylistId = providerPlaylistId
+                        providerPlaylistId = providerPlaylistId,
+                        count = 60
                     )
                 )
             }.onSuccess { tracks ->

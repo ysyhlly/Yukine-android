@@ -13,8 +13,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutorCompletionService;
@@ -34,6 +36,7 @@ public final class LyricsRepository {
     private static final Pattern LRC_TIME_PATTERN = Pattern.compile("\\[(\\d{1,3}):(\\d{2})(?:[.:](\\d{1,3}))?\\]");
     private static final String LRCLIB_API_ROOT = "https://lrclib.net/api";
     private static final String NETEASE_LYRIC_URL = "https://music.163.com/api/song/lyric";
+    private static final String NETEASE_SEARCH_URL = "https://music.163.com/api/cloudsearch/pc";
     private static final String STREAMING_PREFIX = "streaming:";
     private static final int CONNECT_TIMEOUT_MS = 3000;
     private static final int READ_TIMEOUT_MS = 4500;
@@ -43,6 +46,13 @@ public final class LyricsRepository {
             new LinkedHashMap<String, List<LyricsLine>>(ONLINE_CACHE_LIMIT, 0.75f, true) {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<String, List<LyricsLine>> eldest) {
+                    return size() > ONLINE_CACHE_LIMIT;
+                }
+            };
+    private static final Map<String, String> NETEASE_SEARCH_CACHE =
+            new LinkedHashMap<String, String>(ONLINE_CACHE_LIMIT, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
                     return size() > ONLINE_CACHE_LIMIT;
                 }
             };
@@ -82,6 +92,10 @@ public final class LyricsRepository {
         }
         if (!onlineEnabled) {
             return Collections.emptyList();
+        }
+        neteaseLines = fetchNeteaseSearchLyrics(track);
+        if (!neteaseLines.isEmpty()) {
+            return neteaseLines;
         }
         return fetchOnlineLyrics(track);
     }
@@ -179,7 +193,7 @@ public final class LyricsRepository {
     }
 
     private List<LyricsLine> fetchNeteaseLyrics(String providerTrackId) {
-        providerTrackId = providerTrackId == null ? "" : providerTrackId.trim();
+        providerTrackId = neteaseSongId(providerTrackId);
         if (providerTrackId.isEmpty()) {
             return Collections.emptyList();
         }
@@ -208,10 +222,264 @@ public final class LyricsRepository {
         }
     }
 
+    private List<LyricsLine> fetchNeteaseSearchLyrics(Track track) {
+        String providerTrackId = firstNeteaseSearchTrackId(track);
+        if (providerTrackId.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return fetchNeteaseLyrics(providerTrackId);
+    }
+
+    private String firstNeteaseSearchTrackId(Track track) {
+        if (track == null || track.title.trim().isEmpty()) {
+            return "";
+        }
+        String cacheKey = "netease-search\n" + onlineCacheKey(track);
+        String cached = cachedNeteaseSearchTrackId(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        try {
+            JSONArray candidates = new JSONArray();
+            Set<String> seenIds = new LinkedHashSet<>();
+            for (String query : neteaseSearchQueries(track)) {
+                JSONObject body = requestNeteaseSearch(query);
+                JSONArray songs = neteaseSearchSongs(body);
+                if (songs == null) {
+                    continue;
+                }
+                for (int i = 0; i < songs.length(); i++) {
+                    JSONObject song = songs.optJSONObject(i);
+                    if (song == null) {
+                        continue;
+                    }
+                    String id = songId(song);
+                    if (id.isEmpty() || !seenIds.add(id)) {
+                        continue;
+                    }
+                    candidates.put(song);
+                }
+            }
+            String matched = bestNeteaseSearchTrackId(track, candidates);
+            return cacheNeteaseSearchTrackId(cacheKey, matched);
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private JSONObject requestNeteaseSearch(String query) throws Exception {
+        String url = NETEASE_SEARCH_URL
+                + "?s=" + encode(query)
+                + "&type=1&limit=12&offset=0&total=false";
+        return requestNeteaseJson(url);
+    }
+
+    private JSONArray neteaseSearchSongs(JSONObject body) {
+        if (body == null) {
+            return null;
+        }
+        JSONObject result = body.optJSONObject("result");
+        if (result == null) {
+            result = body.optJSONObject("data");
+        }
+        JSONArray songs = result == null ? null : result.optJSONArray("songs");
+        if (songs == null && result != null) {
+            songs = result.optJSONArray("song");
+        }
+        return songs == null ? body.optJSONArray("songs") : songs;
+    }
+
+    private List<String> neteaseSearchQueries(Track track) {
+        LinkedHashSet<String> queries = new LinkedHashSet<>();
+        String title = normalizeSearchText(track.title);
+        String artist = normalizeSearchText(track.artist);
+        String album = normalizeSearchText(track.album);
+        addSearchQuery(queries, title + " " + artist);
+        addSearchQuery(queries, title);
+        addSearchQuery(queries, stripVersionText(title) + " " + artist);
+        addSearchQuery(queries, stripVersionText(title));
+        addSearchQuery(queries, title + " " + album);
+        if (!artist.isEmpty()) {
+            addSearchQuery(queries, artist + " " + title);
+        }
+        return new ArrayList<>(queries);
+    }
+
+    private void addSearchQuery(Set<String> queries, String query) {
+        String clean = normalizeSearchText(query);
+        if (!clean.isEmpty()) {
+            queries.add(clean);
+        }
+    }
+
+    private String bestNeteaseSearchTrackId(Track track, JSONArray songs) {
+        if (songs == null || songs.length() == 0) {
+            return "";
+        }
+        String bestId = "";
+        int bestScore = Integer.MIN_VALUE;
+        for (int i = 0; i < songs.length(); i++) {
+            JSONObject song = songs.optJSONObject(i);
+            if (song == null) {
+                continue;
+            }
+            String id = songId(song);
+            if (id.isEmpty()) {
+                continue;
+            }
+            int score = neteaseMatchScore(track, song);
+            if (score > bestScore) {
+                bestScore = score;
+                bestId = id;
+            }
+        }
+        return bestScore >= 30 ? bestId : "";
+    }
+
+    private int neteaseMatchScore(Track track, JSONObject song) {
+        int score = 0;
+        String title = cleanMatchText(stripVersionText(track.title));
+        String rawTitle = cleanMatchText(track.title);
+        String artist = cleanMatchText(track.artist);
+        String album = cleanMatchText(track.album);
+        String songName = cleanMatchText(song.optString("name"));
+        String songAlias = cleanMatchText(neteaseAliases(song));
+        String songArtists = cleanMatchText(neteaseArtists(song));
+        String songAlbum = cleanMatchText(neteaseAlbum(song));
+        if (!title.isEmpty() && (title.equals(songName) || title.equals(songAlias))) {
+            score += 70;
+        } else if (!title.isEmpty() && (songName.contains(title) || title.contains(songName) || songAlias.contains(title))) {
+            score += 40;
+        } else if (!rawTitle.isEmpty() && rawTitle.equals(songName)) {
+            score += 55;
+        }
+        if (!artist.isEmpty() && !songArtists.isEmpty()) {
+            if (artist.equals(songArtists) || songArtists.contains(artist) || artist.contains(songArtists)) {
+                score += 25;
+            }
+        }
+        if (!album.isEmpty() && !songAlbum.isEmpty()) {
+            if (album.equals(songAlbum) || songAlbum.contains(album) || album.contains(songAlbum)) {
+                score += 8;
+            }
+        }
+        long durationMs = song.optLong("dt", song.optLong("duration", 0L));
+        if (track.durationMs > 0L && durationMs > 0L) {
+            long delta = Math.abs(track.durationMs - durationMs);
+            if (delta <= 2500L) {
+                score += 12;
+            } else if (delta <= 8000L) {
+                score += 5;
+            }
+        }
+        return score;
+    }
+
+    private String songId(JSONObject song) {
+        Object id = song.opt("id");
+        if (id instanceof Number) {
+            return String.valueOf(((Number) id).longValue());
+        }
+        return id == null ? "" : String.valueOf(id).trim();
+    }
+
+    private String neteaseArtists(JSONObject song) {
+        JSONArray artists = song.optJSONArray("ar");
+        if (artists == null) {
+            artists = song.optJSONArray("artists");
+        }
+        if (artists == null) {
+            return song.optString("artist", "");
+        }
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < artists.length(); i++) {
+            JSONObject artist = artists.optJSONObject(i);
+            if (artist == null) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append(artist.optString("name", ""));
+        }
+        return builder.toString();
+    }
+
+    private String neteaseAliases(JSONObject song) {
+        JSONArray aliases = song.optJSONArray("alia");
+        if (aliases == null) {
+            aliases = song.optJSONArray("alias");
+        }
+        if (aliases == null) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < aliases.length(); i++) {
+            String alias = aliases.optString(i, "");
+            if (alias.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append(alias);
+        }
+        return builder.toString();
+    }
+
+    private String neteaseAlbum(JSONObject song) {
+        JSONObject album = song.optJSONObject("al");
+        if (album == null) {
+            album = song.optJSONObject("album");
+        }
+        return album == null ? song.optString("album", "") : album.optString("name", "");
+    }
+
+    private String cleanMatchText(String value) {
+        if (value == null) {
+            return "";
+        }
+        return normalizeSearchText(value)
+                .toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[\\p{Punct}\\s]+", "")
+                .trim();
+    }
+
+    private String normalizeSearchText(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+                .replace('\u3000', ' ')
+                .replace('（', '(')
+                .replace('）', ')')
+                .replace('【', '[')
+                .replace('】', ']')
+                .replace('「', ' ')
+                .replace('」', ' ')
+                .replace('《', ' ')
+                .replace('》', ' ')
+                .replaceAll("\\s+", " ")
+                .trim();
+    }
+
+    private String stripVersionText(String value) {
+        String clean = normalizeSearchText(value);
+        return clean
+                .replaceAll("(?i)\\s*[-–—]?\\s*\\((?:[^)]*(?:version|ver\\.?|remix|mix|cover|live|伴奏|纯音乐|翻自|feat\\.?|ft\\.)[^)]*)\\)", "")
+                .replaceAll("(?i)\\s*[-–—]?\\s*\\[(?:[^]]*(?:version|ver\\.?|remix|mix|cover|live|伴奏|纯音乐|翻自|feat\\.?|ft\\.)[^]]*)\\]", "")
+                .replaceAll("(?i)\\s+(?:feat\\.?|ft\\.)\\s+.+$", "")
+                .trim();
+    }
+
     private JSONObject requestNeteaseLyrics(String providerTrackId) throws Exception {
         String url = NETEASE_LYRIC_URL
                 + "?id=" + encode(providerTrackId)
                 + "&lv=1&kv=1&tv=-1";
+        return requestNeteaseJson(url);
+    }
+
+    private JSONObject requestNeteaseJson(String url) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
@@ -297,7 +565,7 @@ public final class LyricsRepository {
                 && !"163music".equals(provider)) {
             return "";
         }
-        return cutAtAny(rest.substring(separator + 1), ':', '|', '?', '#').trim();
+        return neteaseSongId(cutAtAny(rest.substring(separator + 1), ':', '|', '?', '#'));
     }
 
     private String cutAtAny(String value, char... markers) {
@@ -312,6 +580,39 @@ public final class LyricsRepository {
             }
         }
         return value.substring(0, end);
+    }
+
+    private String neteaseSongId(String value) {
+        if (value == null) {
+            return "";
+        }
+        String text = value.trim();
+        if (text.isEmpty()) {
+            return "";
+        }
+        if (text.matches("\\d+")) {
+            return text;
+        }
+        String lower = text.toLowerCase(java.util.Locale.ROOT);
+        for (String key : new String[]{"songid=", "songId=", "id="}) {
+            String lowerKey = key.toLowerCase(java.util.Locale.ROOT);
+            int keyStart = lower.indexOf(lowerKey);
+            if (keyStart < 0) {
+                continue;
+            }
+            int start = keyStart + key.length();
+            while (start < text.length() && !Character.isDigit(text.charAt(start))) {
+                start++;
+            }
+            int end = start;
+            while (end < text.length() && Character.isDigit(text.charAt(end))) {
+                end++;
+            }
+            if (end > start) {
+                return text.substring(start, end);
+            }
+        }
+        return "";
     }
 
     private JSONObject firstLrclibRecord(Track track) throws Exception {
@@ -482,6 +783,20 @@ public final class LyricsRepository {
             ONLINE_CACHE.put(cacheKey, snapshot);
         }
         return new ArrayList<>(snapshot);
+    }
+
+    private String cachedNeteaseSearchTrackId(String cacheKey) {
+        synchronized (NETEASE_SEARCH_CACHE) {
+            return NETEASE_SEARCH_CACHE.get(cacheKey);
+        }
+    }
+
+    private String cacheNeteaseSearchTrackId(String cacheKey, String providerTrackId) {
+        String clean = providerTrackId == null ? "" : providerTrackId.trim();
+        synchronized (NETEASE_SEARCH_CACHE) {
+            NETEASE_SEARCH_CACHE.put(cacheKey, clean);
+        }
+        return clean;
     }
 
     private String onlineCacheKey(Track track) {

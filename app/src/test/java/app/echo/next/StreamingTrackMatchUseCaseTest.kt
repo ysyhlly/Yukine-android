@@ -81,7 +81,7 @@ class StreamingTrackMatchUseCaseTest {
     }
 
     @Test
-    fun heartbeatSeedCandidatesPreferSnapshotsThenQueuesAndDedupe() {
+    fun heartbeatSeedCandidatesPreferQueuesThenSnapshotsAndDedupe() {
         val useCase = StreamingTrackMatchUseCase(FakeStreamingTrackMatchOperations())
         val current = localTrack(id = 1L, dataPath = "current")
         val indexed = localTrack(id = 2L, dataPath = "indexed")
@@ -98,7 +98,7 @@ class StreamingTrackMatchUseCaseTest {
             viewModelQueue = viewModelQueue
         )
 
-        assertEquals(listOf(1L, 2L, 4L, 3L, 5L), result.map { it.id })
+        assertEquals(listOf(3L, 2L, 1L, 5L, 4L), result.map { it.id })
     }
 
     @Test

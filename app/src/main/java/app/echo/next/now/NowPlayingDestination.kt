@@ -30,7 +30,10 @@ fun NowPlayingDestination(viewModel: NowPlayingViewModel) {
             albumArtUri = track.albumArtUri,
             lyricsTitle = state.lyrics.title,
             lyricsStatus = state.lyrics.status,
-            lyrics = state.lyrics.lines
+            lyrics = state.lyrics.lines,
+            artistName = state.artist,
+            albumName = state.album.orEmpty(),
+            audioSpec = track.audioSpecSummary()
         )
     )
 }

@@ -9,6 +9,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Binder;
@@ -17,8 +19,14 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
+import android.util.LruCache;
 
 import java.io.File;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,6 +41,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 
 import app.echo.next.MainActivity;
 import app.echo.next.R;
+import app.echo.next.data.EmbeddedArtwork;
 import app.echo.next.data.MusicLibraryRepository;
 import app.echo.next.model.PlaybackQueueState;
 import app.echo.next.model.RemoteSource;
@@ -96,6 +105,8 @@ public final class EchoPlaybackService extends MediaSessionService {
     private static final long AUDIO_CACHE_MAX_BYTES = 1024L * 1024L * 1024L;
     private static final float WAVEFORM_PROGRESS_STEP = 0.015f;
     private static final int WAVEFORM_BAR_COUNT = 96;
+    private static final int NOTIFICATION_ARTWORK_TARGET_PX = 512;
+    private static final int NOTIFICATION_ARTWORK_CACHE_ENTRIES = 8;
     private final LocalBinder binder = new LocalBinder();
     private final CopyOnWriteArrayList<Track> queue = new CopyOnWriteArrayList<>();
     private final Set<PlaybackStateListener> listeners = new CopyOnWriteArraySet<>();
@@ -103,6 +114,11 @@ public final class EchoPlaybackService extends MediaSessionService {
     private final Random random = new Random();
     private final PlaybackTaskScheduler playbackTaskScheduler = new PlaybackTaskScheduler("EchoPlaybackScheduler");
     private final PlaybackStreamingDiagnostics streamingDiagnostics = new PlaybackStreamingDiagnostics();
+    private final LruCache<String, Bitmap> notificationArtworkCache =
+            new LruCache<>(NOTIFICATION_ARTWORK_CACHE_ENTRIES);
+    private final LruCache<String, byte[]> mediaMetadataArtworkCache =
+            new LruCache<>(NOTIFICATION_ARTWORK_CACHE_ENTRIES);
+    private final Set<String> notificationArtworkMisses = Collections.synchronizedSet(new HashSet<>());
 
     private ExoPlayer player;
     private Player sessionPlayer;
@@ -361,6 +377,12 @@ public final class EchoPlaybackService extends MediaSessionService {
                 } else {
                     EchoPlaybackService.this.pause();
                 }
+            }
+
+            @Override
+            public MediaMetadata getMediaMetadata() {
+                Track track = currentTrack();
+                return track == null ? super.getMediaMetadata() : mediaMetadataForTrack(track);
             }
         };
     }
@@ -1452,19 +1474,37 @@ public final class EchoPlaybackService extends MediaSessionService {
     }
 
     private MediaItem mediaItemForTrack(Track track) {
-        MediaMetadata.Builder metadata = new MediaMetadata.Builder()
-                .setTitle(track.title)
-                .setArtist(track.artist)
-                .setAlbumTitle(track.album);
-        if (track.albumArtUri != null) {
-            metadata.setArtworkUri(track.albumArtUri);
-        }
         return new MediaItem.Builder()
                 .setUri(track.contentUri)
                 .setMediaId(String.valueOf(track.id))
                 .setCustomCacheKey(cacheKeyForTrack(track))
-                .setMediaMetadata(metadata.build())
+                .setMediaMetadata(mediaMetadataForTrack(track))
                 .build();
+    }
+
+    private MediaMetadata mediaMetadataForTrack(Track track) {
+        MediaMetadata.Builder metadata = new MediaMetadata.Builder()
+                .setTitle(track.title)
+                .setArtist(track.artist)
+                .setAlbumTitle(track.album)
+                .setDurationMs(track.durationMs > 0L ? track.durationMs : null)
+                .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC);
+        if (track.albumArtUri != null) {
+            metadata.setArtworkUri(track.albumArtUri);
+            byte[] artworkData = mediaMetadataArtworkCache.get(notificationArtworkKey(track));
+            if (artworkData != null && artworkData.length > 0) {
+                metadata.setArtworkData(artworkData, MediaMetadata.PICTURE_TYPE_FRONT_COVER);
+            }
+        }
+        return metadata.build();
+    }
+
+    private void refreshMediaSessionMetadata() {
+        if (player == null || mediaSession == null) {
+            return;
+        }
+        sessionPlayer = createSessionPlayer();
+        mediaSession.setPlayer(sessionPlayer);
     }
 
     @OptIn(markerClass = UnstableApi.class)
@@ -1775,7 +1815,9 @@ public final class EchoPlaybackService extends MediaSessionService {
 
     private Notification playbackNotification(Track track) {
         boolean playing = isPlaying() || preparing;
-        String favoriteTitle = repository != null && repository.isFavorite(track.id) ? "已收藏" : "收藏";
+        boolean isFavorite = repository != null && repository.isFavorite(track.id);
+        String favoriteTitle = isFavorite ? "已收藏" : "收藏";
+        int favoriteIcon = isFavorite ? R.drawable.ic_notif_favorite_filled : R.drawable.ic_notif_favorite_outline;
         Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? new Notification.Builder(this, CHANNEL_ID)
                 : new Notification.Builder(this);
@@ -1787,19 +1829,174 @@ public final class EchoPlaybackService extends MediaSessionService {
                 .setOngoing(playing)
                 .setOnlyAlertOnce(true)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .addAction(R.drawable.ic_stat_echo, "上一首", serviceActionPendingIntent(ACTION_PREVIOUS, 1))
+                .addAction(R.drawable.ic_notif_previous, "上一首", serviceActionPendingIntent(ACTION_PREVIOUS, 1))
                 .addAction(
-                        R.drawable.ic_stat_echo,
+                        playing ? R.drawable.ic_notif_pause : R.drawable.ic_notif_play,
                         playing ? "暂停" : "播放",
                         serviceActionPendingIntent(playing ? ACTION_PAUSE : ACTION_PLAY, 2)
                 )
-                .addAction(R.drawable.ic_stat_echo, "下一首", serviceActionPendingIntent(ACTION_NEXT, 3))
-                .addAction(R.drawable.ic_stat_echo, favoriteTitle, serviceActionPendingIntent(ACTION_TOGGLE_FAVORITE, 4));
+                .addAction(R.drawable.ic_notif_next, "下一首", serviceActionPendingIntent(ACTION_NEXT, 3))
+                .addAction(favoriteIcon, favoriteTitle, serviceActionPendingIntent(ACTION_TOGGLE_FAVORITE, 4));
+        Bitmap artwork = notificationArtworkFor(track);
+        if (artwork != null) {
+            builder.setLargeIcon(artwork);
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            builder.setStyle(new Notification.MediaStyle()
-                    .setShowActionsInCompactView(0, 1, 2));
+            Notification.MediaStyle style = new Notification.MediaStyle()
+                    .setShowActionsInCompactView(0, 1, 2);
+            if (mediaSession != null) {
+                style.setMediaSession(mediaSession.getPlatformToken());
+            }
+            builder.setStyle(style);
         }
         return builder.build();
+    }
+
+    private Bitmap notificationArtworkFor(Track track) {
+        if (track == null || track.albumArtUri == null) {
+            return null;
+        }
+        String key = notificationArtworkKey(track);
+        Bitmap cached = notificationArtworkCache.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        if (!notificationArtworkMisses.contains(key)) {
+            notificationArtworkMisses.add(key);
+            loadNotificationArtworkAsync(track, key);
+        }
+        return null;
+    }
+
+    private void loadNotificationArtworkAsync(Track track, String key) {
+        playbackTaskScheduler.schedule(PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE, () -> {
+            Bitmap bitmap = decodeNotificationArtwork(track.albumArtUri);
+            if (bitmap == null) {
+                return;
+            }
+            notificationArtworkCache.put(key, bitmap);
+            byte[] artworkData = encodeMetadataArtwork(bitmap);
+            if (artworkData != null) {
+                mediaMetadataArtworkCache.put(key, artworkData);
+            }
+            mainHandler.post(() -> {
+                Track current = currentTrack();
+                if (current == null || !key.equals(notificationArtworkKey(current))) {
+                    return;
+                }
+                refreshMediaSessionMetadata();
+                updateMediaNotification();
+            });
+        });
+    }
+
+    private String notificationArtworkKey(Track track) {
+        if (track == null || track.albumArtUri == null) {
+            return "";
+        }
+        return track.id + "|" + track.albumArtUri;
+    }
+
+    private Bitmap decodeNotificationArtwork(Uri uri) {
+        if (uri == null) {
+            return null;
+        }
+        if (EmbeddedArtwork.isEmbeddedArtworkUri(uri)) {
+            byte[] bytes = EmbeddedArtwork.read(this, uri);
+            return decodeNotificationArtworkBytes(bytes);
+        }
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        try (InputStream input = openNotificationArtworkStream(uri)) {
+            if (input == null) {
+                return null;
+            }
+            BitmapFactory.decodeStream(input, null, bounds);
+        } catch (IOException | RuntimeException ignored) {
+            return null;
+        }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            return null;
+        }
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inSampleSize = artworkSampleSize(
+                bounds.outWidth,
+                bounds.outHeight,
+                NOTIFICATION_ARTWORK_TARGET_PX
+        );
+        options.inPreferredConfig = Bitmap.Config.RGB_565;
+        try (InputStream input = openNotificationArtworkStream(uri)) {
+            if (input == null) {
+                return null;
+            }
+            return BitmapFactory.decodeStream(input, null, options);
+        } catch (IOException | RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private Bitmap decodeNotificationArtworkBytes(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            return null;
+        }
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            return null;
+        }
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inSampleSize = artworkSampleSize(
+                bounds.outWidth,
+                bounds.outHeight,
+                NOTIFICATION_ARTWORK_TARGET_PX
+        );
+        options.inPreferredConfig = Bitmap.Config.RGB_565;
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
+    }
+
+    private byte[] encodeMetadataArtwork(Bitmap bitmap) {
+        if (bitmap == null || bitmap.isRecycled()) {
+            return null;
+        }
+        try {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 88, output)) {
+                return null;
+            }
+            return output.toByteArray();
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private InputStream openNotificationArtworkStream(Uri uri) throws IOException {
+        String scheme = uri.getScheme();
+        if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
+            return getContentResolver().openInputStream(uri);
+        }
+        HttpURLConnection connection = (HttpURLConnection) new URL(uri.toString()).openConnection();
+        connection.setConnectTimeout(8000);
+        connection.setReadTimeout(12000);
+        connection.setInstanceFollowRedirects(true);
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0 ECHO-NEXT-Android");
+        connection.setRequestProperty("Referer", "https://music.163.com/");
+        int code = connection.getResponseCode();
+        if (code < 200 || code >= 300) {
+            connection.disconnect();
+            return null;
+        }
+        return connection.getInputStream();
+    }
+
+    private int artworkSampleSize(int width, int height, int targetPx) {
+        int sample = 1;
+        int halfWidth = width / 2;
+        int halfHeight = height / 2;
+        while (halfWidth / sample >= targetPx && halfHeight / sample >= targetPx) {
+            sample *= 2;
+        }
+        return Math.max(1, sample);
     }
 
     private void startPlaybackForeground(Notification notification) {

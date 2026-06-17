@@ -21,6 +21,8 @@ internal class LibraryGroupsRenderController(
 
         fun playTrackList(tracks: List<Track>, index: Int)
 
+        fun confirmDeleteGroup(title: String, tracks: List<Track>)
+
         fun publishLibraryGroups(title: String, rows: ArrayList<LibraryGroupUiState>)
 
         fun publishLibraryGroupsChrome(
@@ -59,17 +61,27 @@ internal class LibraryGroupsRenderController(
         for ((key, tracks) in groups) {
             val title = LibraryGrouping.groupTitle(key, libraryMode)
             val rowId = "$libraryMode:${if (key.isEmpty()) "unknown" else key}"
-            groupRows.add(LibraryGroupUiState(rowId, title, LibraryGrouping.groupSubtitle(tracks, libraryMode)))
+            groupRows.add(
+                LibraryGroupUiState(
+                    rowId,
+                    title,
+                    LibraryGrouping.groupSubtitle(tracks, libraryMode),
+                    LibraryGrouping.groupArtworkUri(tracks, libraryMode)
+                )
+            )
             groupActions.add(
                 LibraryGroupActions(
                     Runnable { listener.selectLibraryGroup(key, title) },
-                    Runnable { listener.playTrackList(tracks, 0) }
+                    Runnable { listener.playTrackList(tracks, 0) },
+                    true,
+                    Runnable { listener.confirmDeleteGroup(title, tracks) }
                 )
             )
         }
 
         val title = LibraryGrouping.modeTitle(libraryMode)
         val emptyText = "No $title groups"
+        viewModel.clearTrackList()
         viewModel.updateLibraryGroups(title, groupRows)
         listener.publishLibraryGroupsChrome(groupActions, emptyText, modeActions)
     }

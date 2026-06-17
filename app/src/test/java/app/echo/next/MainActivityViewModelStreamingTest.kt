@@ -14,6 +14,7 @@ import app.echo.next.streaming.StreamingPlaybackSource
 import app.echo.next.streaming.StreamingProvider
 import app.echo.next.streaming.StreamingProviderCapabilities
 import app.echo.next.streaming.StreamingProviderDescriptor
+import app.echo.next.streaming.StreamingHeartbeatRequest
 import app.echo.next.streaming.StreamingMediaType
 import app.echo.next.streaming.StreamingPlaylist
 import app.echo.next.streaming.StreamingPlaylistDetail
@@ -779,6 +780,7 @@ class MainActivityViewModelStreamingTest {
         val viewModel = MainActivityViewModel(SavedStateHandle())
         val serviceTrack = localTrack(id = 10L)
         val queuedTrack = localTrack(id = 11L)
+        val playlistTrack = localTrack(id = 12L)
         val store = FakeStreamingTrackMatchStore().apply {
             heartbeatCandidates = listOf(serviceTrack, queuedTrack)
             heartbeatQueueSnapshot = listOf(serviceTrack, queuedTrack)
@@ -792,13 +794,16 @@ class MainActivityViewModelStreamingTest {
             playbackSnapshot(serviceTrack, 0, 2, true),
             listOf(serviceTrack),
             playbackSnapshot(queuedTrack, 1, 2, true),
-            listOf(queuedTrack)
+            listOf(queuedTrack),
+            listOf(playlistTrack)
         )
 
         assertEquals(listOf(serviceTrack, queuedTrack), request.candidates)
         assertEquals("seed-11", request.seedTrackId)
         assertEquals("seed-11", request.playlistId)
         assertEquals("Heartbeat seed missing provider=netease", request.seedMissingMessage)
+        assertEquals(listOf(12L, 10L), store.lastHeartbeatCandidateServiceQueue?.mapNotNull { it?.id })
+        assertEquals(listOf(12L, 10L), store.lastHeartbeatQueueServiceQueue?.mapNotNull { it?.id })
         assertTrue(request.hasSeed)
         assertTrue(request.hasCandidates)
     }
@@ -827,6 +832,31 @@ class MainActivityViewModelStreamingTest {
         assertEquals(storeSnapshot, store.lastHeartbeatSeedMissSnapshot)
         assertEquals(storeSnapshot, store.lastHeartbeatSeedMissStoreSnapshot)
         assertEquals(listOf(storeTrack), store.lastHeartbeatSeedMissQueue)
+    }
+
+    @Test
+    fun fetchHeartbeatRecommendationsRequestsLargeBatchForQueueRefill() = runTest {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val gateway = FakeHeartbeatGateway(StreamingProviderName.NETEASE)
+        val repository = StreamingRepository(gateway)
+        val viewModel = MainActivityViewModel(SavedStateHandle(), streamingRepositorySource = FixedStreamingRepositorySource(repository))
+        val resolved = mutableListOf<List<StreamingTrack>>()
+
+        try {
+            viewModel.fetchHeartbeatRecommendations(
+                StreamingProviderName.NETEASE,
+                providerTrackId = "seed-1",
+                providerPlaylistId = "playlist-1"
+            ) { tracks -> resolved += tracks }.join()
+        } finally {
+            Dispatchers.resetMain()
+        }
+
+        assertEquals(1, gateway.heartbeatRequests.size)
+        assertEquals(60, gateway.heartbeatRequests.single().count)
+        assertEquals("seed-1", gateway.heartbeatRequests.single().providerTrackId)
+        assertEquals("playlist-1", gateway.heartbeatRequests.single().providerPlaylistId)
+        assertEquals(listOf("heart-1"), resolved.single().map { it.providerTrackId })
     }
 
     @Test
@@ -1949,6 +1979,8 @@ class MainActivityViewModelStreamingTest {
         var heartbeatSeedMissLogMessage: String = ""
         val directProviderTrackIds = mutableMapOf<Long, String>()
         val events = mutableListOf<Any>()
+        var lastHeartbeatCandidateServiceQueue: List<Track?>? = null
+        var lastHeartbeatQueueServiceQueue: List<Track?>? = null
         var lastHeartbeatSeedMissSnapshot: PlaybackStateSnapshot? = null
         var lastHeartbeatSeedMissStoreSnapshot: PlaybackStateSnapshot? = null
         var lastHeartbeatSeedMissQueue: List<Track?>? = null
@@ -1989,13 +2021,19 @@ class MainActivityViewModelStreamingTest {
             serviceQueue: List<Track?>?,
             storeSnapshot: PlaybackStateSnapshot?,
             viewModelQueue: List<Track?>?
-        ): List<Track> = heartbeatCandidates
+        ): List<Track> {
+            lastHeartbeatCandidateServiceQueue = serviceQueue
+            return heartbeatCandidates
+        }
 
         override fun snapshotQueueForHeartbeat(
             serviceQueue: List<Track?>?,
             viewModelQueue: List<Track?>?,
             storeSnapshot: PlaybackStateSnapshot?
-        ): List<Track> = heartbeatQueueSnapshot
+        ): List<Track> {
+            lastHeartbeatQueueServiceQueue = serviceQueue
+            return heartbeatQueueSnapshot
+        }
 
         override fun heartbeatSeedMissMessage(
             provider: StreamingProviderName?,
@@ -2177,6 +2215,66 @@ class MainActivityViewModelStreamingTest {
         override suspend fun signOut(provider: StreamingProviderName): StreamingAuthState = StreamingAuthState()
     }
 
+    private class FakeHeartbeatGateway(
+        private val providerName: StreamingProviderName
+    ) : StreamingGateway {
+        val heartbeatRequests = mutableListOf<StreamingHeartbeatRequest>()
+
+        override suspend fun providers(): List<StreamingProviderDescriptor> = emptyList()
+
+        override suspend fun providerCapabilities(): List<app.echo.next.streaming.StreamingProviderCapability> = emptyList()
+
+        override suspend fun providersHealth(): List<app.echo.next.streaming.StreamingProviderHealth> = emptyList()
+
+        override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult =
+            StreamingSearchResult(
+                provider = providerName,
+                query = request.query,
+                page = request.page,
+                pageSize = request.pageSize
+            )
+
+        override suspend fun playlist(request: StreamingPlaylistRequest): StreamingPlaylistDetail =
+            StreamingPlaylistDetail(provider = providerName, providerPlaylistId = request.providerPlaylistId)
+
+        override suspend fun userPlaylists(provider: StreamingProviderName): List<StreamingPlaylist> = emptyList()
+
+        override suspend fun userLikedTracks(provider: StreamingProviderName): List<StreamingTrack> = emptyList()
+
+        override suspend fun dailyRecommendations(provider: StreamingProviderName): List<StreamingTrack> = emptyList()
+
+        override suspend fun heartbeatRecommendations(request: StreamingHeartbeatRequest): List<StreamingTrack> {
+            heartbeatRequests += request
+            return listOf(
+                StreamingTrack(
+                    provider = providerName,
+                    providerTrackId = "heart-1",
+                    title = "Heart 1",
+                    artist = "Artist"
+                )
+            )
+        }
+
+        override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource =
+            StreamingPlaybackSource(providerName, request.providerTrackId, "https://example.test/${request.providerTrackId}.mp3")
+
+        override suspend fun authState(provider: StreamingProviderName): StreamingAuthState = StreamingAuthState()
+
+        override suspend fun startAuth(
+            request: app.echo.next.streaming.StreamingAuthRequest
+        ): app.echo.next.streaming.StreamingAuthResult =
+            app.echo.next.streaming.StreamingAuthResult(providerName, StreamingAuthState())
+
+        override suspend fun completeAuth(
+            provider: StreamingProviderName,
+            callbackUri: String,
+            cookieHeader: String?
+        ): app.echo.next.streaming.StreamingAuthResult =
+            app.echo.next.streaming.StreamingAuthResult(providerName, StreamingAuthState())
+
+        override suspend fun signOut(provider: StreamingProviderName): StreamingAuthState = StreamingAuthState()
+    }
+
     private class FakeActionStreamingGateway(
         private val providerName: StreamingProviderName
     ) : StreamingGateway {
@@ -2242,6 +2340,12 @@ class MainActivityViewModelStreamingTest {
         }
 
         override suspend fun signOut(provider: StreamingProviderName): StreamingAuthState = StreamingAuthState()
+    }
+
+    private class FixedStreamingRepositorySource(
+        private val repository: StreamingRepository
+    ) : StreamingRepositorySource {
+        override fun current(): StreamingRepository = repository
     }
 
     private class FakeStreamingCacheDao : StreamingCacheDao {

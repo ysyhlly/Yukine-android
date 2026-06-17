@@ -243,7 +243,9 @@ public final class MainActivity extends ComponentActivity {
         permissionController = new MainPermissionController(this, new MainPermissionController.Listener() {
             @Override
             public void onAudioPermissionResult() {
-                loadLibrary(false);
+                if (permissionController.hasAudioPermission()) {
+                    loadLibrary(false);
+                }
             }
         });
         uiShellController = new MainUiShellController(this);
@@ -476,6 +478,9 @@ public final class MainActivity extends ComponentActivity {
                 navTrackListEmptyText = emptyText;
                 navTrackListModeActions = new ArrayList<>(modeActions);
                 navTrackListLabels = labels;
+                navLibraryGroupActions = Collections.emptyList();
+                navLibraryGroupEmptyText = "";
+                navLibraryGroupModeActions = Collections.emptyList();
             }
 
         });
@@ -743,6 +748,11 @@ public final class MainActivity extends ComponentActivity {
             @Override
             public void playTrackList(List<Track> tracks, int index) {
                 handleLibraryEvent(new LibraryEvent.PlayTrackList(tracks, index));
+            }
+
+            @Override
+            public void confirmDeleteGroup(String title, List<Track> tracks) {
+                MainActivity.this.confirmDeleteTracks(title, tracks);
             }
 
             @Override
@@ -1397,6 +1407,7 @@ public final class MainActivity extends ComponentActivity {
                         new ImportStreamPlaylistUseCase(networkLibraryOperations),
                         new DeleteAllStreamsUseCase(networkLibraryOperations),
                         new DeleteNetworkTrackUseCase(networkLibraryOperations),
+                        new DeleteNetworkTracksUseCase(networkLibraryOperations),
                         new DeleteRemoteSourceUseCase(networkLibraryOperations),
                         new SaveWebDavSourceUseCase(networkLibraryOperations)
                 )
@@ -1587,6 +1598,11 @@ public final class MainActivity extends ComponentActivity {
             }
 
             @Override
+            public void deleteTracks(List<Long> trackIds, String status) {
+                MainActivity.this.deleteTracks(trackIds, status);
+            }
+
+            @Override
             public void deleteRemoteSource(long sourceId, String name) {
                 MainActivity.this.deleteRemoteSource(sourceId, name);
             }
@@ -1753,7 +1769,7 @@ public final class MainActivity extends ComponentActivity {
         installBackNavigation();
         playbackServiceConnectionController.bind();
         permissionController.requestNeededPermissions();
-        loadLibrary(true);
+        loadLibraryOnStartup();
         loadCollections();
     }
 
@@ -2055,6 +2071,14 @@ public final class MainActivity extends ComponentActivity {
                     renderSelectedTab();
                 }
         );
+    }
+
+    private void loadLibraryOnStartup() {
+        if (permissionController.hasAudioPermission()) {
+            loadLibrary(false);
+            return;
+        }
+        loadLibrary(true);
     }
 
     private void openAudioFilePicker() {
@@ -2600,13 +2624,20 @@ public final class MainActivity extends ComponentActivity {
                             handleLibraryEvent(new LibraryEvent.PlayPlaylist(playlist.id));
                         }
                     },
-                    playlist.trackCount > 0
+                    playlist.trackCount > 0,
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            confirmDeletePlaylist(playlist);
+                        }
+                    }
             ));
         }
         String title = AppLanguage.text(languageMode, "playlists");
         String emptyText = AppLanguage.text(languageMode, "no.playlists");
         ArrayList<TrackListModeAction> modeActions = libraryModeActions();
         publishLibraryGroupsUiState(title, rows);
+        libraryViewModel.clearTrackList();
         libraryViewModel.updateLibraryGroups(title, rows);
         navLibraryGroupActions = new ArrayList<>(actions);
         navLibraryGroupEmptyText = emptyText;
@@ -2883,12 +2914,20 @@ public final class MainActivity extends ComponentActivity {
         confirmationDialogController.confirmDeleteTrack(track);
     }
 
+    private void confirmDeleteTracks(final String title, final List<Track> tracks) {
+        confirmationDialogController.confirmDeleteTracks(title, tracks);
+    }
+
     private void deleteAllStreams() {
         networkRequestController.deleteAllStreams();
     }
 
     private void deleteTrack(final long trackId, final String status) {
         networkRequestController.deleteTrack(trackId, status);
+    }
+
+    private void deleteTracks(final List<Long> trackIds, final String status) {
+        networkRequestController.deleteTracks(trackIds, status);
     }
 
     private void deleteRemoteSource(final long sourceId, final String name) {
@@ -3229,8 +3268,20 @@ public final class MainActivity extends ComponentActivity {
                 serviceSnapshot,
                 serviceQueue,
                 storeSnapshot,
-                viewModelQueue
+                viewModelQueue,
+                heartbeatLibraryContextTracks()
         );
+    }
+
+    private List<Track> heartbeatLibraryContextTracks() {
+        if (libraryStore == null) {
+            return Collections.emptyList();
+        }
+        ArrayList<Track> selectedPlaylistTracks = libraryStore.selectedPlaylistTracks();
+        if (selectedPlaylistTracks != null && !selectedPlaylistTracks.isEmpty()) {
+            return selectedPlaylistTracks;
+        }
+        return libraryStore.visibleTracks();
     }
 
     private void resolveHeartbeatSeedFromQueue(
@@ -3407,7 +3458,12 @@ public final class MainActivity extends ComponentActivity {
                 lyricsState(),
                 settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()
         );
-        return nowPlayingViewModel.getUiState().getValue();
+        NowPlayingUiState state = nowPlayingViewModel.getUiState().getValue();
+        FloatingLyricsPublisher.update(
+                state.getTrackTitle(),
+                state.getLyrics().getLines()
+        );
+        return state;
     }
 
     private void handleNowPlayingEvent(NowPlayingEvent event) {

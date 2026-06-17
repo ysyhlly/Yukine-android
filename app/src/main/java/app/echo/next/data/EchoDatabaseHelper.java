@@ -344,7 +344,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     }
 
     public boolean loadOnlineLyricsEnabled() {
-        return "true".equals(loadSetting(SETTING_ONLINE_LYRICS, "false"));
+        return "true".equals(loadSetting(SETTING_ONLINE_LYRICS, "true"));
     }
 
     public void saveOnlineLyricsEnabled(boolean enabled) {

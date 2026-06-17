@@ -13,6 +13,8 @@ internal interface NetworkOperationSink {
 
     fun deleteTrack(trackId: Long, status: String)
 
+    fun deleteTracks(trackIds: List<Long>, status: String)
+
     fun deleteRemoteSource(sourceId: Long)
 
     fun saveWebDavSource(

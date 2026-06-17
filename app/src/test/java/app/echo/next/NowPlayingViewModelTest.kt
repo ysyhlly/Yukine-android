@@ -347,5 +347,9 @@ class NowPlayingViewModelTest {
         override fun setRepeatMode(repeatMode: Int) {
             calls.add("repeat:$repeatMode")
         }
+
+        override fun moveQueueTrack(fromIndex: Int, toIndex: Int) {
+            calls.add("move:$fromIndex:$toIndex")
+        }
     }
 }

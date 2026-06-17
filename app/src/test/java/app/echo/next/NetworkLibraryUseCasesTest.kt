@@ -53,6 +53,7 @@ class NetworkLibraryUseCasesTest {
 
         DeleteAllStreamsUseCase(operations).execute()
         DeleteNetworkTrackUseCase(operations).execute(3L)
+        DeleteNetworkTracksUseCase(operations).execute(listOf(3L, 5L, 3L, -1L))
         DeleteRemoteSourceUseCase(operations).execute(4L)
 
         assertEquals(
@@ -61,6 +62,9 @@ class NetworkLibraryUseCasesTest {
                 "cached",
                 "favorites",
                 "deleteTrack:3",
+                "cached",
+                "favorites",
+                "deleteTracks:3,5",
                 "cached",
                 "favorites",
                 "deleteSource:4",
@@ -132,6 +136,10 @@ class NetworkLibraryUseCasesTest {
 
         override fun deleteTrack(trackId: Long) {
             events.add("deleteTrack:$trackId")
+        }
+
+        override fun deleteTracks(trackIds: List<Long>) {
+            events.add("deleteTracks:${trackIds.joinToString(",")}")
         }
 
         override fun deleteRemoteSource(sourceId: Long) {

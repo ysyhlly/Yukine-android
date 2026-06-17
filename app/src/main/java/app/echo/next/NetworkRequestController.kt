@@ -40,6 +40,11 @@ internal class NetworkRequestController(
         operations.deleteTrack(trackId, status)
     }
 
+    fun deleteTracks(trackIds: List<Long>, status: String) {
+        listener.setStatus(labels.text("deleting.stream"))
+        operations.deleteTracks(trackIds, status)
+    }
+
     fun deleteRemoteSource(sourceId: Long) {
         listener.setStatus(labels.text("deleting.source"))
         operations.deleteRemoteSource(sourceId)

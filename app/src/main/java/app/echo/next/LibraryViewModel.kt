@@ -739,8 +739,16 @@ class LibraryViewModel @JvmOverloads constructor(
         trackListState.value = MainActivityTrackListUiState(title, rows.toList())
     }
 
+    fun clearTrackList() {
+        trackListState.value = MainActivityTrackListUiState()
+    }
+
     fun updateLibraryGroups(title: String, rows: List<LibraryGroupUiState>) {
         libraryGroupsState.value = MainActivityLibraryGroupsUiState(title, rows.toList())
+    }
+
+    fun clearLibraryGroups() {
+        libraryGroupsState.value = MainActivityLibraryGroupsUiState()
     }
 
     private fun text(languageMode: String, key: String): String =

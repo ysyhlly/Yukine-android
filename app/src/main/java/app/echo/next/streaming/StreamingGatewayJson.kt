@@ -254,7 +254,7 @@ internal object StreamingGatewayJson {
         val provider = providerName(value.optString("provider")) ?: StreamingProviderName.MOCK
         return StreamingPlaybackSource(
             provider = provider,
-            providerTrackId = value.optString("providerTrackId"),
+            providerTrackId = providerTrackId(value, provider),
             url = value.optString("url"),
             expiresAtEpochMs = value.optionalLong("expiresAtEpochMs"),
             mimeType = value.optionalString("mimeType"),
@@ -424,7 +424,7 @@ internal object StreamingGatewayJson {
             val provider = providerName(value.optString("provider")) ?: fallbackProvider
             StreamingTrack(
                 provider = provider,
-                providerTrackId = value.optString("providerTrackId", value.optString("id")),
+                providerTrackId = providerTrackId(value, provider),
                 title = value.optString("title"),
                 artist = value.optString("artist"),
                 artists = artistRefs(value.optJSONArray("artists"), provider),
@@ -517,7 +517,7 @@ internal object StreamingGatewayJson {
                     ?.let { tracks(JSONArray().put(it), provider).firstOrNull() }
                     ?: StreamingTrack(
                         provider = provider,
-                        providerTrackId = searchItemId(value, type),
+                        providerTrackId = providerTrackId(value, provider).ifBlank { searchItemId(value, type) },
                         title = searchItemTitle(value, type),
                         artist = value.optionalString("artist") ?: value.optionalString("subtitle").orEmpty(),
                         album = value.optionalString("album"),
@@ -619,6 +619,52 @@ internal object StreamingGatewayJson {
                 StreamingMediaType.MV -> value.optionalString("providerMvId")
             }
             ?: ""
+    }
+
+    private fun providerTrackId(value: JSONObject, provider: StreamingProviderName): String {
+        if (provider == StreamingProviderName.NETEASE) {
+            for (key in listOf("songId", "songid")) {
+                val id = neteaseSongId(value.optionalString(key) ?: value.opt(key))
+                if (id.isNotEmpty()) {
+                    return id
+                }
+            }
+            val providerTrackId = value.optionalString("providerTrackId")
+                ?: value.optionalString("trackId")
+                ?: value.optionalString("id")
+                ?: ""
+            return neteaseSongId(providerTrackId).ifEmpty { providerTrackId }
+        }
+        return value.optionalString("providerTrackId")
+            ?: value.optionalString("id")
+            ?: ""
+    }
+
+    private fun neteaseSongId(value: Any?): String {
+        val text = when (value) {
+            is Number -> value.toLong().toString()
+            null -> ""
+            else -> value.toString()
+        }.trim()
+        if (text.isEmpty()) {
+            return ""
+        }
+        if (text.all { it.isDigit() }) {
+            return text
+        }
+        for (key in listOf("songId=", "songid=", "id=")) {
+            val start = text.indexOf(key, ignoreCase = true)
+            if (start >= 0) {
+                val digitStart = (start + key.length until text.length)
+                    .firstOrNull { text[it].isDigit() }
+                    ?: continue
+                val digitEnd = (digitStart until text.length)
+                    .firstOrNull { !text[it].isDigit() }
+                    ?: text.length
+                return text.substring(digitStart, digitEnd)
+            }
+        }
+        return ""
     }
 
     private fun searchItemTitle(value: JSONObject, type: StreamingMediaType): String {

@@ -34,7 +34,10 @@ internal object NowPlayingStateFactory {
             track.albumArtUri,
             AppLanguage.text(languageMode, "lyrics"),
             lyricsStatus,
-            lyricRows
+            lyricRows,
+            track.artist,
+            track.album,
+            track.audioSpecSummary()
         )
     }
 

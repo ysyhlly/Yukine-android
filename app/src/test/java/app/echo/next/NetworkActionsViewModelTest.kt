@@ -77,6 +77,7 @@ class NetworkActionsViewModelTest {
 
         viewModel.deleteAllStreams()
         viewModel.deleteTrack(4L, "Deleted")
+        viewModel.deleteTracks(listOf(4L, 5L), "Removed tracks: 2")
         viewModel.deleteRemoteSource(8L)
         viewModel.saveWebDavSource(-1L, "NAS", "https://example.test", "u", "p", "music")
         viewModel.testRemoteSource(8L)
@@ -90,6 +91,9 @@ class NetworkActionsViewModelTest {
                 "cached",
                 "favorites",
                 "deleteTrack:4",
+                "cached",
+                "favorites",
+                "deleteTracks:4,5",
                 "cached",
                 "favorites",
                 "deleteSource:8",
@@ -114,6 +118,7 @@ class NetworkActionsViewModelTest {
             listOf(
                 "deleteAll:1:1:Library updated",
                 "deleteTrack:1:1:Deleted",
+                "deleteTrack:1:1:Removed tracks: 2",
                 "deleteSource:1:1:Library updated",
                 "saveSource:-1:1:1:Added WebDAV source",
                 "tested:OK",
@@ -137,6 +142,7 @@ class NetworkActionsViewModelTest {
             ImportStreamPlaylistUseCase(networkOperations),
             DeleteAllStreamsUseCase(networkOperations),
             DeleteNetworkTrackUseCase(networkOperations),
+            DeleteNetworkTracksUseCase(networkOperations),
             DeleteRemoteSourceUseCase(networkOperations),
             SaveWebDavSourceUseCase(networkOperations)
         )
@@ -215,6 +221,10 @@ class NetworkActionsViewModelTest {
 
         override fun deleteTrack(trackId: Long) {
             events.add("deleteTrack:$trackId")
+        }
+
+        override fun deleteTracks(trackIds: List<Long>) {
+            events.add("deleteTracks:${trackIds.joinToString(",")}")
         }
 
         override fun deleteRemoteSource(sourceId: Long) {

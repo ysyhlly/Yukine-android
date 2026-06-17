@@ -1,6 +1,7 @@
 package app.echo.next.ui
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -36,6 +37,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -47,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -288,7 +291,7 @@ fun NowBar(
                     )
                 }
                 if (!waveformExpanded) {
-                    NowBarModeControls(modeSlice, onFavorite, onShuffle, onOpenQueue, onCollapseWaveform)
+                    NowBarModeControls(modeSlice, onFavorite, onShuffle, onRepeat, onOpenQueue, onCollapseWaveform)
                 }
             }
             if (waveformExpanded) {
@@ -315,10 +318,16 @@ private fun MiniLyricsStrip(state: NowBarState) {
         return
     }
     val p = EchoTheme.colors()
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .height(20.dp)
+            .clickable {
+                clipboard.setText(AnnotatedString(activeLine))
+                Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+            }
             .semantics { contentDescription = state.lyricsTitle.ifBlank { "Lyrics" } },
         shape = EchoShapes.small,
         color = p.accentSoft.copy(alpha = 0.32f)
@@ -541,6 +550,7 @@ private fun NowBarModeControls(
     slice: NowBarModeSlice,
     onFavorite: Runnable,
     onShuffle: Runnable,
+    onRepeat: Runnable,
     onQueue: Runnable,
     onCollapseWaveform: () -> Unit
 ) {
@@ -563,17 +573,26 @@ private fun NowBarModeControls(
             onFavorite.run()
         }
         AuxChip(
-            icon = if (slice.shuffleEnabled) EchoIconKind.Shuffle else EchoIconKind.Repeat,
-            label = when {
-                slice.shuffleEnabled -> slice.shuffleLabel
-                slice.repeatMode == EchoPlaybackService.REPEAT_ONE -> slice.repeatLabel
-                else -> slice.repeatLabel
-            },
-            active = slice.shuffleEnabled || slice.repeatMode == EchoPlaybackService.REPEAT_ONE,
+            icon = EchoIconKind.Shuffle,
+            label = if (slice.shuffleEnabled) slice.shuffleLabel else slice.inOrderLabel,
+            active = slice.shuffleEnabled,
             modifier = Modifier.weight(1f)
         ) {
             onCollapseWaveform()
             onShuffle.run()
+        }
+        AuxChip(
+            icon = EchoIconKind.Repeat,
+            label = when (slice.repeatMode) {
+                EchoPlaybackService.REPEAT_ONE -> slice.repeatLabel
+                EchoPlaybackService.REPEAT_ALL -> slice.repeatLabel
+                else -> slice.repeatOffLabel
+            },
+            active = slice.repeatMode != EchoPlaybackService.REPEAT_OFF,
+            modifier = Modifier.weight(1f)
+        ) {
+            onCollapseWaveform()
+            onRepeat.run()
         }
         AuxChip(
             icon = EchoIconKind.Queue,

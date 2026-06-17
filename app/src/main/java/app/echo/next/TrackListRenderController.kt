@@ -76,6 +76,7 @@ internal class TrackListRenderController(
             )
         }
 
+        viewModel.clearLibraryGroups()
         viewModel.updateTrackList(title, rows)
         listener.publishTrackListChrome(actions, headerMetrics, headerActions, emptyText, modeActions, labels)
     }
@@ -96,6 +97,7 @@ internal class TrackListRenderController(
                 )
             )
         }
+        viewModel.clearLibraryGroups()
         viewModel.updateTrackList(title, rows)
         listener.publishTrackListChrome(
             actions,

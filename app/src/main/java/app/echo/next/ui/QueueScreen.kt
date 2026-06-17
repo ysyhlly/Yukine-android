@@ -98,16 +98,11 @@ internal fun QueueScreen(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = echoPagePadding(),
-        verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
+        contentPadding = echoPagePadding(top = 6.dp, bottom = 84.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item(key = "title") {
-            EchoPageTitle(
-                labels.title,
-                subtitle = "${tracks.size} ${labels.tracks}",
-                backLabel = labels.back,
-                onBack = onBack
-            )
+            QueueHeader(labels, tracks.size, onBack)
         }
         if (tracks.isNotEmpty()) {
             item(key = "clear-queue") {
@@ -166,6 +161,54 @@ internal fun QueueScreen(
                     }
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun QueueHeader(labels: QueueScreenLabels, trackCount: Int, onBack: Runnable?) {
+    val p = EchoTheme.colors()
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .echoGlassLayer(p, EchoShapes.medium),
+        shape = EchoShapes.medium,
+        color = Color.Transparent
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (onBack != null) {
+                Surface(
+                    onClick = { onBack.run() },
+                    modifier = Modifier
+                        .size(32.dp)
+                        .semantics { contentDescription = labels.back },
+                    shape = EchoShapes.small,
+                    color = p.surfaceVariant.copy(alpha = 0.24f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        EchoIcon(EchoIconKind.Back, Modifier.size(17.dp), p.muted)
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(
+                labels.title,
+                style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = p.heading,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                "$trackCount ${labels.tracks}",
+                style = EchoTypography.caption,
+                color = p.muted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

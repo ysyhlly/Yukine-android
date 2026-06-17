@@ -1,5 +1,6 @@
 package app.echo.next
 
+import android.net.Uri
 import app.echo.next.model.Track
 import java.io.File
 import java.util.ArrayList
@@ -70,6 +71,14 @@ internal object LibraryGrouping {
             return if (folder.isEmpty()) count else "$folder - $count"
         }
         return count
+    }
+
+    @JvmStatic
+    fun groupArtworkUri(tracks: List<Track>, mode: String): Uri? {
+        if (ALBUMS != mode && ARTISTS != mode) {
+            return null
+        }
+        return tracks.firstOrNull { it.albumArtUri != null }?.albumArtUri
     }
 
     @JvmStatic

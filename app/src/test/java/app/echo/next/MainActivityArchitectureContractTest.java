@@ -1243,7 +1243,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("return streamingTrackMatchUseCase.heartbeatSeedMissMessage("));
         assertTrue(mainActivity.contains("viewModel.streamingProviderTrackIdFor("));
         assertTrue(mainActivity.contains("viewModel.prepareHeartbeatRecommendationSeedRequest("));
-        assertTrue(mainActivity.contains("viewModel.resolveHeartbeatRecommendationSeed(\n                recommendationRequest.getProvider(),\n                seedRequest.getCandidates(),"));
+        assertTrue(mainActivity.contains("viewModel.resolveHeartbeatRecommendationSeed(\r\n                recommendationRequest.getProvider(),\r\n                seedRequest.getCandidates(),")
+                || mainActivity.contains("viewModel.resolveHeartbeatRecommendationSeed(\n                recommendationRequest.getProvider(),\n                seedRequest.getCandidates(),"));
         assertFalse(mainActivity.contains("viewModel.loadStreamingProviderTrackId(track, provider"));
         assertFalse(mainActivity.contains("viewModel.resolveStreamingTrackMatch(provider, track"));
         assertFalse(mainActivity.contains("viewModel.saveStreamingProviderTrackId(track, provider, resolvedTrackId)"));

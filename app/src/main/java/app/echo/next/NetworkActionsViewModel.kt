@@ -17,6 +17,7 @@ internal data class NetworkActionUseCases(
     val importStreamPlaylistUseCase: ImportStreamPlaylistUseCase,
     val deleteAllStreamsUseCase: DeleteAllStreamsUseCase,
     val deleteNetworkTrackUseCase: DeleteNetworkTrackUseCase,
+    val deleteNetworkTracksUseCase: DeleteNetworkTracksUseCase,
     val deleteRemoteSourceUseCase: DeleteRemoteSourceUseCase,
     val saveWebDavSourceUseCase: SaveWebDavSourceUseCase
 )
@@ -125,6 +126,16 @@ internal class NetworkActionsViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             val snapshot = withContext(ioDispatcher) {
                 actions.deleteNetworkTrackUseCase.execute(trackId)
+            }
+            listener?.onTrackDeleted(snapshot.cached, snapshot.favorites, status)
+        }
+    }
+
+    override fun deleteTracks(trackIds: List<Long>, status: String) {
+        val actions = useCases ?: return
+        viewModelScope.launch {
+            val snapshot = withContext(ioDispatcher) {
+                actions.deleteNetworkTracksUseCase.execute(trackIds)
             }
             listener?.onTrackDeleted(snapshot.cached, snapshot.favorites, status)
         }

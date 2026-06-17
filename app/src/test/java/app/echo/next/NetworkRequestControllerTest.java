@@ -42,6 +42,7 @@ public final class NetworkRequestControllerTest {
 
         controller.deleteAllStreams();
         controller.deleteTrack(42L, "deleted");
+        controller.deleteTracks(Arrays.asList(42L, 43L), "deleted 2");
         controller.deleteRemoteSource(7L);
 
         assertEquals(
@@ -50,6 +51,8 @@ public final class NetworkRequestControllerTest {
                         "deleteAllStreams",
                         "status:label:deleting.stream",
                         "deleteTrack:42|deleted",
+                        "status:label:deleting.stream",
+                        "deleteTracks:42,43|deleted 2",
                         "status:label:deleting.source",
                         "deleteRemoteSource:7"
                 ),
@@ -145,6 +148,15 @@ public final class NetworkRequestControllerTest {
         @Override
         public void deleteTrack(long trackId, String status) {
             events.add("deleteTrack:" + trackId + "|" + status);
+        }
+
+        @Override
+        public void deleteTracks(List<Long> trackIds, String status) {
+            ArrayList<String> values = new ArrayList<>();
+            for (Long trackId : trackIds) {
+                values.add(String.valueOf(trackId));
+            }
+            events.add("deleteTracks:" + String.join(",", values) + "|" + status);
         }
 
         @Override

@@ -35,6 +35,7 @@ internal interface NetworkLibraryOperations {
     fun importM3uPlaylistWithResult(url: String): StreamImportResult?
     fun deleteAllStreams()
     fun deleteTrack(trackId: Long)
+    fun deleteTracks(trackIds: List<Long>)
     fun deleteRemoteSource(sourceId: Long)
     fun saveWebDavSource(
         sourceId: Long,
@@ -66,6 +67,12 @@ internal class MusicLibraryNetworkLibraryOperations(
 
     override fun deleteTrack(trackId: Long) {
         repository.deleteTrack(trackId)
+    }
+
+    override fun deleteTracks(trackIds: List<Long>) {
+        for (trackId in trackIds) {
+            repository.deleteTrack(trackId)
+        }
     }
 
     override fun deleteRemoteSource(sourceId: Long) {
@@ -137,6 +144,15 @@ internal class DeleteNetworkTrackUseCase(
         if (trackId >= 0L) {
             operations.deleteTrack(trackId)
         }
+        return operations.snapshot()
+    }
+}
+
+internal class DeleteNetworkTracksUseCase(
+    private val operations: NetworkLibraryOperations
+) {
+    fun execute(trackIds: List<Long>): NetworkLibrarySnapshot {
+        operations.deleteTracks(trackIds.filter { it >= 0L }.distinct())
         return operations.snapshot()
     }
 }

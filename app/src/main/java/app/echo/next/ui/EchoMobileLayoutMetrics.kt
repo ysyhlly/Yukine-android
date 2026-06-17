@@ -4,7 +4,7 @@ import androidx.compose.ui.unit.dp
 
 object EchoMobileLayoutMetrics {
     val nowBarHeight = 132.dp
-    val nowBarExpandedHeight = 140.dp
+    val nowBarExpandedHeight = nowBarHeight
     val nowBarArtworkSize = 48.dp
     val nowBarArtworkCornerRadius = 6.dp
     val nowBarProgressHeight = 18.dp
