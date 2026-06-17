@@ -189,6 +189,40 @@ class StreamingGatewayJsonTest {
     }
 
     @Test
+    fun luoxueAliasesAndAdapterFieldsParseAsLuoxueProvider() {
+        val searchJson = JSONObject()
+            .put("provider", "lxmusic")
+            .put(
+                "tracks",
+                JSONArray().put(
+                    JSONObject()
+                        .put("provider", "lx")
+                        .put("songmid", "lx-song-1")
+                        .put("title", "LX Song")
+                        .put("artist", "LX Artist")
+                        .put("pic", "https://example.test/lx.jpg")
+                )
+            )
+            .toString()
+        val playbackJson = JSONObject()
+            .put("provider", "luoxue")
+            .put("mid", "lx-song-1")
+            .put("musicUrl", "https://example.test/lx.flac")
+            .toString()
+
+        val result = StreamingGatewayJson.searchResult(searchJson)
+        val source = StreamingGatewayJson.playbackSource(playbackJson)
+
+        assertEquals(StreamingProviderName.LUOXUE, result.provider)
+        assertEquals(StreamingProviderName.LUOXUE, result.tracks.single().provider)
+        assertEquals("lx-song-1", result.tracks.single().providerTrackId)
+        assertEquals("https://example.test/lx.jpg", result.tracks.single().coverUrl)
+        assertEquals(StreamingProviderName.LUOXUE, source.provider)
+        assertEquals("lx-song-1", source.providerTrackId)
+        assertEquals("https://example.test/lx.flac", source.url)
+    }
+
+    @Test
     fun searchResultParsesUnifiedItemsAndError() {
         val json = JSONObject()
             .put("provider", "netease")

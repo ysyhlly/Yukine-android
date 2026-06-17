@@ -255,7 +255,7 @@ internal object StreamingGatewayJson {
         return StreamingPlaybackSource(
             provider = provider,
             providerTrackId = providerTrackId(value, provider),
-            url = value.optString("url"),
+            url = playbackUrl(value),
             expiresAtEpochMs = value.optionalLong("expiresAtEpochMs"),
             mimeType = value.optionalString("mimeType"),
             bitrate = value.optionalInt("bitrate"),
@@ -431,8 +431,8 @@ internal object StreamingGatewayJson {
                 album = value.optionalString("album"),
                 albumId = value.optionalString("albumId"),
                 durationMs = value.optionalLong("durationMs") ?: value.optionalLong("duration"),
-                coverUrl = value.optionalString("coverUrl"),
-                coverThumbUrl = value.optionalString("coverThumb") ?: value.optionalString("coverThumbUrl"),
+                coverUrl = imageUrl(value, "coverUrl", "pic", "picUrl", "img", "image", "imageUrl"),
+                coverThumbUrl = imageUrl(value, "coverThumb", "coverThumbUrl", "pic", "picUrl", "img", "image", "imageUrl"),
                 qualities = audioQualities(value.optJSONArray("qualities")),
                 explicit = value.optBoolean("explicit", false),
                 playable = value.optBoolean("playable", true),
@@ -636,8 +636,32 @@ internal object StreamingGatewayJson {
             return neteaseSongId(providerTrackId).ifEmpty { providerTrackId }
         }
         return value.optionalString("providerTrackId")
+            ?: value.optionalString("songmid")
+            ?: value.optionalString("songMid")
+            ?: value.optionalString("mid")
+            ?: value.optionalString("hash")
+            ?: value.optionalString("hashId")
+            ?: value.optionalString("audioId")
+            ?: value.optionalString("trackId")
             ?: value.optionalString("id")
             ?: ""
+    }
+
+    private fun playbackUrl(value: JSONObject): String {
+        return value.optionalString("url")
+            ?: value.optionalString("playUrl")
+            ?: value.optionalString("musicUrl")
+            ?: value.optionalString("streamUrl")
+            ?: value.optionalString("audioUrl")
+            ?: value.optionalString("src")
+            ?: ""
+    }
+
+    private fun imageUrl(value: JSONObject, vararg keys: String): String? {
+        for (key in keys) {
+            value.optionalString(key)?.let { return it }
+        }
+        return null
     }
 
     private fun neteaseSongId(value: Any?): String {

@@ -92,6 +92,7 @@ public final class MainActivity extends ComponentActivity {
     private MainPermissionController permissionController;
     private MainUiShellController uiShellController;
     private DocumentPickerController documentPickerController;
+    private PlaybackServiceHostController playbackServiceHostController;
     private PlaybackServiceConnectionController playbackServiceConnectionController;
     private PlaybackStateUpdateController playbackStateUpdateController;
     private PlaybackStateEventController playbackStateEventController;
@@ -107,6 +108,7 @@ public final class MainActivity extends ComponentActivity {
     private StreamingGatewayEventController streamingGatewayEventController;
     private StreamingGatewayController streamingGatewayController;
     private StreamingAuthCallbackController streamingAuthCallbackController;
+    private ActivityIntentController activityIntentController;
     private StreamingSearchEventController streamingSearchEventController;
     private StreamingSearchRenderController streamingSearchRenderController;
     private NetworkActionsViewModel networkActionsViewModel;
@@ -185,7 +187,7 @@ public final class MainActivity extends ComponentActivity {
         viewModel.bindStreamingActionGateway(new ActivityStreamingActionGateway());
         viewModel.bindStreamingPlaybackCoordinator(
                 resolveStreamingPlaybackUseCase,
-                new ActivityStreamingPlaybackTaskQueue()
+                new StreamingPlaybackTaskQueueAdapter(streamingPlaybackTaskScheduler)
         );
         nowPlayingViewModel = new ViewModelProvider(this).get(NowPlayingViewModel.class);
         nowPlayingViewModel.bindGateway(new ActivityNowPlayingGateway());
@@ -225,7 +227,8 @@ public final class MainActivity extends ComponentActivity {
         streamingGatewayController.configureRepository();
         streamingGatewayEventController.refreshStreamingProviders();
         streamingAuthCallbackController = new StreamingAuthCallbackController(viewModel);
-        streamingAuthCallbackController.handleInitialIntent(getIntent());
+        activityIntentController = new ActivityIntentController(streamingAuthCallbackController);
+        activityIntentController.handleInitialIntent(getIntent());
         routeController = new MainRouteController(viewModel);
         statePublisher = new MainStatePublisher(viewModel);
         playbackStore = new MainPlaybackStore(viewModel);
@@ -372,29 +375,22 @@ public final class MainActivity extends ComponentActivity {
                     }
                 }
         );
+        playbackServiceHostController = new PlaybackServiceHostController(
+                new PlaybackServiceHostBindings(
+                        () -> settingsStore.playbackSpeed(),
+                        () -> settingsStore.appVolume(),
+                        () -> settingsStore.concurrentPlaybackEnabled(),
+                        service -> playbackService = service,
+                        () -> playbackStore.reset(),
+                        this::playPendingTracksIfNeeded,
+                        this::renderSelectedTab,
+                        this::renderNowBar
+                )
+        );
         playbackServiceConnectionController = new PlaybackServiceConnectionController(
                 this,
                 playbackStateEventController,
-                new PlaybackServiceConnectionController.Listener() {
-                    @Override
-                    public void onPlaybackServiceConnected(EchoPlaybackService service) {
-                        playbackService = service;
-                        playbackService.setPlaybackSpeed(settingsStore.playbackSpeed());
-                        playbackService.setAppVolume(settingsStore.appVolume());
-                        playbackService.setConcurrentPlaybackEnabled(settingsStore.concurrentPlaybackEnabled());
-                        playPendingTracksIfNeeded();
-                        renderSelectedTab();
-                        renderNowBar();
-                    }
-
-                    @Override
-                    public void onPlaybackServiceDisconnected() {
-                        playbackService = null;
-                        playbackStore.reset();
-                        renderSelectedTab();
-                        renderNowBar();
-                    }
-                }
+                playbackServiceHostController
         );
         tabRenderDispatcher = new MainTabRenderDispatcher(new MainTabRenderDispatcher.Renderer() {
             @Override
@@ -1795,7 +1791,7 @@ public final class MainActivity extends ComponentActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        streamingAuthCallbackController.handleNewIntent(intent);
+        activityIntentController.handleNewIntent(intent);
     }
 
     private void syncRouteFieldsFromViewModel() {
@@ -3820,41 +3816,6 @@ public final class MainActivity extends ComponentActivity {
         @Override
         public void onStreamingLoginSuccess(app.echo.next.streaming.StreamingProviderName provider) {
             MainActivity.this.onStreamingLoginSuccess(provider);
-        }
-    }
-
-    private final class ActivityStreamingPlaybackTaskQueue implements StreamingPlaybackTaskQueue {
-        @Override
-        public void scheduleCurrentPlaybackRecovery(StreamingPlaybackTask task) {
-            if (task == null) {
-                return;
-            }
-            streamingPlaybackTaskScheduler.schedule(
-                    StreamingPlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY,
-                    completion -> task.run(completion::complete)
-            );
-        }
-
-        @Override
-        public void scheduleCurrentUrlResolve(StreamingPlaybackTask task) {
-            if (task == null) {
-                return;
-            }
-            streamingPlaybackTaskScheduler.schedule(
-                    StreamingPlaybackTaskScheduler.Priority.CURRENT_URL_RESOLVE,
-                    completion -> task.run(completion::complete)
-            );
-        }
-
-        @Override
-        public void scheduleNextUrlResolve(StreamingPlaybackTask task) {
-            if (task == null) {
-                return;
-            }
-            streamingPlaybackTaskScheduler.schedule(
-                    StreamingPlaybackTaskScheduler.Priority.NEXT_URL_RESOLVE,
-                    completion -> task.run(completion::complete)
-            );
         }
     }
 

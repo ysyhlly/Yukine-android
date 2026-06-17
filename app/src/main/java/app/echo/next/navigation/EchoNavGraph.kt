@@ -75,6 +75,7 @@ fun EchoNavGraph(
         EchoNowBar(
             viewModel = hostState.nowPlayingViewModel,
             onOpenNowPlaying = {
+                hostState.openNowPlayingImmersive = true
                 hostState.selectedTabRoute = QueueTab.route
                 onTabChanged(QueueTab)
             },
@@ -103,7 +104,11 @@ fun EchoNavGraph(
                         hostState.collectionsActions
                     )
                     NetworkTab -> NetworkDestination(hostState)
-                    NowTab -> NowPlayingDestination(hostState.nowPlayingViewModel)
+                    NowTab -> NowPlayingDestination(
+                        hostState.nowPlayingViewModel,
+                        defaultImmersive = hostState.openNowPlayingImmersive,
+                        onDefaultImmersiveConsumed = { hostState.openNowPlayingImmersive = false }
+                    )
                     else -> HomeDestination(hostState.mainViewModel.homeDashboard, hostState.homeActions)
                 }
             }
@@ -117,7 +122,11 @@ fun EchoNavGraph(
                 when (tab) {
                     HomeTab -> HomeDestination(hostState.mainViewModel.homeDashboard, hostState.homeActions)
                     LibraryTab -> LibraryDestination(hostState)
-                    QueueTab -> NowPlayingDestination(hostState.nowPlayingViewModel)
+                    QueueTab -> NowPlayingDestination(
+                        hostState.nowPlayingViewModel,
+                        defaultImmersive = hostState.openNowPlayingImmersive,
+                        onDefaultImmersiveConsumed = { hostState.openNowPlayingImmersive = false }
+                    )
                     SettingsTab -> SettingsDestination(
                         state = hostState.settingsViewModel.uiState,
                         actions = hostState.settingsActions,

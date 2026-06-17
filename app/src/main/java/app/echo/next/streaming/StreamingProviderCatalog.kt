@@ -12,6 +12,12 @@ object StreamingProviderCatalog {
             descriptor(StreamingProviderName.SPOTIFY, "Spotify", authKind = StreamingAuthKind.CUSTOM_TABS_APP_LINK),
             descriptor(StreamingProviderName.TIDAL, "TIDAL", authKind = StreamingAuthKind.CUSTOM_TABS_APP_LINK),
             descriptor(StreamingProviderName.M3U8, "M3U8", supportsAuth = false),
+            descriptor(
+                StreamingProviderName.LUOXUE,
+                "洛雪音源",
+                supportsAuth = false,
+                statusMessage = "Compatible with LX Music custom-source adapters"
+            ),
             descriptor(StreamingProviderName.PLUGIN, "Plugin", supportsAuth = false)
         )
     }
@@ -21,7 +27,8 @@ object StreamingProviderCatalog {
         displayName: String,
         supportsAuth: Boolean = true,
         supportsMv: Boolean = false,
-        authKind: StreamingAuthKind = StreamingAuthKind.REMOTE_GATEWAY
+        authKind: StreamingAuthKind = StreamingAuthKind.REMOTE_GATEWAY,
+        statusMessage: String = "Provided by the streaming gateway"
     ): StreamingProviderDescriptor {
         val auth = StreamingAuthState(
             kind = if (supportsAuth) authKind else StreamingAuthKind.NONE,
@@ -48,7 +55,7 @@ object StreamingProviderCatalog {
             ),
             auth = auth,
             status = StreamingProviderStatus.NEEDS_ACCOUNT.takeIf { supportsAuth } ?: StreamingProviderStatus.READY,
-            statusMessage = "Provided by the streaming gateway"
+            statusMessage = statusMessage
         )
     }
 }

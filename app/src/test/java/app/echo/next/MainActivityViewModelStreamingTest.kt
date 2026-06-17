@@ -809,6 +809,43 @@ class MainActivityViewModelStreamingTest {
     }
 
     @Test
+    fun prepareHeartbeatRecommendationSeedRequestVariesSeedAcrossRepeatedClicks() {
+        val viewModel = MainActivityViewModel(SavedStateHandle())
+        val first = streamingPlaceholderTrack(id = 1L, providerTrackId = "song-1")
+        val second = streamingPlaceholderTrack(id = 2L, providerTrackId = "song-2")
+        val third = streamingPlaceholderTrack(id = 3L, providerTrackId = "song-3")
+        val store = FakeStreamingTrackMatchStore().apply {
+            heartbeatCandidates = listOf(first, second, third)
+            providerTrackIdsFromCandidateIds = mapOf(
+                first.id to "song-1",
+                second.id to "song-2",
+                third.id to "song-3"
+            )
+        }
+        viewModel.bindStreamingTrackMatchStore(store)
+
+        val firstRequest = viewModel.prepareHeartbeatRecommendationSeedRequest(
+            StreamingProviderName.NETEASE,
+            null,
+            null,
+            null,
+            null
+        )
+        val secondRequest = viewModel.prepareHeartbeatRecommendationSeedRequest(
+            StreamingProviderName.NETEASE,
+            null,
+            null,
+            null,
+            null
+        )
+
+        assertEquals("song-1", firstRequest.seedTrackId)
+        assertEquals("song-2", secondRequest.seedTrackId)
+        assertEquals(3, firstRequest.candidates.size)
+        assertEquals(3, secondRequest.candidates.size)
+    }
+
+    @Test
     fun prepareHeartbeatRecommendationSeedRequestFallsBackToStoreSnapshotForDiagnostics() {
         val viewModel = MainActivityViewModel(SavedStateHandle())
         val storeTrack = localTrack(id = 12L)
@@ -1974,6 +2011,7 @@ class MainActivityViewModelStreamingTest {
     private class FakeStreamingTrackMatchStore : StreamingTrackMatchStore {
         var loadedProviderTrackId: String = ""
         var providerTrackIdFromCandidateResult: String = ""
+        var providerTrackIdsFromCandidateIds: Map<Long, String> = emptyMap()
         var heartbeatCandidates: List<Track> = emptyList()
         var heartbeatQueueSnapshot: List<Track> = emptyList()
         var heartbeatSeedMissLogMessage: String = ""
@@ -2012,6 +2050,14 @@ class MainActivityViewModelStreamingTest {
                     provider,
                     candidates.orEmpty().mapNotNull { it?.id }
                 )
+            }
+            if (providerTrackIdsFromCandidateIds.isNotEmpty()) {
+                return candidates
+                    .orEmpty()
+                    .firstNotNullOfOrNull { track ->
+                        providerTrackIdsFromCandidateIds[track?.id]?.takeIf { it.isNotBlank() }
+                    }
+                    .orEmpty()
             }
             return providerTrackIdFromCandidateResult
         }

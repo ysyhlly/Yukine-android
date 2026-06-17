@@ -43,10 +43,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URI
 import java.net.URLDecoder
+import kotlin.random.Random
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
 private const val STREAMING_AUTH_REDIRECT_URI = "echo-next://streaming-auth"
+private const val HEARTBEAT_SEED_SAMPLE_SIZE = 12
 
 data class MainActivityRouteState(
     val selectedTab: String = MainRoutes.TAB_HOME,
@@ -438,6 +440,7 @@ class MainActivityViewModel @Inject constructor(
     private var streamingPlaybackPlanner: StreamingPlaybackResolvePlanner? = null
     private var streamingPlaybackTaskQueue: StreamingPlaybackTaskQueue? = null
     private val heartbeatRecommendationUseCase = StreamingHeartbeatRecommendationUseCase()
+    private var heartbeatSeedCursor = 0
     private var lastHistoryRefreshTrackId = -1L
 
     val state: StateFlow<MainActivityRouteState> = routeState.asStateFlow()
@@ -1612,12 +1615,12 @@ class MainActivityViewModel @Inject constructor(
         libraryContextTracks: List<Track?>? = null
     ): HeartbeatRecommendationSeedRequest {
         val store = streamingTrackMatchStore
-        val candidates = store?.heartbeatSeedCandidates(
+        val candidates = randomHeartbeatSeedCandidates(store?.heartbeatSeedCandidates(
             serviceSnapshot,
             mergeHeartbeatSeedQueues(serviceQueue, libraryContextTracks),
             storeSnapshot,
             viewModelQueue
-        ).orEmpty()
+        ).orEmpty())
         val seedTrackId = store?.providerTrackIdFromCandidates(candidates, provider).orEmpty().trim()
         val playlistId = seedTrackId
         val queue = store?.snapshotQueueForHeartbeat(
@@ -1651,6 +1654,24 @@ class MainActivityViewModel @Inject constructor(
             return contextTracks
         }
         return contextTracks + primaryQueue
+    }
+
+    private fun randomHeartbeatSeedCandidates(candidates: List<Track>): List<Track> {
+        if (candidates.size <= 1) {
+            return candidates
+        }
+        val cursor = heartbeatSeedCursor
+        heartbeatSeedCursor = if (heartbeatSeedCursor == Int.MAX_VALUE) 0 else heartbeatSeedCursor + 1
+        val anchorIndex = Math.floorMod(cursor, candidates.size)
+        val anchor = candidates[anchorIndex]
+        val sampleSeed = candidates.fold(cursor * 31 + candidates.size) { seed, track ->
+            seed * 31 + track.id.hashCode()
+        }
+        val rest = candidates
+            .filterIndexed { index, _ -> index != anchorIndex }
+            .shuffled(Random(sampleSeed))
+            .take((HEARTBEAT_SEED_SAMPLE_SIZE - 1).coerceAtLeast(0))
+        return listOf(anchor) + rest
     }
 
     fun recoverStreamingBuffering(

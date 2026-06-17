@@ -115,6 +115,7 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
                 StreamingProviderName.TIDAL -> StreamingAuthKind.CUSTOM_TABS_APP_LINK
                 StreamingProviderName.MOCK,
                 StreamingProviderName.M3U8,
+                StreamingProviderName.LUOXUE,
                 StreamingProviderName.PLUGIN -> StreamingAuthKind.NONE
             }
         }

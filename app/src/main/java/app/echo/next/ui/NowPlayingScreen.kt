@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,10 +68,21 @@ data class NowPlayingUiState(
 data class LyricUiLine(val text: String, val active: Boolean)
 
 @Composable
-fun NowPlayingScreen(state: NowPlayingUiState) {
+fun NowPlayingScreen(
+    state: NowPlayingUiState,
+    defaultImmersive: Boolean = false,
+    onDefaultImmersiveConsumed: () -> Unit = {}
+) {
     var immersiveLyrics by remember { mutableStateOf(false) }
     val p = EchoTheme.colors()
     val activeLyricIndex = state.lyrics.indexOfFirst { it.active }
+
+    LaunchedEffect(defaultImmersive, state.title, state.subtitle) {
+        if (defaultImmersive) {
+            immersiveLyrics = true
+            onDefaultImmersiveConsumed()
+        }
+    }
 
     AnimatedContent(
         targetState = immersiveLyrics,

@@ -4,11 +4,14 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.SavedStateHandle
 import app.echo.next.CollectionsViewModel
+import app.echo.next.model.Track
 import app.echo.next.LibraryViewModel
 import app.echo.next.MainActivityHomeDashboardUiState
 import app.echo.next.MainActivityViewModel
@@ -16,6 +19,8 @@ import app.echo.next.NetworkSourcesViewModel
 import app.echo.next.NowPlayingViewModel
 import app.echo.next.SettingsUiState
 import app.echo.next.SettingsViewModel
+import app.echo.next.playback.EchoPlaybackService
+import app.echo.next.playback.PlaybackStateSnapshot
 import app.echo.next.queue.QueueViewModel
 import app.echo.next.ui.CollectionsActions
 import app.echo.next.ui.CollectionsUiState
@@ -146,6 +151,27 @@ class EchoNavGraphTest {
     }
 
     @Test
+    fun clickingNowBarTrack_opensImmersiveNowPlayingRoute() {
+        val state = hostState()
+        state.nowPlayingViewModel.updateState(nowPlayingSnapshot(), emptySet(), null)
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                EchoNavGraph(
+                    tabs = tabs,
+                    queueViewModel = emptyQueueViewModel(),
+                    hostState = state
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Song").performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(QueueTab.route, state.selectedTabRoute)
+        composeRule.onAllNodesWithText("Elapsed").assertCountEquals(0)
+    }
+
+    @Test
     fun selectingSettingsTab_rendersNativeSettingsWhenHostStateIsProvided() {
         composeRule.setContent {
             EchoTheme.EchoTheme {
@@ -203,4 +229,21 @@ class EchoNavGraphTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithText("persistent-now-bar").assertExists()
     }
+
+    private fun nowPlayingSnapshot(): PlaybackStateSnapshot =
+        PlaybackStateSnapshot(
+            Track(7L, "Song", "Artist", "Album", 180_000L, android.net.Uri.EMPTY, "file:song.mp3"),
+            0,
+            1,
+            0L,
+            180_000L,
+            true,
+            false,
+            "",
+            false,
+            EchoPlaybackService.REPEAT_ALL,
+            1.0f,
+            1.0f,
+            0L
+        )
 }

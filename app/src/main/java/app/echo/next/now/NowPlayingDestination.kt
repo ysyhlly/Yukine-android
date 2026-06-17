@@ -7,7 +7,11 @@ import app.echo.next.NowPlayingViewModel
 import app.echo.next.ui.EchoStateCard
 
 @Composable
-fun NowPlayingDestination(viewModel: NowPlayingViewModel) {
+fun NowPlayingDestination(
+    viewModel: NowPlayingViewModel,
+    defaultImmersive: Boolean = false,
+    onDefaultImmersiveConsumed: () -> Unit = {}
+) {
     val state by viewModel.uiState.collectAsState()
     val track = state.currentTrack
     if (track == null || state.trackId < 0L) {
@@ -34,6 +38,8 @@ fun NowPlayingDestination(viewModel: NowPlayingViewModel) {
             artistName = state.artist,
             albumName = state.album.orEmpty(),
             audioSpec = track.audioSpecSummary()
-        )
+        ),
+        defaultImmersive = defaultImmersive,
+        onDefaultImmersiveConsumed = onDefaultImmersiveConsumed
     )
 }

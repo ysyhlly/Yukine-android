@@ -523,8 +523,12 @@ class RemoteStreamingGatewayTest {
         val health = gateway.providersHealth()
 
         assertTrue(providers.any { it.name == StreamingProviderName.NETEASE })
+        assertTrue(providers.any { it.name == StreamingProviderName.LUOXUE })
         assertTrue(providers.first { it.name == StreamingProviderName.NETEASE }.auth.connected)
+        assertEquals(StreamingAuthKind.NONE, providers.first { it.name == StreamingProviderName.LUOXUE }.auth.kind)
+        assertEquals(StreamingProviderStatus.DISABLED, providers.first { it.name == StreamingProviderName.LUOXUE }.status)
         assertTrue(capabilities.any { it.provider == StreamingProviderName.NETEASE && it.supportsSearch })
+        assertTrue(capabilities.any { it.provider == StreamingProviderName.LUOXUE && !it.supportsPlayback })
         assertTrue(health.first { it.provider == StreamingProviderName.NETEASE }.authenticated)
         assertEquals(
             StreamingErrorCode.GATEWAY_UNAVAILABLE,
@@ -788,6 +792,36 @@ class RemoteStreamingGatewayTest {
         assertEquals(listOf("Seed Song", "Heartbeat 22", "Heartbeat 33", "Similar 99"), tracks.map { it.title })
         assertEquals(3, netease.paths.count { it == "/api/playmode/intelligence/list" })
         assertEquals(1, netease.paths.count { it == "/api/v1/discovery/simiSong" })
+    }
+
+    @Test
+    fun localNeteaseHeartbeatRotatesRepeatedResultOrder() = runTest {
+        val authStore = FakeLocalAuthStore(
+            cookies = mapOf(StreamingProviderName.NETEASE to "MUSIC_U=local-token")
+        )
+        val netease = FakeNeteaseHttpClient(
+            responses = mapOf(
+                "/api/playmode/intelligence/list" to JSONObject()
+                    .put(
+                        "data",
+                        JSONObject()
+                            .put(
+                                "list",
+                                JSONArray()
+                                    .put(JSONObject().put("songInfoDTO", neteaseSong(22L, "Heartbeat 22")))
+                                    .put(JSONObject().put("songInfoDTO", neteaseSong(33L, "Heartbeat 33")))
+                            )
+                    )
+            )
+        )
+        val client = LocalNeteaseStreamingClient(authStore, netease)
+
+        val first = client.heartbeatRecommendedTracks(seedTrackId = "11", playlistId = "11", count = 2)
+        val second = client.heartbeatRecommendedTracks(seedTrackId = "11", playlistId = "11", count = 2)
+
+        assertEquals(listOf("Heartbeat 22", "Heartbeat 33"), first.map { it.title })
+        assertEquals(listOf("Heartbeat 33", "Heartbeat 22"), second.map { it.title })
+        assertEquals(2, netease.paths.count { it == "/api/playmode/intelligence/list" })
     }
 
     @Test

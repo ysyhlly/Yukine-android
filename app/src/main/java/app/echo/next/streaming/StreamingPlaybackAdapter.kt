@@ -126,6 +126,7 @@ object StreamingPlaybackAdapter {
             .replace("_", "")
         return when (normalized) {
             "netease", "neteasecloud", "neteasemusic", "163", "163music" -> StreamingProviderName.NETEASE
+            "lx", "lxmusic", "luoxue", "luoxuemusic", "luoxuesource", "luoxuemusicsource" -> StreamingProviderName.LUOXUE
             else -> StreamingProviderName.entries.firstOrNull {
                 it.wireName.replace("_", "") == normalized
             }

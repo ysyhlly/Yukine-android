@@ -19,4 +19,12 @@ class StreamingPlaybackAdapterTest {
         assertEquals(StreamingProviderName.NETEASE, StreamingPlaybackAdapter.providerName(placeholder.dataPath))
         assertEquals("123456", StreamingPlaybackAdapter.providerTrackId(placeholder.dataPath))
     }
+
+    @Test
+    fun luoxueDataPathAliasesResolveToLuoxueProvider() {
+        assertEquals(StreamingProviderName.LUOXUE, StreamingPlaybackAdapter.providerName("streaming:lx:abc"))
+        assertEquals(StreamingProviderName.LUOXUE, StreamingPlaybackAdapter.providerName("streaming:lx_music:abc"))
+        assertEquals(StreamingProviderName.LUOXUE, StreamingPlaybackAdapter.providerName("streaming:luoxue:abc"))
+        assertEquals("abc", StreamingPlaybackAdapter.providerTrackId("streaming:lx:abc"))
+    }
 }

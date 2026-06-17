@@ -54,6 +54,7 @@ object LocalStreamingLoginEndpoints {
             )
             StreamingProviderName.MOCK,
             StreamingProviderName.M3U8,
+            StreamingProviderName.LUOXUE,
             StreamingProviderName.PLUGIN -> null
         }
     }

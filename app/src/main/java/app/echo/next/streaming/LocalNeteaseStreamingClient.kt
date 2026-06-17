@@ -8,6 +8,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.atomic.AtomicInteger
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -111,6 +112,9 @@ class LocalNeteaseStreamingClient(
     private val authStore: StreamingLocalAuthStore?,
     private val httpClient: NeteaseHttpClient = DefaultNeteaseHttpClient()
 ) {
+    private val heartbeatSeedSequence = AtomicInteger(0)
+    private val heartbeatResultSequence = AtomicInteger(0)
+
     fun canHandle(provider: StreamingProviderName): Boolean {
         return supportsProvider(provider) && authStore?.connected(provider) == true
     }
@@ -276,13 +280,13 @@ class LocalNeteaseStreamingClient(
                 }
             }
         }
-        return accumulated.ifEmpty { similarTracks(seedId, targetCount) }
+        return variedHeartbeatResultOrder(accumulated.ifEmpty { similarTracks(seedId, targetCount) })
     }
 
     fun heartbeatRecommendedTracks(count: Int = 30): List<StreamingTrack> {
         val cookie = requireCookie()
         val liked = userLikedTracks()
-        val seed = liked.firstOrNull { it.providerTrackId.isNotBlank() }
+        val seed = variedLikedSeed(liked.filter { it.providerTrackId.isNotBlank() })
             ?: throw StreamingGatewayException(
                 "网易云「我喜欢的音乐」为空，无法生成心动推荐。",
                 code = StreamingErrorCode.SOURCE_UNAVAILABLE
@@ -326,7 +330,7 @@ class LocalNeteaseStreamingClient(
             if (addedThisRound == 0) break
         }
         if (accumulated.isEmpty()) {
-            return listOf(seed)
+            return variedHeartbeatResultOrder(listOf(seed))
         }
         if (accumulated.size < targetCount) {
             val fallback = runCatching { similarTracks(seedId, targetCount) }.getOrDefault(emptyList())
@@ -340,7 +344,31 @@ class LocalNeteaseStreamingClient(
                 }
             }
         }
-        return if (accumulated.any { it.providerTrackId == seedId }) accumulated else listOf(seed) + accumulated
+        val result = if (accumulated.any { it.providerTrackId == seedId }) {
+            accumulated
+        } else {
+            listOf(seed) + accumulated
+        }
+        return variedHeartbeatResultOrder(result)
+    }
+
+    private fun variedLikedSeed(tracks: List<StreamingTrack>): StreamingTrack? {
+        if (tracks.isEmpty()) {
+            return null
+        }
+        val offset = Math.floorMod(heartbeatSeedSequence.getAndIncrement(), tracks.size)
+        return tracks[offset]
+    }
+
+    private fun variedHeartbeatResultOrder(tracks: List<StreamingTrack>): List<StreamingTrack> {
+        if (tracks.size <= 1) {
+            return tracks
+        }
+        val offset = Math.floorMod(heartbeatResultSequence.getAndIncrement(), tracks.size)
+        if (offset == 0) {
+            return tracks
+        }
+        return tracks.drop(offset) + tracks.take(offset)
     }
 
     private fun preferredHeartbeatPlaylistId(playlists: List<StreamingPlaylist>, userId: String): String? {

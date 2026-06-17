@@ -79,4 +79,5 @@ class EchoNavHostState(
     var networkMenuActions by mutableStateOf(networkMenuActions)
     var streamingSearchLabels by mutableStateOf(streamingSearchLabels)
     var streamingSearchActions by mutableStateOf(streamingSearchActions)
+    var openNowPlayingImmersive by mutableStateOf(false)
 }

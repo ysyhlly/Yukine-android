@@ -11,11 +11,26 @@ enum class StreamingProviderName(val wireName: String) {
     SPOTIFY("spotify"),
     TIDAL("tidal"),
     M3U8("m3u8"),
+    LUOXUE("luoxue"),
     PLUGIN("plugin");
 
     companion object {
         fun fromWireName(value: String): StreamingProviderName? {
-            return entries.firstOrNull { it.wireName == value.trim().lowercase() }
+            val normalized = value.trim()
+                .lowercase()
+                .replace("-", "")
+                .replace("_", "")
+                .replace(" ", "")
+            return when (normalized) {
+                "lx", "lxmusic", "luoxuemusic", "luoxuemusicsource", "洛雪", "洛雪音乐", "洛雪音源" -> LUOXUE
+                "qq", "qqmusic", "tx", "tencent", "tencentmusic" -> QQ_MUSIC
+                "kg", "kugou" -> KUGOU
+                "kw", "kuwo" -> LUOXUE
+                "wy", "netease", "neteasecloud", "neteasemusic", "163", "163music" -> NETEASE
+                else -> entries.firstOrNull {
+                    it.wireName.replace("_", "") == normalized
+                }
+            }
         }
     }
 }
