@@ -4,7 +4,6 @@ import app.yukine.model.RemoteSource
 import app.yukine.model.Track
 import app.yukine.ui.NetworkSourceActions
 import app.yukine.ui.NetworkSourceLabels
-import app.yukine.ui.NetworkSourceUiState
 import app.yukine.ui.TrackListHeaderAction
 import java.util.ArrayList
 
@@ -17,7 +16,6 @@ internal class NetworkSourcesEventController(
     private val player: Player,
     private val labels: Labels,
     private val statusSink: StatusSink,
-    private val statePublisher: MainStatePublisher,
     private val renderer: Renderer
 ) : NetworkSourcesRenderController.Listener {
     interface LibrarySource {
@@ -85,10 +83,6 @@ internal class NetworkSourcesEventController(
 
     override fun confirmDeleteRemoteSource(source: RemoteSource) {
         deleteConfirmation.confirmDeleteRemoteSource(source)
-    }
-
-    override fun publishNetworkSources(title: String, rows: ArrayList<NetworkSourceUiState>) {
-        statePublisher.publishNetworkSources(title, rows)
     }
 
     override fun publishNetworkSourcesChrome(

@@ -328,7 +328,7 @@ private fun MiniLyricsStrip(state: NowBarState) {
                 clipboard.setText(AnnotatedString(activeLine))
                 Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
             }
-            .semantics { contentDescription = state.lyricsTitle.ifBlank { "Lyrics" } },
+            .semantics { contentDescription = state.lyricsTitle.ifBlank { "歌词" } },
         shape = EchoShapes.small,
         color = p.accentSoft.copy(alpha = 0.32f)
     ) {

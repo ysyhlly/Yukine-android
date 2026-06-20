@@ -23,8 +23,6 @@ internal class LibraryGroupsRenderController(
 
         fun confirmDeleteGroup(title: String, tracks: List<Track>)
 
-        fun publishLibraryGroups(title: String, rows: ArrayList<LibraryGroupUiState>)
-
         fun publishLibraryGroupsChrome(
             actions: List<LibraryGroupActions>,
             emptyText: String,

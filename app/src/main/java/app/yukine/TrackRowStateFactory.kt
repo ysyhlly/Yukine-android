@@ -12,7 +12,8 @@ internal object TrackRowStateFactory {
         currentTrack: Track?,
         favoriteIds: Set<Long>,
         detail: String,
-        showPlaylistAction: Boolean
+        showPlaylistAction: Boolean,
+        key: String = track.id.toString()
     ): TrackRowUiState = TrackRowUiState(
         track.id,
         track.title,
@@ -22,7 +23,8 @@ internal object TrackRowStateFactory {
         track.albumArtUri,
         isCurrent(track, currentTrack),
         favoriteIds.contains(track.id),
-        showPlaylistAction
+        showPlaylistAction,
+        key
     )
 
     @JvmStatic

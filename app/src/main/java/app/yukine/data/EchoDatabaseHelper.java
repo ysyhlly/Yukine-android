@@ -16,10 +16,11 @@ import app.yukine.model.Playlist;
 import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
 import app.yukine.model.TrackPlayRecord;
+import app.yukine.playback.AudioEffectSettings;
 
 public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME = "echo_next.db";
-    private static final int DATABASE_VERSION = 11;
+    private static final int DATABASE_VERSION = 13;
 
     private static final String TABLE_TRACKS = "tracks";
     private static final String TABLE_FAVORITES = "favorites";
@@ -46,6 +47,13 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     private static final String SETTING_SHUFFLE_ENABLED = "shuffle_enabled";
     private static final String SETTING_REPEAT_MODE = "repeat_mode";
     private static final String SETTING_PLAYBACK_RESUME_REQUESTED = "playback_resume_requested";
+    private static final String SETTING_AUDIO_EFFECTS = "audio_effects";
+    private static final String SETTING_ONBOARDING_COMPLETED = "onboarding_completed";
+    private static final String SETTING_STATUS_BAR_LYRICS = "status_bar_lyrics";
+    private static final String SETTING_FLOATING_LYRICS = "floating_lyrics";
+    private static final String SETTING_NOW_PLAYING_GESTURES = "now_playing_gestures";
+    private static final String SETTING_PLAYBACK_RESTORE_ENABLED = "playback_restore_enabled";
+    private static final String SETTING_REPLAY_GAIN_ENABLED = "replay_gain_enabled";
 
     public EchoDatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -65,6 +73,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         createPlaybackQueueTable(db);
         createStreamingTrackMatchTable(db);
         ensurePlaybackQueueColumns(db);
+        ensureTrackIndexes(db);
     }
 
     @Override
@@ -81,6 +90,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         createPlaybackQueueTable(db);
         createStreamingTrackMatchTable(db);
         ensurePlaybackQueueColumns(db);
+        ensureTrackIndexes(db);
     }
 
     private void createCoreTables(SQLiteDatabase db) {
@@ -99,6 +109,8 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                 + "sample_rate_hz INTEGER NOT NULL DEFAULT 0,"
                 + "bits_per_sample INTEGER NOT NULL DEFAULT 0,"
                 + "channel_count INTEGER NOT NULL DEFAULT 0,"
+                + "replay_gain_track_db REAL NOT NULL DEFAULT 0,"
+                + "replay_gain_album_db REAL NOT NULL DEFAULT 0,"
                 + "updated_at INTEGER NOT NULL"
                 + ")");
         db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_FAVORITES + " ("
@@ -126,6 +138,8 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         ensureColumn(db, TABLE_TRACKS, "sample_rate_hz", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(db, TABLE_TRACKS, "bits_per_sample", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(db, TABLE_TRACKS, "channel_count", "INTEGER NOT NULL DEFAULT 0");
+        ensureColumn(db, TABLE_TRACKS, "replay_gain_track_db", "REAL NOT NULL DEFAULT 0");
+        ensureColumn(db, TABLE_TRACKS, "replay_gain_album_db", "REAL NOT NULL DEFAULT 0");
         ensureColumn(db, TABLE_TRACKS, "updated_at", "INTEGER NOT NULL DEFAULT 0");
     }
 
@@ -249,6 +263,8 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                 + ",sample_rate_hz INTEGER NOT NULL DEFAULT 0"
                 + ",bits_per_sample INTEGER NOT NULL DEFAULT 0"
                 + ",channel_count INTEGER NOT NULL DEFAULT 0"
+                + ",replay_gain_track_db REAL NOT NULL DEFAULT 0"
+                + ",replay_gain_album_db REAL NOT NULL DEFAULT 0"
                 + ")");
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_playback_queue_track "
                 + "ON " + TABLE_PLAYBACK_QUEUE + " (track_id)");
@@ -283,6 +299,22 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         ensureColumn(db, TABLE_PLAYBACK_QUEUE, "sample_rate_hz", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(db, TABLE_PLAYBACK_QUEUE, "bits_per_sample", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(db, TABLE_PLAYBACK_QUEUE, "channel_count", "INTEGER NOT NULL DEFAULT 0");
+        ensureColumn(db, TABLE_PLAYBACK_QUEUE, "replay_gain_track_db", "REAL NOT NULL DEFAULT 0");
+        ensureColumn(db, TABLE_PLAYBACK_QUEUE, "replay_gain_album_db", "REAL NOT NULL DEFAULT 0");
+    }
+
+    /**
+     * 为 tracks 表的高频查询列建索引（幂等，CREATE INDEX IF NOT EXISTS）。
+     * data_path 用于精确匹配/前缀 LIKE 查询；artist/album 用于分组/排序。
+     * 在 onCreate 和 onUpgrade 中均调用，保证新装和升级用户都能获益。
+     */
+    private void ensureTrackIndexes(SQLiteDatabase db) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_tracks_data_path "
+                + "ON " + TABLE_TRACKS + " (data_path)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_tracks_artist "
+                + "ON " + TABLE_TRACKS + " (artist)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_tracks_album "
+                + "ON " + TABLE_TRACKS + " (album)");
     }
 
     public String loadThemeMode() {
@@ -401,6 +433,62 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         saveSetting(SETTING_PLAYBACK_RESUME_REQUESTED, requested ? "true" : "false");
     }
 
+    public AudioEffectSettings loadAudioEffectSettings() {
+        return AudioEffectSettings.decode(loadSetting(SETTING_AUDIO_EFFECTS, ""));
+    }
+
+    public void saveAudioEffectSettings(AudioEffectSettings settings) {
+        saveSetting(SETTING_AUDIO_EFFECTS, (settings == null ? AudioEffectSettings.DEFAULT : settings).encode());
+    }
+
+    public boolean loadStatusBarLyricsEnabled() {
+        return "true".equals(loadSetting(SETTING_STATUS_BAR_LYRICS, "true"));
+    }
+
+    public void saveStatusBarLyricsEnabled(boolean enabled) {
+        saveSetting(SETTING_STATUS_BAR_LYRICS, enabled ? "true" : "false");
+    }
+
+    public boolean loadFloatingLyricsEnabled() {
+        return "true".equals(loadSetting(SETTING_FLOATING_LYRICS, "false"));
+    }
+
+    public void saveFloatingLyricsEnabled(boolean enabled) {
+        saveSetting(SETTING_FLOATING_LYRICS, enabled ? "true" : "false");
+    }
+
+    public boolean loadNowPlayingGesturesEnabled() {
+        return "true".equals(loadSetting(SETTING_NOW_PLAYING_GESTURES, "true"));
+    }
+
+    public void saveNowPlayingGesturesEnabled(boolean enabled) {
+        saveSetting(SETTING_NOW_PLAYING_GESTURES, enabled ? "true" : "false");
+    }
+
+    public boolean loadPlaybackRestoreEnabled() {
+        return "true".equals(loadSetting(SETTING_PLAYBACK_RESTORE_ENABLED, "true"));
+    }
+
+    public void savePlaybackRestoreEnabled(boolean enabled) {
+        saveSetting(SETTING_PLAYBACK_RESTORE_ENABLED, enabled ? "true" : "false");
+    }
+
+    public boolean loadReplayGainEnabled() {
+        return "true".equals(loadSetting(SETTING_REPLAY_GAIN_ENABLED, "true"));
+    }
+
+    public void saveReplayGainEnabled(boolean enabled) {
+        saveSetting(SETTING_REPLAY_GAIN_ENABLED, enabled ? "true" : "false");
+    }
+
+    public boolean loadOnboardingCompleted() {
+        return "true".equals(loadSetting(SETTING_ONBOARDING_COMPLETED, "false"));
+    }
+
+    public void saveOnboardingCompleted(boolean completed) {
+        saveSetting(SETTING_ONBOARDING_COMPLETED, completed ? "true" : "false");
+    }
+
     private String loadSetting(String key, String fallback) {
         SQLiteDatabase db = getReadableDatabase();
         try (Cursor cursor = db.query(
@@ -505,7 +593,9 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
             long now = System.currentTimeMillis();
             int updated = 0;
             for (Track track : tracks) {
-                if (track == null || !track.hasAudioSpec()) {
+                if (track == null || (!track.hasAudioSpec()
+                        && Math.abs(track.replayGainTrackDb) <= 0.001f
+                        && Math.abs(track.replayGainAlbumDb) <= 0.001f)) {
                     continue;
                 }
                 ContentValues values = new ContentValues();
@@ -514,6 +604,8 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                 values.put("sample_rate_hz", track.sampleRateHz);
                 values.put("bits_per_sample", track.bitsPerSample);
                 values.put("channel_count", track.channelCount);
+                values.put("replay_gain_track_db", track.replayGainTrackDb);
+                values.put("replay_gain_album_db", track.replayGainAlbumDb);
                 values.put("updated_at", now);
                 updated += db.update(TABLE_TRACKS, values, "id = ?", new String[]{String.valueOf(track.id)});
                 ContentValues queueValues = new ContentValues(values);
@@ -586,6 +678,8 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         values.put("sample_rate_hz", track.sampleRateHz);
         values.put("bits_per_sample", track.bitsPerSample);
         values.put("channel_count", track.channelCount);
+        values.put("replay_gain_track_db", track.replayGainTrackDb);
+        values.put("replay_gain_album_db", track.replayGainAlbumDb);
         values.put("updated_at", updatedAt);
         return values;
     }
@@ -612,6 +706,8 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         values.put("sample_rate_hz", track.sampleRateHz);
         values.put("bits_per_sample", track.bitsPerSample);
         values.put("channel_count", track.channelCount);
+        values.put("replay_gain_track_db", track.replayGainTrackDb);
+        values.put("replay_gain_album_db", track.replayGainAlbumDb);
         return values;
     }
 
@@ -620,24 +716,26 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         String title = cursor.getString(1);
         String dataPath = cursor.getString(6);
         if (title == null || title.isEmpty() || dataPath == null || dataPath.isEmpty()) {
-            if (cursor.isNull(14)) {
+            if (cursor.isNull(16)) {
                 return null;
             }
             return new Track(
                     id,
-                    cursor.getString(14),
-                    cursor.getString(15),
                     cursor.getString(16),
-                    cursor.getLong(17),
-                    Uri.parse(cursor.getString(18)),
-                    cursor.getString(19),
-                    cursor.getLong(20),
-                    uriOrNull(cursor.getString(21)),
-                    cursor.getString(22),
-                    cursor.getInt(23),
-                    cursor.getInt(24),
+                    cursor.getString(17),
+                    cursor.getString(18),
+                    cursor.getLong(19),
+                    Uri.parse(cursor.getString(20)),
+                    cursor.getString(21),
+                    cursor.getLong(22),
+                    uriOrNull(cursor.getString(23)),
+                    cursor.getString(24),
                     cursor.getInt(25),
-                    cursor.getInt(26)
+                    cursor.getInt(26),
+                    cursor.getInt(27),
+                    cursor.getInt(28),
+                    cursor.getFloat(29),
+                    cursor.getFloat(30)
             );
         }
         return new Track(
@@ -654,7 +752,9 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                 cursor.getInt(10),
                 cursor.getInt(11),
                 cursor.getInt(12),
-                cursor.getInt(13)
+                cursor.getInt(13),
+                cursor.getFloat(14),
+                cursor.getFloat(15)
         );
     }
 
@@ -685,7 +785,9 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                         cursor.getInt(10),
                         cursor.getInt(11),
                         cursor.getInt(12),
-                        cursor.getInt(13)
+                        cursor.getInt(13),
+                        cursor.getFloat(14),
+                        cursor.getFloat(15)
                 ));
             }
         }
@@ -719,7 +821,9 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                         cursor.getInt(10),
                         cursor.getInt(11),
                         cursor.getInt(12),
-                        cursor.getInt(13)
+                        cursor.getInt(13),
+                        cursor.getFloat(14),
+                        cursor.getFloat(15)
                 ));
             }
         }
@@ -751,9 +855,10 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         ArrayList<Track> tracks = new ArrayList<>();
         String sql = "SELECT q.track_id, q.title, q.artist, q.album, q.duration_ms, q.content_uri, "
                 + "q.data_path, q.album_id, q.album_art_uri, q.codec, q.bitrate_kbps, q.sample_rate_hz, "
-                + "q.bits_per_sample, q.channel_count, "
+                + "q.bits_per_sample, q.channel_count, q.replay_gain_track_db, q.replay_gain_album_db, "
                 + "t.title, t.artist, t.album, t.duration_ms, t.content_uri, t.data_path, t.album_id, "
-                + "t.album_art_uri, t.codec, t.bitrate_kbps, t.sample_rate_hz, t.bits_per_sample, t.channel_count "
+                + "t.album_art_uri, t.codec, t.bitrate_kbps, t.sample_rate_hz, t.bits_per_sample, "
+                + "t.channel_count, t.replay_gain_track_db, t.replay_gain_album_db "
                 + "FROM " + TABLE_PLAYBACK_QUEUE + " q "
                 + "LEFT JOIN " + TABLE_TRACKS + " t ON t.id = q.track_id "
                 + "ORDER BY q.position ASC";
@@ -1225,7 +1330,9 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         values.put("name", source.name);
         values.put("base_url", source.baseUrl);
         values.put("username", source.username);
-        values.put("password", source.password);
+        // 写入前用 AES/GCM 加密密码；Keystore 不可用时 encryptOrPlain 退化为明文，保证数据不丢失。
+        String encryptedPassword = app.yukine.security.SecureSecretStore.INSTANCE.encryptOrPlain(source.password);
+        values.put("password", encryptedPassword != null ? encryptedPassword : "");
         values.put("root_path", source.rootPath);
         values.put("last_status", source.lastStatus);
         values.put("updated_at", updatedAt);
@@ -1237,13 +1344,16 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     }
 
     private RemoteSource readRemoteSource(Cursor cursor) {
+        // cursor(5) 是 password 列，可能是旧明文也可能是密文，decryptOrPlain 都能处理。
+        String rawPassword = cursor.getString(5);
+        String password = app.yukine.security.SecureSecretStore.INSTANCE.decryptOrPlain(rawPassword);
         return new RemoteSource(
                 cursor.getLong(0),
                 cursor.getString(1),
                 cursor.getString(2),
                 cursor.getString(3),
                 cursor.getString(4),
-                cursor.getString(5),
+                password != null ? password : "",
                 cursor.getString(6),
                 cursor.getString(7),
                 cursor.getLong(8)
@@ -1291,7 +1401,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                 + "LIMIT ?";
         try (Cursor cursor = db.rawQuery(sql, new String[]{String.valueOf(Math.max(limit, 1))})) {
             while (cursor.moveToNext()) {
-                records.add(new TrackPlayRecord(readTrack(cursor, 0), cursor.getLong(14), cursor.getInt(15)));
+                records.add(new TrackPlayRecord(readTrack(cursor, 0), cursor.getLong(16), cursor.getInt(17)));
             }
         }
         return records;
@@ -1308,7 +1418,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                 + "LIMIT ?";
         try (Cursor cursor = db.rawQuery(sql, new String[]{String.valueOf(Math.max(limit, 1))})) {
             while (cursor.moveToNext()) {
-                records.add(new TrackPlayRecord(readTrack(cursor, 0), cursor.getLong(14), cursor.getInt(15)));
+                records.add(new TrackPlayRecord(readTrack(cursor, 0), cursor.getLong(16), cursor.getInt(17)));
             }
         }
         return records;
@@ -1330,7 +1440,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                 String.valueOf(Math.max(limit, 1))
         })) {
             while (cursor.moveToNext()) {
-                records.add(new TrackPlayRecord(readTrack(cursor, 0), cursor.getLong(14), cursor.getInt(15)));
+                records.add(new TrackPlayRecord(readTrack(cursor, 0), cursor.getLong(16), cursor.getInt(17)));
             }
         }
         return records;
@@ -1676,7 +1786,9 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                 + alias + ".bitrate_kbps, "
                 + alias + ".sample_rate_hz, "
                 + alias + ".bits_per_sample, "
-                + alias + ".channel_count";
+                + alias + ".channel_count, "
+                + alias + ".replay_gain_track_db, "
+                + alias + ".replay_gain_album_db";
     }
 
     private String[] trackProjection() {
@@ -1694,8 +1806,27 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                 "bitrate_kbps",
                 "sample_rate_hz",
                 "bits_per_sample",
-                "channel_count"
+                "channel_count",
+                "replay_gain_track_db",
+                "replay_gain_album_db"
         };
+    }
+
+    /**
+     * 使用 SQL 层判断 data_path 是否存在，避免全表加载。
+     * 使用 try-with-resources 保证游标关闭。
+     */
+    public boolean trackExistsByDataPath(String dataPath) {
+        if (dataPath == null || dataPath.isEmpty()) {
+            return false;
+        }
+        SQLiteDatabase db = getReadableDatabase();
+        try (Cursor cursor = db.rawQuery(
+                "SELECT 1 FROM " + TABLE_TRACKS + " WHERE data_path = ? LIMIT 1",
+                new String[]{dataPath}
+        )) {
+            return cursor.moveToFirst();
+        }
     }
 
     private Track loadTrackById(SQLiteDatabase db, long trackId) {
@@ -1723,7 +1854,9 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                 cursor.getInt(offset + 10),
                 cursor.getInt(offset + 11),
                 cursor.getInt(offset + 12),
-                cursor.getInt(offset + 13)
+                cursor.getInt(offset + 13),
+                cursor.getFloat(offset + 14),
+                cursor.getFloat(offset + 15)
         );
     }
 }

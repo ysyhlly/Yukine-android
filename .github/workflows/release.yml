@@ -1,0 +1,47 @@
+name: Release Mapping Archive
+
+# 手动触发：release 构建需要签名密钥，不适合每次 push 自动跑。
+# 在 GitHub Actions 页面点击 "Run workflow" 即可触发。
+on:
+  workflow_dispatch:
+
+jobs:
+  release-mapping:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      # assembleRelease：未提供签名环境变量时会使用 debug 签名（AGP 默认行为），
+      # APK 本身未签名发布，但 R8 混淆和 mapping.txt 生成流程完全一致，足以归档。
+      # 若签名密钥已配置为 Repository Secrets，可在 env 块取消注释以启用正式签名。
+      - name: Assemble release APK (generate mapping.txt)
+        run: ./gradlew --no-daemon :app:assembleRelease --console=plain
+        # env:
+        #   ECHO_RELEASE_STORE_FILE:     ${{ secrets.ECHO_RELEASE_STORE_FILE }}
+        #   ECHO_RELEASE_STORE_PASSWORD: ${{ secrets.ECHO_RELEASE_STORE_PASSWORD }}
+        #   ECHO_RELEASE_KEY_ALIAS:      ${{ secrets.ECHO_RELEASE_KEY_ALIAS }}
+        #   ECHO_RELEASE_KEY_PASSWORD:   ${{ secrets.ECHO_RELEASE_KEY_PASSWORD }}
+
+      # 归档解混淆映射文件，用于还原线上崩溃栈。
+      # artifact 保留期默认 90 天（GitHub 默认），可按需调整 retention-days。
+      - name: Upload ProGuard mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-mapping
+          path: app/build/outputs/mapping/release/
+          if-no-files-found: error   # mapping 目录不存在时报错，避免静默空归档
+          retention-days: 90

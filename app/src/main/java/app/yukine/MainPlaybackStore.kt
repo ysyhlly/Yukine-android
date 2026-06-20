@@ -5,7 +5,7 @@ import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.PlaybackStateSnapshot
 
 internal class MainPlaybackStore(
-    private val viewModel: MainActivityViewModel
+    private val viewModel: PlaybackViewModel
 ) {
     fun snapshot(): PlaybackStateSnapshot {
         return viewModel.playback.value.snapshot

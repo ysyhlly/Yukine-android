@@ -14,20 +14,29 @@ import app.yukine.model.Track;
 
 final class AudioSpecParser {
     private final Context context;
+    private final ReplayGainParser replayGainParser;
 
     AudioSpecParser(Context context) {
         this.context = context.getApplicationContext();
+        this.replayGainParser = new ReplayGainParser(this.context);
     }
 
     Track enrich(Track track) {
-        if (track == null || !track.needsAudioSpecParsing()) {
+        if (track == null) {
             return track;
         }
-        Spec spec = read(track.contentUri);
-        if (!spec.hasValue()) {
-            spec = inferFromPath(track.dataPath);
+        Spec spec = track.needsAudioSpecParsing() ? read(track.contentUri) : Spec.fromTrack(track);
+        if (!spec.hasAudioSpec()) {
+            Spec inferred = inferFromPath(track.dataPath);
+            if (inferred.hasAudioSpec()) {
+                spec.codec = inferred.codec;
+            }
         }
-        if (!spec.hasValue()) {
+        ReplayGainParser.ReplayGain replayGain = ReplayGainParser.hasGain(track.replayGainTrackDb)
+                || ReplayGainParser.hasGain(track.replayGainAlbumDb)
+                ? new ReplayGainParser.ReplayGain(track.replayGainTrackDb, track.replayGainAlbumDb)
+                : replayGainParser.read(track.contentUri);
+        if (!spec.hasAudioSpec() && !replayGain.hasValue()) {
             return track;
         }
         return new Track(
@@ -44,7 +53,9 @@ final class AudioSpecParser {
                 spec.bitrateKbps,
                 spec.sampleRateHz,
                 spec.bitsPerSample,
-                spec.channelCount
+                spec.channelCount,
+                replayGain.trackDb,
+                replayGain.albumDb
         );
     }
 
@@ -207,7 +218,20 @@ final class AudioSpecParser {
         int bitsPerSample;
         int channelCount;
 
-        boolean hasValue() {
+        static Spec fromTrack(Track track) {
+            Spec spec = new Spec();
+            if (track == null) {
+                return spec;
+            }
+            spec.codec = track.codec;
+            spec.bitrateKbps = track.bitrateKbps;
+            spec.sampleRateHz = track.sampleRateHz;
+            spec.bitsPerSample = track.bitsPerSample;
+            spec.channelCount = track.channelCount;
+            return spec;
+        }
+
+        boolean hasAudioSpec() {
             return !codec.isEmpty() || bitrateKbps > 0 || sampleRateHz > 0 || bitsPerSample > 0 || channelCount > 0;
         }
     }

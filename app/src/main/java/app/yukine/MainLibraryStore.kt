@@ -11,6 +11,7 @@ internal class MainLibraryStore(
     private val searchUseCase: LibrarySearchUseCase,
     private val viewModel: MainActivityViewModel
 ) {
+    private val combinedSearchUseCase = LibraryCombinedSearchUseCase(searchUseCase)
     private var recommendationStreamTitle: String = ""
     private var recommendationStreamTracks = ArrayList<Track>()
 
@@ -72,7 +73,9 @@ internal class MainLibraryStore(
     }
 
     fun applySearch(query: String?) {
-        viewModel.updateVisibleTracks(searchUseCase.execute(allTracks(), query))
+        viewModel.updateVisibleTracks(
+            combinedSearchUseCase.execute(allTracks(), selectedPlaylistTracks(), query)
+        )
     }
 
     fun toggleFavorite(trackId: Long): Boolean {
@@ -136,6 +139,10 @@ internal class MainLibraryStore(
 
     fun filteredTracks(tracks: List<Track>, searchQuery: String?): ArrayList<Track> {
         return ArrayList(searchUseCase.execute(tracks, searchQuery))
+    }
+
+    fun filteredSelectedPlaylistTracks(searchQuery: String?): ArrayList<Track> {
+        return filteredTracks(selectedPlaylistTracks(), searchQuery)
     }
 
     fun streamTrackDetails(tracks: List<Track>): ArrayList<String> {

@@ -11,8 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 /**
  * Native Compose destination for the Home dashboard tab.
  *
- * Reads from a [StateFlow] of [MainActivityHomeDashboardUiState] (currently owned by
- * MainActivityViewModel) via [collectAsState] and renders the internal HomeDashboardScreen.
+ * Reads from a [StateFlow] of [MainActivityHomeDashboardUiState] owned by
+ * HomeDashboardViewModel via [collectAsState] and renders the internal HomeDashboardScreen.
  * Taking the StateFlow rather than the whole ViewModel keeps the destination decoupled and
  * independently testable; [actions] is injected by the host, mirroring CollectionsDestination.
  */

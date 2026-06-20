@@ -8,6 +8,8 @@ import app.yukine.navigation.EchoTabItem
 import app.yukine.navigation.TabRoute
 import app.yukine.queue.QueueViewModel
 import app.yukine.ui.EchoTheme
+import app.yukine.ui.OnboardingActions
+import app.yukine.ui.OnboardingScreen
 
 /**
  * Java-implementable wiring for the single-Activity Compose shell.
@@ -19,6 +21,13 @@ interface EchoNavHostMount {
     fun tabs(): List<EchoTabItem>
     fun queueViewModel(): QueueViewModel
     fun hostState(): EchoNavHostState
+    fun showOnboarding(): Boolean = false
+    fun audioPermissionGranted(): Boolean = true
+    fun notificationPermissionGranted(): Boolean = true
+    fun libraryScanCompleted(): Boolean = true
+    fun libraryScanInProgress(): Boolean = false
+    fun onboardingActions(): OnboardingActions =
+        OnboardingActions(Runnable {}, Runnable {}, Runnable {}, Runnable {}, Runnable {})
     fun onTabChanged(tab: TabRoute) {}
 }
 
@@ -26,14 +35,27 @@ object EchoAppHost {
     /** Mounts the single-Activity Compose NavHost shell. */
     @JvmStatic
     fun installNavHost(activity: ComponentActivity, mount: EchoNavHostMount) {
+        val tabs = mount.tabs()
+        val queueViewModel = mount.queueViewModel()
+        val hostState = mount.hostState()
         activity.setContent {
             EchoTheme.EchoTheme {
-                EchoNavHostBridge(
-                    tabs = mount.tabs(),
-                    queueViewModel = mount.queueViewModel(),
-                    hostState = mount.hostState(),
-                    onTabChanged = { tab -> mount.onTabChanged(tab) }
-                )
+                if (mount.showOnboarding()) {
+                    OnboardingScreen(
+                        audioPermissionGranted = mount.audioPermissionGranted(),
+                        notificationPermissionGranted = mount.notificationPermissionGranted(),
+                        libraryScanCompleted = mount.libraryScanCompleted(),
+                        libraryScanInProgress = mount.libraryScanInProgress(),
+                        actions = mount.onboardingActions()
+                    )
+                } else {
+                    EchoNavHostBridge(
+                        tabs = tabs,
+                        queueViewModel = queueViewModel,
+                        hostState = hostState,
+                        onTabChanged = { tab -> mount.onTabChanged(tab) }
+                    )
+                }
             }
         }
     }

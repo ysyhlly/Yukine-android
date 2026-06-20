@@ -46,7 +46,8 @@ data class TrackRowUiState(
     val albumArtUri: Uri?,
     val current: Boolean,
     val favorite: Boolean,
-    val showPlaylistAction: Boolean
+    val showPlaylistAction: Boolean,
+    val key: String = id.toString()
 )
 
 data class TrackRowActions(
@@ -128,7 +129,7 @@ internal fun TrackListScreen(
         }
         itemsIndexed(
             items = tracks,
-            key = { _, track -> track.id }
+            key = { index, track -> track.key.ifBlank { "${track.id}:$index" } }
         ) { i, track ->
             actions.getOrNull(i)?.let { action ->
                 TrackRow(track, action, labels, Modifier.echoEnter(i.coerceAtMost(8)))

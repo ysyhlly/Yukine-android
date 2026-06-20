@@ -258,9 +258,68 @@ class RemoteStreamingGatewayTest {
         }
     }
 
+    @Test
+    fun completeAuthKeepsLocalCookieLoginWhenGatewayReturnsDisconnectedState() = runTest {
+        val server = GatewayTestServer(
+            responseOverrides = mapOf(
+                "/auth/complete" to JSONObject()
+                    .put("provider", "netease")
+                    .put(
+                        "state",
+                        JSONObject()
+                            .put("kind", "isolated_web_view_cookie")
+                            .put("connected", false)
+                    )
+                    .toString()
+            )
+        )
+        server.start()
+        try {
+            val gateway = RemoteStreamingGateway(
+                endpointBaseUrl = server.baseUrl,
+                localAuthStore = FakeLocalAuthStore()
+            )
+
+            val result = gateway.completeAuth(
+                StreamingProviderName.NETEASE,
+                "echo-next://streaming-auth?provider=netease",
+                "MUSIC_U=local-token"
+            )
+
+            assertTrue(result.state.connected)
+            assertEquals(StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE, result.state.kind)
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun providersIncludeCatalogEntriesWhenGatewayReturnsPartialProviderList() = runTest {
+        val server = GatewayTestServer()
+        server.start()
+        try {
+            val gateway = RemoteStreamingGateway(
+                endpointBaseUrl = server.baseUrl,
+                localAuthStore = FakeLocalAuthStore(
+                    cookies = mapOf(StreamingProviderName.NETEASE to "MUSIC_U=local-token")
+                )
+            )
+
+            val providers = gateway.providers()
+            val netease = providers.first { it.name == StreamingProviderName.NETEASE }
+
+            assertTrue(netease.auth.connected)
+            assertTrue(providers.any { it.name == StreamingProviderName.SPOTIFY })
+        } finally {
+            server.stop()
+        }
+    }
+
     private class FakeLocalAuthStore(
-        private val cookies: Map<StreamingProviderName, String> = emptyMap()
+        cookies: Map<StreamingProviderName, String> = emptyMap()
     ) : StreamingLocalAuthStore {
+        private val cookies = cookies.toMutableMap()
+
         override fun authState(provider: StreamingProviderName): StreamingAuthState {
             return StreamingAuthState(
                 kind = LocalStreamingAuthStore.providerAuthKind(provider),
@@ -273,6 +332,11 @@ class RemoteStreamingGatewayTest {
             cookieHeader: String?,
             displayName: String?
         ): StreamingAuthState {
+            if (cookieHeader.isNullOrBlank()) {
+                cookies.remove(provider)
+            } else {
+                cookies[provider] = cookieHeader
+            }
             return authState(provider)
         }
 
@@ -1270,7 +1334,8 @@ class RemoteStreamingGatewayTest {
     private class GatewayTestServer(
         private val statusOverrides: Map<String, Int> = emptyMap(),
         private val statusSequences: Map<String, ArrayDeque<Int>> = emptyMap(),
-        private val retryAfterSeconds: Map<String, Long> = emptyMap()
+        private val retryAfterSeconds: Map<String, Long> = emptyMap(),
+        private val responseOverrides: Map<String, String> = emptyMap()
     ) {
         private val server = ServerSocket(0)
         private val ready = CountDownLatch(1)
@@ -1326,6 +1391,7 @@ class RemoteStreamingGatewayTest {
                     )
                     .toString()
             }
+            responseOverrides[request.path]?.let { return it }
             return when (request.path) {
                 "/providers" -> JSONObject()
                     .put(

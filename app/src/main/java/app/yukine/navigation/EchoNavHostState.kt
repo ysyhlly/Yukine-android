@@ -5,10 +5,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import app.yukine.CollectionsViewModel
 import app.yukine.LibraryViewModel
+import app.yukine.HomeDashboardViewModel
 import app.yukine.MainActivityViewModel
+import app.yukine.NavigationViewModel
 import app.yukine.NetworkSourcesViewModel
 import app.yukine.NowPlayingViewModel
 import app.yukine.SettingsViewModel
+import app.yukine.StreamingViewModel
 import app.yukine.ui.CollectionsActions
 import app.yukine.ui.HomeDashboardActions
 import app.yukine.ui.LibraryGroupActions
@@ -27,11 +30,14 @@ import app.yukine.ui.TrackRowActions
 
 class EchoNavHostState(
     val mainViewModel: MainActivityViewModel,
+    val navigationViewModel: NavigationViewModel,
+    val homeDashboardViewModel: HomeDashboardViewModel,
     val nowPlayingViewModel: NowPlayingViewModel,
     val libraryViewModel: LibraryViewModel,
     val collectionsViewModel: CollectionsViewModel,
     val settingsViewModel: SettingsViewModel,
     val networkSourcesViewModel: NetworkSourcesViewModel,
+    val streamingViewModel: StreamingViewModel,
     homeActions: HomeDashboardActions,
     trackListActions: List<TrackRowActions> = emptyList(),
     trackListHeaderMetrics: List<TrackListHeaderMetric> = emptyList(),
@@ -54,6 +60,7 @@ class EchoNavHostState(
     networkMenuActions: List<SettingsAction> = emptyList(),
     streamingSearchLabels: StreamingSearchLabels = StreamingSearchLabels.empty(),
     streamingSearchActions: StreamingSearchActions = StreamingSearchActions.empty(),
+    nowPlayingGesturesEnabled: Boolean = true,
     selectedTabRoute: String = HomeTab.route
 ) {
     var selectedTabRoute by mutableStateOf(selectedTabRoute)
@@ -79,5 +86,6 @@ class EchoNavHostState(
     var networkMenuActions by mutableStateOf(networkMenuActions)
     var streamingSearchLabels by mutableStateOf(streamingSearchLabels)
     var streamingSearchActions by mutableStateOf(streamingSearchActions)
+    var nowPlayingGesturesEnabled by mutableStateOf(nowPlayingGesturesEnabled)
     var openNowPlayingImmersive by mutableStateOf(false)
 }

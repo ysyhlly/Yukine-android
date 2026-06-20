@@ -12,6 +12,12 @@ internal class PlaybackServiceHostController(
 
         fun concurrentPlaybackEnabled(): Boolean
 
+        fun statusBarLyricsEnabled(): Boolean
+
+        fun playbackRestoreEnabled(): Boolean
+
+        fun replayGainEnabled(): Boolean
+
         fun attachPlaybackService(service: EchoPlaybackService)
 
         fun clearPlaybackService()
@@ -30,6 +36,9 @@ internal class PlaybackServiceHostController(
         service.setPlaybackSpeed(host.playbackSpeed())
         service.setAppVolume(host.appVolume())
         service.setConcurrentPlaybackEnabled(host.concurrentPlaybackEnabled())
+        service.setStatusBarLyricsEnabled(host.statusBarLyricsEnabled())
+        service.setPlaybackRestoreEnabled(host.playbackRestoreEnabled())
+        service.setReplayGainEnabled(host.replayGainEnabled())
         host.playPendingTracksIfNeeded()
         renderPlaybackChrome()
     }

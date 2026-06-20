@@ -1,7 +1,9 @@
 package app.yukine.library
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import app.yukine.MainActivityTrackListUiState
 import app.yukine.ui.EchoTheme
@@ -25,7 +27,7 @@ class LibraryTrackListDestinationTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    private fun row(id: Long, title: String) = TrackRowUiState(
+    private fun row(id: Long, title: String, key: String = id.toString()) = TrackRowUiState(
         id = id,
         title = title,
         subtitle = "Artist",
@@ -34,7 +36,8 @@ class LibraryTrackListDestinationTest {
         albumArtUri = null,
         current = false,
         favorite = false,
-        showPlaylistAction = false
+        showPlaylistAction = false,
+        key = key
     )
 
     @Test
@@ -54,5 +57,23 @@ class LibraryTrackListDestinationTest {
         composeRule.onNodeWithText("歌曲").assertIsDisplayed()
         composeRule.onNodeWithText("第一首").assertIsDisplayed()
         composeRule.onNodeWithText("第二首").assertIsDisplayed()
+    }
+
+    @Test
+    fun rendersRowsWithDuplicateTrackIds() {
+        val state = MutableStateFlow(
+            MainActivityTrackListUiState(
+                title = "Songs",
+                rows = listOf(row(7L, "Echo", "7:1"), row(7L, "Echo", "7:2"))
+            )
+        )
+        val actions = state.value.rows.map { TrackRowActions(Runnable {}, Runnable {}, Runnable {}, null, null) }
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme { LibraryTrackListDestination(state, actions) }
+        }
+
+        composeRule.onNodeWithText("Songs").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Echo").assertCountEquals(2)
     }
 }

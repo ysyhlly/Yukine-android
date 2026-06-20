@@ -68,7 +68,7 @@ internal fun LibraryGroupsScreen(
         }
         itemsIndexed(
             items = groups,
-            key = { _, group -> group.id }
+            key = { index, group -> "group:${group.id}:$index" }
         ) { i, group ->
             actions.getOrNull(i)?.let { action ->
                 LibraryGroupRow(group, action)
@@ -184,7 +184,7 @@ private fun LibraryGroupRow(group: LibraryGroupUiState, actions: LibraryGroupAct
                     modifier = Modifier
                         .size(40.dp)
                         .echoGlassLayer(p, EchoShapes.small)
-                        .semantics { contentDescription = "Play" },
+                        .semantics { contentDescription = "播放" },
                     shape = EchoShapes.small,
                     color = Color.Transparent
                 ) {

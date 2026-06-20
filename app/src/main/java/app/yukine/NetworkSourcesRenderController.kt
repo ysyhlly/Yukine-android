@@ -27,8 +27,6 @@ internal class NetworkSourcesRenderController(
 
         fun confirmDeleteRemoteSource(source: RemoteSource)
 
-        fun publishNetworkSources(title: String, rows: ArrayList<NetworkSourceUiState>)
-
         fun publishNetworkSourcesChrome(
             actions: List<NetworkSourceActions>,
             headerActions: List<TrackListHeaderAction>,

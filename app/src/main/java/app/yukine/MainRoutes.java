@@ -31,6 +31,12 @@ public final class MainRoutes {
     public static final String SETTINGS_LANGUAGE = "settings_language";
     public static final String SETTINGS_PLAYBACK_SPEED = "settings_playback_speed";
     public static final String SETTINGS_APP_VOLUME = "settings_app_volume";
+    public static final String SETTINGS_AUDIO_EFFECTS = "settings_audio_effects";
+    public static final String SETTINGS_STATUS_BAR_LYRICS = "settings_status_bar_lyrics";
+    public static final String SETTINGS_FLOATING_LYRICS = "settings_floating_lyrics";
+    public static final String SETTINGS_NOW_PLAYING_GESTURES = "settings_now_playing_gestures";
+    public static final String SETTINGS_PLAYBACK_RESTORE = "settings_playback_restore";
+    public static final String SETTINGS_REPLAY_GAIN = "settings_replay_gain";
     public static final String SETTINGS_STREAMING_AUDIO_QUALITY = "settings_streaming_audio_quality";
     public static final String SETTINGS_CONCURRENT_PLAYBACK = "settings_concurrent_playback";
     public static final String SETTINGS_SLEEP_TIMER = "settings_sleep_timer";

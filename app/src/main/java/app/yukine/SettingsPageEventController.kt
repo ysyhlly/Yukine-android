@@ -1,5 +1,6 @@
 package app.yukine
 
+import app.yukine.playback.AudioEffectSettings
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.SettingsListScrollState
 
@@ -68,6 +69,34 @@ internal class SettingsPageEventController(
 
     override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
         viewModel.onEvent(SettingsEvent.SetConcurrentPlaybackEnabled(enabled))
+    }
+
+    override fun applyAudioEffectSettings(settings: AudioEffectSettings) {
+        viewModel.onEvent(SettingsEvent.ApplyAudioEffectSettings(settings))
+    }
+
+    override fun setStatusBarLyricsEnabled(enabled: Boolean) {
+        viewModel.onEvent(SettingsEvent.SetStatusBarLyricsEnabled(enabled))
+    }
+
+    override fun setFloatingLyricsEnabled(enabled: Boolean) {
+        viewModel.onEvent(SettingsEvent.SetFloatingLyricsEnabled(enabled))
+    }
+
+    override fun openFloatingLyricsPermission() {
+        viewModel.onEvent(SettingsEvent.OpenFloatingLyricsPermission)
+    }
+
+    override fun setNowPlayingGesturesEnabled(enabled: Boolean) {
+        viewModel.onEvent(SettingsEvent.SetNowPlayingGesturesEnabled(enabled))
+    }
+
+    override fun setPlaybackRestoreEnabled(enabled: Boolean) {
+        viewModel.onEvent(SettingsEvent.SetPlaybackRestoreEnabled(enabled))
+    }
+
+    override fun setReplayGainEnabled(enabled: Boolean) {
+        viewModel.onEvent(SettingsEvent.SetReplayGainEnabled(enabled))
     }
 
     override fun applyThemeMode(mode: String) {

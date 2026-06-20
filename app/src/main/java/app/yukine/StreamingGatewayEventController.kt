@@ -1,7 +1,7 @@
 package app.yukine
 
 internal class StreamingGatewayEventController(
-    private val viewModel: MainActivityViewModel,
+    private val streamingViewModel: StreamingViewModel,
     private val host: Host
 ) : StreamingGatewayController.ViewModelBridge, StreamingGatewayController.Listener {
     interface Host {
@@ -13,11 +13,13 @@ internal class StreamingGatewayEventController(
     }
 
     override fun configureStreamingRepository() {
-        viewModel.configureStreamingRepository()
+        streamingViewModel.configureStreamingRepository()
     }
 
     override fun refreshStreamingProviders() {
-        viewModel.refreshStreamingProviders()
+        streamingViewModel.refreshStreamingProviders().invokeOnCompletion {
+            host.renderSelectedTab()
+        }
     }
 
     override fun onStreamingGatewayApplied(endpoint: String) {

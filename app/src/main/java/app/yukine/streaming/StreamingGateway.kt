@@ -202,7 +202,13 @@ class RemoteStreamingGateway(
         }
         return try {
             val remoteProviders = StreamingGatewayJson.providerDescriptors(get("providers"))
-            val baseList = remoteProviders.ifEmpty { StreamingProviderCatalog.gatewayBackedDescriptors() }
+            val catalogProviders = StreamingProviderCatalog.gatewayBackedDescriptors()
+            val baseList = if (remoteProviders.isEmpty()) {
+                catalogProviders
+            } else {
+                (remoteProviders + catalogProviders)
+                    .distinctBy { it.name }
+            }
             baseList.map(::applyLocalAuth)
         } catch (_: StreamingGatewayException) {
             localProviderDescriptors()
@@ -526,9 +532,14 @@ class RemoteStreamingGateway(
             )
         }
         return try {
-            StreamingGatewayJson.authResult(
+            val remote = StreamingGatewayJson.authResult(
                 post("auth/complete", StreamingGatewayJson.completeAuthRequest(provider, callbackUri, cookieHeader).toString()),
                 provider
+            )
+            val state = mergeLocalAuthState(localState, remote.state)
+            remote.copy(
+                state = state,
+                statusMessage = remote.statusMessage ?: state.statusMessage
             )
         } catch (_: StreamingGatewayException) {
             val fallback = localState ?: StreamingAuthState(
@@ -542,6 +553,23 @@ class RemoteStreamingGateway(
                 statusMessage = fallback.statusMessage
             )
         }
+    }
+
+    private fun mergeLocalAuthState(
+        localState: StreamingAuthState?,
+        remoteState: StreamingAuthState
+    ): StreamingAuthState {
+        if (localState?.connected != true || remoteState.connected) {
+            return remoteState
+        }
+        return remoteState.copy(
+            kind = if (remoteState.kind == StreamingAuthKind.NONE) localState.kind else remoteState.kind,
+            connected = true,
+            accountDisplayName = remoteState.accountDisplayName ?: localState.accountDisplayName,
+            accountUsername = remoteState.accountUsername ?: localState.accountUsername,
+            accountAvatarUrl = remoteState.accountAvatarUrl ?: localState.accountAvatarUrl,
+            statusMessage = remoteState.statusMessage ?: localState.statusMessage
+        )
     }
 
     override suspend fun signOut(provider: StreamingProviderName): StreamingAuthState {

@@ -66,7 +66,8 @@ data class NowPlayingUiState @JvmOverloads constructor(
     val errorMessage: String? = null,
     val trackId: Long = -1L,
     val currentTrack: Track? = null,
-    val overlayState: NowBarState = nowBarEmptyState()
+    val overlayState: NowBarState = nowBarEmptyState(),
+    val appVolume: Float = 1.0f
 )
 
 interface NowPlayingGateway {
@@ -171,7 +172,8 @@ class NowPlayingViewModel : ViewModel() {
             errorMessage = overlay.playbackErrorMessage.takeIf { it.isNotBlank() },
             trackId = overlay.trackId,
             currentTrack = track,
-            overlayState = overlay
+            overlayState = overlay,
+            appVolume = snapshot.appVolume
         )
     }
 

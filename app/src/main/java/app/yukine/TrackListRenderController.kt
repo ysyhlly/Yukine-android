@@ -25,8 +25,6 @@ internal class TrackListRenderController(
 
         fun confirmDeleteTrack(track: Track)
 
-        fun publishTrackList(title: String, rows: ArrayList<TrackRowUiState>)
-
         fun publishTrackListChrome(
             actions: List<TrackRowActions>,
             headerMetrics: List<TrackListHeaderMetric>,
@@ -62,7 +60,8 @@ internal class TrackListRenderController(
                     currentTrack,
                     favoriteIds,
                     if (index < details.size) details[index] else "",
-                    showPlaylistAction
+                    showPlaylistAction,
+                    TrackRowKeyPolicy.occurrenceKey(tracks, index)
                 )
             )
             actions.add(
@@ -87,7 +86,14 @@ internal class TrackListRenderController(
         for (index in tracks.indices) {
             val track = tracks[index]
             rows.add(
-                TrackRowStateFactory.trackRow(track, null, emptySet(), "", true)
+                TrackRowStateFactory.trackRow(
+                    track,
+                    null,
+                    emptySet(),
+                    "",
+                    true,
+                    TrackRowKeyPolicy.occurrenceKey(tracks, index)
+                )
             )
             actions.add(
                 TrackRowActions(

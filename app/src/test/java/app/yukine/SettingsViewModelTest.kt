@@ -56,6 +56,11 @@ class SettingsViewModelTest {
         viewModel.onEvent(SettingsEvent.ApplyAppVolume(0.85f))
         viewModel.onEvent(SettingsEvent.ApplyStreamingAudioQuality("lossless"))
         viewModel.onEvent(SettingsEvent.SetConcurrentPlaybackEnabled(false))
+        viewModel.onEvent(SettingsEvent.SetStatusBarLyricsEnabled(false))
+        viewModel.onEvent(SettingsEvent.SetFloatingLyricsEnabled(true))
+        viewModel.onEvent(SettingsEvent.OpenFloatingLyricsPermission)
+        viewModel.onEvent(SettingsEvent.SetNowPlayingGesturesEnabled(false))
+        viewModel.onEvent(SettingsEvent.SetPlaybackRestoreEnabled(true))
         viewModel.onEvent(SettingsEvent.ApplyThemeMode("dark"))
         viewModel.onEvent(SettingsEvent.ApplyAccentMode("blue"))
         viewModel.onEvent(SettingsEvent.ApplyLanguageMode("zh"))
@@ -77,6 +82,11 @@ class SettingsViewModelTest {
                 "volume:0.85",
                 "quality:lossless",
                 "concurrent:false",
+                "statusLyrics:false",
+                "floatingLyrics:true",
+                "floatingPermission",
+                "gestures:false",
+                "restore:true",
                 "theme:dark",
                 "accent:blue",
                 "language:zh",
@@ -112,6 +122,10 @@ class SettingsViewModelTest {
         viewModel.applyStreamingAudioQuality("lossless")
         viewModel.setOnlineLyricsEnabled(true)
         viewModel.setConcurrentPlaybackEnabled(false)
+        viewModel.setStatusBarLyricsEnabled(false)
+        viewModel.setFloatingLyricsEnabled(true)
+        viewModel.setNowPlayingGesturesEnabled(false)
+        viewModel.setPlaybackRestoreEnabled(true)
         viewModel.applyLyricsOffset(5555L)
         advanceUntilIdle()
 
@@ -125,6 +139,10 @@ class SettingsViewModelTest {
                 "quality:lossless",
                 "onlineLyrics:true",
                 "concurrent:false",
+                "statusLyrics:false",
+                "floatingLyrics:true",
+                "gestures:false",
+                "restore:true",
                 "lyricsOffset:5000"
             ),
             listener.events
@@ -191,6 +209,42 @@ class SettingsViewModelTest {
                     SettingsPageRenderController.lyricsOffsetLabel(-300L),
             status.lyricsOffsetApplied
         )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "status.bar.lyrics.enabled"),
+            status.statusBarLyricsEnabled
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "status.bar.lyrics.disabled"),
+            status.statusBarLyricsDisabled
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "floating.lyrics.enabled"),
+            status.floatingLyricsEnabled
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "floating.lyrics.disabled"),
+            status.floatingLyricsDisabled
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "floating.lyrics.permission.required"),
+            status.floatingLyricsPermissionRequired
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "now.playing.gestures.enabled"),
+            status.nowPlayingGesturesEnabled
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "now.playing.gestures.disabled"),
+            status.nowPlayingGesturesDisabled
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "playback.restore.enabled"),
+            status.playbackRestoreEnabled
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "playback.restore.disabled"),
+            status.playbackRestoreDisabled
+        )
     }
 
     private class FakeSettingsGateway : SettingsGateway {
@@ -244,12 +298,36 @@ class SettingsViewModelTest {
             events += "volume:$volume"
         }
 
+        override fun applyAudioEffectSettings(settings: app.yukine.playback.AudioEffectSettings) {
+            events += "audioEffects:${settings.enabled}"
+        }
+
         override fun applyStreamingAudioQuality(quality: String) {
             events += "quality:$quality"
         }
 
         override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
             events += "concurrent:$enabled"
+        }
+
+        override fun setStatusBarLyricsEnabled(enabled: Boolean) {
+            events += "statusLyrics:$enabled"
+        }
+
+        override fun setFloatingLyricsEnabled(enabled: Boolean) {
+            events += "floatingLyrics:$enabled"
+        }
+
+        override fun openFloatingLyricsPermission() {
+            events += "floatingPermission"
+        }
+
+        override fun setNowPlayingGesturesEnabled(enabled: Boolean) {
+            events += "gestures:$enabled"
+        }
+
+        override fun setPlaybackRestoreEnabled(enabled: Boolean) {
+            events += "restore:$enabled"
         }
 
         override fun applyThemeMode(mode: String) {
@@ -283,6 +361,11 @@ class SettingsViewModelTest {
                 SettingsPreferenceKey.OnlineLyricsEnabled -> "onlineLyrics:${update.value}"
                 SettingsPreferenceKey.ConcurrentPlaybackEnabled -> "concurrent:${update.value}"
                 SettingsPreferenceKey.LyricsOffsetMs -> "lyricsOffset:${update.value}"
+                SettingsPreferenceKey.AudioEffectSettings -> "audioEffects:${update.value}"
+                SettingsPreferenceKey.StatusBarLyricsEnabled -> "statusLyrics:${update.value}"
+                SettingsPreferenceKey.FloatingLyricsEnabled -> "floatingLyrics:${update.value}"
+                SettingsPreferenceKey.NowPlayingGesturesEnabled -> "gestures:${update.value}"
+                SettingsPreferenceKey.PlaybackRestoreEnabled -> "restore:${update.value}"
             }
         }
     }
@@ -310,12 +393,36 @@ class SettingsViewModelTest {
             events += "volume:$volume"
         }
 
+        override fun onAudioEffectSettingsApplied(settings: app.yukine.playback.AudioEffectSettings) {
+            events += "audioEffects:${settings.enabled}"
+        }
+
         override fun onStreamingAudioQualityApplied(quality: String) {
             events += "quality:$quality"
         }
 
         override fun onConcurrentPlaybackEnabledApplied(enabled: Boolean) {
             events += "concurrent:$enabled"
+        }
+
+        override fun onStatusBarLyricsEnabledApplied(enabled: Boolean) {
+            events += "statusLyrics:$enabled"
+        }
+
+        override fun onFloatingLyricsEnabledApplied(enabled: Boolean) {
+            events += "floatingLyrics:$enabled"
+        }
+
+        override fun onFloatingLyricsPermissionRequested() {
+            events += "floatingPermission"
+        }
+
+        override fun onNowPlayingGesturesEnabledApplied(enabled: Boolean) {
+            events += "gestures:$enabled"
+        }
+
+        override fun onPlaybackRestoreEnabledApplied(enabled: Boolean) {
+            events += "restore:$enabled"
         }
 
         override fun onOnlineLyricsEnabledApplied(enabled: Boolean) {

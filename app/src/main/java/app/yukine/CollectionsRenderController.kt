@@ -257,7 +257,8 @@ internal class CollectionsRenderController(
                     currentTrack,
                     favoriteIds,
                     if (details != null && index < details.size) details[index] else "",
-                    true
+                    true,
+                    TrackRowKeyPolicy.occurrenceKey(tracks, index)
                 )
             )
             rowActions.add(

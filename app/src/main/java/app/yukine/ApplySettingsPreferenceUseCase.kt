@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.data.MusicLibraryRepository
+import app.yukine.playback.AudioEffectSettings
 
 enum class SettingsPreferenceKey {
     ThemeMode,
@@ -11,7 +12,13 @@ enum class SettingsPreferenceKey {
     StreamingAudioQuality,
     OnlineLyricsEnabled,
     ConcurrentPlaybackEnabled,
-    LyricsOffsetMs
+    LyricsOffsetMs,
+    AudioEffectSettings,
+    StatusBarLyricsEnabled,
+    FloatingLyricsEnabled,
+    NowPlayingGesturesEnabled,
+    PlaybackRestoreEnabled,
+    ReplayGainEnabled
 }
 
 data class SettingsPreferenceUpdate(
@@ -29,6 +36,12 @@ internal interface SettingsPreferenceOperations {
     fun saveOnlineLyricsEnabled(enabled: Boolean)
     fun saveConcurrentPlaybackEnabled(enabled: Boolean)
     fun saveLyricsOffsetMs(offsetMs: Long)
+    fun saveAudioEffectSettings(settings: AudioEffectSettings)
+    fun saveStatusBarLyricsEnabled(enabled: Boolean)
+    fun saveFloatingLyricsEnabled(enabled: Boolean)
+    fun saveNowPlayingGesturesEnabled(enabled: Boolean)
+    fun savePlaybackRestoreEnabled(enabled: Boolean)
+    fun saveReplayGainEnabled(enabled: Boolean)
 }
 
 internal class MusicLibrarySettingsPreferenceOperations(
@@ -54,6 +67,24 @@ internal class MusicLibrarySettingsPreferenceOperations(
         repository.saveConcurrentPlaybackEnabled(enabled)
 
     override fun saveLyricsOffsetMs(offsetMs: Long) = repository.saveLyricsOffsetMs(offsetMs)
+
+    override fun saveAudioEffectSettings(settings: AudioEffectSettings) =
+        repository.saveAudioEffectSettings(settings)
+
+    override fun saveStatusBarLyricsEnabled(enabled: Boolean) =
+        repository.saveStatusBarLyricsEnabled(enabled)
+
+    override fun saveFloatingLyricsEnabled(enabled: Boolean) =
+        repository.saveFloatingLyricsEnabled(enabled)
+
+    override fun saveNowPlayingGesturesEnabled(enabled: Boolean) =
+        repository.saveNowPlayingGesturesEnabled(enabled)
+
+    override fun savePlaybackRestoreEnabled(enabled: Boolean) =
+        repository.savePlaybackRestoreEnabled(enabled)
+
+    override fun saveReplayGainEnabled(enabled: Boolean) =
+        repository.saveReplayGainEnabled(enabled)
 }
 
 internal class ApplySettingsPreferenceUseCase(
@@ -73,6 +104,18 @@ internal class ApplySettingsPreferenceUseCase(
             SettingsPreferenceKey.ConcurrentPlaybackEnabled ->
                 operations.saveConcurrentPlaybackEnabled(update.value as Boolean)
             SettingsPreferenceKey.LyricsOffsetMs -> operations.saveLyricsOffsetMs(update.value as Long)
+            SettingsPreferenceKey.AudioEffectSettings ->
+                operations.saveAudioEffectSettings(update.value as AudioEffectSettings)
+            SettingsPreferenceKey.StatusBarLyricsEnabled ->
+                operations.saveStatusBarLyricsEnabled(update.value as Boolean)
+            SettingsPreferenceKey.FloatingLyricsEnabled ->
+                operations.saveFloatingLyricsEnabled(update.value as Boolean)
+            SettingsPreferenceKey.NowPlayingGesturesEnabled ->
+                operations.saveNowPlayingGesturesEnabled(update.value as Boolean)
+            SettingsPreferenceKey.PlaybackRestoreEnabled ->
+                operations.savePlaybackRestoreEnabled(update.value as Boolean)
+            SettingsPreferenceKey.ReplayGainEnabled ->
+                operations.saveReplayGainEnabled(update.value as Boolean)
         }
     }
 }

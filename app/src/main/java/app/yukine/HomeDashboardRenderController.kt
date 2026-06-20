@@ -7,7 +7,7 @@ import app.yukine.ui.HomeDashboardActions
 import java.util.ArrayList
 
 internal class HomeDashboardRenderController(
-    private val viewModel: MainActivityViewModel,
+    private val viewModel: HomeDashboardViewModel,
     private val listener: Listener
 ) {
     interface Listener {
@@ -45,13 +45,15 @@ internal class HomeDashboardRenderController(
         allTracks: List<Track>,
         visibleTracks: List<Track>,
         recentRecords: List<TrackPlayRecord>,
-        playbackState: PlaybackStateSnapshot?
+        playbackState: PlaybackStateSnapshot?,
+        streamingConnected: Boolean = false
     ) {
         // Start async fetch from backend (will fall back to local if unavailable)
         viewModel.fetchHomeDashboard(
             localTracks = if (visibleTracks.isNotEmpty()) visibleTracks else allTracks,
             localRecords = recentRecords,
             localPlayback = playbackState,
+            streamingConnected = streamingConnected,
             onComplete = Runnable {
                 // State is updated in ViewModel, UI will observe the change
             }
@@ -82,8 +84,7 @@ internal class HomeDashboardRenderController(
         val actions = HomeDashboardActions(
             onOpenStat = statActions,
             onContinue = Runnable {
-                val liveTrack = viewModel.playback.value.snapshot.currentTrack ?: continueTrack
-                listener.continuePlayback(liveTrack)
+                listener.continuePlayback(continueTrack)
             },
             onOpenNowPlaying = Runnable { listener.openNowPlaying() },
             onPlayRecent = recentActions,
@@ -93,8 +94,10 @@ internal class HomeDashboardRenderController(
             onRecentTabChanged = { /* Tab switching handled locally in Compose */ },
             onDailyRecommend = Runnable { listener.playDailyRecommendations() },
             onHeartbeatRecommend = Runnable { listener.playHeartbeatRecommendations() },
-            onOpenCollections = Runnable { listener.openCollections() }
+            onOpenCollections = Runnable { listener.openCollections() },
+            onConnectStreaming = Runnable { listener.openStreaming() }
         )
+        viewModel.updateStreamingConnected(streamingConnected)
         listener.publishHomeDashboardActions(actions)
     }
 }

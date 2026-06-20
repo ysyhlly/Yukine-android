@@ -1,16 +1,16 @@
 plugins {
-    id "com.android.application"
-    id "org.jetbrains.kotlin.android"
-    id "org.jetbrains.kotlin.plugin.compose"
-    id "com.google.devtools.ksp"
-    id "com.google.dagger.hilt.android"
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt.android)
 }
 
-def echoReleaseStoreFile = findProperty("ECHO_RELEASE_STORE_FILE") ?: System.getenv("ECHO_RELEASE_STORE_FILE")
+def echoReleaseStoreFile     = findProperty("ECHO_RELEASE_STORE_FILE")     ?: System.getenv("ECHO_RELEASE_STORE_FILE")
 def echoReleaseStorePassword = findProperty("ECHO_RELEASE_STORE_PASSWORD") ?: System.getenv("ECHO_RELEASE_STORE_PASSWORD")
-def echoReleaseKeyAlias = findProperty("ECHO_RELEASE_KEY_ALIAS") ?: System.getenv("ECHO_RELEASE_KEY_ALIAS")
-def echoReleaseKeyPassword = findProperty("ECHO_RELEASE_KEY_PASSWORD") ?: System.getenv("ECHO_RELEASE_KEY_PASSWORD")
-def echoHasReleaseSigning = echoReleaseStoreFile && echoReleaseStorePassword && echoReleaseKeyAlias && echoReleaseKeyPassword
+def echoReleaseKeyAlias      = findProperty("ECHO_RELEASE_KEY_ALIAS")      ?: System.getenv("ECHO_RELEASE_KEY_ALIAS")
+def echoReleaseKeyPassword   = findProperty("ECHO_RELEASE_KEY_PASSWORD")   ?: System.getenv("ECHO_RELEASE_KEY_PASSWORD")
+def echoHasReleaseSigning    = echoReleaseStoreFile && echoReleaseStorePassword && echoReleaseKeyAlias && echoReleaseKeyPassword
 
 android {
     namespace "app.yukine"
@@ -20,8 +20,11 @@ android {
         applicationId "app.yukine"
         minSdk 23
         targetSdk 35
-        versionCode 1
-        versionName "0.1.0"
+        // versionCode 由 CI 的 GITHUB_RUN_NUMBER 自动递增，保证单调性；
+        // 本地构建未设置环境变量时 fallback 为 1，不影响开发调试。
+        def echoRunNumber = System.getenv("GITHUB_RUN_NUMBER")
+        versionCode echoRunNumber ? echoRunNumber.toInteger() : 1
+        versionName "0.1.0"   // 语义版本，手动管理
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -38,7 +41,6 @@ android {
         options.encoding = "UTF-8"
     }
 
-
     buildFeatures {
         compose true
     }
@@ -48,6 +50,17 @@ android {
             includeAndroidResources = true
             returnDefaultValues = true
         }
+    }
+
+    lint {
+        // AGP 8.7 lint crashes in androidx.lifecycle's NullSafeMutableLiveData detector
+        // while analyzing Kotlin UAST in release builds. Keep lintVital enabled and
+        // disable only the broken detector so assembleRelease remains a usable gate.
+        disable "NullSafeMutableLiveData"
+        // 现存的历史 lint 问题已记入 baseline，lint 因此变绿可纳入 CI；
+        // 此后任何【新增】的 lint 问题都会被拦截（baseline 之外的才报错）。
+        // 删除 lint-baseline.xml 后重跑可重新生成基线。
+        baseline = file("lint-baseline.xml")
     }
 
     signingConfigs {
@@ -78,38 +91,61 @@ ksp {
 }
 
 dependencies {
-    implementation platform("androidx.compose:compose-bom:2026.05.00")
-    implementation "androidx.activity:activity-compose:1.9.3"
-    implementation "androidx.lifecycle:lifecycle-viewmodel:2.9.4"
-    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.9.4"
-    implementation "androidx.lifecycle:lifecycle-viewmodel-savedstate:2.9.4"
-    implementation "androidx.navigation:navigation-compose:2.9.4"
-    implementation "androidx.browser:browser:1.8.0"
-    implementation "androidx.compose.foundation:foundation"
-    implementation "androidx.compose.material3:material3"
-    implementation "androidx.compose.ui:ui"
-    implementation "androidx.compose.ui:ui-tooling-preview"
-    implementation "androidx.media3:media3-exoplayer:1.4.1"
-    implementation "androidx.media3:media3-datasource:1.4.1"
-    implementation "androidx.media3:media3-session:1.4.1"
-    implementation "androidx.room:room-runtime:2.7.2"
-    implementation "androidx.room:room-ktx:2.7.2"
-    implementation "com.google.dagger:hilt-android:2.57.2"
-    ksp "androidx.room:room-compiler:2.7.2"
-    ksp "com.google.dagger:hilt-compiler:2.57.2"
-    testImplementation "junit:junit:4.13.2"
-    testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0"
-    testImplementation "org.json:json:20240303"
-    testImplementation "org.robolectric:robolectric:4.13"
-    testImplementation "androidx.test:core:1.6.1"
-    testImplementation "androidx.test.ext:junit:1.2.1"
-    testImplementation platform("androidx.compose:compose-bom:2026.05.00")
-    testImplementation "androidx.compose.ui:ui-test-junit4"
-    debugImplementation "androidx.compose.ui:ui-test-manifest"
-    debugImplementation "androidx.compose.ui:ui-tooling"
-    androidTestImplementation "androidx.test:runner:1.6.2"
-    androidTestImplementation "androidx.test:core:1.6.1"
-    androidTestImplementation "androidx.test.ext:junit:1.2.1"
-    androidTestImplementation "androidx.room:room-testing:2.7.2"
-    androidTestImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0"
+    // ── Compose BOM ────────────────────────────────────────────────────────
+    implementation platform(libs.androidx.compose.bom)
+    testImplementation platform(libs.androidx.compose.bom)
+
+    // ── Compose (版本由 BOM 统一管理) ─────────────────────────────────────
+    implementation libs.androidx.compose.foundation
+    implementation libs.androidx.compose.material3
+    implementation libs.androidx.compose.ui
+    implementation libs.androidx.compose.ui.tooling.preview
+
+    // ── Activity ───────────────────────────────────────────────────────────
+    implementation libs.androidx.activity.compose
+
+    // ── Lifecycle ──────────────────────────────────────────────────────────
+    implementation libs.androidx.lifecycle.viewmodel
+    implementation libs.androidx.lifecycle.viewmodel.ktx
+    implementation libs.androidx.lifecycle.viewmodel.savedstate
+
+    // ── Navigation ─────────────────────────────────────────────────────────
+    implementation libs.androidx.navigation.compose
+
+    // ── Browser ────────────────────────────────────────────────────────────
+    implementation libs.androidx.browser
+
+    // ── Media3 ─────────────────────────────────────────────────────────────
+    implementation libs.androidx.media3.exoplayer
+    implementation libs.androidx.media3.datasource
+    implementation libs.androidx.media3.session
+
+    // ── Room ───────────────────────────────────────────────────────────────
+    implementation libs.androidx.room.runtime
+    implementation libs.androidx.room.ktx
+    ksp libs.androidx.room.compiler
+
+    // ── Hilt ───────────────────────────────────────────────────────────────
+    implementation libs.hilt.android
+    ksp libs.hilt.compiler
+
+    // ── Unit Test ──────────────────────────────────────────────────────────
+    testImplementation libs.junit
+    testImplementation libs.kotlinx.coroutines.test
+    testImplementation libs.json
+    testImplementation libs.robolectric
+    testImplementation libs.androidx.test.core
+    testImplementation libs.androidx.test.junit
+    testImplementation libs.androidx.compose.ui.test.junit4
+
+    // ── Debug ──────────────────────────────────────────────────────────────
+    debugImplementation libs.androidx.compose.ui.test.manifest
+    debugImplementation libs.androidx.compose.ui.tooling
+
+    // ── Android Instrumented Test ──────────────────────────────────────────
+    androidTestImplementation libs.androidx.test.runner
+    androidTestImplementation libs.androidx.test.core
+    androidTestImplementation libs.androidx.test.junit
+    androidTestImplementation libs.androidx.room.testing
+    androidTestImplementation libs.kotlinx.coroutines.test
 }

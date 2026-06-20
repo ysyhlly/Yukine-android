@@ -2,6 +2,7 @@ package app.yukine.streaming
 
 import android.content.Context
 import android.content.SharedPreferences
+import app.yukine.security.SecureSecretStore
 
 /**
  * Persists streaming-provider login state captured locally on the device (typically via the
@@ -36,7 +37,7 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
 
     override fun authState(provider: StreamingProviderName): StreamingAuthState {
         val connected = preferences.getBoolean(keyConnected(provider), false)
-        val cookie = preferences.getString(keyCookie(provider), null)
+        val cookie = SecureSecretStore.decryptOrPlain(preferences.getString(keyCookie(provider), null))
         val displayName = preferences.getString(keyDisplayName(provider), null)
         val authKind = providerAuthKind(provider)
         return StreamingAuthState(
@@ -64,7 +65,8 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
             editor.remove(keyDisplayName(provider))
         } else {
             editor.putBoolean(keyConnected(provider), true)
-            editor.putString(keyCookie(provider), cookie)
+            // 敏感的登录 cookie 用 AES/GCM 加密后落盘；Keystore 不可用时退化为明文，保证不丢登录态。
+            editor.putString(keyCookie(provider), SecureSecretStore.encryptOrPlain(cookie))
             if (!displayName.isNullOrBlank()) {
                 editor.putString(keyDisplayName(provider), displayName.trim())
             }
@@ -83,12 +85,13 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
     }
 
     override fun cookieHeader(provider: StreamingProviderName): String? {
-        return preferences.getString(keyCookie(provider), null)?.takeIf { it.isNotBlank() }
+        return SecureSecretStore.decryptOrPlain(preferences.getString(keyCookie(provider), null))
+            ?.takeIf { it.isNotBlank() }
     }
 
     override fun connected(provider: StreamingProviderName): Boolean {
         return preferences.getBoolean(keyConnected(provider), false) &&
-            !preferences.getString(keyCookie(provider), null).isNullOrBlank()
+            !SecureSecretStore.decryptOrPlain(preferences.getString(keyCookie(provider), null)).isNullOrBlank()
     }
 
     private fun keyConnected(provider: StreamingProviderName) = "connected:${provider.wireName}"

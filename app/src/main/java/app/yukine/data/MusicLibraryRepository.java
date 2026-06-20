@@ -22,6 +22,7 @@ import app.yukine.model.StreamImportResult;
 import app.yukine.model.Track;
 import app.yukine.model.TrackPlayRecord;
 import app.yukine.model.WebDavSyncResult;
+import app.yukine.playback.AudioEffectSettings;
 import app.yukine.StreamingQualityPreference;
 import app.yukine.streaming.StreamingPlaybackAdapter;
 import app.yukine.streaming.StreamingProviderName;
@@ -93,6 +94,62 @@ public final class MusicLibraryRepository {
 
     public void savePlaybackResumeRequested(boolean requested) {
         database.savePlaybackResumeRequested(requested);
+    }
+
+    public AudioEffectSettings loadAudioEffectSettings() {
+        return database.loadAudioEffectSettings();
+    }
+
+    public void saveAudioEffectSettings(AudioEffectSettings settings) {
+        database.saveAudioEffectSettings(settings);
+    }
+
+    public boolean loadStatusBarLyricsEnabled() {
+        return database.loadStatusBarLyricsEnabled();
+    }
+
+    public void saveStatusBarLyricsEnabled(boolean enabled) {
+        database.saveStatusBarLyricsEnabled(enabled);
+    }
+
+    public boolean loadFloatingLyricsEnabled() {
+        return database.loadFloatingLyricsEnabled();
+    }
+
+    public void saveFloatingLyricsEnabled(boolean enabled) {
+        database.saveFloatingLyricsEnabled(enabled);
+    }
+
+    public boolean loadNowPlayingGesturesEnabled() {
+        return database.loadNowPlayingGesturesEnabled();
+    }
+
+    public void saveNowPlayingGesturesEnabled(boolean enabled) {
+        database.saveNowPlayingGesturesEnabled(enabled);
+    }
+
+    public boolean loadPlaybackRestoreEnabled() {
+        return database.loadPlaybackRestoreEnabled();
+    }
+
+    public void savePlaybackRestoreEnabled(boolean enabled) {
+        database.savePlaybackRestoreEnabled(enabled);
+    }
+
+    public boolean loadReplayGainEnabled() {
+        return database.loadReplayGainEnabled();
+    }
+
+    public void saveReplayGainEnabled(boolean enabled) {
+        database.saveReplayGainEnabled(enabled);
+    }
+
+    public boolean loadOnboardingCompleted() {
+        return database.loadOnboardingCompleted();
+    }
+
+    public void saveOnboardingCompleted(boolean completed) {
+        database.saveOnboardingCompleted(completed);
     }
 
     public List<RemoteSource> loadRemoteSources() {
@@ -203,12 +260,8 @@ public final class MusicLibraryRepository {
             return false;
         }
         String dataPath = "stream:" + cleanUrl;
-        for (Track track : database.loadTracks()) {
-            if (dataPath.equals(track.dataPath)) {
-                return true;
-            }
-        }
-        return false;
+        // 使用 SQL EXISTS 查询代替全表加载，O(1) 而非 O(n)。
+        return database.trackExistsByDataPath(dataPath);
     }
 
     public Track updateStreamUrl(long oldTrackId, String title, String url) {

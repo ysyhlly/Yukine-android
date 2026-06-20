@@ -4,11 +4,9 @@ import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.ui.QueueScreenLabels
 import app.yukine.ui.QueueTrackActions
-import app.yukine.ui.QueueTrackUiState
 import java.util.ArrayList
 
 internal class QueueRenderController(
-    private val viewModel: MainActivityViewModel,
     private val listener: Listener
 ) {
     interface Listener {
@@ -24,8 +22,6 @@ internal class QueueRenderController(
 
         fun requestBack()
 
-        fun publishQueue(rows: ArrayList<QueueTrackUiState>)
-
         fun publishQueueChrome(
             actions: List<QueueTrackActions>,
             onClearQueue: Runnable,
@@ -38,19 +34,9 @@ internal class QueueRenderController(
 
     fun render(queue: List<Track>?, playbackState: PlaybackStateSnapshot?, favoriteIds: Set<Long>, languageMode: String) {
         val queueTracks = queue ?: emptyList()
-        val rows = ArrayList<QueueTrackUiState>()
         val actions = ArrayList<QueueTrackActions>()
-        val currentTrack = playbackState?.currentTrack
         for (index in queueTracks.indices) {
             val track = queueTracks[index]
-            rows.add(
-                TrackRowStateFactory.queueRow(
-                    TrackRowKeyPolicy.occurrenceKey(queueTracks, index),
-                    track,
-                    currentTrack,
-                    favoriteIds
-                )
-            )
             actions.add(
                 QueueTrackActions(
                     Runnable { listener.playTrackList(queueTracks, index) },
@@ -61,7 +47,6 @@ internal class QueueRenderController(
             )
         }
 
-        listener.publishQueue(rows)
         listener.publishQueueChrome(
             actions,
             Runnable { listener.confirmClearQueue() },

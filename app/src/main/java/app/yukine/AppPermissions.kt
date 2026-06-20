@@ -3,8 +3,11 @@ package app.yukine
 import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 
 internal object AppPermissions {
     @JvmStatic
@@ -31,6 +34,23 @@ internal object AppPermissions {
             return true
         }
         return context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    }
+
+    @JvmStatic
+    fun hasOverlayPermission(context: Context): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
+
+    @JvmStatic
+    fun openOverlayPermissionSettings(activity: Activity) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return
+        }
+        activity.startActivity(
+            Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:${activity.packageName}")
+            )
+        )
     }
 
     private fun audioPermission(): String =

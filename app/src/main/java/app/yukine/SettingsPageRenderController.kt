@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.ui.EchoTheme
+import app.yukine.playback.AudioEffectSettings
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.SettingsListScrollState
 import app.yukine.ui.SettingsMetric
@@ -44,6 +45,20 @@ internal class SettingsPageRenderController(
         fun applyStreamingAudioQuality(quality: String)
 
         fun setConcurrentPlaybackEnabled(enabled: Boolean)
+
+        fun applyAudioEffectSettings(settings: AudioEffectSettings)
+
+        fun setStatusBarLyricsEnabled(enabled: Boolean)
+
+        fun setFloatingLyricsEnabled(enabled: Boolean)
+
+        fun openFloatingLyricsPermission()
+
+        fun setNowPlayingGesturesEnabled(enabled: Boolean)
+
+        fun setPlaybackRestoreEnabled(enabled: Boolean)
+
+        fun setReplayGainEnabled(enabled: Boolean)
 
         fun applyThemeMode(mode: String)
 
@@ -111,16 +126,34 @@ internal class SettingsPageRenderController(
         renderSettingsScreen(groupTitle(languageMode, "appearance"), metrics, actions)
     }
 
-    fun renderPlaybackGroup(languageMode: String, playbackSpeed: Float, appVolume: Float, concurrentPlaybackEnabled: Boolean, remainingMs: Long) {
+    fun renderPlaybackGroup(
+        languageMode: String,
+        playbackSpeed: Float,
+        appVolume: Float,
+        concurrentPlaybackEnabled: Boolean,
+        audioEffects: AudioEffectSettings,
+        nowPlayingGesturesEnabled: Boolean,
+        playbackRestoreEnabled: Boolean,
+        replayGainEnabled: Boolean,
+        remainingMs: Long
+    ) {
         val metrics = ArrayList<SettingsMetric>()
         metrics.add(SettingsMetric(text(languageMode, "playback.speed"), playbackSpeedLabel(playbackSpeed)))
         metrics.add(SettingsMetric(text(languageMode, "app.volume"), appVolumeLabel(appVolume)))
+        metrics.add(SettingsMetric(text(languageMode, "audio.effects"), audioEffectsLabel(audioEffects, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "replay.gain"), enabledLabel(replayGainEnabled, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "now.playing.gestures"), enabledLabel(nowPlayingGesturesEnabled, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "playback.restore"), enabledLabel(playbackRestoreEnabled, languageMode)))
         metrics.add(SettingsMetric(text(languageMode, "concurrent.playback"), if (concurrentPlaybackEnabled) text(languageMode, "enabled") else text(languageMode, "disabled")))
         metrics.add(SettingsMetric(text(languageMode, "sleep.timer"), sleepTimerLabel(remainingMs, languageMode)))
         val actions = ArrayList<SettingsAction>()
         addBackAction(actions, languageMode)
         addNavigationAction(actions, text(languageMode, "playback.speed"), MainRoutes.SETTINGS_PLAYBACK_SPEED)
         addNavigationAction(actions, text(languageMode, "app.volume"), MainRoutes.SETTINGS_APP_VOLUME)
+        addNavigationAction(actions, text(languageMode, "audio.effects"), MainRoutes.SETTINGS_AUDIO_EFFECTS)
+        addNavigationAction(actions, text(languageMode, "replay.gain"), MainRoutes.SETTINGS_REPLAY_GAIN)
+        addNavigationAction(actions, text(languageMode, "now.playing.gestures"), MainRoutes.SETTINGS_NOW_PLAYING_GESTURES)
+        addNavigationAction(actions, text(languageMode, "playback.restore"), MainRoutes.SETTINGS_PLAYBACK_RESTORE)
         addNavigationAction(actions, text(languageMode, "concurrent.playback"), MainRoutes.SETTINGS_CONCURRENT_PLAYBACK)
         addNavigationAction(actions, text(languageMode, "sleep.timer"), MainRoutes.SETTINGS_SLEEP_TIMER)
         renderSettingsScreen(groupTitle(languageMode, "playback"), metrics, actions)
@@ -130,8 +163,39 @@ internal class SettingsPageRenderController(
         renderLibrary(languageMode, songCount, albumCount, artistCount, audioPermissionGranted)
     }
 
-    fun renderLyricsGroup(languageMode: String, offsetMs: Long, onlineLyricsEnabled: Boolean) {
-        renderLyrics(languageMode, offsetMs, onlineLyricsEnabled)
+    fun renderLyricsGroup(
+        languageMode: String,
+        offsetMs: Long,
+        onlineLyricsEnabled: Boolean,
+        statusBarLyricsEnabled: Boolean,
+        floatingLyricsEnabled: Boolean,
+        overlayPermissionGranted: Boolean
+    ) {
+        val metrics = ArrayList<SettingsMetric>()
+        metrics.add(SettingsMetric(text(languageMode, "offset"), lyricsOffsetLabel(offsetMs)))
+        metrics.add(SettingsMetric(text(languageMode, "online.lyrics"), if (onlineLyricsEnabled) text(languageMode, "enabled") else text(languageMode, "disabled")))
+        metrics.add(SettingsMetric(text(languageMode, "status.bar.lyrics"), enabledLabel(statusBarLyricsEnabled, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "floating.lyrics"), enabledLabel(floatingLyricsEnabled, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "overlay.permission"), if (overlayPermissionGranted) text(languageMode, "granted") else text(languageMode, "missing")))
+        metrics.add(SettingsMetric(text(languageMode, "provider"), "LRCLIB"))
+        metrics.add(SettingsMetric(text(languageMode, "local.lyrics"), text(languageMode, "same.name.lrc")))
+        val actions = ArrayList<SettingsAction>()
+        addBackAction(actions, languageMode)
+        actions.add(
+            SettingsAction(
+                if (onlineLyricsEnabled) text(languageMode, "disable.online.lyrics") else text(languageMode, "enable.online.lyrics"),
+                Runnable { listener.setOnlineLyricsEnabled(!onlineLyricsEnabled) }
+            )
+        )
+        actions.add(SettingsAction(text(languageMode, "reload.lyrics"), Runnable { listener.reloadCurrentLyrics() }))
+        addNavigationAction(actions, text(languageMode, "status.bar.lyrics"), MainRoutes.SETTINGS_STATUS_BAR_LYRICS)
+        addNavigationAction(actions, text(languageMode, "floating.lyrics"), MainRoutes.SETTINGS_FLOATING_LYRICS)
+        addLyricsOffsetOption(actions, languageMode, offsetMs, -1000L)
+        addLyricsOffsetOption(actions, languageMode, offsetMs, -500L)
+        addLyricsOffsetOption(actions, languageMode, offsetMs, 0L)
+        addLyricsOffsetOption(actions, languageMode, offsetMs, 500L)
+        addLyricsOffsetOption(actions, languageMode, offsetMs, 1000L)
+        renderSettingsScreen(groupTitle(languageMode, "lyrics"), metrics, actions)
     }
 
     fun renderSourcesGroup(languageMode: String, quality: String, gatewayConfigured: Boolean) {
@@ -186,10 +250,20 @@ internal class SettingsPageRenderController(
         renderSettingsScreen(text(languageMode, "library"), metrics, actions)
     }
 
-    fun renderLyrics(languageMode: String, offsetMs: Long, onlineLyricsEnabled: Boolean) {
+    fun renderLyrics(
+        languageMode: String,
+        offsetMs: Long,
+        onlineLyricsEnabled: Boolean,
+        statusBarLyricsEnabled: Boolean,
+        floatingLyricsEnabled: Boolean,
+        overlayPermissionGranted: Boolean
+    ) {
         val metrics = ArrayList<SettingsMetric>()
         metrics.add(SettingsMetric(text(languageMode, "offset"), lyricsOffsetLabel(offsetMs)))
         metrics.add(SettingsMetric(text(languageMode, "online.lyrics"), if (onlineLyricsEnabled) text(languageMode, "enabled") else text(languageMode, "disabled")))
+        metrics.add(SettingsMetric(text(languageMode, "status.bar.lyrics"), enabledLabel(statusBarLyricsEnabled, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "floating.lyrics"), enabledLabel(floatingLyricsEnabled, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "overlay.permission"), if (overlayPermissionGranted) text(languageMode, "granted") else text(languageMode, "missing")))
         metrics.add(SettingsMetric(text(languageMode, "provider"), "LRCLIB"))
         metrics.add(SettingsMetric(text(languageMode, "local.lyrics"), text(languageMode, "same.name.lrc")))
         val actions = ArrayList<SettingsAction>()
@@ -201,6 +275,8 @@ internal class SettingsPageRenderController(
             )
         )
         actions.add(SettingsAction(text(languageMode, "reload.lyrics"), Runnable { listener.reloadCurrentLyrics() }))
+        addNavigationAction(actions, text(languageMode, "status.bar.lyrics"), MainRoutes.SETTINGS_STATUS_BAR_LYRICS)
+        addNavigationAction(actions, text(languageMode, "floating.lyrics"), MainRoutes.SETTINGS_FLOATING_LYRICS)
         addLyricsOffsetOption(actions, languageMode, offsetMs, -1000L)
         addLyricsOffsetOption(actions, languageMode, offsetMs, -500L)
         addLyricsOffsetOption(actions, languageMode, offsetMs, 0L)
@@ -278,6 +354,116 @@ internal class SettingsPageRenderController(
             )
         )
         renderSettingsScreen(text(languageMode, "concurrent.playback"), metrics, actions)
+    }
+
+    fun renderAudioEffects(languageMode: String, settings: AudioEffectSettings) {
+        val effects = settings
+        val metrics = ArrayList<SettingsMetric>()
+        metrics.add(SettingsMetric(text(languageMode, "audio.effects"), audioEffectsLabel(effects, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "equalizer.preset"), equalizerPresetLabel(effects.preset, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "bass.boost"), strengthLabel(effects.bassBoostStrength)))
+        metrics.add(SettingsMetric(text(languageMode, "virtualizer"), strengthLabel(effects.virtualizerStrength)))
+        metrics.add(SettingsMetric(text(languageMode, "loudness"), loudnessLabel(effects.loudnessGainMb)))
+        metrics.add(SettingsMetric(text(languageMode, "description"), text(languageMode, "audio.effects.description")))
+        val actions = ArrayList<SettingsAction>()
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_AUDIO_EFFECTS)
+        actions.add(SettingsAction(
+            if (effects.enabled) text(languageMode, "disable.audio.effects") else text(languageMode, "enable.audio.effects"),
+            Runnable { listener.applyAudioEffectSettings(effects.withEnabled(!effects.enabled)) }
+        ))
+        addEqualizerPresetOption(actions, languageMode, effects, AudioEffectSettings.PRESET_CUSTOM)
+        addEqualizerPresetOption(actions, languageMode, effects, 0)
+        addEqualizerPresetOption(actions, languageMode, effects, 1)
+        addEqualizerPresetOption(actions, languageMode, effects, 2)
+        addStrengthOption(actions, languageMode, effects, "bass.boost", "bass", 0)
+        addStrengthOption(actions, languageMode, effects, "bass.boost", "bass", 500)
+        addStrengthOption(actions, languageMode, effects, "bass.boost", "bass", 1000)
+        addStrengthOption(actions, languageMode, effects, "virtualizer", "virtualizer", 0)
+        addStrengthOption(actions, languageMode, effects, "virtualizer", "virtualizer", 500)
+        addStrengthOption(actions, languageMode, effects, "virtualizer", "virtualizer", 1000)
+        addLoudnessOption(actions, languageMode, effects, 0)
+        addLoudnessOption(actions, languageMode, effects, 300)
+        addLoudnessOption(actions, languageMode, effects, 600)
+        renderSettingsScreen(text(languageMode, "audio.effects"), metrics, actions)
+    }
+
+    fun renderStatusBarLyrics(languageMode: String, enabled: Boolean) {
+        val metrics = ArrayList<SettingsMetric>()
+        metrics.add(SettingsMetric(text(languageMode, "status.bar.lyrics"), enabledLabel(enabled, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "description"), text(languageMode, "status.bar.lyrics.description")))
+        val actions = ArrayList<SettingsAction>()
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_STATUS_BAR_LYRICS)
+        actions.add(
+            SettingsAction(
+                if (enabled) text(languageMode, "disable.status.bar.lyrics") else text(languageMode, "enable.status.bar.lyrics"),
+                Runnable { listener.setStatusBarLyricsEnabled(!enabled) }
+            )
+        )
+        renderSettingsScreen(text(languageMode, "status.bar.lyrics"), metrics, actions)
+    }
+
+    fun renderFloatingLyrics(languageMode: String, enabled: Boolean, overlayPermissionGranted: Boolean) {
+        val metrics = ArrayList<SettingsMetric>()
+        metrics.add(SettingsMetric(text(languageMode, "floating.lyrics"), enabledLabel(enabled, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "overlay.permission"), if (overlayPermissionGranted) text(languageMode, "granted") else text(languageMode, "missing")))
+        metrics.add(SettingsMetric(text(languageMode, "description"), text(languageMode, "floating.lyrics.description")))
+        val actions = ArrayList<SettingsAction>()
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_FLOATING_LYRICS)
+        if (!overlayPermissionGranted) {
+            actions.add(SettingsAction(text(languageMode, "grant.overlay.permission"), Runnable { listener.openFloatingLyricsPermission() }))
+        }
+        actions.add(
+            SettingsAction(
+                if (enabled) text(languageMode, "disable.floating.lyrics") else text(languageMode, "enable.floating.lyrics"),
+                Runnable { listener.setFloatingLyricsEnabled(!enabled) }
+            )
+        )
+        renderSettingsScreen(text(languageMode, "floating.lyrics"), metrics, actions)
+    }
+
+    fun renderNowPlayingGestures(languageMode: String, enabled: Boolean) {
+        val metrics = ArrayList<SettingsMetric>()
+        metrics.add(SettingsMetric(text(languageMode, "now.playing.gestures"), enabledLabel(enabled, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "description"), text(languageMode, "now.playing.gestures.description")))
+        val actions = ArrayList<SettingsAction>()
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_NOW_PLAYING_GESTURES)
+        actions.add(
+            SettingsAction(
+                if (enabled) text(languageMode, "disable.now.playing.gestures") else text(languageMode, "enable.now.playing.gestures"),
+                Runnable { listener.setNowPlayingGesturesEnabled(!enabled) }
+            )
+        )
+        renderSettingsScreen(text(languageMode, "now.playing.gestures"), metrics, actions)
+    }
+
+    fun renderPlaybackRestore(languageMode: String, enabled: Boolean) {
+        val metrics = ArrayList<SettingsMetric>()
+        metrics.add(SettingsMetric(text(languageMode, "playback.restore"), enabledLabel(enabled, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "description"), text(languageMode, "playback.restore.description")))
+        val actions = ArrayList<SettingsAction>()
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_PLAYBACK_RESTORE)
+        actions.add(
+            SettingsAction(
+                if (enabled) text(languageMode, "disable.playback.restore") else text(languageMode, "enable.playback.restore"),
+                Runnable { listener.setPlaybackRestoreEnabled(!enabled) }
+            )
+        )
+        renderSettingsScreen(text(languageMode, "playback.restore"), metrics, actions)
+    }
+
+    fun renderReplayGain(languageMode: String, enabled: Boolean) {
+        val metrics = ArrayList<SettingsMetric>()
+        metrics.add(SettingsMetric(text(languageMode, "replay.gain"), enabledLabel(enabled, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "description"), text(languageMode, "replay.gain.description")))
+        val actions = ArrayList<SettingsAction>()
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_REPLAY_GAIN)
+        actions.add(
+            SettingsAction(
+                if (enabled) text(languageMode, "disable.replay.gain") else text(languageMode, "enable.replay.gain"),
+                Runnable { listener.setReplayGainEnabled(!enabled) }
+            )
+        )
+        renderSettingsScreen(text(languageMode, "replay.gain"), metrics, actions)
     }
 
     fun renderTheme(languageMode: String, themeMode: String) {
@@ -405,6 +591,38 @@ internal class SettingsPageRenderController(
         actions.add(SettingsAction(label, Runnable { listener.applyStreamingAudioQuality(normalizedQuality) }))
     }
 
+    private fun addEqualizerPresetOption(actions: ArrayList<SettingsAction>, languageMode: String, settings: AudioEffectSettings, preset: Int) {
+        var label = equalizerPresetLabel(preset, languageMode)
+        if (settings.preset == preset) {
+            label += text(languageMode, "selected")
+        }
+        actions.add(SettingsAction(label, Runnable { listener.applyAudioEffectSettings(settings.withEnabled(true).withPreset(preset)) }))
+    }
+
+    private fun addStrengthOption(actions: ArrayList<SettingsAction>, languageMode: String, settings: AudioEffectSettings, labelKey: String, target: String, strength: Int) {
+        val selected = if (target == "bass") settings.bassBoostStrength.toInt() == strength else settings.virtualizerStrength.toInt() == strength
+        var label = text(languageMode, labelKey) + " " + strengthLabel(strength.toShort())
+        if (selected) {
+            label += text(languageMode, "selected")
+        }
+        actions.add(SettingsAction(label, Runnable {
+            val next = if (target == "bass") {
+                settings.withEnabled(true).withBassBoostStrength(strength.toShort())
+            } else {
+                settings.withEnabled(true).withVirtualizerStrength(strength.toShort())
+            }
+            listener.applyAudioEffectSettings(next)
+        }))
+    }
+
+    private fun addLoudnessOption(actions: ArrayList<SettingsAction>, languageMode: String, settings: AudioEffectSettings, gainMb: Int) {
+        var label = text(languageMode, "loudness") + " " + loudnessLabel(gainMb)
+        if (settings.loudnessGainMb == gainMb) {
+            label += text(languageMode, "selected")
+        }
+        actions.add(SettingsAction(label, Runnable { listener.applyAudioEffectSettings(settings.withEnabled(true).withLoudnessGainMb(gainMb)) }))
+    }
+
     private fun addThemeOption(actions: ArrayList<SettingsAction>, languageMode: String, currentMode: String, mode: String) {
         var label = AppLanguage.themeLabel(mode, languageMode)
         if (EchoTheme.normalizeMode(currentMode) == EchoTheme.normalizeMode(mode)) {
@@ -462,6 +680,39 @@ internal class SettingsPageRenderController(
                 else -> text(languageMode, "quality.high")
             }
         }
+
+        @JvmStatic
+        fun audioEffectsLabel(settings: AudioEffectSettings?, languageMode: String): String {
+            val effects = settings ?: AudioEffectSettings.DEFAULT
+            if (!effects.enabled) {
+                return text(languageMode, "off")
+            }
+            return text(languageMode, "enabled") + " / " + equalizerPresetLabel(effects.preset, languageMode)
+        }
+
+        @JvmStatic
+        fun equalizerPresetLabel(preset: Int, languageMode: String): String {
+            return when (preset) {
+                AudioEffectSettings.PRESET_CUSTOM -> text(languageMode, "eq.custom")
+                0 -> text(languageMode, "eq.normal")
+                1 -> text(languageMode, "eq.classical")
+                2 -> text(languageMode, "eq.dance")
+                else -> text(languageMode, "eq.preset") + " " + preset
+            }
+        }
+
+        private fun strengthLabel(strength: Short): String =
+            (strength.coerceIn(0, 1000).toInt() / 10).toString() + "%"
+
+        private fun loudnessLabel(gainMb: Int): String {
+            if (gainMb == 0) {
+                return "0 dB"
+            }
+            return String.format(Locale.ROOT, "%+.1f dB", gainMb / 100.0f)
+        }
+
+        private fun enabledLabel(enabled: Boolean, languageMode: String): String =
+            if (enabled) text(languageMode, "enabled") else text(languageMode, "disabled")
 
         @JvmStatic
         fun lyricsOffsetLabel(offsetMs: Long): String {

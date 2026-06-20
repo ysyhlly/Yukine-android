@@ -208,6 +208,7 @@ private fun iconForAction(label: String): EchoIconKind {
         has("Appearance", "Theme", "外观", "主题") -> EchoIconKind.Palette
         has("Language", "语言") -> EchoIconKind.Language
         // Playback controls
+        has("audio effects", "equalizer", "eq", "bass", "virtualizer", "loudness", "音效", "均衡", "低音", "响度") -> EchoIconKind.Gauge
         has("speed", "播放速度", "速度") || label.endsWith("x") || label.endsWith("X") -> EchoIconKind.Gauge
         has("volume", "音量") || label.endsWith("%") -> EchoIconKind.Volume
         has("sleep", "timer", "睡眠", "定时") || label.endsWith("min") || label.contains("分钟") -> EchoIconKind.Timer

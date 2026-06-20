@@ -1,5 +1,7 @@
 package app.yukine
 
+import app.yukine.playback.AudioEffectSettings
+
 internal fun interface SettingsStringAction {
     fun run(value: String)
 }
@@ -20,6 +22,10 @@ internal fun interface SettingsFloatAction {
     fun apply(value: Float)
 }
 
+internal fun interface SettingsAudioEffectsAction {
+    fun apply(value: AudioEffectSettings)
+}
+
 internal class SettingsGatewayBindings(
     private val navigateSettingsPageAction: SettingsStringAction,
     private val openNetworkSourcesAction: Runnable,
@@ -35,6 +41,13 @@ internal class SettingsGatewayBindings(
     private val appVolumeAction: SettingsFloatAction,
     private val streamingAudioQualityAction: SettingsStringAction,
     private val concurrentPlaybackAction: SettingsBooleanAction,
+    private val audioEffectsAction: SettingsAudioEffectsAction,
+    private val statusBarLyricsAction: SettingsBooleanAction,
+    private val floatingLyricsAction: SettingsBooleanAction,
+    private val floatingLyricsPermissionAction: Runnable,
+    private val nowPlayingGesturesAction: SettingsBooleanAction,
+    private val playbackRestoreAction: SettingsBooleanAction,
+    private val replayGainAction: SettingsBooleanAction,
     private val themeModeAction: SettingsStringAction,
     private val accentModeAction: SettingsStringAction,
     private val languageModeAction: SettingsStringAction,
@@ -94,6 +107,34 @@ internal class SettingsGatewayBindings(
 
     override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
         concurrentPlaybackAction.set(enabled)
+    }
+
+    override fun applyAudioEffectSettings(settings: AudioEffectSettings) {
+        audioEffectsAction.apply(settings)
+    }
+
+    override fun setStatusBarLyricsEnabled(enabled: Boolean) {
+        statusBarLyricsAction.set(enabled)
+    }
+
+    override fun setFloatingLyricsEnabled(enabled: Boolean) {
+        floatingLyricsAction.set(enabled)
+    }
+
+    override fun openFloatingLyricsPermission() {
+        floatingLyricsPermissionAction.run()
+    }
+
+    override fun setNowPlayingGesturesEnabled(enabled: Boolean) {
+        nowPlayingGesturesAction.set(enabled)
+    }
+
+    override fun setPlaybackRestoreEnabled(enabled: Boolean) {
+        playbackRestoreAction.set(enabled)
+    }
+
+    override fun setReplayGainEnabled(enabled: Boolean) {
+        replayGainAction.set(enabled)
     }
 
     override fun applyThemeMode(mode: String) {

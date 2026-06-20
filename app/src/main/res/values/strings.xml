@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Yukine</string>
+    <string name="widget_empty_title">ECHO</string>
+    <string name="widget_empty_subtitle">Tap play to restore your queue</string>
+    <string name="widget_artwork">Album artwork</string>
+    <string name="widget_description">Playback controls</string>
+    <string name="previous">Previous</string>
+    <string name="play">Play</string>
+    <string name="next">Next</string>
 </resources>

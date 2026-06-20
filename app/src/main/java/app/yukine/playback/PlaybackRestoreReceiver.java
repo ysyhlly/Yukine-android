@@ -15,6 +15,9 @@ public final class PlaybackRestoreReceiver extends BroadcastReceiver {
             return;
         }
         MusicLibraryRepository repository = new MusicLibraryRepository(context.getApplicationContext());
+        if (!repository.loadPlaybackRestoreEnabled()) {
+            return;
+        }
         PlaybackQueueState queueState = repository.loadPlaybackQueue();
         if (queueState == null || queueState.isEmpty()) {
             return;

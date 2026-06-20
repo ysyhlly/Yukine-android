@@ -8,7 +8,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import androidx.activity.ComponentActivity;
-import androidx.activity.OnBackPressedCallback;
 import androidx.lifecycle.ViewModelProvider;
 import dagger.hilt.android.AndroidEntryPoint;
 
@@ -29,7 +28,7 @@ import app.yukine.ui.EchoDialog;
 import app.yukine.ui.EchoTheme;
 import app.yukine.ui.LibraryGroupActions;
 import app.yukine.ui.LibraryGroupUiState;
-import app.yukine.ui.QueueTrackUiState;
+import app.yukine.ui.LyricUiLine;
 import app.yukine.ui.TrackListHeaderAction;
 import app.yukine.ui.TrackListHeaderMetric;
 import app.yukine.ui.TrackListLabels;
@@ -77,14 +76,17 @@ public final class MainActivity extends ComponentActivity {
     MusicLibraryRepository repository;
 
     private MainActivityViewModel viewModel;
+    private NavigationViewModel navigationViewModel;
+    private PlaybackViewModel playbackViewModel;
     private NowPlayingViewModel nowPlayingViewModel;
+    private HomeDashboardViewModel homeDashboardViewModel;
     private app.yukine.queue.QueueViewModel queueViewModel;
     private LibraryViewModel libraryViewModel;
     private CollectionsViewModel collectionsViewModel;
     private SettingsViewModel settingsViewModel;
     private NetworkSourcesViewModel networkSourcesViewModel;
+    private StreamingViewModel streamingViewModel;
     private MainRouteController routeController;
-    private MainStatePublisher statePublisher;
     private MainLibraryStore libraryStore;
     private MainSettingsStore settingsStore;
     private MainPlaybackStore playbackStore;
@@ -102,6 +104,15 @@ public final class MainActivity extends ComponentActivity {
     private TrackListRenderController trackListRenderController;
     private app.yukine.streaming.StreamingPlaylistSyncStore streamingPlaylistSyncStore;
     private QueueRenderController queueRenderController;
+    private QueueIntentController queueIntentController;
+    private QueueActionController queueActionController;
+    private PlaybackActionController playbackActionController;
+    private PlaybackStartController playbackStartController;
+    private PlaybackActionResultController playbackActionResultController;
+    private LyricsReloadController lyricsReloadController;
+    private NowPlayingEffectController nowPlayingEffectController;
+    private NowPlayingStateController nowPlayingStateController;
+    private SettingsActionController settingsActionController;
     private NetworkSourcesRenderController networkSourcesRenderController;
     private NetworkMenuRenderController networkMenuRenderController;
     private NetworkTrackListRenderController networkTrackListRenderController;
@@ -111,18 +122,26 @@ public final class MainActivity extends ComponentActivity {
     private ActivityIntentController activityIntentController;
     private StreamingSearchEventController streamingSearchEventController;
     private StreamingSearchRenderController streamingSearchRenderController;
+    private StreamingPlaybackController streamingPlaybackController;
+    private StreamingPlaylistController streamingPlaylistController;
+    private StreamingManualCookieController streamingManualCookieController;
+    private DailyRecommendationController dailyRecommendationController;
+    private HeartbeatRecommendationController heartbeatRecommendationController;
     private NetworkActionsViewModel networkActionsViewModel;
     private NetworkRequestController networkRequestController;
     private HomeDashboardRenderController homeDashboardRenderController;
     private LibraryGroupsRenderController libraryGroupsRenderController;
+    private LibraryPlaylistsRenderController libraryPlaylistsRenderController;
     private CollectionsRenderController collectionsRenderController;
     private NowPlayingRenderController nowPlayingRenderController;
     private PlaylistExportController playlistExportController;
+    private PlaylistActionResultController playlistActionResultController;
     private LyricsViewModel lyricsViewModel;
     private EchoPlaybackService playbackService;
     private List<Track> pendingPlaybackTracks = Collections.emptyList();
     private int pendingPlaybackIndex = -1;
     private boolean scrollContentToTopOnNextRender;
+    private boolean onboardingVisible;
     private app.yukine.ui.HomeDashboardActions navHomeActions = emptyHomeDashboardActions();
     private List<TrackRowActions> navTrackListActions = Collections.emptyList();
     private List<TrackListHeaderMetric> navTrackListHeaderMetrics = Collections.emptyList();
@@ -152,6 +171,8 @@ public final class MainActivity extends ComponentActivity {
     private NetworkDialogController networkDialogController;
     private PlaylistDialogController playlistDialogController;
     private ConfirmationDialogController confirmationDialogController;
+    private boolean onboardingLibraryScanCompleted;
+    private boolean onboardingLibraryScanInProgress;
 
     private static app.yukine.ui.HomeDashboardActions emptyHomeDashboardActions() {
         return new app.yukine.ui.HomeDashboardActions(
@@ -163,6 +184,7 @@ public final class MainActivity extends ComponentActivity {
                 new Runnable() { @Override public void run() {} },
                 new Runnable() { @Override public void run() {} },
                 index -> kotlin.Unit.INSTANCE,
+                new Runnable() { @Override public void run() {} },
                 new Runnable() { @Override public void run() {} },
                 new Runnable() { @Override public void run() {} },
                 new Runnable() { @Override public void run() {} }
@@ -183,28 +205,33 @@ public final class MainActivity extends ComponentActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        onboardingVisible = repository != null && !repository.loadOnboardingCompleted();
         viewModel = new ViewModelProvider(this).get(MainActivityViewModel.class);
-        viewModel.bindStreamingActionGateway(new StreamingActionGatewayBindings(
+        navigationViewModel = new ViewModelProvider(this).get(NavigationViewModel.class);
+        playbackViewModel = new ViewModelProvider(this).get(PlaybackViewModel.class);
+        streamingViewModel = new ViewModelProvider(this).get(StreamingViewModel.class);
+        StreamingActionGatewayBindings streamingActionGatewayBindings = new StreamingActionGatewayBindings(
                 this::adaptiveStreamingQuality,
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 launch -> StreamingAuthLauncher.INSTANCE.launch(MainActivity.this, launch),
-                this::playTrackList,
-                this::onStreamingLoginSuccess
-        ));
-        viewModel.bindStreamingPlaybackCoordinator(
+                this::playTrackListFromHost,
+                provider -> streamingPlaylistController.onStreamingLoginSuccess(provider)
+        );
+        streamingViewModel.bindStreamingPlaybackCoordinator(
                 resolveStreamingPlaybackUseCase,
                 new StreamingPlaybackTaskQueueAdapter(streamingPlaybackTaskScheduler)
         );
+        homeDashboardViewModel = new ViewModelProvider(this).get(HomeDashboardViewModel.class);
         nowPlayingViewModel = new ViewModelProvider(this).get(NowPlayingViewModel.class);
         nowPlayingViewModel.bindGateway(new NowPlayingGatewayBindings(
-                this::togglePlayback,
-                this::skipToNext,
-                this::skipToPrevious,
+                () -> playbackActionController.togglePlayback(),
+                () -> playbackActionController.skipToNext(),
+                () -> playbackActionController.skipToPrevious(),
                 nowPlayingViewModel::seekTo,
                 () -> playbackStore == null ? null : playbackStore.snapshot().currentTrack,
                 track -> handleLibraryEvent(new LibraryEvent.ToggleFavorite(track)),
-                this::toggleShuffle,
-                this::cycleRepeat,
+                () -> playbackActionController.toggleShuffle(),
+                () -> playbackActionController.cycleRepeat(),
                 key -> AppLanguage.text(
                         settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                         key
@@ -224,7 +251,7 @@ public final class MainActivity extends ComponentActivity {
         lyricsViewModel = new ViewModelProvider(this).get(LyricsViewModel.class);
         libraryViewModel = new ViewModelProvider(this).get(LibraryViewModel.class);
         libraryViewModel.bindGateway(new LibraryGatewayBindings(
-                (tracks, index) -> MainActivity.this.playTrackList(tracks, index),
+                this::playTrackListFromHost,
                 key -> AppLanguage.text(settingsStore.languageMode(), key),
                 status -> MainActivity.this.setStatus(status),
                 (trackId, favorite) -> {
@@ -236,10 +263,6 @@ public final class MainActivity extends ComponentActivity {
                 track -> MainActivity.this.showAddToPlaylistDialog(track),
                 mode -> {
                     routeController.setLibraryMode(mode);
-                    routeController.clearLibraryGroup();
-                    if (!LIBRARY_PLAYLISTS.equals(mode)) {
-                        routeController.setSelectedPlaylistId(-1L);
-                    }
                     renderSelectedTab();
                 },
                 (key, title) -> {
@@ -265,45 +288,14 @@ public final class MainActivity extends ComponentActivity {
         ));
         collectionsViewModel = new ViewModelProvider(this).get(CollectionsViewModel.class);
         settingsViewModel = new ViewModelProvider(this).get(SettingsViewModel.class);
-        settingsViewModel.bindGateway(new SettingsGatewayBindings(
-                this::navigateSettingsPage,
-                () -> navigateToNetworkTabPage(NETWORK_HOME),
-                () -> loadLibrary(false),
-                this::openAudioFilePicker,
-                this::openAudioFolderPicker,
-                this::setOnlineLyricsEnabled,
-                this::reloadCurrentLyrics,
-                this::applyLyricsOffset,
-                this::startSleepTimer,
-                this::cancelSleepTimer,
-                this::applyPlaybackSpeed,
-                this::applyAppVolume,
-                this::applyStreamingAudioQuality,
-                this::setConcurrentPlaybackEnabled,
-                this::applyThemeMode,
-                this::applyAccentMode,
-                this::applyLanguageMode,
-                this::applyStreamingGatewayEndpoint
-        ));
         networkSourcesViewModel = new ViewModelProvider(this).get(NetworkSourcesViewModel.class);
         streamingGatewayEventController = new StreamingGatewayEventController(
-                viewModel,
-                new StreamingGatewayEventController.Host() {
-                    @Override
-                    public String languageMode() {
-                        return settingsStore.languageMode();
-                    }
-
-                    @Override
-                    public void renderSelectedTab() {
-                        MainActivity.this.renderSelectedTab();
-                    }
-
-                    @Override
-                    public void setStatus(String message) {
-                        MainActivity.this.setStatus(message);
-                    }
-                }
+                streamingViewModel,
+                new StreamingGatewayHostBindings(
+                        () -> settingsStore.languageMode(),
+                        this::renderSelectedTab,
+                        this::setStatus
+                )
         );
         streamingGatewayController = new StreamingGatewayController(
                 streamingGatewaySettingsStore,
@@ -312,163 +304,74 @@ public final class MainActivity extends ComponentActivity {
         );
         streamingGatewayController.configureRepository();
         streamingGatewayEventController.refreshStreamingProviders();
-        streamingAuthCallbackController = new StreamingAuthCallbackController(viewModel);
+        streamingAuthCallbackController = new StreamingAuthCallbackController(
+                new StreamingAuthCallbackBindings(streamingViewModel, streamingActionGatewayBindings)
+        );
         activityIntentController = new ActivityIntentController(streamingAuthCallbackController);
-        activityIntentController.handleInitialIntent(getIntent());
-        routeController = new MainRouteController(viewModel);
-        statePublisher = new MainStatePublisher(viewModel);
-        playbackStore = new MainPlaybackStore(viewModel);
-        statusMessageController = new StatusMessageController(new StatusMessageController.Host() {
-            @Override
-            public String languageMode() {
-                return settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode();
-            }
-
-            @Override
-            public void updateStatus(String message) {
-                uiShellController.updateStatus(message);
-            }
-        });
-        permissionController = new MainPermissionController(this, new MainPermissionController.Listener() {
-            @Override
-            public void onAudioPermissionResult() {
-                if (permissionController.hasAudioPermission()) {
-                    loadLibrary(false);
-                }
-            }
-        });
+        routeController = new MainRouteController(navigationViewModel);
+        playbackStore = new MainPlaybackStore(playbackViewModel);
+        statusMessageController = new StatusMessageController(new StatusMessageHostBindings(
+                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                message -> uiShellController.updateStatus(message)
+        ));
+        permissionController = new MainPermissionController(this, new PermissionResultBindings(
+                () -> permissionController.hasAudioPermission(),
+                () -> loadLibrary(false)
+        ));
         uiShellController = new MainUiShellController(this);
-        documentPickerController = new DocumentPickerController(this, new DocumentPickerController.Listener() {
-            @Override
-            public void importAudioUris(ArrayList<Uri> uris) {
-                MainActivity.this.importSelectedAudioUris(uris);
-            }
-
-            @Override
-            public void importAudioFolder(Uri treeUri) {
-                MainActivity.this.importSelectedAudioFolder(treeUri);
-            }
-
-            @Override
-            public void importStreamM3u(Uri playlistUri) {
-                MainActivity.this.importSelectedM3uFile(playlistUri);
-            }
-
-            @Override
-            public void exportPlaylist(Uri exportUri) {
-                playlistExportController.exportSelectedPlaylistToUri(exportUri);
-            }
-
-            @Override
-            public void importPlaylistM3u(Uri playlistUri) {
-                MainActivity.this.importSelectedPlaylistM3uFile(playlistUri);
-            }
-        });
-        playlistExportController = new PlaylistExportController(new PlaylistExportController.Listener() {
-            @Override
-            public void openPlaylistExportDocument(String playlistName) {
-                documentPickerController.openPlaylistExportDocument(playlistName);
-            }
-
-            @Override
-            public void exportPlaylist(Uri exportUri, long playlistId, String playlistName) {
-                libraryViewModel.exportPlaylistJava(
+        documentPickerController = new DocumentPickerController(this, new DocumentPickerBindings(
+                this::importSelectedAudioUris,
+                this::importSelectedAudioFolder,
+                this::importSelectedM3uFile,
+                exportUri -> playlistExportController.exportSelectedPlaylistToUri(exportUri),
+                this::importSelectedPlaylistM3uFile
+        ));
+        playlistExportController = new PlaylistExportController(new PlaylistExportBindings(
+                () -> settingsStore.languageMode(),
+                playlistName -> documentPickerController.openPlaylistExportDocument(playlistName),
+                (exportUri, playlistId, playlistName, callback) -> libraryViewModel.exportPlaylistJava(
                         exportUri,
                         playlistId,
                         playlistName,
-                        exported -> setStatus(exported
-                                ? AppLanguage.text(settingsStore.languageMode(), "playlist.exported")
-                                : AppLanguage.text(settingsStore.languageMode(), "playlist.export.failed"))
-                );
-            }
-
-            @Override
-            public void setStatus(String status) {
-                MainActivity.this.setStatus(status);
-            }
-        });
+                        callback::onResult
+                ),
+                this::setStatus
+        ));
         playbackStateUpdateController = new PlaybackStateUpdateController();
         playbackStateEventController = new PlaybackStateEventController(
                 mainHandler,
                 playbackStore,
                 playbackStateUpdateController,
-                new PlaybackStateEventController.ServiceQueueSource() {
-                    @Override
-                    public EchoPlaybackService service() {
-                        return playbackService;
-                    }
-                },
-                new PlaybackStateEventController.Listener() {
-                    @Override
-                    public String selectedTab() {
-                        return MainActivity.this.selectedTab();
-                    }
-
-                    @Override
-                    public long currentLyricsTrackId() {
-                        return lyricsViewModel == null ? -1L : lyricsViewModel.trackId();
-                    }
-
-                    @Override
-                    public void savePlaybackSettings(float playbackSpeed, float appVolume) {
-                        settingsStore.setPlaybackSpeed(playbackSpeed);
-                        settingsStore.setAppVolume(appVolume);
-                    }
-
-                    @Override
-                    public void loadLyrics(Track track) {
-                        MainActivity.this.loadLyrics(track);
-                    }
-
-                    @Override
-                    public void loadCollections() {
-                        MainActivity.this.loadCollections();
-                    }
-
-                    @Override
-                    public void renderNowBar() {
-                        MainActivity.this.renderNowBar();
-                    }
-
-                    @Override
-                    public void updateHomeDashboardPlayback(PlaybackStateSnapshot snapshot) {
-                        viewModel.updateHomeDashboardPlayback(snapshot);
-                    }
-
-                    @Override
-                    public void renderSelectedTab() {
-                        MainActivity.this.renderSelectedTab();
-                    }
-
-                    @Override
-                    public void updateNowPlayingContent() {
-                        MainActivity.this.updateNowPlayingContent();
-                    }
-
-                    @Override
-                    public void preResolveNextStreamingTrack(PlaybackStateSnapshot snapshot) {
-                        MainActivity.this.preResolveNextStreamingTrack(snapshot);
-                    }
-
-                    @Override
-                    public void recoverStreamingBuffering(PlaybackStateSnapshot snapshot) {
-                        MainActivity.this.recoverStreamingBuffering(snapshot);
-                    }
-
-                    @Override
-                    public void setStatus(String status) {
-                        MainActivity.this.setStatus(status);
-                    }
-                }
+                new PlaybackServiceQueueSourceBindings(() -> playbackService),
+                new PlaybackStateEventBindings(
+                        this::selectedTab,
+                        () -> lyricsViewModel == null ? -1L : lyricsViewModel.trackId(),
+                        (playbackSpeed, appVolume) -> {
+                            settingsStore.setPlaybackSpeed(playbackSpeed);
+                            settingsStore.setAppVolume(appVolume);
+                        },
+                        this::loadLyrics,
+                        this::loadCollections,
+                        this::renderNowBar,
+                        snapshot -> homeDashboardViewModel.updatePlayback(snapshot),
+                        this::renderSelectedTab,
+                        this::updateNowPlayingContent,
+                        this::preResolveNextStreamingTrack,
+                        snapshot -> streamingPlaybackController.recoverStreamingBuffering(snapshot),
+                        this::setStatus
+                )
         );
         playbackServiceHostController = new PlaybackServiceHostController(
                 new PlaybackServiceHostBindings(
                         () -> settingsStore.playbackSpeed(),
                         () -> settingsStore.appVolume(),
                         () -> settingsStore.concurrentPlaybackEnabled(),
+                        () -> settingsStore.statusBarLyricsEnabled(),
+                        () -> settingsStore.playbackRestoreEnabled(),
+                        () -> settingsStore.replayGainEnabled(),
                         service -> playbackService = service,
                         () -> playbackStore.reset(),
-                        this::playPendingTracksIfNeeded,
+                        () -> playbackStartController.playPendingTracksIfNeeded(),
                         this::renderSelectedTab,
                         this::renderNowBar
                 )
@@ -478,493 +381,274 @@ public final class MainActivity extends ComponentActivity {
                 playbackStateEventController,
                 playbackServiceHostController
         );
-        tabRenderDispatcher = new MainTabRenderDispatcher(new MainTabRenderDispatcher.Renderer() {
-            @Override
-            public void renderHome() {
-                MainActivity.this.renderHome();
-            }
-
-            @Override
-            public void renderLibrary() {
-                MainActivity.this.renderLibrary();
-            }
-
-            @Override
-            public void renderCollections() {
-                MainActivity.this.renderCollections();
-            }
-
-            @Override
-            public void renderQueue() {
-                MainActivity.this.renderQueue();
-            }
-
-            @Override
-            public void renderNowPlaying() {
-                MainActivity.this.renderNowPlaying();
-            }
-
-            @Override
-            public void renderNetwork() {
-                MainActivity.this.renderNetwork();
-            }
-
-            @Override
-            public void renderSettings() {
-                MainActivity.this.renderSettings();
-            }
-        });
-        trackListRenderController = new TrackListRenderController(libraryViewModel, new TrackListRenderController.Listener() {
-            @Override
-            public void playTrackList(List<Track> tracks, int index) {
-                handleLibraryEvent(new LibraryEvent.PlayTrackList(tracks, index));
-            }
-
-            @Override
-            public void toggleFavorite(Track track) {
-                handleLibraryEvent(new LibraryEvent.ToggleFavorite(track));
-            }
-
-            @Override
-            public void showAddToPlaylist(Track track) {
-                handleLibraryEvent(new LibraryEvent.AddToPlaylist(track));
-            }
-
-            @Override
-            public void showEditStream(Track track) {
-                MainActivity.this.showEditStreamDialog(track);
-            }
-
-            @Override
-            public void confirmDeleteTrack(Track track) {
-                MainActivity.this.confirmDeleteTrack(track);
-            }
-
-            @Override
-            public void publishTrackList(String title, ArrayList<TrackRowUiState> rows) {
-                MainActivity.this.publishTrackListUiState(title, rows);
-            }
-
-            @Override
-            public void publishTrackListChrome(
-                    List<TrackRowActions> actions,
-                    List<TrackListHeaderMetric> headerMetrics,
-                    List<TrackListHeaderAction> headerActions,
-                    String emptyText,
-                    List<TrackListModeAction> modeActions,
-                    TrackListLabels labels
-            ) {
-                navTrackListActions = new ArrayList<>(actions);
-                navTrackListHeaderMetrics = new ArrayList<>(headerMetrics);
-                navTrackListHeaderActions = new ArrayList<>(headerActions);
-                navTrackListEmptyText = emptyText;
-                navTrackListModeActions = new ArrayList<>(modeActions);
-                navTrackListLabels = labels;
-                navLibraryGroupActions = Collections.emptyList();
-                navLibraryGroupEmptyText = "";
-                navLibraryGroupModeActions = Collections.emptyList();
-            }
-
-        });
-        homeDashboardRenderController = new HomeDashboardRenderController(viewModel, new HomeDashboardRenderController.Listener() {
-            @Override
-            public void openLibraryMode(String mode) {
-                routeController.setLibraryMode(mode);
-                routeController.clearLibraryGroup();
-                navigateToTab(TAB_LIBRARY, true, true);
-            }
-
-            @Override
-            public void continuePlayback(Track track) {
-                if (playbackStore.snapshot().hasTrack()) {
-                    togglePlayback();
-                    return;
+        tabRenderDispatcher = new MainTabRenderDispatcher(new MainTabRendererBindings(
+                this::renderHome,
+                this::renderLibrary,
+                this::renderCollections,
+                this::renderQueue,
+                this::renderNowPlaying,
+                this::renderNetwork,
+                this::renderSettings
+        ));
+        trackListRenderController = new TrackListRenderController(libraryViewModel, new TrackListRenderBindings(
+                this::handleLibraryEvent,
+                this::showEditStreamDialog,
+                this::confirmDeleteTrack,
+                this::publishTrackListChromeState
+        ));
+        homeDashboardRenderController = new HomeDashboardRenderController(homeDashboardViewModel, new HomeDashboardRenderBindings(
+                this::openLibraryModeFromHome,
+                this::continueDashboardPlayback,
+                this::renderNowBar,
+                this::playTrackListFromHost,
+                () -> loadLibrary(true),
+                () -> navigateToTab(TAB_QUEUE, true, true),
+                () -> libraryStore.allTracks(),
+                () -> navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING_HUB),
+                this::openCollectionsFromHome,
+                this::playStreamingDailyRecommendations,
+                this::playStreamingHeartbeatRecommendations,
+                actions -> navHomeActions = actions
+        ));
+        queueRenderController = new QueueRenderController(new QueueRenderBindings(
+                this::playTrackListFromHost,
+                this::handleLibraryEvent,
+                this::showAddToPlaylistDialog,
+                this::removeQueueTrack,
+                this::confirmClearQueue,
+                this::handleAppBack,
+                state -> {
+                },
+                this::addStateContent
+        ));
+        queueIntentController = new QueueIntentController(new QueueIntentBindings(
+                this::handleLibraryEvent,
+                this::showAddToPlaylistDialog,
+                this::removeQueueTrack,
+                this::moveQueueTrack,
+                this::confirmClearQueue,
+                this::handleAppBack
+        ));
+        playbackActionResultController = new PlaybackActionResultController(new PlaybackActionResultBindings(
+                snapshot -> playbackStore.replaceSnapshot(snapshot),
+                this::setStatus,
+                this::publishPlaybackState,
+                this::renderNowBar,
+                this::renderSelectedTab,
+                () -> {
+                    routeController.setSelectedTab(TAB_NOW);
+                    renderSelectedTab();
                 }
-                if (track != null) {
-                    playTrackList(Collections.singletonList(track), 0);
-                }
-            }
-
-            @Override
-            public void openNowPlaying() {
-                renderNowBar();
-            }
-
-            @Override
-            public void playTrack(Track track) {
-                playTrackList(Collections.singletonList(track), 0);
-            }
-
-            @Override
-            public void refreshLibrary() {
-                loadLibrary(true);
-            }
-
-            @Override
-            public void openQueue() {
-                navigateToTab(TAB_QUEUE, true, true);
-            }
-
-            @Override
-            public void shuffleAll() {
-                List<Track> allTracks = libraryStore.allTracks();
-                if (!allTracks.isEmpty()) {
-                    List<Track> shuffled = new ArrayList<>(allTracks);
-                    Collections.shuffle(shuffled);
-                    playTrackList(shuffled, 0);
-                }
-            }
-
-            @Override
-            public void openStreaming() {
-                navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING_HUB);
-            }
-
-            @Override
-            public void openCollections() {
-                MainActivity.this.openCollectionsFromHome();
-            }
-
-            @Override
-            public void playDailyRecommendations() {
-                MainActivity.this.playStreamingDailyRecommendations(
-                        app.yukine.streaming.StreamingProviderName.NETEASE);
-            }
-
-            @Override
-            public void playHeartbeatRecommendations() {
-                MainActivity.this.playStreamingHeartbeatRecommendations(
-                        app.yukine.streaming.StreamingProviderName.NETEASE);
-            }
-
-            @Override
-            public void publishHomeDashboardActions(app.yukine.ui.HomeDashboardActions actions) {
-                navHomeActions = actions;
-            }
-        });
-        queueRenderController = new QueueRenderController(viewModel, new QueueRenderController.Listener() {
-            @Override
-            public void playTrackList(List<Track> tracks, int index) {
-                MainActivity.this.playTrackList(tracks, index);
-            }
-
-            @Override
-            public void toggleFavorite(Track track) {
-                handleLibraryEvent(new LibraryEvent.ToggleFavorite(track));
-            }
-
-            @Override
-            public void showAddToPlaylist(Track track) {
-                MainActivity.this.showAddToPlaylistDialog(track);
-            }
-
-            @Override
-            public void removeQueueTrack(Track track) {
-                MainActivity.this.removeQueueTrack(track);
-            }
-
-            @Override
-            public void confirmClearQueue() {
-                MainActivity.this.confirmClearQueue();
-            }
-
-            @Override
-            public void requestBack() {
-                MainActivity.this.handleAppBack();
-            }
-
-            @Override
-            public void publishQueue(ArrayList<QueueTrackUiState> rows) {
-                MainActivity.this.publishQueueUiState(rows);
-            }
-
-            @Override
-            public void publishQueueChrome(
-                    List<app.yukine.ui.QueueTrackActions> actions,
-                    Runnable onClearQueue,
-                    app.yukine.ui.QueueScreenLabels labels,
-                    Runnable onBack
-            ) {
-            }
-
-            @Override
-            public void addStateContent(String message) {
-                MainActivity.this.addStateContent(message);
-            }
-        });
-        networkTrackListRenderController = new NetworkTrackListRenderController(new NetworkTrackListRenderController.Listener() {
-            @Override
-            public void navigateNetworkPage(String page) {
-                MainActivity.this.navigateNetworkPage(page);
-            }
-
-            @Override
-            public void clearRemoteSourceAndNavigateNetworkPage(String page) {
-                MainActivity.this.clearRemoteSourceAndNavigateNetworkPage(page);
-            }
-
-            @Override
-            public void syncRemoteSource(long sourceId) {
-                MainActivity.this.syncRemoteSource(sourceId);
-            }
-
-            @Override
-            public void playRemoteSourceTracks(RemoteSource source) {
-                MainActivity.this.playRemoteSourceTracks(source);
-            }
-
-            @Override
-            public void playTrackList(List<Track> tracks, int index) {
-                MainActivity.this.playTrackList(tracks, index);
-            }
-
-            @Override
-            public void renderTrackList(
-                    String title,
-                    List<Track> tracks,
-                    boolean showPlaylistAction,
-                    List<String> details,
-                    boolean showStreamActions,
-                    List<TrackListHeaderMetric> headerMetrics,
-                    List<TrackListHeaderAction> headerActions,
-                    String emptyText,
-                    TrackListLabels labels
-            ) {
-                MainActivity.this.renderComposeTrackList(
-                        title,
-                        tracks,
-                        showPlaylistAction,
-                        details,
-                        showStreamActions,
-                        headerMetrics,
-                        headerActions,
-                        emptyText,
-                        labels
-                );
-            }
-        });
-        streamingSearchEventController = new StreamingSearchEventController(
-                viewModel,
-                new StreamingSearchEventController.Navigator() {
-                    @Override
-                    public void backToNetworkHome() {
-                        MainActivity.this.navigateNetworkPage(NETWORK_HOME);
-                    }
-
-                    @Override
-                    public void importStreamingPlaylist(app.yukine.streaming.StreamingPlaylist playlist) {
-                        if (playlist == null) {
-                            return;
-                        }
-                        MainActivity.this.importStreamingPlaylistFromProviderRef(
-                                playlist.getProvider(),
-                                playlist.getProviderPlaylistId()
-                        );
-                    }
-
-                    @Override
-                    public void loadUserPlaylists() {
-                        viewModel.loadUserPlaylists(viewModel.getStreaming().getValue().getSelectedProvider());
-                    }
-
-                    @Override
-                    public void importLikedTracks() {
-                        MainActivity.this.importStreamingLikedTracks(
-                                viewModel.getStreaming().getValue().getSelectedProvider());
-                    }
-
-                    @Override
-                    public void playDailyRecommendations() {
-                        MainActivity.this.playStreamingDailyRecommendations(
-                                viewModel.getStreaming().getValue().getSelectedProvider());
-                    }
-
-                    @Override
-                    public void playHeartbeatRecommendations() {
-                        MainActivity.this.playStreamingHeartbeatRecommendations(
-                                viewModel.getStreaming().getValue().getSelectedProvider());
-                    }
-
-                    @Override
-                    public void pasteImportPlaylist() {
-                        MainActivity.this.showImportStreamingPlaylistDialog();
-                    }
-
-                    @Override
-                    public void inputProviderCookie() {
-                        MainActivity.this.showStreamingCookieDialog();
+        ));
+        playbackActionController = new PlaybackActionController(nowPlayingViewModel, new PlaybackActionBindings(
+                this::resolveCurrentStreamingQueueTrackIfNeeded,
+                () -> playbackService == null ? playbackStore.snapshot() : playbackService.snapshot(),
+                () -> libraryStore == null ? Collections.emptyList() : libraryStore.visibleTracks(),
+                this::applyPlaybackActionResult
+        ));
+        dailyRecommendationController = new DailyRecommendationController(streamingViewModel, () -> settingsStore.languageMode(), new DailyRecommendationBindings(
+                streamingViewModel::prepareStreamingRecommendationPresentation,
+                this::openRecommendationPlaylist,
+                this::setStatus
+        ));
+        heartbeatRecommendationController = new HeartbeatRecommendationController(streamingViewModel, () -> settingsStore.languageMode(), new HeartbeatRecommendationBindings(
+                () -> playbackService != null,
+                this::heartbeatRecommendationSeedRequest,
+                streamingViewModel::stopHeartbeatRecommendationMode,
+                presentation -> nowPlayingViewModel.appendToQueue(presentation.getTracks()),
+                this::playHeartbeatRecommendationTracks,
+                this::logHeartbeatSeedMiss,
+                this::setStatus
+        ));
+        streamingPlaybackController = new StreamingPlaybackController(streamingViewModel, nowPlayingViewModel, new StreamingPlaybackBindings(
+                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                this::adaptiveStreamingQuality,
+                this::selectedStreamingQuality,
+                () -> playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot(),
+                snapshot -> heartbeatRecommendationController.maybeAppendHeartbeatRecommendations(snapshot),
+                this::applyPlaybackActionResult,
+                this::setStatus
+        ));
+        playbackStartController = new PlaybackStartController(new PlaybackStartBindings(
+                streamingViewModel::stopHeartbeatRecommendationMode,
+                () -> startService(new Intent(this, EchoPlaybackService.class)),
+                () -> playbackService != null,
+                (tracks, index) -> {
+                    pendingPlaybackTracks = tracks == null ? Collections.emptyList() : new ArrayList<>(tracks);
+                    pendingPlaybackIndex = index;
+                },
+                () -> pendingPlaybackTracks == null ? Collections.emptyList() : pendingPlaybackTracks,
+                () -> pendingPlaybackIndex,
+                () -> {
+                    pendingPlaybackTracks = Collections.emptyList();
+                    pendingPlaybackIndex = -1;
+                },
+                () -> streamingViewModel.prepareStreamingPlaybackStatusText(
+                        settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                        null
+                ).getResolving(),
+                this::setStatus,
+                streamingPlaybackController::resolveAndPlayStreamingTrack,
+                nowPlayingViewModel::playTrackList,
+                this::applyPlaybackActionResult
+        ));
+        nowPlayingEffectController = new NowPlayingEffectController(new NowPlayingEffectBindings(
+                () -> navigateToTab(TAB_QUEUE, true, true),
+                effect -> showAddToPlaylistDialog(effect.getTrack()),
+                this::setStatus
+        ));
+        nowPlayingStateController = new NowPlayingStateController(nowPlayingViewModel, new NowPlayingStateBindings(
+                () -> playbackStore != null && libraryStore != null,
+                () -> playbackStore.snapshot(),
+                () -> libraryStore.favoriteIds(),
+                this::lyricsState,
+                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                state -> FloatingLyricsPublisher.update(
+                        state.getTrackTitle(),
+                        state.getArtist(),
+                        state.getCoverUri(),
+                        state.isPlaying(),
+                        activeLyricLine(state)
+                ),
+                this::bindQueueViewModelInputs
+        ));
+        queueActionController = new QueueActionController(nowPlayingViewModel, new QueueActionBindings(
+                this::applyPlaybackActionResult,
+                () -> playbackService != null,
+                (fromIndex, toIndex) -> playbackService.moveQueueTrack(fromIndex, toIndex),
+                this::renderNowBar,
+                this::renderSelectedTab,
+                () -> confirmationDialogController.confirmClearQueue(),
+                () -> AppLanguage.text(settingsStore.languageMode(), "queue.empty"),
+                this::setStatus
+        ));
+        lyricsReloadController = new LyricsReloadController(new LyricsReloadBindings(
+                () -> playbackStore == null ? null : playbackStore.snapshot().currentTrack,
+                this::neteaseProviderTrackIdForLyrics,
+                (track, providerTrackId) -> {
+                    if (lyricsViewModel != null) {
+                        lyricsViewModel.load(track, providerTrackId);
                     }
                 },
-                new StreamingSearchEventController.ContentSink() {
-                    @Override
-                    public void publishStreamingSearchChrome(
-                            app.yukine.ui.StreamingSearchLabels labels,
-                            app.yukine.ui.StreamingSearchActions actions
-                    ) {
-                        navStreamingSearchLabels = labels;
-                        navStreamingSearchActions = actions;
-                    }
-                }
+                key -> AppLanguage.text(settingsStore.languageMode(), key),
+                this::setStatus
+        ));
+        settingsActionController = new SettingsActionController(settingsViewModel, nowPlayingViewModel, new SettingsActionBindings(
+                endpoint -> streamingGatewayController.applyEndpoint(endpoint),
+                this::applyPlaybackActionResult,
+                () -> lyricsReloadController.reloadCurrentLyrics()
+        ));
+        settingsViewModel.bindGateway(new SettingsGatewayBindings(
+                this::navigateSettingsPage,
+                () -> navigateToNetworkTabPage(NETWORK_HOME),
+                () -> loadLibrary(false),
+                this::openAudioFilePicker,
+                this::openAudioFolderPicker,
+                settingsActionController::setOnlineLyricsEnabled,
+                settingsActionController::reloadCurrentLyrics,
+                settingsActionController::applyLyricsOffset,
+                settingsActionController::startSleepTimer,
+                settingsActionController::cancelSleepTimer,
+                settingsActionController::applyPlaybackSpeed,
+                settingsActionController::applyAppVolume,
+                settingsActionController::applyStreamingAudioQuality,
+                settingsActionController::setConcurrentPlaybackEnabled,
+                settingsActionController::applyAudioEffectSettings,
+                settingsActionController::setStatusBarLyricsEnabled,
+                settingsActionController::setFloatingLyricsEnabled,
+                settingsActionController::openFloatingLyricsPermission,
+                settingsActionController::setNowPlayingGesturesEnabled,
+                settingsActionController::setPlaybackRestoreEnabled,
+                settingsActionController::setReplayGainEnabled,
+                settingsActionController::applyThemeMode,
+                settingsActionController::applyAccentMode,
+                settingsActionController::applyLanguageMode,
+                settingsActionController::applyStreamingGatewayEndpoint
+        ));
+        streamingPlaylistController = new StreamingPlaylistController(streamingViewModel, () -> settingsStore.languageMode(), new StreamingPlaylistBindings(
+                () -> routeController.selectedPlaylistId(),
+                playlistId -> routeController.setSelectedPlaylistId(playlistId),
+                this::loadCollections,
+                this::selectedPlaylistName,
+                () -> libraryStore.selectedPlaylistTracks(),
+                () -> libraryStore.favoriteTracks(),
+                () -> streamingViewModel.getStreaming().getValue().getSelectedProvider(),
+                this::showStreamingProviderPicker,
+                () -> navigateToNetworkTabPage(NETWORK_STREAMING),
+                this::showStreamingPlaylistLoadedDialog,
+                this::setStatus,
+                this::renderSelectedTab
+        ));
+        streamingManualCookieController = new StreamingManualCookieController(streamingViewModel, () -> settingsStore.languageMode(), new StreamingManualCookieBindings(
+                () -> streamingViewModel.getStreaming().getValue().getSelectedProvider(),
+                this::showStreamingCookieDialogContent,
+                streamingPlaylistController::onStreamingLoginSuccess,
+                this::setStatus
+        ));
+        networkTrackListRenderController = new NetworkTrackListRenderController(new NetworkTrackListRenderBindings(
+                this::navigateNetworkPage,
+                this::clearRemoteSourceAndNavigateNetworkPage,
+                this::syncRemoteSource,
+                this::playRemoteSourceTracks,
+                this::playTrackListFromHost,
+                this::renderNetworkTrackList
+        ));
+        streamingSearchEventController = new StreamingSearchEventController(
+                new StreamingSearchActionHandlerBindings(streamingViewModel, streamingActionGatewayBindings),
+                new StreamingSearchNavigatorBindings(
+                        this::navigateNetworkPage,
+                        () -> streamingViewModel.getStreaming().getValue().getSelectedProvider(),
+                        streamingPlaylistController::importStreamingPlaylistFromProviderRef,
+                        provider -> streamingViewModel.loadUserPlaylists(provider),
+                        streamingPlaylistController::importStreamingLikedTracks,
+                        this::playStreamingDailyRecommendations,
+                        this::playStreamingHeartbeatRecommendations,
+                        this::showImportStreamingPlaylistDialog,
+                        streamingManualCookieController::showStreamingCookieDialog
+                ),
+                new StreamingSearchChromeBindings(state -> {
+                    navStreamingSearchLabels = state.getLabels();
+                    navStreamingSearchActions = state.getActions();
+                })
         );
         streamingSearchRenderController = new StreamingSearchRenderController(
                 viewModel,
                 () -> settingsStore.languageMode(),
                 streamingSearchEventController
         );
-        libraryGroupsRenderController = new LibraryGroupsRenderController(libraryViewModel, new LibraryGroupsRenderController.Listener() {
-            @Override
-            public void selectLibraryGroup(String key, String title) {
-                handleLibraryEvent(new LibraryEvent.OpenGroup(key, title));
-            }
-
-            @Override
-            public void clearLibraryGroupSelection() {
-                routeController.clearLibraryGroup();
-            }
-
-            @Override
-            public void closeLibraryGroup() {
-                handleLibraryEvent(LibraryEvent.BackFromGroup.INSTANCE);
-            }
-
-            @Override
-            public void playTrackList(List<Track> tracks, int index) {
-                handleLibraryEvent(new LibraryEvent.PlayTrackList(tracks, index));
-            }
-
-            @Override
-            public void confirmDeleteGroup(String title, List<Track> tracks) {
-                MainActivity.this.confirmDeleteTracks(title, tracks);
-            }
-
-            @Override
-            public void publishLibraryGroups(String title, ArrayList<LibraryGroupUiState> rows) {
-                MainActivity.this.publishLibraryGroupsUiState(title, rows);
-            }
-
-            @Override
-            public void publishLibraryGroupsChrome(
-                    List<LibraryGroupActions> actions,
-                    String emptyText,
-                    List<TrackListModeAction> modeActions
-            ) {
-                navLibraryGroupActions = new ArrayList<>(actions);
-                navLibraryGroupEmptyText = emptyText;
-                navLibraryGroupModeActions = new ArrayList<>(modeActions);
-                navTrackListActions = Collections.emptyList();
-                navTrackListHeaderMetrics = Collections.emptyList();
-                navTrackListHeaderActions = Collections.emptyList();
-                navTrackListEmptyText = "";
-            }
-
-            @Override
-            public void renderTrackList(
-                    String title,
-                    ArrayList<Track> tracks,
-                    ArrayList<TrackListHeaderMetric> headerMetrics,
-                    ArrayList<TrackListHeaderAction> headerActions
-            ) {
-                MainActivity.this.renderComposeTrackList(title, tracks, true, new ArrayList<String>(), false, headerMetrics, headerActions, "");
-            }
-
-        });
-        collectionsRenderController = new CollectionsRenderController(collectionsViewModel, new CollectionsRenderController.Listener() {
-            @Override
-            public void showCreatePlaylist() {
-                MainActivity.this.showCreatePlaylistDialog();
-            }
-
-            @Override
-            public void openPlaylistM3uFilePicker() {
-                MainActivity.this.openPlaylistM3uFilePicker();
-            }
-
-            @Override
-            public void confirmClearPlayHistory() {
-                MainActivity.this.confirmClearPlayHistory();
-            }
-
-            @Override
-            public void requestBack() {
-                MainActivity.this.handleAppBack();
-            }
-
-            @Override
-            public void playTrackList(List<Track> tracks, int index) {
-                MainActivity.this.playTrackList(tracks, index);
-            }
-
-            @Override
-            public void toggleFavorite(Track track) {
-                handleLibraryEvent(new LibraryEvent.ToggleFavorite(track));
-            }
-
-            @Override
-            public void showAddToPlaylist(Track track) {
-                MainActivity.this.showAddToPlaylistDialog(track);
-            }
-
-            @Override
-            public void selectPlaylist(long playlistId) {
-                routeController.setSelectedPlaylistId(playlistId);
-                loadCollections();
-            }
-
-            @Override
-            public void showRenamePlaylist(Playlist playlist) {
-                MainActivity.this.showRenamePlaylistDialog(playlist);
-            }
-
-            @Override
-            public void confirmDeletePlaylist(Playlist playlist) {
-                MainActivity.this.confirmDeletePlaylist(playlist);
-            }
-
-            @Override
-            public void openSelectedPlaylistExportDocument() {
-                playlistExportController.openSelectedPlaylistExportDocument(
-                        selectedPlaylistId(),
-                        selectedPlaylistName(),
-                        !libraryStore.selectedPlaylistTracks().isEmpty()
-                );
-            }
-
-            @Override
-            public void importSelectedPlaylistToStreaming() {
-                MainActivity.this.importSelectedPlaylistToStreaming();
-            }
-
-            @Override
-            public void importFavoritesToStreaming() {
-                MainActivity.this.importFavoritesToStreaming();
-            }
-
-            @Override
-            public void importStreamingFavorites() {
-                MainActivity.this.showImportStreamingFavoritesProviderPicker();
-            }
-
-            @Override
-            public void syncSelectedPlaylistFromStreaming() {
-                MainActivity.this.syncSelectedPlaylistFromStreaming();
-            }
-
-            @Override
-            public void moveSelectedPlaylistTrack(long playlistId, Track track, int trackIndex, int direction) {
-                MainActivity.this.moveSelectedPlaylistTrack(playlistId, track, trackIndex, direction);
-            }
-
-            @Override
-            public void removeSelectedPlaylistTrack(long playlistId, Track track) {
-                MainActivity.this.removeSelectedPlaylistTrack(playlistId, track);
-            }
-
-            @Override
-            public void publishCollectionsActions(app.yukine.ui.CollectionsActions actions) {
-                navCollectionsActions = actions;
-            }
-
-        });
+        libraryGroupsRenderController = new LibraryGroupsRenderController(libraryViewModel, new LibraryGroupsRenderBindings(
+                this::handleLibraryEvent,
+                () -> routeController.clearLibraryGroup(),
+                this::confirmDeleteTracks,
+                this::publishLibraryGroupsChromeState,
+                this::renderLibraryGroupTrackList
+        ));
+        libraryPlaylistsRenderController = new LibraryPlaylistsRenderController(libraryViewModel, new LibraryPlaylistsRenderBindings(
+                this::handleLibraryEvent,
+                this::confirmDeletePlaylist,
+                this::publishLibraryGroupsChromeState,
+                this::renderLibraryPlaylistTrackList
+        ));
+        collectionsRenderController = new CollectionsRenderController(collectionsViewModel, new CollectionsRenderBindings(
+                this::showCreatePlaylistDialog,
+                this::openPlaylistM3uFilePicker,
+                this::confirmClearPlayHistory,
+                this::handleAppBack,
+                this::playTrackListFromHost,
+                this::handleLibraryEvent,
+                this::showAddToPlaylistDialog,
+                this::selectPlaylistFromCollections,
+                this::showRenamePlaylistDialog,
+                this::confirmDeletePlaylist,
+                this::openSelectedPlaylistExportDocument,
+                streamingPlaylistController::importSelectedPlaylistToStreaming,
+                streamingPlaylistController::importFavoritesToStreaming,
+                this::showImportStreamingFavoritesProviderPicker,
+                this::syncSelectedPlaylistFromStreaming,
+                this::moveSelectedPlaylistTrack,
+                this::removeSelectedPlaylistTrack,
+                actions -> navCollectionsActions = actions
+        ));
         nowPlayingRenderController = new NowPlayingRenderController();
         syncRouteFieldsFromViewModel();
         libraryStore = new MainLibraryStore(
@@ -991,154 +675,25 @@ public final class MainActivity extends ComponentActivity {
                 new GetStreamingPlaylistLinkUseCase(
                         new StreamingPlaylistSyncStoreLinkOperations(streamingPlaylistSyncStore)
                 );
-        viewModel.bindStreamingLocalPlaylistOperations(new StreamingLocalPlaylistOperations() {
-            @Override
-            public app.yukine.model.PlaylistImportResult importStreamingPlaylist(
-                    String playlistName,
-                    app.yukine.streaming.StreamingProviderName provider,
-                    String providerPlaylistId,
-                    List<app.yukine.streaming.StreamingTrack> streamingTracks,
-                    boolean linkWhenProviderPlaylistIdBlank
-            ) {
-                return importStreamingPlaylistUseCase.execute(
-                        playlistName,
-                        provider,
-                        providerPlaylistId,
-                        streamingTracks,
-                        linkWhenProviderPlaylistIdBlank
-                );
-            }
-
-            @Override
-            public StreamingLocalPlaylistSyncResult syncStreamingPlaylist(
-                    app.yukine.streaming.StreamingPlaylistSyncStore.LinkedPlaylist link,
-                    List<app.yukine.streaming.StreamingTrack> streamingTracks
-            ) {
-                SyncStreamingPlaylistResult result = syncStreamingPlaylistUseCase.execute(link, streamingTracks);
-                return new StreamingLocalPlaylistSyncResult(
-                        result.getPlaylistId(),
-                        result.getSyncedCount(),
-                        result.getEmpty()
-                );
-            }
-
-            @Override
-            public StreamingLoginPlaylistResult ensureStreamingLoginPlaylist(
-                    String playlistName,
-                    app.yukine.streaming.StreamingProviderName provider
-            ) {
-                EnsureStreamingLoginPlaylistResult result =
-                        ensureStreamingLoginPlaylistUseCase.execute(playlistName, provider);
-                return new StreamingLoginPlaylistResult(
-                        result.getPlaylistId(),
-                        result.getPlaylistName()
-                );
-            }
-
-            @Override
-            public app.yukine.streaming.StreamingPlaylistSyncStore.LinkedPlaylist linkedPlaylist(long localPlaylistId) {
-                return streamingPlaylistLinkUseCase.execute(localPlaylistId);
-            }
-        });
+        streamingViewModel.bindStreamingLocalPlaylistOperations(new StreamingLocalPlaylistOperationsBindings(
+                importStreamingPlaylistUseCase,
+                syncStreamingPlaylistUseCase,
+                ensureStreamingLoginPlaylistUseCase,
+                streamingPlaylistLinkUseCase
+        ));
         streamingTrackMatchUseCase = new StreamingTrackMatchUseCase(
                 new MusicLibraryStreamingTrackMatchOperations(repository)
         );
-        viewModel.bindStreamingTrackMatchStore(new StreamingTrackMatchStore() {
-            @Override
-            public String directProviderTrackId(
-                    Track track,
-                    app.yukine.streaming.StreamingProviderName provider
-            ) {
-                return streamingTrackMatchUseCase.directProviderTrackId(track, provider);
-            }
-
-            @Override
-            public String providerTrackIdFor(
-                    Track track,
-                    app.yukine.streaming.StreamingProviderName provider
-            ) {
-                return streamingTrackMatchUseCase.providerTrackIdFor(track, provider);
-            }
-
-            @Override
-            public void saveProviderTrackId(
-                    Track track,
-                    app.yukine.streaming.StreamingProviderName provider,
-                    String providerTrackId
-            ) {
-                streamingTrackMatchUseCase.saveProviderTrackId(track, provider, providerTrackId);
-            }
-
-            @Override
-            public String providerTrackIdFromCandidates(
-                    List<Track> candidates,
-                    app.yukine.streaming.StreamingProviderName provider
-            ) {
-                return streamingTrackMatchUseCase.providerTrackIdFromCandidates(candidates, provider);
-            }
-
-            @Override
-            public List<Track> heartbeatSeedCandidates(
-                    PlaybackStateSnapshot serviceSnapshot,
-                    List<Track> serviceQueue,
-                    PlaybackStateSnapshot storeSnapshot,
-                    List<Track> viewModelQueue
-            ) {
-                return streamingTrackMatchUseCase.heartbeatSeedCandidates(
-                        serviceSnapshot,
-                        serviceQueue,
-                        storeSnapshot,
-                        viewModelQueue
-                );
-            }
-
-            @Override
-            public List<Track> snapshotQueueForHeartbeat(
-                    List<Track> serviceQueue,
-                    List<Track> viewModelQueue,
-                    PlaybackStateSnapshot storeSnapshot
-            ) {
-                return streamingTrackMatchUseCase.snapshotQueueForHeartbeat(
-                        serviceQueue,
-                        viewModelQueue,
-                        storeSnapshot
-                );
-            }
-
-            @Override
-            public String heartbeatSeedMissMessage(
-                    app.yukine.streaming.StreamingProviderName provider,
-                    PlaybackStateSnapshot snapshot,
-                    PlaybackStateSnapshot storeSnapshot,
-                    List<Track> queue
-            ) {
-                return streamingTrackMatchUseCase.heartbeatSeedMissMessage(
-                        provider,
-                        snapshot,
-                        storeSnapshot,
-                        queue
-                );
-            }
-        });
+        streamingViewModel.bindStreamingTrackMatchStore(new StreamingTrackMatchStoreBindings(streamingTrackMatchUseCase));
         toggleFavoriteUseCase = new ToggleFavoriteUseCase(
                 new MusicLibraryFavoriteOperations(repository)
         );
-        libraryViewModel.bindFavoriteWriter(new LibraryFavoriteWriter() {
-            @Override
-            public boolean writeFavorite(Track track, boolean favorite) {
-                return toggleFavoriteUseCase.execute(track, favorite);
-            }
-        });
+        libraryViewModel.bindFavoriteWriter(new LibraryFavoriteWriterBindings(toggleFavoriteUseCase));
 
         loadPlaylistTracksUseCase = new LoadPlaylistTracksUseCase(
                 new MusicLibraryPlaylistTrackOperations(repository)
         );
-        libraryViewModel.bindPlaylistTrackLoader(new LibraryPlaylistTrackLoader() {
-            @Override
-            public List<Track> loadPlaylistTracks(long playlistId) {
-                return loadPlaylistTracksUseCase.execute(playlistId);
-            }
-        });
+        libraryViewModel.bindPlaylistTrackLoader(new LibraryPlaylistTrackLoaderBindings(loadPlaylistTracksUseCase));
         loadLyricsSettingsUseCase = new LoadLyricsSettingsUseCase(
                 new MusicLibraryLyricsSettingsOperations(repository)
         );
@@ -1146,334 +701,79 @@ public final class MainActivity extends ComponentActivity {
         LibraryCollectionOperations libraryCollectionOperations =
                 new MusicLibraryCollectionOperations(repository);
         LibraryImportOperations libraryImportOperations =
-                new MusicLibraryImportOperations(repository);        libraryViewModel.bindCollectionGateway(new LibraryCollectionGateway() {
-            @Override
-            public LibraryCollectionsResult loadCollections(long selectedPlaylistId) {
-                LibraryCollectionsSnapshot loaded = new LoadLibraryCollectionsUseCase(libraryCollectionOperations)
-                        .execute(selectedPlaylistId);
-                return new LibraryCollectionsResult(
-                        loaded.selectedPlaylistId,
-                        loaded.favoriteIds,
-                        loaded.favoriteTracks,
-                        loaded.recentRecords,
-                        loaded.mostPlayedRecords,
-                        loaded.playlists,
-                        loaded.remoteSources,
-                        loaded.selectedPlaylistTracks
-                );
-            }
-
-            @Override
-            public int clearPlayHistory() {
-                return new ClearPlayHistoryUseCase(libraryCollectionOperations).execute();
-            }
-
-            @Override
-            public void setFavorite(long trackId, boolean favorite) {
-                new SetLibraryFavoriteUseCase(libraryCollectionOperations).execute(trackId, favorite);
-            }
-        });
-        libraryViewModel.bindImportGateway(new LibraryImportGateway() {
-            private final LoadLibraryUseCase loadLibraryUseCase = new LoadLibraryUseCase(libraryImportOperations);
-            private final ImportAudioUrisUseCase importAudioUrisUseCase = new ImportAudioUrisUseCase(libraryImportOperations);
-            private final ImportAudioTreeUseCase importAudioTreeUseCase = new ImportAudioTreeUseCase(libraryImportOperations);
-            private final ParseMissingAudioSpecsUseCase parseMissingAudioSpecsUseCase = new ParseMissingAudioSpecsUseCase(libraryImportOperations);
-
-            @Override
-            public LibraryLoadResultUi loadCached() {
-                LibraryLoadResult result = loadLibraryUseCase.cached();
-                return new LibraryLoadResultUi(result.getTracks(), result.getFavorites(), "Library updated");
-            }
-
-            @Override
-            public LibraryLoadResultUi refresh() {
-                LibraryLoadResult result = loadLibraryUseCase.refresh();
-                return new LibraryLoadResultUi(result.getTracks(), result.getFavorites(), "Library updated");
-            }
-
-            @Override
-            public LibraryLoadResultUi importAudioUris(List<Uri> uris) {
-                LibraryLoadResult result = importAudioUrisUseCase.execute(uris);
-                return new LibraryLoadResultUi(result.getTracks(), result.getFavorites(), "Library updated");
-            }
-
-            @Override
-            public LibraryLoadResultUi importAudioTree(Uri treeUri) {
-                LibraryLoadResult result = importAudioTreeUseCase.execute(treeUri);
-                return new LibraryLoadResultUi(result.getTracks(), result.getFavorites(), "Library updated");
-            }
-
-            @Override
-            public LibraryAudioSpecsResultUi parseMissingAudioSpecs() {
-                AudioSpecsParseResult result = parseMissingAudioSpecsUseCase.execute();
-                return new LibraryAudioSpecsResultUi(
-                        result.getUpdatedCount(),
-                        result.getTracks(),
-                        result.getFavorites()
-                );
-            }
-        });
-        libraryViewModel.bindDocumentGateway(new LibraryDocumentGateway() {
-            private final LoadLibraryUseCase loadLibraryUseCase = new LoadLibraryUseCase(libraryImportOperations);
-            private final ImportStreamM3uTextUseCase importStreamM3uTextUseCase = new ImportStreamM3uTextUseCase(libraryImportOperations);
-            private final ImportPlaylistM3uTextUseCase importPlaylistM3uTextUseCase = new ImportPlaylistM3uTextUseCase(libraryImportOperations);
-            private final LoadPlaylistExportTracksUseCase loadPlaylistExportTracksUseCase = new LoadPlaylistExportTracksUseCase(libraryImportOperations);
-
-            @Override
-            public LibraryLoadResultUi importStreamM3u(Uri playlistUri) {
-                M3uDocumentHelper.ReadResult playlistRead = M3uDocumentHelper.readText(getContentResolver(), playlistUri);
-                StreamM3uImportResult imported = playlistRead.success
-                        ? importStreamM3uTextUseCase.execute(playlistRead.text)
-                        : null;
-                LibraryLoadResult fallback = imported == null ? loadLibraryUseCase.cached() : null;
-                String status = M3uDocumentHelper.localImportStatus(
-                        playlistRead,
-                        imported == null ? null : imported.getImportResult()
-                );
-                return new LibraryLoadResultUi(
-                        imported == null ? fallback.getTracks() : imported.getTracks(),
-                        imported == null ? fallback.getFavorites() : imported.getFavorites(),
-                        status
-                );
-            }
-
-            @Override
-            public LibraryPlaylistImportResultUi importPlaylistM3u(Uri playlistUri) {
-                M3uDocumentHelper.ReadResult playlistRead = M3uDocumentHelper.readText(getContentResolver(), playlistUri);
-                PlaylistM3uImportResult imported = playlistRead.success
-                        ? importPlaylistM3uTextUseCase.execute(
-                                playlistRead.text,
-                                M3uDocumentHelper.playlistFallbackName(playlistUri)
-                        )
-                        : null;
-                LibraryLoadResult fallback = imported == null ? loadLibraryUseCase.cached() : null;
-                PlaylistImportResult importResult = imported == null ? null : imported.getImportResult();
-                long playlistId = importResult != null && importResult.playlistId >= 0L ? importResult.playlistId : -1L;
-                String status = M3uDocumentHelper.playlistImportStatus(playlistRead, importResult);
-                return new LibraryPlaylistImportResultUi(
-                        playlistId,
-                        imported == null ? fallback.getTracks() : imported.getTracks(),
-                        imported == null ? fallback.getFavorites() : imported.getFavorites(),
-                        status
-                );
-            }
-
-            @Override
-            public boolean exportPlaylist(Uri exportUri, long playlistId, String playlistName) {
-                List<Track> tracks = loadPlaylistExportTracksUseCase.execute(playlistId);
-                return M3uDocumentHelper.writeText(
-                        getContentResolver(),
-                        exportUri,
-                        M3uDocumentHelper.buildPlaylistText(playlistName, tracks)
-                );
-            }
-        });
+                new MusicLibraryImportOperations(repository);
+        libraryViewModel.bindCollectionGateway(new LibraryCollectionGatewayBindings(libraryCollectionOperations));
+        libraryViewModel.bindImportGateway(new LibraryImportGatewayBindings(libraryImportOperations));
+        libraryViewModel.bindDocumentGateway(new LibraryDocumentGatewayBindings(getContentResolver(), libraryImportOperations));
         settingsViewModel.bindPreferenceGateway(update ->
                 new ApplySettingsPreferenceUseCase(
                         new MusicLibrarySettingsPreferenceOperations(repository)
                 ).execute(update)
         );
-        settingsViewModel.bindAppliedListener(
-                new SettingsAppliedListener() {
+        settingsViewModel.bindAppliedListener(new SettingsAppliedListenerBindings(
+                settingsStore,
+                () -> uiShellController.applyThemeSurface(),
+                languageMode -> uiShellController.updateLanguage(languageMode),
+                () -> playbackService == null ? null : new SettingsPlaybackServiceControlsBindings(
+                        playbackService::setPlaybackSpeed,
+                        playbackService::setAppVolume,
+                        playbackService::setConcurrentPlaybackEnabled,
+                        playbackService::applyAudioEffectSettings,
+                        playbackService::setStatusBarLyricsEnabled,
+                        playbackService::setPlaybackRestoreEnabled,
+                        playbackService::setReplayGainEnabled
+                ),
+                () -> lyricsViewModel == null ? null : new SettingsLyricsControlsBindings(
+                        lyricsViewModel::setOnlineEnabled,
+                        lyricsViewModel::setOffsetMs
+                ),
+                () -> new SettingsFloatingLyricsControls() {
                     @Override
-                    public void onThemeModeApplied(String mode) {
-                        settingsStore.setThemeMode(mode);
-                        uiShellController.applyThemeSurface();
-                        renderSelectedTab();
-                        renderNowBar();
-                        setStatus(settingsViewModel.prepareAppliedStatusText(
-                                settingsStore.languageMode(),
-                                settingsStore.themeMode(),
-                                settingsStore.accentMode(),
-                                settingsStore.playbackSpeed(),
-                                settingsStore.appVolume(),
-                                0L
-                        ).getThemeApplied());
-                    }
-
-                    @Override
-                    public void onAccentModeApplied(String accent) {
-                        settingsStore.setAccentMode(accent);
-                        renderSelectedTab();
-                        renderNowBar();
-                        setStatus(settingsViewModel.prepareAppliedStatusText(
-                                settingsStore.languageMode(),
-                                settingsStore.themeMode(),
-                                settingsStore.accentMode(),
-                                settingsStore.playbackSpeed(),
-                                settingsStore.appVolume(),
-                                0L
-                        ).getAccentApplied());
-                    }
-
-                    @Override
-                    public void onLanguageModeApplied(String languageMode) {
-                        settingsStore.setLanguageMode(languageMode);
-                        uiShellController.updateLanguage(settingsStore.languageMode());
-                        renderSelectedTab();
-                        renderNowBar();
-                        setStatus(settingsViewModel.prepareAppliedStatusText(
-                                settingsStore.languageMode(),
-                                settingsStore.themeMode(),
-                                settingsStore.accentMode(),
-                                settingsStore.playbackSpeed(),
-                                settingsStore.appVolume(),
-                                0L
-                        ).getLanguageApplied());
-                    }
-
-                    @Override
-                    public void onPlaybackSpeedApplied(float speed) {
-                        settingsStore.setPlaybackSpeed(speed);
-                        if (playbackService != null) {
-                            playbackService.setPlaybackSpeed(settingsStore.playbackSpeed());
+                    public boolean apply(boolean enabled) {
+                        if (!enabled) {
+                            FloatingLyricsService.stop(MainActivity.this);
+                            return true;
                         }
-                        renderSelectedTab();
-                        renderNowBar();
-                        setStatus(settingsViewModel.prepareAppliedStatusText(
-                                settingsStore.languageMode(),
-                                settingsStore.themeMode(),
-                                settingsStore.accentMode(),
-                                settingsStore.playbackSpeed(),
-                                settingsStore.appVolume(),
-                                0L
-                        ).getPlaybackSpeedApplied());
+                        if (!permissionController.hasOverlayPermission()) {
+                            FloatingLyricsService.stop(MainActivity.this);
+                            permissionController.openOverlayPermissionSettings();
+                            return false;
+                        }
+                        FloatingLyricsService.start(MainActivity.this);
+                        return true;
                     }
 
                     @Override
-                    public void onAppVolumeApplied(float volume) {
-                        settingsStore.setAppVolume(volume);
-                        if (playbackService != null) {
-                            playbackService.setAppVolume(settingsStore.appVolume());
-                        }
-                        renderSelectedTab();
-                        renderNowBar();
-                        setStatus(settingsViewModel.prepareAppliedStatusText(
-                                settingsStore.languageMode(),
-                                settingsStore.themeMode(),
-                                settingsStore.accentMode(),
-                                settingsStore.playbackSpeed(),
-                                settingsStore.appVolume(),
-                                0L
-                        ).getAppVolumeApplied());
+                    public void openPermissionSettings() {
+                        permissionController.openOverlayPermissionSettings();
                     }
-
-                    @Override
-                    public void onStreamingAudioQualityApplied(String quality) {
-                        settingsStore.setStreamingAudioQuality(quality);
-                        renderSelectedTab();
-                        setStatus(viewModel.prepareStreamingStatusText(
-                                settingsStore.streamingAudioQuality()
-                        ).getStreamingQualityApplied());
-                    }
-
-                    @Override
-                    public void onOnlineLyricsEnabledApplied(boolean enabled) {
-                        if (lyricsViewModel != null) {
-                            lyricsViewModel.setOnlineEnabled(enabled);
-                        }
-                        SettingsAppliedStatusText statusText = settingsViewModel.prepareAppliedStatusText(
-                                settingsStore.languageMode(),
-                                settingsStore.themeMode(),
-                                settingsStore.accentMode(),
-                                settingsStore.playbackSpeed(),
-                                settingsStore.appVolume(),
-                                0L
-                        );
-                        setStatus(enabled
-                                ? statusText.getOnlineLyricsEnabled()
-                                : statusText.getOnlineLyricsDisabled());
-                        reloadCurrentLyrics();
-                        renderSelectedTab();
-                    }
-
-                    @Override
-                    public void onConcurrentPlaybackEnabledApplied(boolean enabled) {
-                        settingsStore.setConcurrentPlaybackEnabled(enabled);
-                        if (playbackService != null) {
-                            playbackService.setConcurrentPlaybackEnabled(settingsStore.concurrentPlaybackEnabled());
-                        }
-                        SettingsAppliedStatusText statusText = settingsViewModel.prepareAppliedStatusText(
-                                settingsStore.languageMode(),
-                                settingsStore.themeMode(),
-                                settingsStore.accentMode(),
-                                settingsStore.playbackSpeed(),
-                                settingsStore.appVolume(),
-                                0L
-                        );
-                        setStatus(enabled
-                                ? statusText.getConcurrentPlaybackEnabled()
-                                : statusText.getConcurrentPlaybackDisabled());
-                        renderSelectedTab();
-                    }
-
-                    @Override
-                    public void onLyricsOffsetApplied(long offsetMs) {
-                        if (lyricsViewModel != null) {
-                            lyricsViewModel.setOffsetMs(offsetMs);
-                        }
-                        setStatus(settingsViewModel.prepareAppliedStatusText(
-                                settingsStore.languageMode(),
-                                settingsStore.themeMode(),
-                                settingsStore.accentMode(),
-                                settingsStore.playbackSpeed(),
-                                settingsStore.appVolume(),
-                                offsetMs
-                        ).getLyricsOffsetApplied());
-                        renderSelectedTab();
-                        if (TAB_NOW.equals(selectedTab())) {
-                            renderNowBar();
-                        }
-                    }
-                }
-        );
+                },
+                offsetMs -> settingsViewModel.prepareAppliedStatusText(
+                        settingsStore.languageMode(),
+                        settingsStore.themeMode(),
+                        settingsStore.accentMode(),
+                        settingsStore.playbackSpeed(),
+                        settingsStore.appVolume(),
+                        offsetMs
+                ),
+                quality -> streamingViewModel.prepareStreamingStatusText(settingsStore.languageMode(), quality).getStreamingQualityApplied(),
+                this::setStatus,
+                this::renderSelectedTab,
+                this::renderNowBar,
+                () -> lyricsReloadController.reloadCurrentLyrics(),
+                this::selectedTab
+        ));
         PlaylistActionOperations playlistActionOperations =
                 new MusicLibraryPlaylistActionOperations(repository);
-        libraryViewModel.bindPlaylistActionGateway(new LibraryPlaylistActionGateway() {
-            private final AddToDefaultPlaylistUseCase addToDefaultPlaylistUseCase = new AddToDefaultPlaylistUseCase(playlistActionOperations);
-            private final CreatePlaylistUseCase createPlaylistUseCase = new CreatePlaylistUseCase(playlistActionOperations);
-            private final RenamePlaylistUseCase renamePlaylistUseCase = new RenamePlaylistUseCase(playlistActionOperations);
-            private final DeletePlaylistUseCase deletePlaylistUseCase = new DeletePlaylistUseCase(playlistActionOperations);
-            private final AddTrackToPlaylistUseCase addTrackToPlaylistUseCase = new AddTrackToPlaylistUseCase(playlistActionOperations);
-            private final RemoveTrackFromPlaylistUseCase removeTrackFromPlaylistUseCase = new RemoveTrackFromPlaylistUseCase(playlistActionOperations);
-            private final MovePlaylistTrackUseCase movePlaylistTrackUseCase = new MovePlaylistTrackUseCase(playlistActionOperations);
-
-            @Override
-            public LibraryDefaultPlaylistAddResultUi addToDefaultPlaylist(Track track) {
-                DefaultPlaylistAddResult result = addToDefaultPlaylistUseCase.execute(track);
-                return result == null ? null : new LibraryDefaultPlaylistAddResultUi(result.playlistId, result.added);
-            }
-
-            @Override
-            public long createPlaylist(String name) {
-                return createPlaylistUseCase.execute(name);
-            }
-
-            @Override
-            public boolean renamePlaylist(long playlistId, String name) {
-                return renamePlaylistUseCase.execute(playlistId, name);
-            }
-
-            @Override
-            public boolean deletePlaylist(long playlistId) {
-                return deletePlaylistUseCase.execute(playlistId);
-            }
-
-            @Override
-            public boolean removeTrackFromPlaylist(long playlistId, Track track) {
-                return removeTrackFromPlaylistUseCase.execute(playlistId, track);
-            }
-
-            @Override
-            public boolean movePlaylistTrack(long playlistId, Track track, int trackIndex, int direction) {
-                return movePlaylistTrackUseCase.execute(playlistId, track, trackIndex, direction);
-            }
-
-            @Override
-            public boolean addTrackToPlaylist(long playlistId, long trackId) {
-                return addTrackToPlaylistUseCase.execute(playlistId, trackId);
-            }
-        });
+        libraryViewModel.bindPlaylistActionGateway(new LibraryPlaylistActionGatewayBindings(playlistActionOperations));
+        playlistActionResultController = new PlaylistActionResultController(
+                libraryViewModel,
+                () -> settingsStore.languageMode(),
+                this::selectedPlaylistId,
+                playlistId -> routeController.setSelectedPlaylistId(playlistId),
+                this::setStatus,
+                this::loadCollections
+        );
         WebDavSourceOperations webDavSourceOperations =
                 new MusicLibraryWebDavSourceOperations(repository);
         NetworkLibraryOperations networkLibraryOperations =
@@ -1495,90 +795,19 @@ public final class MainActivity extends ComponentActivity {
                 )
         );
         networkActionsViewModel.bindListener(
-                new NetworkActionsViewModel.Listener() {
-                    @Override
-                    public void onStreamAdded(List<Track> cached, Set<Long> favorites, String status) {
-                        replaceLibrary(cached, favorites, status);
-                    }
-
-                    @Override
-                    public void onStreamUpdated(long oldTrackId, Track updated, List<Track> cached, Set<Long> favorites, String status) {
-                        if (updated != null) {
-                            syncUpdatedStreamQueue(oldTrackId, updated);
-                        }
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(NETWORK_STREAM_LIST);
-                    }
-
-                    @Override
-                    public void onStreamPlaylistImported(List<Track> cached, Set<Long> favorites, String status) {
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(NETWORK_STREAMING);
-                    }
-
-                    @Override
-                    public void onAllStreamsDeleted(List<Track> cached, Set<Long> favorites, String status) {
-                        retainPlaybackTracks(cached);
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(NETWORK_STREAMING);
-                    }
-
-                    @Override
-                    public void onTrackDeleted(List<Track> cached, Set<Long> favorites, String status) {
-                        retainPlaybackTracks(cached);
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(NETWORK_STREAM_LIST);
-                    }
-
-                    @Override
-                    public void onRemoteSourceDeleted(List<Track> cached, Set<Long> favorites, String status) {
-                        retainPlaybackTracks(cached);
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(NETWORK_SOURCES);
-                        loadCollections();
-                    }
-
-                    @Override
-                    public void onWebDavSourceSaved(long sourceId, List<Track> cached, Set<Long> favorites, String status) {
-                        retainPlaybackTracks(cached);
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(sourceId > 0L ? NETWORK_SOURCES : NETWORK_WEBDAV);
-                        loadCollections();
-                    }
-
-                    @Override
-                    public void onRemoteSourceTested(String status) {
-                        setStatus(status);
-                        loadCollections();
-                    }
-
-                    @Override
-                    public void onRemoteSourceSynced(List<Track> cached, Set<Long> favorites, String status) {
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(NETWORK_SOURCES);
-                    }
-
-                    @Override
-                    public void onAllWebDavSourcesSynced(List<Track> cached, Set<Long> favorites, String status) {
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(NETWORK_WEBDAV);
-                    }
-                }
+                new NetworkActionsResultBindings(
+                        this::replaceLibrary,
+                        this::retainPlaybackTracks,
+                        this::syncUpdatedStreamQueue,
+                        this::navigateToNetworkTabPage,
+                        this::setStatus,
+                        this::loadCollections
+                )
         );
         networkRequestController = new NetworkRequestController(
                 networkActionsViewModel,
-                new NetworkRequestController.Labels() {
-                    @Override
-                    public String text(String key) {
-                        return AppLanguage.text(settingsStore.languageMode(), key);
-                    }
-                },
-                new NetworkRequestController.Listener() {
-                    @Override
-                    public void setStatus(String status) {
-                        MainActivity.this.setStatus(status);
-                    }
-                }
+                new NetworkRequestLabels(key -> AppLanguage.text(settingsStore.languageMode(), key)),
+                new NetworkRequestStatusListener(this::setStatus)
         );
         lyricsViewModel.configure(
                 new LoadTrackLyricsUseCaseLyricsLoader(
@@ -1587,24 +816,18 @@ public final class MainActivity extends ComponentActivity {
                 loadedLyricsSettings.onlineLyricsEnabled,
                 loadedLyricsSettings.lyricsOffsetMs
         );
-        lyricsViewModel.bindListener(new LyricsStateListener() {
-            @Override
-            public void onLyricsStateChanged() {
-                MainActivity.this.onLyricsStateChanged();
-            }
-        });
+        lyricsViewModel.bindListener(new LyricsStateListenerBindings(
+                this::selectedTab,
+                this::renderNowBar,
+                this::updateNowPlayingContent,
+                this::renderSelectedTab
+        ));
         SettingsPageEventController settingsPageEventController = new SettingsPageEventController(
                 settingsViewModel,
-                new SettingsPageEventController.ContentSink() {
-                    @Override
-                    public void publishSettingsChrome(
-                            List<app.yukine.ui.SettingsAction> actions,
-                            app.yukine.ui.SettingsListScrollState scrollState
-                    ) {
-                        navSettingsActions = new ArrayList<>(actions);
-                        navSettingsScrollState = scrollState;
-                    }
-                }
+                new SettingsPageChromeBindings(state -> {
+                    navSettingsActions = new ArrayList<>(state.getActions());
+                    navSettingsScrollState = state.getScrollState();
+                })
         );
         SettingsPageRenderController settingsPageRenderController = new SettingsPageRenderController(
                 settingsViewModel,
@@ -1621,223 +844,66 @@ public final class MainActivity extends ComponentActivity {
                 streamingGatewaySettingsStore
         );
         NetworkDialogEventController networkDialogEventController = new NetworkDialogEventController(networkRequestController);
-        networkDialogController = new NetworkDialogController(this, new NetworkDialogController.LanguageProvider() {
-            @Override
-            public String languageMode() {
-                return settingsStore.languageMode();
-            }
-        }, networkDialogEventController);
-        playlistDialogController = new PlaylistDialogController(this, new PlaylistDialogController.LanguageProvider() {
-            @Override
-            public String languageMode() {
-                return settingsStore.languageMode();
-            }
-        }, new PlaylistDialogController.Listener() {
-            @Override
-            public void createPlaylist(String name) {
-                MainActivity.this.createPlaylist(name);
-            }
-
-            @Override
-            public void renamePlaylist(long playlistId, String name) {
-                MainActivity.this.renamePlaylist(playlistId, name);
-            }
-
-            @Override
-            public void deletePlaylist(long playlistId, String name) {
-                MainActivity.this.deletePlaylist(playlistId, name);
-            }
-
-            @Override
-            public void addTrackToPlaylist(long playlistId, long trackId) {
-                MainActivity.this.addTrackToPlaylist(playlistId, trackId);
-            }
-        });
-        confirmationDialogController = new ConfirmationDialogController(this, new ConfirmationDialogController.LanguageProvider() {
-            @Override
-            public String languageMode() {
-                return settingsStore.languageMode();
-            }
-        }, new ConfirmationDialogController.Listener() {
-            @Override
-            public void clearPlayHistory() {
-                MainActivity.this.clearPlayHistory();
-            }
-
-            @Override
-            public void clearQueue() {
-                MainActivity.this.clearQueue();
-            }
-
-            @Override
-            public void deleteAllStreams() {
-                MainActivity.this.deleteAllStreams();
-            }
-
-            @Override
-            public void deleteTrack(long trackId, String status) {
-                MainActivity.this.deleteTrack(trackId, status);
-            }
-
-            @Override
-            public void deleteTracks(List<Long> trackIds, String status) {
-                MainActivity.this.deleteTracks(trackIds, status);
-            }
-
-            @Override
-            public void deleteRemoteSource(long sourceId, String name) {
-                MainActivity.this.deleteRemoteSource(sourceId, name);
-            }
-        });
+        DialogLanguageProviderBindings dialogLanguageProvider =
+                new DialogLanguageProviderBindings(() -> settingsStore.languageMode());
+        networkDialogController = new NetworkDialogController(this, dialogLanguageProvider, networkDialogEventController);
+        playlistDialogController = new PlaylistDialogController(this, dialogLanguageProvider, new PlaylistDialogBindings(
+                this::createPlaylist,
+                this::renamePlaylist,
+                this::deletePlaylist,
+                this::addTrackToPlaylist
+        ));
+        confirmationDialogController = new ConfirmationDialogController(this, dialogLanguageProvider, new ConfirmationDialogBindings(
+                this::clearPlayHistory,
+                this::clearQueue,
+                this::deleteAllStreams,
+                this::deleteTrack,
+                this::deleteTracks,
+                this::deleteRemoteSource
+        ));
         NetworkMenuEventController networkMenuEventController = new NetworkMenuEventController(
                 page -> MainActivity.this.navigateNetworkPage(page),
-                new NetworkMenuEventController.Dialogs() {
-                    @Override
-                    public void showAddStream() {
-                        networkDialogController.showAddStream();
-                    }
-
-                    @Override
-                    public void showImportM3u() {
-                        networkDialogController.showImportM3u();
-                    }
-
-                    @Override
-                    public void showAddWebDav() {
-                        networkDialogController.showAddWebDav();
-                    }
-                },
+                new NetworkMenuDialogBindings(
+                        networkDialogController::showAddStream,
+                        networkDialogController::showImportM3u,
+                        networkDialogController::showAddWebDav
+                ),
                 () -> documentPickerController.openM3uFilePicker(),
-                new NetworkMenuEventController.LibrarySource() {
-                    @Override
-                    public ArrayList<Track> streamTracks() {
-                        return libraryStore.streamTracks();
-                    }
-
-                    @Override
-                    public int streamTrackCount() {
-                        return libraryStore.streamTrackCount();
-                    }
-
-                    @Override
-                    public ArrayList<Track> webDavTracks() {
-                        return libraryStore.webDavTracks();
-                    }
-
-                    @Override
-                    public List<RemoteSource> remoteSources() {
-                        return libraryStore.remoteSources();
-                    }
-                },
+                new NetworkMenuLibrarySourceBindings(libraryStore),
                 sourceIds -> networkRequestController.syncAllWebDavSources(sourceIds),
                 () -> confirmationDialogController.confirmDeleteAllStreams(),
-                new NetworkMenuEventController.Player() {
-                    @Override
-                    public void playTrackList(List<Track> tracks, int index) {
-                        MainActivity.this.playTrackList(tracks, index);
-                    }
-                },
+                new NetworkMenuPlayerBindings(this::playTrackListFromHost),
                 key -> AppLanguage.text(settingsStore.languageMode(), key),
                 status -> MainActivity.this.setStatus(status),
-                new NetworkMenuEventController.ContentSink() {
-                    @Override
-                    public void publishNetworkMenu(
-                            String title,
-                            List<app.yukine.ui.SettingsMetric> metrics,
-                            List<app.yukine.ui.SettingsAction> actions
-                    ) {
-                        navNetworkMenuTitle = title;
-                        navNetworkMenuMetrics = new ArrayList<>(metrics);
-                        navNetworkMenuActions = new ArrayList<>(actions);
-                    }
-
-                }
+                new NetworkMenuChromeBindings(state -> {
+                    navNetworkMenuTitle = state.getTitle();
+                    navNetworkMenuMetrics = new ArrayList<>(state.getMetrics());
+                    navNetworkMenuActions = new ArrayList<>(state.getActions());
+                })
         );
         networkMenuRenderController = new NetworkMenuRenderController(networkMenuEventController);
         NetworkSourcesEventController networkSourcesEventController = new NetworkSourcesEventController(
                 routeController,
                 networkRequestController,
-                new NetworkSourcesEventController.LibrarySource() {
-                    @Override
-                    public String remoteSourceName(long sourceId) {
-                        return libraryStore.remoteSourceName(sourceId);
-                    }
-
-                    @Override
-                    public ArrayList<Track> webDavTracksForSource(long sourceId) {
-                        return libraryStore.webDavTracksForSource(sourceId);
-                    }
-                },
+                new NetworkSourcesLibrarySourceBindings(libraryStore),
                 source -> networkDialogController.showEditWebDav(source),
                 source -> confirmationDialogController.confirmDeleteRemoteSource(source),
-                new NetworkSourcesEventController.Player() {
-                    @Override
-                    public void playTrackList(List<Track> tracks, int index) {
-                        MainActivity.this.playTrackList(tracks, index);
-                    }
-                },
+                new NetworkSourcesPlayerBindings(this::playTrackListFromHost),
                 key -> AppLanguage.text(settingsStore.languageMode(), key),
                 status -> MainActivity.this.setStatus(status),
-                statePublisher,
                 () -> MainActivity.this.renderAndPersistSelectedTab()
         );
         networkSourcesRenderController = new NetworkSourcesRenderController(
                 networkSourcesViewModel,
-                new NetworkSourcesRenderController.Listener() {
-                    @Override
-                    public void backToNetwork() {
-                        networkSourcesEventController.backToNetwork();
-                    }
-
-                    @Override
-                    public void testRemoteSource(long sourceId) {
-                        networkSourcesEventController.testRemoteSource(sourceId);
-                    }
-
-                    @Override
-                    public void syncRemoteSource(long sourceId) {
-                        networkSourcesEventController.syncRemoteSource(sourceId);
-                    }
-
-                    @Override
-                    public void playRemoteSourceTracks(RemoteSource source) {
-                        networkSourcesEventController.playRemoteSourceTracks(source);
-                    }
-
-                    @Override
-                    public void openRemoteSourceTracks(long sourceId) {
-                        networkSourcesEventController.openRemoteSourceTracks(sourceId);
-                    }
-
-                    @Override
-                    public void showEditWebDav(RemoteSource source) {
-                        networkSourcesEventController.showEditWebDav(source);
-                    }
-
-                    @Override
-                    public void confirmDeleteRemoteSource(RemoteSource source) {
-                        networkSourcesEventController.confirmDeleteRemoteSource(source);
-                    }
-
-                    @Override
-                    public void publishNetworkSources(String title, ArrayList<app.yukine.ui.NetworkSourceUiState> rows) {
-                        networkSourcesEventController.publishNetworkSources(title, rows);
-                    }
-
-                    @Override
-                    public void publishNetworkSourcesChrome(
-                            List<app.yukine.ui.NetworkSourceActions> actions,
-                            List<TrackListHeaderAction> headerActions,
-                            String emptyText,
-                            app.yukine.ui.NetworkSourceLabels labels
-                    ) {
-                        navNetworkSourceActions = new ArrayList<>(actions);
-                        navNetworkSourceHeaderActions = new ArrayList<>(headerActions);
-                        navNetworkSourceEmptyText = emptyText;
-                        navNetworkSourceLabels = labels;
-                    }
-
-                }
+                new NetworkSourcesRenderBindings(
+                        networkSourcesEventController,
+                        state -> {
+                            navNetworkSourceActions = new ArrayList<>(state.getActions());
+                            navNetworkSourceHeaderActions = new ArrayList<>(state.getHeaderActions());
+                            navNetworkSourceEmptyText = state.getEmptyText();
+                            navNetworkSourceLabels = state.getLabels();
+                        }
+                )
         );
         networkRenderCoordinator = new NetworkRenderCoordinator(
                 libraryStore,
@@ -1846,13 +912,46 @@ public final class MainActivity extends ComponentActivity {
                 networkSourcesRenderController,
                 streamingSearchRenderController
         );
+        activityIntentController.handleInitialIntent(getIntent());
         uiShellController.applyThemeSurface();
         mountNavHostShell();
         installBackNavigation();
         playbackServiceConnectionController.bind();
-        permissionController.requestNeededPermissions();
-        loadLibraryOnStartup();
+        if (!onboardingVisible) {
+            permissionController.requestNeededPermissions();
+            loadLibraryOnStartup();
+        } else {
+            loadLibrary(true);
+        }
         loadCollections();
+    }
+
+    private void finishOnboarding() {
+        if (!canFinishOnboarding()) {
+            setStatus(onboardingMissingSetupMessage());
+            mountNavHostShell();
+            return;
+        }
+        onboardingVisible = false;
+        if (repository != null) {
+            repository.saveOnboardingCompleted(true);
+        }
+        mountNavHostShell();
+        renderAndPersistSelectedTab();
+    }
+
+    private void openStreamingFromOnboarding() {
+        if (!canFinishOnboarding()) {
+            setStatus(onboardingMissingSetupMessage());
+            mountNavHostShell();
+            return;
+        }
+        onboardingVisible = false;
+        if (repository != null) {
+            repository.saveOnboardingCompleted(true);
+        }
+        navigateToNetworkTabPage(NETWORK_STREAMING);
+        mountNavHostShell();
     }
 
     @Override
@@ -1931,31 +1030,114 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void publishPlaybackState() {
-        if (statePublisher == null) {
+        if (playbackStore == null) {
             return;
         }
         playbackStore.publish(playbackService);
     }
 
-    private void publishTrackListUiState(String title, ArrayList<TrackRowUiState> rows) {
-        if (statePublisher == null) {
-            return;
-        }
-        statePublisher.publishTrackList(title, rows);
+    private void openLibraryModeFromHome(String mode) {
+        routeController.setLibraryMode(mode);
+        navigateToTab(TAB_LIBRARY, true, true);
     }
 
-    private void publishLibraryGroupsUiState(String title, ArrayList<LibraryGroupUiState> rows) {
-        if (statePublisher == null) {
+    private void continueDashboardPlayback(Track track) {
+        if (playbackStore.snapshot().hasTrack()) {
+            playbackActionController.togglePlayback();
             return;
         }
-        statePublisher.publishLibraryGroups(title, rows);
+        if (track != null) {
+            playTrackListFromHost(Collections.singletonList(track), 0);
+        }
     }
 
-    private void publishQueueUiState(ArrayList<QueueTrackUiState> rows) {
-        if (statePublisher == null) {
+    private void playTrackListFromHost(List<Track> tracks, int index) {
+        if (playbackStartController == null) {
+            pendingPlaybackTracks = tracks == null ? Collections.emptyList() : new ArrayList<>(tracks);
+            pendingPlaybackIndex = index;
+            setStatus(AppLanguage.text(
+                    settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                    "streaming.resolving"
+            ));
             return;
         }
-        statePublisher.publishQueue(rows);
+        playbackStartController.playTrackList(tracks, index);
+    }
+
+    private void selectPlaylistFromCollections(long playlistId) {
+        routeController.setSelectedPlaylistId(playlistId);
+        loadCollections();
+    }
+
+    private void openSelectedPlaylistExportDocument() {
+        playlistExportController.openSelectedPlaylistExportDocument(
+                selectedPlaylistId(),
+                selectedPlaylistName(),
+                !libraryStore.selectedPlaylistTracks().isEmpty()
+        );
+    }
+
+    private void publishTrackListChromeState(TrackListChromeState state) {
+        navTrackListActions = state.getActions();
+        navTrackListHeaderMetrics = state.getHeaderMetrics();
+        navTrackListHeaderActions = state.getHeaderActions();
+        navTrackListEmptyText = state.getEmptyText();
+        navTrackListModeActions = state.getModeActions();
+        navTrackListLabels = state.getLabels();
+        navLibraryGroupActions = Collections.emptyList();
+        navLibraryGroupEmptyText = "";
+        navLibraryGroupModeActions = Collections.emptyList();
+    }
+
+    private void publishLibraryGroupsChromeState(LibraryGroupsChromeState state) {
+        navLibraryGroupActions = state.getActions();
+        navLibraryGroupEmptyText = state.getEmptyText();
+        navLibraryGroupModeActions = state.getModeActions();
+        navTrackListActions = Collections.emptyList();
+        navTrackListHeaderMetrics = Collections.emptyList();
+        navTrackListHeaderActions = Collections.emptyList();
+        navTrackListEmptyText = "";
+    }
+
+    private void renderLibraryGroupTrackList(LibraryGroupTrackListRequest request) {
+        renderComposeTrackList(
+                request.getTitle(),
+                request.getTracks(),
+                true,
+                new ArrayList<String>(),
+                false,
+                request.getHeaderMetrics(),
+                request.getHeaderActions(),
+                ""
+        );
+    }
+
+    private void renderLibraryPlaylistTrackList(LibraryPlaylistTrackListRequest request) {
+        renderComposeTrackList(
+                request.getTitle(),
+                request.getTracks(),
+                true,
+                new ArrayList<String>(),
+                false,
+                request.getHeaderMetrics(),
+                request.getHeaderActions(),
+                request.getEmptyText(),
+                request.getModeActions()
+        );
+    }
+
+    private void renderNetworkTrackList(NetworkTrackListRequest request) {
+        renderComposeTrackList(
+                request.getTitle(),
+                request.getTracks(),
+                request.getShowPlaylistAction(),
+                request.getDetails(),
+                request.getShowStreamActions(),
+                request.getHeaderMetrics(),
+                request.getHeaderActions(),
+                request.getEmptyText(),
+                request.getLabels()
+        );
     }
 
     private void mountNavHostShell() {
@@ -1963,7 +1145,7 @@ public final class MainActivity extends ComponentActivity {
             return;
         }
         bindQueueViewModelInputs();
-        queueViewModel.bindIntentListener(intent -> handleQueueIntent(intent));
+        queueViewModel.bindIntentListener(intent -> queueIntentController.handle(intent));
         renderSelectedTabForNavHostState();
         syncNavHostState();
         EchoAppHost.installNavHost(this, new ActivityNavHostMount());
@@ -1978,11 +1160,14 @@ public final class MainActivity extends ComponentActivity {
         if (navHostState == null) {
             navHostState = new app.yukine.navigation.EchoNavHostState(
                     viewModel,
+                    navigationViewModel,
+                    homeDashboardViewModel,
                     nowPlayingViewModel,
                     libraryViewModel,
                     collectionsViewModel,
                     settingsViewModel,
                     networkSourcesViewModel,
+                    streamingViewModel,
                     navHomeActions,
                     navTrackListActions,
                     navTrackListHeaderMetrics,
@@ -2005,6 +1190,7 @@ public final class MainActivity extends ComponentActivity {
                     navNetworkMenuActions,
                     navStreamingSearchLabels,
                     navStreamingSearchActions,
+                    settingsStore.nowPlayingGesturesEnabled(),
                     selectedTab()
             );
             return;
@@ -2032,6 +1218,7 @@ public final class MainActivity extends ComponentActivity {
         navHostState.setNetworkMenuActions(navNetworkMenuActions);
         navHostState.setStreamingSearchLabels(navStreamingSearchLabels);
         navHostState.setStreamingSearchActions(navStreamingSearchActions);
+        navHostState.setNowPlayingGesturesEnabled(settingsStore.nowPlayingGesturesEnabled());
     }
 
     private void bindQueueViewModelInputs() {
@@ -2046,25 +1233,21 @@ public final class MainActivity extends ComponentActivity {
         );
     }
 
-    private void handleQueueIntent(app.yukine.queue.QueueIntent intent) {
-        if (intent instanceof app.yukine.queue.QueueIntent.PlayAt) {
-            app.yukine.queue.QueueIntent.PlayAt playAt = (app.yukine.queue.QueueIntent.PlayAt) intent;
-            playTrackList(playAt.getTracks(), playAt.getIndex());
-        } else if (intent instanceof app.yukine.queue.QueueIntent.ToggleFavorite) {
-            handleLibraryEvent(new LibraryEvent.ToggleFavorite(
-                    ((app.yukine.queue.QueueIntent.ToggleFavorite) intent).getTrack()));
-        } else if (intent instanceof app.yukine.queue.QueueIntent.AddToPlaylist) {
-            showAddToPlaylistDialog(((app.yukine.queue.QueueIntent.AddToPlaylist) intent).getTrack());
-        } else if (intent instanceof app.yukine.queue.QueueIntent.Remove) {
-            removeQueueTrack(((app.yukine.queue.QueueIntent.Remove) intent).getTrack());
-        } else if (intent instanceof app.yukine.queue.QueueIntent.Move) {
-            app.yukine.queue.QueueIntent.Move move = (app.yukine.queue.QueueIntent.Move) intent;
-            moveQueueTrack(move.getFromIndex(), move.getToIndex());
-        } else if (intent instanceof app.yukine.queue.QueueIntent.ClearQueue) {
-            confirmClearQueue();
-        } else if (intent instanceof app.yukine.queue.QueueIntent.Back) {
-            handleAppBack();
+    private static String activeLyricLine(NowPlayingUiState state) {
+        if (state == null || state.getLyrics() == null) {
+            return "";
         }
+        List<LyricUiLine> lines = state.getLyrics().getLines();
+        if (lines == null || lines.isEmpty()) {
+            return "";
+        }
+        for (LyricUiLine line : lines) {
+            if (line != null && line.getActive()) {
+                return line.getText();
+            }
+        }
+        LyricUiLine first = lines.get(0);
+        return first == null ? "" : first.getText();
     }
 
     private final class ActivityNavHostMount implements EchoNavHostMount {
@@ -2095,6 +1278,46 @@ public final class MainActivity extends ComponentActivity {
         }
 
         @Override
+        public boolean showOnboarding() {
+            return onboardingVisible;
+        }
+
+        @Override
+        public boolean audioPermissionGranted() {
+            return permissionController != null && permissionController.hasAudioPermission();
+        }
+
+        @Override
+        public boolean notificationPermissionGranted() {
+            return permissionController != null && permissionController.hasNotificationPermission();
+        }
+
+        @Override
+        public boolean libraryScanCompleted() {
+            return onboardingLibraryScanCompleted;
+        }
+
+        @Override
+        public boolean libraryScanInProgress() {
+            return onboardingLibraryScanInProgress;
+        }
+
+        @Override
+        public app.yukine.ui.OnboardingActions onboardingActions() {
+            return new app.yukine.ui.OnboardingActions(
+                    () -> {
+                        if (permissionController != null) {
+                            permissionController.requestNeededPermissions();
+                        }
+                    },
+                    () -> scanLibraryFromOnboarding(),
+                    () -> importPlaylistFromOnboarding(),
+                    () -> openStreamingFromOnboarding(),
+                    () -> finishOnboarding()
+            );
+        }
+
+        @Override
         public void onTabChanged(app.yukine.navigation.TabRoute tab) {
             navigateToTab(tab.getRoute(), true, true);
         }
@@ -2104,6 +1327,9 @@ public final class MainActivity extends ComponentActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         permissionController.handlePermissionsResult(requestCode);
+        if (onboardingVisible) {
+            mountNavHostShell();
+        }
     }
 
     @Override
@@ -2113,16 +1339,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void installBackNavigation() {
-        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
-            @Override
-            public void handleOnBackPressed() {
-                if (handleAppBack()) {
-                    return;
-                }
-                setEnabled(false);
-                getOnBackPressedDispatcher().onBackPressed();
-            }
-        });
+        new BackNavigationBindings(this::handleAppBack).install(this, getOnBackPressedDispatcher());
     }
 
     private boolean handleAppBack() {
@@ -2147,7 +1364,14 @@ public final class MainActivity extends ComponentActivity {
         libraryViewModel.loadLibraryJava(
                 allowCachedFirst,
                 canScan,
-                result -> replaceLibrary(result.getTracks(), result.getFavorites(), result.getStatus()),
+                result -> {
+                    replaceLibrary(result.getTracks(), result.getFavorites(), result.getStatus());
+                    if (onboardingVisible && onboardingLibraryScanInProgress) {
+                        onboardingLibraryScanInProgress = false;
+                        onboardingLibraryScanCompleted = canScan;
+                        mountNavHostShell();
+                    }
+                },
                 status -> {
                     setStatus(status);
                     renderSelectedTab();
@@ -2280,24 +1504,66 @@ public final class MainActivity extends ComponentActivity {
         return lyricsViewModel == null ? new LyricsState() : lyricsViewModel.stateSnapshot();
     }
     private String neteaseProviderTrackIdForLyrics(Track track) {
-        return viewModel.streamingProviderTrackIdFor(
+        return streamingViewModel.streamingProviderTrackIdFor(
                 track,
                 app.yukine.streaming.StreamingProviderName.NETEASE
         );
     }
 
-    private void onLyricsStateChanged() {
-        renderNowBar();
-        if (TAB_NOW.equals(selectedTab())) {
-            if (!updateNowPlayingContent()) {
-                renderSelectedTab();
-            }
-        }
-    }
-
     private void applySearch() {
         libraryStore.applySearch(searchQuery());
+        if (TAB_NETWORK.equals(selectedTab())
+                && (NETWORK_STREAMING.equals(networkPage())
+                || MainRoutes.NETWORK_STREAMING_HUB.equals(networkPage()))) {
+            if (streamingSearchEventController != null) {
+                streamingSearchEventController.search(searchQuery());
+            }
+        }
         renderAndPersistSelectedTab();
+    }
+
+    private boolean canFinishOnboarding() {
+        return permissionController != null
+                && permissionController.hasAudioPermission()
+                && permissionController.hasNotificationPermission()
+                && onboardingLibraryScanCompleted;
+    }
+
+    private String onboardingMissingSetupMessage() {
+        List<String> missing = new ArrayList<>();
+        if (permissionController == null || !permissionController.hasAudioPermission()) {
+            missing.add("音频权限");
+        }
+        if (permissionController == null || !permissionController.hasNotificationPermission()) {
+            missing.add("通知权限");
+        }
+        if (!onboardingLibraryScanCompleted) {
+            missing.add(onboardingLibraryScanInProgress ? "等待曲库扫描完成" : "扫描本地曲库");
+        }
+        return "完成后才能进入：" + String.join("、", missing);
+    }
+
+    private void scanLibraryFromOnboarding() {
+        if (permissionController == null || !permissionController.hasAudioPermission()) {
+            setStatus(onboardingMissingSetupMessage());
+            if (permissionController != null) {
+                permissionController.requestNeededPermissions();
+            }
+            mountNavHostShell();
+            return;
+        }
+        onboardingLibraryScanInProgress = true;
+        mountNavHostShell();
+        loadLibrary(false);
+    }
+
+    private void importPlaylistFromOnboarding() {
+        if (!canFinishOnboarding()) {
+            setStatus(onboardingMissingSetupMessage());
+            mountNavHostShell();
+            return;
+        }
+        openPlaylistM3uFilePicker();
     }
 
     private void publishLibraryState() {
@@ -2368,10 +1634,6 @@ public final class MainActivity extends ComponentActivity {
         String mode = modes.get(nextIndex);
         uiShellController.prepareHorizontalContentTransition(next);
         routeController.setLibraryMode(mode);
-        routeController.clearLibraryGroup();
-        if (!LIBRARY_PLAYLISTS.equals(mode)) {
-            routeController.setSelectedPlaylistId(-1L);
-        }
         renderAndPersistSelectedTab();
         return true;
     }
@@ -2529,12 +1791,22 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void renderHome() {
+        boolean anyStreamingConnected = false;
+        for (app.yukine.streaming.StreamingAuthState auth : streamingViewModel.getStreaming().getValue().getAuthStates().values()) {
+            if (auth.getConnected()) { anyStreamingConnected = true; break; }
+        }
+        if (!anyStreamingConnected) {
+            for (app.yukine.streaming.StreamingProviderDescriptor provider : streamingViewModel.getStreaming().getValue().getProviders()) {
+                if (provider.getAuth().getConnected()) { anyStreamingConnected = true; break; }
+            }
+        }
         homeDashboardRenderController.render(
                 settingsStore.languageMode(),
                 libraryStore.allTracks(),
                 libraryStore.allTracks(),
                 libraryStore.recentRecords(),
-                playbackStore.snapshot()
+                playbackStore.snapshot(),
+                anyStreamingConnected
         );
     }
 
@@ -2679,86 +1951,13 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void renderLibraryPlaylists() {
-        String languageMode = settingsStore.languageMode();
-        ArrayList<Playlist> playlists = libraryStore.playlists();
-        if (selectedPlaylistId() >= 0L && selectedLibraryGroupKey().startsWith("playlist:")) {
-            renderLibraryPlaylistTracks();
-            return;
-        }
-        ArrayList<LibraryGroupUiState> rows = new ArrayList<>();
-        ArrayList<LibraryGroupActions> actions = new ArrayList<>();
-        for (final Playlist playlist : playlists) {
-            rows.add(new LibraryGroupUiState(
-                    "playlist:" + playlist.id,
-                    playlist.name,
-                    CollectionRowStateFactory.trackCountLabel(playlist.trackCount, languageMode)
-            ));
-            actions.add(new LibraryGroupActions(
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            handleLibraryEvent(new LibraryEvent.OpenPlaylist(playlist.id, playlist.name));
-                        }
-                    },
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            handleLibraryEvent(new LibraryEvent.PlayPlaylist(playlist.id));
-                        }
-                    },
-                    playlist.trackCount > 0,
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            confirmDeletePlaylist(playlist);
-                        }
-                    }
-            ));
-        }
-        String title = AppLanguage.text(languageMode, "playlists");
-        String emptyText = AppLanguage.text(languageMode, "no.playlists");
-        ArrayList<TrackListModeAction> modeActions = libraryModeActions();
-        publishLibraryGroupsUiState(title, rows);
-        libraryViewModel.clearTrackList();
-        libraryViewModel.updateLibraryGroups(title, rows);
-        navLibraryGroupActions = new ArrayList<>(actions);
-        navLibraryGroupEmptyText = emptyText;
-        navLibraryGroupModeActions = new ArrayList<>(modeActions);
-        navTrackListActions = Collections.emptyList();
-        navTrackListHeaderMetrics = Collections.emptyList();
-        navTrackListHeaderActions = Collections.emptyList();
-        navTrackListEmptyText = "";
-    }
-
-    private void renderLibraryPlaylistTracks() {
-        String languageMode = settingsStore.languageMode();
-        ArrayList<Track> tracks = libraryStore.selectedPlaylistTracks();
-        ArrayList<TrackListHeaderMetric> headerMetrics = new ArrayList<>();
-        headerMetrics.add(new TrackListHeaderMetric(AppLanguage.text(languageMode, "songs"), String.valueOf(tracks.size())));
-        ArrayList<TrackListHeaderAction> headerActions = new ArrayList<>();
-        headerActions.add(new TrackListHeaderAction(AppLanguage.text(languageMode, "back.to.playlists"), new Runnable() {
-            @Override
-            public void run() {
-                handleLibraryEvent(LibraryEvent.BackFromGroup.INSTANCE);
-            }
-        }));
-        if (!tracks.isEmpty()) {
-            headerActions.add(new TrackListHeaderAction(AppLanguage.text(languageMode, "play.playlist"), new Runnable() {
-                @Override
-                public void run() {
-                    handleLibraryEvent(new LibraryEvent.PlayTrackList(tracks, 0));
-                }
-            }));
-        }
-        renderComposeTrackList(
+        libraryPlaylistsRenderController.render(
+                settingsStore.languageMode(),
+                libraryStore.playlists(),
+                selectedPlaylistId(),
+                selectedLibraryGroupKey(),
                 selectedPlaylistName(),
-                tracks,
-                true,
-                new ArrayList<String>(),
-                false,
-                headerMetrics,
-                headerActions,
-                AppLanguage.text(languageMode, "no.tracks.in.playlist"),
+                libraryStore.filteredSelectedPlaylistTracks(searchQuery()),
                 libraryModeActions()
         );
     }
@@ -2819,12 +2018,7 @@ public final class MainActivity extends ComponentActivity {
     private void showAddToPlaylistDialog(final Track track) {
         if (libraryStore.playlists().isEmpty()) {
             libraryViewModel.addToDefaultPlaylistJava(track, (playlistId, added) -> {
-                setStatus(libraryViewModel.defaultPlaylistAddPresentation(
-                        added,
-                        settingsStore.languageMode()
-                ).getStatus());
-                routeController.setSelectedPlaylistId(playlistId);
-                loadCollections();
+                playlistActionResultController.onDefaultPlaylistTrackAdded(playlistId, added);
             });
             return;
         }
@@ -2834,75 +2028,37 @@ public final class MainActivity extends ComponentActivity {
 
     private void createPlaylist(final String name) {
         libraryViewModel.createPlaylistJava(name, playlistId -> {
-            if (playlistId >= 0L) {
-                routeController.setSelectedPlaylistId(playlistId);
-            }
-            setStatus(libraryViewModel.playlistCreatedPresentation(
-                    settingsStore.languageMode()
-            ).getStatus());
-            loadCollections();
+            playlistActionResultController.onPlaylistCreated(playlistId);
         });
     }
 
     private void renamePlaylist(final long playlistId, final String name) {
         libraryViewModel.renamePlaylistJava(playlistId, name, (renamedPlaylistId, renamed) -> {
-            if (renamed) {
-                routeController.setSelectedPlaylistId(renamedPlaylistId);
-            }
-            setStatus(libraryViewModel.playlistRenamedPresentation(
-                    renamed,
-                    settingsStore.languageMode()
-            ).getStatus());
-            loadCollections();
+            playlistActionResultController.onPlaylistRenamed(renamedPlaylistId, renamed);
         });
     }
 
     private void deletePlaylist(final long playlistId, final String name) {
         libraryViewModel.deletePlaylistJava(playlistId, name, (deletedPlaylistId, deletedName, deleted) -> {
-            if (deleted && selectedPlaylistId() == deletedPlaylistId) {
-                routeController.setSelectedPlaylistId(-1L);
-            }
-            setStatus(libraryViewModel.playlistDeletedPresentation(
-                    deletedName,
-                    deleted,
-                    settingsStore.languageMode()
-            ).getStatus());
-            loadCollections();
+            playlistActionResultController.onPlaylistDeleted(deletedPlaylistId, deletedName, deleted);
         });
     }
 
     private void removeSelectedPlaylistTrack(final long playlistId, final Track track) {
         libraryViewModel.removeSelectedPlaylistTrackJava(playlistId, track, (removedPlaylistId, removedTrack) -> {
-            routeController.setSelectedPlaylistId(removedPlaylistId);
-            setStatus(libraryViewModel.selectedPlaylistTrackRemovedPresentation(
-                    removedTrack,
-                    settingsStore.languageMode()
-            ).getStatus());
-            loadCollections();
+            playlistActionResultController.onSelectedPlaylistTrackRemoved(removedPlaylistId, removedTrack);
         });
     }
 
     private void moveSelectedPlaylistTrack(final long playlistId, final Track track, final int trackIndex, final int direction) {
         libraryViewModel.moveSelectedPlaylistTrackJava(playlistId, track, trackIndex, direction, (movedPlaylistId, movedTrack, movedDirection, moved) -> {
-            routeController.setSelectedPlaylistId(movedPlaylistId);
-            setStatus(libraryViewModel.selectedPlaylistTrackMovedPresentation(
-                    movedTrack,
-                    movedDirection,
-                    moved,
-                    settingsStore.languageMode()
-            ).getStatus());
-            loadCollections();
+            playlistActionResultController.onSelectedPlaylistTrackMoved(movedPlaylistId, movedTrack, movedDirection, moved);
         });
     }
 
     private void addTrackToPlaylist(final long playlistId, final long trackId) {
         libraryViewModel.addTrackToPlaylistJava(playlistId, trackId, (addedPlaylistId, added) -> {
-            routeController.setSelectedPlaylistId(addedPlaylistId);
-            setStatus(libraryViewModel.trackAddedToPlaylistPresentation(
-                    added,
-                    settingsStore.languageMode()
-            ).getStatus());
-            loadCollections();
+            playlistActionResultController.onTrackAddedToPlaylist(addedPlaylistId, added);
         });
     }
 
@@ -2924,28 +2080,19 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void removeQueueTrack(Track track) {
-        applyPlaybackActionResult(nowPlayingViewModel.removeQueueTrack(track));
+        queueActionController.removeQueueTrack(track);
     }
 
     private void confirmClearQueue() {
-        if (!nowPlayingViewModel.hasQueue()) {
-            setStatus(AppLanguage.text(settingsStore.languageMode(), "queue.empty"));
-            return;
-        }
-        confirmationDialogController.confirmClearQueue();
+        queueActionController.confirmClearQueue();
     }
 
     private void clearQueue() {
-        applyPlaybackActionResult(nowPlayingViewModel.clearQueue());
+        queueActionController.clearQueue();
     }
 
     private void moveQueueTrack(int fromIndex, int toIndex) {
-        if (playbackService == null) {
-            return;
-        }
-        playbackService.moveQueueTrack(fromIndex, toIndex);
-        renderNowBar();
-        renderSelectedTab();
+        queueActionController.moveQueueTrack(fromIndex, toIndex);
     }
 
     private void renderNowPlaying() {
@@ -2989,7 +2136,7 @@ public final class MainActivity extends ComponentActivity {
             setStatus(AppLanguage.text(settingsStore.languageMode(), "no.source.tracks.to.play"));
             return;
         }
-        playTrackList(tracks, 0);
+        playTrackListFromHost(tracks, 0);
     }
 
     private void confirmDeleteTrack(final Track track) {
@@ -3033,63 +2180,15 @@ public final class MainActivity extends ComponentActivity {
         settingsRenderCoordinator.render(settingsPage());
     }
 
-    private void applyThemeMode(String nextMode) {
-        settingsViewModel.applyThemeMode(nextMode);
-    }
-
-    private void applyAccentMode(String nextAccent) {
-        settingsViewModel.applyAccentMode(nextAccent);
-    }
-
-    private void applyLanguageMode(String nextLanguageMode) {
-        settingsViewModel.applyLanguageMode(nextLanguageMode);
-    }
-
-    private void applyStreamingGatewayEndpoint(String endpoint) {
-        streamingGatewayController.applyEndpoint(endpoint);
-    }
-
-    private void importSelectedPlaylistToStreaming() {
-        StreamingPlaylistExportRequest request = viewModel.prepareStreamingPlaylistExportRequest(
-                selectedPlaylistName(),
-                libraryStore.selectedPlaylistTracks()
-        );
-        setStatus(request.getStatus());
-        if (!request.getValid()) {
-            return;
-        }
-        showStreamingProviderPicker(request.getPlaylistName(), request.getTracks());
-    }
-
-    private void importFavoritesToStreaming() {
-        StreamingPlaylistExportRequest request = viewModel.prepareStreamingFavoritesExportRequest(
-                libraryStore.favoriteTracks()
-        );
-        setStatus(request.getStatus());
-        if (!request.getValid()) {
-            return;
-        }
-        showStreamingProviderPicker(request.getPlaylistName(), request.getTracks());
-    }
-
     private void syncSelectedPlaylistFromStreaming() {
-        StreamingPlaylistSyncStartRequest request = viewModel.prepareStreamingPlaylistSyncStartRequest(
-                routeController.selectedPlaylistId()
-        );
-        if (request == null) {
-            return;
-        }
-        setStatus(request.getStatus());
-        if (!request.getValid() || request.getLink() == null) {
-            return;
-        }
-        syncOneStreamingPlaylist(request.getLink());
+        streamingPlaylistController.syncSelectedPlaylistFromStreaming();
     }
 
     private void showStreamingProviderPicker(String playlistName, java.util.List<Track> tracks) {
-        StreamingProviderPickerRequest request = viewModel.prepareStreamingImportProviderPickerRequest(
-                viewModel.getStreaming().getValue().getProviders(),
-                true
+        StreamingProviderPickerRequest request = streamingViewModel.prepareStreamingImportProviderPickerRequest(
+                streamingViewModel.getStreaming().getValue().getProviders(),
+                true,
+                settingsStore.languageMode()
         );
         if (!request.getValid()) {
             setStatus(request.getEmptyStatus());
@@ -3100,28 +2199,17 @@ public final class MainActivity extends ComponentActivity {
                 .setItems(request.getPickerState().getLabels(), (dialog, which) -> {
                     app.yukine.streaming.StreamingProviderDescriptor descriptor =
                             request.getPickerState().getProviders().get(which);
-                    runStreamingPlaylistImport(descriptor.getName(), playlistName, tracks);
+                    streamingPlaylistController.runStreamingPlaylistImport(descriptor.getName(), playlistName, tracks);
                 })
                 .setNegativeButton(AppLanguage.text(settingsStore.languageMode(), "cancel"), null)
                 .show();
     }
 
-    private void runStreamingPlaylistImport(
-            app.yukine.streaming.StreamingProviderName provider,
-            String playlistName,
-            java.util.List<Track> tracks
-    ) {
-        setStatus(viewModel.prepareStreamingPlaylistExportRequest(playlistName, tracks).getStatus());
-        navigateToNetworkTabPage(NETWORK_STREAMING);
-        viewModel.importPlaylistToStreamingJava(provider, playlistName, tracks, importStatus -> {
-            setStatus(viewModel.prepareStreamingPlaylistExportPresentation(importStatus).getStatus());
-        });
-    }
-
     // ---- Import a streaming playlist INTO the local library ----
 
     private void showImportStreamingPlaylistDialog() {
-        StreamingPlaylistImportDialogState dialogState = viewModel.prepareStreamingPlaylistImportDialogState();
+        StreamingPlaylistImportDialogState dialogState =
+                streamingViewModel.prepareStreamingPlaylistImportDialogState(settingsStore.languageMode());
         final android.widget.EditText input = new android.widget.EditText(this);
         input.setSingleLine(true);
         input.setHint(dialogState.getHint());
@@ -3134,18 +2222,11 @@ public final class MainActivity extends ComponentActivity {
                 .setView(input)
                 .setNegativeButton(AppLanguage.text(settingsStore.languageMode(), "cancel"), null)
                 .setPositiveButton(AppLanguage.text(settingsStore.languageMode(), "ok"), (dialog, which) ->
-                        importStreamingPlaylistFromLink(input.getText().toString()))
+                        streamingPlaylistController.importStreamingPlaylistFromLink(input.getText().toString()))
                 .show();
     }
 
-    private void showStreamingCookieDialog() {
-        final StreamingManualCookieDialogState dialogState = viewModel.prepareManualCookieDialogState(
-                viewModel.getStreaming().getValue().getSelectedProvider()
-        );
-        if (dialogState.getUnavailable() || dialogState.getProvider() == null) {
-            setStatus(dialogState.getUnavailableStatus());
-            return;
-        }
+    private void showStreamingCookieDialogContent(final StreamingManualCookieDialogState dialogState) {
         final android.widget.EditText input = new android.widget.EditText(this);
         input.setSingleLine(false);
         input.setMinLines(3);
@@ -3163,75 +2244,13 @@ public final class MainActivity extends ComponentActivity {
                 .setView(input)
                 .setNegativeButton(AppLanguage.text(settingsStore.languageMode(), "cancel"), null)
                 .setPositiveButton(AppLanguage.text(settingsStore.languageMode(), "ok"), (dialog, which) ->
-                        saveStreamingCookie(dialogState.getProvider(), input.getText().toString()))
+                        streamingManualCookieController.saveStreamingCookie(dialogState.getProvider(), input.getText().toString()))
                 .show();
-    }
-
-    private void saveStreamingCookie(
-            app.yukine.streaming.StreamingProviderName provider,
-            String cookieHeader
-    ) {
-        StreamingManualCookieAuthRequest request = viewModel.prepareManualCookieAuthRequest(provider, cookieHeader);
-        if (request == null) {
-            setStatus(viewModel.manualCookieEmptyStatus());
-            return;
-        }
-        viewModel.completeStreamingAuth(request.getProvider(), request.getCallbackUri(), request.getCookieHeader(), loggedInProvider -> {
-            setStatus(request.getSavedStatus());
-            onStreamingLoginSuccess(loggedInProvider);
-        });
-    }
-
-    private void importStreamingPlaylistFromLink(String linkOrId) {
-        StreamingPlaylistImportStartRequest request = viewModel.prepareStreamingPlaylistImportStartRequest(
-                linkOrId,
-                viewModel.getStreaming().getValue().getSelectedProvider()
-        );
-        if (!request.getValid() || request.getProvider() == null) {
-            setStatus(request.getInvalidStatus());
-            return;
-        }
-        importStreamingPlaylist(request.getProvider(), request.getProviderPlaylistId(), request.getResolvingStatus());
-    }
-
-    private void importStreamingPlaylistFromProviderRef(
-            app.yukine.streaming.StreamingProviderName provider,
-            String providerPlaylistId
-    ) {
-        StreamingPlaylistImportStartRequest request = viewModel.prepareStreamingPlaylistImportStartRequest(
-                providerPlaylistId,
-                provider
-        );
-        if (!request.getValid() || request.getProvider() == null) {
-            setStatus(request.getInvalidStatus());
-            return;
-        }
-        importStreamingPlaylist(request.getProvider(), request.getProviderPlaylistId(), request.getResolvingStatus());
-    }
-
-    private void importStreamingPlaylist(
-        app.yukine.streaming.StreamingProviderName provider,
-            String providerPlaylistId,
-            String resolvingStatus
-    ) {
-        setStatus(resolvingStatus);
-        viewModel.importStreamingPlaylistToLocal(provider, providerPlaylistId, result -> {
-            StreamingLocalPlaylistImportPresentation presentation =
-                    viewModel.prepareStreamingPlaylistImportPresentation(result);
-            setStatus(presentation.getStatus());
-            if (presentation.getEmpty()) {
-                return;
-            }
-            if (presentation.getShowLoadedDialog()) {
-                showStreamingPlaylistLoadedDialog(presentation.getStatus());
-            }
-            loadCollections();
-        });
     }
 
     private void showStreamingPlaylistLoadedDialog(String message) {
         EchoDialog.builder(this)
-                .setTitle(viewModel.streamingPlaylistLoadedDialogTitle())
+                .setTitle(streamingViewModel.streamingPlaylistLoadedDialogTitle(settingsStore.languageMode()))
                 .setMessage(message)
                 .setPositiveButton(AppLanguage.text(settingsStore.languageMode(), "ok"), null)
                 .show();
@@ -3240,9 +2259,10 @@ public final class MainActivity extends ComponentActivity {
     // ---- Pull the user's liked/favorite tracks FROM streaming INTO a local playlist ----
 
     private void showImportStreamingFavoritesProviderPicker() {
-        StreamingProviderPickerRequest request = viewModel.prepareStreamingImportProviderPickerRequest(
-                viewModel.getStreaming().getValue().getProviders(),
-                false
+        StreamingProviderPickerRequest request = streamingViewModel.prepareStreamingImportProviderPickerRequest(
+                streamingViewModel.getStreaming().getValue().getProviders(),
+                false,
+                settingsStore.languageMode()
         );
         if (!request.getValid()) {
             setStatus(request.getEmptyStatus());
@@ -3251,31 +2271,9 @@ public final class MainActivity extends ComponentActivity {
         EchoDialog.builder(this)
                 .setTitle(request.getTitle())
                 .setItems(request.getPickerState().getLabels(), (dialog, which) ->
-                        importStreamingLikedTracks(request.getPickerState().getProviders().get(which).getName()))
+                        streamingPlaylistController.importStreamingLikedTracks(request.getPickerState().getProviders().get(which).getName()))
                 .setNegativeButton(AppLanguage.text(settingsStore.languageMode(), "cancel"), null)
                 .show();
-    }
-
-    private void importStreamingLikedTracks(app.yukine.streaming.StreamingProviderName provider) {
-        if (provider == null) {
-            return;
-        }
-        final String playlistName = viewModel.prepareStreamingLikedPlaylistName(provider);
-
-        setStatus(viewModel.prepareStreamingPlaybackStatusText(null).getResolving());
-        navigateToNetworkTabPage(NETWORK_STREAMING);
-        viewModel.importStreamingLikedTracksToLocal(provider, playlistName, result -> {
-            StreamingLocalPlaylistImportPresentation presentation =
-                    viewModel.prepareStreamingLikedImportPresentation(result);
-            setStatus(presentation.getStatus());
-            if (presentation.getEmpty()) {
-                return;
-            }
-            if (presentation.getShowLoadedDialog()) {
-                showStreamingPlaylistLoadedDialog(presentation.getStatus());
-            }
-            loadCollections();
-        });
     }
 
     /**
@@ -3284,19 +2282,7 @@ public final class MainActivity extends ComponentActivity {
      * and the next track is pre-resolved by the existing prefetch path.
      */
     private void playStreamingDailyRecommendations(app.yukine.streaming.StreamingProviderName provider) {
-        StreamingDailyRecommendationRequest request =
-                viewModel.prepareStreamingDailyRecommendationRequest(provider);
-        if (request == null) {
-            setStatus(viewModel.streamingDailyRecommendationEmptyStatus());
-            return;
-        }
-        setStatus(request.getLoadingStatus());
-        viewModel.fetchDailyRecommendations(request.getProvider(), streamingTracks ->
-                openRecommendationPlaylist(
-                        streamingTracks,
-                        request.getEmptyStatus(),
-                        request.getTitle()
-                ));
+        dailyRecommendationController.playStreamingDailyRecommendations(provider);
     }
 
     /**
@@ -3304,36 +2290,7 @@ public final class MainActivity extends ComponentActivity {
      * returned list immediately.
      */
     private void playStreamingHeartbeatRecommendations(app.yukine.streaming.StreamingProviderName provider) {
-        StreamingHeartbeatRecommendationRequest request =
-                viewModel.prepareStreamingHeartbeatRecommendationRequest(provider);
-        if (request == null) {
-            setStatus(viewModel.streamingHeartbeatRecommendationEmptyStatus());
-            return;
-        }
-        setStatus(request.getLoadingStatus());
-        HeartbeatRecommendationSeedRequest seedRequest = heartbeatRecommendationSeedRequest(request.getProvider());
-        if (seedRequest.getHasSeed()) {
-            fetchHeartbeatRecommendations(
-                    request,
-                    seedRequest.getSeedTrackId(),
-                    seedRequest.getPlaylistId()
-            );
-            return;
-        }
-        resolveHeartbeatSeedFromQueue(request, seedRequest);
-    }
-
-    private void fetchHeartbeatRecommendations(
-            StreamingHeartbeatRecommendationRequest request,
-            String seedTrackId,
-            String playlistId
-    ) {
-        viewModel.fetchHeartbeatRecommendations(request.getProvider(), seedTrackId, playlistId, streamingTracks ->
-                playHeartbeatRecommendationTracks(
-                        streamingTracks,
-                        request.getEmptyStatus(),
-                        request.getPlayingStatus()
-                ));
+        heartbeatRecommendationController.playStreamingHeartbeatRecommendations(provider);
     }
 
     private HeartbeatRecommendationSeedRequest heartbeatRecommendationSeedRequest(
@@ -3342,15 +2299,15 @@ public final class MainActivity extends ComponentActivity {
         PlaybackStateSnapshot serviceSnapshot = playbackService == null ? null : playbackService.snapshot();
         List<Track> serviceQueue = playbackService == null ? null : playbackService.queueSnapshot();
         PlaybackStateSnapshot storeSnapshot = playbackStore == null ? null : playbackStore.snapshot();
-        List<Track> viewModelQueue = viewModel == null || viewModel.getPlayback().getValue() == null
+        List<Track> playbackStateQueue = playbackViewModel == null || playbackViewModel.getPlayback().getValue() == null
                 ? null
-                : viewModel.getPlayback().getValue().getQueue();
-        return viewModel.prepareHeartbeatRecommendationSeedRequest(
+                : playbackViewModel.getPlayback().getValue().getQueue();
+        return streamingViewModel.prepareHeartbeatRecommendationSeedRequest(
                 provider,
                 serviceSnapshot,
                 serviceQueue,
                 storeSnapshot,
-                viewModelQueue,
+                playbackStateQueue,
                 heartbeatLibraryContextTracks()
         );
     }
@@ -3364,33 +2321,6 @@ public final class MainActivity extends ComponentActivity {
             return selectedPlaylistTracks;
         }
         return libraryStore.visibleTracks();
-    }
-
-    private void resolveHeartbeatSeedFromQueue(
-            StreamingHeartbeatRecommendationRequest recommendationRequest,
-            HeartbeatRecommendationSeedRequest seedRequest
-    ) {
-        if (!seedRequest.getHasCandidates()) {
-            logHeartbeatSeedMiss(seedRequest);
-            viewModel.markHeartbeatRecommendationLoadingFinished();
-            setStatus(recommendationRequest.getEmptyStatus());
-            return;
-        }
-        viewModel.resolveHeartbeatRecommendationSeed(
-                recommendationRequest.getProvider(),
-                seedRequest.getCandidates(),
-                resolvedTrackId -> {
-            if (!viewModel.canContinueHeartbeatRecommendationLoading(recommendationRequest.getProvider())) {
-                return;
-            }
-            if (resolvedTrackId != null && !resolvedTrackId.isEmpty()) {
-                fetchHeartbeatRecommendations(recommendationRequest, resolvedTrackId, resolvedTrackId);
-                return;
-            }
-            logHeartbeatSeedMiss(seedRequest);
-            viewModel.markHeartbeatRecommendationLoadingFinished();
-            setStatus(recommendationRequest.getEmptyStatus());
-        });
     }
 
     private String streamingProviderTrackId(Track track, app.yukine.streaming.StreamingProviderName provider) {
@@ -3409,20 +2339,13 @@ public final class MainActivity extends ComponentActivity {
      * {@link Track}s and starts playback from the top, or shows {@code emptyStatus} when nothing came
      * back. Runs on the main thread (delivered from the ViewModel callback).
      */
-    private void openRecommendationPlaylist(
-            java.util.List<app.yukine.streaming.StreamingTrack> streamingTracks,
-            String emptyStatus,
-            String title
-    ) {
-        StreamingRecommendationPresentation presentation =
-                viewModel.prepareStreamingRecommendationPresentation(streamingTracks, emptyStatus, title);
+    private void openRecommendationPlaylist(StreamingRecommendationPresentation presentation) {
         if (presentation.getEmpty()) {
             setStatus(presentation.getEmptyStatus());
             return;
         }
         setStatus(presentation.getReadyStatus());
-        ensurePlaybackServiceStarted();
-        playTrackList(presentation.getTracks(), 0);
+        playTrackListFromHost(presentation.getTracks(), 0);
         navigateToTab(TAB_QUEUE, true, true);
     }
 
@@ -3432,87 +2355,17 @@ public final class MainActivity extends ComponentActivity {
             String playingStatus
     ) {
         StreamingRecommendationPresentation presentation =
-                viewModel.prepareHeartbeatRecommendationPresentation(streamingTracks, emptyStatus, playingStatus);
+                streamingViewModel.prepareHeartbeatRecommendationPresentation(streamingTracks, emptyStatus, playingStatus);
         if (presentation.getEmpty()) {
             setStatus(presentation.getEmptyStatus());
             return;
         }
         setStatus(presentation.getReadyStatus());
-        ensurePlaybackServiceStarted();
-        playHeartbeatRecommendationTrackList(presentation.getTracks(), 0);
-    }
-
-    private void onStreamingLoginSuccess(app.yukine.streaming.StreamingProviderName provider) {
-        final StreamingLoginPlaylistRequest request = viewModel.prepareStreamingLoginPlaylistRequest(provider);
-
-        viewModel.ensureStreamingLoginPlaylist(request.getPlaylistName(), request.getProvider(), result -> {
-            StreamingLoginPlaylistPresentation presentation =
-                    viewModel.prepareStreamingLoginPlaylistPresentation(request, result);
-            setStatus(presentation.getStatus());
-            if (presentation.getPlaylistId() >= 0L) {
-                routeController.setSelectedPlaylistId(presentation.getPlaylistId());
-            }
-            loadCollections();
-        });
+        playbackStartController.playHeartbeatRecommendationTrackList(presentation.getTracks(), 0);
     }
 
     private void syncStreamingPlaylists(java.util.List<app.yukine.streaming.StreamingPlaylistSyncStore.LinkedPlaylist> links) {
-        for (app.yukine.streaming.StreamingPlaylistSyncStore.LinkedPlaylist link : links) {
-            syncOneStreamingPlaylist(link);
-        }
-    }
-
-    private void syncOneStreamingPlaylist(app.yukine.streaming.StreamingPlaylistSyncStore.LinkedPlaylist link) {
-        viewModel.syncStreamingPlaylistToLocal(link, result -> {
-            StreamingLocalPlaylistSyncPresentation presentation =
-                    viewModel.prepareStreamingPlaylistSyncPresentation(result);
-            setStatus(presentation.getStatus());
-            if (presentation.getEmpty()) {
-                return;
-            }
-            loadCollections();
-        });
-    }
-    private void applyPlaybackSpeed(float speed) {
-        settingsViewModel.applyPlaybackSpeed(speed);
-    }
-
-    private void applyAppVolume(float volume) {
-        settingsViewModel.applyAppVolume(volume);
-    }
-
-    private void applyStreamingAudioQuality(String quality) {
-        settingsViewModel.applyStreamingAudioQuality(quality);
-    }
-
-    private void setConcurrentPlaybackEnabled(boolean enabled) {
-        settingsViewModel.setConcurrentPlaybackEnabled(enabled);
-    }
-
-    private void startSleepTimer(int minutes) {
-        applyPlaybackActionResult(nowPlayingViewModel.startSleepTimer(minutes));
-    }
-
-    private void cancelSleepTimer() {
-        applyPlaybackActionResult(nowPlayingViewModel.cancelSleepTimer());
-    }
-
-    private void setOnlineLyricsEnabled(boolean enabled) {
-        settingsViewModel.setOnlineLyricsEnabled(enabled);
-    }
-
-    private void applyLyricsOffset(long offsetMs) {
-        settingsViewModel.applyLyricsOffset(offsetMs);
-    }
-
-    private void reloadCurrentLyrics() {
-        if (lyricsViewModel != null) {
-            Track track = playbackStore.snapshot().currentTrack;
-            lyricsViewModel.load(track, neteaseProviderTrackIdForLyrics(track));
-        }
-        setStatus(playbackStore.snapshot().currentTrack == null
-                ? AppLanguage.text(settingsStore.languageMode(), "no.track.selected")
-                : AppLanguage.text(settingsStore.languageMode(), "reloading.lyrics"));
+        streamingPlaylistController.syncStreamingPlaylists(links);
     }
 
     private String remoteSourceName(long sourceId) {
@@ -3520,32 +2373,15 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void renderNowBar() {
-        if (playbackStore == null || libraryStore == null) {
-            return;
+        if (nowPlayingStateController != null) {
+            nowPlayingStateController.renderNowBar();
         }
-        publishNowPlayingState(playbackStore.snapshot());
-        // Keep the queue view model in sync with the live playback queue. Without this the
-        // queue is only bound once at startup (with an empty snapshot), so it always shows
-        // no tracks even after playback starts.
-        bindQueueViewModelInputs();
     }
 
     private NowPlayingUiState publishNowPlayingState(PlaybackStateSnapshot snapshot) {
-        if (nowPlayingViewModel == null) {
-            return new NowPlayingUiState();
-        }
-        nowPlayingViewModel.updateState(
-                snapshot,
-                libraryStore == null ? Collections.<Long>emptySet() : libraryStore.favoriteIds(),
-                lyricsState(),
-                settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()
-        );
-        NowPlayingUiState state = nowPlayingViewModel.getUiState().getValue();
-        FloatingLyricsPublisher.update(
-                state.getTrackTitle(),
-                state.getLyrics().getLines()
-        );
-        return state;
+        return nowPlayingStateController == null
+                ? new NowPlayingUiState()
+                : nowPlayingStateController.publish(snapshot);
     }
 
     private void handleNowPlayingEvent(NowPlayingEvent event) {
@@ -3560,144 +2396,25 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void handleNowPlayingEffects() {
-        if (nowPlayingViewModel == null) {
+        if (nowPlayingViewModel == null || nowPlayingEffectController == null) {
             return;
         }
-        for (NowPlayingEffect effect : nowPlayingViewModel.drainEffects()) {
-            if (effect instanceof NowPlayingEffect.OpenQueue) {
-                navigateToTab(TAB_QUEUE, true, true);
-            } else if (effect instanceof NowPlayingEffect.OpenAddToPlaylist) {
-                showAddToPlaylistDialog(((NowPlayingEffect.OpenAddToPlaylist) effect).getTrack());
-            } else if (effect instanceof NowPlayingEffect.ShowMessage) {
-                setStatus(((NowPlayingEffect.ShowMessage) effect).getMessage());
-            }
-        }
-    }
-
-    private void playTrackList(List<Track> tracks, int index) {
-        stopHeartbeatRecommendationMode();
-        playTrackListInternal(tracks, index);
-    }
-
-    private void playHeartbeatRecommendationTrackList(List<Track> tracks, int index) {
-        playTrackListInternal(tracks, index);
-    }
-
-    private void playTrackListInternal(List<Track> tracks, int index) {
-        ensurePlaybackServiceStarted();
-        if (playbackService == null) {
-            pendingPlaybackTracks = tracks == null ? Collections.emptyList() : new ArrayList<>(tracks);
-            pendingPlaybackIndex = index;
-            setStatus(viewModel.prepareStreamingPlaybackStatusText(null).getResolving());
-            return;
-        }
-        if (resolveAndPlayStreamingTrack(tracks, index)) {
-            return;
-        }
-        applyPlaybackActionResult(nowPlayingViewModel.playTrackList(tracks, index));
-    }
-
-    private void playPendingTracksIfNeeded() {
-        if (playbackService == null || pendingPlaybackTracks == null || pendingPlaybackTracks.isEmpty()) {
-            return;
-        }
-        List<Track> tracks = new ArrayList<>(pendingPlaybackTracks);
-        int index = pendingPlaybackIndex;
-        pendingPlaybackTracks = Collections.emptyList();
-        pendingPlaybackIndex = -1;
-        playTrackListInternal(tracks, index);
-    }
-
-    private void ensurePlaybackServiceStarted() {
-        startService(new Intent(this, EchoPlaybackService.class));
-    }
-
-    private void stopHeartbeatRecommendationMode() {
-        viewModel.stopHeartbeatRecommendationMode();
-    }
-
-    private void skipToPrevious() {
-        nowPlayingViewModel.skipToPrevious();
-        resolveCurrentStreamingQueueTrackIfNeeded();
-    }
-
-    private void skipToNext() {
-        nowPlayingViewModel.skipToNext();
-        resolveCurrentStreamingQueueTrackIfNeeded();
-    }
-
-    private void togglePlayback() {
-        if (resolveCurrentStreamingQueueTrackIfNeeded()) {
-            return;
-        }
-        PlaybackStateSnapshot snapshot = playbackService == null
-                ? playbackStore.snapshot()
-                : playbackService.snapshot();
-        List<Track> fallbackTracks = libraryStore == null
-                ? Collections.emptyList()
-                : libraryStore.visibleTracks();
-        applyPlaybackActionResult(
-                nowPlayingViewModel.togglePlayback(snapshot, fallbackTracks)
-        );
+        nowPlayingEffectController.handle(nowPlayingViewModel.drainEffects());
     }
 
     private boolean resolveCurrentStreamingQueueTrackIfNeeded() {
         if (playbackService == null) {
             return false;
         }
-        StreamingQueueResolveTarget target = viewModel.prepareCurrentStreamingQueueResolveTarget(
+        StreamingQueueResolveTarget target = streamingViewModel.prepareCurrentStreamingQueueResolveTarget(
                 playbackService.snapshot(),
                 playbackService.queueSnapshot()
         );
-        return target != null && resolveAndPlayStreamingTrack(target.getTracks(), target.getIndex());
+        return target != null && streamingPlaybackController.resolveAndPlayStreamingTrack(target.getTracks(), target.getIndex());
     }
 
     private void preResolveNextStreamingTrack(PlaybackStateSnapshot snapshot) {
-        if (playbackService == null || snapshot == null || !snapshot.playing) {
-            return;
-        }
-        maybeAppendHeartbeatRecommendations(snapshot);
-        List<Track> queue = playbackService.queueSnapshot();
-        viewModel.preResolveNextStreamingTrack(
-                snapshot,
-                queue,
-                adaptiveStreamingQuality(),
-                (oldTrackId, resolved) -> {
-                    if (resolved == null) {
-                        return;
-                    }
-                    nowPlayingViewModel.replaceQueuedTrack(oldTrackId, resolved);
-                    nowPlayingViewModel.precacheTrack(resolved);
-                });
-    }
-
-    private void maybeAppendHeartbeatRecommendations(PlaybackStateSnapshot snapshot) {
-        if (playbackService == null) {
-            return;
-        }
-        HeartbeatRefillRequest refill = viewModel.prepareHeartbeatRecommendationRefill(snapshot);
-        if (refill == null) {
-            return;
-        }
-        final app.yukine.streaming.StreamingProviderName provider = refill.getProvider();
-        HeartbeatRecommendationSeedRequest request = heartbeatRecommendationSeedRequest(provider);
-        if (!request.getHasSeed()) {
-            stopHeartbeatRecommendationMode();
-            return;
-        }
-        viewModel.fetchHeartbeatRecommendations(provider, request.getSeedTrackId(), request.getPlaylistId(), streamingTracks -> {
-            if (!viewModel.acceptsHeartbeatRecommendationRefill(provider) || playbackService == null) {
-                viewModel.markHeartbeatRecommendationRefillFinished(provider);
-                return;
-            }
-            StreamingRecommendationPresentation presentation =
-                    viewModel.prepareHeartbeatRecommendationAppendPresentation(streamingTracks);
-            if (presentation.getEmpty()) {
-                return;
-            }
-            nowPlayingViewModel.appendToQueue(presentation.getTracks());
-            setStatus(presentation.getReadyStatus());
-        });
+        streamingPlaybackController.preResolveNextStreamingTrack(snapshot);
     }
 
     /**
@@ -3710,30 +2427,6 @@ public final class MainActivity extends ComponentActivity {
         );
     }
 
-    private void recoverStreamingBuffering(PlaybackStateSnapshot snapshot) {
-        if (playbackService == null || snapshot == null) {
-            return;
-        }
-        app.yukine.streaming.StreamingAudioQuality selectedQuality = selectedStreamingQuality();
-        app.yukine.streaming.StreamingAudioQuality adaptiveQuality = adaptiveStreamingQuality();
-        app.yukine.streaming.StreamingAudioQuality recoveryQuality = viewModel.recoverStreamingBuffering(
-                snapshot,
-                selectedQuality,
-                adaptiveQuality,
-                resolved -> {
-                    if (resolved == null) {
-                        return;
-                    }
-                    nowPlayingViewModel.replaceCurrentTrackAndResume(resolved.getTrack(), resolved.getPositionMs());
-                    setStatus(viewModel.prepareStreamingPlaybackStatusText(resolved.getQuality()).getQualityDowngraded());
-                }
-        );
-        if (recoveryQuality == null) {
-            return;
-        }
-        setStatus(viewModel.prepareStreamingPlaybackStatusText(recoveryQuality).getQualityDowngrading());
-    }
-
     private app.yukine.streaming.StreamingAudioQuality selectedStreamingQuality() {
         String selected = settingsStore == null
                 ? StreamingQualityPreference.defaultValue()
@@ -3743,65 +2436,9 @@ public final class MainActivity extends ComponentActivity {
         ) ? adaptiveStreamingQuality() : StreamingQualityPreference.ceilingFor(selected);
     }
 
-    private boolean resolveAndPlayStreamingTrack(List<Track> tracks, int index) {
-        boolean scheduled = viewModel.resolveStreamingTrackListForPlayback(
-                tracks,
-                index,
-                adaptiveStreamingQuality(),
-                resolved -> {
-                    if (resolved == null) {
-                        setStatus(viewModel.prepareStreamingPlaybackStatusText(null).getResolveFailed());
-                        return;
-                    }
-                    applyPlaybackActionResult(
-                            nowPlayingViewModel.playTrackList(resolved.getTracks(), resolved.getIndex())
-                    );
-                }
-        );
-        if (scheduled) {
-            setStatus(viewModel.prepareStreamingPlaybackStatusText(null).getResolving());
-        }
-        return scheduled;
-    }
-
-    private void toggleShuffle() {
-        applyPlaybackActionResult(
-                nowPlayingViewModel.toggleShuffle(playbackStore.snapshot())
-        );
-    }
-
-    private void cycleBottomPlaybackMode() {
-        applyPlaybackActionResult(
-                nowPlayingViewModel.cycleBottomPlaybackMode(playbackStore.snapshot())
-        );
-    }
-
-    private void cycleRepeat() {
-        applyPlaybackActionResult(nowPlayingViewModel.cycleRepeat());
-    }
-
     private void applyPlaybackActionResult(PlaybackActionResultUi result) {
-        if (result == null) {
-            return;
-        }
-        if (result.snapshot != null) {
-            playbackStore.replaceSnapshot(result.snapshot);
-        }
-        if (result.status != null && !result.status.trim().isEmpty()) {
-            setStatus(result.status);
-        }
-        if (result.publishPlaybackState) {
-            publishPlaybackState();
-        }
-        if (result.renderNowBar) {
-            renderNowBar();
-        }
-        if (result.renderSelectedTab) {
-            renderSelectedTab();
-        }
-        if (result.navigateNow) {
-            routeController.setSelectedTab(TAB_NOW);
-            renderSelectedTab();
+        if (playbackActionResultController != null) {
+            playbackActionResultController.apply(result);
         }
     }
 

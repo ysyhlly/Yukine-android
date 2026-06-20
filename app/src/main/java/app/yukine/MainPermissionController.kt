@@ -14,6 +14,12 @@ internal class MainPermissionController(
 
     fun hasNotificationPermission(): Boolean = AppPermissions.hasNotificationPermission(activity)
 
+    fun hasOverlayPermission(): Boolean = AppPermissions.hasOverlayPermission(activity)
+
+    fun openOverlayPermissionSettings() {
+        AppPermissions.openOverlayPermissionSettings(activity)
+    }
+
     fun requestNeededPermissions() {
         AppPermissions.requestNeededPermissions(activity, REQUEST_AUDIO_PERMISSIONS)
     }

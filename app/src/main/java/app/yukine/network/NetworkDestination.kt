@@ -12,7 +12,7 @@ import app.yukine.library.LibraryTrackListDestination
 
 @Composable
 fun NetworkDestination(hostState: EchoNavHostState) {
-    val route by hostState.mainViewModel.state.collectAsState()
+    val route by hostState.navigationViewModel.state.collectAsState()
     when (route.networkPage) {
         MainRoutes.NETWORK_SOURCES -> NetworkSourcesDestination(
             state = hostState.networkSourcesViewModel.screen,
@@ -24,7 +24,7 @@ fun NetworkDestination(hostState: EchoNavHostState) {
 
         MainRoutes.NETWORK_STREAMING,
         MainRoutes.NETWORK_STREAMING_HUB -> {
-            val streamingState by hostState.mainViewModel.streaming.collectAsState()
+            val streamingState by hostState.streamingViewModel.streaming.collectAsState()
             StreamingSearchScreen(
                 state = streamingState,
                 labels = hostState.streamingSearchLabels,

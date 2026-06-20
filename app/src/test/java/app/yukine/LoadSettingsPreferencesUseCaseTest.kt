@@ -1,5 +1,6 @@
 package app.yukine
 
+import app.yukine.playback.AudioEffectSettings
 import app.yukine.ui.EchoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -16,6 +17,11 @@ class LoadSettingsPreferencesUseCaseTest {
         operations.appVolume = 0.8f
         operations.streamingAudioQuality = "bad-quality"
         operations.concurrentPlaybackEnabled = false
+        operations.statusBarLyricsEnabled = false
+        operations.floatingLyricsEnabled = true
+        operations.nowPlayingGesturesEnabled = false
+        operations.playbackRestoreEnabled = true
+        operations.replayGainEnabled = false
 
         val result = LoadSettingsPreferencesUseCase(operations).execute()
 
@@ -26,8 +32,14 @@ class LoadSettingsPreferencesUseCaseTest {
         assertEquals(0.8f, result.appVolume)
         assertEquals(StreamingQualityPreference.defaultValue(), result.streamingAudioQuality)
         assertFalse(result.concurrentPlaybackEnabled)
+        assertFalse(result.audioEffectSettings.enabled)
+        assertFalse(result.statusBarLyricsEnabled)
+        assertEquals(true, result.floatingLyricsEnabled)
+        assertFalse(result.nowPlayingGesturesEnabled)
+        assertEquals(true, result.playbackRestoreEnabled)
+        assertFalse(result.replayGainEnabled)
         assertEquals(
-            listOf("theme", "accent", "language", "speed", "volume", "quality", "concurrent"),
+            listOf("theme", "accent", "language", "speed", "volume", "quality", "concurrent", "effects", "statusLyrics", "floatingLyrics", "gestures", "restore", "replayGain"),
             operations.events
         )
     }
@@ -41,6 +53,12 @@ class LoadSettingsPreferencesUseCaseTest {
         var appVolume = 1.0f
         var streamingAudioQuality = StreamingQualityPreference.defaultValue()
         var concurrentPlaybackEnabled = true
+        var audioEffectSettings = AudioEffectSettings.DEFAULT
+        var statusBarLyricsEnabled = true
+        var floatingLyricsEnabled = false
+        var nowPlayingGesturesEnabled = true
+        var playbackRestoreEnabled = true
+        var replayGainEnabled = true
 
         override fun loadThemeMode(): String {
             events.add("theme")
@@ -75,6 +93,36 @@ class LoadSettingsPreferencesUseCaseTest {
         override fun loadConcurrentPlaybackEnabled(): Boolean {
             events.add("concurrent")
             return concurrentPlaybackEnabled
+        }
+
+        override fun loadAudioEffectSettings(): AudioEffectSettings {
+            events.add("effects")
+            return audioEffectSettings
+        }
+
+        override fun loadStatusBarLyricsEnabled(): Boolean {
+            events.add("statusLyrics")
+            return statusBarLyricsEnabled
+        }
+
+        override fun loadFloatingLyricsEnabled(): Boolean {
+            events.add("floatingLyrics")
+            return floatingLyricsEnabled
+        }
+
+        override fun loadNowPlayingGesturesEnabled(): Boolean {
+            events.add("gestures")
+            return nowPlayingGesturesEnabled
+        }
+
+        override fun loadPlaybackRestoreEnabled(): Boolean {
+            events.add("restore")
+            return playbackRestoreEnabled
+        }
+
+        override fun loadReplayGainEnabled(): Boolean {
+            events.add("replayGain")
+            return replayGainEnabled
         }
     }
 }

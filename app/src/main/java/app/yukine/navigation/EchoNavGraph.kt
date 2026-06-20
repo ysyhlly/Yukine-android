@@ -107,9 +107,11 @@ fun EchoNavGraph(
                     NowTab -> NowPlayingDestination(
                         hostState.nowPlayingViewModel,
                         defaultImmersive = hostState.openNowPlayingImmersive,
-                        onDefaultImmersiveConsumed = { hostState.openNowPlayingImmersive = false }
+                        onDefaultImmersiveConsumed = { hostState.openNowPlayingImmersive = false },
+                        gesturesEnabled = hostState.nowPlayingGesturesEnabled,
+                        onAppVolumeChanged = { volume -> hostState.settingsViewModel.applyAppVolume(volume) }
                     )
-                    else -> HomeDestination(hostState.mainViewModel.homeDashboard, hostState.homeActions)
+                    else -> HomeDestination(hostState.homeDashboardViewModel.uiState, hostState.homeActions)
                 }
             }
         } else {
@@ -120,19 +122,21 @@ fun EchoNavGraph(
             ) { page ->
                 val tab = pagerTabs[page]
                 when (tab) {
-                    HomeTab -> HomeDestination(hostState.mainViewModel.homeDashboard, hostState.homeActions)
+                    HomeTab -> HomeDestination(hostState.homeDashboardViewModel.uiState, hostState.homeActions)
                     LibraryTab -> LibraryDestination(hostState)
                     QueueTab -> NowPlayingDestination(
                         hostState.nowPlayingViewModel,
                         defaultImmersive = hostState.openNowPlayingImmersive,
-                        onDefaultImmersiveConsumed = { hostState.openNowPlayingImmersive = false }
+                        onDefaultImmersiveConsumed = { hostState.openNowPlayingImmersive = false },
+                        gesturesEnabled = hostState.nowPlayingGesturesEnabled,
+                        onAppVolumeChanged = { volume -> hostState.settingsViewModel.applyAppVolume(volume) }
                     )
                     SettingsTab -> SettingsDestination(
                         state = hostState.settingsViewModel.uiState,
                         actions = hostState.settingsActions,
                         scrollState = hostState.settingsScrollState
                     )
-                    else -> HomeDestination(hostState.mainViewModel.homeDashboard, hostState.homeActions)
+                    else -> HomeDestination(hostState.homeDashboardViewModel.uiState, hostState.homeActions)
                 }
             }
         }

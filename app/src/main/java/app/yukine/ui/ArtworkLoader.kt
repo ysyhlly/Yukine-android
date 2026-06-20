@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.LruCache
+import android.util.TypedValue
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import app.yukine.data.EmbeddedArtwork
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.xmlpull.v1.XmlPullParser
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -167,7 +169,10 @@ fun AsyncArtwork(
         mutableStateOf(uri?.let { ArtworkLoader.peekAnySize(it) })
     }
 
-    val fallbackPainter: Painter? = fallbackResId?.let { painterResource(it) }
+    val safeFallbackResId = remember(context, fallbackResId) {
+        fallbackResId?.takeIf { isPainterResourceCompatible(context, it) }
+    }
+    val fallbackPainter: Painter? = safeFallbackResId?.let { painterResource(it) }
 
     LaunchedEffect(uri, targetSize) {
         if (uri != null) {
@@ -217,4 +222,24 @@ fun AsyncArtwork(
             }
         }
     }
+}
+
+private fun isPainterResourceCompatible(context: Context, @DrawableRes resId: Int): Boolean {
+    val value = TypedValue()
+    return runCatching {
+        context.resources.getValue(resId, value, true)
+        val path = value.string?.toString()?.lowercase() ?: return@runCatching false
+        when {
+            path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".webp") -> true
+            path.endsWith(".xml") -> context.resources.getXml(resId).use { parser ->
+                while (parser.next() != XmlPullParser.END_DOCUMENT) {
+                    if (parser.eventType == XmlPullParser.START_TAG) {
+                        return@use parser.name == "vector"
+                    }
+                }
+                false
+            }
+            else -> false
+        }
+    }.getOrDefault(false)
 }

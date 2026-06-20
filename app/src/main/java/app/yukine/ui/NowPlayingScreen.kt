@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,8 +37,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +49,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.yukine.R
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 data class NowPlayingUiState(
     val pageTitle: String,
@@ -62,19 +67,34 @@ data class NowPlayingUiState(
     val lyrics: List<LyricUiLine>,
     val artistName: String = "",
     val albumName: String = "",
-    val audioSpec: String = ""
+    val audioSpec: String = "",
+    val appVolume: Float = 1.0f
 )
 
 data class LyricUiLine(val text: String, val active: Boolean)
+
+data class NowPlayingGestureActions(
+    val onPrevious: Runnable,
+    val onNext: Runnable,
+    val onVolumeChange: (Float) -> Unit
+) {
+    companion object {
+        val Empty = NowPlayingGestureActions(
+            Runnable {},
+            Runnable {},
+            {}
+        )
+    }
+}
 
 @Composable
 fun NowPlayingScreen(
     state: NowPlayingUiState,
     defaultImmersive: Boolean = false,
-    onDefaultImmersiveConsumed: () -> Unit = {}
+    onDefaultImmersiveConsumed: () -> Unit = {},
+    gestureActions: NowPlayingGestureActions = NowPlayingGestureActions.Empty
 ) {
     var immersiveLyrics by remember { mutableStateOf(false) }
-    val p = EchoTheme.colors()
     val activeLyricIndex = state.lyrics.indexOfFirst { it.active }
 
     LaunchedEffect(defaultImmersive, state.title, state.subtitle) {
@@ -102,7 +122,8 @@ fun NowPlayingScreen(
             NowPlayingNormalView(
                 state = state,
                 activeLyricIndex = activeLyricIndex,
-                onArtworkClick = { if (state.lyrics.isNotEmpty()) immersiveLyrics = true }
+                onArtworkClick = { if (state.lyrics.isNotEmpty()) immersiveLyrics = true },
+                gestureActions = gestureActions
             )
         }
     }
@@ -228,9 +249,18 @@ private fun ImmersiveLyricRow(line: LyricUiLine) {
 private fun NowPlayingNormalView(
     state: NowPlayingUiState,
     activeLyricIndex: Int,
-    onArtworkClick: () -> Unit
+    onArtworkClick: () -> Unit,
+    gestureActions: NowPlayingGestureActions
 ) {
     val p = EchoTheme.colors()
+    val gestureModifier = if (gestureActions == NowPlayingGestureActions.Empty) {
+        Modifier
+    } else {
+        Modifier.nowPlayingGestureInput(
+            currentVolume = state.appVolume,
+            actions = gestureActions
+        )
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -242,7 +272,9 @@ private fun NowPlayingNormalView(
         }
         item(key = "deck") {
             EchoGlassSurface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(gestureModifier),
                 shape = EchoShapes.large,
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
             ) {
@@ -335,6 +367,62 @@ private fun NowPlayingNormalView(
                 activeIndex = activeLyricIndex
             )
         }
+    }
+}
+
+@Composable
+private fun Modifier.nowPlayingGestureInput(
+    currentVolume: Float,
+    actions: NowPlayingGestureActions
+): Modifier {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val swipeThreshold = with(density) { 72.dp.toPx() }
+    val dominantRatio = 1.25f
+    val volumeStepDistance = with(density) { 42.dp.toPx() }
+    var startVolume by remember { mutableStateOf(currentVolume.coerceIn(0f, 1f)) }
+    var totalX by remember { mutableStateOf(0f) }
+    var totalY by remember { mutableStateOf(0f) }
+    return pointerInput(currentVolume, actions) {
+        detectDragGestures(
+            onDragStart = {
+                startVolume = currentVolume.coerceIn(0f, 1f)
+                totalX = 0f
+                totalY = 0f
+            },
+            onDrag = { change, dragAmount ->
+                totalX += dragAmount.x
+                totalY += dragAmount.y
+                if (abs(totalX) > swipeThreshold || abs(totalY) > swipeThreshold) {
+                    change.consume()
+                }
+            },
+            onDragEnd = {
+                val absX = abs(totalX)
+                val absY = abs(totalY)
+                when {
+                    absX >= swipeThreshold && absX > absY * dominantRatio -> {
+                        if (totalX < 0f) {
+                            actions.onNext.run()
+                        } else {
+                            actions.onPrevious.run()
+                        }
+                    }
+                    absY >= swipeThreshold && absY > absX * dominantRatio -> {
+                        val deltaSteps = (-totalY / volumeStepDistance).roundToInt()
+                        if (deltaSteps != 0) {
+                            val nextVolume = (startVolume + deltaSteps * 0.05f).coerceIn(0f, 1f)
+                            actions.onVolumeChange(nextVolume)
+                            Toast.makeText(
+                                context,
+                                "音量 ${(nextVolume * 100).roundToInt()}%",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+            }
+        )
     }
 }
 
