@@ -67,7 +67,8 @@ internal object NowBarStateFactory {
                 favoritedLabel = AppLanguage.text(languageMode, "favorited"),
                 shuffleLabel = AppLanguage.text(languageMode, "shuffle"),
                 inOrderLabel = AppLanguage.text(languageMode, "in.order"),
-                repeatLabel = repeatLabel(playbackState.repeatMode, languageMode),
+                repeatOneLabel = AppLanguage.text(languageMode, "repeat.one"),
+                repeatAllLabel = AppLanguage.text(languageMode, "repeat.all"),
                 repeatOffLabel = AppLanguage.text(languageMode, "repeat.off"),
                 nowPlayingLabel = AppLanguage.text(languageMode, "now.playing"),
                 repeatMode = playbackState.repeatMode,
@@ -116,7 +117,8 @@ internal object NowBarStateFactory {
             favoritedLabel = AppLanguage.text(languageMode, "favorited"),
             shuffleLabel = AppLanguage.text(languageMode, "shuffle"),
             inOrderLabel = AppLanguage.text(languageMode, "in.order"),
-            repeatLabel = repeatLabel(playbackState.repeatMode, languageMode),
+            repeatOneLabel = AppLanguage.text(languageMode, "repeat.one"),
+            repeatAllLabel = AppLanguage.text(languageMode, "repeat.all"),
             repeatOffLabel = AppLanguage.text(languageMode, "repeat.off"),
             nowPlayingLabel = AppLanguage.text(languageMode, "now.playing"),
             repeatMode = playbackState.repeatMode,
@@ -157,7 +159,7 @@ internal object NowBarStateFactory {
             return emptyList()
         }
         val activeIndex = activeLyricIndex(lyrics, positionMs)
-        return lyrics.mapIndexed { index, line -> LyricUiLine(line.text, index == activeIndex) }
+        return lyrics.mapIndexed { index, line -> LyricUiLine(line.text, index == activeIndex, line.timeMs) }
     }
 
     private fun activeLyricIndex(
@@ -173,16 +175,6 @@ internal object NowBarStateFactory {
             }
         }
         return active
-    }
-
-    private fun repeatLabel(repeatMode: Int, languageMode: String): String {
-        if (repeatMode == EchoPlaybackService.REPEAT_ONE) {
-            return AppLanguage.text(languageMode, "repeat.one")
-        }
-        if (repeatMode == EchoPlaybackService.REPEAT_OFF) {
-            return AppLanguage.text(languageMode, "repeat.off")
-        }
-        return AppLanguage.text(languageMode, "repeat.all")
     }
 
     private fun subtitleWithSpec(track: Track): String {

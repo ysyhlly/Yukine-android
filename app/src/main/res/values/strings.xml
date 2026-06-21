@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Yukine</string>
-    <string name="widget_empty_title">ECHO</string>
-    <string name="widget_empty_subtitle">Tap play to restore your queue</string>
-    <string name="widget_artwork">Album artwork</string>
-    <string name="widget_description">Playback controls</string>
-    <string name="previous">Previous</string>
-    <string name="play">Play</string>
-    <string name="next">Next</string>
+    <string name="widget_empty_title">Yukine</string>
+    <string name="widget_empty_subtitle">点播放恢复上次队列</string>
+    <string name="widget_artwork">专辑封面</string>
+    <string name="widget_description">播放控制</string>
+    <string name="previous">上一首</string>
+    <string name="play">播放</string>
+    <string name="next">下一首</string>
 </resources>

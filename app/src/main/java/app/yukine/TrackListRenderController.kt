@@ -21,6 +21,10 @@ internal class TrackListRenderController(
 
         fun showAddToPlaylist(track: Track)
 
+        fun downloadTrack(track: Track)
+
+        fun downloadTracks(tracks: List<Track>)
+
         fun showEditStream(track: Track)
 
         fun confirmDeleteTrack(track: Track)
@@ -51,6 +55,10 @@ internal class TrackListRenderController(
     ) {
         val rows = ArrayList<TrackRowUiState>()
         val actions = ArrayList<TrackRowActions>()
+        val effectiveHeaderActions = ArrayList(headerActions)
+        if (tracks.isNotEmpty() && effectiveHeaderActions.none { it.label == "下载当前列表" }) {
+            effectiveHeaderActions.add(TrackListHeaderAction("下载当前列表", Runnable { listener.downloadTracks(tracks) }))
+        }
         val currentTrack = playbackState?.currentTrack
         for (index in tracks.indices) {
             val track = tracks[index]
@@ -69,6 +77,7 @@ internal class TrackListRenderController(
                     Runnable { listener.playTrackList(tracks, index) },
                     Runnable { listener.toggleFavorite(track) },
                     Runnable { listener.showAddToPlaylist(track) },
+                    Runnable { listener.downloadTrack(track) },
                     if (showStreamActions) Runnable { listener.showEditStream(track) } else null,
                     if (showStreamActions) Runnable { listener.confirmDeleteTrack(track) } else null
                 )
@@ -77,7 +86,7 @@ internal class TrackListRenderController(
 
         viewModel.clearLibraryGroups()
         viewModel.updateTrackList(title, rows)
-        listener.publishTrackListChrome(actions, headerMetrics, headerActions, emptyText, modeActions, labels)
+        listener.publishTrackListChrome(actions, headerMetrics, effectiveHeaderActions, emptyText, modeActions, labels)
     }
 
     fun renderRecommendation(title: String, tracks: List<Track>) {
@@ -99,7 +108,8 @@ internal class TrackListRenderController(
                 TrackRowActions(
                     Runnable { listener.playTrackList(tracks, index) },
                     Runnable { listener.toggleFavorite(track) },
-                    Runnable { listener.showAddToPlaylist(track) }
+                    Runnable { listener.showAddToPlaylist(track) },
+                    Runnable { listener.downloadTrack(track) }
                 )
             )
         }
@@ -108,7 +118,7 @@ internal class TrackListRenderController(
         listener.publishTrackListChrome(
             actions,
             listOf(TrackListHeaderMetric("曲目", "${tracks.size}")),
-            emptyList(),
+            listOf(TrackListHeaderAction("下载当前列表", Runnable { listener.downloadTracks(tracks) })),
             "",
             emptyList(),
             TrackListLabels()

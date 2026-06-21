@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.model.Track
+import app.yukine.streaming.StreamingPlaylist
 import app.yukine.streaming.StreamingProviderName
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -41,6 +42,9 @@ class StreamingPlaylistBindingsTest {
             loadedDialog = StreamingPlaylistLoadedDialog { message ->
                 calls += "dialog:$message"
             },
+            accountPlaylistImportPicker = StreamingAccountPlaylistImportPicker { provider, playlists ->
+                calls += "accountPicker:${provider.wireName}:${playlists.size}"
+            },
             statusSink = QueueStatusSink { status -> calls += "status:$status" },
             selectedTabRenderer = QueueNoArgAction { calls += "render" }
         )
@@ -55,6 +59,10 @@ class StreamingPlaylistBindingsTest {
         bindings.showStreamingProviderPicker("Export", tracks)
         bindings.navigateToStreaming()
         bindings.showStreamingPlaylistLoadedDialog("Loaded")
+        bindings.showAccountPlaylistImportPicker(
+            StreamingProviderName.NETEASE,
+            listOf(StreamingPlaylist(StreamingProviderName.NETEASE, "1", "P"))
+        )
         bindings.setStatus("Done")
         bindings.renderSelectedTab()
 
@@ -75,6 +83,7 @@ class StreamingPlaylistBindingsTest {
                 "picker:Export:1",
                 "navigate",
                 "dialog:Loaded",
+                "accountPicker:netease:1",
                 "status:Done",
                 "render"
             ),

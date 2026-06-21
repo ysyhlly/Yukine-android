@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.streaming.StreamingPlaylistSyncStore
+import app.yukine.streaming.StreamingPlaylist
 import app.yukine.streaming.StreamingProviderName
 
 internal class StreamingPlaylistController(
@@ -32,6 +33,8 @@ internal class StreamingPlaylistController(
         fun navigateToStreaming()
 
         fun showStreamingPlaylistLoadedDialog(message: String)
+
+        fun showAccountPlaylistImportPicker(provider: StreamingProviderName, playlists: List<StreamingPlaylist>)
 
         fun setStatus(status: String)
 
@@ -201,6 +204,41 @@ internal class StreamingPlaylistController(
             if (presentation.playlistId >= 0L) {
                 listener.setSelectedPlaylistId(presentation.playlistId)
             }
+            listener.loadCollections()
+            listener.renderSelectedTab()
+            listener.setStatus(AppLanguage.text(languageMode, "streaming.account.playlists.loading"))
+            streamingViewModel.fetchAccountPlaylistsForImport(provider) { playlists ->
+                if (playlists.isEmpty()) {
+                    listener.setStatus(AppLanguage.text(languageMode, "streaming.no.account.playlists"))
+                    return@fetchAccountPlaylistsForImport
+                }
+                listener.showAccountPlaylistImportPicker(provider, playlists)
+            }
+        }
+    }
+
+    fun importSelectedAccountPlaylists(provider: StreamingProviderName, playlists: List<StreamingPlaylist>) {
+        val languageMode = languageProvider.languageMode()
+        if (playlists.isEmpty()) {
+            listener.setStatus(AppLanguage.text(languageMode, "streaming.no.account.playlists"))
+            return
+        }
+        listener.setStatus(AppLanguage.text(languageMode, "streaming.sync.started"))
+        streamingViewModel.importAccountPlaylistsToLocal(provider, playlists) { result ->
+            val status = AppLanguage.text(languageMode, "streaming.account.playlists.imported") +
+                result.importedPlaylistCount +
+                "/" +
+                result.playlistCount +
+                "\uff0c" +
+                AppLanguage.text(languageMode, "songs") +
+                " " +
+                result.importedTrackCount +
+                if (result.failedCount > 0) {
+                    "\uff0c" + AppLanguage.text(languageMode, "streaming.account.playlists.failed.count") + result.failedCount
+                } else {
+                    ""
+                }
+            listener.setStatus(status)
             listener.loadCollections()
             listener.renderSelectedTab()
         }

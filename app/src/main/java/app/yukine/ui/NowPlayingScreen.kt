@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,6 +42,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -49,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.yukine.R
+import app.yukine.TrackDownloadItem
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -68,10 +72,26 @@ data class NowPlayingUiState(
     val artistName: String = "",
     val albumName: String = "",
     val audioSpec: String = "",
-    val appVolume: Float = 1.0f
+    val songInfo: String = "",
+    val sourceInfo: String = "",
+    val sourceOptions: List<NowPlayingSourceOption> = emptyList(),
+    val activeDownload: TrackDownloadItem? = null,
+    val playbackQuality: String = "",
+    val audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
+    val appVolume: Float = 1.0f,
+    val onShare: Runnable = Runnable {},
+    val onDownload: Runnable = Runnable {}
 )
 
-data class LyricUiLine(val text: String, val active: Boolean)
+data class LyricUiLine(val text: String, val active: Boolean, val timeMs: Long = 0L)
+
+data class NowPlayingSourceOption(
+    val label: String,
+    val description: String = "",
+    val selected: Boolean = false,
+    val available: Boolean = true,
+    val onClick: Runnable = Runnable {}
+)
 
 data class NowPlayingGestureActions(
     val onPrevious: Runnable,
@@ -92,7 +112,8 @@ fun NowPlayingScreen(
     state: NowPlayingUiState,
     defaultImmersive: Boolean = false,
     onDefaultImmersiveConsumed: () -> Unit = {},
-    gestureActions: NowPlayingGestureActions = NowPlayingGestureActions.Empty
+    gestureActions: NowPlayingGestureActions = NowPlayingGestureActions.Empty,
+    onLyricSeek: (Long) -> Unit = {}
 ) {
     var immersiveLyrics by remember { mutableStateOf(false) }
     val activeLyricIndex = state.lyrics.indexOfFirst { it.active }
@@ -116,6 +137,7 @@ fun NowPlayingScreen(
                 title = state.title,
                 subtitle = state.subtitle,
                 albumArtUri = state.albumArtUri,
+                onLyricSeek = onLyricSeek,
                 onExit = { immersiveLyrics = false }
             )
         } else {
@@ -123,7 +145,8 @@ fun NowPlayingScreen(
                 state = state,
                 activeLyricIndex = activeLyricIndex,
                 onArtworkClick = { if (state.lyrics.isNotEmpty()) immersiveLyrics = true },
-                gestureActions = gestureActions
+                gestureActions = gestureActions,
+                onLyricSeek = onLyricSeek
             )
         }
     }
@@ -136,6 +159,7 @@ private fun ImmersiveLyricsView(
     title: String,
     subtitle: String,
     albumArtUri: Uri?,
+    onLyricSeek: (Long) -> Unit,
     onExit: () -> Unit
 ) {
     val p = EchoTheme.colors()
@@ -209,7 +233,7 @@ private fun ImmersiveLyricsView(
                     items = lyrics,
                     key = { index, line -> "imm-$index:${line.text.hashCode()}" }
                 ) { _, line ->
-                    ImmersiveLyricRow(line)
+                    ImmersiveLyricRow(line, onSeek = onLyricSeek)
                 }
             }
         }
@@ -218,14 +242,18 @@ private fun ImmersiveLyricsView(
 }
 
 @Composable
-private fun ImmersiveLyricRow(line: LyricUiLine) {
+private fun ImmersiveLyricRow(line: LyricUiLine, onSeek: (Long) -> Unit) {
     val p = EchoTheme.colors()
     val copyText = rememberCopyTextAction()
     Surface(
-        onClick = { copyText(line.text) },
         shape = EchoShapes.small,
         color = Color.Transparent,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = { onSeek(line.timeMs) },
+                onLongClick = { copyText(line.text) }
+            )
     ) {
         Text(
             text = line.text,
@@ -250,7 +278,8 @@ private fun NowPlayingNormalView(
     state: NowPlayingUiState,
     activeLyricIndex: Int,
     onArtworkClick: () -> Unit,
-    gestureActions: NowPlayingGestureActions
+    gestureActions: NowPlayingGestureActions,
+    onLyricSeek: (Long) -> Unit
 ) {
     val p = EchoTheme.colors()
     val gestureModifier = if (gestureActions == NowPlayingGestureActions.Empty) {
@@ -268,13 +297,26 @@ private fun NowPlayingNormalView(
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.sectionSpacing)
     ) {
         item(key = "page-title") {
-            EchoPageTitle(state.pageTitle.ifBlank { "Now" })
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                EchoPageTitle(
+                    state.pageTitle.ifBlank { "Now" },
+                    modifier = Modifier.weight(1f)
+                )
+                YukineDownloadOrb(
+                    item = state.activeDownload,
+                    playbackQuality = state.playbackQuality,
+                    audioMotion = state.audioMotion,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
         }
         item(key = "deck") {
             EchoGlassSurface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(gestureModifier),
+                modifier = Modifier.fillMaxWidth(),
                 shape = EchoShapes.large,
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
             ) {
@@ -284,7 +326,8 @@ private fun NowPlayingNormalView(
                 ) {
                     AlbumArtHero(
                         state.albumArtUri, state.title, state.subtitle,
-                        onClick = onArtworkClick
+                        onClick = onArtworkClick,
+                        modifier = Modifier.then(gestureModifier)
                     )
                     Spacer(Modifier.height(14.dp))
                     CopyableMetadataText(
@@ -329,6 +372,8 @@ private fun NowPlayingNormalView(
                         )
                     }
                     Spacer(Modifier.height(14.dp))
+                    NowPlayingQuickActions(state.onShare, state.onDownload)
+                    Spacer(Modifier.height(14.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -359,12 +404,180 @@ private fun NowPlayingNormalView(
             }
         }
 
+        if (state.songInfo.isNotBlank() || state.sourceInfo.isNotBlank() || state.sourceOptions.isNotEmpty()) {
+            item(key = "song-info") {
+                SongInfoPanel(state.songInfo, state.sourceInfo, state.sourceOptions)
+            }
+        }
+
         item(key = "lyrics-panel") {
             LyricsPanel(
                 title = state.lyricsTitle,
                 status = state.lyricsStatus,
                 lines = state.lyrics,
-                activeIndex = activeLyricIndex
+                activeIndex = activeLyricIndex,
+                onLyricSeek = onLyricSeek
+            )
+        }
+    }
+}
+
+@Composable
+private fun SongInfoPanel(
+    songInfo: String,
+    sourceInfo: String,
+    sourceOptions: List<NowPlayingSourceOption>
+) {
+    val p = EchoTheme.colors()
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .echoGlassLayer(p, EchoShapes.medium),
+        shape = EchoShapes.medium,
+        color = Color.Transparent
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (songInfo.isNotBlank()) {
+                Text(
+                    "歌曲介绍",
+                    style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+                    color = p.heading
+                )
+                Text(
+                    songInfo,
+                    style = EchoTypography.caption,
+                    color = p.muted,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (sourceInfo.isNotBlank()) {
+                Text(
+                    sourceInfo,
+                    style = EchoTypography.small,
+                    color = p.accent,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (sourceOptions.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "音源切换",
+                    style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+                    color = p.heading
+                )
+                sourceOptions.forEach { option ->
+                    SourceOptionRow(option)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceOptionRow(option: NowPlayingSourceOption) {
+    val p = EchoTheme.colors()
+    Surface(
+        onClick = { if (option.available) option.onClick.run() },
+        enabled = option.available,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        shape = EchoShapes.small,
+        color = when {
+            option.selected -> p.accentSoft.copy(alpha = 0.68f)
+            option.available -> p.surfaceVariant.copy(alpha = 0.26f)
+            else -> p.surfaceVariant.copy(alpha = 0.12f)
+        }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            EchoIcon(
+                if (option.selected) EchoIconKind.Check else EchoIconKind.Network,
+                Modifier.size(16.dp),
+                if (option.selected) p.accent else p.muted
+            )
+            Spacer(Modifier.size(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    option.label,
+                    style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = if (option.available) p.text else p.muted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (option.description.isNotBlank()) {
+                    Text(
+                        option.description,
+                        style = EchoTypography.small,
+                        color = p.muted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NowPlayingQuickActions(onShare: Runnable, onDownload: Runnable) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        NowPlayingQuickAction(
+            label = "分享音源卡片",
+            icon = EchoIconKind.Network,
+            modifier = Modifier.weight(1f),
+            onClick = { onShare.run() }
+        )
+        NowPlayingQuickAction(
+            label = "下载",
+            icon = EchoIconKind.Import,
+            modifier = Modifier.weight(1f),
+            onClick = { onDownload.run() }
+        )
+    }
+}
+
+@Composable
+private fun NowPlayingQuickAction(
+    label: String,
+    icon: EchoIconKind,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    val p = EchoTheme.colors()
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    Surface(
+        onClick = onClick,
+        interactionSource = interaction,
+        modifier = modifier
+            .height(42.dp)
+            .echoPressScale(interaction)
+            .semantics { contentDescription = label },
+        shape = EchoShapes.medium,
+        color = p.accentSoft.copy(alpha = 0.62f)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            EchoIcon(icon, Modifier.size(18.dp), p.accent)
+            Text(
+                label,
+                style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = p.text,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -463,10 +676,16 @@ private fun rememberCopyTextAction(): (String) -> Unit {
 }
 
 @Composable
-private fun AlbumArtHero(uri: Uri?, title: String, subtitle: String, onClick: (() -> Unit)? = null) {
+private fun AlbumArtHero(
+    uri: Uri?,
+    title: String,
+    subtitle: String,
+    onClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
     val p = EchoTheme.colors()
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(EchoMobileLayoutMetrics.nowPlayingArtworkSize)
             .clip(EchoShapes.large)
             .then(
@@ -530,7 +749,13 @@ private fun MetricCard(label: String, value: String, modifier: Modifier) {
 }
 
 @Composable
-private fun LyricsPanel(title: String, status: String, lines: List<LyricUiLine>, activeIndex: Int) {
+private fun LyricsPanel(
+    title: String,
+    status: String,
+    lines: List<LyricUiLine>,
+    activeIndex: Int,
+    onLyricSeek: (Long) -> Unit
+) {
     val p = EchoTheme.colors()
     val listState = rememberLazyListState()
     EchoGlassSurface(
@@ -578,7 +803,7 @@ private fun LyricsPanel(title: String, status: String, lines: List<LyricUiLine>,
                         items = lines,
                         key = { index, line -> "$index:${line.text.hashCode()}" }
                     ) { _, line ->
-                        LyricRow(line)
+                        LyricRow(line, onSeek = onLyricSeek)
                     }
                 }
             }
@@ -587,14 +812,18 @@ private fun LyricsPanel(title: String, status: String, lines: List<LyricUiLine>,
 }
 
 @Composable
-private fun LyricRow(line: LyricUiLine) {
+private fun LyricRow(line: LyricUiLine, onSeek: (Long) -> Unit) {
     val p = EchoTheme.colors()
     val copyText = rememberCopyTextAction()
     Surface(
-        onClick = { copyText(line.text) },
         shape = EchoShapes.small,
         color = if (line.active) p.accentSoft else Color.Transparent,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = { onSeek(line.timeMs) },
+                onLongClick = { copyText(line.text) }
+            )
     ) {
         Text(
             text = line.text,

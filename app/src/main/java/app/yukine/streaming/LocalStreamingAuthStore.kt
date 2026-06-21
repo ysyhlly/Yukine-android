@@ -5,14 +5,9 @@ import android.content.SharedPreferences
 import app.yukine.security.SecureSecretStore
 
 /**
- * Persists streaming-provider login state captured locally on the device (typically via the
- * isolated WebView login flow), so that ECHO Next does not depend on a remote gateway just to
- * remember which providers the user has signed into.
- *
- * Each provider stores three pieces:
- * - whether the account is connected
- * - the cookie header captured at completion time (used to authorize follow-up calls)
- * - an optional human-readable display name surfaced in the UI
+ * Persists streaming-provider login state captured locally on the device, usually from the
+ * isolated WebView login flow. Remote gateway auth metadata is only a cache; this store is the
+ * durable source that lets Yukine keep a streaming login across app restarts.
  */
 interface StreamingLocalAuthStore {
     fun authState(provider: StreamingProviderName): StreamingAuthState
@@ -39,12 +34,12 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
         val connected = preferences.getBoolean(keyConnected(provider), false)
         val cookie = SecureSecretStore.decryptOrPlain(preferences.getString(keyCookie(provider), null))
         val displayName = preferences.getString(keyDisplayName(provider), null)
-        val authKind = providerAuthKind(provider)
+        val hasCookie = !cookie.isNullOrBlank()
         return StreamingAuthState(
-            kind = authKind,
-            connected = connected && !cookie.isNullOrBlank(),
+            kind = providerAuthKind(provider),
+            connected = connected && hasCookie,
             accountDisplayName = displayName?.takeIf { it.isNotBlank() },
-            statusMessage = if (connected && !cookie.isNullOrBlank()) {
+            statusMessage = if (connected && hasCookie) {
                 "本地登录已保存"
             } else {
                 "未登录"
@@ -58,20 +53,27 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
         displayName: String?
     ): StreamingAuthState {
         val cookie = cookieHeader?.trim().orEmpty()
-        val editor = preferences.edit()
         if (cookie.isBlank()) {
-            editor.remove(keyConnected(provider))
-            editor.remove(keyCookie(provider))
+            return authState(provider)
+        }
+
+        val editor = preferences.edit()
+            .putBoolean(keyConnected(provider), true)
+            .putString(keyCookie(provider), SecureSecretStore.encryptOrPlain(cookie))
+
+        if (displayName.isNullOrBlank()) {
             editor.remove(keyDisplayName(provider))
         } else {
-            editor.putBoolean(keyConnected(provider), true)
-            // 敏感的登录 cookie 用 AES/GCM 加密后落盘；Keystore 不可用时退化为明文，保证不丢登录态。
-            editor.putString(keyCookie(provider), SecureSecretStore.encryptOrPlain(cookie))
-            if (!displayName.isNullOrBlank()) {
-                editor.putString(keyDisplayName(provider), displayName.trim())
-            }
+            editor.putString(keyDisplayName(provider), displayName.trim())
         }
-        editor.apply()
+
+        if (!editor.commit()) {
+            return StreamingAuthState(
+                kind = providerAuthKind(provider),
+                connected = false,
+                statusMessage = "登录状态保存失败，请重试"
+            )
+        }
         return authState(provider)
     }
 
@@ -80,7 +82,7 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
             .remove(keyConnected(provider))
             .remove(keyCookie(provider))
             .remove(keyDisplayName(provider))
-            .apply()
+            .commit()
         return authState(provider)
     }
 
@@ -101,11 +103,6 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
     companion object {
         const val PREFS_NAME: String = "streaming_local_auth"
 
-        /**
-         * Resolve the auth kind ECHO Next would use for the given provider when the gateway is
-         * unreachable. Cookie-style providers fall back to the in-app WebView; OAuth-style
-         * providers fall back to Custom Tabs / external browser.
-         */
         fun providerAuthKind(provider: StreamingProviderName): StreamingAuthKind {
             return when (provider) {
                 StreamingProviderName.NETEASE,

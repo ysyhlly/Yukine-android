@@ -1,18 +1,18 @@
 package app.yukine.streaming
 
 /**
- * Resolves a provider-specific login URL ECHO Next can open in its in-app WebView (for cookie
+ * Resolves a provider-specific login URL Yukine can open in its in-app WebView (for cookie
  * providers) or in Custom Tabs (for OAuth providers) when the streaming gateway is not connected.
  *
  * The URLs here intentionally point at each provider's official login page rather than at any
  * third-party API. Using them only causes the user's browser session inside the WebView to be
- * authenticated; ECHO Next then captures the resulting cookie and stores it in
+ * authenticated; Yukine then captures the resulting cookie and stores it in
  * [LocalStreamingAuthStore].
  */
 object LocalStreamingLoginEndpoints {
 
     /**
-     * @param redirectUri the deep link ECHO Next listens on (echo-next://streaming-auth). Cookie
+     * @param redirectUri the deep link Yukine listens on (echo-next://streaming-auth). Cookie
      *   providers do not actually consume the redirect, but it is appended as a query parameter so
      *   that the [StreamingWebAuthActivity] fallback path can build a valid callback URI when the
      *   user dismisses the WebView early.
@@ -78,6 +78,9 @@ object LocalStreamingLoginEndpoints {
         return when (provider) {
             StreamingProviderName.NETEASE -> listOf(
                 "https://music.163.com/",
+                "https://interface.music.163.com/",
+                "https://m.music.163.com/",
+                "https://login.163.com/",
                 "https://www.163.com/",
                 "https://163.com/"
             )
@@ -131,7 +134,14 @@ object LocalStreamingLoginEndpoints {
      */
     fun sessionTokenNames(provider: StreamingProviderName): List<String> {
         return when (provider) {
-            StreamingProviderName.NETEASE -> listOf("MUSIC_U")
+            StreamingProviderName.NETEASE -> listOf(
+                "MUSIC_U",
+                "MUSIC_A",
+                "MUSIC_R",
+                "MUSIC_R_T",
+                "MUSIC_SNS",
+                "__csrf"
+            )
             StreamingProviderName.QQ_MUSIC -> listOf("qqmusic_key", "qm_keyst", "psrf_qqaccess_token", "uin", "p_uin")
             StreamingProviderName.KUGOU -> listOf("token", "kg_mid", "t_token")
             StreamingProviderName.BILIBILI -> listOf("SESSDATA")

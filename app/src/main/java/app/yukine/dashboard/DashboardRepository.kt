@@ -155,7 +155,7 @@ class DashboardRepository(
         )
 
         return HomeDashboardUiState(
-            title = "Echo Next",
+            title = "Yukine",
             subtitle = "${stats.tracks} 首歌曲 - ${stats.totalDurationText}",
             heroTitle = response.hero.title,
             heroSubtitle = response.hero.subtitle,
@@ -238,7 +238,7 @@ class DashboardRepository(
         val heatmapData = buildHeatmap(records, nowMs)
 
         return HomeDashboardUiState(
-            title = "Echo Next",
+            title = "Yukine",
             subtitle = "${tracks.size} 首歌曲 - $durationText",
             heroTitle = "No thoughts, just PCM.",
             heroSubtitle = continueTrack?.let { "接上 ${it.artist} 的「${it.title}」，或者从最近入库里挑一张封面开始。" }

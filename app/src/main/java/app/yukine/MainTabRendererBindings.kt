@@ -7,7 +7,8 @@ internal class MainTabRendererBindings(
     private val renderQueueAction: Runnable,
     private val renderNowPlayingAction: Runnable,
     private val renderNetworkAction: Runnable,
-    private val renderSettingsAction: Runnable
+    private val renderSettingsAction: Runnable,
+    private val renderSearchAction: Runnable = Runnable { }
 ) : MainTabRenderDispatcher.Renderer {
     override fun renderHome() {
         renderHomeAction.run()
@@ -31,6 +32,10 @@ internal class MainTabRendererBindings(
 
     override fun renderNetwork() {
         renderNetworkAction.run()
+    }
+
+    override fun renderSearch() {
+        renderSearchAction.run()
     }
 
     override fun renderSettings() {

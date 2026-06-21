@@ -16,6 +16,8 @@ internal class DocumentPickerController(
 
         fun importAudioFolder(treeUri: Uri)
 
+        fun chooseDownloadFolder(treeUri: Uri)
+
         fun importStreamM3u(playlistUri: Uri)
 
         fun exportPlaylist(exportUri: Uri)
@@ -40,6 +42,17 @@ internal class DocumentPickerController(
                 Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
         )
         activity.startActivityForResult(intent, REQUEST_IMPORT_AUDIO_FOLDER)
+    }
+
+    fun openDownloadFolderPicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+        intent.addFlags(
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+        )
+        activity.startActivityForResult(intent, REQUEST_DOWNLOAD_FOLDER)
     }
 
     fun openM3uFilePicker() {
@@ -84,6 +97,14 @@ internal class DocumentPickerController(
             }
             return true
         }
+        if (requestCode == REQUEST_DOWNLOAD_FOLDER) {
+            val treeUri = data.data
+            if (treeUri != null) {
+                takePersistableReadWritePermission(data, treeUri)
+                listener.chooseDownloadFolder(treeUri)
+            }
+            return true
+        }
         if (requestCode == REQUEST_IMPORT_M3U_FILE) {
             val playlistUri = data.data
             if (playlistUri != null) {
@@ -111,8 +132,9 @@ internal class DocumentPickerController(
     }
 
     private fun isDocumentRequest(requestCode: Int): Boolean =
-        requestCode == REQUEST_IMPORT_AUDIO_FILES ||
+            requestCode == REQUEST_IMPORT_AUDIO_FILES ||
             requestCode == REQUEST_IMPORT_AUDIO_FOLDER ||
+            requestCode == REQUEST_DOWNLOAD_FOLDER ||
             requestCode == REQUEST_IMPORT_M3U_FILE ||
             requestCode == REQUEST_EXPORT_PLAYLIST_M3U ||
             requestCode == REQUEST_IMPORT_PLAYLIST_M3U_FILE
@@ -153,11 +175,29 @@ internal class DocumentPickerController(
         }
     }
 
+    private fun takePersistableReadWritePermission(data: Intent?, uri: Uri?) {
+        if (data == null || uri == null) {
+            return
+        }
+        var flags = data.flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        if (flags == 0) {
+            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        }
+        try {
+            activity.contentResolver.takePersistableUriPermission(uri, flags)
+        } catch (ignored: SecurityException) {
+            // Some providers grant only transient access.
+        } catch (ignored: IllegalArgumentException) {
+            // Some providers grant only transient access.
+        }
+    }
+
     companion object {
         @JvmField val REQUEST_IMPORT_AUDIO_FILES: Int = 4002
         @JvmField val REQUEST_IMPORT_AUDIO_FOLDER: Int = 4003
         @JvmField val REQUEST_IMPORT_M3U_FILE: Int = 4004
         @JvmField val REQUEST_EXPORT_PLAYLIST_M3U: Int = 4005
         @JvmField val REQUEST_IMPORT_PLAYLIST_M3U_FILE: Int = 4006
+        @JvmField val REQUEST_DOWNLOAD_FOLDER: Int = 4007
     }
 }

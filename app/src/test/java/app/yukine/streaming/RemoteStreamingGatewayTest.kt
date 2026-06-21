@@ -34,7 +34,7 @@ class RemoteStreamingGatewayTest {
         } catch (error: StreamingGatewayException) {
             error
         }
-        assertTrue(searchError?.message.orEmpty().contains("not connected"))
+        assertEquals(StreamingErrorCode.GATEWAY_UNAVAILABLE, searchError?.code)
 
         val playlistsError = try {
             gateway.userPlaylists(StreamingProviderName.NETEASE)
@@ -112,9 +112,9 @@ class RemoteStreamingGatewayTest {
             val gateway = RemoteStreamingGateway(server.baseUrl)
 
             val providers = gateway.providers()
-            assertEquals(StreamingProviderName.SPOTIFY, providers.single().name)
+            assertTrue(providers.any { it.name == StreamingProviderName.SPOTIFY })
             val health = gateway.providersHealth()
-            assertTrue(health.single().available)
+            assertTrue(health.any { it.provider == StreamingProviderName.SPOTIFY && it.available })
 
             val search = gateway.search(
                 StreamingSearchRequest(
@@ -173,7 +173,7 @@ class RemoteStreamingGatewayTest {
             assertEquals("GET", requests[0].method)
             assertEquals("/providers", requests[0].path)
             assertEquals("application/json", requests[0].accept)
-            assertEquals("ECHO-NEXT-Android", requests[0].userAgent)
+            assertEquals("Yukine-Android", requests[0].userAgent)
 
             assertEquals("GET", requests[1].method)
             assertEquals("/providers/health", requests[1].path)
@@ -560,9 +560,9 @@ class RemoteStreamingGatewayTest {
 
             val capabilities = gateway.providerCapabilities()
 
-            assertEquals(StreamingProviderName.SPOTIFY, capabilities.single().provider)
-            assertTrue(capabilities.single().supportsSearch)
-            assertTrue(capabilities.single().supportsPlayback)
+            val spotify = capabilities.first { it.provider == StreamingProviderName.SPOTIFY }
+            assertTrue(spotify.supportsSearch)
+            assertTrue(spotify.supportsPlayback)
             assertEquals(listOf("/providers/capabilities", "/providers"), server.requests.map { it.path })
         } finally {
             server.stop()

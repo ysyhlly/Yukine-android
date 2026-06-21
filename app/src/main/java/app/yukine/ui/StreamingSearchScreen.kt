@@ -1,4 +1,4 @@
-package app.yukine.ui
+﻿package app.yukine.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -209,6 +209,9 @@ fun StreamingSearchScreen(
     val selectedCapability = state.providerCapabilities.firstOrNull { it.provider == state.selectedProvider }
     val selectedHealth = state.providerHealth.firstOrNull { it.provider == state.selectedProvider }
     val canSearch = selectedCapability?.supportsSearch ?: (provider?.let(StreamingCapabilityResolver::canSearch) == true)
+    val hasLocalPendingProviders = state.providers.any { provider ->
+        provider.name != StreamingProviderName.NETEASE && !provider.enabled
+    }
     val result = state.searchResult
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -222,6 +225,11 @@ fun StreamingSearchScreen(
                 backLabel = labels.back,
                 onBack = actions.onBack
             )
+        }
+        if (hasLocalPendingProviders) {
+            item(key = "local-first-hint") {
+                MessageRow("已启用本机优先：网易云可本机直连；QQ / 酷狗 / B 站 / LX 正在补本机解析，暂可用网关作为备用。")
+            }
         }
         if (state.providers.isNotEmpty()) {
             itemsIndexed(
@@ -832,3 +840,4 @@ private fun MessageRow(message: String) {
         )
     }
 }
+

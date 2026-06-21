@@ -17,6 +17,81 @@ public final class PlaybackStateSnapshot {
     public final float appVolume;
     public final long sleepTimerRemainingMs;
     public final PlaybackWaveformSnapshot waveform;
+    public final PlaybackSpectrumSnapshot spectrum;
+    public final float realtimeBeat;
+
+    public PlaybackStateSnapshot(
+            Track currentTrack,
+            int currentIndex,
+            int queueSize,
+            long positionMs,
+            long durationMs,
+            boolean playing,
+            boolean preparing,
+            String errorMessage,
+            boolean shuffleEnabled,
+            int repeatMode,
+            float playbackSpeed,
+            float appVolume,
+            long sleepTimerRemainingMs,
+            PlaybackWaveformSnapshot waveform,
+            PlaybackSpectrumSnapshot spectrum,
+            float realtimeBeat
+    ) {
+        this.currentTrack = currentTrack;
+        this.currentIndex = currentIndex;
+        this.queueSize = Math.max(queueSize, 0);
+        this.positionMs = Math.max(positionMs, 0L);
+        this.durationMs = Math.max(durationMs, 0L);
+        this.playing = playing;
+        this.preparing = preparing;
+        this.errorMessage = errorMessage == null ? "" : errorMessage;
+        this.shuffleEnabled = shuffleEnabled;
+        this.repeatMode = repeatMode;
+        this.playbackSpeed = playbackSpeed <= 0f ? 1.0f : playbackSpeed;
+        this.appVolume = Math.max(0.0f, Math.min(appVolume, 1.0f));
+        this.sleepTimerRemainingMs = Math.max(sleepTimerRemainingMs, 0L);
+        this.waveform = waveform == null ? PlaybackWaveformSnapshot.empty() : waveform;
+        this.spectrum = spectrum == null ? PlaybackSpectrumSnapshot.empty() : spectrum;
+        this.realtimeBeat = Math.max(0f, Math.min(realtimeBeat, 1f));
+    }
+
+    public PlaybackStateSnapshot(
+            Track currentTrack,
+            int currentIndex,
+            int queueSize,
+            long positionMs,
+            long durationMs,
+            boolean playing,
+            boolean preparing,
+            String errorMessage,
+            boolean shuffleEnabled,
+            int repeatMode,
+            float playbackSpeed,
+            float appVolume,
+            long sleepTimerRemainingMs,
+            PlaybackWaveformSnapshot waveform,
+            PlaybackSpectrumSnapshot spectrum
+    ) {
+        this(
+                currentTrack,
+                currentIndex,
+                queueSize,
+                positionMs,
+                durationMs,
+                playing,
+                preparing,
+                errorMessage,
+                shuffleEnabled,
+                repeatMode,
+                playbackSpeed,
+                appVolume,
+                sleepTimerRemainingMs,
+                waveform,
+                spectrum,
+                0f
+        );
+    }
 
     public PlaybackStateSnapshot(
             Track currentTrack,
@@ -34,20 +109,24 @@ public final class PlaybackStateSnapshot {
             long sleepTimerRemainingMs,
             PlaybackWaveformSnapshot waveform
     ) {
-        this.currentTrack = currentTrack;
-        this.currentIndex = currentIndex;
-        this.queueSize = Math.max(queueSize, 0);
-        this.positionMs = Math.max(positionMs, 0L);
-        this.durationMs = Math.max(durationMs, 0L);
-        this.playing = playing;
-        this.preparing = preparing;
-        this.errorMessage = errorMessage == null ? "" : errorMessage;
-        this.shuffleEnabled = shuffleEnabled;
-        this.repeatMode = repeatMode;
-        this.playbackSpeed = playbackSpeed <= 0f ? 1.0f : playbackSpeed;
-        this.appVolume = Math.max(0.0f, Math.min(appVolume, 1.0f));
-        this.sleepTimerRemainingMs = Math.max(sleepTimerRemainingMs, 0L);
-        this.waveform = waveform == null ? PlaybackWaveformSnapshot.empty() : waveform;
+        this(
+                currentTrack,
+                currentIndex,
+                queueSize,
+                positionMs,
+                durationMs,
+                playing,
+                preparing,
+                errorMessage,
+                shuffleEnabled,
+                repeatMode,
+                playbackSpeed,
+                appVolume,
+                sleepTimerRemainingMs,
+                waveform,
+                PlaybackSpectrumSnapshot.empty(),
+                0f
+        );
     }
 
     public PlaybackStateSnapshot(
@@ -79,7 +158,9 @@ public final class PlaybackStateSnapshot {
                 playbackSpeed,
                 appVolume,
                 sleepTimerRemainingMs,
-                PlaybackWaveformSnapshot.empty()
+                PlaybackWaveformSnapshot.empty(),
+                PlaybackSpectrumSnapshot.empty(),
+                0f
         );
     }
 

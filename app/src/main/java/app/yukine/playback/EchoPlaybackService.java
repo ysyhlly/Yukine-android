@@ -23,6 +23,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.Process;
 import android.util.Log;
 import android.util.LruCache;
 
@@ -73,10 +74,14 @@ import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.datasource.cache.CacheWriter;
+import androidx.media3.datasource.cache.ContentMetadata;
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor;
 import androidx.media3.datasource.cache.SimpleCache;
 import androidx.media3.exoplayer.DefaultLoadControl;
+import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.audio.AudioSink;
+import androidx.media3.exoplayer.audio.DefaultAudioSink;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.session.MediaSession;
@@ -110,28 +115,36 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private static final String CHANNEL_ID = "echo_next_playback";
     private static final int NOTIFICATION_ID = 1001;
     private static final String TAG = "EchoPlaybackService";
-    private static final String EMPTY_NOTIFICATION_TITLE = "ECHO";
+    private static final String EMPTY_NOTIFICATION_TITLE = "Yukine";
     private static final String EMPTY_NOTIFICATION_TEXT = "Ready to resume playback";
     private static final String EXTRA_CURRENT_LYRIC = "app.yukine.extra.CURRENT_LYRIC";
     private static final String EXTRA_LYRIC_TRACK_TITLE = "app.yukine.extra.LYRIC_TRACK_TITLE";
+    private static final String EXTRA_REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing";
+    private static final int NOTIFICATION_ACCENT = 0xFFEBC9A6;
     private static final long PLAYBACK_POSITION_SAVE_INTERVAL_MS = 5000L;
     private static final long CROSSFADE_FADE_OUT_MS = 700L;
     private static final long CROSSFADE_FADE_STEP_MS = 70L;
     private static final int PRECACHE_BYTES = 512 * 1024;
+    private static final long VISUALIZATION_CACHE_BYTES = 64L * 1024L * 1024L;
     // Buffering policy tuned for music streaming. Keep a generous read-ahead window (so a brief
     // network dip doesn't stall mid-song) but start and recover quickly so the user feels little
     // latency. Start playback after ~2.5s of buffer instead of 5s, and resume after a stall once
     // ~5s is buffered instead of 15s; the previous values made every hiccup feel like a long hang.
-    private static final int STREAMING_MIN_BUFFER_MS = 60000;
+    private static final int STREAMING_MIN_BUFFER_MS = 90000;
     private static final int STREAMING_MAX_BUFFER_MS = 600000;
     private static final int STREAMING_BUFFER_FOR_PLAYBACK_MS = 2500;
-    private static final int STREAMING_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 5000;
-    private static final int STREAMING_BACK_BUFFER_MS = 30000;
+    private static final int STREAMING_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 3500;
+    private static final int STREAMING_BACK_BUFFER_MS = 60000;
     private static final long AUDIO_CACHE_MAX_BYTES = 1024L * 1024L * 1024L;
     private static final float WAVEFORM_PROGRESS_STEP = 0.015f;
     private static final int WAVEFORM_BAR_COUNT = 96;
+    private static final long SPECTRUM_QUICK_START_MS = 6_000L;
+    private static final float SPECTRUM_PROGRESS_STEP = 0.008f;
     private static final int NOTIFICATION_ARTWORK_TARGET_PX = 512;
     private static final int NOTIFICATION_ARTWORK_CACHE_ENTRIES = 8;
+    private static final long FOREGROUND_NOTIFICATION_MIN_INTERVAL_MS = 900L;
+    private static final long BACKGROUND_NOTIFICATION_MIN_INTERVAL_MS = 4500L;
+    private static final long BACKGROUND_LYRIC_NOTIFICATION_MIN_INTERVAL_MS = 5000L;
     private static final String AUTO_ROOT = "echo:auto:root";
     private static final String AUTO_ALL = "echo:auto:all";
     private static final String AUTO_RECENT = "echo:auto:recent";
@@ -147,7 +160,13 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private final Set<PlaybackStateListener> listeners = new CopyOnWriteArraySet<>();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Random random = new Random();
-    private final PlaybackTaskScheduler playbackTaskScheduler = new PlaybackTaskScheduler("EchoPlaybackScheduler");
+    private final PlaybackTaskScheduler playbackTaskScheduler =
+            new PlaybackTaskScheduler("EchoPlaybackScheduler", Process.THREAD_PRIORITY_AUDIO);
+    private final PlaybackTaskScheduler visualizationTaskScheduler =
+            new PlaybackTaskScheduler("YukineVisualizationScheduler", Process.THREAD_PRIORITY_BACKGROUND);
+    private final RealtimeBassDetector realtimeBassDetector = new RealtimeBassDetector();
+    private final YukineRealtimeBassAudioProcessor realtimeBassAudioProcessor =
+            new YukineRealtimeBassAudioProcessor(realtimeBassDetector);
     private final PlaybackStreamingDiagnostics streamingDiagnostics = new PlaybackStreamingDiagnostics();
     private final LruCache<String, Bitmap> notificationArtworkCache =
             new LruCache<>(NOTIFICATION_ARTWORK_CACHE_ENTRIES);
@@ -194,11 +213,17 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private float waveformGeneratedProgress;
     private int waveformGeneratedBarCount;
     private PlaybackWaveformSnapshot waveformSnapshot = PlaybackWaveformSnapshot.empty();
+    private String spectrumGeneratingKey = "";
+    private float spectrumGeneratedProgress;
+    private PlaybackSpectrumSnapshot spectrumSnapshot = PlaybackSpectrumSnapshot.empty();
     private String lastNotificationLyric = "";
+    private long lastNotificationUpdateAtMs;
+    private long lastLyricNotificationUpdateAtMs;
     private String errorMessage = "";
     private Track lastMarkedTrack;
     private boolean noisyReceiverRegistered;
     private boolean fadeOutAdvancing;
+    private volatile boolean appVisible;
 
     private final FloatingLyricsPublisher.Listener floatingLyricsListener = state -> {
         String nextLyric = state == null ? "" : sanitizeNotificationLyric(state.getActiveLine());
@@ -208,8 +233,13 @@ public final class EchoPlaybackService extends MediaLibraryService {
         lastNotificationLyric = nextLyric;
         if (hasNotificationWorthyState()) {
             mainHandler.post(() -> {
+                long now = System.currentTimeMillis();
+                if (!appVisible && now - lastLyricNotificationUpdateAtMs < BACKGROUND_LYRIC_NOTIFICATION_MIN_INTERVAL_MS) {
+                    return;
+                }
+                lastLyricNotificationUpdateAtMs = now;
                 refreshMediaSessionMetadata();
-                updateMediaNotification();
+                updateMediaNotification(false);
                 updateLiveLyricsNotificationService(nextLyric);
             });
         }
@@ -371,7 +401,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         createPlayerIfNeeded();
         restorePlaybackQueue();
         if (hasNotificationWorthyState()) {
-            updateMediaNotification();
+            updateMediaNotification(true);
         }
         FloatingLyricsPublisher.addListener(floatingLyricsListener);
         registerNoisyReceiver();
@@ -404,7 +434,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
             @Override
             public boolean isCommandAvailable(int command) {
-                if (isAppQueueNavigationCommand(command)) {
+                if (isAppQueueNavigationCommand(command) || command == Player.COMMAND_SET_REPEAT_MODE) {
                     return true;
                 }
                 return super.isCommandAvailable(command);
@@ -418,7 +448,8 @@ public final class EchoPlaybackService extends MediaLibraryService {
                                 Player.COMMAND_SEEK_TO_PREVIOUS,
                                 Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
                                 Player.COMMAND_SEEK_TO_NEXT,
-                                Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM
+                                Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+                                Player.COMMAND_SET_REPEAT_MODE
                         )
                         .build();
             }
@@ -456,6 +487,11 @@ public final class EchoPlaybackService extends MediaLibraryService {
             @Override
             public void next() {
                 skipToNext();
+            }
+
+            @Override
+            public void setRepeatMode(int repeatMode) {
+                EchoPlaybackService.this.setRepeatMode(appRepeatModeForMedia3RepeatMode(repeatMode));
             }
 
             @Override
@@ -545,7 +581,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         String action = intent == null ? "" : intent.getAction();
         boolean notificationRequested = isPlaybackServiceAction(action);
         if (notificationRequested) {
-            updateMediaNotification();
+            updateMediaNotification(true);
         }
         if (ACTION_PLAY.equals(action)) {
             play();
@@ -565,7 +601,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
             stopAndClear();
         }
         if (notificationRequested && hasNotificationWorthyState()) {
-            updateMediaNotification();
+            updateMediaNotification(true);
         } else if (notificationRequested && !ACTION_STOP.equals(action)) {
             stopForeground(true);
             stopSelf();
@@ -590,7 +626,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         persistPlaybackQueue();
         savePlaybackResumeRequested(isPlaying() || preparing);
         if (hasNotificationWorthyState()) {
-            updateMediaNotification();
+            updateMediaNotification(true);
         }
         super.onTaskRemoved(rootIntent);
     }
@@ -603,6 +639,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         mainHandler.removeCallbacksAndMessages(null);
         unregisterNoisyReceiver();
         playbackTaskScheduler.shutdownNow();
+        visualizationTaskScheduler.shutdownNow();
         releaseWifiLock();
         releasePlayer();
         super.onDestroy();
@@ -619,6 +656,13 @@ public final class EchoPlaybackService extends MediaLibraryService {
     public void unregisterListener(PlaybackStateListener listener) {
         if (listener != null) {
             listeners.remove(listener);
+        }
+    }
+
+    public void setAppVisible(boolean visible) {
+        appVisible = visible;
+        if (visible && hasNotificationWorthyState()) {
+            updateMediaNotification(true);
         }
     }
 
@@ -910,17 +954,45 @@ public final class EchoPlaybackService extends MediaLibraryService {
         if (replacement == null || currentIndex < 0 || currentIndex >= queue.size()) {
             return;
         }
+        Track current = currentTrack();
+        long resumePositionMs = Math.max(Math.max(0L, positionMs), positionMs());
+        if (samePlaybackUri(current, replacement)) {
+            queue.set(currentIndex, replacement);
+            errorMessage = "";
+            persistPlaybackQueue();
+            persistPlaybackPositionThrottled(true);
+            publishState();
+            return;
+        }
         queue.set(currentIndex, replacement);
         errorMessage = "";
         lastMarkedTrack = null;
         restoredPositionTrackId = replacement.id;
-        restoredPositionMs = Math.max(0L, positionMs);
+        restoredPositionMs = clampPlaybackPosition(replacement, resumePositionMs);
         restoredPositionExplicit = true;
-        streamingDiagnostics.recordRecovery(replacement, positionMs, qualityFromDataPath(replacement.dataPath));
+        streamingDiagnostics.recordRecovery(replacement, restoredPositionMs, qualityFromDataPath(replacement.dataPath));
         persistPlaybackQueue();
         playbackTaskScheduler.schedule(
                 PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY,
                 () -> mainHandler.post(() -> prepareCurrent(true))
+        );
+    }
+
+    private boolean samePlaybackUri(Track first, Track second) {
+        if (first == null || second == null || first.contentUri == null || second.contentUri == null) {
+            return false;
+        }
+        return first.contentUri.equals(second.contentUri);
+    }
+
+    private void scheduleVisualizationCache(Track track) {
+        if (track == null || !isHttpUri(track.contentUri)) {
+            return;
+        }
+        final Track visualTrack = track;
+        visualizationTaskScheduler.schedule(
+                PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE,
+                () -> cacheVisualizationWindow(visualTrack)
         );
     }
 
@@ -940,7 +1012,10 @@ public final class EchoPlaybackService extends MediaLibraryService {
         streamingDiagnostics.recordPrecacheQueued(precacheTrack);
         playbackTaskScheduler.schedule(
                 PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE,
-                () -> precacheWithMediaCache(precacheTrack)
+                () -> {
+                    precacheWithMediaCache(precacheTrack);
+                    cacheVisualizationWindow(precacheTrack);
+                }
         );
     }
 
@@ -1058,7 +1133,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
                 return;
             }
             publishState();
-            updateMediaNotification();
+            updateMediaNotification(true);
         }
     }
 
@@ -1182,7 +1257,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         } else {
             persistPlaybackPositionThrottled(true);
             publishState();
-            updateMediaNotification();
+            updateMediaNotification(true);
         }
     }
 
@@ -1190,6 +1265,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         Track track = currentTrack();
         long duration = track == null ? 0L : Math.max(track.durationMs, durationMs());
         PlaybackWaveformSnapshot waveform = waveformSnapshotFor(track, duration);
+        PlaybackSpectrumSnapshot spectrum = spectrumSnapshotFor(track, duration);
         return new PlaybackStateSnapshot(
                 track,
                 currentIndex,
@@ -1204,8 +1280,18 @@ public final class EchoPlaybackService extends MediaLibraryService {
                 playbackSpeed,
                 appVolume,
                 sleepTimerRemainingMs(),
-                waveform
+                waveform,
+                spectrum,
+                isPlaying() ? realtimeBassDetector.beat() : 0f
         );
+    }
+
+    public float realtimeBeat() {
+        return isPlaying() ? realtimeBassDetector.beat() : 0f;
+    }
+
+    public float[] realtimeBands() {
+        return isPlaying() ? realtimeBassDetector.bands() : new float[0];
     }
 
     public void setShuffleEnabled(boolean enabled) {
@@ -1274,7 +1360,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         statusBarLyricsEnabled = enabled;
         lastNotificationLyric = "";
         refreshMediaSessionMetadata();
-        updateMediaNotification();
+        updateMediaNotification(true);
         updateLiveLyricsNotificationService(notificationLyricText(currentTrack()));
     }
 
@@ -1386,11 +1472,12 @@ public final class EchoPlaybackService extends MediaLibraryService {
         player.setPlayWhenReady(playWhenReady);
         try {
             player.prepare();
+            scheduleVisualizationCache(track);
             if (startPositionMs > 0L) {
                 clearRestoredPosition();
             }
             publishState();
-            updateMediaNotification();
+            updateMediaNotification(true);
         } catch (IllegalStateException error) {
             preparing = false;
             Log.w(TAG, "Unable to prepare mirrored queue for " + debugTrack(track), error);
@@ -1416,12 +1503,13 @@ public final class EchoPlaybackService extends MediaLibraryService {
         player.setPlayWhenReady(playWhenReady);
         try {
             player.prepare();
+            scheduleVisualizationCache(track);
             if (startPositionMs > 0L) {
                 player.seekTo(startPositionMs);
                 clearRestoredPosition();
             }
             publishState();
-            updateMediaNotification();
+            updateMediaNotification(true);
         } catch (IllegalStateException error) {
             preparing = false;
             Log.w(TAG, "Unable to prepare player for " + debugTrack(track), error);
@@ -1597,7 +1685,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         PlaybackStateSnapshot snapshot = snapshot();
         syncFloatingLyricsPlaybackState(snapshot);
         updateMediaSessionState(snapshot);
-        updateMediaNotification();
+        updateMediaNotification(false);
         updatePlaybackWidget(snapshot);
         for (PlaybackStateListener listener : listeners) {
             listener.onPlaybackStateChanged(snapshot);
@@ -1609,8 +1697,10 @@ public final class EchoPlaybackService extends MediaLibraryService {
             return;
         }
         FloatingLyricsState state = FloatingLyricsPublisher.snapshot();
-        String activeLine = state == null ? "" : state.getActiveLine();
         Track track = snapshot.currentTrack;
+        String activeLine = state != null && floatingLyricsTrackMatches(state, track)
+                ? state.getActiveLine()
+                : "";
         FloatingLyricsPublisher.update(
                 track.title,
                 track.artist,
@@ -1618,6 +1708,14 @@ public final class EchoPlaybackService extends MediaLibraryService {
                 snapshot.playing || snapshot.preparing,
                 activeLine
         );
+    }
+
+    private boolean floatingLyricsTrackMatches(FloatingLyricsState state, Track track) {
+        if (state == null || track == null) {
+            return false;
+        }
+        return track.title.equals(state.getTrackTitle())
+                && track.artist.equals(state.getArtist());
     }
 
     private void updatePlaybackWidget(PlaybackStateSnapshot snapshot) {
@@ -1643,17 +1741,34 @@ public final class EchoPlaybackService extends MediaLibraryService {
             return;
         }
         player.setShuffleModeEnabled(shuffleEnabled);
-        player.setRepeatMode(media3RepeatModeForAppRepeatMode(repeatMode));
+        player.setRepeatMode(media3RepeatModeForAppRepeatMode(repeatMode, playerMirrorsQueue));
     }
 
     static int media3RepeatModeForAppRepeatMode(int appRepeatMode) {
+        return media3RepeatModeForAppRepeatMode(appRepeatMode, true);
+    }
+
+    static int media3RepeatModeForAppRepeatMode(int appRepeatMode, boolean playerMirrorsQueue) {
         if (appRepeatMode == REPEAT_ONE) {
             return Player.REPEAT_MODE_ONE;
+        }
+        if (!playerMirrorsQueue) {
+            return Player.REPEAT_MODE_OFF;
         }
         if (appRepeatMode == REPEAT_OFF) {
             return Player.REPEAT_MODE_OFF;
         }
-        return Player.REPEAT_MODE_OFF;
+        return Player.REPEAT_MODE_ALL;
+    }
+
+    static int appRepeatModeForMedia3RepeatMode(int media3RepeatMode) {
+        if (media3RepeatMode == Player.REPEAT_MODE_ONE) {
+            return REPEAT_ONE;
+        }
+        if (media3RepeatMode == Player.REPEAT_MODE_OFF) {
+            return REPEAT_OFF;
+        }
+        return REPEAT_ALL;
     }
 
     static boolean isAppQueueNavigationCommand(int command) {
@@ -1669,7 +1784,21 @@ public final class EchoPlaybackService extends MediaLibraryService {
         if (player != null) {
             return;
         }
-        player = new ExoPlayer.Builder(this)
+        DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this) {
+            @Override
+            protected AudioSink buildAudioSink(
+                    Context context,
+                    boolean enableFloatOutput,
+                    boolean enableAudioTrackPlaybackParams
+            ) {
+                return new DefaultAudioSink.Builder(context)
+                        .setAudioProcessors(new androidx.media3.common.audio.AudioProcessor[]{realtimeBassAudioProcessor})
+                        .setEnableFloatOutput(enableFloatOutput)
+                        .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                        .build();
+            }
+        };
+        player = new ExoPlayer.Builder(this, renderersFactory)
                 .setLoadControl(new DefaultLoadControl.Builder()
                         .setBufferDurationsMs(
                                 STREAMING_MIN_BUFFER_MS,
@@ -1942,7 +2071,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     private void applyAudioFocusHandling() {
         if (player != null) {
-            // When concurrent playback is enabled we do NOT request audio focus, so ECHO
+            // When concurrent playback is enabled we do NOT request audio focus, so Yukine
             // mixes with other media apps instead of pausing them (and won't be auto-paused
             // by them). When disabled, ExoPlayer manages exclusive audio focus as usual.
             player.setAudioAttributes(new AudioAttributes.Builder()
@@ -2504,7 +2633,10 @@ public final class EchoPlaybackService extends MediaLibraryService {
             return PlaybackWaveformSnapshot.empty();
         }
         resetWaveformIfTrackChanged(track);
-        float cachedProgress = bufferedProgress(durationMs);
+        if (!appVisible) {
+            return waveformSnapshot;
+        }
+        float cachedProgress = visualizationCachedProgress(track, durationMs);
         PlaybackWaveformSnapshot current = waveformSnapshot;
         if (cachedProgress > current.cachedProgress && !current.hasBars()) {
             current = new PlaybackWaveformSnapshot(current.bars, current.generatedBars, cachedProgress);
@@ -2524,6 +2656,114 @@ public final class EchoPlaybackService extends MediaLibraryService {
         waveformGeneratedProgress = 0.0f;
         waveformGeneratedBarCount = 0;
         waveformSnapshot = PlaybackWaveformSnapshot.empty();
+        spectrumGeneratingKey = "";
+        spectrumGeneratedProgress = 0.0f;
+        spectrumSnapshot = PlaybackSpectrumSnapshot.empty();
+        realtimeBassDetector.reset();
+    }
+
+    private PlaybackSpectrumSnapshot spectrumSnapshotFor(Track track, long durationMs) {
+        if (track == null || durationMs <= 0L || track.contentUri == null || Uri.EMPTY.equals(track.contentUri)) {
+            return PlaybackSpectrumSnapshot.empty();
+        }
+        resetWaveformIfTrackChanged(track);
+        if (!appVisible) {
+            return spectrumSnapshot;
+        }
+        float cachedProgress = isHttpUri(track.contentUri) ? visualizationCachedProgress(track, durationMs) : 1.0f;
+        PlaybackSpectrumSnapshot current = spectrumSnapshot;
+        if (cachedProgress > current.cachedProgress && !current.hasBands()) {
+            current = new PlaybackSpectrumSnapshot(current.bands, current.generatedFrames, current.bandCount, cachedProgress);
+            spectrumSnapshot = current;
+        }
+        maybeGenerateSpectrum(track, durationMs, cachedProgress, true);
+        return current;
+    }
+
+    private void maybeGenerateSpectrum(Track track, long durationMs, float cachedProgress, boolean allowQuickStart) {
+        if (track == null || track.contentUri == null || Uri.EMPTY.equals(track.contentUri) || cachedProgress <= 0.005f) {
+            return;
+        }
+        float targetProgress = cachedProgress;
+        boolean quickStart = false;
+        if (allowQuickStart && !spectrumSnapshot.hasBands()) {
+            float quickProgress = durationMs <= 0L ? cachedProgress : Math.min(cachedProgress, SPECTRUM_QUICK_START_MS / (float) durationMs);
+            targetProgress = Math.max(0.006f, Math.min(cachedProgress, quickProgress));
+            quickStart = targetProgress + SPECTRUM_PROGRESS_STEP < cachedProgress;
+        }
+        int targetGeneratedFrames = Math.max(1, Math.min(
+                PlaybackSpectrumGenerator.FRAME_COUNT,
+                (int) Math.ceil(PlaybackSpectrumGenerator.FRAME_COUNT * Math.min(1.0f, targetProgress))
+        ));
+        if (spectrumSnapshot.hasBands()
+                && targetGeneratedFrames <= spectrumSnapshot.generatedFrames
+                && targetProgress - spectrumGeneratedProgress < SPECTRUM_PROGRESS_STEP) {
+            return;
+        }
+        final String taskKey = waveformKey(track) + "|spectrum|" + targetGeneratedFrames;
+        if (taskKey.equals(spectrumGeneratingKey)) {
+            return;
+        }
+        spectrumGeneratingKey = taskKey;
+        final Track spectrumTrack = track;
+        final long spectrumDurationMs = durationMs;
+        final float spectrumCachedProgress = targetProgress;
+        final float requestedCachedProgress = cachedProgress;
+        final boolean spectrumQuickStart = quickStart;
+        final boolean spectrumIsHttp = isHttpUri(track.contentUri);
+        final String spectrumCacheKey = spectrumIsHttp ? mediaCacheKeyForTrack(track) : "";
+        final long spectrumCachedBytes = spectrumIsHttp ? continuousCachedBytes(spectrumCacheKey) : 0L;
+        if (spectrumIsHttp && (spectrumCacheKey == null || spectrumCacheKey.isEmpty() || spectrumCachedBytes <= 0L)) {
+            spectrumGeneratingKey = "";
+            return;
+        }
+        visualizationTaskScheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_WAVEFORM, () -> {
+            PlaybackSpectrumSnapshot generated;
+            if (spectrumIsHttp) {
+                DataSpec dataSpec = new DataSpec.Builder()
+                        .setUri(spectrumTrack.contentUri)
+                        .setPosition(0L)
+                        .setLength(spectrumCachedBytes)
+                        .setKey(spectrumCacheKey)
+                        .setFlags(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION)
+                        .build();
+                generated = PlaybackSpectrumGenerator.extract(
+                        cacheDataSourceForTrack(spectrumTrack),
+                        dataSpec,
+                        spectrumDurationMs,
+                        spectrumCachedProgress
+                );
+            } else {
+                generated = PlaybackSpectrumGenerator.extract(
+                        EchoPlaybackService.this,
+                        spectrumTrack.contentUri,
+                        spectrumDurationMs,
+                        spectrumCachedProgress
+                );
+            }
+            mainHandler.post(() -> {
+                if (!waveformKey(spectrumTrack).equals(waveformTrackKey) || !taskKey.equals(spectrumGeneratingKey)) {
+                    return;
+                }
+                spectrumGeneratingKey = "";
+                spectrumGeneratedProgress = Math.max(spectrumGeneratedProgress, spectrumCachedProgress);
+                if (generated != null && generated.hasBands()
+                        && generated.generatedFrames >= spectrumSnapshot.generatedFrames) {
+                    spectrumSnapshot = generated;
+                } else if (spectrumCachedProgress > spectrumSnapshot.cachedProgress) {
+                    spectrumSnapshot = new PlaybackSpectrumSnapshot(
+                            spectrumSnapshot.bands,
+                            spectrumSnapshot.generatedFrames,
+                            spectrumSnapshot.bandCount,
+                            spectrumCachedProgress
+                    );
+                }
+                publishState();
+                if (spectrumQuickStart && requestedCachedProgress > spectrumCachedProgress + SPECTRUM_PROGRESS_STEP) {
+                    maybeGenerateSpectrum(spectrumTrack, spectrumDurationMs, requestedCachedProgress, false);
+                }
+            });
+        });
     }
 
     private void maybeGenerateStreamingWaveform(Track track, long durationMs, float cachedProgress) {
@@ -2557,7 +2797,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         final long waveformDurationMs = durationMs;
         final float waveformCachedProgress = cachedProgress;
         final long waveformCachedBytes = cachedBytes;
-        playbackTaskScheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_WAVEFORM, () -> {
+        visualizationTaskScheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_WAVEFORM, () -> {
             DataSpec dataSpec = new DataSpec.Builder()
                     .setUri(waveformTrack.contentUri)
                     .setPosition(0L)
@@ -2610,6 +2850,30 @@ public final class EchoPlaybackService extends MediaLibraryService {
             return Math.max(0.0f, Math.min(1.0f, buffered / (float) durationMs));
         } catch (IllegalStateException ignored) {
             return 0.0f;
+        }
+    }
+
+    private float visualizationCachedProgress(Track track, long durationMs) {
+        if (track == null || durationMs <= 0L) {
+            return 0.0f;
+        }
+        String cacheKey = mediaCacheKeyForTrack(track);
+        long cachedBytes = continuousCachedBytes(cacheKey);
+        long contentLength = contentLengthForCacheKey(cacheKey);
+        float byteProgress = contentLength > 0L && cachedBytes > 0L
+                ? Math.max(0.0f, Math.min(1.0f, cachedBytes / (float) contentLength))
+                : 0.0f;
+        return Math.max(bufferedProgress(durationMs), byteProgress);
+    }
+
+    private long contentLengthForCacheKey(String cacheKey) {
+        if (cacheKey == null || cacheKey.isEmpty()) {
+            return -1L;
+        }
+        try {
+            return ContentMetadata.getContentLength(audioCache().getContentMetadata(cacheKey));
+        } catch (RuntimeException ignored) {
+            return -1L;
         }
     }
 
@@ -2710,6 +2974,39 @@ public final class EchoPlaybackService extends MediaLibraryService {
         }
     }
 
+    @OptIn(markerClass = UnstableApi.class)
+    private void cacheVisualizationWindow(Track track) {
+        if (track == null || !isHttpUri(track.contentUri)) {
+            return;
+        }
+        String cacheKey = cacheKeyForTrack(track);
+        if (cacheKey == null || cacheKey.isEmpty()) {
+            return;
+        }
+        long cached = continuousCachedBytes(cacheKey);
+        if (cached >= VISUALIZATION_CACHE_BYTES) {
+            return;
+        }
+        try {
+            DataSpec dataSpec = new DataSpec.Builder()
+                    .setUri(track.contentUri)
+                    .setPosition(cached)
+                    .setLength(VISUALIZATION_CACHE_BYTES - cached)
+                    .setKey(cacheKey)
+                    .setFlags(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION)
+                    .build();
+            CacheWriter writer = new CacheWriter(
+                    cacheDataSourceForTrack(track),
+                    dataSpec,
+                    new byte[16 * 1024],
+                    null
+            );
+            writer.cache();
+        } catch (Exception ignored) {
+            // Visualization cache is best-effort. Playback must never wait for it.
+        }
+    }
+
     private String cacheKeyForTrack(Track track) {
         return mediaCacheKey(track);
     }
@@ -2786,11 +3083,19 @@ public final class EchoPlaybackService extends MediaLibraryService {
         return dataPath.substring(start, end);
     }
 
-    private void updateMediaNotification() {
+    private void updateMediaNotification(boolean force) {
         Track track = currentTrack();
         if (track == null && !hasNotificationWorthyState()) {
             return;
         }
+        long now = System.currentTimeMillis();
+        long minInterval = appVisible
+                ? FOREGROUND_NOTIFICATION_MIN_INTERVAL_MS
+                : BACKGROUND_NOTIFICATION_MIN_INTERVAL_MS;
+        if (!force && now - lastNotificationUpdateAtMs < minInterval) {
+            return;
+        }
+        lastNotificationUpdateAtMs = now;
         try {
             startPlaybackForeground(playbackNotification(track));
         } catch (RuntimeException error) {
@@ -2810,15 +3115,23 @@ public final class EchoPlaybackService extends MediaLibraryService {
         String contentText = !lyricText.isEmpty()
                 ? lyricText
                 : hasTrack ? track.subtitle() : EMPTY_NOTIFICATION_TEXT;
+        String titleText = hasTrack ? track.title : EMPTY_NOTIFICATION_TITLE;
+        String capsuleText = !lyricText.isEmpty()
+                ? shortCriticalText(lyricText)
+                : hasTrack ? shortCriticalText(track.title) : "Yukine";
         String favoriteTitle = isFavorite ? "Favorited" : "Favorite";
         int favoriteIcon = isFavorite ? R.drawable.ic_notif_favorite_filled : R.drawable.ic_notif_favorite_outline;
         Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? new Notification.Builder(this, CHANNEL_ID)
                 : new Notification.Builder(this);
         builder.setSmallIcon(R.drawable.ic_stat_echo)
-                .setContentTitle(hasTrack ? track.title : EMPTY_NOTIFICATION_TITLE)
+                .setContentTitle(titleText)
                 .setContentText(contentText)
                 .setContentIntent(activityPendingIntent())
+                .setTicker(contentText)
+                .setSubText(hasTrack ? track.subtitle() : "Yukine")
+                .setCategory(Notification.CATEGORY_TRANSPORT)
+                .setColor(NOTIFICATION_ACCENT)
                 .setShowWhen(false)
                 .setOngoing(hasTrack || playing || preparing)
                 .setOnlyAlertOnce(true)
@@ -2836,15 +3149,21 @@ public final class EchoPlaybackService extends MediaLibraryService {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
         }
-        if (hasTrack && !lyricText.isEmpty()) {
-            builder.setTicker(lyricText)
-                    .setSubText(track.subtitle());
+        if (hasTrack) {
             Bundle extras = new Bundle();
-            extras.putString(Notification.EXTRA_TEXT, lyricText);
-            extras.putString(Notification.EXTRA_BIG_TEXT, lyricText);
+            extras.putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true);
+            extras.putString("extra_title", titleText);
+            extras.putString("extra_body", contentText);
+            extras.putString("extra_short_text", capsuleText);
+            extras.putBoolean("extra_show_close_action", false);
+            extras.putBoolean("extra_show_notification_icon", true);
+            extras.putString(Notification.EXTRA_TITLE, titleText);
+            extras.putString(Notification.EXTRA_TEXT, contentText);
+            extras.putString(Notification.EXTRA_BIG_TEXT, contentText);
             extras.putString(Notification.EXTRA_SUB_TEXT, track.subtitle());
-            extras.putCharSequenceArray(Notification.EXTRA_TEXT_LINES, new CharSequence[]{lyricText});
-            extras.putString(EXTRA_CURRENT_LYRIC, lyricText);
+            extras.putString(Notification.EXTRA_SUMMARY_TEXT, track.subtitle());
+            extras.putCharSequenceArray(Notification.EXTRA_TEXT_LINES, new CharSequence[]{contentText});
+            extras.putString(EXTRA_CURRENT_LYRIC, lyricText.isEmpty() ? contentText : lyricText);
             extras.putString(EXTRA_LYRIC_TRACK_TITLE, track.title);
             builder.addExtras(extras);
         }
@@ -2862,7 +3181,46 @@ public final class EchoPlaybackService extends MediaLibraryService {
         } else if (!lyricText.isEmpty()) {
             builder.setStyle(new Notification.BigTextStyle().bigText(lyricText));
         }
+        requestPromotedOngoing(builder, true);
+        setShortCriticalText(builder, capsuleText);
         return builder.build();
+    }
+
+    private String shortCriticalText(String value) {
+        String compact = sanitizeNotificationLyric(value).replace('\n', ' ');
+        if (compact.isEmpty()) {
+            return "Yukine";
+        }
+        if (compact.length() <= 9) {
+            return "\u266A " + compact;
+        }
+        if (compact.length() <= 14) {
+            return "\u266A " + compact.substring(0, 9);
+        }
+        return "\u266A " + compact.substring(0, 8) + "...";
+    }
+
+    private void requestPromotedOngoing(Notification.Builder builder, boolean requested) {
+        try {
+            Notification.Builder.class
+                    .getMethod("setRequestPromotedOngoing", boolean.class)
+                    .invoke(builder, requested);
+        } catch (ReflectiveOperationException ignored) {
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    private void setShortCriticalText(Notification.Builder builder, String text) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        try {
+            Notification.Builder.class
+                    .getMethod("setShortCriticalText", String.class)
+                    .invoke(builder, text);
+        } catch (ReflectiveOperationException ignored) {
+        } catch (RuntimeException ignored) {
+        }
     }
 
     private String notificationLyricText(Track track) {
@@ -2889,8 +3247,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     private void updateLiveLyricsNotificationService(String lyricText) {
         if (!statusBarLyricsEnabled
-                || lyricText == null
-                || lyricText.trim().isEmpty()
                 || currentTrack() == null
                 || (!isPlaying() && !preparing)) {
             LiveLyricsNotificationService.stop(this);
@@ -2907,12 +3263,29 @@ public final class EchoPlaybackService extends MediaLibraryService {
         if (value == null) {
             return "";
         }
-        String text = value.replace('\n', ' ').replace('\r', ' ').trim();
-        while (text.contains("  ")) {
-            text = text.replace("  ", " ");
+        String[] rawLines = value.replace('\r', '\n').split("\n");
+        StringBuilder builder = new StringBuilder();
+        int count = 0;
+        for (String rawLine : rawLines) {
+            String line = rawLine == null ? "" : rawLine.trim();
+            while (line.contains("  ")) {
+                line = line.replace("  ", " ");
+            }
+            if (line.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append(line);
+            count++;
+            if (count >= 2) {
+                break;
+            }
         }
-        if (text.length() > 96) {
-            return text.substring(0, 95) + "...";
+        String text = builder.toString();
+        if (text.length() > 140) {
+            return text.substring(0, 139) + "...";
         }
         return text;
     }
@@ -2934,7 +3307,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private void loadNotificationArtworkAsync(Track track, String key) {
-        playbackTaskScheduler.schedule(PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE, () -> {
+        visualizationTaskScheduler.schedule(PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE, () -> {
             Bitmap bitmap = decodeNotificationArtwork(track.albumArtUri);
             if (bitmap == null) {
                 return;
@@ -2950,7 +3323,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
                     return;
                 }
                 refreshMediaSessionMetadata();
-                updateMediaNotification();
+                updateMediaNotification(true);
             });
         });
     }
@@ -3044,7 +3417,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         connection.setConnectTimeout(8000);
         connection.setReadTimeout(12000);
         connection.setInstanceFollowRedirects(true);
-        connection.setRequestProperty("User-Agent", "Mozilla/5.0 ECHO-NEXT-Android");
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0 Yukine-Android");
         connection.setRequestProperty("Referer", "https://music.163.com/");
         int code = connection.getResponseCode();
         if (code < 200 || code >= 300) {
@@ -3113,7 +3486,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
                 "Playback",
                 NotificationManager.IMPORTANCE_LOW
         );
-        channel.setDescription("ECHO playback controls");
+        channel.setDescription("Yukine playback controls");
         notificationManager().createNotificationChannel(channel);
     }
 
@@ -3152,3 +3525,4 @@ public final class EchoPlaybackService extends MediaLibraryService {
         }
     }
 }
+

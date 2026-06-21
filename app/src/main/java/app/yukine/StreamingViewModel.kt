@@ -11,6 +11,7 @@ import app.yukine.streaming.StreamingGatewayDiagnostics
 import app.yukine.streaming.StreamingHeartbeatRequest
 import app.yukine.streaming.StreamingMediaType
 import app.yukine.streaming.StreamingAudioQuality
+import app.yukine.streaming.StreamingPlaylist
 import app.yukine.streaming.StreamingPlaylistLinkParser
 import app.yukine.streaming.StreamingPlaybackSource
 import app.yukine.streaming.StreamingProviderCapability
@@ -194,6 +195,16 @@ class StreamingViewModel @Inject constructor(
 
     fun updateStreamingSearchQuery(query: String) {
         streamingState.value = streamingState.value.copy(searchQuery = query)
+    }
+
+    fun clearStreamingSearchSession() {
+        streamingState.value = streamingState.value.copy(
+            searchQuery = "",
+            searchResult = null,
+            loading = false,
+            loadingMore = false,
+            errorMessage = null
+        )
     }
 
     fun beginStreamingRequest() {
@@ -1323,6 +1334,138 @@ class StreamingViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    fun importAllAccountPlaylistsToLocal(
+        provider: StreamingProviderName,
+        onImported: StreamingCallback<StreamingAccountPlaylistImportResult>
+    ): Job {
+        streamingState.value = streamingState.value.copy(
+            userPlaylistsLoading = true,
+            playlistImporting = true,
+            errorMessage = null
+        )
+        return viewModelScope.launch {
+            val playlists = runCatching {
+                streamingRepository.userPlaylists(provider)
+            }.getOrElse { error ->
+                streamingState.value = streamingState.value.copy(
+                    userPlaylists = emptyList(),
+                    userPlaylistsLoading = false,
+                    playlistImporting = false,
+                    errorMessage = error.message ?: "Could not load account playlists",
+                    diagnostics = streamingRepository.diagnostics()
+                )
+                onImported.onResult(StreamingAccountPlaylistImportResult(failedCount = 1))
+                return@launch
+            }
+            importAccountPlaylistsToLocalInternal(provider, playlists, onImported)
+        }
+    }
+
+    fun fetchAccountPlaylistsForImport(
+        provider: StreamingProviderName,
+        onResolved: StreamingCallback<List<StreamingPlaylist>>
+    ): Job {
+        streamingState.value = streamingState.value.copy(
+            userPlaylistsLoading = true,
+            errorMessage = null
+        )
+        return viewModelScope.launch {
+            runCatching {
+                streamingRepository.userPlaylists(provider)
+            }.onSuccess { playlists ->
+                streamingState.value = streamingState.value.copy(
+                    userPlaylists = playlists,
+                    userPlaylistsLoading = false,
+                    selectedProvider = provider,
+                    diagnostics = streamingRepository.diagnostics()
+                )
+                onResolved.onResult(playlists)
+            }.onFailure { error ->
+                streamingState.value = streamingState.value.copy(
+                    userPlaylists = emptyList(),
+                    userPlaylistsLoading = false,
+                    errorMessage = error.message ?: "Could not load account playlists",
+                    diagnostics = streamingRepository.diagnostics()
+                )
+                onResolved.onResult(emptyList())
+            }
+        }
+    }
+
+    fun importAccountPlaylistsToLocal(
+        provider: StreamingProviderName,
+        playlists: List<StreamingPlaylist>,
+        onImported: StreamingCallback<StreamingAccountPlaylistImportResult>
+    ): Job {
+        streamingState.value = streamingState.value.copy(
+            userPlaylistsLoading = true,
+            playlistImporting = true,
+            errorMessage = null
+        )
+        return viewModelScope.launch {
+            importAccountPlaylistsToLocalInternal(provider, playlists, onImported)
+        }
+    }
+
+    private suspend fun importAccountPlaylistsToLocalInternal(
+        provider: StreamingProviderName,
+        playlists: List<StreamingPlaylist>,
+        onImported: StreamingCallback<StreamingAccountPlaylistImportResult>
+    ) {
+        var importedPlaylists = 0
+        var importedTracks = 0
+        var failed = 0
+        for (playlist in playlists) {
+            if (playlist.providerPlaylistId.isBlank()) {
+                failed += 1
+                continue
+            }
+            val result = runCatching {
+                val (playlistName, tracks) = loadStreamingPlaylistTracks(
+                    playlist.provider,
+                    playlist.providerPlaylistId
+                )
+                if (tracks.isEmpty()) {
+                    StreamingLocalPlaylistImportResult(
+                        playlistName = playlist.title.ifBlank { playlistName },
+                        empty = true
+                    )
+                } else {
+                    importStreamingTracksToLocal(
+                        playlistName = playlistName.ifBlank { playlist.title },
+                        provider = playlist.provider,
+                        providerPlaylistId = playlist.providerPlaylistId,
+                        tracks = tracks,
+                        linkWhenProviderPlaylistIdBlank = false
+                    )
+                }
+            }.getOrElse {
+                failed += 1
+                null
+            }
+            if (result != null && !result.empty) {
+                importedPlaylists += 1
+                importedTracks += result.playlistAddedCount
+            }
+        }
+        streamingState.value = streamingState.value.copy(
+            userPlaylists = playlists,
+            userPlaylistsLoading = false,
+            playlistImporting = false,
+            selectedProvider = provider,
+            errorMessage = null,
+            diagnostics = streamingRepository.diagnostics()
+        )
+        onImported.onResult(
+            StreamingAccountPlaylistImportResult(
+                playlistCount = playlists.size,
+                importedPlaylistCount = importedPlaylists,
+                importedTrackCount = importedTracks,
+                failedCount = failed
+            )
+        )
     }
 
     fun fetchUserLikedTracks(

@@ -64,7 +64,7 @@ internal object HomeDashboardStateFactory {
             .count { week -> week.any { !it.future && it.count > 0 } }
 
         return HomeDashboardUiState(
-            title = "Echo Next",
+            title = "Yukine",
             subtitle = librarySubtitle(activeTracks.size, totalDurationMs),
             heroTitle = "今天想听点什么？",
             heroSubtitle = buildHeroSubtitle(continueTrack),

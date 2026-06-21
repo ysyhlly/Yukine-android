@@ -24,6 +24,7 @@ import app.yukine.model.TrackPlayRecord;
 import app.yukine.model.WebDavSyncResult;
 import app.yukine.playback.AudioEffectSettings;
 import app.yukine.StreamingQualityPreference;
+import app.yukine.TrackShareStyle;
 import app.yukine.streaming.StreamingPlaybackAdapter;
 import app.yukine.streaming.StreamingProviderName;
 import dagger.hilt.android.qualifiers.ApplicationContext;
@@ -50,6 +51,14 @@ public final class MusicLibraryRepository {
 
     public List<Track> loadCachedTracks() {
         return database.loadTracks();
+    }
+
+    public List<Track> loadRecentlyAdded(int limit) {
+        return database.loadRecentlyAdded(limit);
+    }
+
+    public List<Track> loadLongUnplayed(int limit) {
+        return database.loadLongUnplayed(limit);
     }
 
     public PlaybackQueueState loadPlaybackQueue() {
@@ -142,6 +151,14 @@ public final class MusicLibraryRepository {
 
     public void saveReplayGainEnabled(boolean enabled) {
         database.saveReplayGainEnabled(enabled);
+    }
+
+    public String loadShareStyle() {
+        return TrackShareStyle.normalize(database.loadShareStyle());
+    }
+
+    public void saveShareStyle(String style) {
+        database.saveShareStyle(TrackShareStyle.normalize(style));
     }
 
     public boolean loadOnboardingCompleted() {
@@ -361,7 +378,7 @@ public final class MusicLibraryRepository {
             connection = (HttpURLConnection) new URL(cleanUrl).openConnection();
             connection.setConnectTimeout(10000);
             connection.setReadTimeout(15000);
-            connection.setRequestProperty("User-Agent", "ECHO-NEXT-Android");
+            connection.setRequestProperty("User-Agent", "Yukine-Android");
             int code = connection.getResponseCode();
             if (code < 200 || code >= 300) {
                 return emptyStreamImportResult();
@@ -701,7 +718,7 @@ public final class MusicLibraryRepository {
         if (track == null) {
             return;
         }
-        if (favorite && track.dataPath != null && track.dataPath.startsWith("streaming:")) {
+        if (favorite) {
             ArrayList<Track> tracks = new ArrayList<>();
             tracks.add(track);
             database.upsertTracks(tracks);
@@ -756,7 +773,7 @@ public final class MusicLibraryRepository {
         if (!playlists.isEmpty()) {
             return playlists.get(0).id;
         }
-        long created = database.createPlaylist("我的 ECHO 歌单");
+        long created = database.createPlaylist("我的 Yukine 歌单");
         if (created != -1L) {
             return created;
         }

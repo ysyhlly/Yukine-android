@@ -14,4 +14,9 @@
         <!-- NetEase playback URLs are commonly served as http://m*.music.126.net/... -->
         <domain includeSubdomains="true">music.126.net</domain>
     </domain-config>
+
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- KuGou's public search endpoint is still served over plain HTTP. -->
+        <domain includeSubdomains="true">mobilecdn.kugou.com</domain>
+    </domain-config>
 </network-security-config>

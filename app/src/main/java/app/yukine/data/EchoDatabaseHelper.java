@@ -54,6 +54,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     private static final String SETTING_NOW_PLAYING_GESTURES = "now_playing_gestures";
     private static final String SETTING_PLAYBACK_RESTORE_ENABLED = "playback_restore_enabled";
     private static final String SETTING_REPLAY_GAIN_ENABLED = "replay_gain_enabled";
+    private static final String SETTING_SHARE_STYLE = "share_style";
 
     public EchoDatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -481,6 +482,14 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         saveSetting(SETTING_REPLAY_GAIN_ENABLED, enabled ? "true" : "false");
     }
 
+    public String loadShareStyle() {
+        return loadSetting(SETTING_SHARE_STYLE, "platform_card");
+    }
+
+    public void saveShareStyle(String style) {
+        saveSetting(SETTING_SHARE_STYLE, style == null ? "platform_card" : style);
+    }
+
     public boolean loadOnboardingCompleted() {
         return "true".equals(loadSetting(SETTING_ONBOARDING_COMPLETED, "false"));
     }
@@ -728,7 +737,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                     Uri.parse(cursor.getString(20)),
                     cursor.getString(21),
                     cursor.getLong(22),
-                    uriOrNull(cursor.getString(23)),
+                    artworkUri(cursor.getString(23), cursor.getString(20)),
                     cursor.getString(24),
                     cursor.getInt(25),
                     cursor.getInt(26),
@@ -747,7 +756,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                 Uri.parse(cursor.getString(5)),
                 dataPath,
                 cursor.getLong(7),
-                uriOrNull(cursor.getString(8)),
+                artworkUri(cursor.getString(8), cursor.getString(5)),
                 cursor.getString(9),
                 cursor.getInt(10),
                 cursor.getInt(11),
@@ -780,7 +789,77 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                         Uri.parse(cursor.getString(5)),
                         cursor.getString(6),
                         cursor.getLong(7),
-                        uriOrNull(cursor.getString(8)),
+                        artworkUri(cursor.getString(8), cursor.getString(5)),
+                        cursor.getString(9),
+                        cursor.getInt(10),
+                        cursor.getInt(11),
+                        cursor.getInt(12),
+                        cursor.getInt(13),
+                        cursor.getFloat(14),
+                        cursor.getFloat(15)
+                ));
+            }
+        }
+        return tracks;
+    }
+
+    public List<Track> loadRecentlyAdded(int limit) {
+        ArrayList<Track> tracks = new ArrayList<>();
+        SQLiteDatabase db = getReadableDatabase();
+        try (Cursor cursor = db.query(
+                TABLE_TRACKS,
+                trackProjection(),
+                null,
+                null,
+                null,
+                null,
+                "updated_at DESC",
+                String.valueOf(limit)
+        )) {
+            while (cursor.moveToNext()) {
+                tracks.add(new Track(
+                        cursor.getLong(0),
+                        cursor.getString(1),
+                        cursor.getString(2),
+                        cursor.getString(3),
+                        cursor.getLong(4),
+                        Uri.parse(cursor.getString(5)),
+                        cursor.getString(6),
+                        cursor.getLong(7),
+                        artworkUri(cursor.getString(8), cursor.getString(5)),
+                        cursor.getString(9),
+                        cursor.getInt(10),
+                        cursor.getInt(11),
+                        cursor.getInt(12),
+                        cursor.getInt(13),
+                        cursor.getFloat(14),
+                        cursor.getFloat(15)
+                ));
+            }
+        }
+        return tracks;
+    }
+
+    public List<Track> loadLongUnplayed(int limit) {
+        ArrayList<Track> tracks = new ArrayList<>();
+        SQLiteDatabase db = getReadableDatabase();
+        String sql = "SELECT " + String.join(", ", trackProjection()) + " FROM " + TABLE_TRACKS
+                + " WHERE id NOT IN (SELECT DISTINCT track_id FROM " + TABLE_PLAY_EVENTS
+                + " WHERE played_at > ?)"
+                + " ORDER BY updated_at ASC LIMIT ?";
+        long oneWeekAgo = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000;
+        try (Cursor cursor = db.rawQuery(sql, new String[]{String.valueOf(oneWeekAgo), String.valueOf(limit)})) {
+            while (cursor.moveToNext()) {
+                tracks.add(new Track(
+                        cursor.getLong(0),
+                        cursor.getString(1),
+                        cursor.getString(2),
+                        cursor.getString(3),
+                        cursor.getLong(4),
+                        Uri.parse(cursor.getString(5)),
+                        cursor.getString(6),
+                        cursor.getLong(7),
+                        artworkUri(cursor.getString(8), cursor.getString(5)),
                         cursor.getString(9),
                         cursor.getInt(10),
                         cursor.getInt(11),
@@ -816,7 +895,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                         Uri.parse(cursor.getString(5)),
                         cursor.getString(6),
                         cursor.getLong(7),
-                        uriOrNull(cursor.getString(8)),
+                        artworkUri(cursor.getString(8), cursor.getString(5)),
                         cursor.getString(9),
                         cursor.getInt(10),
                         cursor.getInt(11),
@@ -1343,6 +1422,22 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         return value == null || value.isEmpty() ? null : Uri.parse(value);
     }
 
+    private Uri artworkUri(String albumArtValue, String contentUriValue) {
+        Uri explicit = uriOrNull(albumArtValue);
+        if (explicit != null) {
+            return explicit;
+        }
+        Uri contentUri = uriOrNull(contentUriValue);
+        if (contentUri == null || Uri.EMPTY.equals(contentUri)) {
+            return null;
+        }
+        String scheme = contentUri.getScheme();
+        if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
+            return null;
+        }
+        return EmbeddedArtwork.uriFor(contentUri);
+    }
+
     private RemoteSource readRemoteSource(Cursor cursor) {
         // cursor(5) 是 password 列，可能是旧明文也可能是密文，decryptOrPlain 都能处理。
         String rawPassword = cursor.getString(5);
@@ -1849,7 +1944,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                 Uri.parse(cursor.getString(offset + 5)),
                 cursor.getString(offset + 6),
                 cursor.getLong(offset + 7),
-                uriOrNull(cursor.getString(offset + 8)),
+                artworkUri(cursor.getString(offset + 8), cursor.getString(offset + 5)),
                 cursor.getString(offset + 9),
                 cursor.getInt(offset + 10),
                 cursor.getInt(offset + 11),

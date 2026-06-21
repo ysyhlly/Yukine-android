@@ -62,6 +62,7 @@ internal class SettingsRenderCoordinator(
                 renderer.renderSourcesGroup(
                     settingsStore.languageMode(),
                     settingsStore.streamingAudioQuality(),
+                    settingsStore.shareStyle(),
                     streamingGatewaySettingsStore.configured()
                 )
             }
@@ -105,6 +106,9 @@ internal class SettingsRenderCoordinator(
             }
             MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY -> {
                 renderer.renderStreamingAudioQuality(settingsStore.languageMode(), settingsStore.streamingAudioQuality())
+            }
+            MainRoutes.SETTINGS_SHARE_STYLE -> {
+                renderer.renderShareStyle(settingsStore.languageMode(), settingsStore.shareStyle())
             }
             MainRoutes.SETTINGS_CONCURRENT_PLAYBACK -> {
                 renderer.renderConcurrentPlayback(settingsStore.languageMode(), settingsStore.concurrentPlaybackEnabled())

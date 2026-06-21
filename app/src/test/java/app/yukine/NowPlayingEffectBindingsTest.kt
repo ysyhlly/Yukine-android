@@ -13,13 +13,17 @@ class NowPlayingEffectBindingsTest {
         val bindings = NowPlayingEffectBindings(
             queueOpener = NowPlayingQueueOpener { calls += "queue" },
             addToPlaylistOpener = NowPlayingAddToPlaylistOpener { calls += "playlist:${it.track.id}" },
+            trackSharer = NowPlayingTrackSharer { calls += "share:${it.track.id}" },
+            trackDownloader = NowPlayingTrackDownloader { calls += "download:${it.track.id}" },
             statusSink = QueueStatusSink { calls += "status:$it" }
         )
 
         bindings.openQueue()
         bindings.openAddToPlaylist(NowPlayingEffect.OpenAddToPlaylist(track))
+        bindings.shareTrack(NowPlayingEffect.ShareTrack(track))
+        bindings.downloadTrack(NowPlayingEffect.DownloadTrack(track))
         bindings.showMessage("Ready")
 
-        assertEquals(listOf("queue", "playlist:9", "status:Ready"), calls)
+        assertEquals(listOf("queue", "playlist:9", "share:9", "download:9", "status:Ready"), calls)
     }
 }

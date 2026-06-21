@@ -29,6 +29,9 @@ class SettingsGatewayBindingsTest {
             floatingLyricsPermissionAction = Runnable { calls += "floatingPermission" },
             nowPlayingGesturesAction = SettingsBooleanAction { enabled -> calls += "gestures:$enabled" },
             playbackRestoreAction = SettingsBooleanAction { enabled -> calls += "restore:$enabled" },
+            replayGainAction = SettingsBooleanAction { enabled -> calls += "replayGain:$enabled" },
+            exportBackupAction = Runnable { calls += "exportBackup" },
+            importBackupAction = Runnable { calls += "importBackup" },
             themeModeAction = SettingsStringAction { mode -> calls += "theme:$mode" },
             accentModeAction = SettingsStringAction { accent -> calls += "accent:$accent" },
             languageModeAction = SettingsStringAction { languageMode -> calls += "language:$languageMode" },
@@ -55,6 +58,9 @@ class SettingsGatewayBindingsTest {
         gateway.openFloatingLyricsPermission()
         gateway.setNowPlayingGesturesEnabled(false)
         gateway.setPlaybackRestoreEnabled(true)
+        gateway.setReplayGainEnabled(false)
+        gateway.exportBackup()
+        gateway.importBackup()
         gateway.applyThemeMode("dark")
         gateway.applyAccentMode("blue")
         gateway.applyLanguageMode("zh")
@@ -82,6 +88,9 @@ class SettingsGatewayBindingsTest {
                 "floatingPermission",
                 "gestures:false",
                 "restore:true",
+                "replayGain:false",
+                "exportBackup",
+                "importBackup",
                 "theme:dark",
                 "accent:blue",
                 "language:zh",

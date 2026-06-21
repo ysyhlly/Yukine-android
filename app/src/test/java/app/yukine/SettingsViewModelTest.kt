@@ -61,6 +61,9 @@ class SettingsViewModelTest {
         viewModel.onEvent(SettingsEvent.OpenFloatingLyricsPermission)
         viewModel.onEvent(SettingsEvent.SetNowPlayingGesturesEnabled(false))
         viewModel.onEvent(SettingsEvent.SetPlaybackRestoreEnabled(true))
+        viewModel.onEvent(SettingsEvent.SetReplayGainEnabled(false))
+        viewModel.onEvent(SettingsEvent.ExportBackup)
+        viewModel.onEvent(SettingsEvent.ImportBackup)
         viewModel.onEvent(SettingsEvent.ApplyThemeMode("dark"))
         viewModel.onEvent(SettingsEvent.ApplyAccentMode("blue"))
         viewModel.onEvent(SettingsEvent.ApplyLanguageMode("zh"))
@@ -87,6 +90,9 @@ class SettingsViewModelTest {
                 "floatingPermission",
                 "gestures:false",
                 "restore:true",
+                "replayGain:false",
+                "exportBackup",
+                "importBackup",
                 "theme:dark",
                 "accent:blue",
                 "language:zh",
@@ -126,6 +132,7 @@ class SettingsViewModelTest {
         viewModel.setFloatingLyricsEnabled(true)
         viewModel.setNowPlayingGesturesEnabled(false)
         viewModel.setPlaybackRestoreEnabled(true)
+        viewModel.setReplayGainEnabled(false)
         viewModel.applyLyricsOffset(5555L)
         advanceUntilIdle()
 
@@ -143,6 +150,7 @@ class SettingsViewModelTest {
                 "floatingLyrics:true",
                 "gestures:false",
                 "restore:true",
+                "replayGain:false",
                 "lyricsOffset:5000"
             ),
             listener.events
@@ -245,6 +253,14 @@ class SettingsViewModelTest {
             AppLanguage.text(AppLanguage.MODE_ENGLISH, "playback.restore.disabled"),
             status.playbackRestoreDisabled
         )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "replay.gain.enabled"),
+            status.replayGainEnabled
+        )
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "replay.gain.disabled"),
+            status.replayGainDisabled
+        )
     }
 
     private class FakeSettingsGateway : SettingsGateway {
@@ -330,6 +346,18 @@ class SettingsViewModelTest {
             events += "restore:$enabled"
         }
 
+        override fun setReplayGainEnabled(enabled: Boolean) {
+            events += "replayGain:$enabled"
+        }
+
+        override fun exportBackup() {
+            events += "exportBackup"
+        }
+
+        override fun importBackup() {
+            events += "importBackup"
+        }
+
         override fun applyThemeMode(mode: String) {
             events += "theme:$mode"
         }
@@ -366,6 +394,7 @@ class SettingsViewModelTest {
                 SettingsPreferenceKey.FloatingLyricsEnabled -> "floatingLyrics:${update.value}"
                 SettingsPreferenceKey.NowPlayingGesturesEnabled -> "gestures:${update.value}"
                 SettingsPreferenceKey.PlaybackRestoreEnabled -> "restore:${update.value}"
+                SettingsPreferenceKey.ReplayGainEnabled -> "replayGain:${update.value}"
             }
         }
     }
@@ -423,6 +452,10 @@ class SettingsViewModelTest {
 
         override fun onPlaybackRestoreEnabledApplied(enabled: Boolean) {
             events += "restore:$enabled"
+        }
+
+        override fun onReplayGainEnabledApplied(enabled: Boolean) {
+            events += "replayGain:$enabled"
         }
 
         override fun onOnlineLyricsEnabledApplied(enabled: Boolean) {

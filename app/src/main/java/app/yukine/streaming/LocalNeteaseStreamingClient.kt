@@ -28,7 +28,7 @@ class DefaultNeteaseHttpClient(
         connection.connectTimeout = connectTimeoutMs
         connection.readTimeout = readTimeoutMs
         connection.setRequestProperty("Accept", "application/json")
-        connection.setRequestProperty("User-Agent", "Mozilla/5.0 ECHO-NEXT-Android")
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0 Yukine-Android")
         connection.setRequestProperty("Referer", "https://music.163.com/")
         cookieHeader?.takeIf { it.isNotBlank() }?.let { connection.setRequestProperty("Cookie", it) }
         try {
@@ -487,7 +487,7 @@ class LocalNeteaseStreamingClient(
             bitrate = source.optionalIntLocal("br"),
             codec = source.optionalStringLocal("type") ?: source.optionalStringLocal("encodeType"),
             headers = mapOf(
-                "User-Agent" to "Mozilla/5.0 ECHO-NEXT-Android",
+                "User-Agent" to "Mozilla/5.0 Yukine-Android",
                 "Referer" to "https://music.163.com/",
                 "Cookie" to cookie
             ),
@@ -678,9 +678,11 @@ class LocalNeteaseStreamingClient(
         val artistText = artists.joinToString(" / ") { it.name }
             .ifBlank { value.optionalStringLocal("artist").orEmpty() }
         val cover = imageUrl(album.optionalStringLocal("picUrl") ?: album.optionalStringLocal("blurPicUrl") ?: album.optionalStringLocal("pic"))
+        val providerTrackId = idText(value.opt("id") ?: value.opt("songId") ?: value.opt("trackId")) ?: ""
+        val playable = value.optInt("fee", 0) != 4
         return StreamingTrack(
             provider = StreamingProviderName.NETEASE,
-            providerTrackId = idText(value.opt("id") ?: value.opt("songId") ?: value.opt("trackId")) ?: "",
+            providerTrackId = providerTrackId,
             title = value.optionalStringLocal("name") ?: value.optionalStringLocal("title") ?: "",
             artist = artistText,
             artists = artists,
@@ -689,8 +691,40 @@ class LocalNeteaseStreamingClient(
             durationMs = value.optionalLongLocal("dt") ?: value.optionalLongLocal("duration"),
             coverUrl = cover,
             coverThumbUrl = cover,
-            playable = value.optInt("fee", 0) != 4
+            playable = playable,
+            description = songDescription(value, album.optionalStringLocal("name")),
+            lyricSources = listOf(
+                StreamingLyricSource(
+                    provider = StreamingProviderName.NETEASE,
+                    name = "网易云歌词",
+                    providerTrackId = providerTrackId,
+                    priority = 0
+                )
+            ),
+            playbackCandidates = listOf(
+                StreamingPlaybackCandidate(
+                    provider = StreamingProviderName.NETEASE,
+                    quality = null,
+                    label = "网易云播放源",
+                    providerTrackId = providerTrackId,
+                    available = playable
+                )
+            )
         )
+    }
+
+    private fun songDescription(value: JSONObject, albumName: String?): String? {
+        val aliases = value.optJSONArray("alia") ?: value.optJSONArray("alias")
+        val aliasText = aliases?.let { array ->
+            (0 until array.length())
+                .mapNotNull { index -> array.optString(index).takeIf { it.isNotBlank() } }
+                .joinToString(" / ")
+                .takeIf { it.isNotBlank() }
+        }
+        return listOfNotNull(
+            aliasText?.let { "别名：$it" },
+            albumName?.takeIf { it.isNotBlank() }?.let { "专辑：$it" }
+        ).joinToString("\n").takeIf { it.isNotBlank() }
     }
 
     private fun artistRefs(array: JSONArray?): List<StreamingArtistRef> {

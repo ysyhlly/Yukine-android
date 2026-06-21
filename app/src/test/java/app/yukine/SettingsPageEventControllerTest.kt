@@ -31,6 +31,9 @@ class SettingsPageEventControllerTest {
         controller.openFloatingLyricsPermission()
         controller.setNowPlayingGesturesEnabled(false)
         controller.setPlaybackRestoreEnabled(true)
+        controller.setReplayGainEnabled(false)
+        controller.exportBackup()
+        controller.importBackup()
         controller.applyThemeMode("dark")
         controller.applyAccentMode("teal")
         controller.applyLanguageMode(AppLanguage.MODE_ENGLISH)
@@ -57,6 +60,9 @@ class SettingsPageEventControllerTest {
                 "floatingPermission",
                 "gestures:false",
                 "restore:true",
+                "replayGain:false",
+                "exportBackup",
+                "importBackup",
                 "theme:dark",
                 "accent:teal",
                 "language:${AppLanguage.MODE_ENGLISH}",
@@ -147,6 +153,18 @@ class SettingsPageEventControllerTest {
 
         override fun setPlaybackRestoreEnabled(enabled: Boolean) {
             calls.add("restore:$enabled")
+        }
+
+        override fun setReplayGainEnabled(enabled: Boolean) {
+            calls.add("replayGain:$enabled")
+        }
+
+        override fun exportBackup() {
+            calls.add("exportBackup")
+        }
+
+        override fun importBackup() {
+            calls.add("importBackup")
         }
 
         override fun applyThemeMode(mode: String) {

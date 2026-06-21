@@ -79,6 +79,12 @@ object ArtworkLoader {
         if (EmbeddedArtwork.isEmbeddedArtworkUri(uri)) {
             return decodeSampledEmbeddedArtwork(context, uri, targetPx)
         }
+        return artworkCandidates(uri).firstNotNullOfOrNull { candidate ->
+            decodeSampledBitmapCandidate(context, candidate, targetPx)
+        }
+    }
+
+    private fun decodeSampledBitmapCandidate(context: Context, uri: Uri, targetPx: Int): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         runCatching {
             openArtworkStream(context, uri)?.use { input ->
@@ -97,6 +103,24 @@ object ArtworkLoader {
                 BitmapFactory.decodeStream(input, null, options)
             }
         }.getOrNull()
+    }
+
+    private fun artworkCandidates(uri: Uri): List<Uri> {
+        val scheme = uri.scheme?.lowercase()
+        if (scheme != "http" && scheme != "https") {
+            return listOf(uri)
+        }
+        val raw = uri.toString()
+        val candidates = linkedSetOf(raw)
+        val noQuery = raw.substringBefore('?')
+        if (noQuery != raw) {
+            candidates += noQuery
+        }
+        if ("music.126.net" in raw || "p1.music.126.net" in raw || "p2.music.126.net" in raw) {
+            candidates += "$noQuery?param=512y512"
+            candidates += "$noQuery?param=300y300"
+        }
+        return candidates.map(Uri::parse)
     }
 
     private fun decodeSampledEmbeddedArtwork(context: Context, uri: Uri, targetPx: Int): Bitmap? {
@@ -122,7 +146,8 @@ object ArtworkLoader {
         connection.connectTimeout = 8000
         connection.readTimeout = 12000
         connection.instanceFollowRedirects = true
-        connection.setRequestProperty("User-Agent", "Mozilla/5.0 ECHO-NEXT-Android")
+        connection.setRequestProperty("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0 Yukine-Android")
         connection.setRequestProperty("Referer", "https://music.163.com/")
         val code = connection.responseCode
         if (code !in 200..299) {

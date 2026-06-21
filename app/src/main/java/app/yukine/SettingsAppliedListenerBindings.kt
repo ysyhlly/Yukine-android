@@ -122,6 +122,15 @@ internal class SettingsAppliedListenerBindings(
         statusSink.set(streamingQualityAppliedStatusProvider.text(settingsStore.streamingAudioQuality()))
     }
 
+    override fun onShareStyleApplied(style: String) {
+        settingsStore.setShareStyle(style)
+        renderSelectedTabAction.run()
+        statusSink.set(
+            appliedStatusTextProvider.text(0L).shareStyleApplied +
+                SettingsPageRenderController.shareStyleLabel(settingsStore.shareStyle(), settingsStore.languageMode())
+        )
+    }
+
     override fun onConcurrentPlaybackEnabledApplied(enabled: Boolean) {
         settingsStore.setConcurrentPlaybackEnabled(enabled)
         playbackServiceControlsProvider.controls()

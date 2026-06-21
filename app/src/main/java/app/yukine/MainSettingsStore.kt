@@ -17,6 +17,7 @@ internal class MainSettingsStore {
     private var nowPlayingGesturesEnabled: Boolean = true
     private var playbackRestoreEnabled: Boolean = true
     private var replayGainEnabled: Boolean = true
+    private var shareStyle: String = TrackShareStyle.defaultValue()
 
     fun load(preferences: LoadedSettingsPreferences) {
         themeMode = preferences.themeMode
@@ -32,6 +33,7 @@ internal class MainSettingsStore {
         nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled
         playbackRestoreEnabled = preferences.playbackRestoreEnabled
         replayGainEnabled = preferences.replayGainEnabled
+        shareStyle = preferences.shareStyle
         EchoTheme.setMode(themeMode)
         EchoTheme.setAccent(accentMode)
     }
@@ -88,6 +90,10 @@ internal class MainSettingsStore {
         return replayGainEnabled
     }
 
+    fun shareStyle(): String {
+        return shareStyle
+    }
+
     fun setThemeMode(themeMode: String) {
         this.themeMode = EchoTheme.normalizeMode(themeMode)
     }
@@ -138,5 +144,9 @@ internal class MainSettingsStore {
 
     fun setReplayGainEnabled(enabled: Boolean) {
         this.replayGainEnabled = enabled
+    }
+
+    fun setShareStyle(style: String) {
+        this.shareStyle = TrackShareStyle.normalize(style)
     }
 }

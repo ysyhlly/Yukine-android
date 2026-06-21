@@ -15,6 +15,10 @@ internal fun interface TrackAction {
     fun run(track: Track)
 }
 
+internal fun interface TrackListAction {
+    fun run(tracks: List<Track>)
+}
+
 internal data class TrackListChromeState(
     val actions: List<TrackRowActions>,
     val headerMetrics: List<TrackListHeaderMetric>,
@@ -32,6 +36,8 @@ internal class TrackListRenderBindings(
     private val libraryEventSink: LibraryEventSink,
     private val editStreamAction: TrackAction,
     private val confirmDeleteTrackAction: TrackAction,
+    private val downloadTrackAction: TrackAction,
+    private val downloadTracksAction: TrackListAction,
     private val chromeSink: TrackListChromeSink
 ) : TrackListRenderController.Listener {
     override fun playTrackList(tracks: List<Track>, index: Int) {
@@ -44,6 +50,14 @@ internal class TrackListRenderBindings(
 
     override fun showAddToPlaylist(track: Track) {
         libraryEventSink.send(LibraryEvent.AddToPlaylist(track))
+    }
+
+    override fun downloadTrack(track: Track) {
+        downloadTrackAction.run(track)
+    }
+
+    override fun downloadTracks(tracks: List<Track>) {
+        downloadTracksAction.run(tracks)
     }
 
     override fun showEditStream(track: Track) {

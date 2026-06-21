@@ -250,6 +250,13 @@ data class StreamingLocalPlaylistImportResult(
     val empty: Boolean = false
 )
 
+data class StreamingAccountPlaylistImportResult(
+    val playlistCount: Int = 0,
+    val importedPlaylistCount: Int = 0,
+    val importedTrackCount: Int = 0,
+    val failedCount: Int = 0
+)
+
 interface StreamingLocalPlaylistOperations {
     fun importStreamingPlaylist(
         playlistName: String,

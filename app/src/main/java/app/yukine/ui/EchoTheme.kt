@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -356,13 +357,24 @@ object EchoTheme {
                 extraLarge = EchoShapes.full
             )
         }
-        CompositionLocalProvider(LocalEchoPalette provides p) {
+        val accentRipple = remember(p.accent) { ripple(color = p.accent) }
+        val accentRippleConfig = remember(p.accent) {
+            androidx.compose.material3.RippleConfiguration(color = p.accent)
+        }
+        CompositionLocalProvider(
+            LocalEchoPalette provides p
+        ) {
             MaterialTheme(
                 colorScheme = scheme,
                 typography = typography,
                 shapes = shapes
             ) {
-                content()
+                CompositionLocalProvider(
+                    LocalIndication provides accentRipple,
+                    androidx.compose.material3.LocalRippleConfiguration provides accentRippleConfig
+                ) {
+                    content()
+                }
             }
         }
     }
@@ -504,16 +516,16 @@ object EchoTheme {
             onAccent = Color.White,
             backgroundAlt = blendWithAccent(Color(0xFF101620), a, 0.18f)
         ) else EchoPalette(
-            background = blendWithAccent(Color(0xFFF7F9FF), a, 0.02f),
+            background = blendWithAccent(Color(0xFFFBFCFF), a, 0.03f),
             surface = Color(0xFFFFFFFF),
-            surfaceVariant = blendWithAccent(Color(0xFFF0F3FA), a, 0.03f),
-            panel = blendWithAccent(Color(0xFFE8ECF4), a, 0.03f),
-            accent = a, accentSoft = a.copy(alpha = 0.08f),
-            text = Color(0xFF1A1F2B), muted = Color(0xFF6B7490),
-            highlight = a.copy(alpha = 0.06f),
-            border = blendWithAccent(Color(0xFFE2E6EE), a, 0.04f),
+            surfaceVariant = blendWithAccent(Color(0xFFF4F7FF), a, 0.05f),
+            panel = blendWithAccent(Color(0xFFEDF1FA), a, 0.05f),
+            accent = a, accentSoft = a.copy(alpha = 0.10f),
+            text = Color(0xFF2A3040), muted = Color(0xFF8892A8),
+            highlight = a.copy(alpha = 0.08f),
+            border = blendWithAccent(Color(0xFFE6EAF4), a, 0.06f),
             onAccent = Color.White,
-            backgroundAlt = Color(0xFFFCFDFF)
+            backgroundAlt = Color(0xFFFDFEFF)
         )
     }
 
@@ -617,12 +629,12 @@ private object AccentPalettes {
     }
 
     fun lightAccent(a: String): Color = when (EchoTheme.normalizeAccent(a)) {
-        EchoTheme.ACCENT_TEAL -> Color(0xFF0D8D80); EchoTheme.ACCENT_ROSE -> Color(0xFFD2386C)
-        EchoTheme.ACCENT_VIOLET -> Color(0xFF6D4AFF); EchoTheme.ACCENT_AMBER -> Color(0xFFC57800)
-        EchoTheme.ACCENT_EMERALD -> Color(0xFF189A58); EchoTheme.ACCENT_CYAN -> Color(0xFF0588A8)
-        EchoTheme.ACCENT_LIME -> Color(0xFF6B9400); EchoTheme.ACCENT_RED -> Color(0xFFD94038)
-        EchoTheme.ACCENT_INDIGO -> Color(0xFF3A66E8); EchoTheme.ACCENT_PINE -> Color(0xFF128266)
-        EchoTheme.ACCENT_PEACH -> Color(0xFFD96040)
-        else -> Color(0xFF256CFF)
+        EchoTheme.ACCENT_TEAL -> Color(0xFF18A898); EchoTheme.ACCENT_ROSE -> Color(0xFFE84878)
+        EchoTheme.ACCENT_VIOLET -> Color(0xFF7C5AFF); EchoTheme.ACCENT_AMBER -> Color(0xFFD68800)
+        EchoTheme.ACCENT_EMERALD -> Color(0xFF24B068); EchoTheme.ACCENT_CYAN -> Color(0xFF10A0C0)
+        EchoTheme.ACCENT_LIME -> Color(0xFF7AA800); EchoTheme.ACCENT_RED -> Color(0xFFE04848)
+        EchoTheme.ACCENT_INDIGO -> Color(0xFF4A78F0); EchoTheme.ACCENT_PINE -> Color(0xFF1A9878)
+        EchoTheme.ACCENT_PEACH -> Color(0xFFE07050)
+        else -> Color(0xFF4D8EFF)
     }
 }

@@ -1,5 +1,7 @@
 package app.yukine.playback;
 
+import android.os.Process;
+
 import java.util.concurrent.Executor;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
@@ -7,20 +9,27 @@ import java.util.concurrent.atomic.AtomicLong;
 final class PlaybackTaskScheduler implements Executor {
     enum Priority {
         CURRENT_PLAYBACK_RECOVERY,
-        CURRENT_WAVEFORM,
         CURRENT_URL_RESOLVE,
         NEXT_URL_RESOLVE,
-        NEXT_TRACK_PRECACHE
+        NEXT_TRACK_PRECACHE,
+        CURRENT_WAVEFORM
     }
 
     private final PriorityBlockingQueue<ScheduledTask> queue = new PriorityBlockingQueue<>();
     private final AtomicLong sequence = new AtomicLong();
     private final Thread worker;
+    private final int threadPriority;
     private volatile boolean running = true;
 
     PlaybackTaskScheduler(String threadName) {
+        this(threadName, Process.THREAD_PRIORITY_BACKGROUND);
+    }
+
+    PlaybackTaskScheduler(String threadName, int priority) {
+        threadPriority = priority;
         worker = new Thread(this::runLoop, threadName);
         worker.setDaemon(true);
+        worker.setPriority(javaPriority(priority));
         worker.start();
     }
 
@@ -43,6 +52,11 @@ final class PlaybackTaskScheduler implements Executor {
     }
 
     private void runLoop() {
+        try {
+            Process.setThreadPriority(threadPriority);
+        } catch (RuntimeException ignored) {
+            // Keep the scheduler alive even if a device rejects this priority.
+        }
         while (running) {
             try {
                 queue.take().runnable.run();
@@ -52,6 +66,12 @@ final class PlaybackTaskScheduler implements Executor {
                 }
             }
         }
+    }
+
+    private static int javaPriority(int androidPriority) {
+        return androidPriority <= Process.THREAD_PRIORITY_DISPLAY
+                ? Thread.NORM_PRIORITY + 2
+                : Thread.NORM_PRIORITY - 1;
     }
 
     private static final class ScheduledTask implements Comparable<ScheduledTask> {

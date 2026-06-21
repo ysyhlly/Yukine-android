@@ -1,24 +1,75 @@
 package app.yukine.streaming
 
 object StreamingProviderCatalog {
-    fun gatewayBackedDescriptors(): List<StreamingProviderDescriptor> {
+    fun gatewayBackedDescriptors(): List<StreamingProviderDescriptor> = providerDescriptors(localFirst = false)
+
+    fun localFirstDescriptors(): List<StreamingProviderDescriptor> = providerDescriptors(localFirst = true)
+
+    fun localFirstDescriptor(provider: StreamingProviderName): StreamingProviderDescriptor =
+        localFirstDescriptors().firstOrNull { it.name == provider }
+            ?: gatewayBackedDescriptors().first { it.name == provider }
+
+    private fun providerDescriptors(localFirst: Boolean): List<StreamingProviderDescriptor> {
         return listOf(
-            descriptor(StreamingProviderName.NETEASE, "NetEase Cloud Music", authKind = StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE),
-            descriptor(StreamingProviderName.QQ_MUSIC, "QQ Music", authKind = StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE),
-            descriptor(StreamingProviderName.KUGOU, "Kugou", authKind = StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE),
-            descriptor(StreamingProviderName.BILIBILI, "Bilibili", supportsMv = true, authKind = StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE),
-            descriptor(StreamingProviderName.YOUTUBE, "YouTube"),
-            descriptor(StreamingProviderName.SOUNDCLOUD, "SoundCloud"),
-            descriptor(StreamingProviderName.SPOTIFY, "Spotify", authKind = StreamingAuthKind.CUSTOM_TABS_APP_LINK),
-            descriptor(StreamingProviderName.TIDAL, "TIDAL", authKind = StreamingAuthKind.CUSTOM_TABS_APP_LINK),
-            descriptor(StreamingProviderName.M3U8, "M3U8", supportsAuth = false),
+            descriptor(
+                StreamingProviderName.NETEASE,
+                "网易云音乐",
+                authKind = StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE,
+                statusMessage = if (localFirst) "本机直连，登录后可用搜索、播放、歌单和推荐" else ""
+            ),
+            descriptor(
+                StreamingProviderName.QQ_MUSIC,
+                "QQ 音乐",
+                supportsAuth = !localFirst,
+                authKind = StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE,
+                localFirst = localFirst,
+                statusMessage = if (localFirst) "本机直连，支持搜索、播放和歌单导入" else ""
+            ),
+            descriptor(
+                StreamingProviderName.KUGOU,
+                "酷狗音乐",
+                authKind = StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE,
+                localFirst = localFirst
+            ),
+            descriptor(
+                StreamingProviderName.BILIBILI,
+                "哔哩哔哩",
+                supportsMv = true,
+                authKind = StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE,
+                localFirst = localFirst
+            ),
+            descriptor(StreamingProviderName.YOUTUBE, "YouTube", localFirst = localFirst),
+            descriptor(StreamingProviderName.SOUNDCLOUD, "SoundCloud", localFirst = localFirst),
+            descriptor(
+                StreamingProviderName.SPOTIFY,
+                "Spotify",
+                authKind = StreamingAuthKind.CUSTOM_TABS_APP_LINK,
+                localFirst = localFirst
+            ),
+            descriptor(
+                StreamingProviderName.TIDAL,
+                "TIDAL",
+                authKind = StreamingAuthKind.CUSTOM_TABS_APP_LINK,
+                localFirst = localFirst
+            ),
+            descriptor(StreamingProviderName.M3U8, "M3U8 列表", supportsAuth = false, localFirst = localFirst),
             descriptor(
                 StreamingProviderName.LUOXUE,
-                "洛雪音源",
+                "LX/洛雪音源",
                 supportsAuth = false,
-                statusMessage = "Compatible with LX Music custom-source adapters"
+                localFirst = localFirst,
+                statusMessage = if (localFirst) {
+                    "本机直连，当前先接入 LX/酷我子源"
+                } else {
+                    "支持 LX 兼容网关聚合搜索酷我、咪咕等音源"
+                }
             ),
-            descriptor(StreamingProviderName.PLUGIN, "Plugin", supportsAuth = false)
+            descriptor(
+                StreamingProviderName.PLUGIN,
+                "自定义插件",
+                supportsAuth = false,
+                localFirst = localFirst
+            )
         )
     }
 
@@ -28,34 +79,53 @@ object StreamingProviderCatalog {
         supportsAuth: Boolean = true,
         supportsMv: Boolean = false,
         authKind: StreamingAuthKind = StreamingAuthKind.REMOTE_GATEWAY,
-        statusMessage: String = "Provided by the streaming gateway"
+        localFirst: Boolean = false,
+        statusMessage: String = ""
     ): StreamingProviderDescriptor {
+        val localPending = localFirst && !localCapableProvider(name)
         val auth = StreamingAuthState(
             kind = if (supportsAuth) authKind else StreamingAuthKind.NONE,
-            connected = false
+            connected = false,
+            statusMessage = if (localPending) localPendingMessage(name) else null
         )
         return StreamingProviderDescriptor(
             name = name,
             displayName = displayName,
-            enabled = true,
+            enabled = !localPending,
             capabilities = StreamingProviderCapabilities(
-                supportsSearch = true,
-                supportsPlayback = true,
-                supportsLyrics = true,
-                supportsMv = supportsMv,
-                supportsAuth = supportsAuth,
-                supportsFavorites = supportsAuth,
-                supportsPlaylists = true,
-                supportedMediaTypes = setOf(
-                    StreamingMediaType.TRACK,
-                    StreamingMediaType.ALBUM,
-                    StreamingMediaType.ARTIST,
-                    StreamingMediaType.PLAYLIST
-                )
+                supportsSearch = !localPending,
+                supportsPlayback = !localPending,
+                supportsLyrics = !localPending,
+                supportsMv = supportsMv && !localPending,
+                supportsAuth = supportsAuth && !localPending,
+                supportsFavorites = supportsAuth && !localPending,
+                supportsPlaylists = !localPending,
+                supportedMediaTypes = if (localPending) {
+                    emptySet()
+                } else {
+                    setOf(
+                        StreamingMediaType.TRACK,
+                        StreamingMediaType.ALBUM,
+                        StreamingMediaType.ARTIST,
+                        StreamingMediaType.PLAYLIST
+                    )
+                }
             ),
             auth = auth,
-            status = StreamingProviderStatus.NEEDS_ACCOUNT.takeIf { supportsAuth } ?: StreamingProviderStatus.READY,
-            statusMessage = statusMessage
+            status = when {
+                localPending -> StreamingProviderStatus.DISABLED
+                supportsAuth -> StreamingProviderStatus.NEEDS_ACCOUNT
+                else -> StreamingProviderStatus.READY
+            },
+            statusMessage = statusMessage.ifBlank {
+                if (localPending) localPendingMessage(name) else ""
+            }
         )
+    }
+
+    private fun localCapableProvider(name: StreamingProviderName): Boolean {
+        return name == StreamingProviderName.NETEASE ||
+            name == StreamingProviderName.QQ_MUSIC ||
+            name == StreamingProviderName.LUOXUE
     }
 }

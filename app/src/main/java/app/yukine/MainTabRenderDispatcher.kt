@@ -16,6 +16,8 @@ internal class MainTabRenderDispatcher(
 
         fun renderNetwork()
 
+        fun renderSearch()
+
         fun renderSettings()
     }
 
@@ -26,6 +28,7 @@ internal class MainTabRenderDispatcher(
             MainRoutes.TAB_COLLECTIONS -> renderer.renderCollections()
             MainRoutes.TAB_QUEUE -> renderer.renderQueue()
             MainRoutes.TAB_NETWORK -> renderer.renderNetwork()
+            MainRoutes.TAB_SEARCH -> renderer.renderSearch()
             else -> renderer.renderSettings()
         }
     }

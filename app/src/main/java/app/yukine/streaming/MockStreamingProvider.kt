@@ -17,7 +17,7 @@ class MockStreamingProvider : StreamingProvider {
             provider = StreamingProviderName.MOCK,
             providerTrackId = "mock-track-night",
             title = "夜航片段",
-            artist = "ECHO Demo",
+            artist = "Yukine Demo",
             album = "离线样例",
             durationMs = 211_000L,
             coverUrl = "https://picsum.photos/seed/echo-mock-night/512/512",
@@ -42,7 +42,7 @@ class MockStreamingProvider : StreamingProvider {
         providerPlaylistId = "mock-playlist-daily",
         title = "离线试听歌单",
         description = "无需网关即可验证搜索、歌单和播放链路",
-        creator = "ECHO",
+        creator = "Yukine",
         coverUrl = "https://picsum.photos/seed/echo-mock-playlist/512/512",
         trackCount = demoTracks.size
     )
@@ -152,7 +152,7 @@ class MockStreamingProvider : StreamingProvider {
             mimeType = "audio/mpeg",
             bitrate = 128,
             codec = "mp3",
-            headers = mapOf("X-ECHO-Mock-Track" to (track?.title ?: request.providerTrackId)),
+            headers = mapOf("X-Yukine-Mock-Track" to (track?.title ?: request.providerTrackId)),
             supportsRange = true
         )
     }

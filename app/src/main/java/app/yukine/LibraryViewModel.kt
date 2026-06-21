@@ -303,12 +303,16 @@ class LibraryViewModel @JvmOverloads constructor(
         } else {
             favoriteTrackIds - track.id
         }
-        gateway?.applyFavorite(track.id, nextFavorite)
-        val writer = favoriteWriter ?: return
+        val writer = favoriteWriter
+        if (writer == null) {
+            gateway?.applyFavorite(track.id, nextFavorite)
+            return
+        }
         viewModelScope.launch {
             withContext(ioDispatcher) {
                 writer.writeFavorite(track, nextFavorite)
             }
+            gateway?.applyFavorite(track.id, nextFavorite)
         }
     }
 

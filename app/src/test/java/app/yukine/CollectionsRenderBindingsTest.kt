@@ -27,6 +27,8 @@ class CollectionsRenderBindingsTest {
             },
             libraryEventSink = LibraryEventSink { events += it },
             addToPlaylistAction = QueueTrackAction { calls += "add:${it.id}" },
+            downloadTrackAction = QueueTrackAction { calls += "download:${it.id}" },
+            downloadTracksAction = TrackListDownloadAction { calls += "downloadAll:${it.size}" },
             selectPlaylistAction = PlaylistIdAction { calls += "select:$it" },
             showRenamePlaylistAction = PlaylistAction { calls += "rename:${it.id}" },
             confirmDeletePlaylistAction = PlaylistAction { calls += "delete:${it.id}" },
@@ -51,6 +53,8 @@ class CollectionsRenderBindingsTest {
         bindings.playTrackList(tracks, 1)
         bindings.toggleFavorite(tracks[0])
         bindings.showAddToPlaylist(tracks[1])
+        bindings.downloadTrack(tracks[0])
+        bindings.downloadTracks(tracks)
         bindings.selectPlaylist(playlist.id)
         bindings.showRenamePlaylist(playlist)
         bindings.confirmDeletePlaylist(playlist)
@@ -71,6 +75,8 @@ class CollectionsRenderBindingsTest {
                 "back",
                 "play:2:1",
                 "add:2",
+                "download:1",
+                "downloadAll:2",
                 "select:9",
                 "rename:9",
                 "delete:9",

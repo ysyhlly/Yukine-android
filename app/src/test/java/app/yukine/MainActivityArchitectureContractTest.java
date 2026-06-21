@@ -572,7 +572,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(nowPlayingStateFactory.contains("@JvmStatic"));
         assertTrue(nowPlayingStateFactory.contains("): NowPlayingUiState?"));
         assertTrue(nowPlayingStateFactory.contains("val track = playbackState.currentTrack ?: return null"));
-        assertTrue(nowPlayingStateFactory.contains("LyricUiLine(line.text, index == activeIndex)"));
+        assertTrue(nowPlayingStateFactory.contains("LyricUiLine(line.text, index == activeIndex, line.timeMs)"));
         assertFalse(exists("app/src/main/java/app/yukine/NowPlayingRenderController.java"));
         assertTrue(nowPlayingRenderController.contains("internal class NowPlayingRenderController"));
         assertFalse(nowPlayingRenderController.contains("interface Listener"));
@@ -1638,7 +1638,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(module.contains("provideStreamingPlaybackHeaderStore"));
         assertTrue(cacheRepository.contains("fun cachedPlaybackBlocking(provider: StreamingProviderName, providerTrackId: String): String?"));
         assertTrue(cacheRepository.contains("dao.playbackBlocking(provider.wireName, providerTrackId, clock())?.payloadJson"));
-        assertFalse(cacheRepository.contains("runBlocking"));
+        assertTrue(cacheRepository.contains("runBlocking(Dispatchers.IO)"));
     }
 
     @Test
@@ -2488,7 +2488,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("FloatingLyricsPublisher.state.collectLatest"));
         assertTrue(service.contains("Notification.EXTRA_TEXT_LINES"));
         assertTrue(service.contains("EXTRA_CURRENT_LYRIC"));
-        assertTrue(service.contains("CHANNEL_ID = \"live_text_notification\""));
+        assertTrue(service.contains("CHANNEL_ID = \"echo_live_lyrics_cloud\""));
+        assertTrue(service.contains("LEGACY_CHANNEL_ID = \"live_text_notification\""));
+        assertTrue(service.contains("NotificationManager.IMPORTANCE_DEFAULT"));
+        assertTrue(service.contains("Notification.CATEGORY_STATUS"));
+        assertTrue(service.contains("setSound(null, null)"));
+        assertTrue(service.contains("enableVibration(false)"));
         assertTrue(service.contains("EXTRA_REQUEST_PROMOTED_ONGOING = \"android.requestPromotedOngoing\""));
         assertTrue(service.contains("putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)"));
         assertTrue(service.contains("setRequestPromotedOngoing"));
@@ -2496,13 +2501,17 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("EXTRA_TITLE = \"extra_title\""));
         assertTrue(service.contains("EXTRA_BODY = \"extra_body\""));
         assertTrue(service.contains("EXTRA_SHORT_TEXT = \"extra_short_text\""));
-        assertTrue(service.contains("setLargeIcon"));
-        assertTrue(service.contains("EchoPlaybackService.ACTION_PREVIOUS"));
-        assertTrue(service.contains("EchoPlaybackService.ACTION_PAUSE"));
-        assertTrue(service.contains("EchoPlaybackService.ACTION_RESTORE_AND_PLAY"));
-        assertTrue(service.contains("EchoPlaybackService.ACTION_NEXT"));
+        assertTrue(service.contains("oplus_smallicon_use_app_icon"));
+        assertTrue(service.contains("EXTRA_LYRIC_ALBUM_ART_URI"));
+        assertTrue(service.contains("builder.setLargeIcon(it)"));
+        assertTrue(service.contains("private fun liveLyricText(state: FloatingLyricsState): String"));
+        assertTrue(service.contains("\"\\u672a\\u627e\\u5230\\u6b4c\\u8bcd\""));
+        assertFalse(service.contains("if (next.activeLine.isBlank())"));
+        assertFalse(service.contains("Notification.CATEGORY_TRANSPORT"));
+        assertFalse(service.contains("addAction("));
         assertTrue(playbackService.contains("LiveLyricsNotificationService.start(this)"));
         assertTrue(playbackService.contains("LiveLyricsNotificationService.stop(this)"));
+        assertFalse(playbackService.contains("|| lyricText.trim().isEmpty()"));
     }
 
     @Test

@@ -44,6 +44,12 @@ class LocalStreamingLoginEndpointsTest {
                 listOf("NMTID", "MUSIC_U", "__csrf")
             )
         )
+        assertTrue(
+            LocalStreamingLoginEndpoints.hasSessionToken(
+                StreamingProviderName.NETEASE,
+                listOf("NMTID", "MUSIC_A")
+            )
+        )
     }
 
     @Test
@@ -69,7 +75,8 @@ class LocalStreamingLoginEndpointsTest {
 
     @Test
     fun sessionTokenNamesAreDefinedForCookieProviders() {
-        assertEquals(listOf("MUSIC_U"), LocalStreamingLoginEndpoints.sessionTokenNames(StreamingProviderName.NETEASE))
+        assertTrue(LocalStreamingLoginEndpoints.sessionTokenNames(StreamingProviderName.NETEASE).contains("MUSIC_U"))
+        assertTrue(LocalStreamingLoginEndpoints.sessionTokenNames(StreamingProviderName.NETEASE).contains("MUSIC_A"))
         assertEquals(listOf("SESSDATA"), LocalStreamingLoginEndpoints.sessionTokenNames(StreamingProviderName.BILIBILI))
     }
 }

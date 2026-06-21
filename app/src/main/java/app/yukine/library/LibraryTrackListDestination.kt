@@ -4,12 +4,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import app.yukine.MainActivityTrackListUiState
+import app.yukine.TrackDownloadItem
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListLabels
 import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.TrackListScreen
 import app.yukine.ui.TrackRowActions
+import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -29,7 +31,11 @@ fun LibraryTrackListDestination(
     headerActions: List<TrackListHeaderAction> = emptyList(),
     emptyText: String = "",
     modeActions: List<TrackListModeAction> = emptyList(),
-    labels: TrackListLabels = TrackListLabels()
+    labels: TrackListLabels = TrackListLabels(),
+    onSearch: Runnable = Runnable { },
+    activeDownload: TrackDownloadItem? = null,
+    playbackQuality: String = "",
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
     val uiState by state.collectAsState()
     TrackListScreen(
@@ -40,6 +46,10 @@ fun LibraryTrackListDestination(
         headerActions,
         emptyText,
         modeActions,
-        labels
+        labels,
+        onSearch,
+        activeDownload,
+        playbackQuality,
+        audioMotion
     )
 }

@@ -18,7 +18,8 @@ enum class SettingsPreferenceKey {
     FloatingLyricsEnabled,
     NowPlayingGesturesEnabled,
     PlaybackRestoreEnabled,
-    ReplayGainEnabled
+    ReplayGainEnabled,
+    ShareStyle
 }
 
 data class SettingsPreferenceUpdate(
@@ -42,6 +43,7 @@ internal interface SettingsPreferenceOperations {
     fun saveNowPlayingGesturesEnabled(enabled: Boolean)
     fun savePlaybackRestoreEnabled(enabled: Boolean)
     fun saveReplayGainEnabled(enabled: Boolean)
+    fun saveShareStyle(style: String)
 }
 
 internal class MusicLibrarySettingsPreferenceOperations(
@@ -85,6 +87,9 @@ internal class MusicLibrarySettingsPreferenceOperations(
 
     override fun saveReplayGainEnabled(enabled: Boolean) =
         repository.saveReplayGainEnabled(enabled)
+
+    override fun saveShareStyle(style: String) =
+        repository.saveShareStyle(style)
 }
 
 internal class ApplySettingsPreferenceUseCase(
@@ -116,6 +121,8 @@ internal class ApplySettingsPreferenceUseCase(
                 operations.savePlaybackRestoreEnabled(update.value as Boolean)
             SettingsPreferenceKey.ReplayGainEnabled ->
                 operations.saveReplayGainEnabled(update.value as Boolean)
+            SettingsPreferenceKey.ShareStyle ->
+                operations.saveShareStyle(update.value as String)
         }
     }
 }

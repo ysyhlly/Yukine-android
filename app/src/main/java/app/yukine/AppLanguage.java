@@ -22,6 +22,8 @@ public final class AppLanguage {
         put("tab.playing", "Playing", "\u64ad\u653e");
         put("tab.now", "Now", "\u5f53\u524d");
         put("tab.network", "Network", "\u7f51\u7edc");
+        put("tab.downloads", "Downloads", "\u4e0b\u8f7d");
+        put("tab.search", "Search", "\u641c\u7d22");
         put("tab.settings", "Settings", "\u8bbe\u7f6e");
         put("search.music", "Search music", "\u641c\u7d22\u97f3\u4e50");
 
@@ -37,7 +39,7 @@ public final class AppLanguage {
         put("notification.permission", "Notification permission", "\u901a\u77e5\u6743\u9650");
         put("playback.service", "Playback service", "\u64ad\u653e\u670d\u52a1");
         put("now.playing", "Now playing", "\u6b63\u5728\u64ad\u653e");
-        put("streaming.gateway", "Streaming gateway", "\u4e32\u6d41\u7f51\u5173");
+        put("streaming.gateway", "Streaming gateway", "\u5728\u7ebf\u97f3\u4e50\u7f51\u5173");
         put("endpoint", "Endpoint", "\u7aef\u70b9");
         put("granted", "Granted", "\u5df2\u6388\u6743");
         put("missing", "Missing", "\u672a\u6388\u6743");
@@ -62,6 +64,20 @@ public final class AppLanguage {
         put("settings.group.about.description", "App status and version.", "\u5e94\u7528\u72b6\u6001\u548c\u7248\u672c\u4fe1\u606f\u3002");
         put("advanced", "Advanced", "\u9ad8\u7ea7");
         put("version", "Version", "\u7248\u672c");
+        put("backup.export", "Export backup", "\u5bfc\u51fa\u5907\u4efd");
+        put("backup.import", "Import backup", "\u5bfc\u5165\u5907\u4efd");
+        put("backup.export.success", "Backup exported", "\u5907\u4efd\u5df2\u5bfc\u51fa");
+        put("backup.export.failed", "Export failed", "\u5bfc\u51fa\u5931\u8d25");
+        put("backup.import.success", "Backup imported, restart to apply", "\u5907\u4efd\u5df2\u5bfc\u5165\uff0c\u8bf7\u91cd\u542f\u5e94\u7528");
+        put("backup.import.failed", "Import failed", "\u5bfc\u5165\u5931\u8d25");
+        put("recently.added", "Recently added", "\u6700\u8fd1\u6dfb\u52a0");
+        put("no.recently.added", "No recently added tracks", "\u6682\u65e0\u6700\u8fd1\u6dfb\u52a0");
+        put("no.recently.added.description", "Newly imported or scanned tracks appear here.", "\u65b0\u5bfc\u5165\u6216\u626b\u63cf\u7684\u66f2\u76ee\u5c06\u51fa\u73b0\u5728\u6b64\u3002");
+        put("play.recently.added", "Play recently added", "\u64ad\u653e\u6700\u8fd1\u6dfb\u52a0");
+        put("long.unplayed", "Long unplayed", "\u5f88\u4e45\u6ca1\u542c");
+        put("no.long.unplayed", "Nothing unplayed", "\u6ca1\u6709\u957f\u671f\u672a\u64ad\u653e\u7684\u66f2\u76ee");
+        put("no.long.unplayed.description", "Tracks not played in the last 7 days appear here.", "\u8d85\u8fc7 7 \u5929\u672a\u64ad\u653e\u7684\u66f2\u76ee\u5c06\u51fa\u73b0\u5728\u6b64\u3002");
+        put("play.long.unplayed", "Play long unplayed", "\u64ad\u653e\u5f88\u4e45\u6ca1\u542c");
         put("playback.speed", "Playback speed", "\u64ad\u653e\u901f\u5ea6");
         put("app.volume", "App volume", "\u5e94\u7528\u97f3\u91cf");
         put("audio.effects", "Audio effects", "\u97f3\u6548");
@@ -85,18 +101,26 @@ public final class AppLanguage {
         put("overlay.permission", "Overlay permission", "\u60ac\u6d6e\u7a97\u6743\u9650");
         put("grant.overlay.permission", "Grant overlay permission", "\u53bb\u6388\u4e88\u60ac\u6d6e\u7a97\u6743\u9650");
         put("now.playing.gestures", "Now playing gestures", "\u64ad\u653e\u9875\u624b\u52bf");
-        put("now.playing.gestures.description", "On the Now Playing page: swipe left or right to switch tracks, swipe up or down to adjust ECHO volume.", "\u5728\u201c\u6b63\u5728\u64ad\u653e\u201d\u9875\uff1a\u5de6\u53f3\u6ed1\u5207\u6362\u6b4c\u66f2\uff0c\u4e0a\u4e0b\u6ed1\u8c03\u6574 ECHO \u97f3\u91cf\u3002");
+        put("now.playing.gestures.description", "On the Now Playing page: swipe left or right to switch tracks, swipe up or down to adjust Yukine volume.", "\u5728\u201c\u6b63\u5728\u64ad\u653e\u201d\u9875\uff1a\u5de6\u53f3\u6ed1\u5207\u6362\u6b4c\u66f2\uff0c\u4e0a\u4e0b\u6ed1\u8c03\u6574 Yukine \u97f3\u91cf\u3002");
         put("enable.now.playing.gestures", "Enable gestures", "\u5f00\u542f\u624b\u52bf");
         put("disable.now.playing.gestures", "Disable gestures", "\u5173\u95ed\u624b\u52bf");
         put("now.playing.gestures.enabled", "Now Playing gestures enabled", "\u5df2\u5f00\u542f\u64ad\u653e\u9875\u624b\u52bf");
         put("now.playing.gestures.disabled", "Now Playing gestures disabled", "\u5df2\u5173\u95ed\u64ad\u653e\u9875\u624b\u52bf");
         put("playback.restore", "Restore last queue", "\u542f\u52a8\u6062\u590d\u961f\u5217");
-        put("playback.restore.description", "When ECHO starts again or the phone reboots, restore the last queue, current song, and saved position.", "\u91cd\u65b0\u6253\u5f00 ECHO \u6216\u624b\u673a\u91cd\u542f\u540e\uff0c\u6062\u590d\u4e0a\u6b21\u961f\u5217\u3001\u5f53\u524d\u6b4c\u66f2\u548c\u5df2\u4fdd\u5b58\u8fdb\u5ea6\u3002");
+        put("playback.restore.description", "When Yukine starts again or the phone reboots, restore the last queue, current song, and saved position.", "\u91cd\u65b0\u6253\u5f00 Yukine \u6216\u624b\u673a\u91cd\u542f\u540e\uff0c\u6062\u590d\u4e0a\u6b21\u961f\u5217\u3001\u5f53\u524d\u6b4c\u66f2\u548c\u5df2\u4fdd\u5b58\u8fdb\u5ea6\u3002");
         put("enable.playback.restore", "Enable queue restore", "\u5f00\u542f\u961f\u5217\u6062\u590d");
         put("disable.playback.restore", "Disable queue restore", "\u5173\u95ed\u961f\u5217\u6062\u590d");
         put("playback.restore.enabled", "Queue restore enabled", "\u5df2\u5f00\u542f\u961f\u5217\u6062\u590d");
         put("playback.restore.disabled", "Queue restore disabled", "\u5df2\u5173\u95ed\u961f\u5217\u6062\u590d");
         put("replay.gain", "Volume leveling", "\u97f3\u91cf\u5747\u8861");
+        put("audio.effects.hint", "Equalizer, bass, surround, and loudness", "\u5747\u8861\u5668\u3001\u4f4e\u97f3\u3001\u73af\u7ed5\u548c\u54cd\u5ea6\u589e\u5f3a");
+        put("replay.gain.hint", "Auto-balance volume differences between songs", "\u81ea\u52a8\u5e73\u8861\u4e0d\u540c\u6b4c\u66f2\u4e4b\u95f4\u7684\u97f3\u91cf\u5dee\u5f02");
+        put("now.playing.gestures.hint", "Swipe on the player to switch songs and adjust volume", "\u5728\u64ad\u653e\u9875\u6ed1\u52a8\u5207\u6b4c\u3001\u8c03\u8282\u97f3\u91cf");
+        put("playback.restore.hint", "Restore the last queue when the app reopens", "\u91cd\u65b0\u6253\u5f00\u5e94\u7528\u65f6\u6062\u590d\u4e0a\u6b21\u7684\u64ad\u653e\u961f\u5217");
+        put("concurrent.playback.hint", "Play alongside videos or calls without pausing them", "\u4e0e\u89c6\u9891\u3001\u901a\u8bdd\u7b49\u540c\u65f6\u51fa\u58f0\uff0c\u4e92\u4e0d\u6253\u65ad");
+        put("remote.music.sources.hint", "Add WebDAV or other network music sources", "\u6dfb\u52a0 WebDAV \u7b49\u7f51\u7edc\u97f3\u4e50\u6765\u6e90");
+        put("streaming.audio.quality.hint", "Audio quality for online streaming playback", "\u5728\u7ebf\u64ad\u653e\u7684\u97f3\u8d28\u9009\u62e9");
+        put("streaming.gateway.hint", "For advanced users; normal users can skip this", "\u9ad8\u7ea7\u9009\u9879\uff0c\u666e\u901a\u7528\u6237\u65e0\u9700\u8bbe\u7f6e");
         put("replay.gain.description", "Use ReplayGain tags in local tracks to reduce loudness jumps between songs.", "\u8bfb\u53d6\u672c\u5730\u6b4c\u66f2\u7684 ReplayGain \u6807\u7b7e\uff0c\u51cf\u5c11\u4e0d\u540c\u6b4c\u66f2\u4e4b\u95f4\u7684\u97f3\u91cf\u5ffd\u5927\u5ffd\u5c0f\u3002");
         put("enable.replay.gain", "Enable volume leveling", "\u5f00\u542f\u97f3\u91cf\u5747\u8861");
         put("disable.replay.gain", "Disable volume leveling", "\u5173\u95ed\u97f3\u91cf\u5747\u8861");
@@ -141,7 +165,7 @@ public final class AppLanguage {
         put("speed.description", "Adjust playback speed", "\u8c03\u6574\u64ad\u653e\u901f\u5ea6");
         put("volume.description", "Adjust app playback volume", "\u8c03\u6574\u5e94\u7528\u64ad\u653e\u97f3\u91cf");
         put("streaming.quality.description", "Choose the maximum quality for online playback. Lower quality can reduce buffering.", "\u9009\u62e9\u5728\u7ebf\u64ad\u653e\u7684\u6700\u9ad8\u97f3\u8d28\u3002\u964d\u4f4e\u97f3\u8d28\u53ef\u51cf\u5c11\u7f13\u51b2\u3002");
-        put("concurrent.playback.description", "Keep playing alongside other media apps instead of pausing them. ECHO will not request audio focus, so it won't pause other apps and won't be paused by them.", "\u4e0e\u5176\u4ed6\u5a92\u4f53\u5e94\u7528\u540c\u65f6\u51fa\u58f0\uff0c\u800c\u4e0d\u662f\u6682\u505c\u5b83\u4eec\u3002ECHO \u4e0d\u518d\u62a2\u5360\u97f3\u9891\u7126\u70b9\uff0c\u56e0\u6b64\u65e2\u4e0d\u4f1a\u6682\u505c\u5176\u4ed6\u5e94\u7528\uff0c\u4e5f\u4e0d\u4f1a\u88ab\u5b83\u4eec\u6682\u505c\u3002");
+        put("concurrent.playback.description", "Keep playing alongside other media apps instead of pausing them. Yukine will not request audio focus, so it won't pause other apps and won't be paused by them.", "\u4e0e\u5176\u4ed6\u5a92\u4f53\u5e94\u7528\u540c\u65f6\u51fa\u58f0\uff0c\u800c\u4e0d\u662f\u6682\u505c\u5b83\u4eec\u3002Yukine \u4e0d\u518d\u62a2\u5360\u97f3\u9891\u7126\u70b9\uff0c\u56e0\u6b64\u65e2\u4e0d\u4f1a\u6682\u505c\u5176\u4ed6\u5e94\u7528\uff0c\u4e5f\u4e0d\u4f1a\u88ab\u5b83\u4eec\u6682\u505c\u3002");
         put("enable.concurrent.playback", "Enable mixing", "\u5f00\u542f\u540c\u65f6\u64ad\u653e");
         put("disable.concurrent.playback", "Disable mixing", "\u5173\u95ed\u540c\u65f6\u64ad\u653e");
         put("options", "Options", "\u9009\u9879");
@@ -169,7 +193,7 @@ public final class AppLanguage {
         put("retry.playback", "Retry", "\u91cd\u8bd5\u64ad\u653e");
         put("grant.access", "Grant access", "\u6388\u6743\u8bbf\u95ee");
         put("audio.permission.required", "Audio permission required", "\u9700\u8981\u97f3\u9891\u6743\u9650");
-        put("audio.permission.description", "Allow audio access so Echo can scan and play your local library.", "\u6388\u6743\u97f3\u9891\u8bbf\u95ee\u540e\uff0cEcho \u624d\u80fd\u626b\u63cf\u5e76\u64ad\u653e\u672c\u5730\u66f2\u5e93\u3002");
+        put("audio.permission.description", "Allow audio access so Yukine can scan and play your local library.", "\u6388\u6743\u97f3\u9891\u8bbf\u95ee\u540e\uff0cYukine \u624d\u80fd\u626b\u63cf\u5e76\u64ad\u653e\u672c\u5730\u66f2\u5e93\u3002");
         put("no.music", "No music found", "\u672a\u627e\u5230\u97f3\u4e50");
         put("no.music.description", "Scan the device again or import files/folders to start building your library.", "\u53ef\u91cd\u65b0\u626b\u63cf\u8bbe\u5907\uff0c\u6216\u5bfc\u5165\u6587\u4ef6\u548c\u6587\u4ef6\u5939\u6765\u5efa\u7acb\u66f2\u5e93\u3002");
         put("playback.service.unavailable", "Playback is not ready", "\u64ad\u653e\u670d\u52a1\u6682\u672a\u5c31\u7eea");
@@ -181,6 +205,13 @@ public final class AppLanguage {
         put("accent.options", "Blue / Teal / Rose / Violet / Amber / Emerald", "\u84dd\u8272 / \u9752\u7eff / \u73ab\u7ea2 / \u7d2b\u7f57\u5170 / \u7425\u73c0 / \u7fe0\u7eff");
         put("language.options", "System / Chinese / English", "\u8ddf\u968f\u7cfb\u7edf / \u4e2d\u6587 / English");
         put("streaming.gateway.description", "Android calls this gateway for provider search, auth, and playback URL resolution. Leave empty to use the in-app local login fallback.", "Android \u901a\u8fc7\u6b64\u7f51\u5173\u8c03\u7528\u6d41\u5a92\u4f53\u641c\u7d22\u3001\u767b\u5f55\u548c\u64ad\u653e URL \u89e3\u6790\u3002\u7559\u7a7a\u53ef\u4f7f\u7528\u672c\u5730\u767b\u5f55\u56de\u9000\u3002");
+        put("share.style", "Share style", "\u5206\u4eab\u6837\u5f0f");
+        put("share.style.hint", "Choose platform link card, plain text, or image card.", "\u9009\u62e9\u5e73\u53f0\u94fe\u63a5\u5361\u7247\u3001\u7eaf\u6587\u672c\u6216\u56fe\u7247\u5361\u7247\u3002");
+        put("share.style.description", "Platform link card shares the original music URL so QQ/WeChat can recognize it as a playable music card when supported.", "\u5e73\u53f0\u94fe\u63a5\u5361\u7247\u4f1a\u5206\u4eab\u539f\u59cb\u97f3\u4e50\u94fe\u63a5\uff0cQQ/\u5fae\u4fe1\u652f\u6301\u65f6\u4f1a\u8bc6\u522b\u4e3a\u53ef\u64ad\u653e\u97f3\u4e50\u5361\u7247\u3002");
+        put("share.style.platform.card", "Platform link card", "\u5e73\u53f0\u94fe\u63a5\u5361\u7247");
+        put("share.style.text", "Plain text", "\u7eaf\u6587\u672c");
+        put("share.style.card", "Image card", "\u56fe\u7247\u5361\u7247");
+        put("share.style.applied", "Share style: ", "\u5206\u4eab\u6837\u5f0f\uff1a");
         put("streaming.gateway.emulator", "Android emulator host (10.0.2.2:43990)", "\u5b89\u5353\u6a21\u62df\u5668\u4e3b\u673a\uff0810.0.2.2:43990\uff09");
         put("streaming.gateway.localhost", "Local device host (127.0.0.1:43990)", "\u672c\u673a\u8bbe\u5907\u4e3b\u673a\uff08127.0.0.1:43990\uff09");
         put("quality.auto", "Auto", "\u81ea\u52a8");
@@ -201,14 +232,14 @@ public final class AppLanguage {
         put("concurrent.playback.enabled", "Mixing with other media enabled", "\u5df2\u5f00\u542f\u4e0e\u5176\u4ed6\u5a92\u4f53\u540c\u65f6\u64ad\u653e");
         put("concurrent.playback.disabled", "Mixing with other media disabled", "\u5df2\u5173\u95ed\u4e0e\u5176\u4ed6\u5a92\u4f53\u540c\u65f6\u64ad\u653e");
         put("lyrics.offset.applied", "Lyrics offset: ", "\u6b4c\u8bcd\u504f\u79fb\uff1a");
-        put("streaming.gateway.applied", "Streaming gateway: ", "\u4e32\u6d41\u7f51\u5173\uff1a");
+        put("streaming.gateway.applied", "Streaming gateway: ", "\u5728\u7ebf\u97f3\u4e50\u7f51\u5173\uff1a");
         put("no.track.selected", "No track selected", "\u672a\u9009\u62e9\u6b4c\u66f2");
         put("reloading.lyrics", "Reloading lyrics", "\u6b63\u5728\u91cd\u65b0\u52a0\u8f7d\u6b4c\u8bcd");
         put("show.lyrics", "Show lyrics", "\u663e\u793a\u6b4c\u8bcd");
         put("show.artwork", "Show artwork", "\u663e\u793a\u5c01\u9762");
         put("no.lyrics.found", "No lyrics found", "\u672a\u627e\u5230\u6b4c\u8bcd");
         put("lyrics.not.loaded", "Lyrics not loaded", "\u6b4c\u8bcd\u5c1a\u672a\u52a0\u8f7d");
-        put("loading.lyrics", "Loading lyrics", "\u6b63\u5728\u52a0\u8f7d\u6b4c\u8bcd");
+        put("loading.lyrics", "Loading lyrics from multiple sources", "\u6b63\u5728\u4ece\u591a\u4e2a\u6765\u6e90\u52a0\u8f7d\u6b4c\u8bcd");
         put("loading.local.lyrics", "Loading local lyrics", "\u6b63\u5728\u52a0\u8f7d\u672c\u5730\u6b4c\u8bcd");
         put("no.local.lyrics.found", "No local lyrics found", "\u672a\u627e\u5230\u672c\u5730\u6b4c\u8bcd");
         put("loaded.lyrics.prefix", "Loaded lyrics: ", "\u5df2\u52a0\u8f7d\u6b4c\u8bcd\uff1a");
@@ -222,6 +253,8 @@ public final class AppLanguage {
         put("in.order", "In order", "\u987a\u5e8f");
 
         put("favorites", "Favorites", "\u6536\u85cf");
+        put("favorite.playlist", "Favorite playlist", "\u6536\u85cf\u6b4c\u5355");
+        put("play.history.playlist", "Play history", "\u64ad\u653e\u5386\u53f2");
         put("recent", "Recent", "\u6700\u8fd1");
         put("playlists", "Playlists", "\u64ad\u653e\u5217\u8868");
         put("most.played", "Most played", "\u64ad\u653e\u6700\u591a");
@@ -238,6 +271,9 @@ public final class AppLanguage {
         put("play.recent", "Play recent", "\u64ad\u653e\u6700\u8fd1");
         put("play.most.played", "Play most played", "\u64ad\u653e\u6700\u591a");
         put("play.playlist", "Play playlist", "\u64ad\u653e\u6b4c\u5355");
+        put("download.playlist", "Download playlist", "\u4e0b\u8f7d\u6b4c\u5355");
+        put("download.manager", "Download manager", "\u4e0b\u8f7d\u7ba1\u7406");
+        put("download.manager.hint", "View pending, progress, and downloaded songs", "\u67e5\u770b\u5f85\u4e0b\u8f7d\u3001\u8fdb\u5ea6\u548c\u5df2\u4e0b\u8f7d\u6b4c\u66f2");
         put("back.to.playlists", "Back to playlists", "\u8fd4\u56de\u6b4c\u5355");
         put("export.playlist", "Export playlist", "\u5bfc\u51fa\u64ad\u653e\u5217\u8868");
         put("no.playlists", "No playlists", "\u6682\u65e0\u64ad\u653e\u5217\u8868");
@@ -263,9 +299,9 @@ public final class AppLanguage {
         put("down", "Down", "\u4e0b\u79fb");
 
         put("remote.sources", "Remote sources", "\u8fdc\u7a0b\u6765\u6e90");
-        put("streams", "Streams", "\u4e32\u6d41");
+        put("streams", "Streams", "\u5728\u7ebf\u97f3\u4e50");
         put("webdav.sources", "WebDAV sources", "WebDAV \u6765\u6e90");
-        put("streaming", "Streaming", "\u4e32\u6d41");
+        put("streaming", "Streaming", "\u5728\u7ebf\u97f3\u4e50");
         put("webdav", "WebDAV", "WebDAV");
         put("source", "Source", "\u6765\u6e90");
         put("direct.url.m3u", "Direct URL / M3U", "\u76f4\u94fe / M3U");
@@ -273,12 +309,12 @@ public final class AppLanguage {
         put("tracks", "Tracks", "\u66f2\u76ee");
         put("sync.mode", "Sync mode", "\u540c\u6b65\u6a21\u5f0f");
         put("sync.mode.library", "Library", "\u66f2\u5e93");
-        put("add.stream.url", "Add stream URL", "\u6dfb\u52a0\u4e32\u6d41 URL");
+        put("add.stream.url", "Add stream URL", "\u6dfb\u52a0\u5728\u7ebf\u97f3\u4e50 URL");
         put("import.m3u.url", "Import M3U URL", "\u5bfc\u5165 M3U URL");
         put("import.m3u.file", "Import M3U file", "\u5bfc\u5165 M3U \u6587\u4ef6");
-        put("play.streams", "Play streams", "\u64ad\u653e\u4e32\u6d41");
-        put("browse.streams", "Browse streams", "\u6d4f\u89c8\u4e32\u6d41");
-        put("delete.streams", "Delete streams", "\u5220\u9664\u4e32\u6d41");
+        put("play.streams", "Play streams", "\u64ad\u653e\u5728\u7ebf\u97f3\u4e50");
+        put("browse.streams", "Browse streams", "\u6d4f\u89c8\u5728\u7ebf\u97f3\u4e50");
+        put("delete.streams", "Delete streams", "\u5220\u9664\u5728\u7ebf\u97f3\u4e50");
         put("add.webdav", "Add WebDAV", "\u6dfb\u52a0 WebDAV");
         put("sync.all", "Sync all", "\u5168\u90e8\u540c\u6b65");
         put("play.webdav", "Play WebDAV", "\u64ad\u653e WebDAV");
@@ -300,8 +336,8 @@ public final class AppLanguage {
         put("back.to.sources", "Back to sources", "\u8fd4\u56de\u6765\u6e90");
         put("sync.source", "Sync source", "\u540c\u6b65\u6765\u6e90");
         put("play.source", "Play source", "\u64ad\u653e\u6765\u6e90");
-        put("no.streams", "No streams", "\u6682\u65e0\u4e32\u6d41");
-        put("no.matching.streams", "No matching streams", "\u6ca1\u6709\u5339\u914d\u7684\u4e32\u6d41");
+        put("no.streams", "No streams", "\u6682\u65e0\u5728\u7ebf\u97f3\u4e50");
+        put("no.matching.streams", "No matching streams", "\u6ca1\u6709\u5339\u914d\u7684\u5728\u7ebf\u97f3\u4e50");
         put("no.webdav.tracks", "No WebDAV tracks", "\u6682\u65e0 WebDAV \u66f2\u76ee");
         put("no.matching.webdav.tracks", "No matching WebDAV tracks", "\u6ca1\u6709\u5339\u914d\u7684 WebDAV \u66f2\u76ee");
         put("source.not.found", "Source not found", "\u672a\u627e\u5230\u6765\u6e90");
@@ -326,9 +362,9 @@ public final class AppLanguage {
         put("delete.playlist.message.prefix", "Delete playlist \"", "\u5220\u9664\u64ad\u653e\u5217\u8868\u201c");
         put("delete.message.suffix", "\"?", "\u201d\uff1f");
         put("choose.playlist", "Choose playlist", "\u9009\u62e9\u64ad\u653e\u5217\u8868");
-        put("add.stream.url.title", "Add stream URL", "\u6dfb\u52a0\u4e32\u6d41 URL");
+        put("add.stream.url.title", "Add stream URL", "\u6dfb\u52a0\u5728\u7ebf\u97f3\u4e50 URL");
         put("import.m3u.title", "Import M3U playlist", "\u5bfc\u5165 M3U \u64ad\u653e\u5217\u8868");
-        put("edit.stream", "Edit stream", "\u7f16\u8f91\u4e32\u6d41");
+        put("edit.stream", "Edit stream", "\u7f16\u8f91\u5728\u7ebf\u97f3\u4e50");
         put("add.webdav.source", "Add WebDAV source", "\u6dfb\u52a0 WebDAV \u6765\u6e90");
         put("edit.webdav.source", "Edit WebDAV source", "\u7f16\u8f91 WebDAV \u6765\u6e90");
         put("clear.play.history.title", "Clear play history", "\u6e05\u7a7a\u64ad\u653e\u5386\u53f2");
@@ -337,11 +373,11 @@ public final class AppLanguage {
         put("clear.queue.message", "Clear the current queue?", "\u6e05\u7a7a\u5f53\u524d\u961f\u5217\uff1f");
         put("queue.empty", "Queue is empty", "\u961f\u5217\u6682\u65e0\u6b4c\u66f2");
         put("queue.empty.description", "Play a track or add music to build the current queue.", "\u64ad\u653e\u4e00\u9996\u6b4c\uff0c\u6216\u6dfb\u52a0\u6b4c\u66f2\u6765\u5efa\u7acb\u5f53\u524d\u961f\u5217\u3002");
-        put("delete.all.streams.title", "Delete streams", "\u5220\u9664\u4e32\u6d41");
-        put("delete.all.streams.message", "Delete all stream entries?", "\u5220\u9664\u5168\u90e8\u4e32\u6d41\u6761\u76ee\uff1f");
-        put("delete.stream.title", "Delete stream", "\u5220\u9664\u4e32\u6d41");
+        put("delete.all.streams.title", "Delete streams", "\u5220\u9664\u5728\u7ebf\u97f3\u4e50");
+        put("delete.all.streams.message", "Delete all stream entries?", "\u5220\u9664\u5168\u90e8\u5728\u7ebf\u97f3\u4e50\u6761\u76ee\uff1f");
+        put("delete.stream.title", "Delete stream", "\u5220\u9664\u5728\u7ebf\u97f3\u4e50");
         put("delete.stream.message.prefix", "Delete \"", "\u5220\u9664\u201c");
-        put("deleted.stream", "Deleted stream", "\u5df2\u5220\u9664\u4e32\u6d41");
+        put("deleted.stream", "Deleted stream", "\u5df2\u5220\u9664\u5728\u7ebf\u97f3\u4e50");
         put("delete.source.title", "Delete source", "\u5220\u9664\u6765\u6e90");
         put("delete.source.message.prefix", "Delete \"", "\u5220\u9664\u201c");
         put("added.to.playlist", "Added to playlist", "\u5df2\u6dfb\u52a0\u5230\u64ad\u653e\u5217\u8868");
@@ -398,6 +434,11 @@ public final class AppLanguage {
         put("streaming.import.failed", "Streaming import failed", "\u6d41\u5a92\u4f53\u5bfc\u5165\u5931\u8d25");
         put("streaming.request.failed", "Streaming request failed", "\u6d41\u5a92\u4f53\u8bf7\u6c42\u5931\u8d25");
         put("streaming.account.playlists.failed", "Could not load account playlists", "\u65e0\u6cd5\u52a0\u8f7d\u8d26\u6237\u6b4c\u5355");
+        put("streaming.account.playlists.import.title", "Import account playlists", "\u5bfc\u5165\u8d26\u6237\u6b4c\u5355");
+        put("streaming.account.playlists.import.message", "Choose playlists to import into the local library.", "\u9009\u62e9\u8981\u5bfc\u5165\u5230\u672c\u5730\u66f2\u5e93\u7684\u6b4c\u5355\u3002");
+        put("streaming.account.playlists.import.confirm", "Import selected", "\u5bfc\u5165\u5df2\u9009");
+        put("streaming.account.playlists.imported", "Imported account playlists: ", "\u5df2\u5bfc\u5165\u8d26\u6237\u6b4c\u5355\uff1a");
+        put("streaming.account.playlists.failed.count", "Failed ", "\u5931\u8d25 ");
         put("streaming.login.opening", "Opening streaming login", "\u6b63\u5728\u6253\u5f00\u6d41\u5a92\u4f53\u767b\u5f55");
         put("streaming.login.unavailable", "Streaming login unavailable", "\u6d41\u5a92\u4f53\u767b\u5f55\u4e0d\u53ef\u7528");
         put("streaming.login.complete", "Streaming login complete", "\u6d41\u5a92\u4f53\u767b\u5f55\u5b8c\u6210");
@@ -441,25 +482,25 @@ public final class AppLanguage {
         put("streaming.playlist.empty", "Playlist is empty or unavailable", "\u6b4c\u5355\u4e3a\u7a7a\u6216\u4e0d\u53ef\u7528");
         put("streaming.resolving", "Resolving streaming track", "\u6b63\u5728\u89e3\u6790\u6d41\u5a92\u4f53\u6b4c\u66f2");
         put("streaming.resolve.failed", "Could not resolve streaming track (login required?)", "\u65e0\u6cd5\u89e3\u6790\u6d41\u5a92\u4f53\u6b4c\u66f2\uff08\u9700\u767b\u5f55\uff1f\uff09");
-        put("adding.stream", "Adding stream", "\u6b63\u5728\u6dfb\u52a0\u4e32\u6d41");
-        put("updating.stream", "Updating stream", "\u6b63\u5728\u66f4\u65b0\u4e32\u6d41");
+        put("adding.stream", "Adding stream", "\u6b63\u5728\u6dfb\u52a0\u5728\u7ebf\u97f3\u4e50");
+        put("updating.stream", "Updating stream", "\u6b63\u5728\u66f4\u65b0\u5728\u7ebf\u97f3\u4e50");
         put("importing.m3u.playlist", "Importing M3U playlist", "\u6b63\u5728\u5bfc\u5165 M3U \u64ad\u653e\u5217\u8868");
-        put("no.streams.to.play", "No streams to play", "\u6ca1\u6709\u53ef\u64ad\u653e\u7684\u4e32\u6d41");
+        put("no.streams.to.play", "No streams to play", "\u6ca1\u6709\u53ef\u64ad\u653e\u7684\u5728\u7ebf\u97f3\u4e50");
         put("no.webdav.tracks.to.play", "No WebDAV tracks to play", "\u6ca1\u6709\u53ef\u64ad\u653e\u7684 WebDAV \u66f2\u76ee");
         put("no.source.tracks.to.play", "No tracks from this source to play", "\u6b64\u6765\u6e90\u6ca1\u6709\u53ef\u64ad\u653e\u7684\u66f2\u76ee");
-        put("no.streams.to.delete", "No streams to delete", "\u6ca1\u6709\u53ef\u5220\u9664\u7684\u4e32\u6d41");
-        put("deleting.streams", "Deleting streams", "\u6b63\u5728\u5220\u9664\u4e32\u6d41");
-        put("deleting.stream", "Deleting stream", "\u6b63\u5728\u5220\u9664\u4e32\u6d41");
+        put("no.streams.to.delete", "No streams to delete", "\u6ca1\u6709\u53ef\u5220\u9664\u7684\u5728\u7ebf\u97f3\u4e50");
+        put("deleting.streams", "Deleting streams", "\u6b63\u5728\u5220\u9664\u5728\u7ebf\u97f3\u4e50");
+        put("deleting.stream", "Deleting stream", "\u6b63\u5728\u5220\u9664\u5728\u7ebf\u97f3\u4e50");
         put("deleting.source", "Deleting source", "\u6b63\u5728\u5220\u9664\u6765\u6e90");
         put("library.updated", "Library updated", "\u66f2\u5e93\u5df2\u66f4\u65b0");
         put("audio.specs.updated", "Audio specs parsed", "\u97f3\u9891\u89c4\u683c\u5df2\u89e3\u6790");
-        put("could.not.add.stream.url", "Could not add stream URL", "\u65e0\u6cd5\u6dfb\u52a0\u4e32\u6d41 URL");
-        put("could.not.update.stream.url", "Could not update stream URL", "\u65e0\u6cd5\u66f4\u65b0\u4e32\u6d41 URL");
-        put("no.streams.imported", "No streams imported", "\u672a\u5bfc\u5165\u4e32\u6d41");
+        put("could.not.add.stream.url", "Could not add stream URL", "\u65e0\u6cd5\u6dfb\u52a0\u5728\u7ebf\u97f3\u4e50 URL");
+        put("could.not.update.stream.url", "Could not update stream URL", "\u65e0\u6cd5\u66f4\u65b0\u5728\u7ebf\u97f3\u4e50 URL");
+        put("no.streams.imported", "No streams imported", "\u672a\u5bfc\u5165\u5728\u7ebf\u97f3\u4e50");
         put("local.m3u.import.failed", "Local M3U import failed", "\u672c\u5730 M3U \u5bfc\u5165\u5931\u8d25");
         put("playlist.import.failed", "Playlist import failed", "\u64ad\u653e\u5217\u8868\u5bfc\u5165\u5931\u8d25");
         put("no.playlist.entries.imported", "No playlist entries imported", "\u672a\u5bfc\u5165\u64ad\u653e\u5217\u8868\u6761\u76ee");
-        put("imported.streams", "Imported streams", "\u5df2\u5bfc\u5165\u4e32\u6d41");
+        put("imported.streams", "Imported streams", "\u5df2\u5bfc\u5165\u5728\u7ebf\u97f3\u4e50");
         put("imported.playlist", "Imported playlist", "\u5df2\u5bfc\u5165\u64ad\u653e\u5217\u8868");
         put("updated.webdav.source", "Updated WebDAV source", "\u5df2\u66f4\u65b0 WebDAV \u6765\u6e90");
         put("added.webdav.source", "Added WebDAV source", "\u5df2\u6dfb\u52a0 WebDAV \u6765\u6e90");
@@ -476,7 +517,7 @@ public final class AppLanguage {
         put("skipped.count.prefix", "skipped ", "\u8df3\u8fc7 ");
         put("parsed.count.prefix", "parsed ", "\u89e3\u6790 ");
         put("playlist.tracks.count.prefix", "playlist tracks ", "\u64ad\u653e\u5217\u8868\u66f2\u76ee ");
-        put("streams.count.prefix", "streams ", "\u4e32\u6d41 ");
+        put("streams.count.prefix", "streams ", "\u5728\u7ebf\u97f3\u4e50 ");
         put("none", "none", "\u65e0");
     }
 
@@ -536,6 +577,12 @@ public final class AppLanguage {
         }
         if (MainRoutes.TAB_NETWORK.equals(tabKey)) {
             return text(languageMode, "tab.network");
+        }
+        if (MainRoutes.TAB_DOWNLOADS.equals(tabKey)) {
+            return text(languageMode, "tab.downloads");
+        }
+        if (MainRoutes.TAB_SEARCH.equals(tabKey)) {
+            return text(languageMode, "tab.search");
         }
         if (MainRoutes.TAB_SETTINGS.equals(tabKey)) {
             return text(languageMode, "tab.settings");

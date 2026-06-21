@@ -17,7 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 
 /**
- * Shared motion vocabulary for ECHO Next. Keeping every animation spec in one place means the
+ * Shared motion vocabulary for Yukine. Keeping every animation spec in one place means the
  * whole app shares a coherent feel and the timing/physics can be tuned from a single file.
  *
  * Springs are preferred for anything the user directly drives (presses, toggles, list movement)
@@ -119,4 +119,3 @@ fun Modifier.echoEnter(
         translationY = risePx * (1f - progress.value)
     }
 }
-

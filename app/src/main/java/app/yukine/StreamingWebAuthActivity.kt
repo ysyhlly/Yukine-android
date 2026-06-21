@@ -6,7 +6,12 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
+import android.view.Gravity
 import android.view.ViewGroup
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -25,18 +30,13 @@ class StreamingWebAuthActivity : Activity() {
             finish()
             return
         }
-        webView = WebView(this).also { view ->
+        val webView = WebView(this).also { view ->
             view.setBackgroundColor(Color.TRANSPARENT)
             configureWebView(view)
-            setContentView(
-                view,
-                ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-            )
             view.loadUrl(url)
         }
+        this.webView = webView
+        setContentView(loginLayout(webView))
         lastProviderUrl = url
     }
 
@@ -69,8 +69,66 @@ class StreamingWebAuthActivity : Activity() {
             override fun onPageFinished(view: WebView, url: String) {
                 lastProviderUrl = url
                 CookieManager.getInstance().flush()
+                if (collectCookieHeader(logOnly = true) != null && shouldAutoComplete(url)) {
+                    finishWithAuthCallback(fallbackCallbackUri())
+                }
             }
         }
+    }
+
+    private fun loginLayout(webView: WebView): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.WHITE)
+            addView(
+                webView,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    0,
+                    1f
+                )
+            )
+            addView(loginActionBar())
+        }
+    }
+
+    private fun loginActionBar(): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(10), dp(16), dp(10))
+            setBackgroundColor(Color.rgb(250, 247, 241))
+
+            addView(
+                TextView(this@StreamingWebAuthActivity).apply {
+                    text = "在网页里完成登录后，点右侧按钮保存到 Yukine"
+                    textSize = 13f
+                    setTextColor(Color.rgb(63, 55, 45))
+                },
+                LinearLayout.LayoutParams(
+                    0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    1f
+                )
+            )
+            addView(
+                Button(this@StreamingWebAuthActivity).apply {
+                    text = "登录完成"
+                    setOnClickListener {
+                        finishWithAuthCallback(fallbackCallbackUri())
+                    }
+                },
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+    }
+
+    private fun shouldAutoComplete(url: String): Boolean {
+        return !url.contains("/login", ignoreCase = true) &&
+            !url.contains("passport", ignoreCase = true)
     }
 
     private fun handleAuthUrl(uri: Uri?): Boolean {
@@ -132,7 +190,7 @@ class StreamingWebAuthActivity : Activity() {
         return uri.buildUpon().appendQueryParameter("provider", provider).build()
     }
 
-    private fun collectCookieHeader(): String? {
+    private fun collectCookieHeader(logOnly: Boolean = false): String? {
         val cookieManager = CookieManager.getInstance()
         cookieManager.flush()
         // Query every domain the provider might store cookies on (login sub-domain AND the
@@ -166,6 +224,7 @@ class StreamingWebAuthActivity : Activity() {
                 }
             }
         }
+        Log.d(TAG, "Captured streaming cookie names: ${merged.keys.sorted().joinToString(",")}")
         if (merged.isEmpty()) {
             return null
         }
@@ -178,10 +237,18 @@ class StreamingWebAuthActivity : Activity() {
             // completeAuth() surface an "auth canceled / incomplete" state instead.
             return null
         }
+        if (logOnly) {
+            Log.d(TAG, "Streaming auth cookie is ready for provider=$provider")
+        }
         return header
     }
 
+    private fun dp(value: Int): Int {
+        return (value * resources.displayMetrics.density).toInt()
+    }
+
     companion object {
+        private const val TAG = "StreamingWebAuth"
         const val EXTRA_PROVIDER: String = "app.yukine.extra.PROVIDER"
         const val EXTRA_URL: String = "app.yukine.extra.URL"
         const val EXTRA_COOKIE_HEADER: String = "app.yukine.extra.COOKIE_HEADER"

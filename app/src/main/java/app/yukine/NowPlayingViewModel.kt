@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import app.yukine.model.Track
 import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.PlaybackStateSnapshot
+import app.yukine.streaming.StreamingAudioQuality
+import app.yukine.streaming.StreamingProviderName
 import app.yukine.ui.LyricUiLine
 import app.yukine.ui.NowBarState
 import app.yukine.ui.nowBarEmptyState
@@ -24,6 +26,8 @@ sealed interface NowPlayingEvent {
     data object OpenQueue : NowPlayingEvent
     data object ToggleFavorite : NowPlayingEvent
     data object AddToPlaylist : NowPlayingEvent
+    data object ShareCurrentTrack : NowPlayingEvent
+    data object DownloadCurrentTrack : NowPlayingEvent
     data object ToggleShuffle : NowPlayingEvent
     data object CycleRepeatMode : NowPlayingEvent
 }
@@ -35,6 +39,14 @@ fun interface NowPlayingEventHandler {
 sealed interface NowPlayingEffect {
     data object OpenQueue : NowPlayingEffect
     data class OpenAddToPlaylist(val track: Track) : NowPlayingEffect
+    data class ShareTrack(val track: Track) : NowPlayingEffect
+    data class DownloadTrack(val track: Track) : NowPlayingEffect
+    data class SwitchSource(
+        val track: Track,
+        val provider: StreamingProviderName,
+        val providerTrackId: String,
+        val quality: StreamingAudioQuality?
+    ) : NowPlayingEffect
     data class ShowMessage(val message: String) : NowPlayingEffect
 }
 
@@ -200,6 +212,22 @@ class NowPlayingViewModel : ViewModel() {
                     emitNoTrackMessage()
                 }
             }
+            NowPlayingEvent.ShareCurrentTrack -> {
+                val track = _uiState.value.currentTrack
+                if (track != null && track.id >= 0L) {
+                    emitEffect(NowPlayingEffect.ShareTrack(track))
+                } else {
+                    emitNoTrackMessage()
+                }
+            }
+            NowPlayingEvent.DownloadCurrentTrack -> {
+                val track = _uiState.value.currentTrack
+                if (track != null && track.id >= 0L) {
+                    emitEffect(NowPlayingEffect.DownloadTrack(track))
+                } else {
+                    emitNoTrackMessage()
+                }
+            }
             NowPlayingEvent.ToggleShuffle -> gateway?.toggleShuffle()
             NowPlayingEvent.CycleRepeatMode -> gateway?.cycleRepeatMode()
         }
@@ -211,6 +239,22 @@ class NowPlayingViewModel : ViewModel() {
             drained.add(pendingEffects.removeFirst())
         }
         return drained
+    }
+
+    fun switchSource(
+        track: Track?,
+        provider: StreamingProviderName?,
+        providerTrackId: String?,
+        quality: StreamingAudioQuality?
+    ) {
+        val safeTrack = track ?: return emitNoTrackMessage()
+        val safeProvider = provider ?: return
+        val safeTrackId = providerTrackId?.trim().orEmpty()
+        if (safeTrackId.isBlank()) {
+            emitEffect(NowPlayingEffect.ShowMessage("该音源缺少歌曲 ID，暂不能切换"))
+            return
+        }
+        emitEffect(NowPlayingEffect.SwitchSource(safeTrack, safeProvider, safeTrackId, quality))
     }
 
     fun skipToPrevious() {
@@ -397,14 +441,19 @@ class NowPlayingViewModel : ViewModel() {
         when {
             shuffleEnabled -> {
                 player.setShuffleEnabled(false)
+                player.setRepeatMode(EchoPlaybackService.REPEAT_ALL)
+            }
+            repeatMode == EchoPlaybackService.REPEAT_ALL -> {
                 player.setRepeatMode(EchoPlaybackService.REPEAT_ONE)
             }
             repeatMode == EchoPlaybackService.REPEAT_ONE -> {
+                player.setRepeatMode(EchoPlaybackService.REPEAT_OFF)
+            }
+            repeatMode == EchoPlaybackService.REPEAT_OFF -> {
                 player.setRepeatMode(EchoPlaybackService.REPEAT_ALL)
             }
             else -> {
                 player.setRepeatMode(EchoPlaybackService.REPEAT_ALL)
-                player.setShuffleEnabled(true)
             }
         }
         return PlaybackActionResultUi(player.snapshot(), null, false, false, true, false)

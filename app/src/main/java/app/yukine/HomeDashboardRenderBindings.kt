@@ -42,7 +42,8 @@ internal class HomeDashboardRenderBindings(
     private val openCollectionsAction: Runnable,
     private val dailyRecommendationsAction: StreamingRecommendationAction,
     private val heartbeatRecommendationsAction: StreamingRecommendationAction,
-    private val actionsSink: HomeDashboardActionsSink
+    private val actionsSink: HomeDashboardActionsSink,
+    private val openSearchAction: Runnable = Runnable { }
 ) : HomeDashboardRenderController.Listener {
     override fun openLibraryMode(mode: String) {
         libraryModeOpener.open(mode)
@@ -83,6 +84,10 @@ internal class HomeDashboardRenderBindings(
 
     override fun openCollections() {
         openCollectionsAction.run()
+    }
+
+    override fun openSearch() {
+        openSearchAction.run()
     }
 
     override fun playDailyRecommendations() {

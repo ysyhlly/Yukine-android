@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.yukine.TrackDownloadItem
 
 data class SettingsMetric(val label: String, val value: String)
 data class SettingsAction(val label: String, val onClick: Runnable, val description: String = "")
@@ -60,7 +61,10 @@ fun SettingsScreen(
     title: String,
     metrics: List<SettingsMetric>,
     actions: List<SettingsAction>,
-    scrollState: SettingsListScrollState
+    scrollState: SettingsListScrollState,
+    activeDownload: TrackDownloadItem? = null,
+    playbackQuality: String = "",
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
     val titleBackAction = actions.firstOrNull { isBackAction(it.label) }
     val visibleActions = if (titleBackAction != null) actions.drop(1) else actions
@@ -80,11 +84,24 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
     ) {
         item(key = "title") {
-            EchoPageTitle(
-                title,
-                backLabel = titleBackAction?.label,
-                onBack = titleBackAction?.onClick
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                EchoPageTitle(
+                    title,
+                    modifier = Modifier.weight(1f),
+                    backLabel = titleBackAction?.label,
+                    onBack = titleBackAction?.onClick
+                )
+                YukineDownloadOrb(
+                    item = activeDownload,
+                    playbackQuality = playbackQuality,
+                    audioMotion = audioMotion,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
         }
         itemsIndexed(
             items = visibleActions,

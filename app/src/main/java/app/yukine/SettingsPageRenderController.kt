@@ -22,6 +22,8 @@ internal class SettingsPageRenderController(
 
         fun openNetworkSources()
 
+        fun openDownloads()
+
         fun loadLibrary()
 
         fun openAudioFilePicker()
@@ -44,6 +46,8 @@ internal class SettingsPageRenderController(
 
         fun applyStreamingAudioQuality(quality: String)
 
+        fun applyShareStyle(style: String)
+
         fun setConcurrentPlaybackEnabled(enabled: Boolean)
 
         fun applyAudioEffectSettings(settings: AudioEffectSettings)
@@ -59,6 +63,10 @@ internal class SettingsPageRenderController(
         fun setPlaybackRestoreEnabled(enabled: Boolean)
 
         fun setReplayGainEnabled(enabled: Boolean)
+
+        fun exportBackup()
+
+        fun importBackup()
 
         fun applyThemeMode(mode: String)
 
@@ -108,6 +116,7 @@ internal class SettingsPageRenderController(
         addGroupNavigationAction(actions, languageMode, "library", MainRoutes.SETTINGS_LIBRARY_GROUP)
         addGroupNavigationAction(actions, languageMode, "lyrics", MainRoutes.SETTINGS_LYRICS_GROUP)
         addGroupNavigationAction(actions, languageMode, "sources", MainRoutes.SETTINGS_SOURCES_GROUP)
+        actions.add(SettingsAction(text(languageMode, "download.manager"), Runnable { listener.openDownloads() }, text(languageMode, "download.manager.hint")))
         addGroupNavigationAction(actions, languageMode, "about", MainRoutes.SETTINGS_ABOUT_GROUP)
         renderSettingsScreen(text(languageMode, "tab.settings"), metrics, actions)
     }
@@ -150,11 +159,11 @@ internal class SettingsPageRenderController(
         addBackAction(actions, languageMode)
         addNavigationAction(actions, text(languageMode, "playback.speed"), MainRoutes.SETTINGS_PLAYBACK_SPEED)
         addNavigationAction(actions, text(languageMode, "app.volume"), MainRoutes.SETTINGS_APP_VOLUME)
-        addNavigationAction(actions, text(languageMode, "audio.effects"), MainRoutes.SETTINGS_AUDIO_EFFECTS)
-        addNavigationAction(actions, text(languageMode, "replay.gain"), MainRoutes.SETTINGS_REPLAY_GAIN)
-        addNavigationAction(actions, text(languageMode, "now.playing.gestures"), MainRoutes.SETTINGS_NOW_PLAYING_GESTURES)
-        addNavigationAction(actions, text(languageMode, "playback.restore"), MainRoutes.SETTINGS_PLAYBACK_RESTORE)
-        addNavigationAction(actions, text(languageMode, "concurrent.playback"), MainRoutes.SETTINGS_CONCURRENT_PLAYBACK)
+        addNavigationAction(actions, text(languageMode, "audio.effects"), MainRoutes.SETTINGS_AUDIO_EFFECTS, text(languageMode, "audio.effects.hint"))
+        addNavigationAction(actions, text(languageMode, "replay.gain"), MainRoutes.SETTINGS_REPLAY_GAIN, text(languageMode, "replay.gain.hint"))
+        addNavigationAction(actions, text(languageMode, "now.playing.gestures"), MainRoutes.SETTINGS_NOW_PLAYING_GESTURES, text(languageMode, "now.playing.gestures.hint"))
+        addNavigationAction(actions, text(languageMode, "playback.restore"), MainRoutes.SETTINGS_PLAYBACK_RESTORE, text(languageMode, "playback.restore.hint"))
+        addNavigationAction(actions, text(languageMode, "concurrent.playback"), MainRoutes.SETTINGS_CONCURRENT_PLAYBACK, text(languageMode, "concurrent.playback.hint"))
         addNavigationAction(actions, text(languageMode, "sleep.timer"), MainRoutes.SETTINGS_SLEEP_TIMER)
         renderSettingsScreen(groupTitle(languageMode, "playback"), metrics, actions)
     }
@@ -198,17 +207,19 @@ internal class SettingsPageRenderController(
         renderSettingsScreen(groupTitle(languageMode, "lyrics"), metrics, actions)
     }
 
-    fun renderSourcesGroup(languageMode: String, quality: String, gatewayConfigured: Boolean) {
+    fun renderSourcesGroup(languageMode: String, quality: String, shareStyle: String, gatewayConfigured: Boolean) {
         val normalizedQuality = StreamingQualityPreference.normalize(quality)
         val metrics = ArrayList<SettingsMetric>()
         metrics.add(SettingsMetric(text(languageMode, "streaming.audio.quality"), streamingQualityLabel(normalizedQuality, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "share.style"), shareStyleLabel(shareStyle, languageMode)))
         metrics.add(SettingsMetric(text(languageMode, "streaming.gateway"), if (gatewayConfigured) text(languageMode, "connected") else text(languageMode, "missing")))
         metrics.add(SettingsMetric(text(languageMode, "description"), groupDescription(languageMode, "sources")))
         val actions = ArrayList<SettingsAction>()
         addBackAction(actions, languageMode)
-        actions.add(SettingsAction(text(languageMode, "remote.music.sources"), Runnable { listener.openNetworkSources() }))
-        addNavigationAction(actions, text(languageMode, "streaming.audio.quality"), MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY)
-        addNavigationAction(actions, text(languageMode, "advanced") + " · " + text(languageMode, "streaming.gateway"), MainRoutes.SETTINGS_STREAMING_GATEWAY)
+        actions.add(SettingsAction(text(languageMode, "remote.music.sources"), Runnable { listener.openNetworkSources() }, text(languageMode, "remote.music.sources.hint")))
+        addNavigationAction(actions, text(languageMode, "streaming.audio.quality"), MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY, text(languageMode, "streaming.audio.quality.hint"))
+        addNavigationAction(actions, text(languageMode, "share.style"), MainRoutes.SETTINGS_SHARE_STYLE, text(languageMode, "share.style.hint"))
+        addNavigationAction(actions, text(languageMode, "advanced") + " · " + text(languageMode, "streaming.gateway"), MainRoutes.SETTINGS_STREAMING_GATEWAY, text(languageMode, "streaming.gateway.hint"))
         renderSettingsScreen(groupTitle(languageMode, "sources"), metrics, actions)
     }
 
@@ -220,6 +231,8 @@ internal class SettingsPageRenderController(
         metrics.add(SettingsMetric(text(languageMode, "playback.service"), if (playbackServiceConnected) text(languageMode, "connected") else text(languageMode, "disconnected")))
         val actions = ArrayList<SettingsAction>()
         addBackAction(actions, languageMode)
+        actions.add(SettingsAction(text(languageMode, "backup.export"), Runnable { listener.exportBackup() }))
+        actions.add(SettingsAction(text(languageMode, "backup.import"), Runnable { listener.importBackup() }))
         renderSettingsScreen(groupTitle(languageMode, "about"), metrics, actions)
     }
 
@@ -339,6 +352,19 @@ internal class SettingsPageRenderController(
             addStreamingQualityOption(actions, languageMode, normalizedQuality, option)
         }
         renderSettingsScreen(text(languageMode, "streaming.audio.quality"), metrics, actions)
+    }
+
+    fun renderShareStyle(languageMode: String, shareStyle: String) {
+        val normalizedStyle = TrackShareStyle.normalize(shareStyle)
+        val metrics = ArrayList<SettingsMetric>()
+        metrics.add(SettingsMetric(text(languageMode, "share.style"), shareStyleLabel(normalizedStyle, languageMode)))
+        metrics.add(SettingsMetric(text(languageMode, "description"), text(languageMode, "share.style.description")))
+        val actions = ArrayList<SettingsAction>()
+        addBackAction(actions, languageMode, MainRoutes.SETTINGS_SHARE_STYLE)
+        TrackShareStyle.options().forEach { option ->
+            addShareStyleOption(actions, languageMode, normalizedStyle, option)
+        }
+        renderSettingsScreen(text(languageMode, "share.style"), metrics, actions)
     }
 
     fun renderConcurrentPlayback(languageMode: String, concurrentPlaybackEnabled: Boolean) {
@@ -536,6 +562,10 @@ internal class SettingsPageRenderController(
         actions.add(SettingsAction(label, Runnable { listener.navigateSettingsPage(page) }))
     }
 
+    private fun addNavigationAction(actions: ArrayList<SettingsAction>, label: String, page: String, description: String) {
+        actions.add(SettingsAction(label, Runnable { listener.navigateSettingsPage(page) }, description))
+    }
+
     private fun addGroupNavigationAction(actions: ArrayList<SettingsAction>, languageMode: String, key: String, page: String) {
         actions.add(SettingsAction(groupTitle(languageMode, key), Runnable { listener.navigateSettingsPage(page) }, groupDescription(languageMode, key)))
     }
@@ -589,6 +619,15 @@ internal class SettingsPageRenderController(
             label += text(languageMode, "selected")
         }
         actions.add(SettingsAction(label, Runnable { listener.applyStreamingAudioQuality(normalizedQuality) }))
+    }
+
+    private fun addShareStyleOption(actions: ArrayList<SettingsAction>, languageMode: String, currentStyle: String, style: String) {
+        val normalizedStyle = TrackShareStyle.normalize(style)
+        var label = shareStyleLabel(normalizedStyle, languageMode)
+        if (TrackShareStyle.normalize(currentStyle) == normalizedStyle) {
+            label += text(languageMode, "selected")
+        }
+        actions.add(SettingsAction(label, Runnable { listener.applyShareStyle(normalizedStyle) }))
     }
 
     private fun addEqualizerPresetOption(actions: ArrayList<SettingsAction>, languageMode: String, settings: AudioEffectSettings, preset: Int) {
@@ -678,6 +717,15 @@ internal class SettingsPageRenderController(
                 StreamingQualityPreference.LOSSLESS -> text(languageMode, "quality.lossless")
                 StreamingQualityPreference.HIRES -> text(languageMode, "quality.hires")
                 else -> text(languageMode, "quality.high")
+            }
+        }
+
+        @JvmStatic
+        fun shareStyleLabel(style: String, languageMode: String): String {
+            return when (TrackShareStyle.normalize(style)) {
+                TrackShareStyle.PLATFORM_CARD -> text(languageMode, "share.style.platform.card")
+                TrackShareStyle.CARD -> text(languageMode, "share.style.card")
+                else -> text(languageMode, "share.style.text")
             }
         }
 
