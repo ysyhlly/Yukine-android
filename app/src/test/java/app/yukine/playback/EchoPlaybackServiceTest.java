@@ -9,10 +9,18 @@ import org.junit.Test;
 
 public class EchoPlaybackServiceTest {
     @Test
-    public void appListRepeatDoesNotLoopSinglePlayerItem() {
+    public void appListRepeatLoopsMedia3Playlist() {
+        assertEquals(
+                Player.REPEAT_MODE_ALL,
+                EchoPlaybackService.media3RepeatModeForAppRepeatMode(EchoPlaybackService.REPEAT_ALL)
+        );
+    }
+
+    @Test
+    public void appListRepeatDoesNotLoopSingleMedia3ItemWhenQueueIsNotMirrored() {
         assertEquals(
                 Player.REPEAT_MODE_OFF,
-                EchoPlaybackService.media3RepeatModeForAppRepeatMode(EchoPlaybackService.REPEAT_ALL)
+                EchoPlaybackService.media3RepeatModeForAppRepeatMode(EchoPlaybackService.REPEAT_ALL, false)
         );
     }
 
@@ -29,6 +37,22 @@ public class EchoPlaybackServiceTest {
         assertEquals(
                 Player.REPEAT_MODE_ONE,
                 EchoPlaybackService.media3RepeatModeForAppRepeatMode(EchoPlaybackService.REPEAT_ONE)
+        );
+    }
+
+    @Test
+    public void media3RepeatModesMapBackToAppRepeatModes() {
+        assertEquals(
+                EchoPlaybackService.REPEAT_ALL,
+                EchoPlaybackService.appRepeatModeForMedia3RepeatMode(Player.REPEAT_MODE_ALL)
+        );
+        assertEquals(
+                EchoPlaybackService.REPEAT_ONE,
+                EchoPlaybackService.appRepeatModeForMedia3RepeatMode(Player.REPEAT_MODE_ONE)
+        );
+        assertEquals(
+                EchoPlaybackService.REPEAT_OFF,
+                EchoPlaybackService.appRepeatModeForMedia3RepeatMode(Player.REPEAT_MODE_OFF)
         );
     }
 

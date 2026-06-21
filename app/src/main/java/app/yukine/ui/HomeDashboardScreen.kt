@@ -1,8 +1,10 @@
 package app.yukine.ui
 
 import android.net.Uri
+import app.yukine.TrackDownloadItem
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -69,7 +72,8 @@ data class HomeDashboardUiState(
     val heatmapMonths: List<HomeDashboardHeatmapMonth> = emptyList(),
     val activeWeeks: Int = 0,
     val activeDays: Int = 0,
-    val empty: Boolean = false
+    val empty: Boolean = false,
+    val streamingConnected: Boolean = false
 )
 
 data class HomeDashboardHeatmapDay(
@@ -113,41 +117,75 @@ data class HomeDashboardActions(
     val onRecentTabChanged: (Int) -> Unit,
     val onDailyRecommend: Runnable = Runnable { },
     val onHeartbeatRecommend: Runnable = Runnable { },
-    val onOpenCollections: Runnable = Runnable { }
+    val onOpenCollections: Runnable = Runnable { },
+    val onConnectStreaming: Runnable = Runnable { },
+    val onSearch: Runnable = Runnable { }
 )
 
 @Composable
-internal fun HomeDashboardScreen(state: HomeDashboardUiState, actions: HomeDashboardActions) {
+internal fun HomeDashboardScreen(
+    state: HomeDashboardUiState,
+    actions: HomeDashboardActions,
+    activeDownload: TrackDownloadItem? = null,
+    playbackQuality: String = "",
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
+) {
     val p = EchoTheme.colors()
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 100.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Hero section with Now Playing card
-        item("hero") {
-            Box(Modifier.echoEnter(0)) { HeroSection(state, actions) }
-        }
-        // Recommendations (每日推荐 / 心动推荐) — kept near the top so they're visible on first screen
-        item("recommendations") {
-            Box(Modifier.echoEnter(1)) { RecommendationCards(actions) }
-        }
-        // Stats grid (2x2 for mobile)
-        item("stats") {
-            Box(Modifier.echoEnter(2)) { StatGrid(state.stats, actions) }
-        }
-        // Recent activity (horizontal scroll)
-        item("recent") {
-            Box(Modifier.echoEnter(3)) { RecentActivitySection(state, actions) }
-        }
-        // Weekly recap with heatmap
-        item("weekly") {
-            Box(Modifier.echoEnter(4)) { WeeklyRecapSection(state) }
+    CollapsibleSearchHeader(
+        header = { HomeSearchCard(actions, activeDownload, playbackQuality, audioMotion) }
+    ) { contentModifier, _ ->
+        LazyColumn(
+            modifier = contentModifier,
+            contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 100.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Hero section with Now Playing card
+            item("hero") {
+                Box(Modifier.echoEnter(0)) { HeroSection(state, actions) }
+            }
+            // Streaming guide (only when not connected)
+            if (!state.streamingConnected) {
+                item("streaming-guide") {
+                    Box(Modifier.echoEnter(1)) { StreamingGuideCard { actions.onConnectStreaming.run() } }
+                }
+            }
+            // Recommendations (每日推荐 / 心动推荐) — kept near the top so they're visible on first screen
+            item("recommendations") {
+                Box(Modifier.echoEnter(if (state.streamingConnected) 1 else 2)) {
+                    RecommendationCards(actions, enabled = state.streamingConnected)
+                }
+            }
+            // Stats grid (2x2 for mobile)
+            item("stats") {
+                Box(Modifier.echoEnter(2)) { StatGrid(state.stats, actions) }
+            }
+            // Recent activity (horizontal scroll)
+            item("recent") {
+                Box(Modifier.echoEnter(3)) { RecentActivitySection(state, actions) }
+            }
+            // Weekly recap with heatmap
+            item("weekly") {
+                Box(Modifier.echoEnter(4)) { WeeklyRecapSection(state) }
+            }
         }
     }
 }
 
 // ── Hero Section (Mobile Optimized) ─────────────────────────────────────────
+
+@Composable
+private fun HomeSearchCard(
+    actions: HomeDashboardActions,
+    activeDownload: TrackDownloadItem?,
+    playbackQuality: String,
+    audioMotion: YukineOrbAudioMotion
+) {
+    YukineSearchBar(
+        activeDownload = activeDownload,
+        playbackQuality = playbackQuality,
+        audioMotion = audioMotion
+    ) { actions.onSearch.run() }
+}
 
 @Composable
 private fun HeroSection(state: HomeDashboardUiState, actions: HomeDashboardActions) {
@@ -234,6 +272,7 @@ private fun HeroActionButtons(actions: HomeDashboardActions) {
         item { HeroSecondaryButton("队列", EchoIconKind.Queue) { actions.onViewQueue.run() } }
         item { HeroSecondaryButton("随机", EchoIconKind.Shuffle) { actions.onShuffleAll.run() } }
         item { HeroSecondaryButton("收藏", EchoIconKind.Heart) { actions.onOpenCollections.run() } }
+        item { HeroSecondaryButton("搜索", EchoIconKind.Search) { actions.onSearch.run() } }
         item { HeroSecondaryButton("刷新", EchoIconKind.Sync) { actions.onRefresh.run() } }
     }
 }
@@ -734,24 +773,27 @@ private fun WaveProgress(progress: Float) {
 // ── Recommendations (每日推荐 / 心动推荐) ────────────────────────────────────
 
 @Composable
-private fun RecommendationCards(actions: HomeDashboardActions) {
+private fun RecommendationCards(actions: HomeDashboardActions, enabled: Boolean = true) {
+    val p = EchoTheme.colors()
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         RecommendationCard(
             title = "每日推荐",
-            subtitle = "每天为你精选",
+            subtitle = if (enabled) "每天为你精选" else "需要登录",
             icon = EchoIconKind.Sparkle,
             modifier = Modifier.weight(1f),
-            onClick = { actions.onDailyRecommend.run() }
+            dimmed = !enabled,
+            onClick = { if (enabled) actions.onDailyRecommend.run() else actions.onConnectStreaming.run() }
         )
         RecommendationCard(
             title = "心动推荐",
-            subtitle = "根据喜好智能播放",
+            subtitle = if (enabled) "根据喜好智能播放" else "需要登录",
             icon = EchoIconKind.Heart,
             modifier = Modifier.weight(1f),
-            onClick = { actions.onHeartbeatRecommend.run() }
+            dimmed = !enabled,
+            onClick = { if (enabled) actions.onHeartbeatRecommend.run() else actions.onConnectStreaming.run() }
         )
     }
 }
@@ -762,15 +804,18 @@ private fun RecommendationCard(
     subtitle: String,
     icon: EchoIconKind,
     modifier: Modifier = Modifier,
+    dimmed: Boolean = false,
     onClick: () -> Unit
 ) {
     val p = EchoTheme.colors()
     val interaction = remember { MutableInteractionSource() }
+    val alpha = if (dimmed) 0.5f else 1f
     Surface(
         onClick = onClick,
         interactionSource = interaction,
         modifier = modifier
             .echoPressScale(interaction)
+            .alpha(alpha)
             .semantics { contentDescription = title },
         shape = EchoShapes.medium,
         color = p.surface
@@ -808,4 +853,47 @@ private fun iconForMode(mode: String): EchoIconKind = when (mode) {
     "artists" -> EchoIconKind.Artist
     "folders" -> EchoIconKind.Folder
     else -> EchoIconKind.Library
+}
+
+@Composable
+private fun StreamingGuideCard(onConnect: () -> Unit) {
+    val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
+    Surface(
+        onClick = onConnect,
+        interactionSource = interaction,
+        modifier = Modifier
+            .fillMaxWidth()
+            .echoPressScale(interaction)
+            .semantics { contentDescription = "连接流媒体账号" },
+        shape = EchoShapes.medium,
+        color = p.accent.copy(alpha = 0.12f)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            EchoIcon(EchoIconKind.Action, Modifier.size(24.dp), p.accent)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    "连接流媒体账号",
+                    style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = p.heading
+                )
+                Text(
+                    "解锁每日推荐和心动推荐",
+                    style = EchoTypography.small,
+                    color = p.muted
+                )
+            }
+            Text(
+                "去连接",
+                style = EchoTypography.label,
+                color = p.accent
+            )
+        }
+    }
 }

@@ -3,7 +3,9 @@ package app.yukine
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.streaming.StreamingAudioQuality
+import app.yukine.streaming.StreamingLyricSource
 import app.yukine.streaming.StreamingPlaybackAdapter
+import app.yukine.streaming.StreamingPlaybackCandidate
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
 import java.util.ArrayList
@@ -61,6 +63,7 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
     private val preResolveProgress: Float = 0.70f,
     private val preResolveRetryMs: Long = 120_000L,
     private val recoveryCooldownMs: Long = 20_000L,
+    private val recoveryWarmupMs: Long = 8_000L,
     private val unresolvedStreamingTrack: (Track?) -> Boolean = StreamingPlaybackAdapter::isUnresolvedStreamingTrack
 ) : StreamingPlaybackResolvePlanner {
     private var preResolvingKey = ""
@@ -169,6 +172,9 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
         ) {
             return null
         }
+        if (snapshot.positionMs < recoveryWarmupMs) {
+            return null
+        }
         val provider = StreamingPlaybackAdapter.providerName(current.dataPath) ?: return null
         val providerTrackId = StreamingPlaybackAdapter.providerTrackId(current.dataPath)
             .takeIf { it.isNotBlank() }
@@ -240,7 +246,25 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
             qualities = emptySet(),
             explicit = false,
             playable = true,
-            unavailableReason = null
+            unavailableReason = null,
+            description = track.album.takeIf { it.isNotBlank() }?.let { "专辑：$it" },
+            lyricSources = listOf(
+                StreamingLyricSource(
+                    provider = provider,
+                    name = "${provider.wireName} 歌词",
+                    providerTrackId = providerTrackId,
+                    priority = 0
+                )
+            ),
+            playbackCandidates = listOf(
+                StreamingPlaybackCandidate(
+                    provider = provider,
+                    quality = null,
+                    label = "${provider.wireName} 播放源",
+                    providerTrackId = providerTrackId,
+                    available = true
+                )
+            )
         )
     }
 }

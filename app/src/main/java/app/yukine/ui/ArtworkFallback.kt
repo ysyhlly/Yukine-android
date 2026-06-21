@@ -82,5 +82,5 @@ private fun seedFor(title: String, subtitle: String): String {
         return cleanTitle
     }
     val cleanSubtitle = subtitle.trim()
-    return if (cleanSubtitle.isEmpty()) "ECHO" else cleanSubtitle
+    return if (cleanSubtitle.isEmpty()) "Yukine" else cleanSubtitle
 }

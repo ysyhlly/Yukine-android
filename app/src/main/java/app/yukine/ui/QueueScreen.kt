@@ -300,7 +300,7 @@ private fun QueueDragHandle(modifier: Modifier) {
     Surface(
         modifier = modifier
             .size(30.dp)
-            .semantics { contentDescription = "Drag to reorder" },
+            .semantics { contentDescription = "拖动重新排序" },
         shape = EchoShapes.small,
         color = p.surfaceVariant.copy(alpha = 0.24f)
     ) {

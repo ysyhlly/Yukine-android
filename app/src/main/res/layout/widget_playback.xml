@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#20242A"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="12dp">
+
+    <ImageView
+        android:id="@+id/widget_artwork"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:background="#313840"
+        android:contentDescription="@string/widget_artwork"
+        android:padding="10dp"
+        android:scaleType="centerCrop"
+        android:src="@drawable/ic_stat_echo" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/widget_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/widget_empty_title"
+            android:textColor="#F7F4EC"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/widget_empty_subtitle"
+            android:textColor="#AEB7BF"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/widget_previous"
+        android:layout_width="42dp"
+        android:layout_height="42dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/previous"
+        android:padding="9dp"
+        android:src="@drawable/ic_notif_previous"
+        android:tint="#F7F4EC" />
+
+    <ImageButton
+        android:id="@+id/widget_play_pause"
+        android:layout_width="46dp"
+        android:layout_height="46dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/play"
+        android:padding="9dp"
+        android:src="@drawable/ic_notif_play"
+        android:tint="#F7F4EC" />
+
+    <ImageButton
+        android:id="@+id/widget_next"
+        android:layout_width="42dp"
+        android:layout_height="42dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/next"
+        android:padding="9dp"
+        android:src="@drawable/ic_notif_next"
+        android:tint="#F7F4EC" />
+</LinearLayout>

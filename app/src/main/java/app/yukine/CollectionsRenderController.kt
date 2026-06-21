@@ -39,6 +39,10 @@ internal class CollectionsRenderController(
 
         fun showAddToPlaylist(track: Track)
 
+        fun downloadTrack(track: Track)
+
+        fun downloadTracks(tracks: List<Track>)
+
         fun selectPlaylist(playlistId: Long)
 
         fun showRenamePlaylist(playlist: Playlist)
@@ -71,7 +75,9 @@ internal class CollectionsRenderController(
         selectedPlaylistTracks: List<Track>,
         selectedPlaylistId: Long,
         playbackState: PlaybackStateSnapshot?,
-        favoriteIds: Set<Long>
+        favoriteIds: Set<Long>,
+        recentlyAdded: List<Track> = emptyList(),
+        longUnplayed: List<Track> = emptyList()
     ) {
         val fallbackPlaylistTitle = text(languageMode, "playlist")
         viewModel.updateCollections(
@@ -152,6 +158,32 @@ internal class CollectionsRenderController(
             currentTrack,
             favoriteIds
         )
+        addCollectionTrackSection(
+            trackSections,
+            trackSectionActions,
+            "recently-added",
+            text(languageMode, "recently.added"),
+            recentlyAdded,
+            text(languageMode, "no.recently.added"),
+            text(languageMode, "no.recently.added.description"),
+            text(languageMode, "play.recently.added"),
+            null,
+            currentTrack,
+            favoriteIds
+        )
+        addCollectionTrackSection(
+            trackSections,
+            trackSectionActions,
+            "long-unplayed",
+            text(languageMode, "long.unplayed"),
+            longUnplayed,
+            text(languageMode, "no.long.unplayed"),
+            text(languageMode, "no.long.unplayed.description"),
+            text(languageMode, "play.long.unplayed"),
+            null,
+            currentTrack,
+            favoriteIds
+        )
 
         val playlistRows = ArrayList<PlaylistRowUiState>()
         val playlistActions = ArrayList<PlaylistRowActions>()
@@ -164,6 +196,9 @@ internal class CollectionsRenderController(
         if (selectedPlaylistId >= 0L && selectedPlaylistTracks.isNotEmpty()) {
             addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "play.playlist"), Runnable {
                 listener.playTrackList(selectedPlaylistTracks, 0)
+            })
+            addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "download.playlist"), Runnable {
+                listener.downloadTracks(selectedPlaylistTracks)
             })
             addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "export.playlist"), Runnable {
                 listener.openSelectedPlaylistExportDocument()
@@ -257,14 +292,16 @@ internal class CollectionsRenderController(
                     currentTrack,
                     favoriteIds,
                     if (details != null && index < details.size) details[index] else "",
-                    true
+                    true,
+                    TrackRowKeyPolicy.occurrenceKey(tracks, index)
                 )
             )
             rowActions.add(
                 TrackRowActions(
                     Runnable { listener.playTrackList(tracks, index) },
                     Runnable { listener.toggleFavorite(track) },
-                    Runnable { listener.showAddToPlaylist(track) }
+                    Runnable { listener.showAddToPlaylist(track) },
+                    Runnable { listener.downloadTrack(track) }
                 )
             )
         }
@@ -331,6 +368,7 @@ internal class CollectionsRenderController(
                 PlaylistTrackActions(
                     Runnable { listener.playTrackList(selectedPlaylistTracks, index) },
                     Runnable { listener.toggleFavorite(track) },
+                    Runnable { listener.downloadTrack(track) },
                     Runnable { listener.moveSelectedPlaylistTrack(playlistIdForRows, track, index, -1) },
                     Runnable { listener.moveSelectedPlaylistTrack(playlistIdForRows, track, index, 1) },
                     Runnable { listener.removeSelectedPlaylistTrack(playlistIdForRows, track) }

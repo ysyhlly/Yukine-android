@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.ui.EchoTheme
+import app.yukine.playback.AudioEffectSettings
 
 internal class MainSettingsStore {
     private var themeMode: String = EchoTheme.MODE_SYSTEM
@@ -10,6 +11,13 @@ internal class MainSettingsStore {
     private var appVolume: Float = 1.0f
     private var streamingAudioQuality: String = StreamingQualityPreference.defaultValue()
     private var concurrentPlaybackEnabled: Boolean = false
+    private var audioEffectSettings: AudioEffectSettings = AudioEffectSettings.DEFAULT
+    private var statusBarLyricsEnabled: Boolean = true
+    private var floatingLyricsEnabled: Boolean = false
+    private var nowPlayingGesturesEnabled: Boolean = true
+    private var playbackRestoreEnabled: Boolean = true
+    private var replayGainEnabled: Boolean = true
+    private var shareStyle: String = TrackShareStyle.defaultValue()
 
     fun load(preferences: LoadedSettingsPreferences) {
         themeMode = preferences.themeMode
@@ -19,6 +27,13 @@ internal class MainSettingsStore {
         appVolume = preferences.appVolume
         streamingAudioQuality = preferences.streamingAudioQuality
         concurrentPlaybackEnabled = preferences.concurrentPlaybackEnabled
+        audioEffectSettings = preferences.audioEffectSettings
+        statusBarLyricsEnabled = preferences.statusBarLyricsEnabled
+        floatingLyricsEnabled = preferences.floatingLyricsEnabled
+        nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled
+        playbackRestoreEnabled = preferences.playbackRestoreEnabled
+        replayGainEnabled = preferences.replayGainEnabled
+        shareStyle = preferences.shareStyle
         EchoTheme.setMode(themeMode)
         EchoTheme.setAccent(accentMode)
     }
@@ -51,6 +66,34 @@ internal class MainSettingsStore {
         return concurrentPlaybackEnabled
     }
 
+    fun audioEffectSettings(): AudioEffectSettings {
+        return audioEffectSettings
+    }
+
+    fun statusBarLyricsEnabled(): Boolean {
+        return statusBarLyricsEnabled
+    }
+
+    fun floatingLyricsEnabled(): Boolean {
+        return floatingLyricsEnabled
+    }
+
+    fun nowPlayingGesturesEnabled(): Boolean {
+        return nowPlayingGesturesEnabled
+    }
+
+    fun playbackRestoreEnabled(): Boolean {
+        return playbackRestoreEnabled
+    }
+
+    fun replayGainEnabled(): Boolean {
+        return replayGainEnabled
+    }
+
+    fun shareStyle(): String {
+        return shareStyle
+    }
+
     fun setThemeMode(themeMode: String) {
         this.themeMode = EchoTheme.normalizeMode(themeMode)
     }
@@ -77,5 +120,33 @@ internal class MainSettingsStore {
 
     fun setConcurrentPlaybackEnabled(concurrentPlaybackEnabled: Boolean) {
         this.concurrentPlaybackEnabled = concurrentPlaybackEnabled
+    }
+
+    fun setAudioEffectSettings(audioEffectSettings: AudioEffectSettings?) {
+        this.audioEffectSettings = audioEffectSettings ?: AudioEffectSettings.DEFAULT
+    }
+
+    fun setStatusBarLyricsEnabled(enabled: Boolean) {
+        this.statusBarLyricsEnabled = enabled
+    }
+
+    fun setFloatingLyricsEnabled(enabled: Boolean) {
+        this.floatingLyricsEnabled = enabled
+    }
+
+    fun setNowPlayingGesturesEnabled(enabled: Boolean) {
+        this.nowPlayingGesturesEnabled = enabled
+    }
+
+    fun setPlaybackRestoreEnabled(enabled: Boolean) {
+        this.playbackRestoreEnabled = enabled
+    }
+
+    fun setReplayGainEnabled(enabled: Boolean) {
+        this.replayGainEnabled = enabled
+    }
+
+    fun setShareStyle(style: String) {
+        this.shareStyle = TrackShareStyle.normalize(style)
     }
 }

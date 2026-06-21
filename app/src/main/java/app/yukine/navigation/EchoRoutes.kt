@@ -26,6 +26,8 @@ sealed interface TabRoute : EchoRoute {
             QueueTab.route -> QueueTab
             NowTab.route -> NowTab
             NetworkTab.route -> NetworkTab
+            DownloadsTab.route -> DownloadsTab
+            SearchTab.route -> SearchTab
             SettingsTab.route -> SettingsTab
             else -> null
         }
@@ -54,6 +56,14 @@ data object NowTab : TabRoute {
 
 data object NetworkTab : TabRoute {
     override val route = "network"
+}
+
+data object DownloadsTab : TabRoute {
+    override val route = "downloads"
+}
+
+data object SearchTab : TabRoute {
+    override val route = "search"
 }
 
 data object SettingsTab : TabRoute {
@@ -240,6 +250,7 @@ object RouteMigration {
         "queue" -> QueueTab
         "now" -> NowTab
         "network" -> NetworkTab
+        "downloads" -> DownloadsTab
         "settings" -> SettingsTab
         else -> HomeTab
     }

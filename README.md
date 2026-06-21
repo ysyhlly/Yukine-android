@@ -41,6 +41,6 @@ app/build/outputs/apk/debug/app-debug.apk
 ## Notes
 
 - The project package remains `app.yukine` during migration.
-- Activity-facing playback, streaming, library, and settings gateway glue is being moved into small Kotlin bindings as part of the MVVM migration.
+- Activity-facing playback, streaming, library, settings gateway glue, settings-applied side effects, lyrics state refresh handling, document picker result wiring, and playlist export wiring are being moved into small Kotlin bindings as part of the MVVM migration.
 - Existing internal architecture names may still use `echo` until the refactor is complete.
 - Playback service release checks are tracked in [docs/PLAYBACK_SERVICE_STABILITY_MATRIX.md](docs/PLAYBACK_SERVICE_STABILITY_MATRIX.md).

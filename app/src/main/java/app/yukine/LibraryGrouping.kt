@@ -151,7 +151,8 @@ internal object LibraryGrouping {
         return track.title
     }
 
-    private fun albumCount(tracks: List<Track>): Int {
+    @JvmStatic
+    fun albumCount(tracks: List<Track>): Int {
         val albums = HashSet<String>()
         for (track in tracks) {
             albums.add(track.album)

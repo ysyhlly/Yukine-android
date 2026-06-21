@@ -1,6 +1,7 @@
 package app.yukine.ui
 
 import android.net.Uri
+import app.yukine.TrackDownloadItem
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,36 +51,58 @@ internal fun LibraryGroupsScreen(
     groups: List<LibraryGroupUiState>,
     actions: List<LibraryGroupActions>,
     emptyText: String,
-    modeActions: List<TrackListModeAction>
+    modeActions: List<TrackListModeAction>,
+    onSearch: Runnable = Runnable { },
+    activeDownload: TrackDownloadItem? = null,
+    playbackQuality: String = "",
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
     val p = EchoTheme.colors()
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = echoPagePadding(),
-        verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
-    ) {
-        item(key = "title") {
-            EchoPageTitle(title)
-        }
-        if (modeActions.isNotEmpty()) {
-            item(key = "modes") {
-                GroupModeSelector(modeActions)
+    CollapsibleSearchHeader(
+        header = { LibrarySearchRow(onSearch, activeDownload, playbackQuality, audioMotion) }
+    ) { contentModifier, _ ->
+        LazyColumn(
+            modifier = contentModifier,
+            contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 100.dp),
+            verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
+        ) {
+            item(key = "title") {
+                EchoPageTitle(title)
             }
-        }
-        itemsIndexed(
-            items = groups,
-            key = { _, group -> group.id }
-        ) { i, group ->
-            actions.getOrNull(i)?.let { action ->
-                LibraryGroupRow(group, action)
+            if (modeActions.isNotEmpty()) {
+                item(key = "modes") {
+                    GroupModeSelector(modeActions)
+                }
             }
-        }
-        if (groups.isEmpty() && emptyText.isNotBlank()) {
-            item(key = "empty") {
-                GroupMessage(emptyText)
+            itemsIndexed(
+                items = groups,
+                key = { index, group -> "group:${group.id}:$index" }
+            ) { i, group ->
+                actions.getOrNull(i)?.let { action ->
+                    LibraryGroupRow(group, action)
+                }
+            }
+            if (groups.isEmpty() && emptyText.isNotBlank()) {
+                item(key = "empty") {
+                    GroupMessage(emptyText)
+                }
             }
         }
     }
+}
+
+@Composable
+private fun LibrarySearchRow(
+    onSearch: Runnable,
+    activeDownload: TrackDownloadItem?,
+    playbackQuality: String,
+    audioMotion: YukineOrbAudioMotion
+) {
+    YukineSearchBar(
+        activeDownload = activeDownload,
+        playbackQuality = playbackQuality,
+        audioMotion = audioMotion
+    ) { onSearch.run() }
 }
 
 @Composable
@@ -147,7 +170,7 @@ private fun LibraryGroupRow(group: LibraryGroupUiState, actions: LibraryGroupAct
         modifier = Modifier
             .combinedClickable(
                 interactionSource = interaction,
-                indication = null,
+                indication = androidx.compose.foundation.LocalIndication.current,
                 onClick = { actions.onOpen.run() },
                 onLongClick = actions.onLongPress?.let { action -> { action.run() } }
             )
@@ -184,7 +207,7 @@ private fun LibraryGroupRow(group: LibraryGroupUiState, actions: LibraryGroupAct
                     modifier = Modifier
                         .size(40.dp)
                         .echoGlassLayer(p, EchoShapes.small)
-                        .semantics { contentDescription = "Play" },
+                        .semantics { contentDescription = "播放" },
                     shape = EchoShapes.small,
                     color = Color.Transparent
                 ) {

@@ -111,7 +111,7 @@ class RemoteDashboardGateway(
         conn.connectTimeout = CONNECT_TIMEOUT_MS
         conn.readTimeout = READ_TIMEOUT_MS
         conn.setRequestProperty("Accept", "application/json")
-        conn.setRequestProperty("User-Agent", "EchoNext/Android")
+        conn.setRequestProperty("User-Agent", "Yukine/Android")
         return conn
     }
 

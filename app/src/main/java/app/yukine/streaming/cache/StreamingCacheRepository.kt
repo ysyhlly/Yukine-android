@@ -61,6 +61,17 @@ class StreamingCacheRepository(
         return dao.playback(provider.wireName, providerTrackId, quality.wireName, clock())?.payloadJson
     }
 
+    /**
+     * 同步读取播放缓存（任意质量级别中最新的一条）。
+     *
+     * **此方法使用 `runBlocking(Dispatchers.IO)` 桥接**：调用方
+     * [app.yukine.streaming.PersistentStreamingPlaybackHeaders] 的
+     * `restoreForDataPath` / `restoredTrackFor` 实现同步接口，无法改为 suspend，
+     * 而 Room 在主线程调用同步 DAO 时会硬抛 `IllegalStateException`。
+     * `runBlocking(IO)` 把实际查询切到 IO 线程，满足 Room 的线程断言。
+     *
+     * 如未来接口整体协程化，应将本方法改为 suspend 并去掉 runBlocking。
+     */
     fun cachedPlaybackBlocking(provider: StreamingProviderName, providerTrackId: String): String? {
         return runBlocking(Dispatchers.IO) {
             dao.playbackBlocking(provider.wireName, providerTrackId, clock())?.payloadJson

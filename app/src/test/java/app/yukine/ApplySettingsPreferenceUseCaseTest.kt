@@ -1,5 +1,6 @@
 package app.yukine
 
+import app.yukine.playback.AudioEffectSettings
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -18,6 +19,12 @@ class ApplySettingsPreferenceUseCaseTest {
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.OnlineLyricsEnabled, true))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.ConcurrentPlaybackEnabled, false))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.LyricsOffsetMs, -200L))
+        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.AudioEffectSettings, AudioEffectSettings.DEFAULT.withEnabled(true)))
+        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.StatusBarLyricsEnabled, false))
+        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.FloatingLyricsEnabled, true))
+        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.NowPlayingGesturesEnabled, false))
+        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.PlaybackRestoreEnabled, true))
+        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.ReplayGainEnabled, false))
 
         assertEquals(
             listOf(
@@ -29,7 +36,13 @@ class ApplySettingsPreferenceUseCaseTest {
                 "quality:lossless",
                 "onlineLyrics:true",
                 "concurrent:false",
-                "lyricsOffset:-200"
+                "lyricsOffset:-200",
+                "effects:true",
+                "statusLyrics:false",
+                "floatingLyrics:true",
+                "gestures:false",
+                "restore:true",
+                "replayGain:false"
             ),
             operations.events
         )
@@ -72,6 +85,30 @@ class ApplySettingsPreferenceUseCaseTest {
 
         override fun saveLyricsOffsetMs(offsetMs: Long) {
             events.add("lyricsOffset:$offsetMs")
+        }
+
+        override fun saveAudioEffectSettings(settings: AudioEffectSettings) {
+            events.add("effects:${settings.enabled}")
+        }
+
+        override fun saveStatusBarLyricsEnabled(enabled: Boolean) {
+            events.add("statusLyrics:$enabled")
+        }
+
+        override fun saveFloatingLyricsEnabled(enabled: Boolean) {
+            events.add("floatingLyrics:$enabled")
+        }
+
+        override fun saveNowPlayingGesturesEnabled(enabled: Boolean) {
+            events.add("gestures:$enabled")
+        }
+
+        override fun savePlaybackRestoreEnabled(enabled: Boolean) {
+            events.add("restore:$enabled")
+        }
+
+        override fun saveReplayGainEnabled(enabled: Boolean) {
+            events.add("replayGain:$enabled")
         }
     }
 }

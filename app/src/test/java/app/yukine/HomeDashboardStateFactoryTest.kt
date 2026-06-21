@@ -32,7 +32,7 @@ class HomeDashboardStateFactoryTest {
             now
         )
 
-        assertEquals("Echo Next", state.title)
+        assertEquals("Yukine", state.title)
         assertEquals("3 首歌曲 - 8 分钟", state.subtitle)
         assertEquals("第二首", state.continueTitle)
         assertEquals("正在播放", state.continueDetail)

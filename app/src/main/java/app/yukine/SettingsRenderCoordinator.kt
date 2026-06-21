@@ -29,6 +29,10 @@ internal class SettingsRenderCoordinator(
                     settingsStore.playbackSpeed(),
                     settingsStore.appVolume(),
                     settingsStore.concurrentPlaybackEnabled(),
+                    settingsStore.audioEffectSettings(),
+                    settingsStore.nowPlayingGesturesEnabled(),
+                    settingsStore.playbackRestoreEnabled(),
+                    settingsStore.replayGainEnabled(),
                     playbackStore.snapshot().sleepTimerRemainingMs
                 )
             }
@@ -45,12 +49,20 @@ internal class SettingsRenderCoordinator(
             MainRoutes.SETTINGS_LYRICS_GROUP -> {
                 val currentOffsetMs = lyricsViewModel?.offsetMs() ?: 0L
                 val currentOnlineLyricsEnabled = lyricsViewModel?.onlineEnabled() == true
-                renderer.renderLyricsGroup(settingsStore.languageMode(), currentOffsetMs, currentOnlineLyricsEnabled)
+                renderer.renderLyricsGroup(
+                    settingsStore.languageMode(),
+                    currentOffsetMs,
+                    currentOnlineLyricsEnabled,
+                    settingsStore.statusBarLyricsEnabled(),
+                    settingsStore.floatingLyricsEnabled(),
+                    permissionController.hasOverlayPermission()
+                )
             }
             MainRoutes.SETTINGS_SOURCES_GROUP -> {
                 renderer.renderSourcesGroup(
                     settingsStore.languageMode(),
                     settingsStore.streamingAudioQuality(),
+                    settingsStore.shareStyle(),
                     streamingGatewaySettingsStore.configured()
                 )
             }
@@ -80,8 +92,23 @@ internal class SettingsRenderCoordinator(
             MainRoutes.SETTINGS_APP_VOLUME -> {
                 renderer.renderAppVolume(settingsStore.languageMode(), settingsStore.appVolume())
             }
+            MainRoutes.SETTINGS_AUDIO_EFFECTS -> {
+                renderer.renderAudioEffects(settingsStore.languageMode(), settingsStore.audioEffectSettings())
+            }
+            MainRoutes.SETTINGS_NOW_PLAYING_GESTURES -> {
+                renderer.renderNowPlayingGestures(settingsStore.languageMode(), settingsStore.nowPlayingGesturesEnabled())
+            }
+            MainRoutes.SETTINGS_PLAYBACK_RESTORE -> {
+                renderer.renderPlaybackRestore(settingsStore.languageMode(), settingsStore.playbackRestoreEnabled())
+            }
+            MainRoutes.SETTINGS_REPLAY_GAIN -> {
+                renderer.renderReplayGain(settingsStore.languageMode(), settingsStore.replayGainEnabled())
+            }
             MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY -> {
                 renderer.renderStreamingAudioQuality(settingsStore.languageMode(), settingsStore.streamingAudioQuality())
+            }
+            MainRoutes.SETTINGS_SHARE_STYLE -> {
+                renderer.renderShareStyle(settingsStore.languageMode(), settingsStore.shareStyle())
             }
             MainRoutes.SETTINGS_CONCURRENT_PLAYBACK -> {
                 renderer.renderConcurrentPlayback(settingsStore.languageMode(), settingsStore.concurrentPlaybackEnabled())
@@ -92,7 +119,24 @@ internal class SettingsRenderCoordinator(
             MainRoutes.SETTINGS_LYRICS -> {
                 val currentOffsetMs = lyricsViewModel?.offsetMs() ?: 0L
                 val currentOnlineLyricsEnabled = lyricsViewModel?.onlineEnabled() == true
-                renderer.renderLyrics(settingsStore.languageMode(), currentOffsetMs, currentOnlineLyricsEnabled)
+                renderer.renderLyrics(
+                    settingsStore.languageMode(),
+                    currentOffsetMs,
+                    currentOnlineLyricsEnabled,
+                    settingsStore.statusBarLyricsEnabled(),
+                    settingsStore.floatingLyricsEnabled(),
+                    permissionController.hasOverlayPermission()
+                )
+            }
+            MainRoutes.SETTINGS_STATUS_BAR_LYRICS -> {
+                renderer.renderStatusBarLyrics(settingsStore.languageMode(), settingsStore.statusBarLyricsEnabled())
+            }
+            MainRoutes.SETTINGS_FLOATING_LYRICS -> {
+                renderer.renderFloatingLyrics(
+                    settingsStore.languageMode(),
+                    settingsStore.floatingLyricsEnabled(),
+                    permissionController.hasOverlayPermission()
+                )
             }
             MainRoutes.SETTINGS_LIBRARY -> {
                 val allTracks = libraryStore.allTracks()

@@ -22,8 +22,6 @@ import java.net.URLDecoder;
 import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -32,13 +30,8 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLContext;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 
 import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
@@ -51,23 +44,6 @@ public final class WebDavClient {
     private static final Pattern HTML_HREF_PATTERN = Pattern.compile(
             "(?is)<a\\s+[^>]*href\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))"
     );
-    private static final TrustManager[] TRUST_ALL_WEB_DAV_CERTS = new TrustManager[]{
-            new X509TrustManager() {
-                @Override
-                public void checkClientTrusted(X509Certificate[] chain, String authType) {
-                }
-
-                @Override
-                public void checkServerTrusted(X509Certificate[] chain, String authType) {
-                }
-
-                @Override
-                public X509Certificate[] getAcceptedIssuers() {
-                    return new X509Certificate[0];
-                }
-            }
-    };
-    private static final HostnameVerifier TRUST_ALL_WEB_DAV_HOSTS = (hostname, session) -> true;
 
     public List<Track> listAudioTracks(RemoteSource source) {
         ArrayList<Track> tracks = new ArrayList<>();
@@ -362,9 +338,6 @@ public final class WebDavClient {
 
     private HttpURLConnection open(RemoteSource source, String url) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-        if (connection instanceof HttpsURLConnection) {
-            configureWebDavTls((HttpsURLConnection) connection);
-        }
         connection.setConnectTimeout(8000);
         connection.setReadTimeout(15000);
         if (source.hasAuth()) {
@@ -373,13 +346,6 @@ public final class WebDavClient {
             connection.setRequestProperty("Authorization", "Basic " + encoded);
         }
         return connection;
-    }
-
-    private void configureWebDavTls(HttpsURLConnection connection) throws Exception {
-        SSLContext context = SSLContext.getInstance("TLS");
-        context.init(null, TRUST_ALL_WEB_DAV_CERTS, new SecureRandom());
-        connection.setSSLSocketFactory(context.getSocketFactory());
-        connection.setHostnameVerifier(TRUST_ALL_WEB_DAV_HOSTS);
     }
 
     private void setRequestMethod(HttpURLConnection connection, String method) throws Exception {

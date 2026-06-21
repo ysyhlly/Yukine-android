@@ -95,6 +95,9 @@ internal class StreamingHeartbeatRecommendationUseCase(
     private fun uniquePlaceholders(tracks: List<StreamingTrack>?): ArrayList<Track> {
         val placeholders = ArrayList<Track>()
         tracks.orEmpty().forEach { track ->
+            if (!isPlayableRecommendation(track)) {
+                return@forEach
+            }
             val key = streamingTrackKey(track)
             if (key.isEmpty() || !seenKeys.add(key)) {
                 return@forEach
@@ -113,5 +116,15 @@ internal class StreamingHeartbeatRecommendationUseCase(
             return ""
         }
         return "${track.provider.wireName}:$providerTrackId"
+    }
+
+    private fun isPlayableRecommendation(track: StreamingTrack?): Boolean {
+        if (track == null || !track.playable) {
+            return false
+        }
+        if (track.providerTrackId.trim().isEmpty()) {
+            return false
+        }
+        return track.title.isNotBlank() || track.artist.isNotBlank()
     }
 }

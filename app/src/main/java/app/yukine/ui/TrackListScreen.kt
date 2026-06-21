@@ -1,6 +1,7 @@
 package app.yukine.ui
 
 import android.net.Uri
+import app.yukine.TrackDownloadItem
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,13 +47,15 @@ data class TrackRowUiState(
     val albumArtUri: Uri?,
     val current: Boolean,
     val favorite: Boolean,
-    val showPlaylistAction: Boolean
+    val showPlaylistAction: Boolean,
+    val key: String = id.toString()
 )
 
 data class TrackRowActions(
     val onPlay: Runnable,
     val onFavorite: Runnable,
     val onAddToPlaylist: Runnable,
+    val onDownload: Runnable,
     val onEdit: Runnable?,
     val onDelete: Runnable?,
     val onLongPress: Runnable?
@@ -61,7 +64,14 @@ data class TrackRowActions(
         onPlay: Runnable,
         onFavorite: Runnable,
         onAddToPlaylist: Runnable
-    ) : this(onPlay, onFavorite, onAddToPlaylist, null, null, null)
+    ) : this(onPlay, onFavorite, onAddToPlaylist, Runnable {}, null, null, null)
+
+    constructor(
+        onPlay: Runnable,
+        onFavorite: Runnable,
+        onAddToPlaylist: Runnable,
+        onDownload: Runnable
+    ) : this(onPlay, onFavorite, onAddToPlaylist, onDownload, null, null, null)
 
     constructor(
         onPlay: Runnable,
@@ -69,7 +79,16 @@ data class TrackRowActions(
         onAddToPlaylist: Runnable,
         onEdit: Runnable?,
         onDelete: Runnable?
-    ) : this(onPlay, onFavorite, onAddToPlaylist, onEdit, onDelete, onDelete)
+    ) : this(onPlay, onFavorite, onAddToPlaylist, Runnable {}, onEdit, onDelete, onDelete)
+
+    constructor(
+        onPlay: Runnable,
+        onFavorite: Runnable,
+        onAddToPlaylist: Runnable,
+        onDownload: Runnable,
+        onEdit: Runnable?,
+        onDelete: Runnable?
+    ) : this(onPlay, onFavorite, onAddToPlaylist, onDownload, onEdit, onDelete, onDelete)
 }
 
 data class TrackListHeaderMetric(val label: String, val value: String)
@@ -92,52 +111,111 @@ internal fun TrackListScreen(
     headerActions: List<TrackListHeaderAction>,
     emptyText: String,
     modeActions: List<TrackListModeAction>,
-    labels: TrackListLabels
+    labels: TrackListLabels,
+    onSearch: Runnable = Runnable { },
+    activeDownload: TrackDownloadItem? = null,
+    playbackQuality: String = "",
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
     val p = EchoTheme.colors()
     val titleBackAction = headerActions.firstOrNull { isBackAction(it.label) }
     val visibleHeaderActions = if (titleBackAction != null) headerActions.drop(1) else headerActions
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = echoPagePadding(),
-        verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
+    CollapsibleSearchHeader(
+        header = { TrackListSearchRow(onSearch, activeDownload, playbackQuality, audioMotion) }
+    ) { contentModifier, _ ->
+        LazyColumn(
+            modifier = contentModifier,
+            contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 100.dp),
+            verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
+        ) {
+            item(key = "title") {
+                EchoPageTitle(
+                    title,
+                    backLabel = titleBackAction?.label,
+                    onBack = titleBackAction?.onClick
+                )
+            }
+            if (modeActions.isNotEmpty()) {
+                item(key = "modes") {
+                    ModeSelectorRow(modeActions)
+                }
+            }
+            itemsIndexed(
+                items = headerMetrics,
+                key = { index, metric -> "metric:${metric.label}:$index" }
+            ) { _, metric ->
+                if (metric.label == "歌手介绍") {
+                    ArtistIntroRow(metric.value)
+                } else {
+                    HeaderMetricRow(metric)
+                }
+            }
+            itemsIndexed(
+                items = visibleHeaderActions,
+                key = { index, action -> "action:${action.label}:$index" }
+            ) { _, action ->
+                HeaderActionRow(action)
+            }
+            itemsIndexed(
+                items = tracks,
+                key = { index, track -> track.key.ifBlank { "${track.id}:$index" } }
+            ) { i, track ->
+                actions.getOrNull(i)?.let { action ->
+                    TrackRow(track, action, labels, Modifier.echoEnter(i.coerceAtMost(8)))
+                }
+            }
+            if (tracks.isEmpty() && emptyText.isNotBlank()) {
+                item(key = "empty") {
+                    HeaderMessageRow(emptyText)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrackListSearchRow(
+    onSearch: Runnable,
+    activeDownload: TrackDownloadItem?,
+    playbackQuality: String,
+    audioMotion: YukineOrbAudioMotion
+) {
+    YukineSearchBar(
+        activeDownload = activeDownload,
+        playbackQuality = playbackQuality,
+        audioMotion = audioMotion
+    ) { onSearch.run() }
+}
+
+@Composable
+private fun ArtistIntroRow(intro: String) {
+    val p = EchoTheme.colors()
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .echoGlassLayer(p, EchoShapes.medium),
+        shape = EchoShapes.medium,
+        color = Color.Transparent
     ) {
-        item(key = "title") {
-            EchoPageTitle(
-                title,
-                backLabel = titleBackAction?.label,
-                onBack = titleBackAction?.onClick
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                EchoIcon(EchoIconKind.Artist, Modifier.size(20.dp), p.accent)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "歌手介绍",
+                    style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = p.text
+                )
+            }
+            Text(
+                intro,
+                style = EchoTypography.body,
+                color = p.muted,
+                lineHeight = 21.sp
             )
-        }
-        if (modeActions.isNotEmpty()) {
-            item(key = "modes") {
-                ModeSelectorRow(modeActions)
-            }
-        }
-        itemsIndexed(
-            items = headerMetrics,
-            key = { index, metric -> "metric:${metric.label}:$index" }
-        ) { _, metric ->
-            HeaderMetricRow(metric)
-        }
-        itemsIndexed(
-            items = visibleHeaderActions,
-            key = { index, action -> "action:${action.label}:$index" }
-        ) { _, action ->
-            HeaderActionRow(action)
-        }
-        itemsIndexed(
-            items = tracks,
-            key = { _, track -> track.id }
-        ) { i, track ->
-            actions.getOrNull(i)?.let { action ->
-                TrackRow(track, action, labels, Modifier.echoEnter(i.coerceAtMost(8)))
-            }
-        }
-        if (tracks.isEmpty() && emptyText.isNotBlank()) {
-            item(key = "empty") {
-                HeaderMessageRow(emptyText)
-            }
         }
     }
 }
@@ -272,7 +350,7 @@ private fun TrackRow(track: TrackRowUiState, actions: TrackRowActions, labels: T
         modifier = modifier
             .combinedClickable(
                 interactionSource = interaction,
-                indication = null,
+                indication = androidx.compose.foundation.LocalIndication.current,
                 onClick = { actions.onPlay.run() },
                 onLongClick = actions.onLongPress?.let { action -> { action.run() } }
             )
@@ -315,53 +393,22 @@ private fun TrackRow(track: TrackRowUiState, actions: TrackRowActions, labels: T
                     )
                 }
             }
+            Spacer(Modifier.width(8.dp))
             Text(
                 track.duration,
                 style = EchoTypography.small,
                 color = p.muted,
-                modifier = Modifier
-                    .width(34.dp)
-                    .padding(start = 3.dp, end = 2.dp),
-                maxLines = 1
+                modifier = Modifier.width(38.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Clip
             )
-            Row(
-                modifier = Modifier.width(actionRailWidth(track, actions)),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                MiniIconBtn(
-                    icon = EchoIconKind.Heart,
-                    desc = if (track.favorite) labels.removeFavoriteLabel else labels.favoriteLabel,
-                    active = track.favorite,
-                    onClick = { actions.onFavorite.run() }
-                )
-                if (track.showPlaylistAction) {
-                    MiniIconBtn(
-                        icon = EchoIconKind.PlaylistAdd,
-                        desc = labels.addToPlaylistLabel,
-                        onClick = { actions.onAddToPlaylist.run() }
-                    )
-                }
-                if (actions.onEdit != null || actions.onDelete != null) {
-                    TrackMoreMenu(actions, labels)
-                }
-            }
+            TrackMoreMenu(track, actions, labels)
         }
     }
 }
 
-private fun actionRailWidth(track: TrackRowUiState, actions: TrackRowActions): androidx.compose.ui.unit.Dp {
-    var count = 1
-    if (track.showPlaylistAction) {
-        count += 1
-    }
-    if (actions.onEdit != null || actions.onDelete != null) {
-        count += 1
-    }
-    return (count * 35 - 4).dp
-}
-
 @Composable
-private fun TrackMoreMenu(actions: TrackRowActions, labels: TrackListLabels) {
+private fun TrackMoreMenu(track: TrackRowUiState, actions: TrackRowActions, labels: TrackListLabels) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         MiniIconBtn(
@@ -373,6 +420,38 @@ private fun TrackMoreMenu(actions: TrackRowActions, labels: TrackListLabels) {
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
+            DropdownMenuItem(
+                text = { Text(if (track.favorite) labels.removeFavoriteLabel else labels.favoriteLabel) },
+                leadingIcon = {
+                    EchoIcon(
+                        EchoIconKind.Heart,
+                        Modifier.size(18.dp),
+                        if (track.favorite) EchoTheme.colors().accent else EchoTheme.colors().muted
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    actions.onFavorite.run()
+                }
+            )
+            if (track.showPlaylistAction) {
+                DropdownMenuItem(
+                    text = { Text(labels.addToPlaylistLabel) },
+                    leadingIcon = { EchoIcon(EchoIconKind.PlaylistAdd, Modifier.size(18.dp), EchoTheme.colors().muted) },
+                    onClick = {
+                        expanded = false
+                        actions.onAddToPlaylist.run()
+                    }
+                )
+            }
+            DropdownMenuItem(
+                text = { Text("下载") },
+                leadingIcon = { EchoIcon(EchoIconKind.Import, Modifier.size(18.dp), EchoTheme.colors().muted) },
+                onClick = {
+                    expanded = false
+                    actions.onDownload.run()
+                }
+            )
             actions.onEdit?.let { onEdit ->
                 DropdownMenuItem(
                     text = { Text(labels.editLabel) },

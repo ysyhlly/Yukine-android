@@ -15,11 +15,9 @@ import app.yukine.model.Track;
 
 public final class MediaStoreMusicScanner {
     private final Context context;
-    private final AudioSpecParser audioSpecParser;
 
     public MediaStoreMusicScanner(Context context) {
         this.context = context.getApplicationContext();
-        this.audioSpecParser = new AudioSpecParser(this.context);
     }
 
     public List<Track> scan() {
@@ -74,7 +72,11 @@ public final class MediaStoreMusicScanner {
                         albumId,
                         EmbeddedArtwork.uriIfEmbeddedPicture(context, uri)
                 );
-                tracks.add(audioSpecParser.enrich(track));
+                // 不在扫描循环里做 audioSpecParser.enrich：解析音频规格(codec/采样率/位深等)需要
+                // 对每首歌新建 MediaExtractor + MediaMetadataRetriever，是重 IO，大曲库首扫会很慢。
+                // 这些规格由后台懒解析 MusicLibraryRepository.parseMissingAudioSpecs() 兜底补齐
+                // （曲库刷新后 replaceLibrary 会无条件触发它），扫描时只入库基础信息即可。
+                tracks.add(track);
             }
         }
         return tracks;

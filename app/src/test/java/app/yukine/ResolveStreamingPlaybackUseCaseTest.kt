@@ -78,7 +78,7 @@ class ResolveStreamingPlaybackUseCaseTest {
             unresolvedStreamingTrack = { false }
         )
         val current = resolvedStreamingTrack("song-1")
-        val snapshot = snapshot(current, currentIndex = 0, queueSize = 1)
+        val snapshot = snapshot(current, currentIndex = 0, queueSize = 1, positionMs = 10_000L)
 
         val request = useCase.prepareRecovery(
             snapshot,
@@ -97,6 +97,21 @@ class ResolveStreamingPlaybackUseCaseTest {
         assertNull(duplicate)
         assertNull(cooledDownDuplicate)
         assertEquals(StreamingAudioQuality.LOSSLESS, retried?.quality)
+    }
+
+    @Test
+    fun prepareRecoveryIgnoresEarlyStartupBuffering() {
+        val useCase = ResolveStreamingPlaybackUseCase(unresolvedStreamingTrack = { false })
+        val current = resolvedStreamingTrack("song-1")
+        val snapshot = snapshot(current, currentIndex = 0, queueSize = 1, positionMs = 3_000L)
+
+        val request = useCase.prepareRecovery(
+            snapshot,
+            selectedQuality = StreamingAudioQuality.HIRES,
+            adaptiveQuality = StreamingAudioQuality.HIRES
+        )
+
+        assertNull(request)
     }
 
     @Test

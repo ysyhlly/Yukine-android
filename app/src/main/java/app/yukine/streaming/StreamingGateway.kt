@@ -195,6 +195,7 @@ class RemoteStreamingGateway(
     private var consecutiveGatewayFailures = 0
     private var circuitOpenUntilMs = 0L
     private var rateLimitedUntilMs = 0L
+    private val localProviders = LocalStreamingProviderRegistry(localAuthStore, localNeteaseClient)
 
     override suspend fun providers(): List<StreamingProviderDescriptor> {
         if (!configured()) {
@@ -202,7 +203,13 @@ class RemoteStreamingGateway(
         }
         return try {
             val remoteProviders = StreamingGatewayJson.providerDescriptors(get("providers"))
-            val baseList = remoteProviders.ifEmpty { StreamingProviderCatalog.gatewayBackedDescriptors() }
+            val catalogProviders = StreamingProviderCatalog.gatewayBackedDescriptors()
+            val baseList = if (remoteProviders.isEmpty()) {
+                catalogProviders
+            } else {
+                (remoteProviders + catalogProviders)
+                    .distinctBy { it.name }
+            }
             baseList.map(::applyLocalAuth)
         } catch (_: StreamingGatewayException) {
             localProviderDescriptors()
@@ -229,23 +236,7 @@ class RemoteStreamingGateway(
 
     override suspend fun providersHealth(): List<StreamingProviderHealth> {
         if (!configured()) {
-            return listOf(
-                StreamingProviderHealth(
-                    provider = offlineProvider.descriptor.name,
-                    available = true,
-                    authenticated = true,
-                    errorMessage = offlineProvider.descriptor.statusMessage
-                )
-            ) + StreamingProviderCatalog.gatewayBackedDescriptors().map { descriptor ->
-                val locallyConnected = localAuthStore?.connected(descriptor.name) == true
-                StreamingProviderHealth(
-                    provider = descriptor.name,
-                    available = locallyConnected,
-                    authenticated = locallyConnected,
-                    errorCode = if (locallyConnected) null else StreamingErrorCode.GATEWAY_UNAVAILABLE,
-                    errorMessage = if (locallyConnected) "本地登录已保存" else "Gateway is not connected"
-                )
-            }
+            return localProviderHealth()
         }
         return try {
             StreamingGatewayJson.providerHealth(get("providers/health"))
@@ -255,6 +246,9 @@ class RemoteStreamingGateway(
     }
 
     private fun applyLocalAuth(descriptor: StreamingProviderDescriptor): StreamingProviderDescriptor {
+        localProviders.provider(descriptor.name)?.descriptor?.takeIf { it.enabled }?.let { localDescriptor ->
+            return localDescriptor
+        }
         val store = localAuthStore ?: return descriptor
         val localState = store.authState(descriptor.name)
         if (!localState.connected) {
@@ -268,46 +262,60 @@ class RemoteStreamingGateway(
     }
 
     private fun localProviderDescriptors(): List<StreamingProviderDescriptor> {
-        return listOf(offlineProvider.descriptor) +
-            StreamingProviderCatalog.gatewayBackedDescriptors()
-                .map(::applyLocalAuth)
-                .map(::applyOfflineAvailability)
+        return localProviders.descriptors().map(::applyLocalAuth)
     }
 
     /**
-     * In local/unconfigured mode only providers with a direct local client (currently NetEase)
-     * can actually serve data. Mark the rest as disabled so the UI greys them out instead of
-     * offering a dead entry point. The local-capable providers are left untouched so users can
-     * still log in and use them.
+     * In local/unconfigured mode only providers with a direct local client can actually serve data.
+     * Mark the rest as disabled so the UI greys them out instead of offering a dead entry point.
      */
     private fun applyOfflineAvailability(descriptor: StreamingProviderDescriptor): StreamingProviderDescriptor {
-        if (LocalNeteaseStreamingClient.supportsProvider(descriptor.name)) {
+        if (localProviders.canHandle(descriptor.name)) {
             return descriptor
         }
         return descriptor.copy(
             enabled = false,
             status = StreamingProviderStatus.DISABLED,
-            statusMessage = "需要配置流媒体网关后才能使用"
+            statusMessage = gatewayRequiredMessage(descriptor)
         )
     }
 
     private fun localProviderHealth(): List<StreamingProviderHealth> {
-        return listOf(
-            StreamingProviderHealth(
-                provider = offlineProvider.descriptor.name,
-                available = true,
-                authenticated = true,
-                errorMessage = offlineProvider.descriptor.statusMessage
-            )
-        ) + StreamingProviderCatalog.gatewayBackedDescriptors().map { descriptor ->
-            val locallyConnected = localAuthStore?.connected(descriptor.name) == true
+        return localProviderDescriptors().map { descriptor ->
+            val authState = if (descriptor.capabilities.supportsAuth) {
+                localAuthStore?.authState(descriptor.name) ?: descriptor.auth
+            } else {
+                descriptor.auth
+            }
             StreamingProviderHealth(
                 provider = descriptor.name,
-                available = locallyConnected,
-                authenticated = locallyConnected,
-                errorCode = if (locallyConnected) null else StreamingErrorCode.GATEWAY_UNAVAILABLE,
-                errorMessage = if (locallyConnected) "Saved local login" else "Gateway is not connected"
+                available = descriptor.enabled,
+                authenticated = authState.connected,
+                errorCode = if (descriptor.enabled) null else StreamingErrorCode.UNSUPPORTED_OPERATION,
+                errorMessage = descriptor.statusMessage ?: authState.statusMessage
             )
+        }
+    }
+
+    private fun localUnavailableMessage(
+        descriptor: StreamingProviderDescriptor,
+        locallyConnected: Boolean
+    ): String {
+        if (locallyConnected) {
+            return "本地登录已保存"
+        }
+        return when {
+            descriptor.name == StreamingProviderName.LUOXUE -> "需要配置支持 LX/洛雪的流媒体网关"
+            descriptor.auth.kind == StreamingAuthKind.NONE -> gatewayRequiredMessage(descriptor)
+            else -> "未连接，点击登录"
+        }
+    }
+
+    private fun gatewayRequiredMessage(descriptor: StreamingProviderDescriptor): String {
+        return if (descriptor.name == StreamingProviderName.LUOXUE) {
+            "需要配置支持 LX/洛雪的流媒体网关后才能使用"
+        } else {
+            "需要配置流媒体网关后才能使用"
         }
     }
 
@@ -316,10 +324,8 @@ class RemoteStreamingGateway(
         if (!configured() && normalized.provider == offlineProvider.descriptor.name) {
             return offlineProvider.search(normalized)
         }
-        if (LocalNeteaseStreamingClient.supportsProvider(normalized.provider) &&
-            normalized.provider == StreamingProviderName.NETEASE
-        ) {
-            val result = localNeteaseClient.search(normalized)
+        localProviders.provider(normalized.provider)?.takeIf { it.descriptor.enabled }?.let { provider ->
+            val result = provider.search(normalized)
             return if (configured()) result.withProxiedArtwork() else result
         }
         requireConfigured()
@@ -332,12 +338,14 @@ class RemoteStreamingGateway(
         if (!configured() && request.provider == offlineProvider.descriptor.name) {
             return offlineProvider.playlist(request.normalized())
         }
-        if (!configured() && localNeteaseClient.canHandle(request.provider)) {
-            return localNeteaseClient.playlist(request.normalized())
+        if (!configured()) {
+            localProviders.provider(request.provider)?.takeIf { it.descriptor.enabled }?.let { provider ->
+                return provider.playlist(request.normalized())
+            }
         }
         val normalized = request.normalized()
-        if (localNeteaseClient.canHandle(normalized.provider) && normalized.provider == StreamingProviderName.NETEASE) {
-            return localNeteaseClient.playlist(normalized)
+        localProviders.provider(normalized.provider)?.takeIf { it.descriptor.enabled }?.let { provider ->
+            return provider.playlist(normalized)
         }
         requireConfigured()
         return try {
@@ -380,7 +388,7 @@ class RemoteStreamingGateway(
         if (!configured() && provider == offlineProvider.descriptor.name) {
             return emptyList()
         }
-        if (!configured() && localNeteaseClient.canHandle(provider)) {
+        if (!configured() && provider == StreamingProviderName.NETEASE && localNeteaseClient.canHandle(provider)) {
             return localNeteaseClient.userPlaylists()
         }
         requireConfigured()
@@ -392,7 +400,9 @@ class RemoteStreamingGateway(
         } catch (error: StreamingGatewayException) {
             when {
                 error.code == StreamingErrorCode.UNSUPPORTED_OPERATION -> emptyList()
-                error.code == StreamingErrorCode.GATEWAY_UNAVAILABLE && localNeteaseClient.canHandle(provider) ->
+                error.code == StreamingErrorCode.GATEWAY_UNAVAILABLE &&
+                    provider == StreamingProviderName.NETEASE &&
+                    localNeteaseClient.canHandle(provider) ->
                     localNeteaseClient.userPlaylists()
                 else -> throw error
             }
@@ -403,7 +413,7 @@ class RemoteStreamingGateway(
         if (!configured() && provider == offlineProvider.descriptor.name) {
             return emptyList()
         }
-        if (!configured() && localNeteaseClient.canHandle(provider)) {
+        if (!configured() && provider == StreamingProviderName.NETEASE && localNeteaseClient.canHandle(provider)) {
             return localNeteaseClient.userLikedTracks()
         }
         requireConfigured()
@@ -415,7 +425,9 @@ class RemoteStreamingGateway(
         } catch (error: StreamingGatewayException) {
             when {
                 error.code == StreamingErrorCode.UNSUPPORTED_OPERATION -> emptyList()
-                error.code == StreamingErrorCode.GATEWAY_UNAVAILABLE && localNeteaseClient.canHandle(provider) ->
+                error.code == StreamingErrorCode.GATEWAY_UNAVAILABLE &&
+                    provider == StreamingProviderName.NETEASE &&
+                    localNeteaseClient.canHandle(provider) ->
                     localNeteaseClient.userLikedTracks()
                 else -> throw error
             }
@@ -426,7 +438,7 @@ class RemoteStreamingGateway(
         // No remote gateway endpoint exists for personalized recommendations; serve NetEase via the
         // local client and return empty for everything else. In local mode artwork is used as-is
         // (matching userLikedTracks' local branch) so we don't proxy through an unconfigured gateway.
-        if (localNeteaseClient.canHandle(provider)) {
+        if (provider == StreamingProviderName.NETEASE && localNeteaseClient.canHandle(provider)) {
             val tracks = localNeteaseClient.dailyRecommendedTracks()
             return if (configured()) tracks.map { it.withProxiedArtwork() } else tracks
         }
@@ -435,7 +447,7 @@ class RemoteStreamingGateway(
 
     override suspend fun heartbeatRecommendations(request: StreamingHeartbeatRequest): List<StreamingTrack> {
         val provider = request.provider
-        if (LocalNeteaseStreamingClient.supportsProvider(provider) && provider == StreamingProviderName.NETEASE) {
+        if (localProviders.canHandle(provider) && provider == StreamingProviderName.NETEASE) {
             val tracks = localNeteaseClient.heartbeatRecommendedTracks(
                 seedTrackId = request.providerTrackId,
                 playlistId = request.providerPlaylistId,
@@ -450,9 +462,20 @@ class RemoteStreamingGateway(
         if (!configured() && request.provider == offlineProvider.descriptor.name) {
             return offlineProvider.resolvePlayback(request)
         }
-        if (!configured() && localNeteaseClient.canHandle(request.provider)) {
-            return localNeteaseClient.resolvePlayback(request)
+        if (!configured()) {
+            localProviders.provider(request.provider)?.takeIf { it.descriptor.enabled }?.let { provider ->
+                return provider.resolvePlayback(request)
+            }
         }
+        val localPlaybackError = localProviders.provider(request.provider)
+            ?.takeIf { it.descriptor.enabled }
+            ?.let { provider ->
+                try {
+                    return provider.resolvePlayback(request)
+                } catch (error: StreamingGatewayException) {
+                    error
+                }
+            }
         requireConfigured()
         return try {
             StreamingGatewayJson.playbackSource(
@@ -461,6 +484,8 @@ class RemoteStreamingGateway(
         } catch (error: StreamingGatewayException) {
             if (error.code == StreamingErrorCode.GATEWAY_UNAVAILABLE && localNeteaseClient.canHandle(request.provider)) {
                 localNeteaseClient.resolvePlayback(request)
+            } else if (error.code == StreamingErrorCode.GATEWAY_UNAVAILABLE && localPlaybackError != null) {
+                throw localPlaybackError
             } else {
                 throw error
             }
@@ -470,6 +495,11 @@ class RemoteStreamingGateway(
     override suspend fun authState(provider: StreamingProviderName): StreamingAuthState {
         if (provider == offlineProvider.descriptor.name) {
             return offlineProvider.authState()
+        }
+        localProviders.provider(provider)
+            ?.takeIf { it.descriptor.enabled && it.descriptor.capabilities.supportsAuth.not() }
+            ?.let { localProvider ->
+            return localProvider.authState()
         }
         localAuthStore?.let { store ->
             val local = store.authState(provider)
@@ -511,13 +541,13 @@ class RemoteStreamingGateway(
 
     override suspend fun completeAuth(provider: StreamingProviderName, callbackUri: String, cookieHeader: String?): StreamingAuthResult {
         val store = localAuthStore
-        // First, persist the cookie locally so the login survives even if the gateway is offline.
+        val hasCapturedCookie = !cookieHeader.isNullOrBlank()
         val localState = store?.saveLogin(provider, cookieHeader)
         if (!configured()) {
             val state = localState ?: StreamingAuthState(
                 kind = LocalStreamingAuthStore.providerAuthKind(provider),
-                connected = !cookieHeader.isNullOrBlank(),
-                statusMessage = if (cookieHeader.isNullOrBlank()) "Auth canceled" else "本地登录成功"
+                connected = hasCapturedCookie,
+                statusMessage = if (hasCapturedCookie) "本地登录成功" else "未捕获到登录凭据，请重试"
             )
             return StreamingAuthResult(
                 provider = provider,
@@ -526,15 +556,27 @@ class RemoteStreamingGateway(
             )
         }
         return try {
-            StreamingGatewayJson.authResult(
+            val remote = StreamingGatewayJson.authResult(
                 post("auth/complete", StreamingGatewayJson.completeAuthRequest(provider, callbackUri, cookieHeader).toString()),
                 provider
+            )
+            val state = if (hasCapturedCookie || localState?.connected == true) {
+                mergeLocalAuthState(localState, remote.state)
+            } else {
+                localState ?: remote.state.copy(
+                    connected = false,
+                    statusMessage = "未捕获到登录凭据，请重试"
+                )
+            }
+            remote.copy(
+                state = state,
+                statusMessage = remote.statusMessage ?: state.statusMessage
             )
         } catch (_: StreamingGatewayException) {
             val fallback = localState ?: StreamingAuthState(
                 kind = LocalStreamingAuthStore.providerAuthKind(provider),
-                connected = !cookieHeader.isNullOrBlank(),
-                statusMessage = "Gateway 不可用，已使用本地登录"
+                connected = hasCapturedCookie,
+                statusMessage = if (hasCapturedCookie) "网关不可用，已使用本地登录" else "未捕获到登录凭据，请重试"
             )
             StreamingAuthResult(
                 provider = provider,
@@ -542,6 +584,23 @@ class RemoteStreamingGateway(
                 statusMessage = fallback.statusMessage
             )
         }
+    }
+
+    private fun mergeLocalAuthState(
+        localState: StreamingAuthState?,
+        remoteState: StreamingAuthState
+    ): StreamingAuthState {
+        if (localState?.connected != true || remoteState.connected) {
+            return remoteState
+        }
+        return remoteState.copy(
+            kind = if (remoteState.kind == StreamingAuthKind.NONE) localState.kind else remoteState.kind,
+            connected = true,
+            accountDisplayName = remoteState.accountDisplayName ?: localState.accountDisplayName,
+            accountUsername = remoteState.accountUsername ?: localState.accountUsername,
+            accountAvatarUrl = remoteState.accountAvatarUrl ?: localState.accountAvatarUrl,
+            statusMessage = remoteState.statusMessage ?: localState.statusMessage
+        )
     }
 
     override suspend fun signOut(provider: StreamingProviderName): StreamingAuthState {
@@ -567,7 +626,7 @@ class RemoteStreamingGateway(
         val baseState = store?.authState(request.provider) ?: StreamingAuthState(
             kind = LocalStreamingAuthStore.providerAuthKind(request.provider),
             connected = false,
-            statusMessage = "Gateway is not connected"
+            statusMessage = "未连接，点击登录"
         )
         if (localUrl.isNullOrBlank()) {
             return StreamingAuthResult(
@@ -594,11 +653,11 @@ class RemoteStreamingGateway(
         }
         val descriptor = StreamingProviderCatalog.gatewayBackedDescriptors()
             .firstOrNull { it.name == provider }
-        return descriptor?.auth?.copy(statusMessage = "Gateway is not connected")
+        return descriptor?.auth?.copy(statusMessage = "未连接，点击登录")
             ?: StreamingAuthState(
                 kind = StreamingAuthKind.REMOTE_GATEWAY,
                 connected = false,
-                statusMessage = "Gateway is not connected"
+                statusMessage = "未连接，点击登录"
             )
     }
 
@@ -717,7 +776,7 @@ class RemoteStreamingGateway(
         connection.connectTimeout = 8000
         connection.readTimeout = 15000
         connection.setRequestProperty("Accept", "application/json")
-        connection.setRequestProperty("User-Agent", "ECHO-NEXT-Android")
+        connection.setRequestProperty("User-Agent", "Yukine-Android")
         providerForRequest(path, body)?.let { provider ->
             localAuthStore?.cookieHeader(provider)?.let { cookie ->
                 connection.setRequestProperty("Cookie", cookie)
@@ -855,7 +914,7 @@ class RemoteStreamingGateway(
 
     private fun notConnected(): StreamingGatewayException {
         return StreamingGatewayException(
-            "Streaming gateway is not connected: $endpointBaseUrl",
+            "在线音乐网关未连接",
             code = StreamingErrorCode.GATEWAY_UNAVAILABLE
         )
     }

@@ -18,6 +18,9 @@ internal class PlaybackServiceHostBindings(
     private val playbackSpeedProvider: PlaybackFloatProvider,
     private val appVolumeProvider: PlaybackFloatProvider,
     private val concurrentPlaybackProvider: PlaybackBooleanProvider,
+    private val statusBarLyricsProvider: PlaybackBooleanProvider,
+    private val playbackRestoreProvider: PlaybackBooleanProvider,
+    private val replayGainProvider: PlaybackBooleanProvider,
     private val playbackServiceSetter: PlaybackServiceSetter,
     private val resetPlaybackStoreAction: Runnable,
     private val playPendingTracksAction: Runnable,
@@ -29,6 +32,12 @@ internal class PlaybackServiceHostBindings(
     override fun appVolume(): Float = appVolumeProvider.get()
 
     override fun concurrentPlaybackEnabled(): Boolean = concurrentPlaybackProvider.get()
+
+    override fun statusBarLyricsEnabled(): Boolean = statusBarLyricsProvider.get()
+
+    override fun playbackRestoreEnabled(): Boolean = playbackRestoreProvider.get()
+
+    override fun replayGainEnabled(): Boolean = replayGainProvider.get()
 
     override fun attachPlaybackService(service: EchoPlaybackService) {
         playbackServiceSetter.set(service)

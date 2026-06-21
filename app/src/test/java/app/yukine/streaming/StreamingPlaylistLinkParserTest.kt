@@ -47,6 +47,33 @@ class StreamingPlaylistLinkParserTest {
     }
 
     @Test
+    fun parsesLuoxuePlaylistSchemeWithSource() {
+        val ref = StreamingPlaylistLinkParser.parse(
+            "lxmusic://playlist/kw/123456",
+            StreamingProviderName.MOCK
+        )
+        assertEquals(StreamingProviderName.LUOXUE, ref?.provider)
+        assertEquals("kw:123456", ref?.providerPlaylistId)
+    }
+
+    @Test
+    fun parsesLuoxueUrlWithSourceAndId() {
+        val ref = StreamingPlaylistLinkParser.parse(
+            "https://lxmusic.example/share/playlist?source=mg&id=abc_123",
+            StreamingProviderName.MOCK
+        )
+        assertEquals(StreamingProviderName.LUOXUE, ref?.provider)
+        assertEquals("mg:abc_123", ref?.providerPlaylistId)
+    }
+
+    @Test
+    fun parsesRawLuoxuePrefixedPlaylistId() {
+        val ref = StreamingPlaylistLinkParser.parse("kw:987654", StreamingProviderName.NETEASE)
+        assertEquals(StreamingProviderName.LUOXUE, ref?.provider)
+        assertEquals("kw:987654", ref?.providerPlaylistId)
+    }
+
+    @Test
     fun bareIdUsesFallbackProvider() {
         val ref = StreamingPlaylistLinkParser.parse("987654", StreamingProviderName.QQ_MUSIC)
         assertEquals(StreamingProviderName.QQ_MUSIC, ref?.provider)

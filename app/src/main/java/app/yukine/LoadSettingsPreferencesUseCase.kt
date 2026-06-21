@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.data.MusicLibraryRepository
+import app.yukine.playback.AudioEffectSettings
 
 internal data class LoadedSettingsPreferences(
     val themeMode: String,
@@ -9,7 +10,14 @@ internal data class LoadedSettingsPreferences(
     val playbackSpeed: Float,
     val appVolume: Float,
     val streamingAudioQuality: String,
-    val concurrentPlaybackEnabled: Boolean
+    val concurrentPlaybackEnabled: Boolean,
+    val audioEffectSettings: AudioEffectSettings,
+    val statusBarLyricsEnabled: Boolean,
+    val floatingLyricsEnabled: Boolean,
+    val nowPlayingGesturesEnabled: Boolean,
+    val playbackRestoreEnabled: Boolean,
+    val replayGainEnabled: Boolean,
+    val shareStyle: String
 )
 
 internal interface SettingsPreferenceLoadOperations {
@@ -20,6 +28,13 @@ internal interface SettingsPreferenceLoadOperations {
     fun loadAppVolume(): Float
     fun loadStreamingAudioQuality(): String
     fun loadConcurrentPlaybackEnabled(): Boolean
+    fun loadAudioEffectSettings(): AudioEffectSettings
+    fun loadStatusBarLyricsEnabled(): Boolean
+    fun loadFloatingLyricsEnabled(): Boolean
+    fun loadNowPlayingGesturesEnabled(): Boolean
+    fun loadPlaybackRestoreEnabled(): Boolean
+    fun loadReplayGainEnabled(): Boolean
+    fun loadShareStyle(): String
 }
 
 internal class MusicLibrarySettingsPreferenceLoadOperations(
@@ -39,6 +54,26 @@ internal class MusicLibrarySettingsPreferenceLoadOperations(
 
     override fun loadConcurrentPlaybackEnabled(): Boolean =
         repository.loadConcurrentPlaybackEnabled()
+
+    override fun loadAudioEffectSettings(): AudioEffectSettings =
+        repository.loadAudioEffectSettings()
+
+    override fun loadStatusBarLyricsEnabled(): Boolean =
+        repository.loadStatusBarLyricsEnabled()
+
+    override fun loadFloatingLyricsEnabled(): Boolean =
+        repository.loadFloatingLyricsEnabled()
+
+    override fun loadNowPlayingGesturesEnabled(): Boolean =
+        repository.loadNowPlayingGesturesEnabled()
+
+    override fun loadPlaybackRestoreEnabled(): Boolean =
+        repository.loadPlaybackRestoreEnabled()
+
+    override fun loadReplayGainEnabled(): Boolean =
+        repository.loadReplayGainEnabled()
+
+    override fun loadShareStyle(): String = repository.loadShareStyle()
 }
 
 internal class LoadSettingsPreferencesUseCase(
@@ -52,7 +87,14 @@ internal class LoadSettingsPreferencesUseCase(
             playbackSpeed = operations.loadPlaybackSpeed(),
             appVolume = operations.loadAppVolume(),
             streamingAudioQuality = StreamingQualityPreference.normalize(operations.loadStreamingAudioQuality()),
-            concurrentPlaybackEnabled = operations.loadConcurrentPlaybackEnabled()
+            concurrentPlaybackEnabled = operations.loadConcurrentPlaybackEnabled(),
+            audioEffectSettings = operations.loadAudioEffectSettings(),
+            statusBarLyricsEnabled = operations.loadStatusBarLyricsEnabled(),
+            floatingLyricsEnabled = operations.loadFloatingLyricsEnabled(),
+            nowPlayingGesturesEnabled = operations.loadNowPlayingGesturesEnabled(),
+            playbackRestoreEnabled = operations.loadPlaybackRestoreEnabled(),
+            replayGainEnabled = operations.loadReplayGainEnabled(),
+            shareStyle = TrackShareStyle.normalize(operations.loadShareStyle())
         )
 }
 

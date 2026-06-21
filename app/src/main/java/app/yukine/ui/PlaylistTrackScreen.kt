@@ -47,6 +47,7 @@ data class PlaylistTrackUiState(
 data class PlaylistTrackActions(
     val onPlay: Runnable,
     val onFavorite: Runnable,
+    val onDownload: Runnable,
     val onMoveUp: Runnable,
     val onMoveDown: Runnable,
     val onRemove: Runnable
@@ -155,6 +156,9 @@ private fun PlaylistTrackRow(
                     active = track.favorite
                 ) {
                     actions.onFavorite.run()
+                }
+                PlIconButton(EchoIconKind.Import, "下载") {
+                    actions.onDownload.run()
                 }
                 PlIconButton(
                     EchoIconKind.ArrowUp,

@@ -25,6 +25,8 @@ public final class Track implements Parcelable {
     public final int sampleRateHz;
     public final int bitsPerSample;
     public final int channelCount;
+    public final float replayGainTrackDb;
+    public final float replayGainAlbumDb;
 
     public Track(
             long id,
@@ -68,6 +70,44 @@ public final class Track implements Parcelable {
             int bitsPerSample,
             int channelCount
     ) {
+        this(
+                id,
+                title,
+                artist,
+                album,
+                durationMs,
+                contentUri,
+                dataPath,
+                albumId,
+                albumArtUri,
+                codec,
+                bitrateKbps,
+                sampleRateHz,
+                bitsPerSample,
+                channelCount,
+                0.0f,
+                0.0f
+        );
+    }
+
+    public Track(
+            long id,
+            String title,
+            String artist,
+            String album,
+            long durationMs,
+            Uri contentUri,
+            String dataPath,
+            long albumId,
+            Uri albumArtUri,
+            String codec,
+            int bitrateKbps,
+            int sampleRateHz,
+            int bitsPerSample,
+            int channelCount,
+            float replayGainTrackDb,
+            float replayGainAlbumDb
+    ) {
         this.id = id;
         this.title = clean(title, UNKNOWN_TITLE);
         this.artist = clean(artist, UNKNOWN_ARTIST);
@@ -82,6 +122,8 @@ public final class Track implements Parcelable {
         this.sampleRateHz = Math.max(sampleRateHz, 0);
         this.bitsPerSample = Math.max(bitsPerSample, 0);
         this.channelCount = Math.max(channelCount, 0);
+        this.replayGainTrackDb = sanitizeReplayGain(replayGainTrackDb);
+        this.replayGainAlbumDb = sanitizeReplayGain(replayGainAlbumDb);
     }
 
     private Track(Parcel in) {
@@ -102,6 +144,8 @@ public final class Track implements Parcelable {
         sampleRateHz = Math.max(in.readInt(), 0);
         bitsPerSample = Math.max(in.readInt(), 0);
         channelCount = Math.max(in.readInt(), 0);
+        replayGainTrackDb = sanitizeReplayGain(in.readFloat());
+        replayGainAlbumDb = sanitizeReplayGain(in.readFloat());
     }
 
     public String subtitle() {
@@ -180,6 +224,8 @@ public final class Track implements Parcelable {
         dest.writeInt(sampleRateHz);
         dest.writeInt(bitsPerSample);
         dest.writeInt(channelCount);
+        dest.writeFloat(replayGainTrackDb);
+        dest.writeFloat(replayGainAlbumDb);
     }
 
     public static final Creator<Track> CREATOR = new Creator<Track>() {
@@ -217,6 +263,19 @@ public final class Track implements Parcelable {
             trimmed = trimmed.substring("audio/".length());
         }
         return trimmed;
+    }
+
+    private static float sanitizeReplayGain(float value) {
+        if (Float.isNaN(value) || Float.isInfinite(value)) {
+            return 0.0f;
+        }
+        if (value < -30.0f) {
+            return -30.0f;
+        }
+        if (value > 30.0f) {
+            return 30.0f;
+        }
+        return value;
     }
 
     private static Uri sanitizeAlbumArtUri(Uri value) {

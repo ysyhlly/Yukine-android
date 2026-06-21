@@ -11,6 +11,9 @@ class PlaybackServiceHostBindingsTest {
             playbackSpeedProvider = PlaybackFloatProvider { 1.25f },
             appVolumeProvider = PlaybackFloatProvider { 0.75f },
             concurrentPlaybackProvider = PlaybackBooleanProvider { true },
+            statusBarLyricsProvider = PlaybackBooleanProvider { false },
+            playbackRestoreProvider = PlaybackBooleanProvider { true },
+            replayGainProvider = PlaybackBooleanProvider { true },
             playbackServiceSetter = PlaybackServiceSetter { calls += "service:${it == null}" },
             resetPlaybackStoreAction = Runnable { calls += "reset" },
             playPendingTracksAction = Runnable { calls += "pending" },
@@ -21,6 +24,9 @@ class PlaybackServiceHostBindingsTest {
         assertEquals(1.25f, host.playbackSpeed(), 0.0f)
         assertEquals(0.75f, host.appVolume(), 0.0f)
         assertEquals(true, host.concurrentPlaybackEnabled())
+        assertEquals(false, host.statusBarLyricsEnabled())
+        assertEquals(true, host.playbackRestoreEnabled())
+        assertEquals(true, host.replayGainEnabled())
 
         host.clearPlaybackService()
         host.resetPlaybackStore()

@@ -8,6 +8,7 @@ import app.yukine.streaming.cache.StreamingCacheRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 
 data class StreamingResolvedPlayback(
@@ -364,6 +365,7 @@ class StreamingRepository(
     }
 
     private fun preflightPlaybackSource(source: StreamingPlaybackSource) {
+        validatePlaybackSource(source)
         if (!source.url.startsWith("http://", ignoreCase = true)
             && !source.url.startsWith("https://", ignoreCase = true)
         ) {
@@ -387,6 +389,35 @@ class StreamingRepository(
         }.onFailure { error ->
             recordPreflightResult(source, started, null, error)
             logWarning("CDN preflight failed for ${source.provider.wireName}:${source.providerTrackId}", error)
+        }
+    }
+
+    private fun validatePlaybackSource(source: StreamingPlaybackSource) {
+        val cleanUrl = source.url.trim()
+        if (cleanUrl.isBlank()) {
+            throw StreamingGatewayException(
+                "Playback source is empty for ${source.provider.wireName}:${source.providerTrackId}",
+                code = StreamingErrorCode.SOURCE_UNAVAILABLE
+            )
+        }
+        val uri = runCatching { URI(cleanUrl) }.getOrElse {
+            throw StreamingGatewayException(
+                "Playback source URL is invalid for ${source.provider.wireName}:${source.providerTrackId}",
+                code = StreamingErrorCode.SOURCE_UNAVAILABLE,
+                cause = it
+            )
+        }
+        val scheme = uri.scheme?.lowercase().orEmpty()
+        val supported = when (scheme) {
+            "http", "https" -> !uri.host.isNullOrBlank()
+            "content", "file", "android.resource" -> true
+            else -> false
+        }
+        if (!supported) {
+            throw StreamingGatewayException(
+                "Playback source scheme is unsupported for ${source.provider.wireName}:${source.providerTrackId}: $scheme",
+                code = StreamingErrorCode.SOURCE_UNAVAILABLE
+            )
         }
     }
 

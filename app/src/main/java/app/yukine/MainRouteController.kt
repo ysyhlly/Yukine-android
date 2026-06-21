@@ -1,7 +1,7 @@
 package app.yukine
 
 internal class MainRouteController(
-    private val viewModel: MainActivityViewModel
+    private val viewModel: NavigationViewModel
 ) {
     private var state: MainActivityRouteState = MainActivityRouteState()
 
@@ -159,9 +159,9 @@ internal class MainRouteController(
         update(
             selectedTab(),
             normalizeLibraryMode(libraryMode),
-            selectedLibraryGroupKey(),
-            selectedLibraryGroupTitle(),
-            selectedPlaylistId(),
+            "",
+            "",
+            -1L,
             searchQuery(),
             networkPage(),
             settingsPage(),

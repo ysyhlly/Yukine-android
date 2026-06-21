@@ -1,5 +1,6 @@
 package app.yukine
 
+import app.yukine.playback.AudioEffectSettings
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -22,6 +23,15 @@ class SettingsGatewayBindingsTest {
             appVolumeAction = SettingsFloatAction { volume -> calls += "volume:$volume" },
             streamingAudioQualityAction = SettingsStringAction { quality -> calls += "quality:$quality" },
             concurrentPlaybackAction = SettingsBooleanAction { enabled -> calls += "concurrent:$enabled" },
+            audioEffectsAction = SettingsAudioEffectsAction { settings -> calls += "effects:${settings.enabled}" },
+            statusBarLyricsAction = SettingsBooleanAction { enabled -> calls += "statusLyrics:$enabled" },
+            floatingLyricsAction = SettingsBooleanAction { enabled -> calls += "floatingLyrics:$enabled" },
+            floatingLyricsPermissionAction = Runnable { calls += "floatingPermission" },
+            nowPlayingGesturesAction = SettingsBooleanAction { enabled -> calls += "gestures:$enabled" },
+            playbackRestoreAction = SettingsBooleanAction { enabled -> calls += "restore:$enabled" },
+            replayGainAction = SettingsBooleanAction { enabled -> calls += "replayGain:$enabled" },
+            exportBackupAction = Runnable { calls += "exportBackup" },
+            importBackupAction = Runnable { calls += "importBackup" },
             themeModeAction = SettingsStringAction { mode -> calls += "theme:$mode" },
             accentModeAction = SettingsStringAction { accent -> calls += "accent:$accent" },
             languageModeAction = SettingsStringAction { languageMode -> calls += "language:$languageMode" },
@@ -42,6 +52,15 @@ class SettingsGatewayBindingsTest {
         gateway.applyAppVolume(0.8f)
         gateway.applyStreamingAudioQuality("lossless")
         gateway.setConcurrentPlaybackEnabled(false)
+        gateway.applyAudioEffectSettings(AudioEffectSettings.DEFAULT.withEnabled(true))
+        gateway.setStatusBarLyricsEnabled(false)
+        gateway.setFloatingLyricsEnabled(true)
+        gateway.openFloatingLyricsPermission()
+        gateway.setNowPlayingGesturesEnabled(false)
+        gateway.setPlaybackRestoreEnabled(true)
+        gateway.setReplayGainEnabled(false)
+        gateway.exportBackup()
+        gateway.importBackup()
         gateway.applyThemeMode("dark")
         gateway.applyAccentMode("blue")
         gateway.applyLanguageMode("zh")
@@ -63,6 +82,15 @@ class SettingsGatewayBindingsTest {
                 "volume:0.8",
                 "quality:lossless",
                 "concurrent:false",
+                "effects:true",
+                "statusLyrics:false",
+                "floatingLyrics:true",
+                "floatingPermission",
+                "gestures:false",
+                "restore:true",
+                "replayGain:false",
+                "exportBackup",
+                "importBackup",
                 "theme:dark",
                 "accent:blue",
                 "language:zh",

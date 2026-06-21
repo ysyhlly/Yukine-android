@@ -3,7 +3,7 @@ package app.yukine.dashboard
 import android.net.Uri
 
 /**
- * Dashboard API contracts for ECHO Next.
+ * Dashboard API contracts for Yukine.
  * Base URL: http://<gateway-host>:<port>/api/v1
  */
 

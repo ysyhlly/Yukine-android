@@ -110,7 +110,7 @@ public final class EchoDialog {
             int padV = dp(20);
             root.setPadding(padH, padV, padH, dp(12));
 
-            // Echo Next signature: a soft vertical gradient (surface → surfaceVariant →
+            // Yukine signature: a soft vertical gradient (surface → surfaceVariant →
             // backgroundAlt) instead of a flat fill, with a subtle border.
             GradientDrawable bg = new GradientDrawable(
                     GradientDrawable.Orientation.TOP_BOTTOM,
@@ -255,7 +255,7 @@ public final class EchoDialog {
             return button;
         }
 
-        /** Accent button with an Echo Next gradient fill pill (used for the positive action). */
+        /** Accent button with a Yukine gradient fill pill (used for the positive action). */
         private TextView makeAccentButton(
                 CharSequence label, int accent, int accentStrong, int onAccent, View.OnClickListener onClick) {
             TextView button = baseButton(label, onAccent);

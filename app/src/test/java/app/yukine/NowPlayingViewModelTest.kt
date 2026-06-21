@@ -60,6 +60,30 @@ class NowPlayingViewModelTest {
     }
 
     @Test
+    fun downloadCurrentTrackEmitsCurrentTrackEffect() {
+        val viewModel = NowPlayingViewModel()
+        viewModel.updateState(snapshotWithTrack(), emptySet(), null)
+
+        viewModel.onEvent(NowPlayingEvent.DownloadCurrentTrack)
+
+        val effect = viewModel.drainEffects().single() as NowPlayingEffect.DownloadTrack
+        assertEquals(7L, effect.track.id)
+        assertEquals("Song", effect.track.title)
+    }
+
+    @Test
+    fun shareCurrentTrackEmitsCurrentTrackEffect() {
+        val viewModel = NowPlayingViewModel()
+        viewModel.updateState(snapshotWithTrack(), emptySet(), null)
+
+        viewModel.onEvent(NowPlayingEvent.ShareCurrentTrack)
+
+        val effect = viewModel.drainEffects().single() as NowPlayingEffect.ShareTrack
+        assertEquals(7L, effect.track.id)
+        assertEquals("Song", effect.track.title)
+    }
+
+    @Test
     fun addToPlaylistWithoutTrackDoesNotCrash() {
         val gateway = FakeGateway()
         val viewModel = NowPlayingViewModel()

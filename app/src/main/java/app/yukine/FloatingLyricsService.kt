@@ -31,16 +31,24 @@ import kotlinx.coroutines.launch
 
 data class FloatingLyricsState(
     val trackTitle: String = "",
+    val artist: String = "",
+    val albumArtUri: String? = null,
+    val playing: Boolean = false,
     val activeLine: String = "",
     val visible: Boolean = false
 )
 
 /**
  * Static publisher for lyrics state that the floating service observes.
- * Updated by NowPlayingViewModel / MainStatePublisher whenever lyrics change.
+ * Updated by NowPlayingViewModel whenever lyrics change.
  */
 object FloatingLyricsPublisher {
+    fun interface Listener {
+        fun onFloatingLyricsChanged(state: FloatingLyricsState)
+    }
+
     private val _state = MutableStateFlow(FloatingLyricsState())
+    private val listeners = java.util.concurrent.CopyOnWriteArraySet<Listener>()
     val state: StateFlow<FloatingLyricsState> = _state.asStateFlow()
 
     @JvmStatic
@@ -48,16 +56,64 @@ object FloatingLyricsPublisher {
         val active = lyrics.firstOrNull { it.active }?.text
             ?: lyrics.firstOrNull()?.text
             ?: ""
-        _state.value = FloatingLyricsState(
+        update(
             trackTitle = trackTitle,
-            activeLine = active,
-            visible = active.isNotBlank()
+            artist = _state.value.artist,
+            albumArtUri = _state.value.albumArtUri,
+            playing = _state.value.playing,
+            activeLine = active
+        )
+    }
+
+    @JvmStatic
+    fun update(
+        trackTitle: String,
+        artist: String,
+        albumArtUri: String?,
+        playing: Boolean,
+        activeLine: String
+    ) {
+        publish(
+            FloatingLyricsState(
+                trackTitle = trackTitle,
+                artist = artist,
+                albumArtUri = albumArtUri,
+                playing = playing,
+                activeLine = activeLine,
+                visible = activeLine.isNotBlank()
+            )
         )
     }
 
     @JvmStatic
     fun clear() {
-        _state.value = FloatingLyricsState()
+        publish(FloatingLyricsState())
+    }
+
+    @JvmStatic
+    fun snapshot(): FloatingLyricsState = _state.value
+
+    @JvmStatic
+    fun addListener(listener: Listener?) {
+        if (listener != null) {
+            listeners.add(listener)
+            listener.onFloatingLyricsChanged(_state.value)
+        }
+    }
+
+    @JvmStatic
+    fun removeListener(listener: Listener?) {
+        if (listener != null) {
+            listeners.remove(listener)
+        }
+    }
+
+    private fun publish(next: FloatingLyricsState) {
+        if (_state.value == next) {
+            return
+        }
+        _state.value = next
+        listeners.forEach { it.onFloatingLyricsChanged(next) }
     }
 }
 

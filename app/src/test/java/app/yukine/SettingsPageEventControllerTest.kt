@@ -26,6 +26,14 @@ class SettingsPageEventControllerTest {
         controller.applyAppVolume(0.7f)
         controller.applyStreamingAudioQuality(StreamingQualityPreference.HIGH)
         controller.setConcurrentPlaybackEnabled(true)
+        controller.setStatusBarLyricsEnabled(false)
+        controller.setFloatingLyricsEnabled(true)
+        controller.openFloatingLyricsPermission()
+        controller.setNowPlayingGesturesEnabled(false)
+        controller.setPlaybackRestoreEnabled(true)
+        controller.setReplayGainEnabled(false)
+        controller.exportBackup()
+        controller.importBackup()
         controller.applyThemeMode("dark")
         controller.applyAccentMode("teal")
         controller.applyLanguageMode(AppLanguage.MODE_ENGLISH)
@@ -47,6 +55,14 @@ class SettingsPageEventControllerTest {
                 "volume:0.7",
                 "quality:high",
                 "concurrent:true",
+                "statusLyrics:false",
+                "floating:true",
+                "floatingPermission",
+                "gestures:false",
+                "restore:true",
+                "replayGain:false",
+                "exportBackup",
+                "importBackup",
                 "theme:dark",
                 "accent:teal",
                 "language:${AppLanguage.MODE_ENGLISH}",
@@ -107,12 +123,48 @@ class SettingsPageEventControllerTest {
             calls.add("volume:$volume")
         }
 
+        override fun applyAudioEffectSettings(settings: app.yukine.playback.AudioEffectSettings) {
+            calls.add("audioEffects:${settings.enabled}")
+        }
+
         override fun applyStreamingAudioQuality(quality: String) {
             calls.add("quality:$quality")
         }
 
         override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
             calls.add("concurrent:$enabled")
+        }
+
+        override fun setStatusBarLyricsEnabled(enabled: Boolean) {
+            calls.add("statusLyrics:$enabled")
+        }
+
+        override fun setFloatingLyricsEnabled(enabled: Boolean) {
+            calls.add("floating:$enabled")
+        }
+
+        override fun openFloatingLyricsPermission() {
+            calls.add("floatingPermission")
+        }
+
+        override fun setNowPlayingGesturesEnabled(enabled: Boolean) {
+            calls.add("gestures:$enabled")
+        }
+
+        override fun setPlaybackRestoreEnabled(enabled: Boolean) {
+            calls.add("restore:$enabled")
+        }
+
+        override fun setReplayGainEnabled(enabled: Boolean) {
+            calls.add("replayGain:$enabled")
+        }
+
+        override fun exportBackup() {
+            calls.add("exportBackup")
+        }
+
+        override fun importBackup() {
+            calls.add("importBackup")
         }
 
         override fun applyThemeMode(mode: String) {

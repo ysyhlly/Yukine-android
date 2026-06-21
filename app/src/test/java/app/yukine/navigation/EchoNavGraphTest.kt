@@ -11,14 +11,16 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.SavedStateHandle
 import app.yukine.CollectionsViewModel
-import app.yukine.model.Track
+import app.yukine.HomeDashboardViewModel
 import app.yukine.LibraryViewModel
-import app.yukine.MainActivityHomeDashboardUiState
 import app.yukine.MainActivityViewModel
+import app.yukine.model.Track
+import app.yukine.NavigationViewModel
 import app.yukine.NetworkSourcesViewModel
 import app.yukine.NowPlayingViewModel
 import app.yukine.SettingsUiState
 import app.yukine.SettingsViewModel
+import app.yukine.StreamingViewModel
 import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.queue.QueueViewModel
@@ -54,12 +56,11 @@ class EchoNavGraphTest {
         QueueViewModel().also { it.bind(emptyList(), null, emptySet(), "en") }
 
     private fun hostState(): EchoNavHostState {
-        val main = MainActivityViewModel(SavedStateHandle())
-        main.updateHomeDashboard(
-            MainActivityHomeDashboardUiState(
+        val homeDashboard = HomeDashboardViewModel(null).also {
+            it.updateHomeDashboard(
                 HomeDashboardUiState(heroTitle = "Native home")
-            ).content
-        )
+            )
+        }
         val collections = CollectionsViewModel().also {
             it.updateScreen(
                 CollectionsUiState(
@@ -88,12 +89,15 @@ class EchoNavGraphTest {
             )
         }
         return EchoNavHostState(
-            mainViewModel = main,
+            mainViewModel = MainActivityViewModel(SavedStateHandle()),
+            navigationViewModel = NavigationViewModel(SavedStateHandle()),
+            homeDashboardViewModel = homeDashboard,
             nowPlayingViewModel = NowPlayingViewModel(),
             libraryViewModel = LibraryViewModel(),
             collectionsViewModel = collections,
             settingsViewModel = settings,
             networkSourcesViewModel = NetworkSourcesViewModel(),
+            streamingViewModel = StreamingViewModel(),
             homeActions = HomeDashboardActions(
                 onOpenStat = emptyList(),
                 onContinue = Runnable {},

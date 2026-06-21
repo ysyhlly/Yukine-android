@@ -16,6 +16,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class StreamingRepositoryTest {
@@ -301,6 +302,32 @@ class StreamingRepositoryTest {
     }
 
     @Test
+    fun resolvePlaybackTrackRejectsInvalidPlaybackSourceBeforeAdapter() = runTest {
+        val gateway = FakeStreamingGateway(
+            playbackSource = playbackSource("")
+        )
+        val adapter = FakePlaybackTrackAdapter()
+        val repository = StreamingRepository(
+            gateway = gateway,
+            playbackTrackAdapter = adapter
+        )
+
+        try {
+            repository.resolvePlaybackTrack(
+                provider = StreamingProviderName.NETEASE,
+                providerTrackId = "bad-track",
+                quality = StreamingAudioQuality.HIGH,
+                metadata = null
+            )
+            fail("Expected invalid playback source to fail")
+        } catch (error: StreamingGatewayException) {
+            assertEquals(StreamingErrorCode.SOURCE_UNAVAILABLE, error.code)
+        }
+
+        assertTrue(adapter.sourceTrackIds.isEmpty())
+    }
+
+    @Test
     fun authStateUsesAndWritesCache() = runTest {
         val dao = FakeStreamingCacheDao()
         val cache = StreamingCacheRepository(dao) { 4_000L }
@@ -430,6 +457,39 @@ class StreamingRepositoryTest {
         assertEquals(null, cache.cachedSearch(request))
         assertEquals(null, cache.cachedAuth(StreamingProviderName.QQ_MUSIC))
         assertEquals(2, cache.clearExpired())
+    }
+
+    @Test
+    fun cachedPlaybackBlockingReadsLatestUnexpiredPlaybackWithoutCoroutineBridge() = runTest {
+        val dao = FakeStreamingCacheDao()
+        val cache = StreamingCacheRepository(dao) { 40_000L }
+
+        cache.savePlayback(
+            StreamingProviderName.NETEASE,
+            "track-1",
+            StreamingAudioQuality.HIGH,
+            """{"quality":"high"}""",
+            ttlMs = 100L
+        )
+        cache.savePlayback(
+            StreamingProviderName.NETEASE,
+            "track-1",
+            StreamingAudioQuality.LOSSLESS,
+            """{"quality":"lossless"}""",
+            ttlMs = 50L
+        )
+        cache.savePlayback(
+            StreamingProviderName.NETEASE,
+            "track-2",
+            StreamingAudioQuality.LOSSLESS,
+            """{"quality":"other"}""",
+            ttlMs = 100L
+        )
+
+        assertEquals(
+            """{"quality":"lossless"}""",
+            cache.cachedPlaybackBlocking(StreamingProviderName.NETEASE, "track-1")
+        )
     }
 
     @Test
@@ -684,7 +744,11 @@ private class FakeStreamingCacheDao : StreamingCacheDao {
     ): StreamingPlaybackCacheEntity? {
         return playbacks.values
             .filter { it.provider == provider && it.providerTrackId == providerTrackId && it.expiresAtMs > nowMs }
-            .maxByOrNull { it.expiresAtMs }
+            .sortedWith(
+                compareBy<StreamingPlaybackCacheEntity> { playbackQualityRank(it.quality) }
+                    .thenByDescending { it.expiresAtMs }
+            )
+            .firstOrNull()
     }
 
     override suspend fun upsertPlayback(entity: StreamingPlaybackCacheEntity) {
@@ -721,6 +785,15 @@ private class FakeStreamingCacheDao : StreamingCacheDao {
         val expired = auth.filterValues { it.expiresAtMs != null && it.expiresAtMs <= nowMs }.keys.toList()
         expired.forEach { auth.remove(it) }
         return expired.size
+    }
+
+    private fun playbackQualityRank(quality: String): Int {
+        return when (quality) {
+            "lossless" -> 0
+            "hires" -> 1
+            "high" -> 2
+            else -> 3
+        }
     }
 }
 

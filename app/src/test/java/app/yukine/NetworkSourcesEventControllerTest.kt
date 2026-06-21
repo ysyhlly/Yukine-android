@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import app.yukine.model.RemoteSource
 import app.yukine.model.Track
-import app.yukine.ui.NetworkSourceUiState
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.util.ArrayList
@@ -25,8 +24,8 @@ class NetworkSourcesEventControllerTest {
             ),
             fakes.events
         )
-        assertEquals(MainRoutes.NETWORK_HOME, fakes.viewModel.state.value.networkPage)
-        assertEquals(-1L, fakes.viewModel.state.value.selectedRemoteSourceId)
+        assertEquals(MainRoutes.NETWORK_HOME, fakes.navigationViewModel.state.value.networkPage)
+        assertEquals(-1L, fakes.navigationViewModel.state.value.selectedRemoteSourceId)
     }
 
     @Test
@@ -72,24 +71,11 @@ class NetworkSourcesEventControllerTest {
         )
     }
 
-    @Test
-    fun publishNetworkSourcesUpdatesStatePublisher() {
-        val fakes = Fakes()
-        val controller = fakes.controller()
-        val rows = arrayListOf(NetworkSourceUiState(3L, "Home", "dav", "ok"))
-
-        controller.publishNetworkSources("Sources", rows)
-
-        assertEquals("Sources", fakes.viewModel.networkSources.value.title)
-        assertEquals(rows, fakes.viewModel.networkSources.value.rows)
-    }
-
     private class Fakes {
         val events = ArrayList<String>()
         val sourceTracks = ArrayList<Track>()
-        val viewModel = MainActivityViewModel(SavedStateHandle())
-        private val routeController = MainRouteController(viewModel)
-        private val statePublisher = MainStatePublisher(viewModel)
+        val navigationViewModel = NavigationViewModel(SavedStateHandle())
+        private val routeController = MainRouteController(navigationViewModel)
         private val requestController = NetworkRequestController(
             FakeSink(events),
             object : NetworkRequestController.Labels {
@@ -112,7 +98,6 @@ class NetworkSourcesEventControllerTest {
                 { tracks, index -> events.add("play:${tracks.first().id}@$index") },
                 { key -> "label:$key" },
                 { status -> events.add("status:$status") },
-                statePublisher,
                 { events.add("render") }
             )
     }

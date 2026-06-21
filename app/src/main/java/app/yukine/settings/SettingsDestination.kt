@@ -4,9 +4,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import app.yukine.SettingsUiState
+import app.yukine.TrackDownloadItem
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.SettingsListScrollState
 import app.yukine.ui.SettingsScreen
+import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -22,8 +24,19 @@ import kotlinx.coroutines.flow.StateFlow
 fun SettingsDestination(
     state: StateFlow<SettingsUiState>,
     actions: List<SettingsAction>,
-    scrollState: SettingsListScrollState = SettingsListScrollState()
+    scrollState: SettingsListScrollState = SettingsListScrollState(),
+    activeDownload: TrackDownloadItem? = null,
+    playbackQuality: String = "",
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
     val uiState by state.collectAsState()
-    SettingsScreen(uiState.title, uiState.metrics, actions, scrollState)
+    SettingsScreen(
+        title = uiState.title,
+        metrics = uiState.metrics,
+        actions = actions,
+        scrollState = scrollState,
+        activeDownload = activeDownload,
+        playbackQuality = playbackQuality,
+        audioMotion = audioMotion
+    )
 }

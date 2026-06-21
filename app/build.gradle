@@ -1,16 +1,18 @@
 plugins {
-    id "com.android.application"
-    id "org.jetbrains.kotlin.android"
-    id "org.jetbrains.kotlin.plugin.compose"
-    id "com.google.devtools.ksp"
-    id "com.google.dagger.hilt.android"
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt.android)
 }
 
-def echoReleaseStoreFile = findProperty("ECHO_RELEASE_STORE_FILE") ?: System.getenv("ECHO_RELEASE_STORE_FILE")
+def echoReleaseStoreFile     = findProperty("ECHO_RELEASE_STORE_FILE")     ?: System.getenv("ECHO_RELEASE_STORE_FILE")
 def echoReleaseStorePassword = findProperty("ECHO_RELEASE_STORE_PASSWORD") ?: System.getenv("ECHO_RELEASE_STORE_PASSWORD")
-def echoReleaseKeyAlias = findProperty("ECHO_RELEASE_KEY_ALIAS") ?: System.getenv("ECHO_RELEASE_KEY_ALIAS")
-def echoReleaseKeyPassword = findProperty("ECHO_RELEASE_KEY_PASSWORD") ?: System.getenv("ECHO_RELEASE_KEY_PASSWORD")
-def echoHasReleaseSigning = echoReleaseStoreFile && echoReleaseStorePassword && echoReleaseKeyAlias && echoReleaseKeyPassword
+def echoReleaseKeyAlias      = findProperty("ECHO_RELEASE_KEY_ALIAS")      ?: System.getenv("ECHO_RELEASE_KEY_ALIAS")
+def echoReleaseKeyPassword   = findProperty("ECHO_RELEASE_KEY_PASSWORD")   ?: System.getenv("ECHO_RELEASE_KEY_PASSWORD")
+def echoHasReleaseSigning    = echoReleaseStoreFile && echoReleaseStorePassword && echoReleaseKeyAlias && echoReleaseKeyPassword
+def yukineQqAppId            = findProperty("YUKINE_QQ_APP_ID")            ?: System.getenv("YUKINE_QQ_APP_ID") ?: ""
+def yukineWechatAppId        = findProperty("YUKINE_WECHAT_APP_ID")        ?: System.getenv("YUKINE_WECHAT_APP_ID") ?: ""
 
 android {
     namespace "app.yukine"
@@ -20,7 +22,11 @@ android {
         applicationId "app.yukine"
         minSdk 23
         targetSdk 35
-        versionCode 1
+        buildConfigField "String", "YUKINE_QQ_APP_ID", "\"${yukineQqAppId}\""
+        buildConfigField "String", "YUKINE_WECHAT_APP_ID", "\"${yukineWechatAppId}\""
+        // versionCode comes from CI when available; local debug builds fall back to 1.
+        def echoRunNumber = System.getenv("GITHUB_RUN_NUMBER")
+        versionCode echoRunNumber ? echoRunNumber.toInteger() : 1
         versionName "0.1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -38,9 +44,9 @@ android {
         options.encoding = "UTF-8"
     }
 
-
     buildFeatures {
         compose true
+        buildConfig true
     }
 
     testOptions {
@@ -48,6 +54,14 @@ android {
             includeAndroidResources = true
             returnDefaultValues = true
         }
+    }
+
+    lint {
+        // AGP 8.7 lint crashes in androidx.lifecycle's NullSafeMutableLiveData detector
+        // while analyzing Kotlin UAST in release builds. Keep lintVital enabled and
+        // disable only the broken detector so assembleRelease remains a usable gate.
+        disable "NullSafeMutableLiveData"
+        // 鐜板瓨鐨勫巻鍙?lint 闂宸茶鍏?baseline锛宭int 鍥犳鍙樼豢鍙撼鍏?CI锛?        // 姝ゅ悗浠讳綍銆愭柊澧炪€戠殑 lint 闂閮戒細琚嫤鎴紙baseline 涔嬪鐨勬墠鎶ラ敊锛夈€?        // 鍒犻櫎 lint-baseline.xml 鍚庨噸璺戝彲閲嶆柊鐢熸垚鍩虹嚎銆?        baseline = file("lint-baseline.xml")
     }
 
     signingConfigs {
@@ -78,38 +92,63 @@ ksp {
 }
 
 dependencies {
-    implementation platform("androidx.compose:compose-bom:2026.05.00")
-    implementation "androidx.activity:activity-compose:1.9.3"
-    implementation "androidx.lifecycle:lifecycle-viewmodel:2.9.4"
-    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.9.4"
-    implementation "androidx.lifecycle:lifecycle-viewmodel-savedstate:2.9.4"
-    implementation "androidx.navigation:navigation-compose:2.9.4"
-    implementation "androidx.browser:browser:1.8.0"
-    implementation "androidx.compose.foundation:foundation"
-    implementation "androidx.compose.material3:material3"
-    implementation "androidx.compose.ui:ui"
-    implementation "androidx.compose.ui:ui-tooling-preview"
-    implementation "androidx.media3:media3-exoplayer:1.4.1"
-    implementation "androidx.media3:media3-datasource:1.4.1"
-    implementation "androidx.media3:media3-session:1.4.1"
-    implementation "androidx.room:room-runtime:2.7.2"
-    implementation "androidx.room:room-ktx:2.7.2"
-    implementation "com.google.dagger:hilt-android:2.57.2"
-    ksp "androidx.room:room-compiler:2.7.2"
-    ksp "com.google.dagger:hilt-compiler:2.57.2"
-    testImplementation "junit:junit:4.13.2"
-    testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0"
-    testImplementation "org.json:json:20240303"
-    testImplementation "org.robolectric:robolectric:4.13"
-    testImplementation "androidx.test:core:1.6.1"
-    testImplementation "androidx.test.ext:junit:1.2.1"
-    testImplementation platform("androidx.compose:compose-bom:2026.05.00")
-    testImplementation "androidx.compose.ui:ui-test-junit4"
-    debugImplementation "androidx.compose.ui:ui-test-manifest"
-    debugImplementation "androidx.compose.ui:ui-tooling"
-    androidTestImplementation "androidx.test:runner:1.6.2"
-    androidTestImplementation "androidx.test:core:1.6.1"
-    androidTestImplementation "androidx.test.ext:junit:1.2.1"
-    androidTestImplementation "androidx.room:room-testing:2.7.2"
-    androidTestImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0"
+    // 鈹€鈹€ Compose BOM 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    implementation platform(libs.androidx.compose.bom)
+    testImplementation platform(libs.androidx.compose.bom)
+
+    // 鈹€鈹€ Compose (鐗堟湰鐢?BOM 缁熶竴绠＄悊) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    implementation libs.androidx.compose.foundation
+    implementation libs.androidx.compose.material3
+    implementation libs.androidx.compose.ui
+    implementation libs.androidx.compose.ui.tooling.preview
+
+    // 鈹€鈹€ Activity 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    implementation libs.androidx.activity.compose
+    implementation libs.androidx.core
+
+    // 鈹€鈹€ Lifecycle 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    implementation libs.androidx.lifecycle.viewmodel
+    implementation libs.androidx.lifecycle.viewmodel.ktx
+    implementation libs.androidx.lifecycle.viewmodel.savedstate
+
+    // 鈹€鈹€ Navigation 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    implementation libs.androidx.navigation.compose
+
+    // 鈹€鈹€ Browser 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    implementation libs.androidx.browser
+    implementation libs.wechat.opensdk
+
+    // 鈹€鈹€ Media3 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    implementation libs.androidx.media3.exoplayer
+    implementation libs.androidx.media3.datasource
+    implementation libs.androidx.media3.session
+
+    // 鈹€鈹€ Room 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    implementation libs.androidx.room.runtime
+    implementation libs.androidx.room.ktx
+    ksp libs.androidx.room.compiler
+
+    // 鈹€鈹€ Hilt 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    implementation libs.hilt.android
+    ksp libs.hilt.compiler
+
+    // 鈹€鈹€ Unit Test 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    testImplementation libs.junit
+    testImplementation libs.kotlinx.coroutines.test
+    testImplementation libs.json
+    testImplementation libs.robolectric
+    testImplementation libs.androidx.test.core
+    testImplementation libs.androidx.test.junit
+    testImplementation libs.androidx.compose.ui.test.junit4
+
+    // 鈹€鈹€ Debug 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    debugImplementation libs.androidx.compose.ui.test.manifest
+    debugImplementation libs.androidx.compose.ui.tooling
+
+    // 鈹€鈹€ Android Instrumented Test 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    androidTestImplementation libs.androidx.test.runner
+    androidTestImplementation libs.androidx.test.core
+    androidTestImplementation libs.androidx.test.junit
+    androidTestImplementation libs.androidx.room.testing
+    androidTestImplementation libs.kotlinx.coroutines.test
 }

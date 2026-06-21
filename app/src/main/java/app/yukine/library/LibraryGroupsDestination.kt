@@ -4,9 +4,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import app.yukine.MainActivityLibraryGroupsUiState
+import app.yukine.TrackDownloadItem
 import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.LibraryGroupsScreen
 import app.yukine.ui.TrackListModeAction
+import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -21,8 +23,22 @@ fun LibraryGroupsDestination(
     state: StateFlow<MainActivityLibraryGroupsUiState>,
     actions: List<LibraryGroupActions>,
     emptyText: String = "",
-    modeActions: List<TrackListModeAction> = emptyList()
+    modeActions: List<TrackListModeAction> = emptyList(),
+    onSearch: Runnable = Runnable { },
+    activeDownload: TrackDownloadItem? = null,
+    playbackQuality: String = "",
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
     val uiState by state.collectAsState()
-    LibraryGroupsScreen(uiState.title, uiState.rows, actions, emptyText, modeActions)
+    LibraryGroupsScreen(
+        uiState.title,
+        uiState.rows,
+        actions,
+        emptyText,
+        modeActions,
+        onSearch,
+        activeDownload,
+        playbackQuality,
+        audioMotion
+    )
 }

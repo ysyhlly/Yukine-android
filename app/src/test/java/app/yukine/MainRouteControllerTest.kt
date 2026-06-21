@@ -1,6 +1,7 @@
 package app.yukine
 
 import androidx.lifecycle.SavedStateHandle
+import app.yukine.NavigationViewModel
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -53,6 +54,25 @@ class MainRouteControllerTest {
         assertEquals("playlist:7", state.selectedLibraryGroupKey)
         assertEquals("Favorites", state.selectedLibraryGroupTitle)
         assertEquals(7L, state.selectedPlaylistId)
+    }
+
+    @Test
+    fun setLibraryModeClearsPreviousLibraryDetailState() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_LIBRARY,
+            libraryMode = LibraryGrouping.PLAYLISTS,
+            selectedLibraryGroupKey = "playlist:7",
+            selectedLibraryGroupTitle = "Favorites",
+            selectedPlaylistId = 7L
+        )
+
+        controller.setLibraryMode(LibraryGrouping.ALBUMS)
+
+        val state = controller.current()
+        assertEquals(LibraryGrouping.ALBUMS, state.libraryMode)
+        assertEquals("", state.selectedLibraryGroupKey)
+        assertEquals("", state.selectedLibraryGroupTitle)
+        assertEquals(-1L, state.selectedPlaylistId)
     }
 
     @Test
@@ -193,7 +213,7 @@ class MainRouteControllerTest {
         settingsPage: String = MainRoutes.SETTINGS_HOME,
         selectedRemoteSourceId: Long = -1L
     ): MainRouteController {
-        val viewModel = MainActivityViewModel(SavedStateHandle())
+        val viewModel = NavigationViewModel(SavedStateHandle())
         val controller = MainRouteController(viewModel)
         controller.persist(
             MainActivityRouteState(

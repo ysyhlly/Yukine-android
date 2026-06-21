@@ -4,6 +4,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
@@ -80,7 +81,8 @@ data class NowBarState @JvmOverloads constructor(
     val favoritedLabel: String,
     val shuffleLabel: String,
     val inOrderLabel: String,
-    val repeatLabel: String,
+    val repeatOneLabel: String,
+    val repeatAllLabel: String,
     val repeatOffLabel: String,
     val nowPlayingLabel: String = "",
     val repeatMode: Int = EchoPlaybackService.REPEAT_ALL,
@@ -155,7 +157,8 @@ private data class NowBarModeSlice(
     val shuffleEnabled: Boolean,
     val shuffleLabel: String,
     val inOrderLabel: String,
-    val repeatLabel: String,
+    val repeatOneLabel: String,
+    val repeatAllLabel: String,
     val repeatOffLabel: String,
     val queueLabel: String,
     val repeatMode: Int
@@ -177,7 +180,8 @@ fun nowBarEmptyState() = NowBarState(
     favoritedLabel = "Favorited",
     shuffleLabel = "Shuffle",
     inOrderLabel = "In order",
-    repeatLabel = "Repeat all",
+    repeatOneLabel = "Repeat one",
+    repeatAllLabel = "Repeat all",
     repeatOffLabel = "Repeat off",
     repeatMode = EchoPlaybackService.REPEAT_ALL
 )
@@ -233,7 +237,8 @@ fun NowBar(
         shuffleEnabled = state.shuffleEnabled,
         shuffleLabel = state.shuffleLabel,
         inOrderLabel = state.inOrderLabel,
-        repeatLabel = state.repeatLabel,
+        repeatOneLabel = state.repeatOneLabel,
+        repeatAllLabel = state.repeatAllLabel,
         repeatOffLabel = state.repeatOffLabel,
         queueLabel = state.queueLabel,
         repeatMode = state.repeatMode
@@ -328,7 +333,7 @@ private fun MiniLyricsStrip(state: NowBarState) {
                 clipboard.setText(AnnotatedString(activeLine))
                 Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
             }
-            .semantics { contentDescription = state.lyricsTitle.ifBlank { "Lyrics" } },
+            .semantics { contentDescription = state.lyricsTitle.ifBlank { "歌词" } },
         shape = EchoShapes.small,
         color = p.accentSoft.copy(alpha = 0.32f)
     ) {
@@ -483,11 +488,27 @@ private fun NowBarTrackSection(
 ) {
     val p = EchoTheme.colors()
     val uri = remember(slice.artUriString) { slice.artUriString?.let { Uri.parse(it) } }
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    val copyText = remember(slice.title, slice.subtitle) {
+        listOf(slice.title, slice.subtitle)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+    }
     Row(
-        modifier = modifier.clickable(enabled = slice.canExpand) {
-            onCollapseWaveform()
-            onOpenNowPlaying.run()
-        },
+        modifier = modifier.combinedClickable(
+            enabled = slice.canExpand,
+            onClick = {
+                onCollapseWaveform()
+                onOpenNowPlaying.run()
+            },
+            onLongClick = {
+                if (copyText.isNotBlank()) {
+                    clipboard.setText(AnnotatedString(copyText))
+                    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                }
+            }
+        ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AlbumArtThumb(uri, slice.title, slice.subtitle)
@@ -584,8 +605,8 @@ private fun NowBarModeControls(
         AuxChip(
             icon = EchoIconKind.Repeat,
             label = when (slice.repeatMode) {
-                EchoPlaybackService.REPEAT_ONE -> slice.repeatLabel
-                EchoPlaybackService.REPEAT_ALL -> slice.repeatLabel
+                EchoPlaybackService.REPEAT_ONE -> slice.repeatOneLabel
+                EchoPlaybackService.REPEAT_ALL -> slice.repeatAllLabel
                 else -> slice.repeatOffLabel
             },
             active = slice.repeatMode != EchoPlaybackService.REPEAT_OFF,

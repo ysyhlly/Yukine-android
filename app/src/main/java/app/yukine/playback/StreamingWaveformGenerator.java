@@ -10,9 +10,12 @@ import android.media.MediaFormat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DataSpec;
 
+@OptIn(markerClass = UnstableApi.class)
 final class StreamingWaveformGenerator {
     private static final int BAR_COUNT = 96;
     private static final int MAX_IDLE_CODEC_POLLS = 24;

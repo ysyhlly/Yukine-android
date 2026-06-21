@@ -2,10 +2,10 @@ package app.yukine.streaming
 
 /**
  * Parses a playlist share link or raw id pasted by the user into a [StreamingProviderName] +
- * providerPlaylistId pair, so ECHO Next can fetch that playlist's detail through the gateway and
+ * providerPlaylistId pair, so Yukine can fetch that playlist's detail through the gateway and
  * import it locally.
  *
- * Supports the common share-link formats for the providers ECHO Next integrates with, and falls
+ * Supports the common share-link formats for the providers Yukine integrates with, and falls
  * back to treating bare numeric / alphanumeric input as a raw playlist id for the currently
  * selected provider.
  */
@@ -57,6 +57,11 @@ object StreamingPlaylistLinkParser {
                 return ParsedPlaylistRef(StreamingProviderName.YOUTUBE, it)
             }
         }
+        // LX / LuoXue compatible gateways: lxmusic://playlist/kw/123,
+        // https://...lxmusic...?source=kw&id=123, or raw lx/kw/mg prefixed ids.
+        parseLuoxue(raw, lower)?.let {
+            return it
+        }
         // SoundCloud: soundcloud.com/user/sets/playlist-name
         if (lower.contains("soundcloud.com")) {
             extractAfterSegment(raw, "/sets/")?.let {
@@ -81,6 +86,9 @@ object StreamingPlaylistLinkParser {
 
         // Bare id fallback for the currently selected provider (no recognizable host).
         if (!raw.contains("://") && !raw.contains(" ")) {
+            parseLuoxueRawId(raw)?.let {
+                return ParsedPlaylistRef(StreamingProviderName.LUOXUE, it)
+            }
             val cleaned = raw.removePrefix("ml") // bilibili medialist often prefixed with ml
             if (cleaned.isNotEmpty()) {
                 return ParsedPlaylistRef(fallbackProvider, cleaned)
@@ -89,14 +97,66 @@ object StreamingPlaylistLinkParser {
         return null
     }
 
+    private fun parseLuoxue(raw: String, lower: String): ParsedPlaylistRef? {
+        val looksLikeLuoxue = lower.startsWith("lx://") ||
+            lower.startsWith("lxmusic://") ||
+            lower.contains("lxmusic") ||
+            lower.contains("luoxue") ||
+            lower.contains("洛雪")
+        if (!looksLikeLuoxue) {
+            return null
+        }
+        val id = extractLuoxuePlaylistId(raw, lower) ?: return null
+        return ParsedPlaylistRef(StreamingProviderName.LUOXUE, id)
+    }
+
+    private fun extractLuoxuePlaylistId(raw: String, lower: String): String? {
+        val source = extractQueryValue(raw, lower, listOf("source=", "platform=", "from=", "type="))
+        val queryId = extractQueryValue(
+            raw,
+            lower,
+            listOf("playlistid=", "listid=", "songlistid=", "id=", "pid=", "dissid=")
+        )
+        if (!queryId.isNullOrBlank()) {
+            return joinLuoxueSource(source, queryId)
+        }
+        for (segment in listOf("/playlist/", "/songlist/", "/sheet/", "/list/")) {
+            extractAfterSegmentKeepingPath(raw, lower, segment)?.let { value ->
+                return normalizeLuoxuePathId(value)
+            }
+        }
+        return parseLuoxueRawId(raw)
+    }
+
+    private fun parseLuoxueRawId(raw: String): String? {
+        val cleaned = raw.trim().trim('/', ':')
+        val lower = cleaned.lowercase()
+        val knownPrefixes = listOf("lx", "lxmusic", "luoxue", "kw", "kuwo", "kg", "kugou", "tx", "qq", "wy", "netease", "mg", "migu")
+        for (prefix in knownPrefixes) {
+            for (separator in listOf(":", "/", "_", "-")) {
+                val marker = prefix + separator
+                if (lower.startsWith(marker) && cleaned.length > marker.length) {
+                    return cleaned
+                }
+            }
+        }
+        return null
+    }
+
+    private fun joinLuoxueSource(source: String?, id: String): String {
+        val normalizedSource = source.orEmpty().trim().takeIf { it.isNotBlank() }
+        return if (normalizedSource == null) id else "$normalizedSource:$id"
+    }
+
     /** Extract an id from query parameters (e.g. "id=") or path segments (e.g. "/playlist/"). */
     private fun extractId(
         raw: String,
         queryKeys: List<String>,
         pathSegments: List<String>
     ): String? {
+        val lower = raw.lowercase()
         for (key in queryKeys) {
-            val idx = raw.indexOf(key)
+            val idx = lower.indexOf(key.lowercase())
             if (idx >= 0) {
                 val after = raw.substring(idx + key.length)
                 val value = after.takeWhile { it.isLetterOrDigit() || it == '_' || it == '-' }
@@ -112,13 +172,48 @@ object StreamingPlaylistLinkParser {
     }
 
     private fun extractAfterSegment(raw: String, segment: String): String? {
-        val idx = raw.indexOf(segment)
+        val lower = raw.lowercase()
+        val idx = lower.indexOf(segment.lowercase())
         if (idx < 0) {
             return null
         }
         val after = raw.substring(idx + segment.length)
         val value = after.takeWhile { it != '/' && it != '?' && it != '#' && it != '&' && !it.isWhitespace() }
         return value.takeIf { it.isNotEmpty() }
+    }
+
+    private fun extractAfterSegmentKeepingPath(raw: String, lower: String, segment: String): String? {
+        val idx = lower.indexOf(segment.lowercase())
+        if (idx < 0) {
+            return null
+        }
+        val after = raw.substring(idx + segment.length)
+        val value = after.takeWhile { it != '?' && it != '#' && it != '&' && !it.isWhitespace() }
+        return value.trim('/').takeIf { it.isNotEmpty() }
+    }
+
+    private fun extractQueryValue(raw: String, lower: String, keys: List<String>): String? {
+        for (key in keys) {
+            val idx = lower.indexOf(key.lowercase())
+            if (idx >= 0) {
+                val after = raw.substring(idx + key.length)
+                val value = after.takeWhile {
+                    it.isLetterOrDigit() || it == '_' || it == '-' || it == ':' || it == '.'
+                }
+                if (value.isNotEmpty()) {
+                    return value
+                }
+            }
+        }
+        return null
+    }
+
+    private fun normalizeLuoxuePathId(value: String): String {
+        val parts = value.split('/').filter { it.isNotBlank() }
+        return when {
+            parts.size >= 2 && parts.first().length <= 12 -> "${parts.first()}:${parts.drop(1).joinToString("/")}"
+            else -> value
+        }
     }
 
     private fun stripQuery(value: String): String {

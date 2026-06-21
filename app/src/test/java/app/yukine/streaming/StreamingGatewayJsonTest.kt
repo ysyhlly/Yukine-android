@@ -191,12 +191,12 @@ class StreamingGatewayJsonTest {
     @Test
     fun luoxueAliasesAndAdapterFieldsParseAsLuoxueProvider() {
         val searchJson = JSONObject()
-            .put("provider", "lxmusic")
+            .put("provider", "kw")
             .put(
                 "tracks",
                 JSONArray().put(
                     JSONObject()
-                        .put("provider", "lx")
+                        .put("provider", "migu")
                         .put("songmid", "lx-song-1")
                         .put("title", "LX Song")
                         .put("artist", "LX Artist")
