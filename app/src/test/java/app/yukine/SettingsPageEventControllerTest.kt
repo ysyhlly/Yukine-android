@@ -14,6 +14,7 @@ class SettingsPageEventControllerTest {
 
         controller.navigateSettingsPage(MainRoutes.SETTINGS_LIBRARY)
         controller.openNetworkSources()
+        controller.openDownloads()
         controller.loadLibrary()
         controller.openAudioFilePicker()
         controller.openAudioFolderPicker()
@@ -25,6 +26,7 @@ class SettingsPageEventControllerTest {
         controller.applyPlaybackSpeed(1.25f)
         controller.applyAppVolume(0.7f)
         controller.applyStreamingAudioQuality(StreamingQualityPreference.HIGH)
+        controller.applyShareStyle(TrackShareStyle.PLATFORM_CARD)
         controller.setConcurrentPlaybackEnabled(true)
         controller.setStatusBarLyricsEnabled(false)
         controller.setFloatingLyricsEnabled(true)
@@ -35,11 +37,14 @@ class SettingsPageEventControllerTest {
         controller.applyAccentMode("teal")
         controller.applyLanguageMode(AppLanguage.MODE_ENGLISH)
         controller.applyStreamingGatewayEndpoint("http://localhost:3301")
+        controller.exportBackup()
+        controller.importBackup()
 
         assertEquals(
             listOf(
                 "nav:${MainRoutes.SETTINGS_LIBRARY}",
                 "network",
+                "downloads",
                 "load",
                 "file",
                 "folder",
@@ -51,6 +56,7 @@ class SettingsPageEventControllerTest {
                 "speed:1.25",
                 "volume:0.7",
                 "quality:high",
+                "shareStyle:${TrackShareStyle.PLATFORM_CARD}",
                 "concurrent:true",
                 "statusLyrics:false",
                 "floating:true",
@@ -60,7 +66,9 @@ class SettingsPageEventControllerTest {
                 "theme:dark",
                 "accent:teal",
                 "language:${AppLanguage.MODE_ENGLISH}",
-                "endpoint:http://localhost:3301"
+                "endpoint:http://localhost:3301",
+                "exportBackup",
+                "importBackup"
             ),
             gateway.calls
         )
@@ -75,6 +83,10 @@ class SettingsPageEventControllerTest {
 
         override fun openNetworkSources() {
             calls.add("network")
+        }
+
+        override fun openDownloads() {
+            calls.add("downloads")
         }
 
         override fun loadLibrary() {
@@ -125,6 +137,10 @@ class SettingsPageEventControllerTest {
             calls.add("quality:$quality")
         }
 
+        override fun applyShareStyle(style: String) {
+            calls.add("shareStyle:$style")
+        }
+
         override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
             calls.add("concurrent:$enabled")
         }
@@ -147,6 +163,18 @@ class SettingsPageEventControllerTest {
 
         override fun setPlaybackRestoreEnabled(enabled: Boolean) {
             calls.add("restore:$enabled")
+        }
+
+        override fun setReplayGainEnabled(enabled: Boolean) {
+            calls.add("replayGain:$enabled")
+        }
+
+        override fun exportBackup() {
+            calls.add("exportBackup")
+        }
+
+        override fun importBackup() {
+            calls.add("importBackup")
         }
 
         override fun applyThemeMode(mode: String) {

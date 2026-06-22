@@ -43,6 +43,10 @@ internal class SettingsActionController(
         settingsViewModel.applyStreamingAudioQuality(quality)
     }
 
+    fun applyShareStyle(style: String) {
+        settingsViewModel.applyShareStyle(style)
+    }
+
     fun setConcurrentPlaybackEnabled(enabled: Boolean) {
         settingsViewModel.setConcurrentPlaybackEnabled(enabled)
     }

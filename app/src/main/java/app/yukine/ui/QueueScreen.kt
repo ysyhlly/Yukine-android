@@ -72,7 +72,8 @@ data class QueueScreenLabels(
     val tracks: String = "tracks",
     val favorite: String = "Favorite",
     val addToPlaylist: String = "Add to playlist",
-    val remove: String = "Remove"
+    val remove: String = "Remove",
+    val dragReorder: String = "Drag to reorder"
 )
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -271,7 +272,7 @@ private fun QueueTrackRow(
                     color = p.muted,
                     modifier = Modifier.padding(horizontal = 6.dp)
                 )
-                QueueDragHandle(dragHandleModifier)
+                QueueDragHandle(dragHandleModifier, labels.dragReorder)
             }
             Spacer(Modifier.height(6.dp))
             Row(
@@ -295,12 +296,12 @@ private fun QueueTrackRow(
 }
 
 @Composable
-private fun QueueDragHandle(modifier: Modifier) {
+private fun QueueDragHandle(modifier: Modifier, label: String) {
     val p = EchoTheme.colors()
     Surface(
         modifier = modifier
             .size(30.dp)
-            .semantics { contentDescription = "拖动重新排序" },
+            .semantics { contentDescription = label },
         shape = EchoShapes.small,
         color = p.surfaceVariant.copy(alpha = 0.24f)
     ) {

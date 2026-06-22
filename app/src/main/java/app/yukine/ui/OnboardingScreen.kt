@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.yukine.AppLanguage
 
 data class OnboardingActions(
     val requestPermissions: Runnable,
@@ -42,6 +43,7 @@ fun OnboardingScreen(
     notificationPermissionGranted: Boolean,
     libraryScanCompleted: Boolean = false,
     libraryScanInProgress: Boolean = false,
+    languageMode: String = "system",
     actions: OnboardingActions
 ) {
     val p = EchoTheme.colors()
@@ -64,8 +66,8 @@ fun OnboardingScreen(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 EchoPageTitle(
-                    "ECHO",
-                    subtitle = "按下面 3 步来，完成后就能开始听歌。"
+                    "Yukine",
+                    subtitle = "按下面 4 步完成准备，完成前不会进入首页。"
                 )
                 StartupSummary(
                     permissionsReady = permissionsReady,
@@ -78,9 +80,9 @@ fun OnboardingScreen(
                     icon = EchoIconKind.Action,
                     title = "第 1 步：允许访问音乐和通知",
                     status = if (permissionsReady) {
-                        "已完成。ECHO 可以读取音乐，也能在通知栏显示播放控制。"
+                        "已完成。Yukine 可以读取音乐，也能在通知栏显示播放控制。"
                     } else {
-                        "先点这里授权。没有这些权限，ECHO 还不能帮你找歌和保持播放控制。"
+                        "先点这里授权。没有这些权限，Yukine 还不能帮你找歌和保持播放控制。"
                     },
                     actionLabel = if (permissionsReady) "已完成" else "去授权",
                     active = !permissionsReady,
@@ -93,7 +95,7 @@ fun OnboardingScreen(
                     status = when {
                         libraryScanCompleted -> "已完成。现在可以进入首页，也可以以后再重新扫描。"
                         libraryScanInProgress -> "正在找歌，请稍等一下。完成后按钮会自动解锁。"
-                        audioPermissionGranted -> "点开始扫描，ECHO 会自动把手机里的音乐整理出来。"
+                        audioPermissionGranted -> "点开始扫描，Yukine 会自动把手机里的音乐整理出来。"
                         else -> "先完成第 1 步，再回来点开始扫描。"
                     },
                     actionLabel = if (libraryScanCompleted) "重扫" else if (libraryScanInProgress) "请稍等" else "开始扫描",
@@ -106,7 +108,7 @@ fun OnboardingScreen(
                     icon = EchoIconKind.PlaylistAdd,
                     title = "第 3 步：导入已有歌单",
                     status = if (setupComplete) {
-                        "可选。如果你有 M3U 或 M3U8 歌单文件，点这里导入。没有也没关系。"
+                        "可选。如果你有 M3U 或 M3U8 歌单文件，点这里导入；没有也没关系。"
                     } else {
                         "先完成前两步。进入前可以顺手导入已有歌单。"
                     },
@@ -129,6 +131,7 @@ fun OnboardingScreen(
                     enabled = setupComplete,
                     onClick = actions.openStreaming
                 )
+                StreamingUsageNotice(languageMode)
             }
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
@@ -147,7 +150,7 @@ fun OnboardingScreen(
                         .fillMaxWidth()
                         .height(52.dp)
                         .semantics {
-                            contentDescription = if (setupComplete) "进入 ECHO" else "完成设置后才能进入 ECHO"
+                            contentDescription = if (setupComplete) "进入 Yukine" else "完成设置后才能进入 Yukine"
                         },
                     shape = EchoShapes.medium,
                     color = if (setupComplete) p.accent else p.surfaceVariant
@@ -163,7 +166,7 @@ fun OnboardingScreen(
                         )
                         Spacer(Modifier.width(10.dp))
                         Text(
-                            if (setupComplete) "进入 ECHO" else "请先完成设置",
+                            if (setupComplete) "进入 Yukine" else "请先完成设置",
                             style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = if (setupComplete) p.onAccent else p.muted,
                             maxLines = 1,
@@ -172,6 +175,34 @@ fun OnboardingScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun StreamingUsageNotice(languageMode: String, modifier: Modifier = Modifier) {
+    EchoGlassSurface(
+        modifier = modifier.fillMaxWidth(),
+        shape = EchoShapes.medium,
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                EchoIcon(EchoIconKind.Network, Modifier.size(16.dp), EchoTheme.colors().accent)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    AppLanguage.text(languageMode, "streaming.usage.notice.title"),
+                    style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+                    color = EchoTheme.colors().heading,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Text(
+                AppLanguage.text(languageMode, "streaming.usage.notice.body"),
+                style = EchoTypography.caption,
+                color = EchoTheme.colors().muted
+            )
         }
     }
 }

@@ -78,6 +78,7 @@ internal class StreamingSearchRenderController(
     private fun labels(): StreamingSearchLabels {
         val languageMode = languageProvider.languageMode()
         return StreamingSearchLabels(
+            languageMode = languageMode,
             title = text(languageMode, "streaming.title"),
             back = text(languageMode, "back"),
             searchPrefix = text(languageMode, "streaming.search.prefix"),
@@ -85,6 +86,8 @@ internal class StreamingSearchRenderController(
             sourceDefault = text(languageMode, "streaming.source.default"),
             searchUnavailableSuffix = text(languageMode, "streaming.search.unavailable.suffix"),
             importPlaylistFromStreaming = text(languageMode, "streaming.import.playlist.from"),
+            importLuoxueSource = text(languageMode, "streaming.lx.import.source"),
+            luoxueImportHint = text(languageMode, "streaming.lx.import.hint"),
             loadAccountPlaylists = text(languageMode, "streaming.load.account.playlists"),
             importLikedTracks = text(languageMode, "streaming.import.liked"),
             dailyRecommendations = text(languageMode, "streaming.recommend.daily"),
@@ -123,6 +126,16 @@ internal class StreamingSearchRenderController(
             needsAccount = text(languageMode, "streaming.status.needs.account"),
             disabled = text(languageMode, "streaming.status.disabled"),
             error = text(languageMode, "streaming.status.error"),
+            localLoginSaved = text(languageMode, "streaming.status.local.login.saved"),
+            notSignedIn = text(languageMode, "streaming.status.not.signed.in"),
+            localLoginComplete = text(languageMode, "streaming.status.local.login.complete"),
+            gatewayLocalLogin = text(languageMode, "streaming.status.gateway.local.login"),
+            gatewayRequired = text(languageMode, "streaming.status.gateway.required"),
+            loginEntryMissing = text(languageMode, "streaming.status.login.entry.missing"),
+            openLoginPage = text(languageMode, "streaming.status.open.login.page"),
+            neteaseLikedPlaylistEmpty = text(languageMode, "streaming.status.netease.liked.empty"),
+            neteaseAccountIdMissing = text(languageMode, "streaming.status.netease.account.id.missing"),
+            neteaseLoginRequiredPlaylists = text(languageMode, "streaming.status.netease.login.required.playlists"),
             trackCountSuffix = text(languageMode, "streaming.track.count.suffix")
         )
     }

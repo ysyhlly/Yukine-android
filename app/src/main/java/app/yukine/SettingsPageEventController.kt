@@ -23,6 +23,10 @@ internal class SettingsPageEventController(
         viewModel.onEvent(SettingsEvent.OpenNetworkSources)
     }
 
+    override fun openDownloads() {
+        viewModel.onEvent(SettingsEvent.OpenDownloads)
+    }
+
     override fun loadLibrary() {
         viewModel.onEvent(SettingsEvent.LoadLibrary)
     }
@@ -67,6 +71,10 @@ internal class SettingsPageEventController(
         viewModel.onEvent(SettingsEvent.ApplyStreamingAudioQuality(quality))
     }
 
+    override fun applyShareStyle(style: String) {
+        viewModel.onEvent(SettingsEvent.ApplyShareStyle(style))
+    }
+
     override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
         viewModel.onEvent(SettingsEvent.SetConcurrentPlaybackEnabled(enabled))
     }
@@ -97,6 +105,14 @@ internal class SettingsPageEventController(
 
     override fun setReplayGainEnabled(enabled: Boolean) {
         viewModel.onEvent(SettingsEvent.SetReplayGainEnabled(enabled))
+    }
+
+    override fun exportBackup() {
+        viewModel.onEvent(SettingsEvent.ExportBackup)
+    }
+
+    override fun importBackup() {
+        viewModel.onEvent(SettingsEvent.ImportBackup)
     }
 
     override fun applyThemeMode(mode: String) {

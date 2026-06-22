@@ -24,7 +24,7 @@ class PlaybackActionControllerTest {
         controller.cycleRepeat()
 
         assertEquals(
-            listOf("previous", "next", "play", "shuffle:true", "repeat:0", "shuffle:true", "repeat"),
+            listOf("previous", "next", "play", "shuffle:true", "repeat:1", "repeat"),
             playbackGateway.calls
         )
         assertEquals(listOf("resolve", "resolve", "resolve"), listener.resolveCalls)

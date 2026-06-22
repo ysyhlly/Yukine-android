@@ -16,11 +16,13 @@ class NowPlayingEffectControllerTest {
             listOf(
                 NowPlayingEffect.OpenQueue,
                 NowPlayingEffect.OpenAddToPlaylist(track),
+                NowPlayingEffect.ShareTrack(track),
+                NowPlayingEffect.DownloadTrack(track),
                 NowPlayingEffect.ShowMessage("Done")
             )
         )
 
-        assertEquals(listOf("queue", "playlist:5", "message:Done"), listener.calls)
+        assertEquals(listOf("queue", "playlist:5", "share:5", "download:5", "message:Done"), listener.calls)
     }
 
     @Test
@@ -43,6 +45,18 @@ class NowPlayingEffectControllerTest {
 
         override fun openAddToPlaylist(effect: NowPlayingEffect.OpenAddToPlaylist) {
             calls += "playlist:${effect.track.id}"
+        }
+
+        override fun shareTrack(effect: NowPlayingEffect.ShareTrack) {
+            calls += "share:${effect.track.id}"
+        }
+
+        override fun downloadTrack(effect: NowPlayingEffect.DownloadTrack) {
+            calls += "download:${effect.track.id}"
+        }
+
+        override fun switchSource(effect: NowPlayingEffect.SwitchSource) {
+            calls += "source:${effect.track.id}"
         }
 
         override fun showMessage(message: String) {

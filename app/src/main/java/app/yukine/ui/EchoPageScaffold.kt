@@ -83,7 +83,7 @@ fun EchoPageTitle(
                     onClick = { onBack.run() },
                     modifier = Modifier
                         .size(40.dp)
-                        .semantics { contentDescription = backLabel ?: "返回" },
+                        .semantics { contentDescription = backLabel ?: "Back" },
                     shape = EchoShapes.small,
                     color = Color.Transparent
                 ) {

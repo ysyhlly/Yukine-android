@@ -11,6 +11,8 @@ def echoReleaseStorePassword = findProperty("ECHO_RELEASE_STORE_PASSWORD") ?: Sy
 def echoReleaseKeyAlias      = findProperty("ECHO_RELEASE_KEY_ALIAS")      ?: System.getenv("ECHO_RELEASE_KEY_ALIAS")
 def echoReleaseKeyPassword   = findProperty("ECHO_RELEASE_KEY_PASSWORD")   ?: System.getenv("ECHO_RELEASE_KEY_PASSWORD")
 def echoHasReleaseSigning    = echoReleaseStoreFile && echoReleaseStorePassword && echoReleaseKeyAlias && echoReleaseKeyPassword
+def yukineQqAppId            = findProperty("YUKINE_QQ_APP_ID")            ?: System.getenv("YUKINE_QQ_APP_ID") ?: ""
+def yukineWechatAppId        = findProperty("YUKINE_WECHAT_APP_ID")        ?: System.getenv("YUKINE_WECHAT_APP_ID") ?: ""
 
 android {
     namespace "app.yukine"
@@ -20,11 +22,12 @@ android {
         applicationId "app.yukine"
         minSdk 23
         targetSdk 35
-        // versionCode 由 CI 的 GITHUB_RUN_NUMBER 自动递增，保证单调性；
-        // 本地构建未设置环境变量时 fallback 为 1，不影响开发调试。
+        buildConfigField "String", "YUKINE_QQ_APP_ID", "\"${yukineQqAppId}\""
+        buildConfigField "String", "YUKINE_WECHAT_APP_ID", "\"${yukineWechatAppId}\""
+        // versionCode comes from CI when available; local debug builds fall back to 1.
         def echoRunNumber = System.getenv("GITHUB_RUN_NUMBER")
         versionCode echoRunNumber ? echoRunNumber.toInteger() : 1
-        versionName "0.1.0"   // 语义版本，手动管理
+        versionName "0.1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -43,6 +46,7 @@ android {
 
     buildFeatures {
         compose true
+        buildConfig true
     }
 
     testOptions {
@@ -57,10 +61,7 @@ android {
         // while analyzing Kotlin UAST in release builds. Keep lintVital enabled and
         // disable only the broken detector so assembleRelease remains a usable gate.
         disable "NullSafeMutableLiveData"
-        // 现存的历史 lint 问题已记入 baseline，lint 因此变绿可纳入 CI；
-        // 此后任何【新增】的 lint 问题都会被拦截（baseline 之外的才报错）。
-        // 删除 lint-baseline.xml 后重跑可重新生成基线。
-        baseline = file("lint-baseline.xml")
+        // Existing lint issues are recorded in lint-baseline.xml. New issues outside the baseline fail the build.        baseline = file("lint-baseline.xml")
     }
 
     signingConfigs {
@@ -91,45 +92,47 @@ ksp {
 }
 
 dependencies {
-    // ── Compose BOM ────────────────────────────────────────────────────────
+    // Compose BOM
     implementation platform(libs.androidx.compose.bom)
     testImplementation platform(libs.androidx.compose.bom)
 
-    // ── Compose (版本由 BOM 统一管理) ─────────────────────────────────────
+    // Compose (versions managed by BOM)
     implementation libs.androidx.compose.foundation
     implementation libs.androidx.compose.material3
     implementation libs.androidx.compose.ui
     implementation libs.androidx.compose.ui.tooling.preview
 
-    // ── Activity ───────────────────────────────────────────────────────────
+    // Activity
     implementation libs.androidx.activity.compose
+    implementation libs.androidx.core
 
-    // ── Lifecycle ──────────────────────────────────────────────────────────
+    // Lifecycle
     implementation libs.androidx.lifecycle.viewmodel
     implementation libs.androidx.lifecycle.viewmodel.ktx
     implementation libs.androidx.lifecycle.viewmodel.savedstate
 
-    // ── Navigation ─────────────────────────────────────────────────────────
+    // Navigation
     implementation libs.androidx.navigation.compose
 
-    // ── Browser ────────────────────────────────────────────────────────────
+    // Browser
     implementation libs.androidx.browser
+    implementation libs.wechat.opensdk
 
-    // ── Media3 ─────────────────────────────────────────────────────────────
+    // Media3
     implementation libs.androidx.media3.exoplayer
     implementation libs.androidx.media3.datasource
     implementation libs.androidx.media3.session
 
-    // ── Room ───────────────────────────────────────────────────────────────
+    // Room
     implementation libs.androidx.room.runtime
     implementation libs.androidx.room.ktx
     ksp libs.androidx.room.compiler
 
-    // ── Hilt ───────────────────────────────────────────────────────────────
+    // Hilt
     implementation libs.hilt.android
     ksp libs.hilt.compiler
 
-    // ── Unit Test ──────────────────────────────────────────────────────────
+    // Unit Test
     testImplementation libs.junit
     testImplementation libs.kotlinx.coroutines.test
     testImplementation libs.json
@@ -138,11 +141,11 @@ dependencies {
     testImplementation libs.androidx.test.junit
     testImplementation libs.androidx.compose.ui.test.junit4
 
-    // ── Debug ──────────────────────────────────────────────────────────────
+    // Debug
     debugImplementation libs.androidx.compose.ui.test.manifest
     debugImplementation libs.androidx.compose.ui.tooling
 
-    // ── Android Instrumented Test ──────────────────────────────────────────
+    // Android Instrumented Test
     androidTestImplementation libs.androidx.test.runner
     androidTestImplementation libs.androidx.test.core
     androidTestImplementation libs.androidx.test.junit

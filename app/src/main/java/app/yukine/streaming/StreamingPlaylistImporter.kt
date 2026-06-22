@@ -3,7 +3,7 @@ package app.yukine.streaming
 import app.yukine.model.Track
 
 /**
- * Imports a local ECHO Next playlist (or favorites collection) into a streaming provider by
+ * Imports a local Yukine playlist (or favorites collection) into a streaming provider by
  * matching each local track via search and assembling a streaming playlist.
  *
  * The result currently lives in-memory: it surfaces the matched [StreamingTrack]s plus a list of

@@ -59,7 +59,8 @@ internal class QueueRenderController(
                 tracks = AppLanguage.text(languageMode, "tracks"),
                 favorite = AppLanguage.text(languageMode, "favorite"),
                 addToPlaylist = AppLanguage.text(languageMode, "add.to.playlist"),
-                remove = AppLanguage.text(languageMode, "remove")
+                remove = AppLanguage.text(languageMode, "remove"),
+                dragReorder = AppLanguage.text(languageMode, "queue.drag.reorder")
             ),
             Runnable { listener.requestBack() }
         )

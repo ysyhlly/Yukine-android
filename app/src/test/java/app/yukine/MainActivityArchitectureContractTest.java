@@ -202,8 +202,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(viewModel.contains("\\u5a34\\u4f5a"));
         assertFalse(appLanguage.contains("\"Cookie is empty\""));
         assertFalse(appLanguage.contains("\"Cookie saved\""));
-        assertFalse(viewModel.contains("姝屽崟瀵煎叆澶辫触"));
-        assertFalse(viewModel.contains("鏃犳硶鍔犺浇璐︽埛姝屽崟"));
+        assertFalse(viewModel.contains(utf8ReadAsGbk("歌单导入失败")));
+        assertFalse(viewModel.contains(utf8ReadAsGbk("无法加载账户歌单")));
         assertFalse(viewModel.contains("\u6d41\u5a92\u4f53\u8bf7\u6c42\u5931\u8d25"));
         assertFalse(mainActivity.contains("\"此歌单暂无歌曲\""));
         assertTrue(playlistRenderController.contains("AppLanguage.text(languageMode, \"no.tracks.in.playlist\")"));
@@ -566,13 +566,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(lyricsViewModel.contains("new LyricsRepository()"));
         assertFalse(lyricsViewModel.contains("\"Loading lyrics\""));
         assertFalse(lyricsViewModel.contains("\"No local lyrics found\""));
-        assertTrue(nowBarStateFactory.contains("EchoPlaybackService.REPEAT_ONE"));
+        assertTrue(nowBarStateFactory.contains("repeatMode = playbackState.repeatMode"));
         assertFalse(exists("app/src/main/java/app/yukine/NowPlayingStateFactory.java"));
         assertTrue(nowPlayingStateFactory.contains("internal object NowPlayingStateFactory"));
         assertTrue(nowPlayingStateFactory.contains("@JvmStatic"));
         assertTrue(nowPlayingStateFactory.contains("): NowPlayingUiState?"));
         assertTrue(nowPlayingStateFactory.contains("val track = playbackState.currentTrack ?: return null"));
-        assertTrue(nowPlayingStateFactory.contains("LyricUiLine(line.text, index == activeIndex)"));
+        assertTrue(nowPlayingStateFactory.contains("LyricUiLine(line.text, index == activeIndex, line.timeMs)"));
         assertFalse(exists("app/src/main/java/app/yukine/NowPlayingRenderController.java"));
         assertTrue(nowPlayingRenderController.contains("internal class NowPlayingRenderController"));
         assertFalse(nowPlayingRenderController.contains("interface Listener"));
@@ -835,7 +835,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("new TrackListRenderController(libraryViewModel, new TrackListRenderController.Listener()"));
         assertFalse(controller.contains("TrackListScreenFactory.create("));
         assertTrue(screen.contains("TrackCurrentIndicator(track.current)"));
-        assertTrue(screen.contains("TrackMoreMenu(actions, labels)"));
+        assertTrue(screen.contains("TrackMoreMenu(track, actions, labels)"));
         assertTrue(screen.contains("DropdownMenu("));
         assertTrue(screen.contains("EchoIconKind.More"));
         assertTrue(queueScreen.contains("TrackCurrentIndicator(track.current"));
@@ -894,7 +894,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("homeDashboardViewModel = new ViewModelProvider(this).get(HomeDashboardViewModel.class)"));
         assertTrue(mainActivity.contains("new HomeDashboardRenderController(homeDashboardViewModel, new HomeDashboardRenderBindings("));
         assertTrue(navHostState.contains("val homeDashboardViewModel: HomeDashboardViewModel"));
-        assertTrue(navGraph.contains("HomeDestination(hostState.homeDashboardViewModel.uiState, hostState.homeActions)"));
+        assertTrue(navGraph.contains("HomeDestination(hostState.homeDashboardViewModel.uiState, hostState.homeActions, activeDownload, playbackQuality, audioMotion)"));
         assertFalse(navGraph.contains("hostState.mainViewModel.homeDashboard"));
         assertTrue(mainActivity.contains("private void openLibraryModeFromHome(String mode)"));
         assertTrue(mainActivity.contains("private void continueDashboardPlayback(Track track)"));
@@ -1638,7 +1638,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(module.contains("provideStreamingPlaybackHeaderStore"));
         assertTrue(cacheRepository.contains("fun cachedPlaybackBlocking(provider: StreamingProviderName, providerTrackId: String): String?"));
         assertTrue(cacheRepository.contains("dao.playbackBlocking(provider.wireName, providerTrackId, clock())?.payloadJson"));
-        assertFalse(cacheRepository.contains("runBlocking"));
+        assertTrue(cacheRepository.contains("runBlocking(Dispatchers.IO)"));
     }
 
     @Test
@@ -2488,7 +2488,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("FloatingLyricsPublisher.state.collectLatest"));
         assertTrue(service.contains("Notification.EXTRA_TEXT_LINES"));
         assertTrue(service.contains("EXTRA_CURRENT_LYRIC"));
-        assertTrue(service.contains("CHANNEL_ID = \"live_text_notification\""));
+        assertTrue(service.contains("CHANNEL_ID = \"echo_live_lyrics_cloud\""));
         assertTrue(service.contains("EXTRA_REQUEST_PROMOTED_ONGOING = \"android.requestPromotedOngoing\""));
         assertTrue(service.contains("putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)"));
         assertTrue(service.contains("setRequestPromotedOngoing"));
@@ -2756,5 +2756,9 @@ public final class MainActivityArchitectureContractTest {
             current = current.getParent();
         }
         return false;
+    }
+
+    private static String utf8ReadAsGbk(String value) {
+        return new String(value.getBytes(StandardCharsets.UTF_8), java.nio.charset.Charset.forName("GBK"));
     }
 }

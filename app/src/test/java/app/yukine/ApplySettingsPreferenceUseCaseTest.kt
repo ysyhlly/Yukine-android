@@ -25,6 +25,7 @@ class ApplySettingsPreferenceUseCaseTest {
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.NowPlayingGesturesEnabled, false))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.PlaybackRestoreEnabled, true))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.ReplayGainEnabled, false))
+        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.ShareStyle, TrackShareStyle.PLATFORM_CARD))
 
         assertEquals(
             listOf(
@@ -42,7 +43,8 @@ class ApplySettingsPreferenceUseCaseTest {
                 "floatingLyrics:true",
                 "gestures:false",
                 "restore:true",
-                "replayGain:false"
+                "replayGain:false",
+                "shareStyle:${TrackShareStyle.PLATFORM_CARD}"
             ),
             operations.events
         )
@@ -109,6 +111,10 @@ class ApplySettingsPreferenceUseCaseTest {
 
         override fun saveReplayGainEnabled(enabled: Boolean) {
             events.add("replayGain:$enabled")
+        }
+
+        override fun saveShareStyle(style: String) {
+            events.add("shareStyle:$style")
         }
     }
 }

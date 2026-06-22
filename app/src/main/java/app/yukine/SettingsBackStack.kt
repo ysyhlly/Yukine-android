@@ -29,7 +29,8 @@ internal object SettingsBackStack {
             MainRoutes.SETTINGS_STATUS_BAR_LYRICS,
             MainRoutes.SETTINGS_FLOATING_LYRICS -> MainRoutes.SETTINGS_LYRICS_GROUP
             MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY,
-            MainRoutes.SETTINGS_STREAMING_GATEWAY -> MainRoutes.SETTINGS_SOURCES_GROUP
+            MainRoutes.SETTINGS_STREAMING_GATEWAY,
+            MainRoutes.SETTINGS_DOWNLOADS -> MainRoutes.SETTINGS_SOURCES_GROUP
 
             else -> MainRoutes.SETTINGS_HOME
         }

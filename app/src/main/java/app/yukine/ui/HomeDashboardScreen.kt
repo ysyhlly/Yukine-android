@@ -1,8 +1,10 @@
 package app.yukine.ui
 
 import android.net.Uri
+import app.yukine.TrackDownloadItem
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -116,49 +118,74 @@ data class HomeDashboardActions(
     val onDailyRecommend: Runnable = Runnable { },
     val onHeartbeatRecommend: Runnable = Runnable { },
     val onOpenCollections: Runnable = Runnable { },
-    val onConnectStreaming: Runnable = Runnable { }
+    val onConnectStreaming: Runnable = Runnable { },
+    val onSearch: Runnable = Runnable { }
 )
 
 @Composable
-internal fun HomeDashboardScreen(state: HomeDashboardUiState, actions: HomeDashboardActions) {
+internal fun HomeDashboardScreen(
+    state: HomeDashboardUiState,
+    actions: HomeDashboardActions,
+    activeDownload: TrackDownloadItem? = null,
+    playbackQuality: String = "",
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
+) {
     val p = EchoTheme.colors()
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 100.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Hero section with Now Playing card
-        item("hero") {
-            Box(Modifier.echoEnter(0)) { HeroSection(state, actions) }
-        }
-        // Streaming guide (only when not connected)
-        if (!state.streamingConnected) {
-            item("streaming-guide") {
-                Box(Modifier.echoEnter(1)) { StreamingGuideCard { actions.onConnectStreaming.run() } }
+    CollapsibleSearchHeader(
+        header = { HomeSearchCard(actions, activeDownload, playbackQuality, audioMotion) }
+    ) { contentModifier, _ ->
+        LazyColumn(
+            modifier = contentModifier,
+            contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 100.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Hero section with Now Playing card
+            item("hero") {
+                Box(Modifier.echoEnter(0)) { HeroSection(state, actions) }
             }
-        }
-        // Recommendations (每日推荐 / 心动推荐) — kept near the top so they're visible on first screen
-        item("recommendations") {
-            Box(Modifier.echoEnter(if (state.streamingConnected) 1 else 2)) {
-                RecommendationCards(actions, enabled = state.streamingConnected)
+            // Streaming guide (only when not connected)
+            if (!state.streamingConnected) {
+                item("streaming-guide") {
+                    Box(Modifier.echoEnter(1)) { StreamingGuideCard { actions.onConnectStreaming.run() } }
+                }
             }
-        }
-        // Stats grid (2x2 for mobile)
-        item("stats") {
-            Box(Modifier.echoEnter(2)) { StatGrid(state.stats, actions) }
-        }
-        // Recent activity (horizontal scroll)
-        item("recent") {
-            Box(Modifier.echoEnter(3)) { RecentActivitySection(state, actions) }
-        }
-        // Weekly recap with heatmap
-        item("weekly") {
-            Box(Modifier.echoEnter(4)) { WeeklyRecapSection(state) }
+            // Recommendations (每日推荐 / 心动推荐) — kept near the top so they're visible on first screen
+            item("recommendations") {
+                Box(Modifier.echoEnter(if (state.streamingConnected) 1 else 2)) {
+                    RecommendationCards(actions, enabled = state.streamingConnected)
+                }
+            }
+            // Stats grid (2x2 for mobile)
+            item("stats") {
+                Box(Modifier.echoEnter(2)) { StatGrid(state.stats, actions) }
+            }
+            // Recent activity (horizontal scroll)
+            item("recent") {
+                Box(Modifier.echoEnter(3)) { RecentActivitySection(state, actions) }
+            }
+            // Weekly recap with heatmap
+            item("weekly") {
+                Box(Modifier.echoEnter(4)) { WeeklyRecapSection(state) }
+            }
         }
     }
 }
 
 // ── Hero Section (Mobile Optimized) ─────────────────────────────────────────
+
+@Composable
+private fun HomeSearchCard(
+    actions: HomeDashboardActions,
+    activeDownload: TrackDownloadItem?,
+    playbackQuality: String,
+    audioMotion: YukineOrbAudioMotion
+) {
+    YukineSearchBar(
+        activeDownload = activeDownload,
+        playbackQuality = playbackQuality,
+        audioMotion = audioMotion
+    ) { actions.onSearch.run() }
+}
 
 @Composable
 private fun HeroSection(state: HomeDashboardUiState, actions: HomeDashboardActions) {
@@ -245,6 +272,7 @@ private fun HeroActionButtons(actions: HomeDashboardActions) {
         item { HeroSecondaryButton("队列", EchoIconKind.Queue) { actions.onViewQueue.run() } }
         item { HeroSecondaryButton("随机", EchoIconKind.Shuffle) { actions.onShuffleAll.run() } }
         item { HeroSecondaryButton("收藏", EchoIconKind.Heart) { actions.onOpenCollections.run() } }
+        item { HeroSecondaryButton("搜索", EchoIconKind.Search) { actions.onSearch.run() } }
         item { HeroSecondaryButton("刷新", EchoIconKind.Sync) { actions.onRefresh.run() } }
     }
 }

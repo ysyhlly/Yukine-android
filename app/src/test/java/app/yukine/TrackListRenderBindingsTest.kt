@@ -27,17 +27,21 @@ class TrackListRenderBindingsTest {
             libraryEventSink = LibraryEventSink { events += it },
             editStreamAction = TrackAction { calls += "edit:${it.id}" },
             confirmDeleteTrackAction = TrackAction { calls += "delete:${it.id}" },
+            downloadTrackAction = TrackAction { calls += "download:${it.id}" },
+            downloadTracksAction = TrackListAction { calls += "downloadList:${it.size}" },
             chromeSink = TrackListChromeSink { chromeState = it }
         )
 
         bindings.playTrackList(listOf(track), 0)
         bindings.toggleFavorite(track)
         bindings.showAddToPlaylist(track)
+        bindings.downloadTrack(track)
+        bindings.downloadTracks(listOf(track))
         bindings.showEditStream(track)
         bindings.confirmDeleteTrack(track)
         bindings.publishTrackListChrome(actions, headerMetrics, headerActions, "Empty", modeActions, labels)
 
-        assertEquals(listOf("edit:7", "delete:7"), calls)
+        assertEquals(listOf("download:7", "downloadList:1", "edit:7", "delete:7"), calls)
         assertEquals(
             listOf(
                 LibraryEvent.PlayTrackList(listOf(track), 0),

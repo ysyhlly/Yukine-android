@@ -36,7 +36,7 @@ public final class M3uPlaylistExporter {
 
     public static String safeExportFileName(String value) {
         String clean = cleanInlineText(value).replaceAll("[\\\\/:*?\"<>|]", "_");
-        return clean.isEmpty() ? "ECHO playlist" : clean;
+        return clean.isEmpty() ? "Yukine playlist" : clean;
     }
 
     public static String cleanInlineText(String value) {

@@ -436,7 +436,12 @@ internal object StreamingGatewayJson {
                 qualities = audioQualities(value.optJSONArray("qualities")),
                 explicit = value.optBoolean("explicit", false),
                 playable = value.optBoolean("playable", true),
-                unavailableReason = value.optionalString("unavailableReason")
+                unavailableReason = value.optionalString("unavailableReason"),
+                description = value.optionalString("description")
+                    ?: value.optionalString("intro")
+                    ?: value.optionalString("summary"),
+                lyricSources = lyricSources(value.optJSONArray("lyricSources"), provider),
+                playbackCandidates = playbackCandidates(value.optJSONArray("playbackCandidates"), provider)
             )
         }
     }
@@ -525,7 +530,12 @@ internal object StreamingGatewayJson {
                         coverUrl = value.optionalString("coverUrl") ?: value.optionalString("imageUrl"),
                         coverThumbUrl = value.optionalString("coverThumbUrl") ?: value.optionalString("coverThumb"),
                         playable = value.optBoolean("playable", true),
-                        unavailableReason = value.optionalString("unavailableReason")
+                        unavailableReason = value.optionalString("unavailableReason"),
+                        description = value.optionalString("description")
+                            ?: value.optionalString("intro")
+                            ?: value.optionalString("summary"),
+                        lyricSources = lyricSources(value.optJSONArray("lyricSources"), provider),
+                        playbackCandidates = playbackCandidates(value.optJSONArray("playbackCandidates"), provider)
                     )
                 StreamingSearchItem.fromTrack(track).copy(
                     title = value.optionalString("title") ?: track.title,
@@ -647,6 +657,35 @@ internal object StreamingGatewayJson {
             ?: ""
     }
 
+    private fun lyricSources(array: JSONArray?, fallbackProvider: StreamingProviderName): List<StreamingLyricSource> {
+        if (array == null) return emptyList()
+        return (0 until array.length()).mapNotNull { index ->
+            val value = array.optJSONObject(index) ?: return@mapNotNull null
+            val provider = providerName(value.optString("provider")) ?: fallbackProvider
+            StreamingLyricSource(
+                provider = provider,
+                name = value.optionalString("name") ?: provider.wireName,
+                providerTrackId = value.optionalString("providerTrackId") ?: value.optionalString("id"),
+                priority = value.optInt("priority", index)
+            )
+        }
+    }
+
+    private fun playbackCandidates(array: JSONArray?, fallbackProvider: StreamingProviderName): List<StreamingPlaybackCandidate> {
+        if (array == null) return emptyList()
+        return (0 until array.length()).mapNotNull { index ->
+            val value = array.optJSONObject(index) ?: return@mapNotNull null
+            val provider = providerName(value.optString("provider")) ?: fallbackProvider
+            StreamingPlaybackCandidate(
+                provider = provider,
+                quality = value.optionalString("quality")?.let(StreamingAudioQuality::fromWireName),
+                label = value.optionalString("label") ?: value.optionalString("name") ?: provider.wireName,
+                providerTrackId = value.optionalString("providerTrackId") ?: value.optionalString("id"),
+                available = value.optBoolean("available", true)
+            )
+        }
+    }
+
     private fun playbackUrl(value: JSONObject): String {
         return value.optionalString("url")
             ?: value.optionalString("playUrl")
@@ -723,6 +762,26 @@ internal object StreamingGatewayJson {
             .put("explicit", track.explicit)
             .put("playable", track.playable)
             .put("unavailableReason", track.unavailableReason)
+            .put("description", track.description)
+            .put("lyricSources", JSONArray(track.lyricSources.map { lyricSourceJson(it) }))
+            .put("playbackCandidates", JSONArray(track.playbackCandidates.map { playbackCandidateJson(it) }))
+    }
+
+    private fun lyricSourceJson(source: StreamingLyricSource): JSONObject {
+        return JSONObject()
+            .put("provider", source.provider.wireName)
+            .put("name", source.name)
+            .put("providerTrackId", source.providerTrackId)
+            .put("priority", source.priority)
+    }
+
+    private fun playbackCandidateJson(candidate: StreamingPlaybackCandidate): JSONObject {
+        return JSONObject()
+            .put("provider", candidate.provider.wireName)
+            .put("quality", candidate.quality?.wireName)
+            .put("label", candidate.label)
+            .put("providerTrackId", candidate.providerTrackId)
+            .put("available", candidate.available)
     }
 
     private fun albumJson(album: StreamingAlbum): JSONObject {

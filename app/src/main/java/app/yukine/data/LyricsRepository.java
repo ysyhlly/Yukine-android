@@ -10,6 +10,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -37,6 +38,13 @@ public final class LyricsRepository {
     private static final String LRCLIB_API_ROOT = "https://lrclib.net/api";
     private static final String NETEASE_LYRIC_URL = "https://music.163.com/api/song/lyric";
     private static final String NETEASE_SEARCH_URL = "https://music.163.com/api/cloudsearch/pc";
+    private static final String QQ_SEARCH_URL = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp";
+    private static final String QQ_LYRIC_URL = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg";
+    private static final String KUGOU_SEARCH_URL = "http://mobilecdn.kugou.com/api/v3/search/song";
+    private static final String KUGOU_LYRIC_SEARCH_URL = "https://lyrics.kugou.com/search";
+    private static final String KUGOU_LYRIC_DOWNLOAD_URL = "https://lyrics.kugou.com/download";
+    private static final String KUWO_SEARCH_URL = "https://search.kuwo.cn/r.s";
+    private static final String KUWO_LYRIC_URL = "https://m.kuwo.cn/newh5/singles/songinfoandlrc";
     private static final String STREAMING_PREFIX = "streaming:";
     private static final int CONNECT_TIMEOUT_MS = 3000;
     private static final int READ_TIMEOUT_MS = 4500;
@@ -90,14 +98,30 @@ public final class LyricsRepository {
         if (!neteaseLines.isEmpty()) {
             return neteaseLines;
         }
+        List<LyricsLine> streamingProviderLines = fetchDirectStreamingProviderLyrics(track);
+        if (!streamingProviderLines.isEmpty()) {
+            return streamingProviderLines;
+        }
         if (!onlineEnabled) {
             return Collections.emptyList();
+        }
+        List<LyricsLine> lrclibLines = fetchOnlineLyrics(track);
+        if (!lrclibLines.isEmpty()) {
+            return lrclibLines;
         }
         neteaseLines = fetchNeteaseSearchLyrics(track);
         if (!neteaseLines.isEmpty()) {
             return neteaseLines;
         }
-        return fetchOnlineLyrics(track);
+        List<LyricsLine> qqLines = fetchQqSearchLyrics(track);
+        if (!qqLines.isEmpty()) {
+            return qqLines;
+        }
+        List<LyricsLine> kugouLines = fetchKugouSearchLyrics(track);
+        if (!kugouLines.isEmpty()) {
+            return kugouLines;
+        }
+        return fetchKuwoSearchLyrics(track);
     }
 
     private File findSidecarLyrics(File audioFile) {
@@ -185,6 +209,466 @@ public final class LyricsRepository {
             return Collections.emptyList();
         }
         return Collections.emptyList();
+    }
+
+    private List<LyricsLine> fetchDirectStreamingProviderLyrics(Track track) {
+        StreamingIdentity identity = streamingIdentity(track);
+        if (identity == null || identity.providerTrackId.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (isQqProvider(identity.provider)) {
+            return fetchQqLyricsByMid(identity.providerTrackId, track);
+        }
+        if (isKuwoProvider(identity.provider)) {
+            return fetchKuwoLyricsByRid(identity.providerTrackId, track);
+        }
+        return Collections.emptyList();
+    }
+
+    private List<LyricsLine> fetchQqSearchLyrics(Track track) {
+        String cacheKey = "qq-search\n" + onlineCacheKey(track);
+        List<LyricsLine> cached = cachedOnlineLyrics(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        try {
+            JSONArray songs = requestQqSearchSongs(track);
+            JSONObject best = bestProviderSong(track, songs, "qq");
+            if (best == null) {
+                return Collections.emptyList();
+            }
+            String mid = best.optString("mid", best.optString("songmid", "")).trim();
+            if (mid.isEmpty()) {
+                return Collections.emptyList();
+            }
+            return cacheOnlineLyrics(cacheKey, fetchQqLyricsByMid(mid, track));
+        } catch (Exception ignored) {
+            return Collections.emptyList();
+        }
+    }
+
+    private JSONArray requestQqSearchSongs(Track track) throws Exception {
+        JSONArray result = new JSONArray();
+        LinkedHashSet<String> seen = new LinkedHashSet<>();
+        for (String query : providerSearchQueries(track)) {
+            JSONArray musicuSongs = requestQqMusicuSearchSongs(query);
+            for (int i = 0; i < musicuSongs.length(); i++) {
+                JSONObject mapped = mapQqSong(musicuSongs.optJSONObject(i));
+                String mid = mapped.optString("mid", "");
+                if (!mid.isEmpty() && seen.add(mid)) {
+                    result.put(mapped);
+                }
+            }
+            if (result.length() > 0) {
+                continue;
+            }
+            String url = QQ_SEARCH_URL
+                    + "?ct=24&qqmusic_ver=1298&new_json=1&remoteplace=txt.yqq.song"
+                    + "&t=0&aggr=1&cr=1&catZhida=1&lossless=0&flag_qc=0&p=1&n=5"
+                    + "&w=" + encode(query)
+                    + "&format=json";
+            JSONObject body = requestProviderJson(url, "https://y.qq.com/");
+            JSONObject data = body.optJSONObject("data");
+            JSONObject song = data == null ? null : data.optJSONObject("song");
+            JSONArray list = song == null ? null : song.optJSONArray("list");
+            if (list == null) {
+                continue;
+            }
+            for (int i = 0; i < list.length(); i++) {
+                JSONObject raw = list.optJSONObject(i);
+                JSONObject mapped = mapQqSong(raw);
+                String mid = mapped.optString("mid", "");
+                if (!mid.isEmpty() && seen.add(mid)) {
+                    result.put(mapped);
+                }
+            }
+        }
+        return result;
+    }
+
+    private JSONArray requestQqMusicuSearchSongs(String query) {
+        try {
+            JSONObject body = new JSONObject()
+                    .put("comm", new JSONObject()
+                            .put("ct", "19")
+                            .put("cv", "1859")
+                            .put("uin", "0"))
+                    .put("req_1", new JSONObject()
+                            .put("module", "music.search.SearchCgiService")
+                            .put("method", "DoSearchForQQMusicDesktop")
+                            .put("param", new JSONObject()
+                                    .put("query", query)
+                                    .put("page_num", 1)
+                                    .put("num_per_page", 5)
+                                    .put("search_type", 0)));
+            JSONObject data = requestProviderJsonPost("https://u.y.qq.com/cgi-bin/musicu.fcg", body.toString(), "https://y.qq.com/");
+            JSONObject req = data.optJSONObject("req_1");
+            JSONObject reqData = req == null ? null : req.optJSONObject("data");
+            JSONObject reqBody = reqData == null ? null : reqData.optJSONObject("body");
+            JSONObject song = reqBody == null ? null : reqBody.optJSONObject("song");
+            JSONArray list = song == null ? null : song.optJSONArray("list");
+            return list == null ? new JSONArray() : list;
+        } catch (Exception ignored) {
+            return new JSONArray();
+        }
+    }
+
+    private JSONObject mapQqSong(JSONObject song) throws Exception {
+        if (song == null) {
+            return new JSONObject();
+        }
+        String mid = firstString(song, "songmid", "mid", "media_mid");
+        String title = firstString(song, "name", "title", "songname", "songorig");
+        String album = firstString(song.optJSONObject("album"), "name", "title");
+        if (album.isEmpty()) {
+            album = firstString(song, "albumname", "albumtitle");
+        }
+        StringBuilder artist = new StringBuilder();
+        JSONArray singers = song.optJSONArray("singer");
+        if (singers != null) {
+            for (int i = 0; i < singers.length(); i++) {
+                JSONObject singer = singers.optJSONObject(i);
+                String name = firstString(singer, "name", "title");
+                if (name.isEmpty()) {
+                    continue;
+                }
+                if (artist.length() > 0) {
+                    artist.append(' ');
+                }
+                artist.append(name);
+            }
+        }
+        return new JSONObject()
+                .put("mid", mid)
+                .put("title", title)
+                .put("artist", artist.toString())
+                .put("album", album)
+                .put("durationMs", Math.max(0L, song.optLong("interval", 0L) * 1000L));
+    }
+
+    private List<LyricsLine> fetchQqLyricsByMid(String rawMid, Track fallback) {
+        String mid = qqSongMid(rawMid);
+        if (mid.isEmpty()) {
+            return Collections.emptyList();
+        }
+        String cacheKey = "qq\n" + mid;
+        List<LyricsLine> cached = cachedOnlineLyrics(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        try {
+            String url = QQ_LYRIC_URL
+                    + "?songmid=" + encode(mid)
+                    + "&pcachetime=" + System.currentTimeMillis()
+                    + "&g_tk=5381&loginUin=0&hostUin=0&format=json"
+                    + "&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq"
+                    + "&needNewCode=0&nobase64=1";
+            JSONObject body = requestProviderJson(url, "https://y.qq.com/");
+            String primary = maybeDecodeBase64(body.optString("lyric", "")).trim();
+            String translation = maybeDecodeBase64(body.optString("trans", "")).trim();
+            List<LyricsLine> lines = parseProviderLyrics(primary, translation);
+            return cacheOnlineLyrics(cacheKey, lines);
+        } catch (Exception ignored) {
+            return Collections.emptyList();
+        }
+    }
+
+    private List<LyricsLine> fetchKugouSearchLyrics(Track track) {
+        String cacheKey = "kugou-search\n" + onlineCacheKey(track);
+        List<LyricsLine> cached = cachedOnlineLyrics(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        try {
+            JSONArray songs = requestKugouSearchSongs(track);
+            JSONObject best = bestProviderSong(track, songs, "kugou");
+            if (best == null) {
+                return Collections.emptyList();
+            }
+            return cacheOnlineLyrics(cacheKey, fetchKugouLyrics(best, track));
+        } catch (Exception ignored) {
+            return Collections.emptyList();
+        }
+    }
+
+    private JSONArray requestKugouSearchSongs(Track track) throws Exception {
+        JSONArray result = new JSONArray();
+        LinkedHashSet<String> seen = new LinkedHashSet<>();
+        for (String query : providerSearchQueries(track)) {
+            String url = KUGOU_SEARCH_URL
+                    + "?format=json&keyword=" + encode(query)
+                    + "&page=1&pagesize=5&showtype=1";
+            JSONObject body = requestProviderJson(url, "https://www.kugou.com/");
+            JSONObject data = body.optJSONObject("data");
+            JSONArray list = data == null ? null : data.optJSONArray("info");
+            if (list == null) {
+                continue;
+            }
+            for (int i = 0; i < list.length(); i++) {
+                JSONObject raw = list.optJSONObject(i);
+                if (raw == null) {
+                    continue;
+                }
+                String hash = firstString(raw, "hash", "Hash", "FileHash", "SQFileHash", "HQFileHash");
+                String title = firstString(raw, "SongName", "songname", "FileName");
+                String artist = firstString(raw, "SingerName", "singername");
+                String id = hash.isEmpty() ? title + "|" + artist : hash;
+                if (id.trim().isEmpty() || !seen.add(id)) {
+                    continue;
+                }
+                result.put(new JSONObject()
+                        .put("hash", hash)
+                        .put("title", title)
+                        .put("artist", artist)
+                        .put("album", firstString(raw, "AlbumName", "album_name"))
+                        .put("durationMs", providerDurationMs(raw.opt("Duration"), raw.opt("duration"))));
+            }
+        }
+        return result;
+    }
+
+    private List<LyricsLine> fetchKugouLyrics(JSONObject song, Track fallback) {
+        try {
+            String keyword = (song.optString("title") + " " + song.optString("artist")).trim();
+            String url = KUGOU_LYRIC_SEARCH_URL
+                    + "?ver=1&man=yes&client=pc"
+                    + "&keyword=" + encode(keyword.isEmpty() ? fallback.title + " " + fallback.artist : keyword)
+                    + "&duration=" + Math.max(0L, song.optLong("durationMs", fallback.durationMs));
+            String hash = song.optString("hash", "");
+            if (!hash.isEmpty()) {
+                url += "&hash=" + encode(hash);
+            }
+            JSONObject search = requestProviderJson(url, "https://www.kugou.com/");
+            JSONArray candidates = search.optJSONArray("candidates");
+            if (candidates == null && search.optJSONObject("data") != null) {
+                candidates = search.optJSONObject("data").optJSONArray("candidates");
+            }
+            if (candidates == null || candidates.length() == 0) {
+                return Collections.emptyList();
+            }
+            JSONObject candidate = bestKugouLyricCandidate(fallback, candidates);
+            if (candidate == null) {
+                return Collections.emptyList();
+            }
+            String id = candidate.optString("id", "").trim();
+            String accessKey = candidate.optString("accesskey", candidate.optString("accessKey", "")).trim();
+            if (id.isEmpty() || accessKey.isEmpty()) {
+                return Collections.emptyList();
+            }
+            String downloadUrl = KUGOU_LYRIC_DOWNLOAD_URL
+                    + "?ver=1&client=pc&id=" + encode(id)
+                    + "&accesskey=" + encode(accessKey)
+                    + "&fmt=lrc&charset=utf8";
+            JSONObject body = requestProviderJson(downloadUrl, "https://www.kugou.com/");
+            String lyrics = maybeDecodeBase64(body.optString("content", "")).trim();
+            return parseProviderLyrics(lyrics, "");
+        } catch (Exception ignored) {
+            return Collections.emptyList();
+        }
+    }
+
+    private JSONObject bestKugouLyricCandidate(Track track, JSONArray candidates) {
+        JSONObject best = null;
+        int bestScore = Integer.MIN_VALUE;
+        for (int i = 0; i < candidates.length(); i++) {
+            JSONObject candidate = candidates.optJSONObject(i);
+            if (candidate == null) {
+                continue;
+            }
+            int score = providerMatchScore(
+                    track,
+                    firstString(candidate, "song", "title", "filename"),
+                    firstString(candidate, "singer", "artist"),
+                    "",
+                    providerDurationMs(candidate.opt("duration"))
+            );
+            if (score > bestScore) {
+                bestScore = score;
+                best = candidate;
+            }
+        }
+        return bestScore >= 28 ? best : candidates.optJSONObject(0);
+    }
+
+    private List<LyricsLine> fetchKuwoSearchLyrics(Track track) {
+        String cacheKey = "kuwo-search\n" + onlineCacheKey(track);
+        List<LyricsLine> cached = cachedOnlineLyrics(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        try {
+            JSONArray songs = requestKuwoSearchSongs(track);
+            JSONObject best = bestProviderSong(track, songs, "kuwo");
+            if (best == null) {
+                return Collections.emptyList();
+            }
+            return cacheOnlineLyrics(cacheKey, fetchKuwoLyricsByRid(best.optString("rid", ""), track));
+        } catch (Exception ignored) {
+            return Collections.emptyList();
+        }
+    }
+
+    private JSONArray requestKuwoSearchSongs(Track track) throws Exception {
+        JSONArray result = new JSONArray();
+        LinkedHashSet<String> seen = new LinkedHashSet<>();
+        for (String query : providerSearchQueries(track)) {
+            String url = KUWO_SEARCH_URL
+                    + "?all=" + encode(query)
+                    + "&ft=music&itemset=web_2013&client=kt&pn=0&rn=5&rformat=json&encoding=utf8";
+            JSONObject body = requestProviderJson(url, "https://www.kuwo.cn/");
+            JSONArray list = body.optJSONArray("abslist");
+            if (list == null) {
+                continue;
+            }
+            for (int i = 0; i < list.length(); i++) {
+                JSONObject raw = list.optJSONObject(i);
+                if (raw == null) {
+                    continue;
+                }
+                String rid = kuwoRid(firstString(raw, "MUSICRID", "musicrid", "rid"));
+                if (rid.isEmpty() || !seen.add(rid)) {
+                    continue;
+                }
+                result.put(new JSONObject()
+                        .put("rid", rid)
+                        .put("title", firstString(raw, "SONGNAME", "songname", "name"))
+                        .put("artist", firstString(raw, "ARTIST", "artist"))
+                        .put("album", firstString(raw, "ALBUM", "album"))
+                        .put("durationMs", providerDurationMs(raw.opt("DURATION"), raw.opt("duration"))));
+            }
+        }
+        return result;
+    }
+
+    private List<LyricsLine> fetchKuwoLyricsByRid(String rawRid, Track fallback) {
+        String rid = kuwoRid(rawRid);
+        if (rid.isEmpty()) {
+            return Collections.emptyList();
+        }
+        String cacheKey = "kuwo\n" + rid;
+        List<LyricsLine> cached = cachedOnlineLyrics(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        try {
+            JSONObject body = requestProviderJson(KUWO_LYRIC_URL + "?musicId=" + encode(rid), "https://www.kuwo.cn/");
+            JSONObject data = body.optJSONObject("data");
+            if (data == null) {
+                return Collections.emptyList();
+            }
+            String synced = buildKuwoSyncedLyrics(data.optJSONArray("lrclist"));
+            String plain = data.optString("lyrics", "");
+            List<LyricsLine> lines = parseProviderLyrics(synced.isEmpty() ? plain : synced, "");
+            return cacheOnlineLyrics(cacheKey, lines);
+        } catch (Exception ignored) {
+            return Collections.emptyList();
+        }
+    }
+
+    private JSONObject bestProviderSong(Track track, JSONArray songs, String provider) {
+        if (songs == null || songs.length() == 0) {
+            return null;
+        }
+        JSONObject best = null;
+        int bestScore = Integer.MIN_VALUE;
+        for (int i = 0; i < songs.length(); i++) {
+            JSONObject song = songs.optJSONObject(i);
+            if (song == null) {
+                continue;
+            }
+            int score = providerMatchScore(
+                    track,
+                    song.optString("title"),
+                    song.optString("artist"),
+                    song.optString("album"),
+                    song.optLong("durationMs", 0L)
+            );
+            if (score > bestScore) {
+                bestScore = score;
+                best = song;
+            }
+        }
+        int threshold = "lrclib".equals(provider) ? 35 : 30;
+        return bestScore >= threshold ? best : null;
+    }
+
+    private int providerMatchScore(Track track, String candidateTitle, String candidateArtist, String candidateAlbum, long durationMs) {
+        int score = 0;
+        String title = cleanMatchText(stripVersionText(track.title));
+        String rawTitle = cleanMatchText(track.title);
+        String artist = cleanMatchText(track.artist);
+        String album = cleanMatchText(track.album);
+        String otherTitle = cleanMatchText(candidateTitle);
+        String otherArtist = cleanMatchText(candidateArtist);
+        String otherAlbum = cleanMatchText(candidateAlbum);
+        if (!title.isEmpty() && !otherTitle.isEmpty()) {
+            if (title.equals(otherTitle)) {
+                score += 70;
+            } else if (otherTitle.contains(title) || title.contains(otherTitle)) {
+                score += 42;
+            } else if (!rawTitle.isEmpty() && rawTitle.equals(otherTitle)) {
+                score += 55;
+            }
+        }
+        if (!artist.isEmpty() && !otherArtist.isEmpty()) {
+            if (artist.equals(otherArtist) || otherArtist.contains(artist) || artist.contains(otherArtist)) {
+                score += 25;
+            }
+        }
+        if (!album.isEmpty() && !otherAlbum.isEmpty()) {
+            if (album.equals(otherAlbum) || otherAlbum.contains(album) || album.contains(otherAlbum)) {
+                score += 8;
+            }
+        }
+        if (track.durationMs > 0L && durationMs > 0L) {
+            long delta = Math.abs(track.durationMs - durationMs);
+            if (delta <= 2500L) {
+                score += 12;
+            } else if (delta <= 8000L) {
+                score += 5;
+            }
+        }
+        return score;
+    }
+
+    private List<String> providerSearchQueries(Track track) {
+        LinkedHashSet<String> queries = new LinkedHashSet<>();
+        String title = normalizeSearchText(track.title);
+        String artist = normalizeSearchText(track.artist);
+        addSearchQuery(queries, title + " " + artist);
+        addSearchQuery(queries, stripVersionText(title) + " " + artist);
+        addSearchQuery(queries, title);
+        addSearchQuery(queries, stripVersionText(title));
+        return new ArrayList<>(queries);
+    }
+
+    private List<LyricsLine> parseProviderLyrics(String primary, String translation) throws IOException {
+        String clean = primary == null ? "" : primary.trim();
+        if (clean.isEmpty() || isInstrumentalLyricsText(clean)) {
+            return Collections.emptyList();
+        }
+        List<LyricsLine> lines = parseLrcText(clean);
+        if (lines.isEmpty()) {
+            lines = parsePlainLyrics(clean);
+        }
+        if (translation != null && !translation.trim().isEmpty()) {
+            List<LyricsLine> translated = parseLrcText(translation.trim());
+            if (!translated.isEmpty()) {
+                lines = mergeTranslatedLyrics(lines, translated);
+            }
+        }
+        return lines;
+    }
+
+    private boolean isInstrumentalLyricsText(String text) {
+        if (text == null) {
+            return false;
+        }
+        String clean = text.replaceAll("\\[[^]]*]", "").trim().toLowerCase(java.util.Locale.ROOT);
+        return clean.equals("纯音乐，请欣赏")
+                || clean.equals("此歌曲为没有填词的纯音乐，请您欣赏")
+                || clean.equals("instrumental")
+                || clean.contains("没有填词的纯音乐");
     }
 
     private List<LyricsLine> fetchNeteaseStreamingLyrics(Track track) {
@@ -484,7 +968,7 @@ public final class LyricsRepository {
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setRequestProperty("Accept", "application/json");
-        connection.setRequestProperty("User-Agent", "Mozilla/5.0 ECHO-NEXT-Android");
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0 Yukine-Android");
         connection.setRequestProperty("Referer", "https://music.163.com/");
         try {
             int code = connection.getResponseCode();
@@ -615,6 +1099,274 @@ public final class LyricsRepository {
         return "";
     }
 
+    private StreamingIdentity streamingIdentity(Track track) {
+        if (track == null || track.dataPath == null) {
+            return null;
+        }
+        String dataPath = track.dataPath.trim();
+        if (!dataPath.startsWith(STREAMING_PREFIX)) {
+            return null;
+        }
+        String rest = dataPath.substring(STREAMING_PREFIX.length());
+        int separator = rest.indexOf(':');
+        if (separator <= 0 || separator >= rest.length() - 1) {
+            return null;
+        }
+        String provider = rest.substring(0, separator)
+                .trim()
+                .toLowerCase(java.util.Locale.ROOT)
+                .replace("-", "")
+                .replace("_", "");
+        String providerTrackId = cutAtAny(rest.substring(separator + 1), ':', '?', '#').trim();
+        return new StreamingIdentity(provider, providerTrackId);
+    }
+
+    private boolean isQqProvider(String provider) {
+        return "qq".equals(provider)
+                || "qqmusic".equals(provider)
+                || "tencentmusic".equals(provider);
+    }
+
+    private boolean isKuwoProvider(String provider) {
+        return "kuwo".equals(provider)
+                || "kw".equals(provider)
+                || "luoxue".equals(provider)
+                || "lx".equals(provider)
+                || "lxmusic".equals(provider);
+    }
+
+    private String qqSongMid(String value) {
+        if (value == null) {
+            return "";
+        }
+        String text = cutAtAny(value.trim(), '?', '#');
+        if (text.contains("|")) {
+            text = text.substring(0, text.indexOf('|'));
+        }
+        int colon = text.lastIndexOf(':');
+        if (colon >= 0 && colon < text.length() - 1) {
+            text = text.substring(colon + 1);
+        }
+        return text.trim();
+    }
+
+    private String kuwoRid(String value) {
+        if (value == null) {
+            return "";
+        }
+        String text = cutAtAny(value.trim(), '?', '#');
+        if (text.startsWith("kw:")) {
+            text = text.substring(3);
+        }
+        if (text.toUpperCase(java.util.Locale.ROOT).startsWith("MUSIC_")) {
+            text = text.substring("MUSIC_".length());
+        }
+        int pipe = text.indexOf('|');
+        if (pipe >= 0) {
+            text = text.substring(0, pipe);
+        }
+        return text.replaceAll("[^0-9]", "").trim();
+    }
+
+    private String maybeDecodeBase64(String value) {
+        if (value == null) {
+            return "";
+        }
+        String raw = value.trim();
+        if (raw.isEmpty()) {
+            return "";
+        }
+        if (raw.contains("[") || raw.contains("\n") || raw.contains("\r")) {
+            return raw;
+        }
+        try {
+            byte[] decoded = Base64.getDecoder().decode(raw);
+            String text = new String(decoded, StandardCharsets.UTF_8).trim();
+            return text.isEmpty() ? raw : text;
+        } catch (IllegalArgumentException ignored) {
+            return raw;
+        }
+    }
+
+    private String buildKuwoSyncedLyrics(JSONArray array) {
+        if (array == null || array.length() == 0) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject item = array.optJSONObject(i);
+            if (item == null) {
+                continue;
+            }
+            String text = firstString(item, "lineLyric", "lyric", "text");
+            if (text.isEmpty()) {
+                continue;
+            }
+            long timeMs = kuwoTimeMs(firstString(item, "time", "startTime"));
+            if (timeMs < 0L) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append(formatLrcTime(timeMs)).append(text);
+        }
+        return builder.toString();
+    }
+
+    private long kuwoTimeMs(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return -1L;
+        }
+        try {
+            double seconds = Double.parseDouble(value.trim());
+            return Math.max(0L, Math.round(seconds * 1000.0));
+        } catch (NumberFormatException ignored) {
+            return -1L;
+        }
+    }
+
+    private String formatLrcTime(long timeMs) {
+        long minutes = timeMs / 60_000L;
+        long seconds = (timeMs % 60_000L) / 1000L;
+        long hundredths = (timeMs % 1000L) / 10L;
+        return String.format(java.util.Locale.ROOT, "[%02d:%02d.%02d]", minutes, seconds, hundredths);
+    }
+
+    private long providerDurationMs(Object... values) {
+        for (Object value : values) {
+            if (value == null || JSONObject.NULL.equals(value)) {
+                continue;
+            }
+            try {
+                double number = value instanceof Number
+                        ? ((Number) value).doubleValue()
+                        : Double.parseDouble(String.valueOf(value).trim());
+                if (number <= 0.0) {
+                    continue;
+                }
+                return number > 1000.0 ? Math.round(number) : Math.round(number * 1000.0);
+            } catch (NumberFormatException ignored) {
+                // Try the next value.
+            }
+        }
+        return 0L;
+    }
+
+    private String firstString(JSONObject object, String... keys) {
+        if (object == null) {
+            return "";
+        }
+        for (String key : keys) {
+            String value = object.optString(key, "").trim();
+            if (!value.isEmpty() && !"null".equalsIgnoreCase(value)) {
+                return value;
+            }
+        }
+        return "";
+    }
+
+    private JSONObject requestProviderJson(String url, String referer) throws Exception {
+        String text = requestText(url, referer);
+        return parseProviderJson(text);
+    }
+
+    private JSONObject requestProviderJsonPost(String url, String body, String referer) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+        connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        connection.setReadTimeout(READ_TIMEOUT_MS);
+        connection.setRequestMethod("POST");
+        connection.setDoOutput(true);
+        connection.setRequestProperty("Accept", "application/json,text/plain,*/*");
+        connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+        connection.setRequestProperty(
+                "User-Agent",
+                "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36 Yukine-Android"
+        );
+        if (referer != null && !referer.isEmpty()) {
+            connection.setRequestProperty("Referer", referer);
+        }
+        try {
+            byte[] payload = body == null ? new byte[0] : body.getBytes(StandardCharsets.UTF_8);
+            connection.getOutputStream().write(payload);
+            int code = connection.getResponseCode();
+            if (code < 200 || code >= 300) {
+                return new JSONObject();
+            }
+            StringBuilder text = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                    connection.getInputStream(),
+                    StandardCharsets.UTF_8
+            ))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    text.append(line);
+                }
+            }
+            return parseProviderJson(text.toString());
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private JSONObject parseProviderJson(String text) throws Exception {
+        String clean = text == null ? "" : text.trim();
+        if (clean.isEmpty()) {
+            return new JSONObject();
+        }
+        try {
+            return new JSONObject(clean);
+        } catch (Exception firstError) {
+            String objectLiteral = clean
+                    .replaceAll("(?s)^\\s*[\\w.$]+\\((.*)\\)\\s*;?\\s*$", "$1")
+                    .replaceAll("'((?:\\\\.|[^'\\\\])*)'", "\"$1\"");
+            return new JSONObject(objectLiteral);
+        }
+    }
+
+    private String requestText(String url, String referer) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+        connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        connection.setReadTimeout(READ_TIMEOUT_MS);
+        connection.setRequestProperty("Accept", "application/json,text/plain,*/*");
+        connection.setRequestProperty(
+                "User-Agent",
+                "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36 Yukine-Android"
+        );
+        if (referer != null && !referer.isEmpty()) {
+            connection.setRequestProperty("Referer", referer);
+        }
+        try {
+            int code = connection.getResponseCode();
+            if (code < 200 || code >= 300) {
+                return "";
+            }
+            StringBuilder body = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                    connection.getInputStream(),
+                    StandardCharsets.UTF_8
+            ))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    body.append(line);
+                }
+            }
+            return body.toString().trim();
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private static final class StreamingIdentity {
+        final String provider;
+        final String providerTrackId;
+
+        StreamingIdentity(String provider, String providerTrackId) {
+            this.provider = provider == null ? "" : provider;
+            this.providerTrackId = providerTrackId == null ? "" : providerTrackId;
+        }
+    }
+
     private JSONObject firstLrclibRecord(Track track) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CompletionService<JSONObject> completion = new ExecutorCompletionService<>(executor);
@@ -696,7 +1448,7 @@ public final class LyricsRepository {
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setRequestProperty("Accept", "application/json");
-        connection.setRequestProperty("User-Agent", "ECHO-NEXT-Android");
+        connection.setRequestProperty("User-Agent", "Yukine-Android");
         try {
             int code = connection.getResponseCode();
             if (code < 200 || code >= 300) {

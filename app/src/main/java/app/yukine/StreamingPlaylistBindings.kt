@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.model.Track
+import app.yukine.streaming.StreamingPlaylist
 import app.yukine.streaming.StreamingProviderName
 
 internal fun interface StreamingPlaylistIdProvider {
@@ -27,6 +28,10 @@ internal fun interface StreamingPlaylistLoadedDialog {
     fun show(message: String)
 }
 
+internal fun interface StreamingAccountPlaylistImportPicker {
+    fun show(provider: StreamingProviderName, playlists: List<StreamingPlaylist>)
+}
+
 internal fun interface StreamingSelectedProviderProvider {
     fun provider(): StreamingProviderName?
 }
@@ -42,6 +47,7 @@ internal class StreamingPlaylistBindings(
     private val providerPicker: StreamingPlaylistProviderPicker,
     private val streamingNavigator: QueueNoArgAction,
     private val loadedDialog: StreamingPlaylistLoadedDialog,
+    private val accountPlaylistImportPicker: StreamingAccountPlaylistImportPicker,
     private val statusSink: QueueStatusSink,
     private val selectedTabRenderer: QueueNoArgAction
 ) : StreamingPlaylistController.Listener {
@@ -83,6 +89,10 @@ internal class StreamingPlaylistBindings(
 
     override fun showStreamingPlaylistLoadedDialog(message: String) {
         loadedDialog.show(message)
+    }
+
+    override fun showAccountPlaylistImportPicker(provider: StreamingProviderName, playlists: List<StreamingPlaylist>) {
+        accountPlaylistImportPicker.show(provider, playlists)
     }
 
     override fun setStatus(status: String) {

@@ -22,10 +22,28 @@ enum class StreamingProviderName(val wireName: String) {
                 .replace("_", "")
                 .replace(" ", "")
             return when (normalized) {
-                "lx", "lxmusic", "luoxuemusic", "luoxuemusicsource", "洛雪", "洛雪音乐", "洛雪音源" -> LUOXUE
+                "lx",
+                "lxmusic",
+                "lxsource",
+                "lxplugin",
+                "lxmusicplugin",
+                "lxmusicsource",
+                "luoxue",
+                "luoxuemusic",
+                "luoxuesource",
+                "luoxueplugin",
+                "luoxuemusicsource",
+                "luoxuemusicplugin",
+                "洛雪",
+                "洛雪音乐",
+                "洛雪音源",
+                "酷我",
+                "酷我音乐",
+                "咪咕",
+                "咪咕音乐" -> LUOXUE
                 "qq", "qqmusic", "tx", "tencent", "tencentmusic" -> QQ_MUSIC
                 "kg", "kugou" -> KUGOU
-                "kw", "kuwo" -> LUOXUE
+                "kw", "kuwo", "mg", "migu", "migu_music", "migumusic" -> LUOXUE
                 "wy", "netease", "neteasecloud", "neteasemusic", "163", "163music" -> NETEASE
                 else -> entries.firstOrNull {
                     it.wireName.replace("_", "") == normalized
@@ -174,6 +192,21 @@ data class StreamingArtistRef(
     val name: String
 )
 
+data class StreamingLyricSource(
+    val provider: StreamingProviderName,
+    val name: String,
+    val providerTrackId: String? = null,
+    val priority: Int = 0
+)
+
+data class StreamingPlaybackCandidate(
+    val provider: StreamingProviderName,
+    val quality: StreamingAudioQuality? = null,
+    val label: String = provider.wireName,
+    val providerTrackId: String? = null,
+    val available: Boolean = true
+)
+
 data class StreamingTrack(
     val provider: StreamingProviderName,
     val providerTrackId: String,
@@ -188,7 +221,10 @@ data class StreamingTrack(
     val qualities: Set<StreamingAudioQuality> = emptySet(),
     val explicit: Boolean = false,
     val playable: Boolean = true,
-    val unavailableReason: String? = null
+    val unavailableReason: String? = null,
+    val description: String? = null,
+    val lyricSources: List<StreamingLyricSource> = emptyList(),
+    val playbackCandidates: List<StreamingPlaybackCandidate> = emptyList()
 ) {
     val stableKey: String = "streaming:${provider.wireName}:$providerTrackId"
 }

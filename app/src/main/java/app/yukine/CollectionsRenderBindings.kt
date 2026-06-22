@@ -16,6 +16,10 @@ internal fun interface SelectedPlaylistExportOpener {
     fun open()
 }
 
+internal fun interface TrackListDownloadAction {
+    fun download(tracks: List<Track>)
+}
+
 internal fun interface SelectedPlaylistTrackMover {
     fun move(playlistId: Long, track: Track, trackIndex: Int, direction: Int)
 }
@@ -36,6 +40,8 @@ internal class CollectionsRenderBindings(
     private val playTrackListAction: TrackListPlaybackAction,
     private val libraryEventSink: LibraryEventSink,
     private val addToPlaylistAction: QueueTrackAction,
+    private val downloadTrackAction: QueueTrackAction,
+    private val downloadTracksAction: TrackListDownloadAction,
     private val selectPlaylistAction: PlaylistIdAction,
     private val showRenamePlaylistAction: PlaylistAction,
     private val confirmDeletePlaylistAction: PlaylistAction,
@@ -74,6 +80,14 @@ internal class CollectionsRenderBindings(
 
     override fun showAddToPlaylist(track: Track) {
         addToPlaylistAction.run(track)
+    }
+
+    override fun downloadTrack(track: Track) {
+        downloadTrackAction.run(track)
+    }
+
+    override fun downloadTracks(tracks: List<Track>) {
+        downloadTracksAction.download(tracks)
     }
 
     override fun selectPlaylist(playlistId: Long) {

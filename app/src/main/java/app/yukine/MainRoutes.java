@@ -8,6 +8,8 @@ public final class MainRoutes {
     public static final String TAB_NOW = "now";
     public static final String TAB_NETWORK = "network";
     public static final String TAB_SETTINGS = "settings";
+    public static final String TAB_DOWNLOADS = "downloads";
+    public static final String TAB_SEARCH = "search";
 
     public static final String NETWORK_HOME = "network_home";
     public static final String NETWORK_STREAMING = "network_streaming";
@@ -38,6 +40,8 @@ public final class MainRoutes {
     public static final String SETTINGS_PLAYBACK_RESTORE = "settings_playback_restore";
     public static final String SETTINGS_REPLAY_GAIN = "settings_replay_gain";
     public static final String SETTINGS_STREAMING_AUDIO_QUALITY = "settings_streaming_audio_quality";
+    public static final String SETTINGS_SHARE_STYLE = "settings_share_style";
+    public static final String SETTINGS_DOWNLOADS = "settings_downloads";
     public static final String SETTINGS_CONCURRENT_PLAYBACK = "settings_concurrent_playback";
     public static final String SETTINGS_SLEEP_TIMER = "settings_sleep_timer";
     public static final String SETTINGS_LYRICS = "settings_lyrics";

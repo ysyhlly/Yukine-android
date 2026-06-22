@@ -39,6 +39,7 @@ internal fun interface LibraryGroupTrackListRenderer {
 internal class LibraryGroupsRenderBindings(
     private val libraryEventSink: LibraryEventSink,
     private val libraryGroupSelectionClearer: LibraryGroupSelectionClearer,
+    private val openFavoritesCollectionAction: Runnable,
     private val confirmDeleteGroupAction: TrackGroupDeleteConfirmer,
     private val chromeSink: LibraryGroupsChromeSink,
     private val trackListRenderer: LibraryGroupTrackListRenderer
@@ -53,6 +54,10 @@ internal class LibraryGroupsRenderBindings(
 
     override fun closeLibraryGroup() {
         libraryEventSink.send(LibraryEvent.BackFromGroup)
+    }
+
+    override fun openFavoritesCollection() {
+        openFavoritesCollectionAction.run()
     }
 
     override fun playTrackList(tracks: List<Track>, index: Int) {

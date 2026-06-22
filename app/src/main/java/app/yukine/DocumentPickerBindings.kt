@@ -14,6 +14,7 @@ internal fun interface DocumentUriAction {
 internal class DocumentPickerBindings(
     private val importAudioUrisAction: DocumentAudioUrisImportAction,
     private val importAudioFolderAction: DocumentUriAction,
+    private val chooseDownloadFolderAction: DocumentUriAction,
     private val importStreamM3uAction: DocumentUriAction,
     private val exportPlaylistAction: DocumentUriAction,
     private val importPlaylistM3uAction: DocumentUriAction
@@ -24,6 +25,10 @@ internal class DocumentPickerBindings(
 
     override fun importAudioFolder(treeUri: Uri) {
         importAudioFolderAction.run(treeUri)
+    }
+
+    override fun chooseDownloadFolder(treeUri: Uri) {
+        chooseDownloadFolderAction.run(treeUri)
     }
 
     override fun importStreamM3u(playlistUri: Uri) {

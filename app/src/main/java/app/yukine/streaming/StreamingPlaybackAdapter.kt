@@ -2,6 +2,10 @@ package app.yukine.streaming
 
 import android.net.Uri
 import app.yukine.model.Track
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import kotlin.math.absoluteValue
 
 interface StreamingPlaybackTrackAdapter {
@@ -27,7 +31,7 @@ object StreamingPlaybackAdapter {
         val title = metadata?.title?.takeIf { it.isNotBlank() } ?: source.providerTrackId
         val artist = metadata?.artist?.takeIf { it.isNotBlank() } ?: source.provider.wireName
         val album = metadata?.album?.takeIf { it.isNotBlank() } ?: "Streaming"
-        val dataPath = dataPath(source)
+        val dataPath = dataPath(source, metadata)
         headers.register(dataPath, source.headers)
         return Track(
             stableTrackId(source.provider, source.providerTrackId),
@@ -38,7 +42,7 @@ object StreamingPlaybackAdapter {
             Uri.parse(source.url),
             dataPath,
             0L,
-            metadata?.coverUrl?.takeIf { it.isNotBlank() }?.let(Uri::parse)
+            (metadata?.coverUrl ?: metadata?.coverThumbUrl)?.takeIf { it.isNotBlank() }?.let(Uri::parse)
         )
     }
 
@@ -49,7 +53,7 @@ object StreamingPlaybackAdapter {
      * Its contentUri is empty until resolved.
      */
     fun placeholderTrack(track: StreamingTrack): Track {
-        val dataPath = "$DATA_PATH_PREFIX${track.provider.wireName}:${track.providerTrackId}"
+        val dataPath = "$DATA_PATH_PREFIX${track.provider.wireName}:${track.providerTrackId}${metadataQuery(track)}"
         return Track(
             stableTrackId(track.provider, track.providerTrackId),
             track.title.takeIf { it.isNotBlank() } ?: track.providerTrackId,
@@ -92,8 +96,81 @@ object StreamingPlaybackAdapter {
         return if (value == 0L) 1L else value
     }
 
-    private fun dataPath(source: StreamingPlaybackSource): String {
-        return "$DATA_PATH_PREFIX${source.provider.wireName}:${source.providerTrackId}"
+    private fun dataPath(source: StreamingPlaybackSource, metadata: StreamingTrack?): String {
+        return "$DATA_PATH_PREFIX${source.provider.wireName}:${source.providerTrackId}${metadataQuery(metadata)}"
+    }
+
+    private fun metadataQuery(metadata: StreamingTrack?): String {
+        if (metadata == null) {
+            return ""
+        }
+        val params = linkedMapOf<String, String>()
+        metadata.description?.takeIf { it.isNotBlank() }?.let { params["desc"] = it }
+        val lyricSources = metadata.lyricSources
+            .sortedBy { it.priority }
+            .map { it.name }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .joinToString(" / ")
+        if (lyricSources.isNotBlank()) {
+            params["lyrics"] = lyricSources
+        }
+        val playbackSources = metadata.playbackCandidates
+            .map { candidate ->
+                val quality = candidate.quality?.wireName?.uppercase()
+                if (quality.isNullOrBlank()) candidate.label else "${candidate.label} $quality"
+            }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .joinToString(" / ")
+        if (playbackSources.isNotBlank()) {
+            params["sources"] = playbackSources
+        }
+        val playbackOptions = playbackSourceOptions(metadata)
+        if (playbackOptions.isNotBlank()) {
+            params["sourceOptions"] = playbackOptions
+        }
+        if (params.isEmpty()) {
+            return ""
+        }
+        return params.entries.joinToString(prefix = "?", separator = "&") { entry ->
+            "${entry.key}=${URLEncoder.encode(entry.value, StandardCharsets.UTF_8.name())}"
+        }
+    }
+
+    private fun playbackSourceOptions(metadata: StreamingTrack): String {
+        val seen = linkedSetOf<String>()
+        val array = JSONArray()
+        val candidates = buildList {
+            add(
+                StreamingPlaybackCandidate(
+                    provider = metadata.provider,
+                    quality = null,
+                    label = metadata.provider.wireName,
+                    providerTrackId = metadata.providerTrackId,
+                    available = metadata.playable
+                )
+            )
+            addAll(metadata.playbackCandidates)
+        }
+        candidates.forEach { candidate ->
+            val providerTrackId = candidate.providerTrackId?.takeIf { it.isNotBlank() }
+                ?: metadata.providerTrackId.takeIf { candidate.provider == metadata.provider }
+                ?: return@forEach
+            val key = "${candidate.provider.wireName}:$providerTrackId:${candidate.quality?.wireName.orEmpty()}"
+            if (!seen.add(key)) {
+                return@forEach
+            }
+            array.put(
+                JSONObject()
+                    .put("provider", candidate.provider.wireName)
+                    .put("providerTrackId", providerTrackId)
+                    .put("quality", candidate.quality?.wireName)
+                    .put("label", candidate.label.ifBlank { candidate.provider.wireName })
+                    .put("available", candidate.available)
+            )
+        }
+        return if (array.length() > 1) array.toString() else ""
     }
 
     private fun parsedDataPath(dataPath: String): ParsedStreamingDataPath? {
@@ -126,7 +203,23 @@ object StreamingPlaybackAdapter {
             .replace("_", "")
         return when (normalized) {
             "netease", "neteasecloud", "neteasemusic", "163", "163music" -> StreamingProviderName.NETEASE
-            "lx", "lxmusic", "luoxue", "luoxuemusic", "luoxuesource", "luoxuemusicsource" -> StreamingProviderName.LUOXUE
+            "lx",
+            "lxmusic",
+            "lxsource",
+            "lxplugin",
+            "lxmusicplugin",
+            "lxmusicsource",
+            "luoxue",
+            "luoxuemusic",
+            "luoxuesource",
+            "luoxueplugin",
+            "luoxuemusicsource",
+            "luoxuemusicplugin",
+            "kw",
+            "kuwo",
+            "mg",
+            "migu",
+            "migumusic" -> StreamingProviderName.LUOXUE
             else -> StreamingProviderName.entries.firstOrNull {
                 it.wireName.replace("_", "") == normalized
             }

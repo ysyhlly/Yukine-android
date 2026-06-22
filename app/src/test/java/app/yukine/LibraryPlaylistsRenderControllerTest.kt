@@ -29,25 +29,32 @@ class LibraryPlaylistsRenderControllerTest {
             selectedLibraryGroupKey = "",
             selectedPlaylistName = "",
             selectedPlaylistTracks = emptyList(),
+            favoriteTracks = listOf(track(90L)),
+            recentRecords = emptyList(),
             modeActions = modeActions
         )
 
         assertEquals("Playlists", viewModel.libraryGroups.value.title)
-        assertEquals(listOf("playlist:7", "playlist:8"), viewModel.libraryGroups.value.rows.map(LibraryGroupUiState::id))
+        assertEquals(
+            listOf("virtual:favorites", "virtual:play-history", "playlist:7", "playlist:8"),
+            viewModel.libraryGroups.value.rows.map(LibraryGroupUiState::id)
+        )
         assertEquals("No playlists", listener.chromeState?.emptyText)
         assertEquals(modeActions, listener.chromeState?.modeActions)
         assertNotSame(modeActions, listener.chromeState?.modeActions)
 
         listener.chromeState?.actions?.get(0)?.onOpen?.run()
         listener.chromeState?.actions?.get(0)?.onPlay?.run()
-        listener.chromeState?.actions?.get(1)?.onPlay?.run()
-        listener.chromeState?.actions?.get(0)?.onLongPress?.run()
+        listener.chromeState?.actions?.get(2)?.onOpen?.run()
+        listener.chromeState?.actions?.get(2)?.onPlay?.run()
+        listener.chromeState?.actions?.get(3)?.onPlay?.run()
+        listener.chromeState?.actions?.get(2)?.onLongPress?.run()
 
         assertEquals(
-            listOf("open:7:Favorites", "playPlaylist:7", "playPlaylist:8", "delete:7"),
+            listOf("favorite:Favorite playlist", "playTracks:1:0", "open:7:Favorites", "playPlaylist:7", "playPlaylist:8", "delete:7"),
             listener.calls
         )
-        assertEquals(false, listener.chromeState?.actions?.get(1)?.playEnabled)
+        assertEquals(false, listener.chromeState?.actions?.get(3)?.playEnabled)
     }
 
     @Test
@@ -64,6 +71,8 @@ class LibraryPlaylistsRenderControllerTest {
             selectedLibraryGroupKey = "playlist:9",
             selectedPlaylistName = "Daily",
             selectedPlaylistTracks = tracks,
+            favoriteTracks = emptyList(),
+            recentRecords = emptyList(),
             modeActions = modeActions
         )
 
@@ -86,6 +95,14 @@ class LibraryPlaylistsRenderControllerTest {
         val calls = mutableListOf<String>()
         var chromeState: LibraryGroupsChromeState? = null
         var playlistTrackRequest: LibraryPlaylistTrackListRequest? = null
+
+        override fun openFavoritePlaylist(title: String) {
+            calls += "favorite:$title"
+        }
+
+        override fun openPlayHistory(title: String) {
+            calls += "history:$title"
+        }
 
         override fun openPlaylist(playlistId: Long, title: String) {
             calls += "open:$playlistId:$title"

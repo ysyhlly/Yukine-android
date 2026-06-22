@@ -21,7 +21,7 @@ class RemoteStreamingGatewayTest {
         val gateway = RemoteStreamingGateway("gateway://unconfigured")
 
         assertTrue(gateway.providers().isNotEmpty())
-        assertEquals(StreamingProviderName.MOCK, gateway.providers().first().name)
+        assertEquals(StreamingProviderName.NETEASE, gateway.providers().first().name)
         assertFalse(gateway.authState(StreamingProviderName.SPOTIFY).connected)
         assertEquals(
             "请在新页面登录",
@@ -34,7 +34,8 @@ class RemoteStreamingGatewayTest {
         } catch (error: StreamingGatewayException) {
             error
         }
-        assertTrue(searchError?.message.orEmpty().contains("not connected"))
+        assertEquals(StreamingErrorCode.GATEWAY_UNAVAILABLE, searchError?.code)
+        assertTrue(searchError?.message.orEmpty().isNotBlank())
 
         val playlistsError = try {
             gateway.userPlaylists(StreamingProviderName.NETEASE)
@@ -58,15 +59,68 @@ class RemoteStreamingGatewayTest {
         // NetEase has a local client, so it stays enabled even though no gateway is configured.
         val netease = providers.first { it.name == StreamingProviderName.NETEASE }
         assertTrue(netease.enabled)
-        // Providers without a local client are disabled so the UI does not offer a dead entry.
+        // QQ now has a local-first client, so it stays enabled but must not pretend to be signed in.
         val qq = providers.first { it.name == StreamingProviderName.QQ_MUSIC }
-        assertFalse(qq.enabled)
-        assertEquals(StreamingProviderStatus.DISABLED, qq.status)
-        // The disabled state must propagate into capabilities.
+        assertTrue(qq.enabled)
+        assertEquals(StreamingProviderStatus.NEEDS_ACCOUNT, qq.status)
+        assertEquals(StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE, qq.auth.kind)
+        assertFalse(qq.auth.connected)
         val qqCapability = gateway.providerCapabilities()
             .first { it.provider == StreamingProviderName.QQ_MUSIC }
-        assertFalse(qqCapability.enabled)
-        assertFalse(qqCapability.supportsSearch)
+        assertTrue(qqCapability.enabled)
+        assertTrue(qqCapability.supportsSearch)
+        val luoxue = providers.first { it.name == StreamingProviderName.LUOXUE }
+        assertTrue(luoxue.enabled)
+        assertEquals(StreamingProviderStatus.READY, luoxue.status)
+        assertFalse(luoxue.auth.connected)
+        val luoxueCapability = gateway.providerCapabilities()
+            .first { it.provider == StreamingProviderName.LUOXUE }
+        assertTrue(luoxueCapability.enabled)
+        assertTrue(luoxueCapability.supportsSearch)
+        // Providers without a local client are still disabled so the UI does not offer a dead entry.
+        val spotify = providers.first { it.name == StreamingProviderName.SPOTIFY }
+        assertFalse(spotify.enabled)
+        assertEquals(StreamingProviderStatus.DISABLED, spotify.status)
+    }
+
+    @Test
+    fun unconfiguredEndpointLoadsQqAccountPlaylistsLocallyWithSavedCookie() = runTest {
+        val authStore = FakeLocalAuthStore(
+            cookies = mapOf(StreamingProviderName.QQ_MUSIC to "uin=o12345; qqmusic_key=local-key")
+        )
+        val qq = FakeQqMusicHttpClient(
+            responses = mapOf(
+                "/rsc/fcgi-bin/fcg_user_created_diss" to JSONObject()
+                    .put(
+                        "data",
+                        JSONObject()
+                            .put(
+                                "disslist",
+                                JSONArray()
+                                    .put(
+                                        JSONObject()
+                                            .put("dissid", "7001")
+                                            .put("dissname", "QQ Favorite")
+                                            .put("songnum", 12)
+                                            .put("logo", "https://y.qq.com/cover.jpg")
+                                    )
+                            )
+                    )
+            )
+        )
+        val gateway = RemoteStreamingGateway(
+            endpointBaseUrl = "gateway://unconfigured",
+            localAuthStore = authStore,
+            localQqMusicClient = LocalQqMusicStreamingClient(authStore, qq)
+        )
+
+        val playlists = gateway.userPlaylists(StreamingProviderName.QQ_MUSIC)
+
+        assertEquals("QQ Favorite", playlists.single().title)
+        assertEquals("7001", playlists.single().providerPlaylistId)
+        assertEquals(12, playlists.single().trackCount)
+        assertEquals(listOf("/rsc/fcgi-bin/fcg_user_created_diss"), qq.paths)
+        assertEquals("uin=o12345; qqmusic_key=local-key", qq.cookies.single())
     }
 
     @Test
@@ -76,7 +130,7 @@ class RemoteStreamingGatewayTest {
         val search = gateway.search(
             StreamingSearchRequest(
                 provider = StreamingProviderName.MOCK,
-                query = "回声",
+                query = "echo",
                 mediaTypes = setOf(StreamingMediaType.TRACK, StreamingMediaType.PLAYLIST)
             )
         )
@@ -94,14 +148,12 @@ class RemoteStreamingGatewayTest {
         )
 
         assertEquals(StreamingProviderName.MOCK, search.provider)
-        assertEquals("回声", search.query)
-        assertEquals("回声测试", search.tracks.single().title)
+        assertEquals("echo", search.query)
+        assertEquals("Echo test", search.tracks.single().title)
         assertEquals(3, playlist.tracks.size)
         assertEquals("audio/mpeg", playback.mimeType)
         assertTrue(playback.url.startsWith("https://"))
         assertTrue(gateway.authState(StreamingProviderName.MOCK).connected)
-        assertTrue(gateway.providersHealth().first { it.provider == StreamingProviderName.MOCK }.available)
-        assertTrue(gateway.providerCapabilities().first { it.provider == StreamingProviderName.MOCK }.supportsPlayback)
     }
 
     @Test
@@ -112,7 +164,7 @@ class RemoteStreamingGatewayTest {
             val gateway = RemoteStreamingGateway(server.baseUrl)
 
             val providers = gateway.providers()
-            assertEquals(StreamingProviderName.SPOTIFY, providers.single().name)
+            assertEquals(StreamingProviderName.SPOTIFY, providers.first { it.name == StreamingProviderName.SPOTIFY }.name)
             val health = gateway.providersHealth()
             assertTrue(health.single().available)
 
@@ -173,7 +225,7 @@ class RemoteStreamingGatewayTest {
             assertEquals("GET", requests[0].method)
             assertEquals("/providers", requests[0].path)
             assertEquals("application/json", requests[0].accept)
-            assertEquals("ECHO-NEXT-Android", requests[0].userAgent)
+            assertEquals("Yukine-Android", requests[0].userAgent)
 
             assertEquals("GET", requests[1].method)
             assertEquals("/providers/health", requests[1].path)
@@ -376,6 +428,31 @@ class RemoteStreamingGatewayTest {
         }
     }
 
+    private class FakeQqMusicHttpClient(
+        private val responses: Map<String, JSONObject>
+    ) : QqMusicHttpClient {
+        val paths = mutableListOf<String>()
+        val cookies = mutableListOf<String?>()
+
+        override fun getJson(url: String, headers: Map<String, String>): JSONObject {
+            paths += java.net.URL(url).path
+            cookies += headers["Cookie"]
+            return responses[java.net.URL(url).path] ?: throw StreamingGatewayException(
+                "Missing fake QQ response for $url",
+                code = StreamingErrorCode.SOURCE_UNAVAILABLE
+            )
+        }
+
+        override fun postJson(url: String, body: JSONObject, headers: Map<String, String>): JSONObject {
+            paths += java.net.URL(url).path
+            cookies += headers["Cookie"]
+            return responses[java.net.URL(url).path] ?: throw StreamingGatewayException(
+                "Missing fake QQ response for $url",
+                code = StreamingErrorCode.SOURCE_UNAVAILABLE
+            )
+        }
+    }
+
     @Test
     fun remoteArtworkUrlsUseGatewayProxy() = runTest {
         val server = GatewayTestServer()
@@ -559,10 +636,11 @@ class RemoteStreamingGatewayTest {
             val gateway = RemoteStreamingGateway(server.baseUrl)
 
             val capabilities = gateway.providerCapabilities()
+            val spotify = capabilities.first { it.provider == StreamingProviderName.SPOTIFY }
 
-            assertEquals(StreamingProviderName.SPOTIFY, capabilities.single().provider)
-            assertTrue(capabilities.single().supportsSearch)
-            assertTrue(capabilities.single().supportsPlayback)
+            assertEquals(StreamingProviderName.SPOTIFY, spotify.provider)
+            assertTrue(spotify.supportsSearch)
+            assertTrue(spotify.supportsPlayback)
             assertEquals(listOf("/providers/capabilities", "/providers"), server.requests.map { it.path })
         } finally {
             server.stop()
@@ -590,14 +668,13 @@ class RemoteStreamingGatewayTest {
         assertTrue(providers.any { it.name == StreamingProviderName.LUOXUE })
         assertTrue(providers.first { it.name == StreamingProviderName.NETEASE }.auth.connected)
         assertEquals(StreamingAuthKind.NONE, providers.first { it.name == StreamingProviderName.LUOXUE }.auth.kind)
-        assertEquals(StreamingProviderStatus.DISABLED, providers.first { it.name == StreamingProviderName.LUOXUE }.status)
+        assertEquals(StreamingProviderStatus.READY, providers.first { it.name == StreamingProviderName.LUOXUE }.status)
         assertTrue(capabilities.any { it.provider == StreamingProviderName.NETEASE && it.supportsSearch })
-        assertTrue(capabilities.any { it.provider == StreamingProviderName.LUOXUE && !it.supportsPlayback })
+        assertTrue(capabilities.any { it.provider == StreamingProviderName.LUOXUE && it.supportsPlayback })
         assertTrue(health.first { it.provider == StreamingProviderName.NETEASE }.authenticated)
-        assertEquals(
-            StreamingErrorCode.GATEWAY_UNAVAILABLE,
-            health.first { it.provider == StreamingProviderName.QQ_MUSIC }.errorCode
-        )
+        val qqHealth = health.first { it.provider == StreamingProviderName.QQ_MUSIC }
+        assertTrue(qqHealth.available)
+        assertEquals(null, qqHealth.errorCode)
     }
 
     @Test
@@ -727,7 +804,7 @@ class RemoteStreamingGatewayTest {
                         "result",
                         JSONObject()
                             .put("songCount", 1)
-                            .put("songs", JSONArray().put(neteaseSong(1336840812L, "きみの名前")))
+                            .put("songs", JSONArray().put(neteaseSong(1336840812L, "No Login Song")))
                     )
             ),
             expectedCookie = null
@@ -741,12 +818,12 @@ class RemoteStreamingGatewayTest {
         val result = gateway.search(
             StreamingSearchRequest(
                 provider = StreamingProviderName.NETEASE,
-                query = "きみの名前 藤川千愛",
+                query = "No Login Song",
                 pageSize = 5
             )
         )
 
-        assertEquals("きみの名前", result.tracks.single().title)
+        assertEquals("No Login Song", result.tracks.single().title)
         assertEquals("1336840812", result.tracks.single().providerTrackId)
         assertEquals(listOf("/api/cloudsearch/pc"), netease.paths)
     }

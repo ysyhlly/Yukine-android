@@ -11,6 +11,7 @@ class SettingsGatewayBindingsTest {
         val gateway = SettingsGatewayBindings(
             navigateSettingsPageAction = SettingsStringAction { page -> calls += "page:$page" },
             openNetworkSourcesAction = Runnable { calls += "network" },
+            openDownloadsAction = Runnable { calls += "downloads" },
             loadLibraryAction = Runnable { calls += "library" },
             openAudioFilePickerAction = Runnable { calls += "file" },
             openAudioFolderPickerAction = Runnable { calls += "folder" },
@@ -22,6 +23,7 @@ class SettingsGatewayBindingsTest {
             playbackSpeedAction = SettingsFloatAction { speed -> calls += "speed:$speed" },
             appVolumeAction = SettingsFloatAction { volume -> calls += "volume:$volume" },
             streamingAudioQualityAction = SettingsStringAction { quality -> calls += "quality:$quality" },
+            shareStyleAction = SettingsStringAction { style -> calls += "shareStyle:$style" },
             concurrentPlaybackAction = SettingsBooleanAction { enabled -> calls += "concurrent:$enabled" },
             audioEffectsAction = SettingsAudioEffectsAction { settings -> calls += "effects:${settings.enabled}" },
             statusBarLyricsAction = SettingsBooleanAction { enabled -> calls += "statusLyrics:$enabled" },
@@ -29,6 +31,9 @@ class SettingsGatewayBindingsTest {
             floatingLyricsPermissionAction = Runnable { calls += "floatingPermission" },
             nowPlayingGesturesAction = SettingsBooleanAction { enabled -> calls += "gestures:$enabled" },
             playbackRestoreAction = SettingsBooleanAction { enabled -> calls += "restore:$enabled" },
+            replayGainAction = SettingsBooleanAction { enabled -> calls += "replayGain:$enabled" },
+            exportBackupAction = Runnable { calls += "exportBackup" },
+            importBackupAction = Runnable { calls += "importBackup" },
             themeModeAction = SettingsStringAction { mode -> calls += "theme:$mode" },
             accentModeAction = SettingsStringAction { accent -> calls += "accent:$accent" },
             languageModeAction = SettingsStringAction { languageMode -> calls += "language:$languageMode" },
@@ -37,6 +42,7 @@ class SettingsGatewayBindingsTest {
 
         gateway.navigateSettingsPage("playback")
         gateway.openNetworkSources()
+        gateway.openDownloads()
         gateway.loadLibrary()
         gateway.openAudioFilePicker()
         gateway.openAudioFolderPicker()
@@ -48,6 +54,7 @@ class SettingsGatewayBindingsTest {
         gateway.applyPlaybackSpeed(1.25f)
         gateway.applyAppVolume(0.8f)
         gateway.applyStreamingAudioQuality("lossless")
+        gateway.applyShareStyle(TrackShareStyle.PLATFORM_CARD)
         gateway.setConcurrentPlaybackEnabled(false)
         gateway.applyAudioEffectSettings(AudioEffectSettings.DEFAULT.withEnabled(true))
         gateway.setStatusBarLyricsEnabled(false)
@@ -55,6 +62,9 @@ class SettingsGatewayBindingsTest {
         gateway.openFloatingLyricsPermission()
         gateway.setNowPlayingGesturesEnabled(false)
         gateway.setPlaybackRestoreEnabled(true)
+        gateway.setReplayGainEnabled(false)
+        gateway.exportBackup()
+        gateway.importBackup()
         gateway.applyThemeMode("dark")
         gateway.applyAccentMode("blue")
         gateway.applyLanguageMode("zh")
@@ -64,6 +74,7 @@ class SettingsGatewayBindingsTest {
             listOf(
                 "page:playback",
                 "network",
+                "downloads",
                 "library",
                 "file",
                 "folder",
@@ -75,6 +86,7 @@ class SettingsGatewayBindingsTest {
                 "speed:1.25",
                 "volume:0.8",
                 "quality:lossless",
+                "shareStyle:${TrackShareStyle.PLATFORM_CARD}",
                 "concurrent:false",
                 "effects:true",
                 "statusLyrics:false",
@@ -82,6 +94,9 @@ class SettingsGatewayBindingsTest {
                 "floatingPermission",
                 "gestures:false",
                 "restore:true",
+                "replayGain:false",
+                "exportBackup",
+                "importBackup",
                 "theme:dark",
                 "accent:blue",
                 "language:zh",

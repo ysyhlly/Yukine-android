@@ -17,7 +17,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 data class PlaylistRowUiState(val name: String, val subtitle: String, val selected: Boolean)
-data class PlaylistRowActions(val onSelect: Runnable, val onRename: Runnable, val onDelete: Runnable)
+data class PlaylistRowActions(
+    val onSelect: Runnable,
+    val onRename: Runnable,
+    val onDelete: Runnable,
+    val renameLabel: String = "Rename",
+    val deleteLabel: String = "Delete"
+)
 
 @Composable
 private fun PlaylistListScreen(
@@ -82,9 +88,9 @@ private fun PlaylistRow(playlist: PlaylistRowUiState, actions: PlaylistRowAction
                 Text(playlist.subtitle, style = EchoTypography.caption, color = p.muted,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            PlaylistIconBtn(EchoIconKind.Edit, "重命名") { actions.onRename.run() }
+            PlaylistIconBtn(EchoIconKind.Edit, actions.renameLabel) { actions.onRename.run() }
             Spacer(Modifier.width(4.dp))
-            PlaylistIconBtn(EchoIconKind.Delete, "删除") { actions.onDelete.run() }
+            PlaylistIconBtn(EchoIconKind.Delete, actions.deleteLabel) { actions.onDelete.run() }
         }
     }
 }

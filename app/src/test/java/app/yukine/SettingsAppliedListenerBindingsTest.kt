@@ -35,6 +35,10 @@ class SettingsAppliedListenerBindingsTest {
             override fun setPlaybackRestoreEnabled(enabled: Boolean) {
                 calls += "restoreControl:$enabled"
             }
+
+            override fun setReplayGainEnabled(enabled: Boolean) {
+                calls += "replayGainControl:$enabled"
+            }
         }
         val lyricsControls = object : SettingsLyricsControls {
             override fun setOnlineEnabled(enabled: Boolean) {
@@ -85,7 +89,9 @@ class SettingsAppliedListenerBindingsTest {
                     nowPlayingGesturesEnabled = "gestures:on",
                     nowPlayingGesturesDisabled = "gestures:off",
                     playbackRestoreEnabled = "restore:on",
-                    playbackRestoreDisabled = "restore:off"
+                    playbackRestoreDisabled = "restore:off",
+                    replayGainEnabled = "replayGain:on",
+                    replayGainDisabled = "replayGain:off"
                 )
             },
             streamingQualityAppliedStatusProvider = StreamingQualityAppliedStatusProvider { quality ->
@@ -117,6 +123,7 @@ class SettingsAppliedListenerBindingsTest {
         listener.onFloatingLyricsEnabledApplied(false)
         listener.onNowPlayingGesturesEnabledApplied(false)
         listener.onPlaybackRestoreEnabledApplied(true)
+        listener.onReplayGainEnabledApplied(false)
         listener.onLyricsOffsetApplied(250L)
         selectedTab = MainRoutes.TAB_NOW
         listener.onLyricsOffsetApplied(500L)
@@ -133,6 +140,7 @@ class SettingsAppliedListenerBindingsTest {
         assertEquals(false, settingsStore.floatingLyricsEnabled())
         assertEquals(false, settingsStore.nowPlayingGesturesEnabled())
         assertEquals(true, settingsStore.playbackRestoreEnabled())
+        assertEquals(false, settingsStore.replayGainEnabled())
         assertEquals(
             listOf(
                 "themeSurface",
@@ -198,6 +206,10 @@ class SettingsAppliedListenerBindingsTest {
                 "restoreControl:true",
                 "status:restore:on",
                 "render",
+                "replayGainControl:false",
+                "status:replayGain:off",
+                "render",
+                "nowbar",
                 "lyricsOffsetControl:250",
                 "status:lyricsStatus:250",
                 "render",

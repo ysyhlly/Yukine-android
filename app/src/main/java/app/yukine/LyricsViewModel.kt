@@ -127,8 +127,9 @@ class LyricsViewModel : ViewModel() {
     @JvmOverloads
     fun load(track: Track?, neteaseProviderTrackId: String? = ""): Job {
         val token = ++requestToken
+        val previous = _state.value
         val providerTrackId = neteaseProviderTrackId.orEmpty()
-        val requestOnline = _state.value.onlineEnabled
+        val requestOnline = previous.onlineEnabled
         val nextStatus = if (track == null) {
             LyricsStatusKind.NO_TRACK
         } else if (requestOnline || providerTrackId.trim().isNotEmpty()) {
@@ -136,11 +137,12 @@ class LyricsViewModel : ViewModel() {
         } else {
             LyricsStatusKind.LOADING_LOCAL
         }
+        val keepPreviousLines = track != null && previous.trackId == track.id && previous.lines.isNotEmpty()
         updateState(
-            _state.value.copy(
+            previous.copy(
                 trackId = track?.id ?: -1L,
-                lines = emptyList(),
-                loadedLineCount = 0,
+                lines = if (keepPreviousLines) previous.lines else emptyList(),
+                loadedLineCount = if (keepPreviousLines) previous.loadedLineCount else 0,
                 statusKind = nextStatus
             )
         )
@@ -156,12 +158,16 @@ class LyricsViewModel : ViewModel() {
             if (token != requestToken || _state.value.trackId != requestedTrackId) {
                 return@launch
             }
+            val current = _state.value
+            val keepFallbackLines = loadedLines.isEmpty() && current.trackId == requestedTrackId && current.lines.isNotEmpty()
             updateState(
-                _state.value.copy(
-                    lines = loadedLines,
-                    loadedLineCount = loadedLines.size,
+                current.copy(
+                    lines = if (keepFallbackLines) current.lines else loadedLines,
+                    loadedLineCount = if (keepFallbackLines) current.loadedLineCount else loadedLines.size,
                     statusKind = if (loadedLines.isEmpty()) {
-                        if (requestOnline) LyricsStatusKind.NOT_FOUND else LyricsStatusKind.LOCAL_NOT_FOUND
+                        if (keepFallbackLines) LyricsStatusKind.LOADED
+                        else if (requestOnline) LyricsStatusKind.NOT_FOUND
+                        else LyricsStatusKind.LOCAL_NOT_FOUND
                     } else {
                         LyricsStatusKind.LOADED
                     }

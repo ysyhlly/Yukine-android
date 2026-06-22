@@ -29,6 +29,14 @@ class LocalStreamingLoginEndpointsTest {
     }
 
     @Test
+    fun qqMusicCookieDomainsCoverParentDomainAndMusicSubdomains() {
+        val domains = LocalStreamingLoginEndpoints.cookieDomainHints(StreamingProviderName.QQ_MUSIC)
+
+        assertTrue(domains.any { it.contains("y.qq.com") })
+        assertTrue(domains.any { it.contains("//qq.com") || it.contains("www.qq.com") })
+    }
+
+    @Test
     fun hasSessionTokenTrueOnlyWhenCredentialCookiePresent() {
         // Anonymous/visitor cookies must NOT count as a logged-in session.
         assertFalse(
@@ -69,7 +77,8 @@ class LocalStreamingLoginEndpointsTest {
 
     @Test
     fun sessionTokenNamesAreDefinedForCookieProviders() {
-        assertEquals(listOf("MUSIC_U"), LocalStreamingLoginEndpoints.sessionTokenNames(StreamingProviderName.NETEASE))
+        assertTrue(LocalStreamingLoginEndpoints.sessionTokenNames(StreamingProviderName.NETEASE).contains("MUSIC_U"))
+        assertTrue(LocalStreamingLoginEndpoints.sessionTokenNames(StreamingProviderName.QQ_MUSIC).contains("qqmusic_key"))
         assertEquals(listOf("SESSDATA"), LocalStreamingLoginEndpoints.sessionTokenNames(StreamingProviderName.BILIBILI))
     }
 }

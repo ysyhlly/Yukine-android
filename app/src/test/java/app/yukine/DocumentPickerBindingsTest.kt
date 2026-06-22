@@ -22,6 +22,7 @@ class DocumentPickerBindingsTest {
         val playlistM3uUri = Uri.parse("content://playlist/local")
         var capturedAudioUris: ArrayList<Uri>? = null
         var capturedFolderUri: Uri? = null
+        var capturedDownloadFolderUri: Uri? = null
         var capturedStreamM3uUri: Uri? = null
         var capturedExportUri: Uri? = null
         var capturedPlaylistM3uUri: Uri? = null
@@ -33,6 +34,10 @@ class DocumentPickerBindingsTest {
             importAudioFolderAction = DocumentUriAction {
                 capturedFolderUri = it
                 calls += "folder"
+            },
+            chooseDownloadFolderAction = DocumentUriAction {
+                capturedDownloadFolderUri = it
+                calls += "downloadFolder"
             },
             importStreamM3uAction = DocumentUriAction {
                 capturedStreamM3uUri = it
@@ -50,6 +55,7 @@ class DocumentPickerBindingsTest {
 
         bindings.importAudioUris(ArrayList(audioUris))
         bindings.importAudioFolder(folderUri)
+        bindings.chooseDownloadFolder(folderUri)
         bindings.importStreamM3u(streamM3uUri)
         bindings.exportPlaylist(exportUri)
         bindings.importPlaylistM3u(playlistM3uUri)
@@ -58,6 +64,7 @@ class DocumentPickerBindingsTest {
             listOf(
                 "audio",
                 "folder",
+                "downloadFolder",
                 "stream",
                 "export",
                 "playlist"
@@ -66,6 +73,7 @@ class DocumentPickerBindingsTest {
         )
         assertEquals(audioUris, capturedAudioUris)
         assertSame(folderUri, capturedFolderUri)
+        assertSame(folderUri, capturedDownloadFolderUri)
         assertSame(streamM3uUri, capturedStreamM3uUri)
         assertSame(exportUri, capturedExportUri)
         assertSame(playlistM3uUri, capturedPlaylistM3uUri)

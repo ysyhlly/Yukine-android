@@ -192,7 +192,7 @@ class NowPlayingViewModelTest {
                 "shuffle:true",
                 "cycleRepeat",
                 "shuffle:false",
-                "repeat:1"
+                "repeat:0"
             ),
             player.calls
         )

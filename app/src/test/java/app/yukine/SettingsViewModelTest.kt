@@ -55,6 +55,7 @@ class SettingsViewModelTest {
         viewModel.onEvent(SettingsEvent.ApplyPlaybackSpeed(1.25f))
         viewModel.onEvent(SettingsEvent.ApplyAppVolume(0.85f))
         viewModel.onEvent(SettingsEvent.ApplyStreamingAudioQuality("lossless"))
+        viewModel.onEvent(SettingsEvent.ApplyShareStyle(TrackShareStyle.PLATFORM_CARD))
         viewModel.onEvent(SettingsEvent.SetConcurrentPlaybackEnabled(false))
         viewModel.onEvent(SettingsEvent.SetStatusBarLyricsEnabled(false))
         viewModel.onEvent(SettingsEvent.SetFloatingLyricsEnabled(true))
@@ -65,6 +66,8 @@ class SettingsViewModelTest {
         viewModel.onEvent(SettingsEvent.ApplyAccentMode("blue"))
         viewModel.onEvent(SettingsEvent.ApplyLanguageMode("zh"))
         viewModel.onEvent(SettingsEvent.ApplyStreamingGatewayEndpoint("http://127.0.0.1:3000"))
+        viewModel.onEvent(SettingsEvent.ExportBackup)
+        viewModel.onEvent(SettingsEvent.ImportBackup)
 
         assertEquals(
             listOf(
@@ -81,6 +84,7 @@ class SettingsViewModelTest {
                 "speed:1.25",
                 "volume:0.85",
                 "quality:lossless",
+                "shareStyle:${TrackShareStyle.PLATFORM_CARD}",
                 "concurrent:false",
                 "statusLyrics:false",
                 "floatingLyrics:true",
@@ -90,7 +94,9 @@ class SettingsViewModelTest {
                 "theme:dark",
                 "accent:blue",
                 "language:zh",
-                "gateway:http://127.0.0.1:3000"
+                "gateway:http://127.0.0.1:3000",
+                "exportBackup",
+                "importBackup"
             ),
             gateway.events
         )
@@ -120,6 +126,7 @@ class SettingsViewModelTest {
         viewModel.applyPlaybackSpeed(2.5f)
         viewModel.applyAppVolume(-0.4f)
         viewModel.applyStreamingAudioQuality("lossless")
+        viewModel.applyShareStyle(TrackShareStyle.CARD)
         viewModel.setOnlineLyricsEnabled(true)
         viewModel.setConcurrentPlaybackEnabled(false)
         viewModel.setStatusBarLyricsEnabled(false)
@@ -137,6 +144,7 @@ class SettingsViewModelTest {
                 "speed:2.0",
                 "volume:0.0",
                 "quality:lossless",
+                "shareStyle:${TrackShareStyle.CARD}",
                 "onlineLyrics:true",
                 "concurrent:false",
                 "statusLyrics:false",
@@ -258,6 +266,10 @@ class SettingsViewModelTest {
             events += "network"
         }
 
+        override fun openDownloads() {
+            events += "downloads"
+        }
+
         override fun loadLibrary() {
             events += "loadLibrary"
         }
@@ -306,6 +318,10 @@ class SettingsViewModelTest {
             events += "quality:$quality"
         }
 
+        override fun applyShareStyle(style: String) {
+            events += "shareStyle:$style"
+        }
+
         override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
             events += "concurrent:$enabled"
         }
@@ -328,6 +344,18 @@ class SettingsViewModelTest {
 
         override fun setPlaybackRestoreEnabled(enabled: Boolean) {
             events += "restore:$enabled"
+        }
+
+        override fun setReplayGainEnabled(enabled: Boolean) {
+            events += "replayGain:$enabled"
+        }
+
+        override fun exportBackup() {
+            events += "exportBackup"
+        }
+
+        override fun importBackup() {
+            events += "importBackup"
         }
 
         override fun applyThemeMode(mode: String) {
@@ -366,6 +394,8 @@ class SettingsViewModelTest {
                 SettingsPreferenceKey.FloatingLyricsEnabled -> "floatingLyrics:${update.value}"
                 SettingsPreferenceKey.NowPlayingGesturesEnabled -> "gestures:${update.value}"
                 SettingsPreferenceKey.PlaybackRestoreEnabled -> "restore:${update.value}"
+                SettingsPreferenceKey.ReplayGainEnabled -> "replayGain:${update.value}"
+                SettingsPreferenceKey.ShareStyle -> "shareStyle:${update.value}"
             }
         }
     }
@@ -401,6 +431,10 @@ class SettingsViewModelTest {
             events += "quality:$quality"
         }
 
+        override fun onShareStyleApplied(style: String) {
+            events += "shareStyle:$style"
+        }
+
         override fun onConcurrentPlaybackEnabledApplied(enabled: Boolean) {
             events += "concurrent:$enabled"
         }
@@ -423,6 +457,10 @@ class SettingsViewModelTest {
 
         override fun onPlaybackRestoreEnabledApplied(enabled: Boolean) {
             events += "restore:$enabled"
+        }
+
+        override fun onReplayGainEnabledApplied(enabled: Boolean) {
+            events += "replayGain:$enabled"
         }
 
         override fun onOnlineLyricsEnabledApplied(enabled: Boolean) {

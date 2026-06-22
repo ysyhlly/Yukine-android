@@ -16,7 +16,8 @@ internal data class LoadedSettingsPreferences(
     val floatingLyricsEnabled: Boolean,
     val nowPlayingGesturesEnabled: Boolean,
     val playbackRestoreEnabled: Boolean,
-    val replayGainEnabled: Boolean
+    val replayGainEnabled: Boolean,
+    val shareStyle: String
 )
 
 internal interface SettingsPreferenceLoadOperations {
@@ -33,6 +34,7 @@ internal interface SettingsPreferenceLoadOperations {
     fun loadNowPlayingGesturesEnabled(): Boolean
     fun loadPlaybackRestoreEnabled(): Boolean
     fun loadReplayGainEnabled(): Boolean
+    fun loadShareStyle(): String
 }
 
 internal class MusicLibrarySettingsPreferenceLoadOperations(
@@ -70,6 +72,8 @@ internal class MusicLibrarySettingsPreferenceLoadOperations(
 
     override fun loadReplayGainEnabled(): Boolean =
         repository.loadReplayGainEnabled()
+
+    override fun loadShareStyle(): String = repository.loadShareStyle()
 }
 
 internal class LoadSettingsPreferencesUseCase(
@@ -89,7 +93,8 @@ internal class LoadSettingsPreferencesUseCase(
             floatingLyricsEnabled = operations.loadFloatingLyricsEnabled(),
             nowPlayingGesturesEnabled = operations.loadNowPlayingGesturesEnabled(),
             playbackRestoreEnabled = operations.loadPlaybackRestoreEnabled(),
-            replayGainEnabled = operations.loadReplayGainEnabled()
+            replayGainEnabled = operations.loadReplayGainEnabled(),
+            shareStyle = TrackShareStyle.normalize(operations.loadShareStyle())
         )
 }
 

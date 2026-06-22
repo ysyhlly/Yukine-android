@@ -17,6 +17,14 @@ internal class LibraryPlaylistsRenderBindings(
     private val chromeSink: LibraryGroupsChromeSink,
     private val trackListRenderer: LibraryPlaylistTrackListRenderer
 ) : LibraryPlaylistsRenderController.Listener {
+    override fun openFavoritePlaylist(title: String) {
+        libraryEventSink.send(LibraryEvent.OpenGroup("virtual:favorites", title))
+    }
+
+    override fun openPlayHistory(title: String) {
+        libraryEventSink.send(LibraryEvent.OpenGroup("virtual:play-history", title))
+    }
+
     override fun openPlaylist(playlistId: Long, title: String) {
         libraryEventSink.send(LibraryEvent.OpenPlaylist(playlistId, title))
     }

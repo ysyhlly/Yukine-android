@@ -63,6 +63,7 @@ class QueueViewModelTest {
         assertTrue(!state.rows[0].favorite)
         // 标签按中文本地化（非默认英文）
         assertEquals("队列", vm.labels.value.title)
+        assertEquals("拖动重新排序", vm.labels.value.dragReorder)
         assertEquals(tracks, vm.tracks())
     }
 
@@ -75,6 +76,7 @@ class QueueViewModelTest {
         assertEquals(0, vm.uiState.value.rows.size)
         assertTrue(vm.tracks().isEmpty())
         assertEquals("Queue", vm.labels.value.title)
+        assertEquals("Drag to reorder", vm.labels.value.dragReorder)
     }
 
     @Test

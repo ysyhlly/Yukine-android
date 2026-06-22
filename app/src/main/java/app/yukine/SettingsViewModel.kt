@@ -48,12 +48,14 @@ data class SettingsAppliedStatusText(
     val playbackRestoreEnabled: String = "",
     val playbackRestoreDisabled: String = "",
     val replayGainEnabled: String = "",
-    val replayGainDisabled: String = ""
+    val replayGainDisabled: String = "",
+    val shareStyleApplied: String = ""
 )
 
 sealed interface SettingsEvent {
     data class NavigateSettingsPage(val page: String) : SettingsEvent
     data object OpenNetworkSources : SettingsEvent
+    data object OpenDownloads : SettingsEvent
     data object LoadLibrary : SettingsEvent
     data object OpenAudioFilePicker : SettingsEvent
     data object OpenAudioFolderPicker : SettingsEvent
@@ -65,6 +67,7 @@ sealed interface SettingsEvent {
     data class ApplyPlaybackSpeed(val speed: Float) : SettingsEvent
     data class ApplyAppVolume(val volume: Float) : SettingsEvent
     data class ApplyStreamingAudioQuality(val quality: String) : SettingsEvent
+    data class ApplyShareStyle(val style: String) : SettingsEvent
     data class SetConcurrentPlaybackEnabled(val enabled: Boolean) : SettingsEvent
     data class ApplyAudioEffectSettings(val settings: AudioEffectSettings) : SettingsEvent
     data class SetStatusBarLyricsEnabled(val enabled: Boolean) : SettingsEvent
@@ -73,6 +76,8 @@ sealed interface SettingsEvent {
     data class SetNowPlayingGesturesEnabled(val enabled: Boolean) : SettingsEvent
     data class SetPlaybackRestoreEnabled(val enabled: Boolean) : SettingsEvent
     data class SetReplayGainEnabled(val enabled: Boolean) : SettingsEvent
+    data object ExportBackup : SettingsEvent
+    data object ImportBackup : SettingsEvent
     data class ApplyThemeMode(val mode: String) : SettingsEvent
     data class ApplyAccentMode(val accent: String) : SettingsEvent
     data class ApplyLanguageMode(val languageMode: String) : SettingsEvent
@@ -82,6 +87,7 @@ sealed interface SettingsEvent {
 interface SettingsGateway {
     fun navigateSettingsPage(page: String)
     fun openNetworkSources()
+    fun openDownloads() = Unit
     fun loadLibrary()
     fun openAudioFilePicker()
     fun openAudioFolderPicker()
@@ -93,6 +99,7 @@ interface SettingsGateway {
     fun applyPlaybackSpeed(speed: Float)
     fun applyAppVolume(volume: Float)
     fun applyStreamingAudioQuality(quality: String)
+    fun applyShareStyle(style: String)
     fun setConcurrentPlaybackEnabled(enabled: Boolean)
     fun applyAudioEffectSettings(settings: AudioEffectSettings)
     fun setStatusBarLyricsEnabled(enabled: Boolean)
@@ -101,6 +108,8 @@ interface SettingsGateway {
     fun setNowPlayingGesturesEnabled(enabled: Boolean)
     fun setPlaybackRestoreEnabled(enabled: Boolean)
     fun setReplayGainEnabled(enabled: Boolean)
+    fun exportBackup()
+    fun importBackup()
     fun applyThemeMode(mode: String)
     fun applyAccentMode(accent: String)
     fun applyLanguageMode(languageMode: String)
@@ -123,6 +132,7 @@ interface SettingsAppliedListener {
     fun onAppVolumeApplied(volume: Float)
 
     fun onStreamingAudioQualityApplied(quality: String)
+    fun onShareStyleApplied(style: String)
 
     fun onConcurrentPlaybackEnabledApplied(enabled: Boolean)
 
@@ -184,6 +194,7 @@ class SettingsViewModel @JvmOverloads constructor(
         when (event) {
             is SettingsEvent.NavigateSettingsPage -> currentGateway.navigateSettingsPage(event.page)
             SettingsEvent.OpenNetworkSources -> currentGateway.openNetworkSources()
+            SettingsEvent.OpenDownloads -> currentGateway.openDownloads()
             SettingsEvent.LoadLibrary -> currentGateway.loadLibrary()
             SettingsEvent.OpenAudioFilePicker -> currentGateway.openAudioFilePicker()
             SettingsEvent.OpenAudioFolderPicker -> currentGateway.openAudioFolderPicker()
@@ -195,6 +206,7 @@ class SettingsViewModel @JvmOverloads constructor(
             is SettingsEvent.ApplyPlaybackSpeed -> currentGateway.applyPlaybackSpeed(event.speed)
             is SettingsEvent.ApplyAppVolume -> currentGateway.applyAppVolume(event.volume)
             is SettingsEvent.ApplyStreamingAudioQuality -> currentGateway.applyStreamingAudioQuality(event.quality)
+            is SettingsEvent.ApplyShareStyle -> currentGateway.applyShareStyle(event.style)
             is SettingsEvent.SetConcurrentPlaybackEnabled -> currentGateway.setConcurrentPlaybackEnabled(event.enabled)
             is SettingsEvent.ApplyAudioEffectSettings -> currentGateway.applyAudioEffectSettings(event.settings)
             is SettingsEvent.SetStatusBarLyricsEnabled -> currentGateway.setStatusBarLyricsEnabled(event.enabled)
@@ -203,6 +215,8 @@ class SettingsViewModel @JvmOverloads constructor(
             is SettingsEvent.SetNowPlayingGesturesEnabled -> currentGateway.setNowPlayingGesturesEnabled(event.enabled)
             is SettingsEvent.SetPlaybackRestoreEnabled -> currentGateway.setPlaybackRestoreEnabled(event.enabled)
             is SettingsEvent.SetReplayGainEnabled -> currentGateway.setReplayGainEnabled(event.enabled)
+            is SettingsEvent.ExportBackup -> currentGateway.exportBackup()
+            is SettingsEvent.ImportBackup -> currentGateway.importBackup()
             is SettingsEvent.ApplyThemeMode -> currentGateway.applyThemeMode(event.mode)
             is SettingsEvent.ApplyAccentMode -> currentGateway.applyAccentMode(event.accent)
             is SettingsEvent.ApplyLanguageMode -> currentGateway.applyLanguageMode(event.languageMode)
@@ -247,6 +261,12 @@ class SettingsViewModel @JvmOverloads constructor(
         val normalizedQuality = StreamingQualityPreference.normalize(quality)
         appliedListener?.onStreamingAudioQualityApplied(normalizedQuality)
         savePreference(SettingsPreferenceKey.StreamingAudioQuality, normalizedQuality)
+    }
+
+    fun applyShareStyle(style: String) {
+        val normalizedStyle = TrackShareStyle.normalize(style)
+        appliedListener?.onShareStyleApplied(normalizedStyle)
+        savePreference(SettingsPreferenceKey.ShareStyle, normalizedStyle)
     }
 
     fun setOnlineLyricsEnabled(enabled: Boolean) {
@@ -336,7 +356,8 @@ class SettingsViewModel @JvmOverloads constructor(
             playbackRestoreEnabled = AppLanguage.text(normalizedLanguageMode, "playback.restore.enabled"),
             playbackRestoreDisabled = AppLanguage.text(normalizedLanguageMode, "playback.restore.disabled"),
             replayGainEnabled = AppLanguage.text(normalizedLanguageMode, "replay.gain.enabled"),
-            replayGainDisabled = AppLanguage.text(normalizedLanguageMode, "replay.gain.disabled")
+            replayGainDisabled = AppLanguage.text(normalizedLanguageMode, "replay.gain.disabled"),
+            shareStyleApplied = AppLanguage.text(normalizedLanguageMode, "share.style.applied")
         )
     }
 

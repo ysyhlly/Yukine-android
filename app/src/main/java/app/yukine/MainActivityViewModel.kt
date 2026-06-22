@@ -250,6 +250,13 @@ data class StreamingLocalPlaylistImportResult(
     val empty: Boolean = false
 )
 
+data class StreamingAccountPlaylistImportResult(
+    val playlistCount: Int = 0,
+    val importedPlaylistCount: Int = 0,
+    val importedTrackCount: Int = 0,
+    val failedCount: Int = 0
+)
+
 interface StreamingLocalPlaylistOperations {
     fun importStreamingPlaylist(
         playlistName: String,
@@ -270,6 +277,11 @@ interface StreamingLocalPlaylistOperations {
     ): StreamingLoginPlaylistResult
 
     fun linkedPlaylist(localPlaylistId: Long): StreamingPlaylistSyncStore.LinkedPlaylist?
+
+    fun linkedPlaylist(
+        provider: StreamingProviderName,
+        providerPlaylistId: String
+    ): StreamingPlaylistSyncStore.LinkedPlaylist?
 }
 
 data class StreamingLocalPlaylistSyncResult(
@@ -417,7 +429,10 @@ class MainActivityViewModel @Inject constructor(
             nextFavoriteIds.add(trackId)
             true
         }
-        libraryState.value = current.copy(favoriteTrackIds = nextFavoriteIds)
+        libraryState.value = current.copy(
+            favoriteTrackIds = nextFavoriteIds,
+            favoriteTracks = updateFavoriteTracks(current, trackId, nextValue)
+        )
         return nextValue
     }
 
@@ -429,7 +444,28 @@ class MainActivityViewModel @Inject constructor(
         } else {
             nextFavoriteIds.remove(trackId)
         }
-        libraryState.value = current.copy(favoriteTrackIds = nextFavoriteIds)
+        libraryState.value = current.copy(
+            favoriteTrackIds = nextFavoriteIds,
+            favoriteTracks = updateFavoriteTracks(current, trackId, favorite)
+        )
+    }
+
+    private fun updateFavoriteTracks(
+        current: MainActivityLibraryState,
+        trackId: Long,
+        favorite: Boolean
+    ): List<Track> {
+        if (!favorite) {
+            return current.favoriteTracks.filterNot { it.id == trackId }
+        }
+        if (current.favoriteTracks.any { it.id == trackId }) {
+            return current.favoriteTracks
+        }
+        val track = current.allTracks.firstOrNull { it.id == trackId }
+            ?: current.visibleTracks.firstOrNull { it.id == trackId }
+            ?: current.selectedPlaylistTracks.firstOrNull { it.id == trackId }
+            ?: return current.favoriteTracks
+        return current.favoriteTracks + track
     }
 
     /**

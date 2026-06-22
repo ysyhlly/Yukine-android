@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -24,10 +23,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class LiveLyricsNotificationService : Service() {
     companion object {
-        private const val CHANNEL_ID = "live_text_notification"
+        private const val CHANNEL_ID = "echo_live_lyrics_cloud"
+        private const val LEGACY_CHANNEL_ID = "live_text_notification"
         private const val NOTIFICATION_ID = 2301
         private const val ACTION_STOP = "app.yukine.live_lyrics.STOP"
         private const val ACTION_REFRESH = "app.yukine.live_lyrics.REFRESH"
@@ -39,6 +40,7 @@ class LiveLyricsNotificationService : Service() {
         private const val EXTRA_CURRENT_LYRIC = "app.yukine.extra.CURRENT_LYRIC"
         private const val EXTRA_LYRIC_TRACK_TITLE = "app.yukine.extra.LYRIC_TRACK_TITLE"
         private const val EXTRA_LYRIC_TRACK_ARTIST = "app.yukine.extra.LYRIC_TRACK_ARTIST"
+        private const val EXTRA_LYRIC_ALBUM_ART_URI = "app.yukine.extra.LYRIC_ALBUM_ART_URI"
         private const val EXTRA_REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing"
         private const val ARTWORK_TARGET_PX = 320
 
@@ -50,7 +52,7 @@ class LiveLyricsNotificationService : Service() {
                 .putExtra(EXTRA_TITLE, state.trackTitle)
                 .putExtra(EXTRA_BODY, state.activeLine)
                 .putExtra(EXTRA_SHORT_TEXT, shortCriticalText(state.activeLine))
-                .putExtra(EXTRA_SHOW_CLOSE_ACTION, true)
+                .putExtra(EXTRA_SHOW_CLOSE_ACTION, false)
                 .putExtra(EXTRA_SHOW_NOTIFICATION_ICON, true)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -68,16 +70,30 @@ class LiveLyricsNotificationService : Service() {
             state.copy(
                 trackTitle = sanitizeTitle(state.trackTitle),
                 artist = sanitizeTitle(state.artist),
-                activeLine = sanitizeLyric(state.activeLine),
-                visible = state.activeLine.isNotBlank()
+                activeLine = liveLyricText(state),
+                visible = state.trackTitle.isNotBlank() || state.activeLine.isNotBlank()
             )
 
+        private fun liveLyricText(state: FloatingLyricsState): String {
+            val lyric = sanitizeLyric(state.activeLine)
+            if (lyric.isNotBlank()) {
+                return lyric
+            }
+            return if (state.trackTitle.isNotBlank()) {
+                "\u672a\u627e\u5230\u6b4c\u8bcd"
+            } else {
+                "\u7b49\u5f85\u6b4c\u8bcd"
+            }
+        }
+
         private fun shortCriticalText(lyric: String): String {
-            val compact = sanitizeLyric(lyric)
+            val compact = sanitizeLyric(lyric).replace('\n', ' ')
+            if (compact.isBlank()) return "Yukine"
+            val musicPrefix = "\u266A "
             return when {
-                compact.length <= 7 -> compact
-                compact.length <= 12 -> compact.substring(0, 7)
-                else -> compact.substring(0, 6) + "..."
+                compact.length <= 9 -> musicPrefix + compact
+                compact.length <= 14 -> musicPrefix + compact.substring(0, 9)
+                else -> musicPrefix + compact.substring(0, 8) + "..."
             }
         }
 
@@ -87,11 +103,24 @@ class LiveLyricsNotificationService : Service() {
             }
 
         private fun sanitizeLyric(value: String?): String {
-            var text = value.orEmpty().replace('\n', ' ').replace('\r', ' ').trim()
-            while (text.contains("  ")) {
-                text = text.replace("  ", " ")
+            val lines = value.orEmpty()
+                .replace('\r', '\n')
+                .split('\n')
+                .map { line ->
+                    var text = line.trim()
+                    while (text.contains("  ")) {
+                        text = text.replace("  ", " ")
+                    }
+                    text
+                }
+                .filter { it.isNotBlank() }
+                .take(2)
+            val text = lines.joinToString("\n")
+            return if (text.length > 140) {
+                text.substring(0, 139) + "..."
+            } else {
+                text
             }
-            return if (text.length > 96) text.substring(0, 95) + "..." else text
         }
     }
 
@@ -154,10 +183,6 @@ class LiveLyricsNotificationService : Service() {
 
     private fun updateLyrics(state: FloatingLyricsState) {
         val next = notificationState(state)
-        if (next.activeLine.isBlank()) {
-            stopSelf()
-            return
-        }
         if (next == lastState) {
             return
         }
@@ -180,27 +205,31 @@ class LiveLyricsNotificationService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notificationManager = getSystemService(NotificationManager::class.java) ?: return
+            runCatching { notificationManager.deleteNotificationChannel(LEGACY_CHANNEL_ID) }
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "\u5b9e\u65f6\u6b4c\u8bcd",
-                NotificationManager.IMPORTANCE_LOW
+                "\u5b9e\u65f6\u6b4c\u8bcd\u6d41\u4f53\u4e91",
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "\u7528\u4e8e\u72b6\u6001\u680f\u3001\u9501\u5c4f\u548c OPPO \u6d41\u4f53\u4e91\u663e\u793a\u5b9e\u65f6\u6b4c\u8bcd"
                 setSound(null, null)
                 enableVibration(false)
+                setShowBadge(false)
             }
-            getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
+            notificationManager.createNotificationChannel(channel)
         }
     }
 
     private fun buildNotification(state: FloatingLyricsState): Notification {
         val lyricLine = state.activeLine.ifBlank { "\u7b49\u5f85\u6b4c\u8bcd" }
-        val title = state.trackTitle.ifBlank { "ECHO \u5b9e\u65f6\u6b4c\u8bcd" }
-        val subtitle = state.artist.ifBlank { "\u5b9e\u65f6\u6b4c\u8bcd" }
-        val playing = state.playing
-        val playPauseAction = if (playing) EchoPlaybackService.ACTION_PAUSE else EchoPlaybackService.ACTION_RESTORE_AND_PLAY
-        val playPauseIcon = if (playing) R.drawable.ic_notif_pause else R.drawable.ic_notif_play
-        val playPauseTitle = if (playing) "\u6682\u505c" else "\u64ad\u653e"
+        val lyricLines = lyricDisplayLines(lyricLine)
+        val appTitle = "Yukine"
+        val primaryLyric = lyricLines.firstOrNull().orEmpty().ifBlank { "\u7b49\u5f85\u6b4c\u8bcd" }
+        val displayText = lyricLines.joinToString("\n").ifBlank { primaryLyric }
+        val trackInfo = trackInfo(state.trackTitle, state.artist)
+        val capsuleText = shortCriticalText(lyricLine)
+        val artwork = artworkFor(state.albumArtUri)
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, CHANNEL_ID)
         } else {
@@ -209,59 +238,85 @@ class LiveLyricsNotificationService : Service() {
         }
         builder
             .setSmallIcon(R.drawable.ic_stat_echo)
-            .setContentTitle(title)
-            .setContentText(lyricLine)
-            .setTicker(lyricLine)
-            .setSubText(subtitle)
+            .setContentTitle(appTitle)
+            .setContentText(displayText)
+            .setTicker(displayText)
+            .setSubText(trackInfo)
+            .setCategory(Notification.CATEGORY_STATUS)
             .setContentIntent(activityPendingIntent())
             .setShowWhen(false)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setPriority(Notification.PRIORITY_LOW)
+            .setPriority(Notification.PRIORITY_DEFAULT)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
-            .setStyle(Notification.BigTextStyle().bigText(lyricLine))
+            .setStyle(Notification.BigTextStyle().bigText(displayText))
             .addExtras(Bundle().apply {
                 putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
-                putString(EXTRA_TITLE, title)
-                putString(EXTRA_BODY, lyricLine)
-                putString(EXTRA_SHORT_TEXT, shortCriticalText(lyricLine))
-                putBoolean(EXTRA_SHOW_CLOSE_ACTION, true)
+                putString(EXTRA_TITLE, appTitle)
+                putString(EXTRA_BODY, displayText)
+                putString(EXTRA_SHORT_TEXT, capsuleText)
+                putBoolean(EXTRA_SHOW_CLOSE_ACTION, false)
                 putBoolean(EXTRA_SHOW_NOTIFICATION_ICON, true)
-                putString(Notification.EXTRA_TITLE, title)
-                putString(Notification.EXTRA_TEXT, lyricLine)
-                putString(Notification.EXTRA_BIG_TEXT, lyricLine)
-                putString(Notification.EXTRA_SUB_TEXT, subtitle)
-                putCharSequenceArray(Notification.EXTRA_TEXT_LINES, arrayOf(lyricLine))
+                putBoolean("oplus_smallicon_use_app_icon", true)
+                putString(Notification.EXTRA_TITLE, appTitle)
+                putString(Notification.EXTRA_TEXT, displayText)
+                putString(Notification.EXTRA_BIG_TEXT, displayText)
+                putString(Notification.EXTRA_SUB_TEXT, trackInfo)
+                putString(Notification.EXTRA_SUMMARY_TEXT, trackInfo)
+                putCharSequenceArray(Notification.EXTRA_TEXT_LINES, lyricLines.toTypedArray())
                 putString(EXTRA_CURRENT_LYRIC, lyricLine)
-                putString(EXTRA_LYRIC_TRACK_TITLE, title)
-                putString(EXTRA_LYRIC_TRACK_ARTIST, subtitle)
+                putString(EXTRA_LYRIC_TRACK_TITLE, state.trackTitle)
+                putString(EXTRA_LYRIC_TRACK_ARTIST, state.artist)
+                putString(EXTRA_LYRIC_ALBUM_ART_URI, state.albumArtUri.orEmpty())
             })
-        artworkFor(state.albumArtUri)?.let { builder.setLargeIcon(it) }
+        artwork?.let { builder.setLargeIcon(it) }
+        builder
+            .addAction(
+                R.drawable.ic_notif_previous,
+                "\u4e0a\u4e00\u9996",
+                playbackPendingIntent(EchoPlaybackService.ACTION_PREVIOUS, 11)
+            )
+            .addAction(
+                if (state.playing) R.drawable.ic_notif_pause else R.drawable.ic_notif_play,
+                if (state.playing) "\u6682\u505c" else "\u64ad\u653e",
+                playbackPendingIntent(
+                    if (state.playing) EchoPlaybackService.ACTION_PAUSE else EchoPlaybackService.ACTION_RESTORE_AND_PLAY,
+                    12
+                )
+            )
+            .addAction(
+                R.drawable.ic_notif_next,
+                "\u4e0b\u4e00\u9996",
+                playbackPendingIntent(EchoPlaybackService.ACTION_NEXT, 13)
+            )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
         }
         requestPromotedOngoing(builder, true)
-        setShortCriticalText(builder, shortCriticalText(lyricLine))
-        addAction(builder, R.drawable.ic_notif_previous, "\u4e0a\u4e00\u9996", playbackPendingIntent(EchoPlaybackService.ACTION_PREVIOUS, 10))
-        addAction(builder, playPauseIcon, playPauseTitle, playbackPendingIntent(playPauseAction, 11))
-        addAction(builder, R.drawable.ic_notif_next, "\u4e0b\u4e00\u9996", playbackPendingIntent(EchoPlaybackService.ACTION_NEXT, 12))
-        addAction(builder, R.drawable.ic_notif_stop, "\u5173\u95ed", stopPendingIntent())
+        setShortCriticalText(builder, capsuleText)
         return builder.build()
     }
+
+    private fun lyricDisplayLines(lyricLine: String): List<String> =
+        sanitizeLyric(lyricLine)
+            .split('\n')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .take(2)
+
+    private fun trackInfo(trackTitle: String, artist: String): String =
+        when {
+            trackTitle.isNotBlank() && artist.isNotBlank() -> "$trackTitle - $artist"
+            trackTitle.isNotBlank() -> trackTitle
+            artist.isNotBlank() -> artist
+            else -> "Yukine"
+        }
 
     private fun activityPendingIntent(): PendingIntent =
         PendingIntent.getActivity(
             this,
             1,
             Intent(this, MainActivity::class.java).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-    private fun playbackPendingIntent(action: String, requestCode: Int): PendingIntent =
-        PendingIntent.getService(
-            this,
-            requestCode,
-            Intent(this, EchoPlaybackService::class.java).setAction(action),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -273,25 +328,13 @@ class LiveLyricsNotificationService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-    private fun addAction(
-        builder: Notification.Builder,
-        iconRes: Int,
-        title: String,
-        intent: PendingIntent
-    ) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            builder.addAction(
-                Notification.Action.Builder(
-                    Icon.createWithResource(this, iconRes),
-                    title,
-                    intent
-                ).build()
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            builder.addAction(iconRes, title, intent)
-        }
-    }
+    private fun playbackPendingIntent(action: String, requestCode: Int): PendingIntent =
+        PendingIntent.getService(
+            this,
+            requestCode,
+            Intent(this, EchoPlaybackService::class.java).setAction(action),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
     private fun requestPromotedOngoing(builder: Notification.Builder, requested: Boolean) {
         try {
@@ -327,10 +370,52 @@ class LiveLyricsNotificationService : Service() {
         if (key == artworkKey && artworkBitmap != null) {
             return artworkBitmap
         }
-        val bitmap = decodeArtwork(Uri.parse(key))
+        val uri = Uri.parse(key)
+        val scheme = uri.scheme.orEmpty()
+        if (scheme.equals("http", ignoreCase = true) || scheme.equals("https", ignoreCase = true)) {
+            artworkKey = key
+            artworkBitmap = null
+            fetchHttpArtworkAsync(key)
+            return null
+        }
+        val bitmap = decodeArtwork(uri)
         artworkKey = key
         artworkBitmap = bitmap
         return bitmap
+    }
+
+    private fun fetchHttpArtworkAsync(url: String) {
+        scope.launch(Dispatchers.IO) {
+            val bitmap = try {
+                val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 4000
+                connection.readTimeout = 4000
+                connection.inputStream.use { stream ->
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    val bytes = stream.readBytes()
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) null
+                    else {
+                        val options = BitmapFactory.Options().apply {
+                            inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight)
+                            inPreferredConfig = Bitmap.Config.RGB_565
+                        }
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+                    }
+                }
+            } catch (_: Exception) {
+                null
+            }
+            if (bitmap != null && artworkKey == url) {
+                artworkBitmap = bitmap
+                withContext(Dispatchers.Main) {
+                    try {
+                        getSystemService(NotificationManager::class.java)
+                            ?.notify(NOTIFICATION_ID, buildNotification(lastState))
+                    } catch (_: RuntimeException) { }
+                }
+            }
+        }
     }
 
     private fun decodeArtwork(uri: Uri): Bitmap? {

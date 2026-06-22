@@ -33,6 +33,22 @@ public class EchoPlaybackServiceTest {
     }
 
     @Test
+    public void automaticMediaItemTransitionIsDetectedForRepeatOffStop() {
+        assertEquals(
+                true,
+                EchoPlaybackService.isAutomaticMediaItemAdvance(Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
+        );
+        assertEquals(
+                false,
+                EchoPlaybackService.isAutomaticMediaItemAdvance(Player.MEDIA_ITEM_TRANSITION_REASON_SEEK)
+        );
+        assertEquals(
+                false,
+                EchoPlaybackService.isAutomaticMediaItemAdvance(Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)
+        );
+    }
+
+    @Test
     public void streamingCacheKeyIncludesResolvedUrl() {
         assertNotEquals(
                 EchoPlaybackService.mediaCacheKey("streaming:netease:123", "https://m10.music.126.net/a.flac"),

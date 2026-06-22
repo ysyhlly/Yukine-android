@@ -40,6 +40,7 @@ internal class SettingsGatewayBindings(
     private val playbackSpeedAction: SettingsFloatAction,
     private val appVolumeAction: SettingsFloatAction,
     private val streamingAudioQualityAction: SettingsStringAction,
+    private val shareStyleAction: SettingsStringAction,
     private val concurrentPlaybackAction: SettingsBooleanAction,
     private val audioEffectsAction: SettingsAudioEffectsAction,
     private val statusBarLyricsAction: SettingsBooleanAction,
@@ -48,10 +49,13 @@ internal class SettingsGatewayBindings(
     private val nowPlayingGesturesAction: SettingsBooleanAction,
     private val playbackRestoreAction: SettingsBooleanAction,
     private val replayGainAction: SettingsBooleanAction,
+    private val exportBackupAction: Runnable,
+    private val importBackupAction: Runnable,
     private val themeModeAction: SettingsStringAction,
     private val accentModeAction: SettingsStringAction,
     private val languageModeAction: SettingsStringAction,
-    private val streamingGatewayEndpointAction: SettingsStringAction
+    private val streamingGatewayEndpointAction: SettingsStringAction,
+    private val openDownloadsAction: Runnable = Runnable { }
 ) : SettingsGateway {
     override fun navigateSettingsPage(page: String) {
         navigateSettingsPageAction.run(page)
@@ -59,6 +63,10 @@ internal class SettingsGatewayBindings(
 
     override fun openNetworkSources() {
         openNetworkSourcesAction.run()
+    }
+
+    override fun openDownloads() {
+        openDownloadsAction.run()
     }
 
     override fun loadLibrary() {
@@ -105,6 +113,10 @@ internal class SettingsGatewayBindings(
         streamingAudioQualityAction.run(quality)
     }
 
+    override fun applyShareStyle(style: String) {
+        shareStyleAction.run(style)
+    }
+
     override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
         concurrentPlaybackAction.set(enabled)
     }
@@ -135,6 +147,14 @@ internal class SettingsGatewayBindings(
 
     override fun setReplayGainEnabled(enabled: Boolean) {
         replayGainAction.set(enabled)
+    }
+
+    override fun exportBackup() {
+        exportBackupAction.run()
+    }
+
+    override fun importBackup() {
+        importBackupAction.run()
     }
 
     override fun applyThemeMode(mode: String) {

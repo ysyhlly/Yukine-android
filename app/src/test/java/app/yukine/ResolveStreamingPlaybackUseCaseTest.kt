@@ -78,7 +78,7 @@ class ResolveStreamingPlaybackUseCaseTest {
             unresolvedStreamingTrack = { false }
         )
         val current = resolvedStreamingTrack("song-1")
-        val snapshot = snapshot(current, currentIndex = 0, queueSize = 1)
+        val snapshot = snapshot(current, currentIndex = 0, queueSize = 1, positionMs = 9_000L)
 
         val request = useCase.prepareRecovery(
             snapshot,

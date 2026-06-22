@@ -83,6 +83,19 @@ class StreamingPlaylistSyncStore(context: Context) {
     }
 
     /**
+     * Returns the local playlist linked to a streaming account playlist.
+     */
+    fun getLink(provider: StreamingProviderName, providerPlaylistId: String): LinkedPlaylist? {
+        val cleanProviderPlaylistId = providerPlaylistId.trim()
+        if (cleanProviderPlaylistId.isEmpty()) {
+            return null
+        }
+        return getAllLinks().firstOrNull { link ->
+            link.provider == provider && link.providerPlaylistId == cleanProviderPlaylistId
+        }
+    }
+
+    /**
      * Updates the last sync timestamp for a playlist.
      */
     fun markSynced(localPlaylistId: Long) {

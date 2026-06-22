@@ -29,6 +29,8 @@ internal class HomeDashboardRenderController(
 
         fun openCollections()
 
+        fun openSearch()
+
         fun playDailyRecommendations()
 
         fun playHeartbeatRecommendations()
@@ -95,7 +97,8 @@ internal class HomeDashboardRenderController(
             onDailyRecommend = Runnable { listener.playDailyRecommendations() },
             onHeartbeatRecommend = Runnable { listener.playHeartbeatRecommendations() },
             onOpenCollections = Runnable { listener.openCollections() },
-            onConnectStreaming = Runnable { listener.openStreaming() }
+            onConnectStreaming = Runnable { listener.openStreaming() },
+            onSearch = Runnable { listener.openSearch() }
         )
         viewModel.updateStreamingConnected(streamingConnected)
         listener.publishHomeDashboardActions(actions)

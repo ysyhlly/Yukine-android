@@ -51,4 +51,10 @@ internal class StreamingLocalPlaylistOperationsBindings(
 
     override fun linkedPlaylist(localPlaylistId: Long): StreamingPlaylistSyncStore.LinkedPlaylist? =
         linkUseCase.execute(localPlaylistId)
+
+    override fun linkedPlaylist(
+        provider: StreamingProviderName,
+        providerPlaylistId: String
+    ): StreamingPlaylistSyncStore.LinkedPlaylist? =
+        linkUseCase.execute(provider, providerPlaylistId)
 }

@@ -27,12 +27,12 @@ class StreamingRepositoryTest {
         val providers = repository.providers()
         val search = repository.search(
             provider = StreamingProviderName.MOCK,
-            query = "回声",
+            query = "Echo",
             mediaTypes = setOf(StreamingMediaType.TRACK)
         )
 
         assertEquals(StreamingProviderName.MOCK, providers.single().name)
-        assertEquals("回声测试", search.tracks.single().title)
+        assertEquals("Echo test", search.tracks.single().title)
     }
 
     @Test

@@ -26,6 +26,7 @@ interface EchoNavHostMount {
     fun notificationPermissionGranted(): Boolean = true
     fun libraryScanCompleted(): Boolean = true
     fun libraryScanInProgress(): Boolean = false
+    fun languageMode(): String = AppLanguage.MODE_SYSTEM
     fun onboardingActions(): OnboardingActions =
         OnboardingActions(Runnable {}, Runnable {}, Runnable {}, Runnable {}, Runnable {})
     fun onTabChanged(tab: TabRoute) {}
@@ -46,6 +47,7 @@ object EchoAppHost {
                         notificationPermissionGranted = mount.notificationPermissionGranted(),
                         libraryScanCompleted = mount.libraryScanCompleted(),
                         libraryScanInProgress = mount.libraryScanInProgress(),
+                        languageMode = mount.languageMode(),
                         actions = mount.onboardingActions()
                     )
                 } else {
