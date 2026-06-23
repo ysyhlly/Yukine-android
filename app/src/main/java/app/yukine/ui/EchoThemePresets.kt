@@ -95,7 +95,7 @@ object EchoThemePresets {
         ),
         EchoThemePreset(
             id = "echoTwilight",
-            label = "Echo Twilight",
+            label = "YUKINE Twilight",
             light =             EchoThemePresetTone(
                 appBg = 0xFFFFF4EF,
                 appBg2 = 0xFFF3D7CF,

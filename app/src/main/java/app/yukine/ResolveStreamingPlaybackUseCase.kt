@@ -34,6 +34,12 @@ data class StreamingRecoveryRequest(
     val metadata: StreamingTrack?
 )
 
+data class StreamingDownloadResolveRequest(
+    val provider: StreamingProviderName,
+    val providerTrackId: String,
+    val metadata: StreamingTrack?
+)
+
 interface StreamingPreResolvePlanner {
     fun prepareNextPreResolve(
         snapshot: PlaybackStateSnapshot?,
@@ -47,6 +53,8 @@ interface StreamingPlaybackResolvePlanner : StreamingPreResolvePlanner {
     fun prepare(tracks: List<Track>?, index: Int): ResolveStreamingPlaybackRequest?
 
     fun replaceResolvedTrack(request: ResolveStreamingPlaybackRequest, resolved: Track): ArrayList<Track>
+
+    fun prepareDownload(track: Track?): StreamingDownloadResolveRequest?
 
     fun prepareRecovery(
         snapshot: PlaybackStateSnapshot?,
@@ -221,6 +229,22 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
         val resolvedTracks = ArrayList(request.tracks)
         resolvedTracks[request.index] = resolved
         return resolvedTracks
+    }
+
+    override fun prepareDownload(track: Track?): StreamingDownloadResolveRequest? {
+        if (!unresolvedStreamingTrack(track)) {
+            return null
+        }
+        val selected = track ?: return null
+        val provider = StreamingPlaybackAdapter.providerName(selected.dataPath) ?: return null
+        val providerTrackId = StreamingPlaybackAdapter.providerTrackId(selected.dataPath)
+            .takeIf { it.isNotBlank() }
+            ?: return null
+        return StreamingDownloadResolveRequest(
+            provider = provider,
+            providerTrackId = providerTrackId,
+            metadata = metadataFor(selected, provider, providerTrackId)
+        )
     }
 
     fun metadataFor(

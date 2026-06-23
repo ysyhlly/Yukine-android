@@ -15,6 +15,7 @@ class NowPlayingEffectBindingsTest {
             addToPlaylistOpener = NowPlayingAddToPlaylistOpener { calls += "playlist:${it.track.id}" },
             trackSharer = NowPlayingTrackSharer { calls += "share:${it.track.id}" },
             trackDownloader = NowPlayingTrackDownloader { calls += "download:${it.track.id}" },
+            sourceSwitcher = NowPlayingSourceSwitcher { calls += "source:${it.track.id}" },
             statusSink = QueueStatusSink { calls += "status:$it" }
         )
 

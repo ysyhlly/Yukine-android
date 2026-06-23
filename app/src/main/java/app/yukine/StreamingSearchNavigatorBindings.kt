@@ -19,7 +19,7 @@ internal class StreamingSearchNavigatorBindings(
     private val navigateNetworkPageAction: NetworkPageAction,
     private val selectedProviderProvider: StreamingProviderProvider,
     private val playlistRefImporter: StreamingPlaylistRefImporter,
-    private val loadUserPlaylistsAction: StreamingProviderAction,
+    private val syncAccountPlaylistsAction: StreamingProviderAction,
     private val importLikedTracksAction: StreamingProviderAction,
     private val dailyRecommendationsAction: StreamingRecommendationAction,
     private val heartbeatRecommendationsAction: StreamingRecommendationAction,
@@ -35,7 +35,7 @@ internal class StreamingSearchNavigatorBindings(
     }
 
     override fun loadUserPlaylists() {
-        loadUserPlaylistsAction.run(selectedProviderProvider.provider())
+        syncAccountPlaylistsAction.run(selectedProviderProvider.provider())
     }
 
     override fun importLikedTracks() {

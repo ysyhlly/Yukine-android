@@ -104,7 +104,7 @@ class EchoThemePresetContractTest {
     }
 
     @Test
-    fun outfitFontResourceIsBundledForGlobalTypography() {
+    fun cjkFontResourceIsBundledForGlobalTypography() {
         assertEquals(0f, EchoTypography.display.letterSpacing.value)
         assertEquals(EchoTypography.display.fontFamily, EchoTypography.body.fontFamily)
         assertNotEquals(null, EchoTypography.display.fontFamily)

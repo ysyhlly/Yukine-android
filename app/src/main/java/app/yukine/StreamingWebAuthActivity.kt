@@ -1,6 +1,7 @@
 package app.yukine
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
@@ -12,11 +13,13 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import app.yukine.streaming.StreamingProviderName
 
 class StreamingWebAuthActivity : Activity() {
     private var webView: WebView? = null
@@ -101,7 +104,7 @@ class StreamingWebAuthActivity : Activity() {
 
             addView(
                 TextView(this@StreamingWebAuthActivity).apply {
-                    text = "在网页里完成登录后，点右侧按钮保存到 Yukine"
+                    text = authHintText()
                     textSize = 13f
                     setTextColor(Color.rgb(63, 55, 45))
                 },
@@ -113,9 +116,9 @@ class StreamingWebAuthActivity : Activity() {
             )
             addView(
                 Button(this@StreamingWebAuthActivity).apply {
-                    text = "登录完成"
+                    text = text("streaming.web.auth.open.browser")
                     setOnClickListener {
-                        finishWithAuthCallback(fallbackCallbackUri())
+                        openLoginInExternalBrowser()
                     }
                 },
                 LinearLayout.LayoutParams(
@@ -123,6 +126,46 @@ class StreamingWebAuthActivity : Activity() {
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 )
             )
+            addView(
+                Button(this@StreamingWebAuthActivity).apply {
+                    text = if (providerName() == StreamingProviderName.QQ_MUSIC) {
+                        text("streaming.web.auth.manual.cookie")
+                    } else {
+                        text("streaming.web.auth.done")
+                    }
+                    setOnClickListener {
+                        if (providerName() == StreamingProviderName.QQ_MUSIC) {
+                            finishWithAuthCallback(manualCookieCallbackUri())
+                        } else {
+                            finishWithAuthCallback(fallbackCallbackUri())
+                        }
+                    }
+                },
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+    }
+
+    private fun authHintText(): String {
+        return if (providerName() == StreamingProviderName.QQ_MUSIC) {
+            text("streaming.web.auth.qq.hint")
+        } else {
+            text("streaming.web.auth.hint")
+        }
+    }
+
+    private fun openLoginInExternalBrowser() {
+        val url = intent.getStringExtra(EXTRA_URL) ?: lastProviderUrl
+        if (url.isNullOrBlank()) {
+            return
+        }
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, text("streaming.web.auth.browser.failed"), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -179,6 +222,13 @@ class StreamingWebAuthActivity : Activity() {
         return builder.build()
     }
 
+    private fun manualCookieCallbackUri(): Uri {
+        return fallbackCallbackUri()
+            .buildUpon()
+            .appendQueryParameter("manualCookie", "1")
+            .build()
+    }
+
     private fun withProviderFallback(uri: Uri): Uri {
         if (uri.getQueryParameter("provider") != null) {
             return uri
@@ -203,7 +253,7 @@ class StreamingWebAuthActivity : Activity() {
         intent.getStringExtra(EXTRA_URL)?.takeIf { it.isNotBlank() }?.let { candidates.add(it) }
         val provider = intent.getStringExtra(EXTRA_PROVIDER)
             ?.takeIf { it.isNotBlank() }
-            ?.let { app.yukine.streaming.StreamingProviderName.fromWireName(it) }
+            ?.let { StreamingProviderName.fromWireName(it) }
         if (provider != null) {
             candidates.addAll(app.yukine.streaming.LocalStreamingLoginEndpoints.cookieDomainHints(provider))
         }
@@ -245,6 +295,16 @@ class StreamingWebAuthActivity : Activity() {
 
     private fun dp(value: Int): Int {
         return (value * resources.displayMetrics.density).toInt()
+    }
+
+    private fun providerName(): StreamingProviderName? {
+        return intent.getStringExtra(EXTRA_PROVIDER)
+            ?.takeIf { it.isNotBlank() }
+            ?.let { StreamingProviderName.fromWireName(it) }
+    }
+
+    private fun text(key: String): String {
+        return AppLanguage.text(AppLanguage.MODE_SYSTEM, key)
     }
 
     companion object {

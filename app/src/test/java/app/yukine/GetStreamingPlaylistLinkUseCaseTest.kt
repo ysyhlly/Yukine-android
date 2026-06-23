@@ -28,13 +28,46 @@ class GetStreamingPlaylistLinkUseCaseTest {
         assertEquals(emptyList<String>(), operations.events)
     }
 
+    @Test
+    fun loadsLinkForRemoteAccountPlaylist() {
+        val operations = FakeStreamingPlaylistLinkOperations()
+        operations.remoteLink = link(33L)
+
+        val result = GetStreamingPlaylistLinkUseCase(operations).execute(
+            StreamingProviderName.NETEASE,
+            " playlist-33 "
+        )
+
+        assertEquals(33L, result?.localPlaylistId)
+        assertEquals(listOf("remote:netease:playlist-33"), operations.events)
+    }
+
+    @Test
+    fun ignoresBlankRemotePlaylistId() {
+        val operations = FakeStreamingPlaylistLinkOperations()
+
+        val result = GetStreamingPlaylistLinkUseCase(operations).execute(StreamingProviderName.NETEASE, " ")
+
+        assertNull(result)
+        assertEquals(emptyList<String>(), operations.events)
+    }
+
     private class FakeStreamingPlaylistLinkOperations : StreamingPlaylistLinkOperations {
         var link: StreamingPlaylistSyncStore.LinkedPlaylist? = null
+        var remoteLink: StreamingPlaylistSyncStore.LinkedPlaylist? = null
         val events = mutableListOf<String>()
 
         override fun getLink(localPlaylistId: Long): StreamingPlaylistSyncStore.LinkedPlaylist? {
             events.add("get:$localPlaylistId")
             return link
+        }
+
+        override fun getLink(
+            provider: StreamingProviderName,
+            providerPlaylistId: String
+        ): StreamingPlaylistSyncStore.LinkedPlaylist? {
+            events.add("remote:${provider.wireName}:$providerPlaylistId")
+            return remoteLink
         }
     }
 

@@ -318,6 +318,10 @@ public final class EchoPlaybackService extends MediaLibraryService {
             if (nextIndex < 0 || nextIndex >= queue.size() || nextIndex == currentIndex) {
                 return;
             }
+            if (repeatMode == REPEAT_OFF && isAutomaticMediaItemAdvance(reason)) {
+                stopAfterAutomaticAdvance(currentIndex);
+                return;
+            }
             persistPlaybackPositionThrottled(true);
             currentIndex = nextIndex;
             Track track = currentTrack();
@@ -1745,7 +1749,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     static int media3RepeatModeForAppRepeatMode(int appRepeatMode) {
-        return media3RepeatModeForAppRepeatMode(appRepeatMode, true);
+        return media3RepeatModeForAppRepeatMode(appRepeatMode, false);
     }
 
     static int media3RepeatModeForAppRepeatMode(int appRepeatMode, boolean playerMirrorsQueue) {
@@ -1778,6 +1782,20 @@ public final class EchoPlaybackService extends MediaLibraryService {
                 || command == Player.COMMAND_SEEK_TO_NEXT
                 || command == Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM
                 || command == Player.COMMAND_SEEK_TO_NEXT_WINDOW;
+    }
+
+    static boolean isAutomaticMediaItemAdvance(int reason) {
+        return reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO;
+    }
+
+    private void stopAfterAutomaticAdvance(int completedIndex) {
+        persistPlaybackPositionThrottled(true);
+        currentIndex = Math.max(0, Math.min(completedIndex, queue.size() - 1));
+        Track completed = currentTrack();
+        if (completed != null && repository != null) {
+            repository.savePlaybackPosition(completed.id, 0L);
+        }
+        stopAtEndOfQueue();
     }
 
     private void createPlayerIfNeeded() {
@@ -2023,6 +2041,9 @@ public final class EchoPlaybackService extends MediaLibraryService {
         if (!playerMirrorsQueue || player == null || player.getMediaItemCount() != queue.size()) {
             return false;
         }
+        if (!mirroredQueueMatchesCurrentPlayer()) {
+            return false;
+        }
         int targetIndex = safeCurrentIndex();
         Track track = currentTrack();
         if (track == null) {
@@ -2054,6 +2075,67 @@ public final class EchoPlaybackService extends MediaLibraryService {
             playerMirrorsQueue = false;
             return false;
         }
+    }
+
+    private boolean mirroredQueueMatchesCurrentPlayer() {
+        if (player == null || player.getMediaItemCount() != queue.size()) {
+            return false;
+        }
+        for (int i = 0; i < queue.size(); i++) {
+            Track track = queue.get(i);
+            if (track == null || !mediaItemMatchesTrackForReuse(
+                    player.getMediaItemAt(i),
+                    track.id,
+                    track.contentUri,
+                    cacheKeyForTrack(track))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static boolean mediaItemMatchesTrackForReuse(MediaItem mediaItem, long trackId, Uri contentUri, String cacheKey) {
+        if (mediaItem == null || mediaItem.localConfiguration == null) {
+            return false;
+        }
+        String mediaUri = mediaItem.localConfiguration.uri == null
+                ? null
+                : mediaItem.localConfiguration.uri.toString();
+        String trackUri = contentUri == null ? null : contentUri.toString();
+        return mediaItemIdentityMatchesForReuse(
+                mediaItem.mediaId,
+                mediaUri,
+                mediaItem.localConfiguration.customCacheKey,
+                trackId,
+                trackUri,
+                cacheKey
+        );
+    }
+
+    static boolean mediaItemIdentityMatchesForReuse(
+            String mediaId,
+            String mediaUri,
+            String mediaCacheKey,
+            long trackId,
+            String trackUri,
+            String trackCacheKey
+    ) {
+        if (!String.valueOf(trackId).equals(mediaId)) {
+            return false;
+        }
+        return stringEquals(mediaUri, trackUri)
+                && cacheKeyMatchesForReuse(mediaCacheKey, trackCacheKey);
+    }
+
+    private static boolean cacheKeyMatchesForReuse(String left, String right) {
+        if (left == null || right == null) {
+            return true;
+        }
+        return left.equals(right);
+    }
+
+    private static boolean stringEquals(String left, String right) {
+        return left == null ? right == null : left.equals(right);
     }
 
     private float replayGainMultiplier(Track track) {

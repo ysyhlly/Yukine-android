@@ -29,6 +29,28 @@ class LocalStreamingLoginEndpointsTest {
     }
 
     @Test
+    fun qqMusicCookieDomainsCoverParentDomainAndMusicSubdomains() {
+        val domains = LocalStreamingLoginEndpoints.cookieDomainHints(StreamingProviderName.QQ_MUSIC)
+
+        assertTrue(domains.any { it.contains("portal/pop_login.html") })
+        assertTrue(domains.any { it.contains("m.y.qq.com") || it.contains("i.y.qq.com/n2/m") })
+        assertTrue(domains.any { it.contains("y.qq.com") })
+        assertTrue(domains.any { it.contains("//qq.com") || it.contains("www.qq.com") })
+    }
+
+    @Test
+    fun qqMusicLoginUsesQqMobileScanPage() {
+        val url = LocalStreamingLoginEndpoints.loginUrl(
+            StreamingProviderName.QQ_MUSIC,
+            "echo-next://streaming-auth"
+        ).orEmpty()
+
+        assertTrue(url.contains("y.qq.com/portal/pop_login.html"))
+        assertFalse(url.contains("portal/profile.html"))
+        assertFalse(url.contains("wkframe/client/login.html"))
+    }
+
+    @Test
     fun hasSessionTokenTrueOnlyWhenCredentialCookiePresent() {
         // Anonymous/visitor cookies must NOT count as a logged-in session.
         assertFalse(
@@ -42,12 +64,6 @@ class LocalStreamingLoginEndpointsTest {
             LocalStreamingLoginEndpoints.hasSessionToken(
                 StreamingProviderName.NETEASE,
                 listOf("NMTID", "MUSIC_U", "__csrf")
-            )
-        )
-        assertTrue(
-            LocalStreamingLoginEndpoints.hasSessionToken(
-                StreamingProviderName.NETEASE,
-                listOf("NMTID", "MUSIC_A")
             )
         )
     }
@@ -76,7 +92,7 @@ class LocalStreamingLoginEndpointsTest {
     @Test
     fun sessionTokenNamesAreDefinedForCookieProviders() {
         assertTrue(LocalStreamingLoginEndpoints.sessionTokenNames(StreamingProviderName.NETEASE).contains("MUSIC_U"))
-        assertTrue(LocalStreamingLoginEndpoints.sessionTokenNames(StreamingProviderName.NETEASE).contains("MUSIC_A"))
+        assertTrue(LocalStreamingLoginEndpoints.sessionTokenNames(StreamingProviderName.QQ_MUSIC).contains("qqmusic_key"))
         assertEquals(listOf("SESSDATA"), LocalStreamingLoginEndpoints.sessionTokenNames(StreamingProviderName.BILIBILI))
     }
 }

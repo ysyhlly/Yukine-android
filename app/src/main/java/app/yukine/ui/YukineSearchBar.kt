@@ -102,24 +102,32 @@ fun YukineDownloadOrb(
     modifier: Modifier = Modifier
 ) {
     val p = EchoTheme.colors()
-    val fallbackPulse by rememberInfiniteTransition(label = "yukineOrbPulse").animateFloat(
-        initialValue = 0.12f,
-        targetValue = 0.44f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 920, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "yukineOrbPulseValue"
-    )
-    val waveformPhase by rememberInfiniteTransition(label = "yukineOrbWaveformPhase").animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 620, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "yukineOrbWaveformPhaseValue"
-    )
+    val fallbackPulse = if (audioMotion.visualMotionEnabled) {
+        rememberInfiniteTransition(label = "yukineOrbPulse").animateFloat(
+            initialValue = 0.12f,
+            targetValue = 0.44f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 920, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "yukineOrbPulseValue"
+        ).value
+    } else {
+        0.18f
+    }
+    val waveformPhase = if (audioMotion.visualMotionEnabled) {
+        rememberInfiniteTransition(label = "yukineOrbWaveformPhase").animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 620, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "yukineOrbWaveformPhaseValue"
+        ).value
+    } else {
+        0f
+    }
     val smoothPosition = rememberSmoothPosition(
         positionMs = audioMotion.positionMs,
         durationMs = audioMotion.durationMs,
@@ -141,7 +149,7 @@ fun YukineDownloadOrb(
     } else if (waveformState.hasSignal) {
         waveformState
     } else {
-        YukineOrbSpectrumState(fallbackSpectrumBars(fallbackBreath), fallbackBreath, false)
+        YukineOrbSpectrumState(fallbackSpectrumBars(fallbackBreath), fallbackBreath, false, audioMotion.visualMotionEnabled)
     }
     val realtimeBeat = audioMotion.realtimeBeat.coerceIn(0f, 1f)
     val realtimeSpectrum = audioMotion.toRealtimeOrbSpectrum()
@@ -151,12 +159,13 @@ fun YukineDownloadOrb(
     )
     val beat = max(renderedSpectrum.beat, realtimeBeat * 0.72f)
     val bars = renderedSpectrum.bars
+    val peaks = renderedSpectrum.peaks
     val idleBreath = if (audioMotion.playing || item?.status != null) {
         0.012f + fallbackPulse * 0.010f
     } else {
         0.006f + fallbackPulse * 0.006f
     }
-    val ringScale = 0.955f + idleBreath + beat.coerceIn(0f, 1f) * 0.105f
+    val ringScale = 0.952f + idleBreath + beat.coerceIn(0f, 1f) * 0.180f
     Box(
         modifier = modifier
             .graphicsLayer {
@@ -199,13 +208,15 @@ fun YukineDownloadOrb(
         Canvas(modifier = Modifier.matchParentSize().padding(7.dp)) {
             val centerRadius = size.minDimension * 0.26f
             val baseRadius = size.minDimension * 0.35f
-            val maxBar = size.minDimension * 0.14f
-            val strokeWidth = 1.25.dp.toPx()
+            val maxBar = size.minDimension * 0.125f
+            val strokeWidth = 1.65.dp.toPx()
             bars.forEachIndexed { index, value ->
                 val angle = ((index.toFloat() / bars.size) * 2f * PI - PI / 2f).toFloat()
-                val animatedValue = enhancedSpectrumValue(value)
+                val animatedValue = visibleOrbSpectrumValue(value)
+                val peakValue = visibleOrbSpectrumValue(peaks.getOrElse(index) { value })
+                val visualValue = max(animatedValue, peakValue * 0.72f).coerceIn(0f, 0.88f)
                 val startRadius = baseRadius
-                val endRadius = baseRadius + maxBar * animatedValue
+                val endRadius = baseRadius + maxBar * visualValue
                 val start = Offset(
                     x = center.x + cos(angle) * startRadius,
                     y = center.y + sin(angle) * startRadius
@@ -215,12 +226,30 @@ fun YukineDownloadOrb(
                     y = center.y + sin(angle) * endRadius
                 )
                 drawLine(
-                    color = centerColor.copy(alpha = 0.18f + animatedValue * 0.50f),
+                    color = centerColor.copy(alpha = 0.30f + visualValue * 0.62f),
                     start = start,
                     end = end,
                     strokeWidth = strokeWidth,
                     cap = StrokeCap.Round
                 )
+                if (peakValue > animatedValue + 0.08f) {
+                    val peakRadius = baseRadius + maxBar * peakValue.coerceIn(0f, 0.88f)
+                    val peakStart = Offset(
+                        x = center.x + cos(angle) * (peakRadius - 1.7.dp.toPx()),
+                        y = center.y + sin(angle) * (peakRadius - 1.7.dp.toPx())
+                    )
+                    val peakEnd = Offset(
+                        x = center.x + cos(angle) * peakRadius,
+                        y = center.y + sin(angle) * peakRadius
+                    )
+                    drawLine(
+                        color = centerColor.copy(alpha = 0.54f),
+                        start = peakStart,
+                        end = peakEnd,
+                        strokeWidth = (strokeWidth * 0.82f).coerceAtLeast(1f),
+                        cap = StrokeCap.Round
+                    )
+                }
             }
             drawCircle(
                 brush = Brush.radialGradient(
@@ -237,11 +266,14 @@ fun YukineDownloadOrb(
 private data class YukineOrbSpectrumState(
     val bars: List<Float>,
     val bass: Float,
-    val hasSignal: Boolean
+    val hasSignal: Boolean,
+    val visualMotionEnabled: Boolean = true
 )
 
 private data class YukineOrbRenderedSpectrumState(
     val bars: List<Float>,
+    val peaks: List<Float>,
+    val baselines: List<Float>,
     val beat: Float
 )
 
@@ -253,11 +285,16 @@ private const val YukineOrbKickBandEndExclusive = 3
 private fun rememberYukineOrbRenderedSpectrum(
     target: YukineOrbSpectrumState
 ): YukineOrbRenderedSpectrumState {
+    if (!target.visualMotionEnabled) {
+        return YukineOrbRenderedSpectrumState(target.bars, target.bars, target.bars, target.bass)
+    }
     val targetState by rememberUpdatedState(target)
     var rendered by remember {
         mutableStateOf(
             YukineOrbRenderedSpectrumState(
                 bars = List(YukineOrbSpectrumBarCount) { 0f },
+                peaks = List(YukineOrbSpectrumBarCount) { 0f },
+                baselines = List(YukineOrbSpectrumBarCount) { 0f },
                 beat = 0f
             )
         )
@@ -272,8 +309,10 @@ private fun rememberYukineOrbRenderedSpectrum(
             val currentTarget = targetState
             val beatAttack = if (currentTarget.hasSignal) 0.999f else 0.2f
             val beatDecay = if (currentTarget.hasSignal) 0.78f else 0.1f
-            val barAttack = if (currentTarget.hasSignal) 0.68f else 0.22f
-            val barDecay = if (currentTarget.hasSignal) 0.16f else 0.09f
+            val barAttack = if (currentTarget.hasSignal) 0.90f else 0.28f
+            val barDecay = if (currentTarget.hasSignal) 0.34f else 0.12f
+            val baselineAttack = if (currentTarget.hasSignal) 0.045f else 0.04f
+            val baselineDecay = if (currentTarget.hasSignal) 0.18f else 0.08f
             val nextBeat = envelopeFollower(
                 current = current.beat,
                 target = currentTarget.bass,
@@ -282,18 +321,52 @@ private fun rememberYukineOrbRenderedSpectrum(
                 frameScale = frameScale
             )
             val nextBars = List(YukineOrbSpectrumBarCount) { index ->
+                val targetValue = currentTarget.bars.getOrElse(index) { 0f }
+                val baseline = current.baselines.getOrElse(index) { 0f }
+                val dynamicTarget = dynamicOrbSpectrumTarget(targetValue, baseline)
                 envelopeFollower(
                     current = current.bars.getOrElse(index) { 0f },
-                    target = currentTarget.bars.getOrElse(index) { 0f },
+                    target = dynamicTarget,
                     attack = barAttack,
                     decay = barDecay,
                     frameScale = frameScale
                 )
             }
-            rendered = YukineOrbRenderedSpectrumState(nextBars, nextBeat)
+            val nextBaselines = List(YukineOrbSpectrumBarCount) { index ->
+                envelopeFollower(
+                    current = current.baselines.getOrElse(index) { 0f },
+                    target = currentTarget.bars.getOrElse(index) { 0f },
+                    attack = baselineAttack,
+                    decay = baselineDecay,
+                    frameScale = frameScale
+                )
+            }
+            val nextPeaks = List(YukineOrbSpectrumBarCount) { index ->
+                val bar = nextBars.getOrElse(index) { 0f }
+                val previousPeak = current.peaks.getOrElse(index) { 0f }
+                if (bar >= previousPeak) {
+                    bar
+                } else {
+                    envelopeFollower(
+                        current = previousPeak,
+                        target = bar,
+                        attack = 0.28f,
+                        decay = if (currentTarget.hasSignal) 0.115f else 0.045f,
+                        frameScale = frameScale
+                    )
+                }
+            }
+            rendered = YukineOrbRenderedSpectrumState(nextBars, nextPeaks, nextBaselines, nextBeat)
         }
     }
     return rendered
+}
+
+private fun dynamicOrbSpectrumTarget(value: Float, baseline: Float): Float {
+    val bounded = value.coerceIn(0f, 1f)
+    val floorReduced = max(0f, bounded - 0.045f)
+    val delta = max(0f, bounded - baseline * 0.76f - 0.025f)
+    return (delta * 1.95f + floorReduced * 0.22f).coerceIn(0f, 1f)
 }
 
 data class YukineOrbAudioMotion(
@@ -306,7 +379,8 @@ data class YukineOrbAudioMotion(
     val durationMs: Long = 0L,
     val playing: Boolean = false,
     val realtimeBeat: Float = 0f,
-    val realtimeBands: FloatArray = FloatArray(0)
+    val realtimeBands: FloatArray = FloatArray(0),
+    val visualMotionEnabled: Boolean = true
 ) {
     companion object {
         val Empty = YukineOrbAudioMotion()
@@ -315,13 +389,13 @@ data class YukineOrbAudioMotion(
 
 private fun YukineOrbAudioMotion.toRealtimeOrbSpectrum(): YukineOrbSpectrumState {
     if (realtimeBands.isEmpty()) {
-        return YukineOrbSpectrumState(List(YukineOrbSpectrumBarCount) { 0f }, realtimeBeat.coerceIn(0f, 1f), false)
+        return YukineOrbSpectrumState(List(YukineOrbSpectrumBarCount) { 0f }, realtimeBeat.coerceIn(0f, 1f), false, visualMotionEnabled)
     }
     val values = List(YukineOrbSpectrumBarCount) { index ->
         val source = ((index * realtimeBands.size) / YukineOrbSpectrumBarCount).coerceIn(0, realtimeBands.size - 1)
         enhancedSpectrumValue(realtimeBands[source] * 0.92f)
     }
-    return YukineOrbSpectrumState(values, realtimeBeat.coerceIn(0f, 1f), values.any { it > 0.02f })
+    return YukineOrbSpectrumState(values, realtimeBeat.coerceIn(0f, 1f), values.any { it > 0.02f }, visualMotionEnabled)
 }
 
 private fun YukineOrbSpectrumState.blendWithRealtime(
@@ -338,7 +412,8 @@ private fun YukineOrbSpectrumState.blendWithRealtime(
     return YukineOrbSpectrumState(
         bars = values,
         bass = max(bass * 0.72f, realtime.bass * 0.78f),
-        hasSignal = true
+        hasSignal = true,
+        visualMotionEnabled = visualMotionEnabled && realtime.visualMotionEnabled
     )
 }
 
@@ -348,6 +423,14 @@ private fun enhancedSpectrumValue(value: Float): Float {
         return 0f
     }
     return bounded.pow(0.82f).coerceIn(0f, 1f)
+}
+
+private fun visibleOrbSpectrumValue(value: Float): Float {
+    val bounded = value.coerceIn(0f, 1f)
+    if (bounded <= 0f) {
+        return 0f
+    }
+    return (0.10f + bounded.pow(0.72f) * 0.76f).coerceIn(0f, 0.86f)
 }
 
 private fun YukineOrbAudioMotion.toOrbSpectrum(phase: Float): YukineOrbSpectrumState {
@@ -404,7 +487,7 @@ private fun YukineOrbAudioMotion.toOrbSpectrum(phase: Float): YukineOrbSpectrumS
         kickOnset = max(kickOnset, onset)
     }
     val bass = transientBeatCurve((kickOnset * 9.2f).coerceIn(0f, 1f))
-    return YukineOrbSpectrumState(values, bass, values.any { it > 0.015f })
+    return YukineOrbSpectrumState(values, bass, values.any { it > 0.015f }, visualMotionEnabled)
 }
 
 private fun YukineOrbAudioMotion.waveformFallbackSpectrum(phase: Float): YukineOrbSpectrumState {
@@ -414,7 +497,7 @@ private fun YukineOrbAudioMotion.waveformFallbackSpectrum(phase: Float): YukineO
 private fun YukineOrbAudioMotion.toWaveformOrbSpectrum(phase: Float): YukineOrbSpectrumState {
     val visible = waveformGeneratedBars.coerceIn(0, waveformBars.size)
     if (visible <= 0 || durationMs <= 0L) {
-        return YukineOrbSpectrumState(List(YukineOrbSpectrumBarCount) { 0f }, 0f, false)
+        return YukineOrbSpectrumState(List(YukineOrbSpectrumBarCount) { 0f }, 0f, false, visualMotionEnabled)
     }
     val visualLeadMs = if (playing) 55L else 0L
     val progress = ((positionMs + visualLeadMs).toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
@@ -448,7 +531,7 @@ private fun YukineOrbAudioMotion.toWaveformOrbSpectrum(phase: Float): YukineOrbS
     val currentRise = max(0f, current - previous * 1.04f - 0.026f)
     val forwardRise = max(0f, forwardPeak - previous * 1.08f - 0.032f)
     val bass = transientBeatCurve((max(currentRise, forwardRise) * 8.6f).coerceIn(0f, 1f))
-    return YukineOrbSpectrumState(values, bass, values.any { it > 0.015f })
+    return YukineOrbSpectrumState(values, bass, values.any { it > 0.015f }, visualMotionEnabled)
 }
 
 private fun fallbackSpectrumBars(pulse: Float): List<Float> =

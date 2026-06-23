@@ -41,6 +41,10 @@ class HomeDashboardViewModel @Inject constructor(
     }
 
     fun updatePlayback(snapshot: PlaybackStateSnapshot?) {
+        updatePlayback(snapshot, AppLanguage.MODE_CHINESE)
+    }
+
+    fun updatePlayback(snapshot: PlaybackStateSnapshot?, languageMode: String) {
         val playback = snapshot ?: PlaybackStateSnapshot.empty()
         val track = playback.currentTrack ?: return
         val durationMs = when {
@@ -56,16 +60,26 @@ class HomeDashboardViewModel @Inject constructor(
         val current = _uiState.value.content
         _uiState.value = MainActivityHomeDashboardUiState(
             current.copy(
-                heroSubtitle = "接上 ${track.artist} 的「${track.title}」，或者从最近入库里挑一张封面开始。",
+                heroSubtitle = text(languageMode, "home.hero.subtitle.track.prefix") +
+                    track.artist +
+                    text(languageMode, "home.hero.subtitle.track.middle") +
+                    track.title +
+                    text(languageMode, "home.hero.subtitle.track.suffix"),
                 continueTitle = track.title,
                 continueSubtitle = track.subtitle(),
-                continueDetail = if (playback.playing) "正在播放" else "继续播放",
+                continueDetail = if (playback.playing) {
+                    text(languageMode, "now.playing")
+                } else {
+                    text(languageMode, "home.continue.playing")
+                },
                 continueAlbumArtUri = track.albumArtUri,
                 continueProgress = progress,
                 continuePlaying = playback.playing
             )
         )
     }
+
+    private fun text(languageMode: String, key: String): String = AppLanguage.text(languageMode, key)
 
     fun fetchHomeDashboard(
         localTracks: List<Track>,

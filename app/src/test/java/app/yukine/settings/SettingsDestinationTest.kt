@@ -7,6 +7,7 @@ import app.yukine.SettingsUiState
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.SettingsMetric
+import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
@@ -14,10 +15,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/**
- * Robolectric Compose UI 测试：Settings 原生渲染端 [SettingsDestination]。
- * 验证「StateFlow<SettingsUiState>(title/metrics) + 注入 actions → SettingsScreen」渲染。
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class SettingsDestinationTest {
@@ -40,7 +37,13 @@ class SettingsDestinationTest {
         )
 
         composeRule.setContent {
-            EchoTheme.EchoTheme { SettingsDestination(state, actions) }
+            EchoTheme.EchoTheme {
+                SettingsDestination(
+                    state,
+                    actions,
+                    audioMotion = YukineOrbAudioMotion.Empty.copy(visualMotionEnabled = false)
+                )
+            }
         }
 
         composeRule.onNodeWithText("设置").assertIsDisplayed()

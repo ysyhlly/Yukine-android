@@ -7,6 +7,7 @@ import app.yukine.MainActivityHomeDashboardUiState
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.HomeDashboardActions
 import app.yukine.ui.HomeDashboardUiState
+import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
@@ -14,10 +15,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/**
- * Robolectric Compose UI 测试：Home tab 原生渲染端 [HomeDestination]。
- * 验证「StateFlow<MainActivityHomeDashboardUiState> → HomeDashboardScreen」渲染闭环。
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class HomeDestinationTest {
@@ -36,38 +33,44 @@ class HomeDestinationTest {
         onRecentTabChanged = {}
     )
 
+    private val staticMotion = YukineOrbAudioMotion.Empty.copy(visualMotionEnabled = false)
+
     @Test
     fun rendersHeroTitleFromState() {
         val state = MutableStateFlow(
             MainActivityHomeDashboardUiState(
-                content = HomeDashboardUiState(heroTitle = "晚上好，听点什么")
+                content = HomeDashboardUiState(heroTitle = "晚上好，听点什么？")
             )
         )
 
         composeRule.setContent {
-            EchoTheme.EchoTheme { HomeDestination(state, emptyActions()) }
+            EchoTheme.EchoTheme {
+                HomeDestination(state, emptyActions(), audioMotion = staticMotion)
+            }
         }
 
-        composeRule.onNodeWithText("晚上好，听点什么").assertIsDisplayed()
+        composeRule.onNodeWithText("晚上好，听点什么？").assertIsDisplayed()
     }
 
     @Test
     fun reflectsStateUpdate() {
         val state = MutableStateFlow(
-            MainActivityHomeDashboardUiState(content = HomeDashboardUiState(heroTitle = "初始问候"))
+            MainActivityHomeDashboardUiState(content = HomeDashboardUiState(heroTitle = "初始问题"))
         )
 
         composeRule.setContent {
-            EchoTheme.EchoTheme { HomeDestination(state, emptyActions()) }
+            EchoTheme.EchoTheme {
+                HomeDestination(state, emptyActions(), audioMotion = staticMotion)
+            }
         }
 
-        composeRule.onNodeWithText("初始问候").assertIsDisplayed()
+        composeRule.onNodeWithText("初始问题").assertIsDisplayed()
 
         state.value = MainActivityHomeDashboardUiState(
-            content = HomeDashboardUiState(heroTitle = "更新问候")
+            content = HomeDashboardUiState(heroTitle = "更新问题")
         )
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("更新问候").assertIsDisplayed()
+        composeRule.onNodeWithText("更新问题").assertIsDisplayed()
     }
 }

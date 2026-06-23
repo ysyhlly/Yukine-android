@@ -24,12 +24,17 @@ internal fun interface StreamingLoginSuccessAction {
     fun onSuccess(provider: StreamingProviderName)
 }
 
+internal fun interface StreamingManualCookieImportAction {
+    fun open(provider: StreamingProviderName)
+}
+
 internal class StreamingActionGatewayBindings(
     private val qualityProvider: StreamingPlaybackQualityProvider,
     private val languageModeProvider: StreamingLanguageModeProvider,
     private val authLaunchAction: StreamingAuthLaunchAction,
     private val trackListPlayAction: StreamingTrackListPlayAction,
-    private val loginSuccessAction: StreamingLoginSuccessAction
+    private val loginSuccessAction: StreamingLoginSuccessAction,
+    private val manualCookieImportAction: StreamingManualCookieImportAction
 ) : MainActivityStreamingActionGateway {
     override fun streamingPlaybackQuality(): StreamingAudioQuality {
         return qualityProvider.quality()
@@ -49,5 +54,9 @@ internal class StreamingActionGatewayBindings(
 
     override fun onStreamingLoginSuccess(provider: StreamingProviderName) {
         loginSuccessAction.onSuccess(provider)
+    }
+
+    override fun openManualCookieImport(provider: StreamingProviderName) {
+        manualCookieImportAction.open(provider)
     }
 }

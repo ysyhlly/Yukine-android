@@ -41,6 +41,7 @@ public final class MainRoutes {
     public static final String SETTINGS_REPLAY_GAIN = "settings_replay_gain";
     public static final String SETTINGS_STREAMING_AUDIO_QUALITY = "settings_streaming_audio_quality";
     public static final String SETTINGS_SHARE_STYLE = "settings_share_style";
+    public static final String SETTINGS_DOWNLOADS = "settings_downloads";
     public static final String SETTINGS_CONCURRENT_PLAYBACK = "settings_concurrent_playback";
     public static final String SETTINGS_SLEEP_TIMER = "settings_sleep_timer";
     public static final String SETTINGS_LYRICS = "settings_lyrics";

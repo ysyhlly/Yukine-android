@@ -36,7 +36,11 @@ fun DownloadsScreen(
     directoryLabel: String = "",
     onUseMusicDirectory: () -> Unit = {},
     onUseDownloadsDirectory: () -> Unit = {},
-    onChooseDirectory: () -> Unit = {}
+    onChooseDirectory: () -> Unit = {},
+    onPauseItem: (Long) -> Unit = {},
+    onResumeItem: (Long) -> Unit = {},
+    onPauseAll: () -> Unit = {},
+    onResumeAll: () -> Unit = {}
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -54,6 +58,11 @@ fun DownloadsScreen(
                 onChooseDirectory = onChooseDirectory
             )
         }
+        if (state.message.isNotBlank()) {
+            item(key = "download-message") {
+                DownloadMessageCard(state.message)
+            }
+        }
         if (state.active.isEmpty() && state.finished.isEmpty()) {
             item(key = "empty") {
                 EchoStateCard(
@@ -66,10 +75,18 @@ fun DownloadsScreen(
         }
         if (state.active.isNotEmpty()) {
             item(key = "active-title") {
-                EchoSectionTitle("待下载 / 下载中")
+                DownloadSectionHeader(
+                    title = "待下载 / 下载中",
+                    onPauseAll = onPauseAll,
+                    onResumeAll = onResumeAll
+                )
             }
             items(state.active, key = { "active:${it.downloadId}" }) { item ->
-                DownloadItemCard(item)
+                DownloadItemCard(
+                    item = item,
+                    onPause = { onPauseItem(item.downloadId) },
+                    onResume = { onResumeItem(item.downloadId) }
+                )
             }
         }
         if (state.finished.isNotEmpty()) {
@@ -77,9 +94,26 @@ fun DownloadsScreen(
                 EchoSectionTitle("已下载")
             }
             items(state.finished, key = { "finished:${it.downloadId}" }) { item ->
-                DownloadItemCard(item)
+                DownloadItemCard(item = item, onPause = {}, onResume = {})
             }
         }
+    }
+}
+
+@Composable
+private fun DownloadMessageCard(message: String) {
+    val p = EchoTheme.colors()
+    EchoGlassSurface(
+        shape = EchoShapes.medium,
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        Text(
+            message,
+            style = EchoTypography.caption,
+            color = p.accent,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -152,7 +186,54 @@ private fun DownloadDirectoryButton(label: String, selected: Boolean, onClick: (
 }
 
 @Composable
-private fun DownloadItemCard(item: TrackDownloadItem) {
+private fun DownloadSectionHeader(
+    title: String,
+    onPauseAll: () -> Unit,
+    onResumeAll: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        EchoSectionTitle(title)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DownloadMiniActionButton("全部暂停", EchoIconKind.Pause, onPauseAll)
+            DownloadMiniActionButton("全部继续", EchoIconKind.Play, onResumeAll)
+        }
+    }
+}
+
+@Composable
+private fun DownloadMiniActionButton(
+    label: String,
+    icon: EchoIconKind,
+    onClick: () -> Unit
+) {
+    val p = EchoTheme.colors()
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.height(32.dp),
+        shape = EchoShapes.small,
+        color = p.surfaceVariant.copy(alpha = 0.42f)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            EchoIcon(icon, Modifier.size(13.dp), p.accent)
+            Text(label, style = EchoTypography.small, color = p.text, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun DownloadItemCard(
+    item: TrackDownloadItem,
+    onPause: () -> Unit,
+    onResume: () -> Unit
+) {
     val p = EchoTheme.colors()
     EchoGlassSurface(
         shape = EchoShapes.medium,
@@ -184,7 +265,13 @@ private fun DownloadItemCard(item: TrackDownloadItem) {
                         )
                     }
                 }
-                DownloadProgressBadge(item)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DownloadItemAction(item, onPause, onResume)
+                    DownloadProgressBadge(item)
+                }
             }
             LinearProgressIndicator(
                 progress = { progressValue(item) },
@@ -211,6 +298,20 @@ private fun DownloadItemCard(item: TrackDownloadItem) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DownloadItemAction(
+    item: TrackDownloadItem,
+    onPause: () -> Unit,
+    onResume: () -> Unit
+) {
+    when (item.status) {
+        TrackDownloadStatus.Pending,
+        TrackDownloadStatus.Running -> DownloadMiniActionButton("暂停", EchoIconKind.Pause, onPause)
+        TrackDownloadStatus.Paused -> DownloadMiniActionButton("继续", EchoIconKind.Play, onResume)
+        else -> Unit
     }
 }
 

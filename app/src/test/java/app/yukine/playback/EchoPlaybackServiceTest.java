@@ -1,7 +1,9 @@
 package app.yukine.playback;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 import androidx.media3.common.Player;
 
@@ -9,18 +11,10 @@ import org.junit.Test;
 
 public class EchoPlaybackServiceTest {
     @Test
-    public void appListRepeatLoopsMedia3Playlist() {
-        assertEquals(
-                Player.REPEAT_MODE_ALL,
-                EchoPlaybackService.media3RepeatModeForAppRepeatMode(EchoPlaybackService.REPEAT_ALL)
-        );
-    }
-
-    @Test
-    public void appListRepeatDoesNotLoopSingleMedia3ItemWhenQueueIsNotMirrored() {
+    public void appListRepeatDoesNotLoopSinglePlayerItem() {
         assertEquals(
                 Player.REPEAT_MODE_OFF,
-                EchoPlaybackService.media3RepeatModeForAppRepeatMode(EchoPlaybackService.REPEAT_ALL, false)
+                EchoPlaybackService.media3RepeatModeForAppRepeatMode(EchoPlaybackService.REPEAT_ALL)
         );
     }
 
@@ -41,18 +35,18 @@ public class EchoPlaybackServiceTest {
     }
 
     @Test
-    public void media3RepeatModesMapBackToAppRepeatModes() {
+    public void automaticMediaItemTransitionIsDetectedForRepeatOffStop() {
         assertEquals(
-                EchoPlaybackService.REPEAT_ALL,
-                EchoPlaybackService.appRepeatModeForMedia3RepeatMode(Player.REPEAT_MODE_ALL)
+                true,
+                EchoPlaybackService.isAutomaticMediaItemAdvance(Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
         );
         assertEquals(
-                EchoPlaybackService.REPEAT_ONE,
-                EchoPlaybackService.appRepeatModeForMedia3RepeatMode(Player.REPEAT_MODE_ONE)
+                false,
+                EchoPlaybackService.isAutomaticMediaItemAdvance(Player.MEDIA_ITEM_TRANSITION_REASON_SEEK)
         );
         assertEquals(
-                EchoPlaybackService.REPEAT_OFF,
-                EchoPlaybackService.appRepeatModeForMedia3RepeatMode(Player.REPEAT_MODE_OFF)
+                false,
+                EchoPlaybackService.isAutomaticMediaItemAdvance(Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)
         );
     }
 
@@ -62,5 +56,29 @@ public class EchoPlaybackServiceTest {
                 EchoPlaybackService.mediaCacheKey("streaming:netease:123", "https://m10.music.126.net/a.flac"),
                 EchoPlaybackService.mediaCacheKey("streaming:netease:123", "https://m10.music.126.net/b.flac")
         );
+    }
+
+    @Test
+    public void mirroredQueueReuseRequiresResolvedUriToMatch() {
+        assertFalse(EchoPlaybackService.mediaItemIdentityMatchesForReuse(
+                "42",
+                "https://audio.example/first.flac",
+                "streaming:netease:42|url=https://audio.example/first.flac",
+                42L,
+                "https://audio.example/second.flac",
+                "streaming:netease:42|url=https://audio.example/second.flac"
+        ));
+    }
+
+    @Test
+    public void mirroredQueueReuseAllowsSameResolvedMediaItem() {
+        assertTrue(EchoPlaybackService.mediaItemIdentityMatchesForReuse(
+                "42",
+                "https://audio.example/current.flac",
+                "streaming:netease:42|url=https://audio.example/current.flac",
+                42L,
+                "https://audio.example/current.flac",
+                "streaming:netease:42|url=https://audio.example/current.flac"
+        ));
     }
 }

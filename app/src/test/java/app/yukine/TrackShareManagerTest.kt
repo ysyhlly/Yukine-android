@@ -75,7 +75,7 @@ class TrackShareManagerTest {
             "Local Artist",
             "Local Album",
             180_000L,
-            Uri.EMPTY,
+            null,
             "file:/music/local.mp3"
         )
 

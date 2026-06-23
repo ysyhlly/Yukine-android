@@ -54,7 +54,12 @@ fun EchoNavGraph(
     var realtimeBands by remember(hostState) {
         mutableStateOf(FloatArray(0))
     }
-    LaunchedEffect(hostState) {
+    LaunchedEffect(hostState, hostState.visualMotionEnabled) {
+        if (!hostState.visualMotionEnabled) {
+            realtimeBeat = 0f
+            realtimeBands = FloatArray(0)
+            return@LaunchedEffect
+        }
         while (true) {
             withFrameNanos { }
             realtimeBeat = hostState.realtimeBeatProvider().coerceIn(0f, 1f)
@@ -71,7 +76,8 @@ fun EchoNavGraph(
         durationMs = playbackState.snapshot.durationMs,
         playing = playbackState.snapshot.playing,
         realtimeBeat = max(playbackState.snapshot.realtimeBeat, realtimeBeat),
-        realtimeBands = realtimeBands
+        realtimeBands = realtimeBands,
+        visualMotionEnabled = hostState.visualMotionEnabled
     )
     var activeDownload by remember(hostState.trackDownloadManager) {
         mutableStateOf<TrackDownloadItem?>(null)

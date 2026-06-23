@@ -583,6 +583,47 @@ class StreamingViewModelTest {
     }
 
     @Test
+    fun importAccountPlaylistsToLocalRefreshesExistingLinkedPlaylist() = runTest {
+        val provider = FakeProvider()
+        val gateway = FakeGateway(provider)
+        gateway.playlistTrackIds = listOf("track-1", "track-2")
+        val link = StreamingPlaylistSyncStore.LinkedPlaylist(
+            localPlaylistId = 88L,
+            provider = StreamingProviderName.NETEASE,
+            providerPlaylistId = "playlist-88",
+            lastSyncMs = 0L
+        )
+        val operations = FakeStreamingLocalPlaylistOperations().apply {
+            linkedRemotePlaylists["netease:playlist-88"] = link
+        }
+        val imported = mutableListOf<StreamingAccountPlaylistImportResult>()
+        val viewModel = StreamingViewModel()
+        viewModel.bindStreamingRepository(StreamingRepository(gateway))
+        viewModel.bindStreamingLocalPlaylistOperations(operations)
+        val playlists = listOf(
+            StreamingPlaylist(
+                provider = StreamingProviderName.NETEASE,
+                providerPlaylistId = "playlist-88",
+                title = "Cloud List"
+            )
+        )
+
+        viewModel.importAccountPlaylistsToLocal(
+            StreamingProviderName.NETEASE,
+            playlists
+        ) { result -> imported += result }.join()
+
+        assertEquals(emptyList<String>(), operations.importPlaylistNames)
+        assertEquals(listOf(88L), operations.syncPlaylistIds)
+        assertEquals(listOf("playlist-88"), operations.syncProviderPlaylistIds)
+        assertEquals(listOf(listOf("track-1", "track-2")), operations.syncTrackIds)
+        assertEquals(1, imported.single().importedPlaylistCount)
+        assertEquals(2, imported.single().importedTrackCount)
+        assertEquals(0, imported.single().failedCount)
+        assertFalse(viewModel.streaming.value.userPlaylistsLoading)
+    }
+
+    @Test
     fun ensureStreamingLoginPlaylistDelegatesToBoundOperations() = runTest {
         val operations = FakeStreamingLocalPlaylistOperations()
         val ensured = mutableListOf<StreamingLoginPlaylistResult>()
@@ -1158,6 +1199,7 @@ class StreamingViewModelTest {
         val ensurePlaylistNames = mutableListOf<String>()
         val ensureProviders = mutableListOf<StreamingProviderName>()
         var linkedPlaylistResult: StreamingPlaylistSyncStore.LinkedPlaylist? = null
+        val linkedRemotePlaylists = mutableMapOf<String, StreamingPlaylistSyncStore.LinkedPlaylist>()
 
         override fun importStreamingPlaylist(
             playlistName: String,
@@ -1205,6 +1247,12 @@ class StreamingViewModelTest {
 
         override fun linkedPlaylist(localPlaylistId: Long): StreamingPlaylistSyncStore.LinkedPlaylist? =
             linkedPlaylistResult
+
+        override fun linkedPlaylist(
+            provider: StreamingProviderName,
+            providerPlaylistId: String
+        ): StreamingPlaylistSyncStore.LinkedPlaylist? =
+            linkedRemotePlaylists["${provider.wireName}:$providerPlaylistId"]
     }
 
     private class FakeStreamingTrackMatchStore : StreamingTrackMatchStore {

@@ -6,6 +6,7 @@ import app.yukine.StreamingRepositoryProvider
 import app.yukine.StreamingRepositorySource
 import app.yukine.streaming.HeaderBackedStreamingPlaybackTrackAdapter
 import app.yukine.streaming.LocalStreamingAuthStore
+import app.yukine.streaming.LuoxueSourceStore
 import app.yukine.streaming.PersistentStreamingPlaybackHeaders
 import app.yukine.streaming.RemoteStreamingGatewayFactory
 import app.yukine.streaming.StreamingGatewayFactory
@@ -43,6 +44,14 @@ object StreamingDataModule {
 
     @Provides
     @Singleton
+    fun provideLuoxueSourceStore(
+        @ApplicationContext context: Context
+    ): LuoxueSourceStore {
+        return LuoxueSourceStore(context)
+    }
+
+    @Provides
+    @Singleton
     fun provideStreamingCacheDatabase(
         @ApplicationContext context: Context
     ): StreamingCacheDatabase {
@@ -69,9 +78,10 @@ object StreamingDataModule {
     @Provides
     @Singleton
     fun provideStreamingGatewayFactory(
-        localAuthStore: LocalStreamingAuthStore
+        localAuthStore: LocalStreamingAuthStore,
+        luoxueSourceStore: LuoxueSourceStore
     ): StreamingGatewayFactory {
-        return RemoteStreamingGatewayFactory(localAuthStore)
+        return RemoteStreamingGatewayFactory(localAuthStore, luoxueSourceStore)
     }
 
     @Provides

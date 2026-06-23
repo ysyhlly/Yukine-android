@@ -1,14 +1,15 @@
 package app.yukine.library
 
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import app.yukine.MainActivityTrackListUiState
 import app.yukine.ui.EchoTheme
-import app.yukine.ui.TrackRowUiState
 import app.yukine.ui.TrackRowActions
+import app.yukine.ui.TrackRowUiState
+import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
@@ -16,16 +17,14 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/**
- * Robolectric Compose UI 测试：track-list 原生渲染端 [LibraryTrackListDestination]。
- * 验证「StateFlow<MainActivityTrackListUiState> → TrackListScreen」渲染（title + rows）。
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class LibraryTrackListDestinationTest {
 
     @get:Rule
     val composeRule = createComposeRule()
+
+    private val staticMotion = YukineOrbAudioMotion.Empty.copy(visualMotionEnabled = false)
 
     private fun row(id: Long, title: String, key: String = id.toString()) = TrackRowUiState(
         id = id,
@@ -51,7 +50,9 @@ class LibraryTrackListDestinationTest {
         val actions = state.value.rows.map { TrackRowActions(Runnable {}, Runnable {}, Runnable {}, null, null) }
 
         composeRule.setContent {
-            EchoTheme.EchoTheme { LibraryTrackListDestination(state, actions) }
+            EchoTheme.EchoTheme {
+                LibraryTrackListDestination(state, actions, audioMotion = staticMotion)
+            }
         }
 
         composeRule.onNodeWithText("歌曲").assertIsDisplayed()
@@ -70,7 +71,9 @@ class LibraryTrackListDestinationTest {
         val actions = state.value.rows.map { TrackRowActions(Runnable {}, Runnable {}, Runnable {}, null, null) }
 
         composeRule.setContent {
-            EchoTheme.EchoTheme { LibraryTrackListDestination(state, actions) }
+            EchoTheme.EchoTheme {
+                LibraryTrackListDestination(state, actions, audioMotion = staticMotion)
+            }
         }
 
         composeRule.onNodeWithText("Songs").assertIsDisplayed()

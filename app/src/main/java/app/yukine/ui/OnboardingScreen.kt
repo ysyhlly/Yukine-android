@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.yukine.AppLanguage
 
 data class OnboardingActions(
     val requestPermissions: Runnable,
@@ -42,6 +43,7 @@ fun OnboardingScreen(
     notificationPermissionGranted: Boolean,
     libraryScanCompleted: Boolean = false,
     libraryScanInProgress: Boolean = false,
+    languageMode: String = "system",
     actions: OnboardingActions
 ) {
     val p = EchoTheme.colors()
@@ -129,6 +131,7 @@ fun OnboardingScreen(
                     enabled = setupComplete,
                     onClick = actions.openStreaming
                 )
+                StreamingUsageNotice(languageMode)
             }
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
@@ -172,6 +175,34 @@ fun OnboardingScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun StreamingUsageNotice(languageMode: String, modifier: Modifier = Modifier) {
+    EchoGlassSurface(
+        modifier = modifier.fillMaxWidth(),
+        shape = EchoShapes.medium,
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                EchoIcon(EchoIconKind.Network, Modifier.size(16.dp), EchoTheme.colors().accent)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    AppLanguage.text(languageMode, "streaming.usage.notice.title"),
+                    style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+                    color = EchoTheme.colors().heading,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Text(
+                AppLanguage.text(languageMode, "streaming.usage.notice.body"),
+                style = EchoTypography.caption,
+                color = EchoTheme.colors().muted
+            )
         }
     }
 }

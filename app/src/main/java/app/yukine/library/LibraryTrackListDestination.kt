@@ -50,6 +50,7 @@ fun LibraryTrackListDestination(
         onSearch,
         activeDownload,
         playbackQuality,
-        audioMotion
+        audioMotion,
+        uiState.footerAlbums
     )
 }

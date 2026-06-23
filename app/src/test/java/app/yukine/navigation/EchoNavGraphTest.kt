@@ -98,6 +98,8 @@ class EchoNavGraphTest {
             settingsViewModel = settings,
             networkSourcesViewModel = NetworkSourcesViewModel(),
             streamingViewModel = StreamingViewModel(),
+            playbackViewModel = app.yukine.PlaybackViewModel(),
+            visualMotionEnabled = false,
             homeActions = HomeDashboardActions(
                 onOpenStat = emptyList(),
                 onContinue = Runnable {},
@@ -132,7 +134,7 @@ class EchoNavGraphTest {
             }
         }
 
-        composeRule.onNodeWithText("Native home").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Native home").assertCountEquals(1)
     }
 
     @Test

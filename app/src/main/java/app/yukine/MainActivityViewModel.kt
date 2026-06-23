@@ -26,6 +26,7 @@ import app.yukine.streaming.StreamingTrack
 import app.yukine.ui.LibraryGroupUiState
 import app.yukine.ui.NetworkSourceUiState
 import app.yukine.ui.QueueTrackUiState
+import app.yukine.ui.TrackListAlbumCardUiState
 import app.yukine.ui.TrackRowUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -65,7 +66,8 @@ data class MainActivityLibraryState(
 
 data class MainActivityTrackListUiState(
     val title: String = "",
-    val rows: List<TrackRowUiState> = emptyList()
+    val rows: List<TrackRowUiState> = emptyList(),
+    val footerAlbums: List<TrackListAlbumCardUiState> = emptyList()
 )
 
 data class MainActivityLibraryGroupsUiState(
@@ -277,6 +279,11 @@ interface StreamingLocalPlaylistOperations {
     ): StreamingLoginPlaylistResult
 
     fun linkedPlaylist(localPlaylistId: Long): StreamingPlaylistSyncStore.LinkedPlaylist?
+
+    fun linkedPlaylist(
+        provider: StreamingProviderName,
+        providerPlaylistId: String
+    ): StreamingPlaylistSyncStore.LinkedPlaylist?
 }
 
 data class StreamingLocalPlaylistSyncResult(
@@ -424,7 +431,10 @@ class MainActivityViewModel @Inject constructor(
             nextFavoriteIds.add(trackId)
             true
         }
-        libraryState.value = current.copy(favoriteTrackIds = nextFavoriteIds)
+        libraryState.value = current.copy(
+            favoriteTrackIds = nextFavoriteIds,
+            favoriteTracks = updateFavoriteTracks(current, trackId, nextValue)
+        )
         return nextValue
     }
 
@@ -436,7 +446,28 @@ class MainActivityViewModel @Inject constructor(
         } else {
             nextFavoriteIds.remove(trackId)
         }
-        libraryState.value = current.copy(favoriteTrackIds = nextFavoriteIds)
+        libraryState.value = current.copy(
+            favoriteTrackIds = nextFavoriteIds,
+            favoriteTracks = updateFavoriteTracks(current, trackId, favorite)
+        )
+    }
+
+    private fun updateFavoriteTracks(
+        current: MainActivityLibraryState,
+        trackId: Long,
+        favorite: Boolean
+    ): List<Track> {
+        if (!favorite) {
+            return current.favoriteTracks.filterNot { it.id == trackId }
+        }
+        if (current.favoriteTracks.any { it.id == trackId }) {
+            return current.favoriteTracks
+        }
+        val track = current.allTracks.firstOrNull { it.id == trackId }
+            ?: current.visibleTracks.firstOrNull { it.id == trackId }
+            ?: current.selectedPlaylistTracks.firstOrNull { it.id == trackId }
+            ?: return current.favoriteTracks
+        return current.favoriteTracks + track
     }
 
     /**

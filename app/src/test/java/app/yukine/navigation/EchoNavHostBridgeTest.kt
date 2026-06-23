@@ -1,9 +1,11 @@
 package app.yukine.navigation
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.SavedStateHandle
@@ -80,6 +82,8 @@ class EchoNavHostBridgeTest {
             settingsViewModel = SettingsViewModel(),
             networkSourcesViewModel = NetworkSourcesViewModel(),
             streamingViewModel = StreamingViewModel(),
+            playbackViewModel = app.yukine.PlaybackViewModel(),
+            visualMotionEnabled = false,
             homeActions = HomeDashboardActions(
                 onOpenStat = emptyList(),
                 onContinue = Runnable {},
@@ -113,7 +117,7 @@ class EchoNavHostBridgeTest {
             }
         }
 
-        composeRule.onNodeWithText("Bridge native home").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Bridge native home").assertCountEquals(1)
     }
 
     @Test

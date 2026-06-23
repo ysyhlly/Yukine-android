@@ -4,6 +4,7 @@ import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
+import app.yukine.ui.TrackListAlbumCardUiState
 import app.yukine.ui.TrackListLabels
 import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.TrackRowActions
@@ -51,7 +52,8 @@ internal class TrackListRenderController(
         modeActions: List<TrackListModeAction>,
         labels: TrackListLabels,
         playbackState: PlaybackStateSnapshot?,
-        favoriteIds: Set<Long>
+        favoriteIds: Set<Long>,
+        footerAlbums: List<TrackListAlbumCardUiState> = emptyList()
     ) {
         val rows = ArrayList<TrackRowUiState>()
         val actions = ArrayList<TrackRowActions>()
@@ -85,11 +87,15 @@ internal class TrackListRenderController(
         }
 
         viewModel.clearLibraryGroups()
-        viewModel.updateTrackList(title, rows)
+        viewModel.updateTrackList(title, rows, footerAlbums)
         listener.publishTrackListChrome(actions, headerMetrics, effectiveHeaderActions, emptyText, modeActions, labels)
     }
 
     fun renderRecommendation(title: String, tracks: List<Track>) {
+        renderRecommendation(title, tracks, AppLanguage.MODE_CHINESE)
+    }
+
+    fun renderRecommendation(title: String, tracks: List<Track>, languageMode: String) {
         val rows = ArrayList<TrackRowUiState>()
         val actions = ArrayList<TrackRowActions>()
         for (index in tracks.indices) {
@@ -117,8 +123,8 @@ internal class TrackListRenderController(
         viewModel.updateTrackList(title, rows)
         listener.publishTrackListChrome(
             actions,
-            listOf(TrackListHeaderMetric("曲目", "${tracks.size}")),
-            listOf(TrackListHeaderAction("下载当前列表", Runnable { listener.downloadTracks(tracks) })),
+            listOf(TrackListHeaderMetric(AppLanguage.text(languageMode, "tracks"), "${tracks.size}")),
+            listOf(TrackListHeaderAction(AppLanguage.text(languageMode, "download.current.list"), Runnable { listener.downloadTracks(tracks) })),
             "",
             emptyList(),
             TrackListLabels()

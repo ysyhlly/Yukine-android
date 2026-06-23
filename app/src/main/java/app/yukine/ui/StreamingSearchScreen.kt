@@ -78,6 +78,7 @@ data class StreamingSearchActions(
 }
 
 data class StreamingSearchLabels(
+    val languageMode: String,
     val title: String,
     val back: String,
     val searchPrefix: String,
@@ -85,6 +86,8 @@ data class StreamingSearchLabels(
     val sourceDefault: String,
     val searchUnavailableSuffix: String,
     val importPlaylistFromStreaming: String,
+    val importLuoxueSource: String,
+    val luoxueImportHint: String,
     val loadAccountPlaylists: String,
     val importLikedTracks: String,
     val dailyRecommendations: String,
@@ -123,11 +126,22 @@ data class StreamingSearchLabels(
     val needsAccount: String,
     val disabled: String,
     val error: String,
+    val localLoginSaved: String,
+    val notSignedIn: String,
+    val localLoginComplete: String,
+    val gatewayLocalLogin: String,
+    val gatewayRequired: String,
+    val loginEntryMissing: String,
+    val openLoginPage: String,
+    val neteaseLikedPlaylistEmpty: String,
+    val neteaseAccountIdMissing: String,
+    val neteaseLoginRequiredPlaylists: String,
     val trackCountSuffix: String
 ) {
     companion object {
         @JvmStatic
         fun empty(): StreamingSearchLabels = StreamingSearchLabels(
+            languageMode = "system",
             title = "Streaming",
             back = "Back",
             searchPrefix = "Search ",
@@ -135,6 +149,8 @@ data class StreamingSearchLabels(
             sourceDefault = "Source",
             searchUnavailableSuffix = " search unavailable",
             importPlaylistFromStreaming = "Import playlist",
+            importLuoxueSource = "Import LX source / playlist",
+            luoxueImportHint = "Paste kw:playlistId, kg:playlistId, wy:NetEasePlaylistId, tx:QQPlaylistId, or an LX share link.",
             loadAccountPlaylists = "Load account playlists",
             importLikedTracks = "Import liked tracks",
             dailyRecommendations = "Daily recommendations",
@@ -173,6 +189,16 @@ data class StreamingSearchLabels(
             needsAccount = "Needs account",
             disabled = "Disabled",
             error = "Error",
+            localLoginSaved = "Local login saved",
+            notSignedIn = "Not signed in",
+            localLoginComplete = "Local login complete",
+            gatewayLocalLogin = "Gateway unavailable; local login is available",
+            gatewayRequired = "Gateway required",
+            loginEntryMissing = "Login entry missing",
+            openLoginPage = "Open login page",
+            neteaseLikedPlaylistEmpty = "No liked playlist found",
+            neteaseAccountIdMissing = "NetEase account id missing",
+            neteaseLoginRequiredPlaylists = "Sign in to load account playlists",
             trackCountSuffix = " tracks"
         )
     }
@@ -226,9 +252,12 @@ fun StreamingSearchScreen(
                 onBack = actions.onBack
             )
         }
+        item(key = "streaming-usage-notice") {
+            StreamingUsageNotice(labels.languageMode)
+        }
         if (hasLocalPendingProviders) {
             item(key = "local-first-hint") {
-                MessageRow("已启用本机优先：网易云可本机直连；QQ / 酷狗 / B 站 / LX 正在补本机解析，暂可用网关作为备用。")
+                MessageRow("已启用本机优先：网易云、QQ 音乐登录后本机直连；LX/洛雪可粘贴导入酷我子源歌单；酷狗、B 站等暂可用网关作为备用。")
             }
         }
         if (state.providers.isNotEmpty()) {
@@ -242,7 +271,7 @@ fun StreamingSearchScreen(
                 ProviderRow(
                     name = item.displayName,
                     selected = item.name == state.selectedProvider,
-                    status = providerStatusText(item.statusMessage, item.status, health, authState, labels),
+                    status = streamingProviderStatusText(item.statusMessage, item.status, health, authState, labels),
                     supportsAuth = capability?.supportsAuth ?: StreamingCapabilityResolver.canAuth(item),
                     connected = authState.connected,
                     onSelect = { actions.onSelectProvider.run(item.name) },
@@ -293,6 +322,14 @@ fun StreamingSearchScreen(
         }
         item(key = "discover-title") {
             SectionTitle(labels.discoverMusic)
+        }
+        if (state.selectedProvider == StreamingProviderName.LUOXUE) {
+            item(key = "luoxue-import-hint") {
+                MessageRow(labels.luoxueImportHint)
+            }
+            item(key = "luoxue-import-source") {
+                ActionRow(labels.importLuoxueSource, EchoIconKind.PlaylistAdd) { actions.onPasteImport.run() }
+            }
         }
         item(key = "search") {
             val query = state.searchQuery.ifBlank { "echo" }
@@ -458,7 +495,7 @@ private fun trackProviderSupportsPlayback(state: MainActivityStreamingState, tra
     return StreamingCapabilityResolver.canPlayback(descriptor)
 }
 
-private fun providerStatusText(
+internal fun streamingProviderStatusText(
     message: String?,
     status: StreamingProviderStatus,
     health: StreamingProviderHealth?,
@@ -469,17 +506,41 @@ private fun providerStatusText(
         val name = authState.accountDisplayName?.takeIf { it.isNotBlank() }
         return if (name != null) "${labels.signedIn} - $name" else labels.signedIn
     }
+    streamingStatusMessage(message, labels)?.let { return it }
     health?.let {
-        if (it.available) {
-            return if (it.authenticated) labels.onlineAuthenticated else labels.online
+        if (it.available && it.authenticated) {
+            return labels.onlineAuthenticated
         }
-        return it.errorMessage ?: labels.unavailable
+        if (!it.available) {
+            return it.errorMessage ?: labels.unavailable
+        }
     }
-    return message ?: when (status) {
+    return when (status) {
         StreamingProviderStatus.READY -> labels.ready
         StreamingProviderStatus.NEEDS_ACCOUNT -> labels.needsAccount
         StreamingProviderStatus.DISABLED -> labels.disabled
         StreamingProviderStatus.ERROR -> labels.error
+    }
+}
+
+fun streamingStatusMessage(message: String?, labels: StreamingSearchLabels): String? {
+    val normalized = message?.trim().orEmpty()
+    if (normalized.isEmpty()) {
+        return null
+    }
+    return when (normalized) {
+        "Local login saved",
+        "Saved local login" -> labels.localLoginSaved
+        "Not signed in" -> labels.notSignedIn
+        "Local login complete" -> labels.localLoginComplete
+        "Gateway unavailable; using local login" -> labels.gatewayLocalLogin
+        "Streaming gateway required" -> labels.gatewayRequired
+        "No sign-in entry is configured for this source" -> labels.loginEntryMissing
+        "Open the sign-in page" -> labels.openLoginPage
+        "NetEase liked playlist is empty; heartbeat recommendations cannot be generated." -> labels.neteaseLikedPlaylistEmpty
+        "Could not read NetEase account ID; sign in again before loading account playlists." -> labels.neteaseAccountIdMissing
+        "Sign in to NetEase before loading playlists." -> labels.neteaseLoginRequiredPlaylists
+        else -> normalized
     }
 }
 

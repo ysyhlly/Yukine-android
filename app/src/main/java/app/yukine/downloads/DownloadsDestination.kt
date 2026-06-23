@@ -46,6 +46,10 @@ fun DownloadsDestination(
             onChooseDirectory.run()
             directoryLabel = downloadManager?.downloadDirectoryLabel().orEmpty()
             viewModel.refresh(downloadManager)
-        }
+        },
+        onPauseItem = { id -> viewModel.pause(downloadManager, id) },
+        onResumeItem = { id -> viewModel.resume(downloadManager, id) },
+        onPauseAll = { viewModel.pauseAll(downloadManager) },
+        onResumeAll = { viewModel.resumeAll(downloadManager) }
     )
 }

@@ -7,18 +7,20 @@ interface StreamingGatewayFactory {
 }
 
 class RemoteStreamingGatewayFactory(
-    private val localAuthStore: StreamingLocalAuthStore? = null
+    private val localAuthStore: StreamingLocalAuthStore? = null,
+    private val luoxueSourceStore: LuoxueSourceStore? = null
 ) : StreamingGatewayFactory {
     override fun remote(endpointBaseUrl: String): StreamingGateway {
         return RemoteStreamingGateway(
             endpointBaseUrl = endpointBaseUrl,
-            localAuthStore = localAuthStore
+            localAuthStore = localAuthStore,
+            luoxueSourceStore = luoxueSourceStore
         )
     }
 
     companion object {
         fun create(context: Context): RemoteStreamingGatewayFactory {
-            return RemoteStreamingGatewayFactory(LocalStreamingAuthStore(context))
+            return RemoteStreamingGatewayFactory(LocalStreamingAuthStore(context), LuoxueSourceStore(context))
         }
     }
 }

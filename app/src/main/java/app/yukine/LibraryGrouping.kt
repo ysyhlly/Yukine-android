@@ -39,32 +39,61 @@ internal object LibraryGrouping {
 
     @JvmStatic
     fun groupTitle(key: String, mode: String): String {
+        return groupTitle(key, mode, AppLanguage.MODE_CHINESE)
+    }
+
+    @JvmStatic
+    fun groupTitle(key: String, mode: String, languageMode: String): String {
         if (ALBUMS == mode) {
             val separator = key.indexOf('\u001f')
             val album = if (separator >= 0) key.substring(0, separator) else key
-            return if (album.isEmpty()) "未知专辑" else album
+            return if (album.isEmpty()
+                || album == "未知专辑"
+                || album.equals("unknown album", ignoreCase = true)
+            ) {
+                AppLanguage.text(languageMode, "unknown.album")
+            } else {
+                album
+            }
         }
         if (FOLDERS == mode) {
             if (key.isEmpty()) {
-                return "未知文件夹"
+                return AppLanguage.text(languageMode, "unknown.folder")
             }
             val name = File(key).name
             return if (name == null || name.isEmpty()) key else name
         }
-        return if (key.isEmpty()) "未知" else key
+        if (key.isNotEmpty()
+            && ARTISTS == mode
+            && (key == "未知艺人" || key.equals("unknown artist", ignoreCase = true))
+        ) {
+            return AppLanguage.text(languageMode, "unknown.artist")
+        }
+        if (key.isNotEmpty()
+            && SONGS == mode
+            && (key == "未知歌曲" || key.equals("unknown track", ignoreCase = true))
+        ) {
+            return AppLanguage.text(languageMode, "unknown.track")
+        }
+        return if (key.isEmpty()) AppLanguage.text(languageMode, "unknown") else key
     }
 
     @JvmStatic
     fun groupSubtitle(tracks: List<Track>, mode: String): String {
+        return groupSubtitle(tracks, mode, AppLanguage.MODE_CHINESE)
+    }
+
+    @JvmStatic
+    fun groupSubtitle(tracks: List<Track>, mode: String, languageMode: String): String {
         if (tracks.isEmpty()) {
-            return trackCountLabel(0)
+            return trackCountLabel(0, languageMode)
         }
-        val count = trackCountLabel(tracks.size)
+        val count = trackCountLabel(tracks.size, languageMode)
         if (ALBUMS == mode) {
             return tracks[0].artist + " - " + count
         }
         if (ARTISTS == mode) {
-            return albumCountLabel(albumCount(tracks)) + " - " + count
+            return albumCountLabel(albumCount(tracks), languageMode) + " - " + count
         }
         if (FOLDERS == mode) {
             val folder = folderKey(tracks[0])
@@ -83,22 +112,27 @@ internal object LibraryGrouping {
 
     @JvmStatic
     fun modeTitle(mode: String): String {
+        return modeTitle(mode, AppLanguage.MODE_CHINESE)
+    }
+
+    @JvmStatic
+    fun modeTitle(mode: String, languageMode: String): String {
         if (HOME == mode) {
-            return "首页"
+            return AppLanguage.tabLabel(languageMode, MainRoutes.TAB_HOME)
         }
         if (ALBUMS == mode) {
-            return "专辑"
+            return AppLanguage.text(languageMode, "albums")
         }
         if (ARTISTS == mode) {
-            return "艺人"
+            return AppLanguage.text(languageMode, "artists")
         }
         if (FOLDERS == mode) {
-            return "文件夹"
+            return AppLanguage.text(languageMode, "folders")
         }
         if (PLAYLISTS == mode) {
-            return "歌单"
+            return AppLanguage.text(languageMode, "playlists")
         }
-        return "歌曲"
+        return AppLanguage.text(languageMode, "songs")
     }
 
     @JvmStatic
@@ -160,12 +194,22 @@ internal object LibraryGrouping {
         return albums.size
     }
 
-    private fun trackCountLabel(count: Int): String {
-        return "$count 首歌曲"
+    private fun trackCountLabel(count: Int, languageMode: String): String {
+        return if (count == 1) {
+            AppLanguage.text(languageMode, "track.count.one")
+        } else {
+            AppLanguage.text(languageMode, "track.count.prefix") +
+                count +
+                AppLanguage.text(languageMode, "track.count.suffix")
+        }
     }
 
-    private fun albumCountLabel(count: Int): String {
-        return "$count 张专辑"
+    private fun albumCountLabel(count: Int, languageMode: String): String {
+        return if (AppLanguage.MODE_ENGLISH == languageMode) {
+            if (count == 1) "1 album" else "$count albums"
+        } else {
+            "$count 张专辑"
+        }
     }
 
     private class Group(

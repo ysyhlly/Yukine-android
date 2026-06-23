@@ -5,9 +5,9 @@ class MockStreamingProvider : StreamingProvider {
         StreamingTrack(
             provider = StreamingProviderName.MOCK,
             providerTrackId = "mock-track-echo",
-            title = "回声测试",
-            artist = "本地演示",
-            album = "离线样例",
+            title = "Echo test",
+            artist = "Local demo",
+            album = "Offline samples",
             durationMs = 184_000L,
             coverUrl = "https://picsum.photos/seed/echo-mock-track/512/512",
             qualities = setOf(StreamingAudioQuality.STANDARD, StreamingAudioQuality.HIGH),
@@ -16,9 +16,9 @@ class MockStreamingProvider : StreamingProvider {
         StreamingTrack(
             provider = StreamingProviderName.MOCK,
             providerTrackId = "mock-track-night",
-            title = "夜航片段",
+            title = "Night fragment",
             artist = "Yukine Demo",
-            album = "离线样例",
+            album = "Offline samples",
             durationMs = 211_000L,
             coverUrl = "https://picsum.photos/seed/echo-mock-night/512/512",
             qualities = setOf(StreamingAudioQuality.STANDARD),
@@ -27,9 +27,9 @@ class MockStreamingProvider : StreamingProvider {
         StreamingTrack(
             provider = StreamingProviderName.MOCK,
             providerTrackId = "mock-track-rain",
-            title = "雨声循环",
-            artist = "环境采样",
-            album = "专注播放",
+            title = "Rain loop",
+            artist = "Ambient sample",
+            album = "Focus playback",
             durationMs = 300_000L,
             coverUrl = "https://picsum.photos/seed/echo-mock-rain/512/512",
             qualities = setOf(StreamingAudioQuality.STANDARD),
@@ -40,8 +40,8 @@ class MockStreamingProvider : StreamingProvider {
     private val demoPlaylist = StreamingPlaylist(
         provider = StreamingProviderName.MOCK,
         providerPlaylistId = "mock-playlist-daily",
-        title = "离线试听歌单",
-        description = "无需网关即可验证搜索、歌单和播放链路",
+        title = "Offline demo playlist",
+        description = "Search, playlist, and playback link demo without a gateway",
         creator = "Yukine",
         coverUrl = "https://picsum.photos/seed/echo-mock-playlist/512/512",
         trackCount = demoTracks.size
@@ -49,7 +49,7 @@ class MockStreamingProvider : StreamingProvider {
 
     override val descriptor: StreamingProviderDescriptor = StreamingProviderDescriptor(
         name = StreamingProviderName.MOCK,
-        displayName = "离线演示",
+        displayName = "Offline demo",
         enabled = true,
         capabilities = StreamingProviderCapabilities(
             supportsSearch = true,
@@ -68,7 +68,7 @@ class MockStreamingProvider : StreamingProvider {
         ),
         auth = StreamingAuthState(kind = StreamingAuthKind.NONE, connected = true),
         status = StreamingProviderStatus.READY,
-        statusMessage = "离线演示数据可用"
+        statusMessage = "Offline demo data is available"
     )
 
     override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult {
@@ -88,8 +88,8 @@ class MockStreamingProvider : StreamingProvider {
                 StreamingAlbum(
                     provider = StreamingProviderName.MOCK,
                     providerAlbumId = "mock-album-offline",
-                    title = "离线样例",
-                    artist = "本地演示",
+                    title = "Offline samples",
+                    artist = "Local demo",
                     coverUrl = "https://picsum.photos/seed/echo-mock-album/512/512",
                     trackCount = 2
                 )
@@ -102,7 +102,7 @@ class MockStreamingProvider : StreamingProvider {
                 StreamingArtist(
                     provider = StreamingProviderName.MOCK,
                     providerArtistId = "mock-artist-demo",
-                    name = "本地演示",
+                    name = "Local demo",
                     avatarUrl = "https://picsum.photos/seed/echo-mock-artist/512/512"
                 )
             ).filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }

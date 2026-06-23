@@ -11,6 +11,7 @@ import app.yukine.streaming.StreamingGatewayDiagnostics
 import app.yukine.streaming.StreamingHeartbeatRequest
 import app.yukine.streaming.StreamingMediaType
 import app.yukine.streaming.StreamingAudioQuality
+import app.yukine.streaming.StreamingCookieHeaderParser
 import app.yukine.streaming.StreamingPlaylist
 import app.yukine.streaming.StreamingPlaylistLinkParser
 import app.yukine.streaming.StreamingPlaybackSource
@@ -25,6 +26,8 @@ import app.yukine.streaming.StreamingTrackMatchPolicy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -289,6 +292,67 @@ class StreamingViewModel @Inject constructor(
         }
     }
 
+    fun searchAllStreaming(
+        query: String = streamingState.value.searchQuery,
+        mediaTypes: Set<StreamingMediaType> = setOf(StreamingMediaType.TRACK),
+        pageSize: Int = 12
+    ): Job {
+        val normalizedMediaTypes = mediaTypes.ifEmpty { setOf(StreamingMediaType.TRACK) }
+        streamingState.value = streamingState.value.copy(
+            searchQuery = query,
+            searchMediaTypes = normalizedMediaTypes
+        )
+        beginStreamingRequest()
+        return viewModelScope.launch {
+            val current = streamingState.value
+            val searchableProviders = current.providers
+                .filter { provider ->
+                    provider.name != StreamingProviderName.MOCK &&
+                        (current.providerCapabilities.firstOrNull { it.provider == provider.name }?.supportsSearch
+                            ?: app.yukine.streaming.StreamingCapabilityResolver.canSearch(provider))
+                }
+                .map { it.name }
+                .distinct()
+            if (searchableProviders.isEmpty()) {
+                failStreamingRequest("当前没有可搜索的在线音源")
+                updateStreamingDiagnostics(streamingRepository.diagnostics())
+                return@launch
+            }
+            val results = searchableProviders.map { provider ->
+                async {
+                    runCatching {
+                        streamingRepository.search(
+                            provider = provider,
+                            query = query,
+                            mediaTypes = normalizedMediaTypes,
+                            page = 1,
+                            pageSize = pageSize
+                        )
+                    }
+                }
+            }.awaitAll()
+            val successes = results.mapNotNull { it.getOrNull() }
+            if (successes.isEmpty()) {
+                val message = results.firstNotNullOfOrNull { it.exceptionOrNull()?.message }
+                    ?: "在线聚合搜索失败"
+                failStreamingRequest(message)
+                updateStreamingDiagnostics(streamingRepository.diagnostics())
+                return@launch
+            }
+            val merged = mergeStreamingSearchResults(query, pageSize, successes)
+            streamingState.value = streamingState.value.copy(
+                selectedProvider = successes.firstOrNull { it.tracks.isNotEmpty() }?.provider
+                    ?: current.selectedProvider,
+                searchQuery = query,
+                searchResult = merged,
+                loading = false,
+                loadingMore = false,
+                errorMessage = null,
+                diagnostics = streamingRepository.diagnostics()
+            )
+        }
+    }
+
     fun searchNextStreamingPage() {
         val current = streamingState.value
         val result = current.searchResult ?: return
@@ -436,6 +500,45 @@ class StreamingViewModel @Inject constructor(
             updateStreamingDiagnostics(streamingRepository.diagnostics())
             ""
         }
+    }
+
+    private fun mergeStreamingSearchResults(
+        query: String,
+        pageSize: Int,
+        results: List<StreamingSearchResult>
+    ): StreamingSearchResult {
+        val tracks = results
+            .flatMap { it.tracks }
+            .distinctBy { "${it.provider.wireName}:${it.providerTrackId}" }
+        val albums = results
+            .flatMap { it.albums }
+            .distinctBy { "${it.provider.wireName}:${it.providerAlbumId}" }
+        val artists = results
+            .flatMap { it.artists }
+            .distinctBy { "${it.provider.wireName}:${it.providerArtistId}" }
+        val playlists = results
+            .flatMap { it.playlists }
+            .distinctBy { "${it.provider.wireName}:${it.providerPlaylistId}" }
+        val mvs = results
+            .flatMap { it.mvs }
+            .distinctBy { "${it.provider.wireName}:${it.providerMvId}" }
+        return StreamingSearchResult(
+            provider = results.firstOrNull { it.tracks.isNotEmpty() }?.provider
+                ?: results.first().provider,
+            query = query,
+            page = 1,
+            pageSize = pageSize,
+            total = results.mapNotNull { it.total }.takeIf { it.isNotEmpty() }?.sum(),
+            hasMore = false,
+            tracks = tracks,
+            albums = albums,
+            artists = artists,
+            playlists = playlists,
+            mvs = mvs,
+            cached = results.all { it.cached },
+            items = results.flatMap { it.unifiedItems }
+                .distinctBy { "${it.provider.wireName}:${it.type.wireName}:${it.id}" }
+        )
     }
 
     private suspend fun saveHeartbeatSeedMatch(
@@ -999,6 +1102,11 @@ class StreamingViewModel @Inject constructor(
             provider = provider,
             unavailable = unavailable,
             title = text(languageMode, "streaming.manual.cookie"),
+            hint = if (provider == StreamingProviderName.QQ_MUSIC) {
+                text(languageMode, "streaming.cookie.hint.qq")
+            } else {
+                text(languageMode, "streaming.cookie.hint.default")
+            },
             unavailableStatus = text(languageMode, "streaming.choose.login.provider")
         )
     }
@@ -1009,7 +1117,7 @@ class StreamingViewModel @Inject constructor(
         languageMode: String
     ): StreamingManualCookieAuthRequest? {
         val dialogState = prepareManualCookieDialogState(provider, languageMode)
-        val cleanCookie = cookieHeader?.trim().orEmpty()
+        val cleanCookie = StreamingCookieHeaderParser.normalize(cookieHeader)
         val cleanProvider = dialogState.provider
         if (dialogState.unavailable || cleanProvider == null || cleanCookie.isEmpty()) {
             return null
@@ -1026,10 +1134,25 @@ class StreamingViewModel @Inject constructor(
     fun manualCookieEmptyStatus(languageMode: String): String =
         text(languageMode, "streaming.cookie.empty")
 
-    fun prepareStreamingPlaylistImportDialogState(languageMode: String): StreamingPlaylistImportDialogState {
+    fun prepareStreamingPlaylistImportDialogState(languageMode: String): StreamingPlaylistImportDialogState =
+        prepareStreamingPlaylistImportDialogState(languageMode, streamingState.value.selectedProvider)
+
+    fun prepareStreamingPlaylistImportDialogState(
+        languageMode: String,
+        provider: StreamingProviderName?
+    ): StreamingPlaylistImportDialogState {
+        val luoxueSelected = provider == StreamingProviderName.LUOXUE
         return StreamingPlaylistImportDialogState(
-            title = text(languageMode, "streaming.import.playlist.from"),
-            hint = text(languageMode, "streaming.paste.playlist.link")
+            title = if (luoxueSelected) {
+                text(languageMode, "streaming.lx.import.source")
+            } else {
+                text(languageMode, "streaming.import.playlist.from")
+            },
+            hint = if (luoxueSelected) {
+                text(languageMode, "streaming.lx.import.hint")
+            } else {
+                text(languageMode, "streaming.paste.playlist.link")
+            }
         )
     }
 
@@ -1433,13 +1556,29 @@ class StreamingViewModel @Inject constructor(
                         empty = true
                     )
                 } else {
-                    importStreamingTracksToLocal(
-                        playlistName = playlistName.ifBlank { playlist.title },
-                        provider = playlist.provider,
-                        providerPlaylistId = playlist.providerPlaylistId,
-                        tracks = tracks,
-                        linkWhenProviderPlaylistIdBlank = false
+                    val linkedPlaylist = streamingLocalPlaylistOperations?.linkedPlaylist(
+                        playlist.provider,
+                        playlist.providerPlaylistId
                     )
+                    if (linkedPlaylist != null) {
+                        val syncResult = streamingLocalPlaylistOperations?.syncStreamingPlaylist(
+                            linkedPlaylist,
+                            tracks
+                        ) ?: StreamingLocalPlaylistSyncResult(empty = true)
+                        StreamingLocalPlaylistImportResult(
+                            playlistName = playlistName.ifBlank { playlist.title },
+                            playlistAddedCount = syncResult.syncedCount,
+                            empty = syncResult.empty
+                        )
+                    } else {
+                        importStreamingTracksToLocal(
+                            playlistName = playlistName.ifBlank { playlist.title },
+                            provider = playlist.provider,
+                            providerPlaylistId = playlist.providerPlaylistId,
+                            tracks = tracks,
+                            linkWhenProviderPlaylistIdBlank = false
+                        )
+                    }
                 }
             }.getOrElse {
                 failed += 1

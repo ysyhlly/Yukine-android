@@ -14,6 +14,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import app.yukine.data.EmbeddedArtwork
+import app.yukine.playback.EchoPlaybackService
 import java.io.InputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -269,6 +270,25 @@ class LiveLyricsNotificationService : Service() {
                 putString(EXTRA_LYRIC_ALBUM_ART_URI, state.albumArtUri.orEmpty())
             })
         artwork?.let { builder.setLargeIcon(it) }
+        builder
+            .addAction(
+                R.drawable.ic_notif_previous,
+                "\u4e0a\u4e00\u9996",
+                playbackPendingIntent(EchoPlaybackService.ACTION_PREVIOUS, 11)
+            )
+            .addAction(
+                if (state.playing) R.drawable.ic_notif_pause else R.drawable.ic_notif_play,
+                if (state.playing) "\u6682\u505c" else "\u64ad\u653e",
+                playbackPendingIntent(
+                    if (state.playing) EchoPlaybackService.ACTION_PAUSE else EchoPlaybackService.ACTION_RESTORE_AND_PLAY,
+                    12
+                )
+            )
+            .addAction(
+                R.drawable.ic_notif_next,
+                "\u4e0b\u4e00\u9996",
+                playbackPendingIntent(EchoPlaybackService.ACTION_NEXT, 13)
+            )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
         }
@@ -305,6 +325,14 @@ class LiveLyricsNotificationService : Service() {
             this,
             2,
             Intent(this, LiveLyricsNotificationService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+    private fun playbackPendingIntent(action: String, requestCode: Int): PendingIntent =
+        PendingIntent.getService(
+            this,
+            requestCode,
+            Intent(this, EchoPlaybackService::class.java).setAction(action),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 

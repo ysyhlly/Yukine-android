@@ -61,6 +61,7 @@ androidx-media3-exoplayer               = { group = "androidx.media3",          
 androidx-media3-datasource              = { group = "androidx.media3",             name = "media3-datasource",            version.ref = "media3" }
 androidx-media3-session                 = { group = "androidx.media3",             name = "media3-session",               version.ref = "media3" }
 
+# ── Share SDK ────────────────────────────────────────────────────────────────
 wechat-opensdk                         = { group = "com.tencent.mm.opensdk",      name = "wechat-sdk-android-without-mta", version.ref = "wechat-opensdk" }
 
 # ── Room ─────────────────────────────────────────────────────────────────────

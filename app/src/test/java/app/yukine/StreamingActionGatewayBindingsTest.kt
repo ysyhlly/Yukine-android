@@ -52,6 +52,9 @@ class StreamingActionGatewayBindingsTest {
             },
             loginSuccessAction = StreamingLoginSuccessAction { provider ->
                 calls += "login:$provider"
+            },
+            manualCookieImportAction = StreamingManualCookieImportAction { provider ->
+                calls += "manual:$provider"
             }
         )
 
@@ -60,6 +63,7 @@ class StreamingActionGatewayBindingsTest {
         assertTrue(gateway.openAuthLaunch(launch))
         gateway.playResolvedTrack(track)
         gateway.onStreamingLoginSuccess(StreamingProviderName.NETEASE)
+        gateway.openManualCookieImport(StreamingProviderName.QQ_MUSIC)
 
         assertSame(launch, receivedLaunch)
         assertEquals(listOf(track), playedTracks)
@@ -70,7 +74,8 @@ class StreamingActionGatewayBindingsTest {
                 "language",
                 "auth",
                 "play:1:0:Song",
-                "login:NETEASE"
+                "login:NETEASE",
+                "manual:QQ_MUSIC"
             ),
             calls
         )

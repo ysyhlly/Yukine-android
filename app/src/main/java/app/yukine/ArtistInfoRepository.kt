@@ -11,17 +11,42 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.text.Normalizer
 import java.util.LinkedHashMap
+import app.yukine.streaming.StreamingAlbum
+import app.yukine.streaming.StreamingProviderName
+import app.yukine.streaming.StreamingTrack
 import kotlin.math.max
 
 data class ArtistInfo(
     val artist: String,
     val source: String,
-    val summary: String
+    val summary: String,
+    val albums: List<ArtistAlbumInfo> = emptyList(),
+    val preview: Boolean = false
+)
+
+data class ArtistAlbumInfo(
+    val provider: StreamingProviderName,
+    val providerAlbumId: String,
+    val title: String,
+    val artist: String,
+    val coverUrl: String? = null,
+    val trackCount: Int? = null,
+    val tracks: List<StreamingTrack> = emptyList()
+)
+
+fun ArtistAlbumInfo.toStreamingAlbum(): StreamingAlbum = StreamingAlbum(
+    provider = provider,
+    providerAlbumId = providerAlbumId,
+    title = title,
+    artist = artist,
+    coverUrl = coverUrl,
+    trackCount = trackCount
 )
 
 class ArtistInfoRepository(
     private val connectTimeoutMs: Int = 2500,
-    private val readTimeoutMs: Int = 3500
+    private val readTimeoutMs: Int = 3500,
+    private val textFetcher: ((String) -> String)? = null
 ) {
     private val cache = object : LinkedHashMap<String, ArtistInfo>(32, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ArtistInfo>?): Boolean = size > 32
@@ -40,6 +65,7 @@ class ArtistInfoRepository(
         } ?: candidates.firstNotNullOfOrNull { candidate ->
             runCatching { fetchBaiduBaikeCardInfo(candidate) }.getOrNull()
                 ?: runCatching { fetchBaiduBaikePageInfo(candidate) }.getOrNull()
+                ?: runCatching { fetchMoegirlArtistInfo(candidate) }.getOrNull()
                 ?: runCatching { fetchWikipediaArtistInfo(candidate) }.getOrNull()
                 ?: runCatching { fetchMusicBrainzArtistInfo(candidate) }.getOrNull()
         } ?: return null
@@ -50,18 +76,41 @@ class ArtistInfoRepository(
         return result
     }
 
+    fun loadArtistInfoPreview(artist: String, tracks: List<Track> = emptyList()): ArtistInfo? {
+        val name = artist.trim()
+        if (name.isBlank()) return null
+        synchronized(cache) {
+            cache[name]?.takeIf { !it.preview }?.let { return it }
+        }
+        val candidates = artistCandidates(name, tracks)
+        return candidates.firstNotNullOfOrNull { candidate ->
+            runCatching { fetchNeteaseArtistInfo(candidate, name, tracks, preview = true) }.getOrNull()
+        }
+    }
+
     private fun fetchNeteaseArtistInfo(
         artist: String,
         originalArtist: String = artist,
-        tracks: List<Track> = emptyList()
+        tracks: List<Track> = emptyList(),
+        preview: Boolean = false
     ): ArtistInfo? {
-        val directId = searchNeteaseArtistId(artist)
-        val id = directId ?: searchNeteaseArtistIdFromTracks(originalArtist, artist, tracks) ?: return null
+        val ids = if (preview) {
+            searchNeteaseArtistIds(artist)
+        } else {
+            (searchNeteaseArtistIds(artist) +
+                listOfNotNull(searchNeteaseArtistIdFromTracks(originalArtist, artist, tracks)))
+                .distinct()
+        }
+        if (ids.isEmpty()) return null
+        return ids.firstNotNullOfOrNull { id -> fetchNeteaseArtistInfoById(id, artist, preview) }
+    }
+
+    private fun fetchNeteaseArtistInfoById(id: String, fallbackArtist: String, preview: Boolean = false): ArtistInfo? {
         val head = requestJson("https://music.163.com/api/artist/head/info/get?id=${encode(id)}")
         val artistBody = head.optJSONObject("data")?.optJSONObject("artist")
             ?: head.optJSONObject("artist")
         val headIntro = artistBody?.optString("briefDesc").orEmpty().trim()
-        val resolvedName = artistBody?.optString("name").orEmpty().trim().ifBlank { artist }
+        val resolvedName = artistBody?.optString("name").orEmpty().trim().ifBlank { fallbackArtist }
         val headMeta = listOfNotNull(
             artistBody?.optJSONArray("alias")
                 ?.let(::jsonStringList)
@@ -80,43 +129,162 @@ class ArtistInfoRepository(
                 ?.takeIf { it > 0 }
                 ?.let { "专辑：$it 张" }
         ).joinToString("\n")
-        val detail = runCatching {
-            requestJson("https://music.163.com/api/artist/introduction?id=${encode(id)}")
-                .optJSONArray("introduction")
-                ?.let(::neteaseIntroduction)
-                .orEmpty()
-        }.getOrDefault("")
+        val detail = if (preview) {
+            ""
+        } else {
+            runCatching {
+                requestJson("https://music.163.com/api/artist/introduction?id=${encode(id)}")
+                    .optJSONArray("introduction")
+                    ?.let(::neteaseIntroduction)
+                    .orEmpty()
+            }.getOrDefault("")
+        }
         val summary = listOf(headIntro, headMeta, detail)
             .filter { it.isNotBlank() }
             .joinToString("\n\n")
-        return summary.takeIf { it.isNotBlank() }?.let {
-            ArtistInfo(artist = resolvedName, source = "网易云音乐", summary = cleanSummary(it))
+        val albums = runCatching { fetchNeteaseArtistAlbums(id, resolvedName) }.getOrDefault(emptyList())
+        return if (summary.isNotBlank() || albums.isNotEmpty()) {
+            ArtistInfo(
+                artist = resolvedName,
+                source = "网易云音乐",
+                summary = cleanSummary(summary),
+                albums = albums,
+                preview = preview
+            )
+        } else {
+            null
         }
     }
 
+    private fun fetchNeteaseArtistAlbums(artistId: String, fallbackArtist: String): List<ArtistAlbumInfo> {
+        val body = requestJson(
+            "https://music.163.com/api/artist/albums/${encode(artistId)}?limit=30&offset=0&total=false"
+        )
+        val albums = body.optJSONArray("hotAlbums")
+            ?: body.optJSONArray("albums")
+            ?: body.optJSONObject("data")?.optJSONArray("albums")
+            ?: return emptyList()
+        val result = ArrayList<ArtistAlbumInfo>()
+        for (index in 0 until albums.length()) {
+            val item = albums.optJSONObject(index) ?: continue
+            val albumId = item.opt("id")?.toString()?.trim().orEmpty()
+            val title = item.optString("name").trim()
+            if (albumId.isBlank() || title.isBlank()) continue
+            val artist = item.optJSONArray("artists")
+                ?.optJSONObject(0)
+                ?.optString("name")
+                ?.trim()
+                .orEmpty()
+                .ifBlank { fallbackArtist }
+            val cover = item.optString("picUrl").trim()
+                .ifBlank { item.optString("coverUrl").trim() }
+            val trackCount = item.optInt("size", 0).takeIf { it > 0 }
+            result += ArtistAlbumInfo(
+                provider = StreamingProviderName.NETEASE,
+                providerAlbumId = albumId,
+                title = title,
+                artist = artist,
+                coverUrl = cover.takeIf { it.isNotBlank() },
+                trackCount = trackCount
+            )
+        }
+        return result.distinctBy { it.providerAlbumId }
+    }
+
+    fun loadAlbumTracks(album: ArtistAlbumInfo): List<StreamingTrack> {
+        if (album.tracks.isNotEmpty()) {
+            return album.tracks
+        }
+        return when (album.provider) {
+            StreamingProviderName.NETEASE -> fetchNeteaseAlbumTracks(
+                album.providerAlbumId,
+                album.title,
+                album.artist,
+                album.coverUrl
+            )
+            else -> emptyList()
+        }
+    }
+
+    private fun fetchNeteaseAlbumTracks(
+        albumId: String,
+        albumTitle: String,
+        fallbackArtist: String,
+        fallbackCover: String?
+    ): List<StreamingTrack> {
+        val body = requestJson("https://music.163.com/api/album/${encode(albumId)}")
+        val songs = body.optJSONArray("songs")
+            ?: body.optJSONObject("album")?.optJSONArray("songs")
+            ?: body.optJSONObject("data")?.optJSONArray("songs")
+            ?: return emptyList()
+        val result = ArrayList<StreamingTrack>()
+        for (index in 0 until songs.length()) {
+            val song = songs.optJSONObject(index) ?: continue
+            val trackId = song.opt("id")?.toString()?.trim().orEmpty()
+            val title = song.optString("name").trim()
+            if (trackId.isBlank() || title.isBlank()) continue
+            val artistNames = song.optJSONArray("artists")
+                ?: song.optJSONArray("ar")
+            val artist = artistNames?.let(::artistNamesFromArray)
+                ?.takeIf { it.isNotBlank() }
+                ?: fallbackArtist
+            val album = song.optJSONObject("album") ?: song.optJSONObject("al")
+            val cover = album?.optString("picUrl")?.trim().orEmpty()
+                .ifBlank { fallbackCover.orEmpty() }
+            result += StreamingTrack(
+                provider = StreamingProviderName.NETEASE,
+                providerTrackId = trackId,
+                title = title,
+                artist = artist,
+                album = albumTitle,
+                albumId = albumId,
+                durationMs = song.optLong("duration", 0L).takeIf { it > 0L }
+                    ?: song.optLong("dt", 0L).takeIf { it > 0L },
+                coverUrl = cover.takeIf { it.isNotBlank() },
+                coverThumbUrl = cover.takeIf { it.isNotBlank() }
+            )
+        }
+        return result
+    }
+
+    private fun artistNamesFromArray(array: JSONArray): String {
+        val names = ArrayList<String>()
+        for (index in 0 until array.length()) {
+            array.optJSONObject(index)?.optString("name")?.trim()?.takeIf { it.isNotBlank() }?.let(names::add)
+        }
+        return names.distinct().joinToString(" / ")
+    }
+
     private fun searchNeteaseArtistId(artist: String): String? {
+        return searchNeteaseArtistIds(artist).firstOrNull()
+    }
+
+    private fun searchNeteaseArtistIds(artist: String): List<String> {
         val body = requestJson(
             "https://music.163.com/api/cloudsearch/pc?s=${encode(artist)}&type=100&limit=8&offset=0&total=false"
         )
         val artists = body.optJSONObject("result")?.optJSONArray("artists")
             ?: body.optJSONObject("data")?.optJSONArray("artists")
             ?: body.optJSONArray("artists")
-            ?: return null
-        var bestId: String? = null
-        var bestScore = 0.0
+            ?: return emptyList()
+        val matches = ArrayList<Pair<String, Double>>()
+        val fallbackIds = ArrayList<String>()
         for (index in 0 until artists.length()) {
             val item = artists.optJSONObject(index) ?: continue
             val name = item.optString("name").trim()
             val id = item.opt("id")?.toString()?.trim().orEmpty()
             if (id.isBlank() || looksLikeGenericArtist(name)) continue
+            fallbackIds += id
             val aliases = item.optJSONArray("alias")?.let(::jsonStringList).orEmpty()
             val score = max(similarity(artist, name), aliases.maxOfOrNull { similarity(artist, it) } ?: 0.0)
-            if (score > bestScore) {
-                bestScore = score
-                bestId = id
+            if (score >= 0.55 || artist.length <= 3 && score >= 0.45) {
+                matches += id to score
             }
         }
-        return bestId.takeIf { bestScore >= 0.55 || artist.length <= 3 && bestScore >= 0.45 }
+        val strongIds = matches
+            .sortedWith(compareByDescending<Pair<String, Double>> { it.second })
+            .map { it.first }
+        return (strongIds + fallbackIds.take(5)).distinct()
     }
 
     private fun searchNeteaseArtistIdFromTracks(originalArtist: String, artist: String, tracks: List<Track>): String? {
@@ -210,9 +378,17 @@ class ArtistInfoRepository(
             return null
         }
         val title = baikeDisplayTitle(htmlMetaContent(html, "og:title") ?: htmlTitle(html) ?: artist)
-        val summary = baikeSummary(html)
+        val summary = baikeLemmaSummary(html).ifBlank { baikeSummary(html) }
         if (summary.isBlank() || !isRelevantCandidate(artist, title, summary)) return null
         return ArtistInfo(artist = title, source = "百度百科", summary = cleanSummary(summary))
+    }
+
+    private fun baikeLemmaSummary(html: String): String {
+        val match = Regex(
+            "<div[^>]+class=[\"'][^\"']*lemmaSummary[^\"']*[\"'][^>]*>([\\s\\S]{40,5000}?)</div>",
+            RegexOption.IGNORE_CASE
+        ).find(html) ?: return ""
+        return decodeHtml(stripHtml(match.groupValues[1])).trim()
     }
 
     private fun baikeSummary(html: String): String {
@@ -226,6 +402,44 @@ class ArtistInfoRepository(
             return decodeHtml(match.groupValues[1])
         }
         return ""
+    }
+
+    private fun fetchMoegirlArtistInfo(artist: String): ArtistInfo? {
+        val search = requestJson(
+            "https://zh.moegirl.org.cn/api.php?action=query&list=search&srsearch=${encode(artist)}&srlimit=5&format=json&origin=*"
+        )
+        val results = search.optJSONObject("query")?.optJSONArray("search") ?: return null
+        var bestTitle = ""
+        var bestScore = 0.0
+        for (index in 0 until results.length()) {
+            val title = results.optJSONObject(index)?.optString("title")?.trim().orEmpty()
+            if (title.isBlank()) continue
+            val score = max(similarity(artist, title), if (title.contains(artist, ignoreCase = true)) 0.86 else 0.0)
+            if (score > bestScore) {
+                bestScore = score
+                bestTitle = title
+            }
+        }
+        if (bestTitle.isBlank() || bestScore < 0.34) return null
+        val extract = requestJson(
+            "https://zh.moegirl.org.cn/api.php?action=query&prop=extracts%7Cpageimages&redirects=1&explaintext=1&exchars=1200&pithumbsize=600&titles=${encode(bestTitle)}&format=json&origin=*"
+        )
+        val page = firstMediaWikiPage(extract) ?: return null
+        val title = page.optString("title").trim().ifBlank { bestTitle }
+        val text = page.optString("extract").trim()
+        if (text.isBlank() || !isRelevantCandidate(artist, title, text)) return null
+        return ArtistInfo(artist = title, source = "萌娘百科", summary = cleanSummary(text))
+    }
+
+    private fun firstMediaWikiPage(body: JSONObject): JSONObject? {
+        val pages = body.optJSONObject("query")?.optJSONObject("pages") ?: return null
+        val keys = pages.keys()
+        while (keys.hasNext()) {
+            val page = pages.optJSONObject(keys.next()) ?: continue
+            if (page.optString("missing").isNotBlank()) continue
+            return page
+        }
+        return null
     }
 
     private fun fetchWikipediaArtistInfo(artist: String): ArtistInfo? {
@@ -471,6 +685,7 @@ class ArtistInfoRepository(
     private fun requestJson(url: String): JSONObject = JSONObject(requestText(url))
 
     private fun requestText(url: String): String {
+        textFetcher?.let { return it(url) }
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = connectTimeoutMs
         connection.readTimeout = readTimeoutMs

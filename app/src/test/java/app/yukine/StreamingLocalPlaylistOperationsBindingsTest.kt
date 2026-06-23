@@ -55,10 +55,12 @@ class StreamingLocalPlaylistOperationsBindingsTest {
 
         val missing = bindings.linkedPlaylist(-1L)
         val linked = bindings.linkedPlaylist(8L)
+        val remoteLinked = bindings.linkedPlaylist(StreamingProviderName.NETEASE, "p-9")
 
         assertNull(missing)
         assertEquals(8L, linked?.localPlaylistId)
-        assertEquals(listOf("link:8"), linkOperations.events)
+        assertEquals(9L, remoteLinked?.localPlaylistId)
+        assertEquals(listOf("link:8", "remote:netease:p-9"), linkOperations.events)
     }
 
     private fun bindings(
@@ -131,6 +133,14 @@ class StreamingLocalPlaylistOperationsBindingsTest {
         override fun getLink(localPlaylistId: Long): StreamingPlaylistSyncStore.LinkedPlaylist? {
             events += "link:$localPlaylistId"
             return StreamingPlaylistSyncStore.LinkedPlaylist(localPlaylistId, StreamingProviderName.NETEASE, "p-$localPlaylistId", 0L)
+        }
+
+        override fun getLink(
+            provider: StreamingProviderName,
+            providerPlaylistId: String
+        ): StreamingPlaylistSyncStore.LinkedPlaylist? {
+            events += "remote:${provider.wireName}:$providerPlaylistId"
+            return StreamingPlaylistSyncStore.LinkedPlaylist(9L, provider, providerPlaylistId, 0L)
         }
     }
 

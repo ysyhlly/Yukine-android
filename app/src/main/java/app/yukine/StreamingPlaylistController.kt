@@ -20,6 +20,8 @@ internal class StreamingPlaylistController(
 
         fun loadCollections()
 
+        fun refreshLibraryAfterStreamingImport()
+
         fun selectedPlaylistName(): String
 
         fun selectedPlaylistTracks(): List<app.yukine.model.Track>
@@ -163,7 +165,7 @@ internal class StreamingPlaylistController(
             if (presentation.empty) {
                 return@syncStreamingPlaylistToLocal
             }
-            listener.loadCollections()
+            listener.refreshLibraryAfterStreamingImport()
         }
     }
 
@@ -188,7 +190,7 @@ internal class StreamingPlaylistController(
         if (presentation.showLoadedDialog) {
             listener.showStreamingPlaylistLoadedDialog(presentation.status)
         }
-        listener.loadCollections()
+        listener.refreshLibraryAfterStreamingImport()
     }
 
     fun onStreamingLoginSuccess(provider: StreamingProviderName) {
@@ -204,16 +206,21 @@ internal class StreamingPlaylistController(
             if (presentation.playlistId >= 0L) {
                 listener.setSelectedPlaylistId(presentation.playlistId)
             }
-            listener.loadCollections()
+            listener.refreshLibraryAfterStreamingImport()
             listener.renderSelectedTab()
-            listener.setStatus(AppLanguage.text(languageMode, "streaming.account.playlists.loading"))
-            streamingViewModel.fetchAccountPlaylistsForImport(provider) { playlists ->
-                if (playlists.isEmpty()) {
-                    listener.setStatus(AppLanguage.text(languageMode, "streaming.no.account.playlists"))
-                    return@fetchAccountPlaylistsForImport
-                }
-                listener.showAccountPlaylistImportPicker(provider, playlists)
+            showAccountPlaylistSyncPicker(provider)
+        }
+    }
+
+    fun showAccountPlaylistSyncPicker(provider: StreamingProviderName) {
+        val languageMode = languageProvider.languageMode()
+        listener.setStatus(AppLanguage.text(languageMode, "streaming.account.playlists.loading"))
+        streamingViewModel.fetchAccountPlaylistsForImport(provider) { playlists ->
+            if (playlists.isEmpty()) {
+                listener.setStatus(AppLanguage.text(languageMode, "streaming.no.account.playlists"))
+                return@fetchAccountPlaylistsForImport
             }
+            listener.showAccountPlaylistImportPicker(provider, playlists)
         }
     }
 
@@ -239,7 +246,7 @@ internal class StreamingPlaylistController(
                     ""
                 }
             listener.setStatus(status)
-            listener.loadCollections()
+            listener.refreshLibraryAfterStreamingImport()
             listener.renderSelectedTab()
         }
     }

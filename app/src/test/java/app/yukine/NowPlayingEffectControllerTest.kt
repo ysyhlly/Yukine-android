@@ -55,6 +55,10 @@ class NowPlayingEffectControllerTest {
             calls += "download:${effect.track.id}"
         }
 
+        override fun switchSource(effect: NowPlayingEffect.SwitchSource) {
+            calls += "source:${effect.track.id}"
+        }
+
         override fun showMessage(message: String) {
             calls += "message:$message"
         }

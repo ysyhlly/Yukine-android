@@ -37,4 +37,6 @@ interface MainActivityStreamingActionGateway {
     fun playResolvedTrack(track: Track)
 
     fun onStreamingLoginSuccess(provider: StreamingProviderName)
+
+    fun openManualCookieImport(provider: StreamingProviderName)
 }

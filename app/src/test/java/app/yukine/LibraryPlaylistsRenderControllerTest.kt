@@ -3,7 +3,6 @@ package app.yukine
 import android.net.Uri
 import app.yukine.model.Playlist
 import app.yukine.model.Track
-import app.yukine.model.TrackPlayRecord
 import app.yukine.ui.LibraryGroupUiState
 import app.yukine.ui.TrackListModeAction
 import org.junit.Assert.assertEquals
@@ -30,7 +29,7 @@ class LibraryPlaylistsRenderControllerTest {
             selectedLibraryGroupKey = "",
             selectedPlaylistName = "",
             selectedPlaylistTracks = emptyList(),
-            favoriteTracks = emptyList(),
+            favoriteTracks = listOf(track(90L)),
             recentRecords = emptyList(),
             modeActions = modeActions
         )
@@ -44,13 +43,15 @@ class LibraryPlaylistsRenderControllerTest {
         assertEquals(modeActions, listener.chromeState?.modeActions)
         assertNotSame(modeActions, listener.chromeState?.modeActions)
 
+        listener.chromeState?.actions?.get(0)?.onOpen?.run()
+        listener.chromeState?.actions?.get(0)?.onPlay?.run()
         listener.chromeState?.actions?.get(2)?.onOpen?.run()
         listener.chromeState?.actions?.get(2)?.onPlay?.run()
         listener.chromeState?.actions?.get(3)?.onPlay?.run()
         listener.chromeState?.actions?.get(2)?.onLongPress?.run()
 
         assertEquals(
-            listOf("open:7:Favorites", "playPlaylist:7", "playPlaylist:8", "delete:7"),
+            listOf("favorite:Favorite playlist", "playTracks:1:0", "open:7:Favorites", "playPlaylist:7", "playPlaylist:8", "delete:7"),
             listener.calls
         )
         assertEquals(false, listener.chromeState?.actions?.get(3)?.playEnabled)
@@ -96,11 +97,11 @@ class LibraryPlaylistsRenderControllerTest {
         var playlistTrackRequest: LibraryPlaylistTrackListRequest? = null
 
         override fun openFavoritePlaylist(title: String) {
-            calls += "openFavorites:$title"
+            calls += "favorite:$title"
         }
 
         override fun openPlayHistory(title: String) {
-            calls += "openHistory:$title"
+            calls += "history:$title"
         }
 
         override fun openPlaylist(playlistId: Long, title: String) {

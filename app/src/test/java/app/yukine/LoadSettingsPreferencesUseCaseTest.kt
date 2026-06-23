@@ -22,6 +22,7 @@ class LoadSettingsPreferencesUseCaseTest {
         operations.nowPlayingGesturesEnabled = false
         operations.playbackRestoreEnabled = true
         operations.replayGainEnabled = false
+        operations.shareStyle = TrackShareStyle.PLATFORM_CARD
 
         val result = LoadSettingsPreferencesUseCase(operations).execute()
 
@@ -38,8 +39,9 @@ class LoadSettingsPreferencesUseCaseTest {
         assertFalse(result.nowPlayingGesturesEnabled)
         assertEquals(true, result.playbackRestoreEnabled)
         assertFalse(result.replayGainEnabled)
+        assertEquals(TrackShareStyle.PLATFORM_CARD, result.shareStyle)
         assertEquals(
-            listOf("theme", "accent", "language", "speed", "volume", "quality", "concurrent", "effects", "statusLyrics", "floatingLyrics", "gestures", "restore", "replayGain"),
+            listOf("theme", "accent", "language", "speed", "volume", "quality", "concurrent", "effects", "statusLyrics", "floatingLyrics", "gestures", "restore", "replayGain", "shareStyle"),
             operations.events
         )
     }
@@ -59,6 +61,7 @@ class LoadSettingsPreferencesUseCaseTest {
         var nowPlayingGesturesEnabled = true
         var playbackRestoreEnabled = true
         var replayGainEnabled = true
+        var shareStyle = TrackShareStyle.TEXT
 
         override fun loadThemeMode(): String {
             events.add("theme")
@@ -123,6 +126,11 @@ class LoadSettingsPreferencesUseCaseTest {
         override fun loadReplayGainEnabled(): Boolean {
             events.add("replayGain")
             return replayGainEnabled
+        }
+
+        override fun loadShareStyle(): String {
+            events.add("shareStyle")
+            return shareStyle
         }
     }
 }

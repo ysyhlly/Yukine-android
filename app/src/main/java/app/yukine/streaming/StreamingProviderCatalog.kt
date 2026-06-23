@@ -20,10 +20,10 @@ object StreamingProviderCatalog {
             descriptor(
                 StreamingProviderName.QQ_MUSIC,
                 "QQ 音乐",
-                supportsAuth = !localFirst,
+                supportsAuth = true,
                 authKind = StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE,
                 localFirst = localFirst,
-                statusMessage = if (localFirst) "本机直连，支持搜索、播放和歌单导入" else ""
+                statusMessage = if (localFirst) "登录后本机直连，支持搜索、播放和歌单导入" else ""
             ),
             descriptor(
                 StreamingProviderName.KUGOU,
@@ -59,7 +59,7 @@ object StreamingProviderCatalog {
                 supportsAuth = false,
                 localFirst = localFirst,
                 statusMessage = if (localFirst) {
-                    "本机直连，当前先接入 LX/酷我子源"
+                    "无需登录，支持 LX 的 kw/kg 子源；wy/tx 复用网易云/QQ 登录"
                 } else {
                     "支持 LX 兼容网关聚合搜索酷我、咪咕等音源"
                 }

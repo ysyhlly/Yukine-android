@@ -190,12 +190,24 @@ class RemoteStreamingGateway(
     private val circuitBreakerThreshold: Int = 3,
     private val circuitOpenMs: Long = 30_000L,
     private val localAuthStore: StreamingLocalAuthStore? = null,
-    private val localNeteaseClient: LocalNeteaseStreamingClient = LocalNeteaseStreamingClient(localAuthStore)
+    private val localNeteaseClient: LocalNeteaseStreamingClient = LocalNeteaseStreamingClient(localAuthStore),
+    private val localQqMusicClient: LocalQqMusicStreamingClient = LocalQqMusicStreamingClient(localAuthStore),
+    private val localLuoxueClient: LocalLuoxueStreamingClient = LocalLuoxueStreamingClient(
+        neteaseClient = localNeteaseClient,
+        qqMusicClient = localQqMusicClient
+    ),
+    private val luoxueSourceStore: LuoxueSourceStore? = null
 ) : StreamingGateway {
     private var consecutiveGatewayFailures = 0
     private var circuitOpenUntilMs = 0L
     private var rateLimitedUntilMs = 0L
-    private val localProviders = LocalStreamingProviderRegistry(localAuthStore, localNeteaseClient)
+    private val localProviders = LocalStreamingProviderRegistry(
+        localAuthStore,
+        localNeteaseClient,
+        localQqMusicClient,
+        localLuoxueClient,
+        luoxueSourceStore
+    )
 
     override suspend fun providers(): List<StreamingProviderDescriptor> {
         if (!configured()) {
@@ -324,14 +336,30 @@ class RemoteStreamingGateway(
         if (!configured() && normalized.provider == offlineProvider.descriptor.name) {
             return offlineProvider.search(normalized)
         }
-        localProviders.provider(normalized.provider)?.takeIf { it.descriptor.enabled }?.let { provider ->
-            val result = provider.search(normalized)
-            return if (configured()) result.withProxiedArtwork() else result
+        val localSearchError = localProviders.provider(normalized.provider)
+            ?.takeIf { it.descriptor.enabled }
+            ?.let { provider ->
+                try {
+                    val result = provider.search(normalized)
+                    return if (configured()) result.withProxiedArtwork() else result
+                } catch (error: StreamingGatewayException) {
+                    error
+                }
+            }
+        if (!configured() && localSearchError != null) {
+            throw localSearchError
         }
         requireConfigured()
-        return StreamingGatewayJson.searchResult(
-            post("search", StreamingGatewayJson.searchRequest(normalized).toString())
-        ).withProxiedArtwork()
+        return try {
+            StreamingGatewayJson.searchResult(
+                post("search", StreamingGatewayJson.searchRequest(normalized).toString())
+            ).withProxiedArtwork()
+        } catch (error: StreamingGatewayException) {
+            if (error.code == StreamingErrorCode.GATEWAY_UNAVAILABLE && localSearchError != null) {
+                throw localSearchError
+            }
+            throw error
+        }
     }
 
     override suspend fun playlist(request: StreamingPlaylistRequest): StreamingPlaylistDetail {
@@ -344,8 +372,17 @@ class RemoteStreamingGateway(
             }
         }
         val normalized = request.normalized()
-        localProviders.provider(normalized.provider)?.takeIf { it.descriptor.enabled }?.let { provider ->
-            return provider.playlist(normalized)
+        val localPlaylistError = localProviders.provider(normalized.provider)
+            ?.takeIf { it.descriptor.enabled }
+            ?.let { provider ->
+                try {
+                    return provider.playlist(normalized)
+                } catch (error: StreamingGatewayException) {
+                    error
+                }
+            }
+        if (!configured() && localPlaylistError != null) {
+            throw localPlaylistError
         }
         requireConfigured()
         return try {
@@ -362,10 +399,12 @@ class RemoteStreamingGateway(
                 detail
             }
         } catch (error: StreamingGatewayException) {
-            if (error.code == StreamingErrorCode.GATEWAY_UNAVAILABLE && localNeteaseClient.canHandle(normalized.provider)) {
-                localNeteaseClient.playlist(normalized)
-            } else {
-                throw error
+            when {
+                error.code == StreamingErrorCode.GATEWAY_UNAVAILABLE && localPlaylistError != null ->
+                    throw localPlaylistError
+                error.code == StreamingErrorCode.GATEWAY_UNAVAILABLE && localNeteaseClient.canHandle(normalized.provider) ->
+                    localNeteaseClient.playlist(normalized)
+                else -> throw error
             }
         }
     }
@@ -391,6 +430,9 @@ class RemoteStreamingGateway(
         if (!configured() && provider == StreamingProviderName.NETEASE && localNeteaseClient.canHandle(provider)) {
             return localNeteaseClient.userPlaylists()
         }
+        if (!configured() && provider == StreamingProviderName.QQ_MUSIC) {
+            return localQqMusicClient.userPlaylists()
+        }
         requireConfigured()
         return try {
             StreamingGatewayJson.userPlaylists(
@@ -404,6 +446,9 @@ class RemoteStreamingGateway(
                     provider == StreamingProviderName.NETEASE &&
                     localNeteaseClient.canHandle(provider) ->
                     localNeteaseClient.userPlaylists()
+                error.code == StreamingErrorCode.GATEWAY_UNAVAILABLE &&
+                    provider == StreamingProviderName.QQ_MUSIC ->
+                    localQqMusicClient.userPlaylists()
                 else -> throw error
             }
         }

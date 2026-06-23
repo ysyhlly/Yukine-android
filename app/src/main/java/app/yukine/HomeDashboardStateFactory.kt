@@ -1,4 +1,4 @@
-package app.yukine
+﻿package app.yukine
 
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
@@ -64,7 +64,7 @@ internal object HomeDashboardStateFactory {
             .count { week -> week.any { !it.future && it.count > 0 } }
 
         return HomeDashboardUiState(
-            title = "Yukine",
+            title = "YUKINE",
             subtitle = librarySubtitle(activeTracks.size, totalDurationMs),
             heroTitle = "今天想听点什么？",
             heroSubtitle = buildHeroSubtitle(continueTrack),
@@ -96,7 +96,7 @@ internal object HomeDashboardStateFactory {
 
     private fun buildHeroSubtitle(continueTrack: Track?): String {
         return if (continueTrack != null) {
-            "接上 ${continueTrack.artist} 的《${continueTrack.title}》，或者从最近入库里挑一张封面开始。"
+            "接上 ${continueTrack.artist} 的「${continueTrack.title}」，或者从最近入库里挑一张封面开始。"
         } else {
             "接上最近播放，或者从最近入库里挑一张封面开始。"
         }

@@ -80,9 +80,11 @@ class DefaultQqMusicHttpClient(
 }
 
 class LocalQqMusicStreamingClient(
+    private val authStore: StreamingLocalAuthStore? = null,
     private val httpClient: QqMusicHttpClient = DefaultQqMusicHttpClient()
 ) {
     fun search(request: StreamingSearchRequest): StreamingSearchResult {
+        requireCookie()
         val normalized = request.normalizedLocal()
         if (normalized.query.isBlank()) {
             return StreamingSearchResult(
@@ -113,6 +115,7 @@ class LocalQqMusicStreamingClient(
     }
 
     fun playlist(request: StreamingPlaylistRequest): StreamingPlaylistDetail {
+        requireCookie()
         val normalized = request.normalizedLocal()
         val body = httpClient.getJson(
             "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg" +
@@ -155,7 +158,79 @@ class LocalQqMusicStreamingClient(
         )
     }
 
+    fun userPlaylists(): List<StreamingPlaylist> {
+        val cookie = requireCookie()
+        val uin = uinFromCookie(cookie)
+        val created = runCatching { createdPlaylists(uin, cookie) }.getOrDefault(emptyList())
+        val collected = runCatching { collectedPlaylists(uin, cookie) }.getOrDefault(emptyList())
+        val result = (likedPlaylist(uin, cookie, created) + created + collected)
+            .distinctBy { it.providerPlaylistId }
+        if (result.isEmpty()) {
+            throw StreamingGatewayException(
+                "QQ 音乐未返回账号歌单，请确认 Cookie 包含 uin 和 qqmusic_key/qm_keyst",
+                code = StreamingErrorCode.SOURCE_UNAVAILABLE
+            )
+        }
+        return result
+    }
+
+    private fun createdPlaylists(uin: String, cookie: String): List<StreamingPlaylist> {
+        val body = httpClient.getJson(
+            "https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_diss" +
+                "?format=json&utf8=1&hostUin=0&hostuin=${encode(uin)}&loginUin=0" +
+                "&sin=0&size=200&g_tk=5381&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json",
+            defaultHeaders(cookie)
+        )
+        return playlistArray(body, "disslist", "cdlist", "list")
+            .mapNotNull { playlistSummary(it) }
+    }
+
+    private fun collectedPlaylists(uin: String, cookie: String): List<StreamingPlaylist> {
+        val body = httpClient.getJson(
+            "https://c.y.qq.com/fav/fcgi-bin/fcg_get_profile_order_asset.fcg" +
+                "?format=json&ct=20&cid=205360956&userid=${encode(uin)}&reqtype=3" +
+                "&sin=0&ein=49&g_tk=5381&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json",
+            defaultHeaders(cookie)
+        )
+        return playlistArray(body, "cdlist", "disslist", "list")
+            .mapNotNull { playlistSummary(it) }
+    }
+
+    private fun likedPlaylist(
+        uin: String,
+        cookie: String,
+        created: List<StreamingPlaylist>
+    ): List<StreamingPlaylist> {
+        val existing = created.firstOrNull { it.providerPlaylistId == "201" || it.title.contains("喜欢") }
+        if (existing != null) {
+            return listOf(existing)
+        }
+        val body = runCatching {
+            httpClient.getJson(
+                "https://c.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg" +
+                    "?format=json&cid=205360838&userid=${encode(uin)}&reqfrom=1" +
+                    "&g_tk=5381&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json",
+                defaultHeaders(cookie)
+            )
+        }.getOrNull() ?: return emptyList()
+        val first = body.optJSONObject("data")
+            ?.optJSONArray("mymusic")
+            ?.optJSONObject(0)
+        val likedId = first?.optionalStringLocal("id") ?: "201"
+        val count = first?.optionalIntLocal("num0")
+        return listOf(
+            StreamingPlaylist(
+                provider = StreamingProviderName.QQ_MUSIC,
+                providerPlaylistId = likedId,
+                title = "我喜欢",
+                coverUrl = "https://y.gtimg.cn/mediastyle/global/img/cover_like.png",
+                trackCount = count
+            )
+        )
+    }
+
     fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource {
+        val cookie = requireCookie()
         val id = request.providerTrackId.trim()
         if (id.isBlank()) {
             throw StreamingGatewayException("QQ 音乐歌曲 ID 为空", code = StreamingErrorCode.UNSUPPORTED_OPERATION)
@@ -166,7 +241,7 @@ class LocalQqMusicStreamingClient(
         var lastMessage = ""
         for (quality in qqQualityFallbacks(request.quality)) {
             runCatching {
-                return resolvePlaybackWithQuality(id, songMid, mediaMid, quality)
+                return resolvePlaybackWithQuality(id, songMid, mediaMid, quality, cookie)
             }.onFailure { error ->
                 lastMessage = error.message.orEmpty()
             }
@@ -181,11 +256,13 @@ class LocalQqMusicStreamingClient(
         providerTrackId: String,
         songMid: String,
         mediaMid: String,
-        quality: StreamingAudioQuality
+        quality: StreamingAudioQuality,
+        cookie: String
     ): StreamingPlaybackSource {
         val fileName = qqFileName(mediaMid, quality)
+        val uin = uinFromCookie(cookie)
         val body = JSONObject()
-            .put("comm", JSONObject().put("ct", "19").put("cv", "1859").put("uin", "0"))
+            .put("comm", JSONObject().put("ct", "19").put("cv", "1859").put("uin", uin))
             .put(
                 "req_0",
                 JSONObject()
@@ -198,12 +275,12 @@ class LocalQqMusicStreamingClient(
                             .put("songmid", JSONArray().put(songMid))
                             .put("filename", JSONArray().put(fileName))
                             .put("songtype", JSONArray().put(0))
-                            .put("uin", "0")
+                            .put("uin", uin)
                             .put("loginflag", 1)
                             .put("platform", "20")
                     )
             )
-        val result = httpClient.postJson("https://u.y.qq.com/cgi-bin/musicu.fcg", body, defaultHeaders())
+        val result = httpClient.postJson("https://u.y.qq.com/cgi-bin/musicu.fcg", body, defaultHeaders(cookie))
         val data = result.optJSONObject("req_0")?.optJSONObject("data") ?: JSONObject()
         val midUrlInfo = data.optJSONArray("midurlinfo")?.optJSONObject(0) ?: JSONObject()
         val purl = midUrlInfo.optionalStringLocal("purl")
@@ -235,8 +312,10 @@ class LocalQqMusicStreamingClient(
     }
 
     private fun searchTracks(request: StreamingSearchRequest): List<StreamingTrack> {
+        val cookie = requireCookie()
+        val uin = uinFromCookie(cookie)
         val body = JSONObject()
-            .put("comm", JSONObject().put("ct", "19").put("cv", "1859").put("uin", "0"))
+            .put("comm", JSONObject().put("ct", "19").put("cv", "1859").put("uin", uin))
             .put(
                 "req_1",
                 JSONObject()
@@ -253,7 +332,7 @@ class LocalQqMusicStreamingClient(
                             .put("num_per_page", request.pageSize)
                     )
             )
-        val result = httpClient.postJson("https://u.y.qq.com/cgi-bin/musicu.fcg", body, defaultHeaders())
+        val result = httpClient.postJson("https://u.y.qq.com/cgi-bin/musicu.fcg", body, defaultHeaders(cookie))
         val songs = result.optJSONObject("req_1")
             ?.optJSONObject("data")
             ?.optJSONObject("body")
@@ -265,9 +344,10 @@ class LocalQqMusicStreamingClient(
     }
 
     private fun smartboxSearch(request: StreamingSearchRequest): List<StreamingTrack> {
+        val cookie = requireCookie()
         val body = httpClient.getJson(
             "https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg?format=json&key=${encode(request.query)}",
-            defaultHeaders()
+            defaultHeaders(cookie)
         )
         val songs = body.optJSONObject("data")?.optJSONObject("song")?.optJSONArray("itemlist") ?: JSONArray()
         return (0 until songs.length())
@@ -286,6 +366,48 @@ class LocalQqMusicStreamingClient(
                     playbackCandidates = qqCandidates(songMid)
                 )
             }
+    }
+
+    private fun playlistSummary(value: JSONObject): StreamingPlaylist? {
+        val id = value.optionalStringLocal("dissid")
+            ?: value.optionalStringLocal("tid")
+            ?: value.optionalStringLocal("id")
+            ?: value.optionalStringLocal("dirid")
+            ?: value.optionalStringLocal("dirId")
+            ?: return null
+        val title = value.optionalStringLocal("dissname")
+            ?: value.optionalStringLocal("diss_name")
+            ?: value.optionalStringLocal("title")
+            ?: value.optionalStringLocal("name")
+            ?: "QQ 音乐歌单"
+        return StreamingPlaylist(
+            provider = StreamingProviderName.QQ_MUSIC,
+            providerPlaylistId = id,
+            title = title,
+            description = value.optionalStringLocal("desc") ?: value.optionalStringLocal("subtitle"),
+            creator = value.optionalStringLocal("nick")
+                ?: value.optJSONObject("creator")?.optionalStringLocal("nick"),
+            coverUrl = value.optionalStringLocal("logo")
+                ?: value.optionalStringLocal("diss_cover")
+                ?: value.optionalStringLocal("picurl")
+                ?: value.optionalStringLocal("picUrl")
+                ?: value.optionalStringLocal("cover"),
+            trackCount = value.optionalIntLocal("songnum")
+                ?: value.optionalIntLocal("song_cnt")
+                ?: value.optionalIntLocal("song_num")
+                ?: value.optionalIntLocal("total")
+                ?: value.optionalIntLocal("count")
+        )
+    }
+
+    private fun playlistArray(body: JSONObject, vararg names: String): List<JSONObject> {
+        val candidates = ArrayList<JSONArray>()
+        for (name in names) {
+            body.optJSONObject("data")?.optJSONArray(name)?.let { candidates += it }
+            body.optJSONArray(name)?.let { candidates += it }
+        }
+        val array = candidates.firstOrNull { it.length() > 0 } ?: return emptyList()
+        return (0 until array.length()).mapNotNull { array.optJSONObject(it) }
     }
 
     private fun track(value: JSONObject): StreamingTrack {
@@ -412,11 +534,50 @@ class LocalQqMusicStreamingClient(
         return "https://y.gtimg.cn/music/photo_new/T002R500x500M000${mid}.jpg"
     }
 
-    private fun defaultHeaders(): Map<String, String> = mapOf(
-        "Referer" to "https://y.qq.com/",
-        "Origin" to "https://y.qq.com",
-        "User-Agent" to "Mozilla/5.0 Yukine-Android"
-    )
+    private fun defaultHeaders(cookie: String? = authStore?.cookieHeader(StreamingProviderName.QQ_MUSIC)): Map<String, String> {
+        val headers = linkedMapOf(
+            "Referer" to "https://y.qq.com/",
+            "Origin" to "https://y.qq.com",
+            "User-Agent" to "Mozilla/5.0 Yukine-Android"
+        )
+        cookie?.takeIf { it.isNotBlank() }?.let { headers["Cookie"] = it }
+        return headers
+    }
+
+    private fun requireCookie(): String {
+        val cookie = authStore?.cookieHeader(StreamingProviderName.QQ_MUSIC)?.takeIf { it.isNotBlank() }
+        if (cookie.isNullOrBlank()) {
+            throw StreamingGatewayException(
+                "请先登录 QQ 音乐，再使用本机音源",
+                code = StreamingErrorCode.AUTH_REQUIRED
+            )
+        }
+        return cookie
+    }
+
+    private fun uinFromCookie(cookie: String): String {
+        val raw = cookieValue(cookie, "uin", "qqmusic_uin", "p_uin", "pt2gguin", "loginUin", "wxuin")
+        return Regex("o?(\\d+)").find(raw.orEmpty())?.groupValues?.getOrNull(1)?.takeIf { it.isNotBlank() } ?: "0"
+    }
+
+    private fun cookieValue(cookie: String, vararg names: String): String? {
+        val pairs = cookie.split(";")
+        for (name in names) {
+            val value = pairs.firstNotNullOfOrNull { pair ->
+                val trimmed = pair.trim()
+                val eq = trimmed.indexOf('=')
+                if (eq <= 0) {
+                    null
+                } else if (trimmed.substring(0, eq).trim().equals(name, ignoreCase = true)) {
+                    trimmed.substring(eq + 1).trim().takeIf { it.isNotBlank() }
+                } else {
+                    null
+                }
+            }
+            if (!value.isNullOrBlank()) return value
+        }
+        return null
+    }
 
     private fun encode(value: String): String =
         URLEncoder.encode(value, StandardCharsets.UTF_8.name())
@@ -468,5 +629,9 @@ class LocalQqMusicStreamingClient(
 
     private fun JSONObject.optionalLongLocal(name: String): Long? {
         return if (has(name) && !isNull(name)) optLong(name) else null
+    }
+
+    private fun JSONObject.optionalIntLocal(name: String): Int? {
+        return if (has(name) && !isNull(name)) optInt(name) else null
     }
 }

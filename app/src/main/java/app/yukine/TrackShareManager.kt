@@ -59,7 +59,7 @@ class TrackShareManager @Inject constructor() {
                 add("音源：${providerDisplayName(source.provider)}")
                 add("音源 ID：${source.providerTrackId}")
                 shareUrl(source.provider, source.providerTrackId)?.let { add("链接：$it") }
-            } else if (track.contentUri.toString().startsWith("http", ignoreCase = true)) {
+            } else if (track.contentUri?.toString()?.startsWith("http", ignoreCase = true) == true) {
                 add("链接：${track.contentUri}")
             } else {
                 add("来源：本地曲库")
@@ -82,7 +82,7 @@ class TrackShareManager @Inject constructor() {
     private fun sharePlatformCard(track: Track): Intent {
         val source = streamingSource(track)
         val url = source?.let { shareUrl(it.provider, it.providerTrackId) }
-            ?: track.contentUri.toString().takeIf { it.startsWith("http", ignoreCase = true) }
+            ?: track.contentUri?.toString()?.takeIf { it.startsWith("http", ignoreCase = true) }
         if (url.isNullOrBlank()) {
             return shareText(track)
         }
@@ -296,7 +296,7 @@ class TrackShareManager @Inject constructor() {
         val url = shareUrl(provider, providerTrackId) ?: return null
         val json = when (provider) {
             StreamingProviderName.NETEASE -> """{"type":"music","data":{"type":"163","id":"${escapeJson(providerTrackId)}"}}"""
-            StreamingProviderName.QQ_MUSIC -> """{"type":"music","data":{"type":"custom","url":"${escapeJson(url)}","audio":"${escapeJson(track.contentUri.toString())}","title":"${escapeJson(track.title)}","image":"${escapeJson(track.albumArtUri.toString())}","singer":"${escapeJson(track.artist)}"}}"""
+            StreamingProviderName.QQ_MUSIC -> """{"type":"music","data":{"type":"custom","url":"${escapeJson(url)}","audio":"${escapeJson(track.contentUri?.toString().orEmpty())}","title":"${escapeJson(track.title)}","image":"${escapeJson(track.albumArtUri?.toString().orEmpty())}","singer":"${escapeJson(track.artist)}"}}"""
             else -> return null
         }
         return TrackMusicSharePayload(provider, providerTrackId, url, json)

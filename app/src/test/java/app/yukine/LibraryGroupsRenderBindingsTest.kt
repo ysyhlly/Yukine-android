@@ -27,6 +27,7 @@ class LibraryGroupsRenderBindingsTest {
         val bindings = LibraryGroupsRenderBindings(
             libraryEventSink = LibraryEventSink { events += it },
             libraryGroupSelectionClearer = LibraryGroupSelectionClearer { calls += "clear" },
+            openFavoritesCollectionAction = Runnable { calls += "favorites" },
             confirmDeleteGroupAction = TrackGroupDeleteConfirmer { title, groupTracks ->
                 calls += "delete:$title:${groupTracks.size}"
             },
@@ -37,12 +38,13 @@ class LibraryGroupsRenderBindingsTest {
         bindings.selectLibraryGroup("artist:a", "Artist A")
         bindings.clearLibraryGroupSelection()
         bindings.closeLibraryGroup()
+        bindings.openFavoritesCollection()
         bindings.playTrackList(tracks, 1)
         bindings.confirmDeleteGroup("Artist A", tracks)
         bindings.publishLibraryGroupsChrome(actions, "No artists", modeActions)
         bindings.renderTrackList("Artist A", ArrayList(tracks), headerMetrics, headerActions)
 
-        assertEquals(listOf("clear", "delete:Artist A:2"), calls)
+        assertEquals(listOf("clear", "favorites", "delete:Artist A:2"), calls)
         assertEquals(
             listOf(
                 LibraryEvent.OpenGroup("artist:a", "Artist A"),

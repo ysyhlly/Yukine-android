@@ -19,6 +19,7 @@ class StreamingPlaylistBindingsTest {
                 calls += "set:$playlistId"
             },
             collectionsLoader = QueueNoArgAction { calls += "load" },
+            libraryRefreshAfterImportAction = QueueNoArgAction { calls += "refreshLibrary" },
             selectedPlaylistNameProvider = StreamingPlaylistNameProvider {
                 calls += "name"
                 "Local"
@@ -56,12 +57,13 @@ class StreamingPlaylistBindingsTest {
         val provider = bindings.selectedStreamingProvider()
         bindings.setSelectedPlaylistId(7L)
         bindings.loadCollections()
+        bindings.refreshLibraryAfterStreamingImport()
         bindings.showStreamingProviderPicker("Export", tracks)
         bindings.navigateToStreaming()
         bindings.showStreamingPlaylistLoadedDialog("Loaded")
         bindings.showAccountPlaylistImportPicker(
             StreamingProviderName.NETEASE,
-            listOf(StreamingPlaylist(StreamingProviderName.NETEASE, "1", "P"))
+            listOf(StreamingPlaylist(StreamingProviderName.NETEASE, "100", "Daily"))
         )
         bindings.setStatus("Done")
         bindings.renderSelectedTab()
@@ -80,6 +82,7 @@ class StreamingPlaylistBindingsTest {
                 "provider",
                 "set:7",
                 "load",
+                "refreshLibrary",
                 "picker:Export:1",
                 "navigate",
                 "dialog:Loaded",

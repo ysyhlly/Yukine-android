@@ -15,8 +15,13 @@ class LocalNeteaseStreamingProvider(
             return StreamingProviderCatalog.localFirstDescriptor(StreamingProviderName.NETEASE)
                 .copy(
                     auth = auth,
-                    status = if (auth.connected) StreamingProviderStatus.READY else StreamingProviderStatus.NEEDS_ACCOUNT,
-                    statusMessage = auth.statusMessage ?: if (auth.connected) "本机直连已就绪" else "未登录，点击登录"
+                    status = if (auth.connected) {
+                        StreamingProviderStatus.READY
+                    } else {
+                        StreamingProviderStatus.NEEDS_ACCOUNT
+                    },
+                    statusMessage = auth.statusMessage
+                        ?: if (auth.connected) "本机直连已就绪" else "未登录，点击登录"
                 )
         }
 
@@ -35,19 +40,29 @@ class LocalNeteaseStreamingProvider(
 }
 
 class LocalQqMusicStreamingProvider(
-    private val client: LocalQqMusicStreamingClient = LocalQqMusicStreamingClient()
+    private val client: LocalQqMusicStreamingClient = LocalQqMusicStreamingClient(),
+    private val authStore: StreamingLocalAuthStore?
 ) : StreamingProvider {
     override val descriptor: StreamingProviderDescriptor
-        get() = StreamingProviderCatalog.localFirstDescriptor(StreamingProviderName.QQ_MUSIC)
+        get() {
+            val auth = authStore?.authState(StreamingProviderName.QQ_MUSIC)
+                ?: StreamingAuthState(
+                    kind = StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE,
+                    connected = false,
+                    statusMessage = "未登录，点击登录"
+                )
+            return StreamingProviderCatalog.localFirstDescriptor(StreamingProviderName.QQ_MUSIC)
             .copy(
-                auth = StreamingAuthState(
-                    kind = StreamingAuthKind.NONE,
-                    connected = true,
-                    statusMessage = "本机直连已就绪"
-                ),
-                status = StreamingProviderStatus.READY,
-                statusMessage = "本机直连，支持搜索、播放和歌单导入"
+                auth = auth,
+                status = if (auth.connected) {
+                    StreamingProviderStatus.READY
+                } else {
+                    StreamingProviderStatus.NEEDS_ACCOUNT
+                },
+                statusMessage = auth.statusMessage
+                    ?: if (auth.connected) "本机直连已就绪" else "未登录，点击登录"
             )
+        }
 
     override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult = client.search(request)
 
@@ -56,23 +71,36 @@ class LocalQqMusicStreamingProvider(
     override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource =
         client.resolvePlayback(request)
 
-    override suspend fun authState(): StreamingAuthState = descriptor.auth
+    override suspend fun authState(): StreamingAuthState =
+        authStore?.authState(StreamingProviderName.QQ_MUSIC) ?: descriptor.auth
+
+    override suspend fun signOut(): StreamingAuthState =
+        authStore?.signOut(StreamingProviderName.QQ_MUSIC) ?: descriptor.auth
 }
 
 class LocalLuoxueStreamingProvider(
-    private val client: LocalLuoxueStreamingClient = LocalLuoxueStreamingClient()
+    private val client: LocalLuoxueStreamingClient = LocalLuoxueStreamingClient(),
+    private val sourceStore: LuoxueSourceStore? = null
 ) : StreamingProvider {
     override val descriptor: StreamingProviderDescriptor
-        get() = StreamingProviderCatalog.localFirstDescriptor(StreamingProviderName.LUOXUE)
-            .copy(
+        get() {
+            val sources = sourceStore?.load().orEmpty()
+            val sourceStatus = if (sources.isNotEmpty()) {
+                "已导入 ${sources.size} 个 LX JS 音源：" + sources.take(3).joinToString("、") { it.name }
+            } else {
+                "可选择本地 JS 文件或网络链接导入 LX 音源；内置 kw/kg/wy/tx 子源仍可用"
+            }
+            return StreamingProviderCatalog.localFirstDescriptor(StreamingProviderName.LUOXUE)
+                .copy(
                 auth = StreamingAuthState(
                     kind = StreamingAuthKind.NONE,
-                    connected = true,
-                    statusMessage = "本机直连已就绪"
+                    connected = false,
+                    statusMessage = sourceStatus
                 ),
                 status = StreamingProviderStatus.READY,
-                statusMessage = "本机直连，当前先接入 LX/酷我子源"
+                statusMessage = sourceStatus
             )
+        }
 
     override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult = client.search(request)
 
@@ -127,15 +155,19 @@ class LocalUnsupportedStreamingProvider(
 class LocalStreamingProviderRegistry(
     authStore: StreamingLocalAuthStore?,
     private val neteaseClient: LocalNeteaseStreamingClient = LocalNeteaseStreamingClient(authStore),
-    private val qqMusicClient: LocalQqMusicStreamingClient = LocalQqMusicStreamingClient(),
-    private val luoxueClient: LocalLuoxueStreamingClient = LocalLuoxueStreamingClient()
+    private val qqMusicClient: LocalQqMusicStreamingClient = LocalQqMusicStreamingClient(authStore),
+    private val luoxueClient: LocalLuoxueStreamingClient = LocalLuoxueStreamingClient(
+        neteaseClient = neteaseClient,
+        qqMusicClient = qqMusicClient
+    ),
+    private val luoxueSourceStore: LuoxueSourceStore? = null
 ) {
     private val providersByName: Map<StreamingProviderName, StreamingProvider> =
         StreamingProviderCatalog.localFirstDescriptors().associate { descriptor ->
             val provider = when (descriptor.name) {
                 StreamingProviderName.NETEASE -> LocalNeteaseStreamingProvider(neteaseClient, authStore)
-                StreamingProviderName.QQ_MUSIC -> LocalQqMusicStreamingProvider(qqMusicClient)
-                StreamingProviderName.LUOXUE -> LocalLuoxueStreamingProvider(luoxueClient)
+                StreamingProviderName.QQ_MUSIC -> LocalQqMusicStreamingProvider(qqMusicClient, authStore)
+                StreamingProviderName.LUOXUE -> LocalLuoxueStreamingProvider(luoxueClient, luoxueSourceStore)
                 else -> LocalUnsupportedStreamingProvider(descriptor)
             }
             descriptor.name to provider
@@ -155,7 +187,7 @@ internal fun localPendingMessage(provider: StreamingProviderName): String = when
     StreamingProviderName.QQ_MUSIC -> "QQ 音乐本机直连已接入"
     StreamingProviderName.KUGOU -> "酷狗音乐本机解析待实现；可先配置网关使用"
     StreamingProviderName.BILIBILI -> "哔哩哔哩本机解析待实现；可先配置网关使用"
-    StreamingProviderName.LUOXUE -> "LX/洛雪本机直连已接入，当前先支持酷我子源"
+    StreamingProviderName.LUOXUE -> "LX/洛雪本机直连已接入，支持 kw/kg，wy/tx 复用对应本机登录"
     StreamingProviderName.M3U8 -> "M3U8 本机导入请走曲库导入；在线网关可提供更多能力"
     StreamingProviderName.PLUGIN -> "自定义插件本机运行时待实现；可先配置网关使用"
     else -> "该音源本机解析待实现；可先配置网关使用"

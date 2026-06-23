@@ -73,6 +73,7 @@ class EchoNavHostState(
     val trackDownloadManager: TrackDownloadManager? = null,
     val realtimeBeatProvider: () -> Float = { 0f },
     val realtimeBandsProvider: () -> FloatArray = { FloatArray(0) },
+    val visualMotionEnabled: Boolean = true,
     val searchViewModel: SearchViewModel = SearchViewModel(),
     searchActions: UnifiedSearchActions = UnifiedSearchActions.empty(),
     openSearchAction: Runnable = Runnable { },

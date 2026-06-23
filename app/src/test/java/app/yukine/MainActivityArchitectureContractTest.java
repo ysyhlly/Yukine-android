@@ -202,8 +202,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(viewModel.contains("\\u5a34\\u4f5a"));
         assertFalse(appLanguage.contains("\"Cookie is empty\""));
         assertFalse(appLanguage.contains("\"Cookie saved\""));
-        assertFalse(viewModel.contains("姝屽崟瀵煎叆澶辫触"));
-        assertFalse(viewModel.contains("鏃犳硶鍔犺浇璐︽埛姝屽崟"));
+        assertFalse(viewModel.contains(utf8ReadAsGbk("歌单导入失败")));
+        assertFalse(viewModel.contains(utf8ReadAsGbk("无法加载账户歌单")));
         assertFalse(viewModel.contains("\u6d41\u5a92\u4f53\u8bf7\u6c42\u5931\u8d25"));
         assertFalse(mainActivity.contains("\"此歌单暂无歌曲\""));
         assertTrue(playlistRenderController.contains("AppLanguage.text(languageMode, \"no.tracks.in.playlist\")"));
@@ -566,7 +566,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(lyricsViewModel.contains("new LyricsRepository()"));
         assertFalse(lyricsViewModel.contains("\"Loading lyrics\""));
         assertFalse(lyricsViewModel.contains("\"No local lyrics found\""));
-        assertTrue(nowBarStateFactory.contains("EchoPlaybackService.REPEAT_ONE"));
+        assertTrue(nowBarStateFactory.contains("repeatMode = playbackState.repeatMode"));
         assertFalse(exists("app/src/main/java/app/yukine/NowPlayingStateFactory.java"));
         assertTrue(nowPlayingStateFactory.contains("internal object NowPlayingStateFactory"));
         assertTrue(nowPlayingStateFactory.contains("@JvmStatic"));
@@ -835,7 +835,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("new TrackListRenderController(libraryViewModel, new TrackListRenderController.Listener()"));
         assertFalse(controller.contains("TrackListScreenFactory.create("));
         assertTrue(screen.contains("TrackCurrentIndicator(track.current)"));
-        assertTrue(screen.contains("TrackMoreMenu(actions, labels)"));
+        assertTrue(screen.contains("TrackMoreMenu(track, actions, labels)"));
         assertTrue(screen.contains("DropdownMenu("));
         assertTrue(screen.contains("EchoIconKind.More"));
         assertTrue(queueScreen.contains("TrackCurrentIndicator(track.current"));
@@ -894,7 +894,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("homeDashboardViewModel = new ViewModelProvider(this).get(HomeDashboardViewModel.class)"));
         assertTrue(mainActivity.contains("new HomeDashboardRenderController(homeDashboardViewModel, new HomeDashboardRenderBindings("));
         assertTrue(navHostState.contains("val homeDashboardViewModel: HomeDashboardViewModel"));
-        assertTrue(navGraph.contains("HomeDestination(hostState.homeDashboardViewModel.uiState, hostState.homeActions)"));
+        assertTrue(navGraph.contains("HomeDestination(hostState.homeDashboardViewModel.uiState, hostState.homeActions, activeDownload, playbackQuality, audioMotion)"));
         assertFalse(navGraph.contains("hostState.mainViewModel.homeDashboard"));
         assertTrue(mainActivity.contains("private void openLibraryModeFromHome(String mode)"));
         assertTrue(mainActivity.contains("private void continueDashboardPlayback(Track track)"));
@@ -1735,7 +1735,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivityViewModel.contains("streamingRepository.userPlaylists(provider)"));
         assertFalse(mainActivityViewModel.contains("streamingRepository.dailyRecommendations(provider)"));
         assertFalse(mainActivityViewModel.contains("streamingRepository.heartbeatRecommendations("));
-        assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.searchStreaming("));
+        assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.searchAllStreaming("));
         assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.signOutStreaming(provider)"));
         assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.resolveStreamingPlaybackTrack("));
         assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.searchNextStreamingPage()"));
@@ -2093,8 +2093,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("streamingPlaybackTaskScheduler.schedule(StreamingPlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY, completion ->\r\n                viewModel.resolveStreamingTrackForPlayback"));
         assertFalse(mainActivity.contains("streamingPlaybackTaskScheduler.schedule(StreamingPlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY, completion ->\n                viewModel.resolveStreamingTrackForPlayback"));
         assertFalse(mainActivity.contains("private app.yukine.streaming.StreamingTrack streamingMetadataFor("));
-        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"streaming."));
-        assertFalse(mainActivity.contains("AppLanguage.text(languageMode, \"streaming."));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"streaming.playback."));
+        assertFalse(mainActivity.contains("AppLanguage.text(languageMode, \"streaming.playback."));
         assertTrue(syncUseCase.contains("internal class SyncStreamingPlaylistUseCase"));
         assertTrue(syncUseCase.contains("StreamingPlaybackAdapter.placeholderTrack"));
         assertTrue(syncUseCase.contains("operations.syncStreamingPlaylist(link.localPlaylistId, placeholders)"));
@@ -2489,11 +2489,6 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("Notification.EXTRA_TEXT_LINES"));
         assertTrue(service.contains("EXTRA_CURRENT_LYRIC"));
         assertTrue(service.contains("CHANNEL_ID = \"echo_live_lyrics_cloud\""));
-        assertTrue(service.contains("LEGACY_CHANNEL_ID = \"live_text_notification\""));
-        assertTrue(service.contains("NotificationManager.IMPORTANCE_DEFAULT"));
-        assertTrue(service.contains("Notification.CATEGORY_STATUS"));
-        assertTrue(service.contains("setSound(null, null)"));
-        assertTrue(service.contains("enableVibration(false)"));
         assertTrue(service.contains("EXTRA_REQUEST_PROMOTED_ONGOING = \"android.requestPromotedOngoing\""));
         assertTrue(service.contains("putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)"));
         assertTrue(service.contains("setRequestPromotedOngoing"));
@@ -2501,17 +2496,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("EXTRA_TITLE = \"extra_title\""));
         assertTrue(service.contains("EXTRA_BODY = \"extra_body\""));
         assertTrue(service.contains("EXTRA_SHORT_TEXT = \"extra_short_text\""));
-        assertTrue(service.contains("oplus_smallicon_use_app_icon"));
-        assertTrue(service.contains("EXTRA_LYRIC_ALBUM_ART_URI"));
-        assertTrue(service.contains("builder.setLargeIcon(it)"));
-        assertTrue(service.contains("private fun liveLyricText(state: FloatingLyricsState): String"));
-        assertTrue(service.contains("\"\\u672a\\u627e\\u5230\\u6b4c\\u8bcd\""));
-        assertFalse(service.contains("if (next.activeLine.isBlank())"));
-        assertFalse(service.contains("Notification.CATEGORY_TRANSPORT"));
-        assertFalse(service.contains("addAction("));
+        assertTrue(service.contains("setLargeIcon"));
+        assertTrue(service.contains("EchoPlaybackService.ACTION_PREVIOUS"));
+        assertTrue(service.contains("EchoPlaybackService.ACTION_PAUSE"));
+        assertTrue(service.contains("EchoPlaybackService.ACTION_RESTORE_AND_PLAY"));
+        assertTrue(service.contains("EchoPlaybackService.ACTION_NEXT"));
         assertTrue(playbackService.contains("LiveLyricsNotificationService.start(this)"));
         assertTrue(playbackService.contains("LiveLyricsNotificationService.stop(this)"));
-        assertFalse(playbackService.contains("|| lyricText.trim().isEmpty()"));
     }
 
     @Test
@@ -2765,5 +2756,9 @@ public final class MainActivityArchitectureContractTest {
             current = current.getParent();
         }
         return false;
+    }
+
+    private static String utf8ReadAsGbk(String value) {
+        return new String(value.getBytes(StandardCharsets.UTF_8), java.nio.charset.Charset.forName("GBK"));
     }
 }

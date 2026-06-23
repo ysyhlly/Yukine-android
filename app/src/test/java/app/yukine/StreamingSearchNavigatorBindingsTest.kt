@@ -15,7 +15,7 @@ class StreamingSearchNavigatorBindingsTest {
             playlistRefImporter = StreamingPlaylistRefImporter { provider, playlistId ->
                 calls += "playlist:$provider:$playlistId"
             },
-            loadUserPlaylistsAction = StreamingProviderAction { calls += "load:$it" },
+            syncAccountPlaylistsAction = StreamingProviderAction { calls += "sync:$it" },
             importLikedTracksAction = StreamingProviderAction { calls += "liked:$it" },
             dailyRecommendationsAction = StreamingRecommendationAction { calls += "daily:$it" },
             heartbeatRecommendationsAction = StreamingRecommendationAction { calls += "heartbeat:$it" },
@@ -42,7 +42,7 @@ class StreamingSearchNavigatorBindingsTest {
             listOf(
                 "navigate:${MainRoutes.NETWORK_HOME}",
                 "playlist:${StreamingProviderName.SPOTIFY}:pl-1",
-                "load:${StreamingProviderName.NETEASE}",
+                "sync:${StreamingProviderName.NETEASE}",
                 "liked:${StreamingProviderName.NETEASE}",
                 "daily:${StreamingProviderName.NETEASE}",
                 "heartbeat:${StreamingProviderName.NETEASE}",
