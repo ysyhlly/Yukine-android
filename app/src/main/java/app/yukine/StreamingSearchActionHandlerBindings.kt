@@ -16,24 +16,15 @@ internal class StreamingSearchActionHandlerBindings(
     }
 
     override fun search(query: String) {
-        val provider = streamingViewModel.state.selectedProvider
-        val descriptor = streamingViewModel.state.providers.firstOrNull { it.name == provider }
-        val capability = streamingViewModel.state.providerCapabilities.firstOrNull { it.provider == provider }
-        if (descriptor != null && !(capability?.supportsSearch ?: StreamingCapabilityResolver.canSearch(descriptor))) {
-            streamingViewModel.failStreamingRequest(sourceMessage(descriptor.displayName, "streaming.search.unavailable"))
-            return
-        }
-        val mediaTypes = capability?.supportedSearchMediaTypes ?: StreamingCapabilityResolver.supportedSearchMediaTypes(descriptor)
-        if (descriptor != null && mediaTypes.isEmpty()) {
-            streamingViewModel.failStreamingRequest(sourceMessage(descriptor.displayName, "streaming.search.types.unavailable"))
-            return
-        }
-        streamingViewModel.searchStreaming(
-            provider = provider,
+        val mediaTypes = streamingViewModel.state.providerCapabilities
+            .filter { it.supportsSearch }
+            .flatMap { it.supportedSearchMediaTypes }
+            .toSet()
+            .ifEmpty { setOf(StreamingMediaType.TRACK) }
+        streamingViewModel.searchAllStreaming(
             query = query,
-            mediaTypes = mediaTypes.ifEmpty { setOf(StreamingMediaType.TRACK) },
-            page = 1,
-            pageSize = 20
+            mediaTypes = mediaTypes,
+            pageSize = 12
         )
     }
 

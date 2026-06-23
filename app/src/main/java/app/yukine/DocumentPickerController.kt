@@ -23,6 +23,8 @@ internal class DocumentPickerController(
         fun exportPlaylist(exportUri: Uri)
 
         fun importPlaylistM3u(playlistUri: Uri)
+
+        fun importLuoxueSourceUris(uris: ArrayList<Uri>)
     }
 
     fun openAudioFilePicker() {
@@ -65,6 +67,16 @@ internal class DocumentPickerController(
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
         M3uDocumentHelper.configureReadIntent(intent)
         activity.startActivityForResult(intent, REQUEST_IMPORT_PLAYLIST_M3U_FILE)
+    }
+
+    fun openLuoxueSourceFilePicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+        intent.addCategory(Intent.CATEGORY_OPENABLE)
+        intent.type = "*/*"
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/javascript", "text/javascript", "text/plain", "application/octet-stream", "*/*"))
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        activity.startActivityForResult(intent, REQUEST_IMPORT_LUOXUE_SOURCE_FILE)
     }
 
     fun openPlaylistExportDocument(playlistName: String) {
@@ -128,6 +140,14 @@ internal class DocumentPickerController(
             }
             return true
         }
+        if (requestCode == REQUEST_IMPORT_LUOXUE_SOURCE_FILE) {
+            val uris = selectedDocumentUris(data)
+            for (uri in uris) {
+                takePersistableReadPermission(data, uri)
+            }
+            listener.importLuoxueSourceUris(uris)
+            return true
+        }
         return false
     }
 
@@ -137,9 +157,14 @@ internal class DocumentPickerController(
             requestCode == REQUEST_DOWNLOAD_FOLDER ||
             requestCode == REQUEST_IMPORT_M3U_FILE ||
             requestCode == REQUEST_EXPORT_PLAYLIST_M3U ||
-            requestCode == REQUEST_IMPORT_PLAYLIST_M3U_FILE
+            requestCode == REQUEST_IMPORT_PLAYLIST_M3U_FILE ||
+            requestCode == REQUEST_IMPORT_LUOXUE_SOURCE_FILE
 
     private fun selectedAudioUris(data: Intent?): ArrayList<Uri> {
+        return selectedDocumentUris(data)
+    }
+
+    private fun selectedDocumentUris(data: Intent?): ArrayList<Uri> {
         val uris = ArrayList<Uri>()
         if (data == null) {
             return uris
@@ -199,5 +224,6 @@ internal class DocumentPickerController(
         @JvmField val REQUEST_EXPORT_PLAYLIST_M3U: Int = 4005
         @JvmField val REQUEST_IMPORT_PLAYLIST_M3U_FILE: Int = 4006
         @JvmField val REQUEST_DOWNLOAD_FOLDER: Int = 4007
+        @JvmField val REQUEST_IMPORT_LUOXUE_SOURCE_FILE: Int = 4008
     }
 }

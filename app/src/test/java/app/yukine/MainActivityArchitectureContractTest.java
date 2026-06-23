@@ -1735,7 +1735,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivityViewModel.contains("streamingRepository.userPlaylists(provider)"));
         assertFalse(mainActivityViewModel.contains("streamingRepository.dailyRecommendations(provider)"));
         assertFalse(mainActivityViewModel.contains("streamingRepository.heartbeatRecommendations("));
-        assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.searchStreaming("));
+        assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.searchAllStreaming("));
         assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.signOutStreaming(provider)"));
         assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.resolveStreamingPlaybackTrack("));
         assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.searchNextStreamingPage()"));
@@ -2093,8 +2093,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("streamingPlaybackTaskScheduler.schedule(StreamingPlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY, completion ->\r\n                viewModel.resolveStreamingTrackForPlayback"));
         assertFalse(mainActivity.contains("streamingPlaybackTaskScheduler.schedule(StreamingPlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY, completion ->\n                viewModel.resolveStreamingTrackForPlayback"));
         assertFalse(mainActivity.contains("private app.yukine.streaming.StreamingTrack streamingMetadataFor("));
-        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"streaming."));
-        assertFalse(mainActivity.contains("AppLanguage.text(languageMode, \"streaming."));
+        assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"streaming.playback."));
+        assertFalse(mainActivity.contains("AppLanguage.text(languageMode, \"streaming.playback."));
         assertTrue(syncUseCase.contains("internal class SyncStreamingPlaylistUseCase"));
         assertTrue(syncUseCase.contains("StreamingPlaybackAdapter.placeholderTrack"));
         assertTrue(syncUseCase.contains("operations.syncStreamingPlaylist(link.localPlaylistId, placeholders)"));

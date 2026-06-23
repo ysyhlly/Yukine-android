@@ -16,6 +16,7 @@ import app.yukine.streaming.StreamingPlaybackHeaderStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.OutputStream
@@ -23,9 +24,11 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.min
 
 data class TrackDownloadResult(
     val started: Boolean,
@@ -75,7 +78,8 @@ class TrackDownloadManager @Inject constructor(
 ) : TrackDownloadController {
     private val records = linkedMapOf<Long, TrackDownloadRecord>()
     private val preferences = context.getSharedPreferences("track_downloads", Context.MODE_PRIVATE)
-    private val customExecutor = Executors.newSingleThreadExecutor()
+    private val customExecutor = Executors.newFixedThreadPool(APP_DOWNLOAD_CONCURRENCY)
+    private val segmentExecutor = Executors.newFixedThreadPool(SEGMENT_DOWNLOAD_CONCURRENCY)
     private val customIdCounter = AtomicLong(-2L)
 
     init {
@@ -250,7 +254,7 @@ class TrackDownloadManager @Inject constructor(
             if (current.status != TrackDownloadStatus.Paused) {
                 return TrackDownloadActionResult(false, "当前任务无需继续")
             }
-            val resumed = current.copy(status = TrackDownloadStatus.Pending, bytesDownloaded = 0L, totalBytes = -1L)
+            val resumed = current.copy(status = TrackDownloadStatus.Pending)
             records[downloadId] = resumed
             persistRecordsLocked()
             recordToResume = resumed
@@ -292,7 +296,7 @@ class TrackDownloadManager @Inject constructor(
         synchronized(records) {
             for ((id, record) in records) {
                 if (id < 0L && record.status == TrackDownloadStatus.Paused) {
-                    val resumed = record.copy(status = TrackDownloadStatus.Pending, bytesDownloaded = 0L, totalBytes = -1L)
+                    val resumed = record.copy(status = TrackDownloadStatus.Pending)
                     records[id] = resumed
                     toResume += resumed
                 }
@@ -357,53 +361,22 @@ class TrackDownloadManager @Inject constructor(
         var targetUri: Uri? = null
         try {
             val headers = streamingHeaders.forDataPath(track.dataPath)
-            val connection = URL(sourceUri.toString()).openConnection() as HttpURLConnection
-            connection.instanceFollowRedirects = true
-            headers.forEach { (name, value) ->
-                if (name.isNotBlank() && value.isNotBlank()) {
-                    connection.setRequestProperty(name, value)
-                }
+            val probe = probeDownload(sourceUri, headers)
+            val total = probe.totalBytes
+            val workDir = downloadWorkDir(id)
+            if (!workDir.exists() && !workDir.mkdirs()) {
+                throw IOException("无法创建断点缓存目录")
             }
-            if (headers.keys.none { it.equals("User-Agent", ignoreCase = true) }) {
-                connection.setRequestProperty("User-Agent", DEFAULT_USER_AGENT)
+            if (probe.acceptRanges && total > MIN_SEGMENTED_DOWNLOAD_BYTES) {
+                runSegmentedDownload(id, sourceUri, headers, workDir, total)
+            } else {
+                runSingleConnectionDownload(id, sourceUri, headers, workDir, total)
             }
-            if (headers.keys.none { it.equals("Accept", ignoreCase = true) }) {
-                connection.setRequestProperty("Accept", "audio/*,*/*")
-            }
-            connection.connectTimeout = 15000
-            connection.readTimeout = 30000
-            val responseCode = connection.responseCode
-            if (responseCode !in 200..299) {
-                throw IOException("HTTP $responseCode")
-            }
-            val total = connection.contentLengthLong
-            targetUri = createTargetUri(treeUri, track)
-            connection.inputStream.use { input ->
-                openTargetOutputStream(targetUri)?.use { output ->
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                    var downloaded = 0L
-                    while (true) {
-                        val read = input.read(buffer)
-                        if (read < 0) break
-                        output.write(buffer, 0, read)
-                        downloaded += read.toLong()
-                        val paused = synchronized(records) {
-                            records[id]?.status == TrackDownloadStatus.Paused
-                        }
-                        if (paused) {
-                            throw DownloadPausedException()
-                        }
-                        updateCustomRecord(id) {
-                            it.copy(
-                                status = TrackDownloadStatus.Running,
-                                bytesDownloaded = downloaded,
-                                totalBytes = total,
-                                localUri = targetUri.toString()
-                            )
-                        }
-                    }
-                } ?: throw IOException("无法写入所选目录")
-            }
+            targetUri = synchronized(records) {
+                records[id]?.localUri?.takeIf { it.isNotBlank() }?.let(Uri::parse)
+            } ?: createTargetUri(treeUri, track)
+            updateCustomRecord(id) { it.copy(localUri = targetUri.toString(), totalBytes = total) }
+            mergeWorkFileToTarget(id, workDir, targetUri)
             updateCustomRecord(id) {
                 it.copy(
                     status = TrackDownloadStatus.Finished,
@@ -415,12 +388,254 @@ class TrackDownloadManager @Inject constructor(
             markPublicTargetFinished(targetUri)
             saveArtworkForTrack(track, treeUri)
         } catch (_: DownloadPausedException) {
-            targetUri?.let(::deleteTargetUri)
+            updateCustomRecord(id) { it.copy(status = TrackDownloadStatus.Paused) }
         } catch (_: Exception) {
             targetUri?.let(::deleteTargetUri)
             updateCustomRecord(id) { it.copy(status = TrackDownloadStatus.Failed) }
         }
     }
+
+    private fun probeDownload(sourceUri: Uri, headers: Map<String, String>): DownloadProbe {
+        val connection = openDownloadConnection(sourceUri, headers)
+        return try {
+            connection.setRequestProperty("Range", "bytes=0-0")
+            val responseCode = connection.responseCode
+            val contentRange = connection.getHeaderField("Content-Range").orEmpty()
+            val contentLength = connection.contentLengthLong
+            val totalFromRange = contentRange.substringAfterLast('/', "")
+                .toLongOrNull()
+                ?.takeIf { it > 0L }
+            DownloadProbe(
+                totalBytes = totalFromRange ?: contentLength,
+                acceptRanges = responseCode == HttpURLConnection.HTTP_PARTIAL && totalFromRange != null
+            )
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun runSingleConnectionDownload(
+        id: Long,
+        sourceUri: Uri,
+        headers: Map<String, String>,
+        workDir: File,
+        total: Long
+    ) {
+        val target = File(workDir, SINGLE_PART_FILE_NAME)
+        val existing = target.length().coerceAtLeast(0L)
+        val connection = openDownloadConnection(sourceUri, headers)
+        if (existing > 0L) {
+            connection.setRequestProperty("Range", "bytes=$existing-")
+        }
+        try {
+            val responseCode = connection.responseCode
+            val canAppend = existing > 0L && responseCode == HttpURLConnection.HTTP_PARTIAL
+            if (responseCode !in 200..299) {
+                throw IOException("HTTP $responseCode")
+            }
+            val startBytes = if (canAppend) existing else 0L
+            FileOutputStream(target, canAppend).use { output ->
+                connection.inputStream.use { input ->
+                    copyDownloadStream(id, input, output, startBytes, total)
+                }
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun runSegmentedDownload(
+        id: Long,
+        sourceUri: Uri,
+        headers: Map<String, String>,
+        workDir: File,
+        total: Long
+    ) {
+        val segments = buildDownloadSegments(total)
+        updateCustomRecord(id) {
+            it.copy(bytesDownloaded = downloadedSegmentBytes(workDir, segments), totalBytes = total)
+        }
+        val futures = mutableListOf<Future<*>>()
+        for (segment in segments) {
+            val file = segmentFile(workDir, segment.index)
+            if (file.length() >= segment.length) {
+                continue
+            }
+            futures += segmentExecutor.submit {
+                downloadSegment(id, sourceUri, headers, workDir, segment, total)
+            }
+        }
+        try {
+            futures.forEach { it.get() }
+        } catch (error: Exception) {
+            futures.forEach { it.cancel(true) }
+            if (isPaused(id)) {
+                throw DownloadPausedException()
+            }
+            throw IOException(error.message ?: "分片下载失败", error)
+        }
+        val downloaded = downloadedSegmentBytes(workDir, segments)
+        if (downloaded < total) {
+            throw IOException("分片下载不完整")
+        }
+        File(workDir, SINGLE_PART_FILE_NAME).outputStream().use { output ->
+            segments.forEach { segment ->
+                FileInputStream(segmentFile(workDir, segment.index)).use { input ->
+                    input.copyTo(output)
+                }
+            }
+        }
+    }
+
+    private fun downloadSegment(
+        id: Long,
+        sourceUri: Uri,
+        headers: Map<String, String>,
+        workDir: File,
+        segment: DownloadSegment,
+        total: Long
+    ) {
+        val target = segmentFile(workDir, segment.index)
+        val existing = target.length().coerceIn(0L, segment.length)
+        if (existing >= segment.length) {
+            return
+        }
+        val start = segment.start + existing
+        val end = segment.end
+        val connection = openDownloadConnection(sourceUri, headers)
+        connection.setRequestProperty("Range", "bytes=$start-$end")
+        try {
+            val responseCode = connection.responseCode
+            if (responseCode != HttpURLConnection.HTTP_PARTIAL) {
+                throw IOException("HTTP $responseCode")
+            }
+            FileOutputStream(target, existing > 0L).use { output ->
+                connection.inputStream.use { input ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        output.write(buffer, 0, read)
+                        if (isPaused(id)) {
+                            throw DownloadPausedException()
+                        }
+                        updateCustomRecord(id) {
+                            it.copy(
+                                status = TrackDownloadStatus.Running,
+                                bytesDownloaded = downloadedSegmentBytes(workDir, buildDownloadSegments(total)),
+                                totalBytes = total
+                            )
+                        }
+                    }
+                }
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun copyDownloadStream(
+        id: Long,
+        input: java.io.InputStream,
+        output: OutputStream,
+        startBytes: Long,
+        total: Long
+    ) {
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        var downloaded = startBytes
+        while (true) {
+            val read = input.read(buffer)
+            if (read < 0) break
+            output.write(buffer, 0, read)
+            downloaded += read.toLong()
+            if (isPaused(id)) {
+                throw DownloadPausedException()
+            }
+            updateCustomRecord(id) {
+                it.copy(
+                    status = TrackDownloadStatus.Running,
+                    bytesDownloaded = downloaded,
+                    totalBytes = total
+                )
+            }
+        }
+    }
+
+    private fun mergeWorkFileToTarget(id: Long, workDir: File, targetUri: Uri) {
+        val source = File(workDir, SINGLE_PART_FILE_NAME)
+        if (!source.exists() || source.length() <= 0L) {
+            throw IOException("下载缓存为空")
+        }
+        openTargetOutputStream(targetUri)?.use { output ->
+            FileInputStream(source).use { input ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                var copied = 0L
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    output.write(buffer, 0, read)
+                    copied += read.toLong()
+                    if (isPaused(id)) {
+                        throw DownloadPausedException()
+                    }
+                    updateCustomRecord(id) {
+                        it.copy(bytesDownloaded = copied, localUri = targetUri.toString())
+                    }
+                }
+            }
+        } ?: throw IOException("无法写入所选目录")
+    }
+
+    private fun openDownloadConnection(sourceUri: Uri, headers: Map<String, String>): HttpURLConnection {
+        val connection = URL(sourceUri.toString()).openConnection() as HttpURLConnection
+        connection.instanceFollowRedirects = true
+        headers.forEach { (name, value) ->
+            if (name.isNotBlank() && value.isNotBlank()) {
+                connection.setRequestProperty(name, value)
+            }
+        }
+        if (headers.keys.none { it.equals("User-Agent", ignoreCase = true) }) {
+            connection.setRequestProperty("User-Agent", DEFAULT_USER_AGENT)
+        }
+        if (headers.keys.none { it.equals("Accept", ignoreCase = true) }) {
+            connection.setRequestProperty("Accept", "audio/*,*/*")
+        }
+        connection.connectTimeout = 15000
+        connection.readTimeout = 30000
+        return connection
+    }
+
+    private fun isPaused(id: Long): Boolean =
+        synchronized(records) { records[id]?.status == TrackDownloadStatus.Paused }
+
+    private fun downloadWorkDir(id: Long): File =
+        File(context.cacheDir, "track-downloads/$id")
+
+    private fun buildDownloadSegments(total: Long): List<DownloadSegment> {
+        val segmentCount = when {
+            total <= 0L -> 1
+            total < MIN_SEGMENTED_DOWNLOAD_BYTES * 2 -> 2
+            else -> SEGMENT_DOWNLOAD_CONCURRENCY
+        }
+        val segmentSize = ((total + segmentCount - 1) / segmentCount).coerceAtLeast(1L)
+        return (0 until segmentCount).mapNotNull { index ->
+            val start = index * segmentSize
+            if (start >= total) {
+                null
+            } else {
+                val end = min(start + segmentSize - 1, total - 1)
+                DownloadSegment(index, start, end)
+            }
+        }
+    }
+
+    private fun downloadedSegmentBytes(workDir: File, segments: List<DownloadSegment>): Long =
+        segments.sumOf { segment ->
+            segmentFile(workDir, segment.index).length().coerceIn(0L, segment.length)
+        }
+
+    private fun segmentFile(workDir: File, index: Int): File =
+        File(workDir, "part-$index")
 
     private fun createTargetUri(treeUri: Uri?, track: Track): Uri =
         if (treeUri != null) {
@@ -926,11 +1141,29 @@ class TrackDownloadManager @Inject constructor(
         val mimeType: String?
     )
 
+    private data class DownloadProbe(
+        val totalBytes: Long,
+        val acceptRanges: Boolean
+    )
+
+    private data class DownloadSegment(
+        val index: Int,
+        val start: Long,
+        val end: Long
+    ) {
+        val length: Long
+            get() = end - start + 1L
+    }
+
     companion object {
         private const val KEY_RECORDS = "records"
         private const val KEY_DIRECTORY = "directory"
         private const val KEY_CUSTOM_TREE_URI = "custom_tree_uri"
         private const val MAX_ARTWORK_BYTES = 10 * 1024 * 1024
+        private const val APP_DOWNLOAD_CONCURRENCY = 2
+        private const val SEGMENT_DOWNLOAD_CONCURRENCY = 4
+        private const val MIN_SEGMENTED_DOWNLOAD_BYTES = 3L * 1024L * 1024L
+        private const val SINGLE_PART_FILE_NAME = "track.part"
         private const val DEFAULT_USER_AGENT =
             "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Yukine/1.0"
         const val DOWNLOAD_DIRECTORY_MUSIC = "music"

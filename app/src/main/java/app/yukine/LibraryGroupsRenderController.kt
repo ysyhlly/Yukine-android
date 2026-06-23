@@ -6,18 +6,29 @@ import app.yukine.ui.LibraryGroupUiState
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListModeAction
+import app.yukine.ui.TrackListAlbumCardUiState
+import app.yukine.streaming.StreamingPlaybackAdapter
 import java.util.ArrayList
+import java.util.LinkedHashMap
+import java.util.Locale
+
+internal fun interface LibraryGroupsUiDispatcher {
+    fun dispatch(action: Runnable)
+}
 
 internal class LibraryGroupsRenderController(
     private val viewModel: LibraryViewModel,
     private val listener: Listener,
-    private val artistInfoRepository: ArtistInfoRepository = ArtistInfoRepository()
+    private val artistInfoRepository: ArtistInfoRepository = ArtistInfoRepository(),
+    private val uiDispatcher: LibraryGroupsUiDispatcher = LibraryGroupsUiDispatcher { action -> action.run() }
 ) {
-    constructor(viewModel: LibraryViewModel, listener: Listener) : this(
-        viewModel,
-        listener,
-        ArtistInfoRepository()
-    )
+    private val artistInfoCache = object : LinkedHashMap<String, ArtistInfo>(24, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ArtistInfo>?): Boolean = size > 24
+    }
+    private val artistInfoRequests = HashSet<String>()
+    private val artistPreviewRequests = HashSet<String>()
+    private var activeArtistInfoKey: String = ""
+    private var artistInfoRequestSerial = 0
 
     interface Listener {
         fun selectLibraryGroup(key: String, title: String)
@@ -42,7 +53,8 @@ internal class LibraryGroupsRenderController(
             title: String,
             tracks: ArrayList<Track>,
             headerMetrics: ArrayList<TrackListHeaderMetric>,
-            headerActions: ArrayList<TrackListHeaderAction>
+            headerActions: ArrayList<TrackListHeaderAction>,
+            footerAlbums: ArrayList<TrackListAlbumCardUiState> = ArrayList()
         )
     }
 
@@ -80,6 +92,9 @@ internal class LibraryGroupsRenderController(
             }
         }
 
+        activeArtistInfoKey = ""
+        artistInfoRequestSerial++
+        artistPreviewRequests.clear()
         listener.clearLibraryGroupSelection()
         val groupRows = ArrayList<LibraryGroupUiState>()
         val groupActions = ArrayList<LibraryGroupActions>()
@@ -134,9 +149,25 @@ internal class LibraryGroupsRenderController(
         tracks: ArrayList<Track>,
         libraryMode: String
     ) {
+        val cachedInfo = if (libraryMode == LibraryGrouping.ARTISTS) {
+            val lookupKey = artistInfoLookupKey(selectedLibraryGroupTitle)
+            activeArtistInfoKey = lookupKey
+            artistInfoCache[lookupKey]
+        } else {
+            activeArtistInfoKey = ""
+            null
+        }
         val headerMetrics = ArrayList<TrackListHeaderMetric>()
         if (libraryMode == LibraryGrouping.ARTISTS) {
-            headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "artist.info"), artistIntro(languageMode, selectedLibraryGroupTitle, tracks, null)))
+            headerMetrics.add(
+                TrackListHeaderMetric(
+                    AppLanguage.text(languageMode, "artist.info"),
+                    artistIntro(languageMode, selectedLibraryGroupTitle, tracks, cachedInfo)
+                )
+            )
+            if (cachedInfo != null) {
+                headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "data.source"), cachedInfo.source))
+            }
             headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "albums"), LibraryGrouping.albumCount(tracks).toString()))
             headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "songs"), tracks.size.toString()))
         } else {
@@ -153,9 +184,15 @@ internal class LibraryGroupsRenderController(
                 listener.playTrackList(tracks, 0)
             })
         )
-        listener.renderTrackList(selectedLibraryGroupTitle, tracks, headerMetrics, headerActions)
+        listener.renderTrackList(
+            selectedLibraryGroupTitle,
+            tracks,
+            headerMetrics,
+            headerActions,
+            artistAlbumCards(languageMode, cachedInfo)
+        )
         if (libraryMode == LibraryGrouping.ARTISTS) {
-            loadOnlineArtistInfo(languageMode, selectedLibraryGroupTitle, tracks, headerActions)
+            loadOnlineArtistInfo(languageMode, selectedLibraryGroupTitle, tracks, headerActions, cachedInfo)
         }
     }
 
@@ -163,21 +200,165 @@ internal class LibraryGroupsRenderController(
         languageMode: String,
         artist: String,
         tracks: ArrayList<Track>,
-        headerActions: ArrayList<TrackListHeaderAction>
+        headerActions: ArrayList<TrackListHeaderAction>,
+        cachedInfo: ArtistInfo?
     ) {
+        val lookupKey = artistInfoLookupKey(artist)
+        if (cachedInfo != null && !cachedInfo.preview) {
+            return
+        }
+        val requestSerial = ++artistInfoRequestSerial
+        if (cachedInfo?.preview == true) {
+            loadFullOnlineArtistInfo(languageMode, artist, tracks, headerActions, lookupKey, requestSerial)
+            return
+        }
+        loadOnlineArtistPreview(languageMode, artist, tracks, headerActions, lookupKey, requestSerial)
+    }
+
+    private fun loadFullOnlineArtistInfo(
+        languageMode: String,
+        artist: String,
+        tracks: ArrayList<Track>,
+        headerActions: ArrayList<TrackListHeaderAction>,
+        lookupKey: String,
+        requestSerial: Int
+    ) {
+        if (!artistInfoRequests.add(lookupKey)) {
+            return
+        }
         Thread {
             val info = runCatching { artistInfoRepository.loadArtistInfo(artist, tracks) }.getOrNull()
-            val headerMetrics = ArrayList<TrackListHeaderMetric>()
-            headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "artist.info"), artistIntro(languageMode, artist, tracks, info)))
-            headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "data.source"), info?.source ?: AppLanguage.text(languageMode, "online.info.not.found")))
-            headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "albums"), LibraryGrouping.albumCount(tracks).toString()))
-            headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "songs"), tracks.size.toString()))
-            listener.renderTrackList(artist, tracks, headerMetrics, headerActions)
+            uiDispatcher.dispatch(Runnable {
+                artistInfoRequests.remove(lookupKey)
+                if (info != null) {
+                    artistInfoCache[lookupKey] = info
+                }
+                if (activeArtistInfoKey != lookupKey || requestSerial != artistInfoRequestSerial) {
+                    return@Runnable
+                }
+                renderArtistTrackList(languageMode, artist, tracks, headerActions, info)
+            })
         }.apply {
             name = "ArtistInfo-$artist"
             isDaemon = true
             start()
         }
+    }
+
+    private fun loadOnlineArtistPreview(
+        languageMode: String,
+        artist: String,
+        tracks: ArrayList<Track>,
+        headerActions: ArrayList<TrackListHeaderAction>,
+        lookupKey: String,
+        requestSerial: Int
+    ) {
+        if (!artistPreviewRequests.add(lookupKey)) {
+            return
+        }
+        Thread {
+            val info = runCatching { artistInfoRepository.loadArtistInfoPreview(artist, tracks) }.getOrNull()
+            uiDispatcher.dispatch(Runnable {
+                artistPreviewRequests.remove(lookupKey)
+                if (info != null) {
+                    artistInfoCache[lookupKey] = info
+                }
+                if (info == null || activeArtistInfoKey != lookupKey || requestSerial != artistInfoRequestSerial) {
+                    if (info == null && activeArtistInfoKey == lookupKey && requestSerial == artistInfoRequestSerial) {
+                        loadFullOnlineArtistInfo(languageMode, artist, tracks, headerActions, lookupKey, requestSerial)
+                    }
+                    return@Runnable
+                }
+                renderArtistTrackList(languageMode, artist, tracks, headerActions, info)
+                loadFullOnlineArtistInfo(languageMode, artist, tracks, headerActions, lookupKey, requestSerial)
+            })
+        }.apply {
+            name = "ArtistPreview-$artist"
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun renderArtistTrackList(
+        languageMode: String,
+        artist: String,
+        tracks: ArrayList<Track>,
+        headerActions: ArrayList<TrackListHeaderAction>,
+        info: ArtistInfo?
+    ) {
+        val headerMetrics = ArrayList<TrackListHeaderMetric>()
+        headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "artist.info"), artistIntro(languageMode, artist, tracks, info)))
+        headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "data.source"), info?.source ?: AppLanguage.text(languageMode, "online.info.not.found")))
+        headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "albums"), LibraryGrouping.albumCount(tracks).toString()))
+        headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "songs"), tracks.size.toString()))
+        listener.renderTrackList(artist, tracks, headerMetrics, headerActions, artistAlbumCards(languageMode, info))
+    }
+
+    private fun artistInfoLookupKey(artist: String): String =
+        artist.trim().lowercase(Locale.ROOT)
+
+    private fun artistAlbumCards(languageMode: String, info: ArtistInfo?): ArrayList<TrackListAlbumCardUiState> {
+        val cards = ArrayList<TrackListAlbumCardUiState>()
+        info?.albums.orEmpty().forEach { album ->
+            cards.add(
+                TrackListAlbumCardUiState(
+                    title = album.title,
+                    subtitle = albumSubtitle(languageMode, album),
+                    coverUri = album.coverUrl?.takeIf { it.isNotBlank() }?.let(android.net.Uri::parse),
+                    onClick = Runnable {
+                        playOnlineArtistAlbum(album)
+                    }
+                )
+            )
+        }
+        return cards
+    }
+
+    private fun playOnlineArtistAlbum(album: ArtistAlbumInfo) {
+        val immediateTracks = album.tracks.map(StreamingPlaybackAdapter::placeholderTrack)
+        if (immediateTracks.isNotEmpty()) {
+            listener.playTrackList(immediateTracks, 0)
+            return
+        }
+        Thread {
+            val tracks = runCatching { artistInfoRepository.loadAlbumTracks(album) }
+                .getOrDefault(emptyList())
+                .map(StreamingPlaybackAdapter::placeholderTrack)
+            if (tracks.isEmpty()) {
+                return@Thread
+            }
+            uiDispatcher.dispatch(Runnable {
+                listener.playTrackList(tracks, 0)
+            })
+        }.apply {
+            name = "ArtistAlbum-${album.providerAlbumId}"
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun albumSubtitle(languageMode: String, album: ArtistAlbumInfo): String {
+        val count = album.trackCount
+        return if (AppLanguage.MODE_ENGLISH == languageMode) {
+            listOf(
+                album.artist,
+                count?.let { "$it tracks" }.orEmpty(),
+                providerLabel(album.provider)
+            ).filter { it.isNotBlank() }.joinToString(" - ")
+        } else {
+            listOf(
+                album.artist,
+                count?.let { "$it 首" }.orEmpty(),
+                providerLabel(album.provider)
+            ).filter { it.isNotBlank() }.joinToString(" - ")
+        }
+    }
+
+    private fun providerLabel(provider: app.yukine.streaming.StreamingProviderName): String = when (provider) {
+        app.yukine.streaming.StreamingProviderName.NETEASE -> "网易云音乐"
+        app.yukine.streaming.StreamingProviderName.QQ_MUSIC -> "QQ音乐"
+        app.yukine.streaming.StreamingProviderName.LUOXUE -> "洛雪音源"
+        else -> provider.wireName
     }
 
     private fun artistIntro(languageMode: String, artist: String, tracks: List<Track>, onlineInfo: ArtistInfo?): String {

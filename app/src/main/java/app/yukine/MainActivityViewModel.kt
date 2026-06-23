@@ -26,6 +26,7 @@ import app.yukine.streaming.StreamingTrack
 import app.yukine.ui.LibraryGroupUiState
 import app.yukine.ui.NetworkSourceUiState
 import app.yukine.ui.QueueTrackUiState
+import app.yukine.ui.TrackListAlbumCardUiState
 import app.yukine.ui.TrackRowUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -65,7 +66,8 @@ data class MainActivityLibraryState(
 
 data class MainActivityTrackListUiState(
     val title: String = "",
-    val rows: List<TrackRowUiState> = emptyList()
+    val rows: List<TrackRowUiState> = emptyList(),
+    val footerAlbums: List<TrackListAlbumCardUiState> = emptyList()
 )
 
 data class MainActivityLibraryGroupsUiState(

@@ -94,6 +94,12 @@ data class TrackRowActions(
 data class TrackListHeaderMetric(val label: String, val value: String)
 data class TrackListHeaderAction(val label: String, val onClick: Runnable)
 data class TrackListModeAction(val label: String, val mode: String, val selected: Boolean, val onClick: Runnable)
+data class TrackListAlbumCardUiState(
+    val title: String,
+    val subtitle: String,
+    val coverUri: Uri?,
+    val onClick: Runnable
+)
 data class TrackListLabels(
     val favoriteLabel: String = "Favorite",
     val removeFavoriteLabel: String = "Remove favorite",
@@ -115,7 +121,8 @@ internal fun TrackListScreen(
     onSearch: Runnable = Runnable { },
     activeDownload: TrackDownloadItem? = null,
     playbackQuality: String = "",
-    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
+    footerAlbums: List<TrackListAlbumCardUiState> = emptyList()
 ) {
     val p = EchoTheme.colors()
     val titleBackAction = headerActions.firstOrNull { isBackAction(it.label) }
@@ -144,7 +151,7 @@ internal fun TrackListScreen(
                 items = headerMetrics,
                 key = { index, metric -> "metric:${metric.label}:$index" }
             ) { _, metric ->
-                if (metric.label == "歌手介绍") {
+                if (metric.label == "歌手介绍" || metric.label == "Artist info") {
                     ArtistIntroRow(metric.value)
                 } else {
                     HeaderMetricRow(metric)
@@ -167,6 +174,17 @@ internal fun TrackListScreen(
             if (tracks.isEmpty() && emptyText.isNotBlank()) {
                 item(key = "empty") {
                     HeaderMessageRow(emptyText)
+                }
+            }
+            if (footerAlbums.isNotEmpty()) {
+                item(key = "artistAlbumsTitle") {
+                    FooterAlbumsTitle()
+                }
+                itemsIndexed(
+                    items = footerAlbums,
+                    key = { index, album -> "artistAlbum:${album.title}:$index" }
+                ) { index, album ->
+                    FooterAlbumCard(album, Modifier.echoEnter(index.coerceAtMost(8)))
                 }
             }
         }
@@ -216,6 +234,69 @@ private fun ArtistIntroRow(intro: String) {
                 color = p.muted,
                 lineHeight = 21.sp
             )
+        }
+    }
+}
+
+@Composable
+private fun FooterAlbumsTitle() {
+    val p = EchoTheme.colors()
+    Text(
+        "全部专辑",
+        style = EchoTypography.title,
+        color = p.text,
+        modifier = Modifier.padding(top = 12.dp, bottom = 2.dp)
+    )
+}
+
+@Composable
+private fun FooterAlbumCard(album: TrackListAlbumCardUiState, modifier: Modifier = Modifier) {
+    val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
+    Surface(
+        onClick = { album.onClick.run() },
+        interactionSource = interaction,
+        modifier = Modifier
+            .then(modifier)
+            .fillMaxWidth()
+            .echoPressScale(interaction)
+            .echoGlassLayer(p, EchoShapes.medium),
+        shape = EchoShapes.medium,
+        color = Color.Transparent
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncArtwork(
+                uri = album.coverUri,
+                title = album.title,
+                subtitle = album.subtitle,
+                modifier = Modifier.size(58.dp),
+                cornerRadius = 8.dp,
+                fallbackTextSize = 17.sp,
+                targetSize = 58.dp,
+                backgroundColor = p.surfaceVariant,
+                fallbackResId = R.drawable.ic_stat_echo
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    album.title,
+                    style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = p.text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    album.subtitle,
+                    style = EchoTypography.caption,
+                    color = p.muted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            EchoIcon(EchoIconKind.Play, Modifier.size(20.dp), p.accent)
         }
     }
 }

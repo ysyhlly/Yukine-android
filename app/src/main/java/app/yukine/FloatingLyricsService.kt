@@ -17,6 +17,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
+import androidx.core.content.res.ResourcesCompat
 import app.yukine.ui.LyricUiLine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -189,7 +190,8 @@ class FloatingLyricsService : Service() {
             gravity = android.view.Gravity.CENTER
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
-            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+            typeface = ResourcesCompat.getFont(this@FloatingLyricsService, R.font.noto_sans_cjk_sc_regular)
+                ?: android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
         }
 
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)

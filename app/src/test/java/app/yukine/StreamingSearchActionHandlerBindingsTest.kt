@@ -37,7 +37,7 @@ class StreamingSearchActionHandlerBindingsTest {
     }
 
     @Test
-    fun searchUnsupportedProviderUsesStreamingViewModelState() {
+    fun searchWithoutSearchableProviderReportsNoSearchableSource() {
         val streamingViewModel = StreamingViewModel()
         val bindings = StreamingSearchActionHandlerBindings(streamingViewModel, FakeGateway())
         streamingViewModel.updateStreamingProviders(
@@ -55,7 +55,29 @@ class StreamingSearchActionHandlerBindingsTest {
         )
 
         bindings.search("echo")
-        assertTrue(streamingViewModel.streaming.value.errorMessage?.contains("NetEase") == true)
+        assertTrue(streamingViewModel.streaming.value.errorMessage?.contains("可搜索") == true)
+    }
+
+    @Test
+    fun searchQueriesAllSearchableProviders() {
+        val netease = FakeProvider(StreamingProviderName.NETEASE, searchTrackId = "netease-song")
+        val qq = FakeProvider(StreamingProviderName.QQ_MUSIC, searchTrackId = "qq-song")
+        val streamingViewModel = StreamingViewModel()
+        streamingViewModel.bindStreamingRepository(repository(netease, qq))
+        val bindings = StreamingSearchActionHandlerBindings(streamingViewModel, FakeGateway())
+        streamingViewModel.updateStreamingProviders(
+            providers = listOf(netease.descriptor, qq.descriptor)
+        )
+
+        bindings.search("echo")
+        waitUntil { streamingViewModel.streaming.value.searchResult?.tracks?.size == 2 }
+
+        assertEquals(listOf("echo"), netease.searchRequests.map { it.query })
+        assertEquals(listOf("echo"), qq.searchRequests.map { it.query })
+        assertEquals(
+            setOf(StreamingProviderName.NETEASE, StreamingProviderName.QQ_MUSIC),
+            streamingViewModel.streaming.value.searchResult?.tracks?.map { it.provider }?.toSet()
+        )
     }
 
     @Test
@@ -179,6 +201,7 @@ class StreamingSearchActionHandlerBindingsTest {
     ) : MainActivityStreamingActionGateway {
         val playedTrackIds = ArrayList<Long>()
         val launchedUrls = ArrayList<String>()
+        val manualCookieProviders = ArrayList<StreamingProviderName>()
         var quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS
 
         override fun streamingPlaybackQuality(): StreamingAudioQuality = quality
@@ -195,9 +218,17 @@ class StreamingSearchActionHandlerBindingsTest {
         }
 
         override fun onStreamingLoginSuccess(provider: StreamingProviderName) = Unit
+
+        override fun openManualCookieImport(provider: StreamingProviderName) {
+            manualCookieProviders += provider
+        }
     }
 
-    private class FakeProvider(provider: StreamingProviderName) : StreamingProvider {
+    private class FakeProvider(
+        provider: StreamingProviderName,
+        private val searchTrackId: String = ""
+    ) : StreamingProvider {
+        val searchRequests = mutableListOf<StreamingSearchRequest>()
         val playbackRequests = mutableListOf<StreamingPlaybackRequest>()
 
         override val descriptor: StreamingProviderDescriptor =
@@ -211,13 +242,25 @@ class StreamingSearchActionHandlerBindingsTest {
                 )
             )
 
-        override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult =
-            StreamingSearchResult(
+        override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult {
+            searchRequests += request
+            return StreamingSearchResult(
                 provider = descriptor.name,
                 query = request.query,
                 page = request.page,
-                pageSize = request.pageSize
+                pageSize = request.pageSize,
+                tracks = searchTrackId.takeIf { it.isNotBlank() }?.let {
+                    listOf(
+                        app.yukine.streaming.StreamingTrack(
+                            provider = descriptor.name,
+                            providerTrackId = it,
+                            title = "Song $it",
+                            artist = "Artist"
+                        )
+                    )
+                }.orEmpty()
             )
+        }
 
         override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource {
             playbackRequests += request
@@ -229,8 +272,8 @@ class StreamingSearchActionHandlerBindingsTest {
         }
     }
 
-    private fun repository(provider: StreamingProvider): StreamingRepository =
-        StreamingRepository(RegistryStreamingGateway(StreamingProviderRegistry(listOf(provider))))
+    private fun repository(vararg providers: StreamingProvider): StreamingRepository =
+        StreamingRepository(RegistryStreamingGateway(StreamingProviderRegistry(providers.toList())))
 
     private fun waitUntil(condition: () -> Boolean) {
         val deadline = System.currentTimeMillis() + 1_000L

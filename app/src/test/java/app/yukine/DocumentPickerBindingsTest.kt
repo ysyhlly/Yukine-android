@@ -20,12 +20,14 @@ class DocumentPickerBindingsTest {
         val streamM3uUri = Uri.parse("content://playlist/stream")
         val exportUri = Uri.parse("content://playlist/export")
         val playlistM3uUri = Uri.parse("content://playlist/local")
+        val luoxueUri = Uri.parse("content://source/lx.js")
         var capturedAudioUris: ArrayList<Uri>? = null
         var capturedFolderUri: Uri? = null
         var capturedDownloadFolderUri: Uri? = null
         var capturedStreamM3uUri: Uri? = null
         var capturedExportUri: Uri? = null
         var capturedPlaylistM3uUri: Uri? = null
+        var capturedLuoxueUris: ArrayList<Uri>? = null
         val bindings = DocumentPickerBindings(
             importAudioUrisAction = DocumentAudioUrisImportAction { uris ->
                 capturedAudioUris = uris
@@ -50,6 +52,10 @@ class DocumentPickerBindingsTest {
             importPlaylistM3uAction = DocumentUriAction {
                 capturedPlaylistM3uUri = it
                 calls += "playlist"
+            },
+            importLuoxueSourceUrisAction = DocumentAudioUrisImportAction { uris ->
+                capturedLuoxueUris = uris
+                calls += "lx"
             }
         )
 
@@ -59,6 +65,7 @@ class DocumentPickerBindingsTest {
         bindings.importStreamM3u(streamM3uUri)
         bindings.exportPlaylist(exportUri)
         bindings.importPlaylistM3u(playlistM3uUri)
+        bindings.importLuoxueSourceUris(arrayListOf(luoxueUri))
 
         assertEquals(
             listOf(
@@ -67,7 +74,8 @@ class DocumentPickerBindingsTest {
                 "downloadFolder",
                 "stream",
                 "export",
-                "playlist"
+                "playlist",
+                "lx"
             ),
             calls
         )
@@ -77,5 +85,6 @@ class DocumentPickerBindingsTest {
         assertSame(streamM3uUri, capturedStreamM3uUri)
         assertSame(exportUri, capturedExportUri)
         assertSame(playlistM3uUri, capturedPlaylistM3uUri)
+        assertEquals(arrayListOf(luoxueUri), capturedLuoxueUris)
     }
 }

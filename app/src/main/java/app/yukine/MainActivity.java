@@ -25,6 +25,9 @@ import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
 import app.yukine.playback.EchoPlaybackService;
 import app.yukine.playback.PlaybackStateSnapshot;
+import app.yukine.streaming.LuoxueImportedSource;
+import app.yukine.streaming.LuoxueSourceImporter;
+import app.yukine.streaming.LuoxueSourceStore;
 import app.yukine.streaming.StreamingAudioQuality;
 import app.yukine.streaming.StreamingPlaylist;
 import app.yukine.streaming.StreamingProviderName;
@@ -33,6 +36,7 @@ import app.yukine.ui.EchoTheme;
 import app.yukine.ui.LibraryGroupActions;
 import app.yukine.ui.LibraryGroupUiState;
 import app.yukine.ui.LyricUiLine;
+import app.yukine.ui.TrackListAlbumCardUiState;
 import app.yukine.ui.TrackListHeaderAction;
 import app.yukine.ui.TrackListHeaderMetric;
 import app.yukine.ui.TrackListLabels;
@@ -89,6 +93,8 @@ public final class MainActivity extends ComponentActivity {
 
     @Inject
     NativeMusicShareManager nativeMusicShareManager;
+
+    private LuoxueSourceStore luoxueSourceStore;
 
     private MainActivityViewModel viewModel;
     private NavigationViewModel navigationViewModel;
@@ -157,6 +163,7 @@ public final class MainActivity extends ComponentActivity {
     private EchoPlaybackService playbackService;
     private List<Track> pendingPlaybackTracks = Collections.emptyList();
     private int pendingPlaybackIndex = -1;
+    private int unifiedStreamingPlaybackRequestId = 0;
     private boolean scrollContentToTopOnNextRender;
     private boolean onboardingVisible;
     private app.yukine.ui.HomeDashboardActions navHomeActions = emptyHomeDashboardActions();
@@ -235,7 +242,8 @@ public final class MainActivity extends ComponentActivity {
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 launch -> StreamingAuthLauncher.INSTANCE.launch(MainActivity.this, launch),
                 this::playTrackListFromHost,
-                provider -> streamingPlaylistController.onStreamingLoginSuccess(provider)
+                provider -> streamingPlaylistController.onStreamingLoginSuccess(provider),
+                this::openManualStreamingCookieImport
         );
         streamingViewModel.bindStreamingPlaybackCoordinator(
                 resolveStreamingPlaybackUseCase,
@@ -348,8 +356,10 @@ public final class MainActivity extends ComponentActivity {
                 this::setCustomDownloadFolder,
                 this::importSelectedM3uFile,
                 exportUri -> playlistExportController.exportSelectedPlaylistToUri(exportUri),
-                this::importSelectedPlaylistM3uFile
+                this::importSelectedPlaylistM3uFile,
+                this::importSelectedLuoxueSourceUris
         ));
+        luoxueSourceStore = new LuoxueSourceStore(this);
         playlistExportController = new PlaylistExportController(new PlaylistExportBindings(
                 () -> settingsStore.languageMode(),
                 playlistName -> documentPickerController.openPlaylistExportDocument(playlistName),
@@ -607,6 +617,7 @@ public final class MainActivity extends ComponentActivity {
                 () -> routeController.selectedPlaylistId(),
                 playlistId -> routeController.setSelectedPlaylistId(playlistId),
                 this::loadCollections,
+                this::refreshLibraryAfterStreamingImport,
                 this::selectedPlaylistName,
                 () -> libraryStore.selectedPlaylistTracks(),
                 () -> libraryStore.favoriteTracks(),
@@ -662,7 +673,7 @@ public final class MainActivity extends ComponentActivity {
                 this::confirmDeleteTracks,
                 this::publishLibraryGroupsChromeState,
                 this::renderLibraryGroupTrackList
-        ));
+        ), new ArtistInfoRepository(), action -> mainHandler.post(action));
         libraryPlaylistsRenderController = new LibraryPlaylistsRenderController(libraryViewModel, new LibraryPlaylistsRenderBindings(
                 this::handleLibraryEvent,
                 this::confirmDeletePlaylist,
@@ -1161,7 +1172,10 @@ public final class MainActivity extends ComponentActivity {
                 false,
                 request.getHeaderMetrics(),
                 request.getHeaderActions(),
-                ""
+                "",
+                new ArrayList<TrackListModeAction>(),
+                new TrackListLabels(),
+                request.getFooterAlbums()
         );
     }
 
@@ -1503,6 +1517,100 @@ public final class MainActivity extends ComponentActivity {
         documentPickerController.openPlaylistM3uFilePicker();
     }
 
+    private void openLuoxueSourceFilePicker() {
+        if (documentPickerController == null) {
+            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.lx.import.failed"));
+            return;
+        }
+        documentPickerController.openLuoxueSourceFilePicker();
+    }
+
+    private void importSelectedLuoxueSourceUris(final List<Uri> uris) {
+        if (uris == null || uris.isEmpty()) {
+            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.lx.source.none"));
+            return;
+        }
+        setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.lx.importing"));
+        executors.io(() -> {
+            final ArrayList<LuoxueImportedSource> parsed = new ArrayList<>();
+            int failed = 0;
+            for (Uri uri : uris) {
+                M3uDocumentHelper.ReadResult read = M3uDocumentHelper.readText(getContentResolver(), uri);
+                if (read == null || !read.success) {
+                    failed++;
+                    continue;
+                }
+                parsed.addAll(LuoxueSourceImporter.INSTANCE.parseMany(read.text, uri.toString()));
+            }
+            final int failedCount = failed;
+            mainHandler.post(() -> saveImportedLuoxueSources(parsed, failedCount));
+        });
+    }
+
+    private void showLuoxueSourceUrlDialog() {
+        final android.widget.EditText input = new android.widget.EditText(this);
+        input.setSingleLine(false);
+        input.setMinLines(2);
+        input.setMaxLines(5);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                | android.text.InputType.TYPE_TEXT_VARIATION_URI
+                | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        input.setHint(AppLanguage.text(settingsStore.languageMode(), "streaming.lx.source.url.hint"));
+        input.setTextColor(EchoTheme.textArgb(this));
+        input.setHintTextColor(EchoTheme.mutedArgb(this));
+        int pad = Math.round(12 * getResources().getDisplayMetrics().density);
+        input.setPadding(pad, pad, pad, pad);
+        EchoDialog.builder(this)
+                .setTitle(AppLanguage.text(settingsStore.languageMode(), "streaming.lx.source.url"))
+                .setView(input)
+                .setNegativeButton(AppLanguage.text(settingsStore.languageMode(), "cancel"), null)
+                .setPositiveButton(AppLanguage.text(settingsStore.languageMode(), "ok"), (dialog, which) ->
+                        importLuoxueSourcesFromUrls(input.getText().toString()))
+                .show();
+    }
+
+    private void importLuoxueSourcesFromUrls(final String rawUrls) {
+        final List<String> urls = LuoxueSourceImporter.INSTANCE.urlLines(rawUrls);
+        if (urls.isEmpty()) {
+            setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.lx.source.url.empty"));
+            return;
+        }
+        setStatus(AppLanguage.text(settingsStore.languageMode(), "streaming.lx.importing"));
+        executors.network(() -> {
+            final ArrayList<LuoxueImportedSource> parsed = new ArrayList<>();
+            int failed = 0;
+            for (String url : urls) {
+                try {
+                    String script = LuoxueSourceImporter.INSTANCE.fetchUrl(url);
+                    parsed.addAll(LuoxueSourceImporter.INSTANCE.parseMany(script, url));
+                } catch (Exception error) {
+                    failed++;
+                }
+            }
+            final int failedCount = failed;
+            mainHandler.post(() -> saveImportedLuoxueSources(parsed, failedCount));
+        });
+    }
+
+    private void saveImportedLuoxueSources(final List<LuoxueImportedSource> sources, final int failedCount) {
+        final List<LuoxueImportedSource> cleanSources = sources == null ? Collections.emptyList() : sources;
+        int imported = 0;
+        if (luoxueSourceStore != null && !cleanSources.isEmpty()) {
+            imported = luoxueSourceStore.saveAll(cleanSources);
+        }
+        String status = AppLanguage.text(settingsStore.languageMode(), "streaming.lx.source.imported") + imported;
+        if (failedCount > 0) {
+            status += "\uff0c" + AppLanguage.text(settingsStore.languageMode(), "streaming.lx.source.failed") + failedCount;
+        }
+        if (imported == 0 && failedCount == 0) {
+            status = AppLanguage.text(settingsStore.languageMode(), "streaming.lx.source.none");
+        }
+        setStatus(status);
+        streamingGatewayEventController.refreshStreamingProviders();
+        renderSelectedTab();
+    }
+
     private void importSelectedAudioUris(final List<Uri> uris) {
         if (uris.isEmpty()) {
             setStatus(AppLanguage.text(settingsStore.languageMode(), "no.audio.files.selected"));
@@ -1582,6 +1690,10 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
+    private void refreshLibraryAfterStreamingImport() {
+        loadLibrary(true);
+    }
+
     private void openCollectionsFromHome() {
         routeController.navigateToTab(TAB_COLLECTIONS, true);
         renderCollections();
@@ -1631,6 +1743,7 @@ public final class MainActivity extends ComponentActivity {
         if (streamingViewModel != null) {
             streamingViewModel.clearStreamingSearchSession();
         }
+        unifiedStreamingPlaybackRequestId++;
         if (libraryStore != null) {
             libraryStore.applySearch("");
         }
@@ -1652,6 +1765,7 @@ public final class MainActivity extends ComponentActivity {
             showActionFeedback(reason == null || reason.trim().isEmpty() ? "\u8be5\u5728\u7ebf\u6b4c\u66f2\u6682\u4e0d\u53ef\u64ad\u653e" : reason);
             return;
         }
+        final int requestId = ++unifiedStreamingPlaybackRequestId;
         showActionFeedback("\u6b63\u5728\u89e3\u6790\u5728\u7ebf\u6b4c\u66f2\uff1a" + track.getTitle());
         streamingViewModel.resolveStreamingTrackForPlayback(
                 track.getProvider(),
@@ -1659,6 +1773,9 @@ public final class MainActivity extends ComponentActivity {
                 track,
                 selectedStreamingQuality(),
                 resolved -> {
+                    if (requestId != unifiedStreamingPlaybackRequestId) {
+                        return;
+                    }
                     if (resolved == null) {
                         showActionFeedback("\u5728\u7ebf\u6b4c\u66f2\u89e3\u6790\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5");
                         return;
@@ -2147,6 +2264,34 @@ public final class MainActivity extends ComponentActivity {
             List<TrackListModeAction> modeActions,
             TrackListLabels labels
     ) {
+        renderComposeTrackList(
+                title,
+                tracks,
+                showPlaylistAction,
+                details,
+                showStreamActions,
+                headerMetrics,
+                headerActions,
+                emptyText,
+                modeActions,
+                labels,
+                new ArrayList<TrackListAlbumCardUiState>()
+        );
+    }
+
+    private void renderComposeTrackList(
+            String title,
+            final List<Track> tracks,
+            boolean showPlaylistAction,
+            List<String> details,
+            boolean showStreamActions,
+            List<TrackListHeaderMetric> headerMetrics,
+            List<TrackListHeaderAction> headerActions,
+            String emptyText,
+            List<TrackListModeAction> modeActions,
+            TrackListLabels labels,
+            List<TrackListAlbumCardUiState> footerAlbums
+    ) {
         trackListRenderController.render(
                 title,
                 tracks,
@@ -2159,7 +2304,8 @@ public final class MainActivity extends ComponentActivity {
                 modeActions,
                 labels,
                 playbackStore.snapshot(),
-                libraryStore.favoriteIds()
+                libraryStore.favoriteIds(),
+                footerAlbums
         );
     }
 
@@ -2589,6 +2735,10 @@ public final class MainActivity extends ComponentActivity {
     // ---- Import a streaming playlist INTO the local library ----
 
     private void showImportStreamingPlaylistDialog() {
+        if (streamingViewModel.getStreaming().getValue().getSelectedProvider() == StreamingProviderName.LUOXUE) {
+            showLuoxueSourceImportDialog();
+            return;
+        }
         StreamingPlaylistImportDialogState dialogState =
                 streamingViewModel.prepareStreamingPlaylistImportDialogState(settingsStore.languageMode());
         final android.widget.EditText input = new android.widget.EditText(this);
@@ -2627,6 +2777,32 @@ public final class MainActivity extends ComponentActivity {
                 .setPositiveButton(AppLanguage.text(settingsStore.languageMode(), "ok"), (dialog, which) ->
                         streamingManualCookieController.saveStreamingCookie(dialogState.getProvider(), input.getText().toString()))
                 .show();
+    }
+
+    private void showLuoxueSourceImportDialog() {
+        String[] actions = new String[]{
+                AppLanguage.text(settingsStore.languageMode(), "streaming.lx.source.file"),
+                AppLanguage.text(settingsStore.languageMode(), "streaming.lx.source.url")
+        };
+        EchoDialog.builder(this)
+                .setTitle(AppLanguage.text(settingsStore.languageMode(), "streaming.lx.import.source"))
+                .setItems(actions, (dialog, which) -> {
+                    if (which == 0) {
+                        openLuoxueSourceFilePicker();
+                    } else {
+                        showLuoxueSourceUrlDialog();
+                    }
+                })
+                .setNegativeButton(AppLanguage.text(settingsStore.languageMode(), "cancel"), null)
+                .show();
+    }
+
+    private void openManualStreamingCookieImport(final StreamingProviderName provider) {
+        streamingViewModel.selectStreamingProvider(provider);
+        if (streamingManualCookieController == null) {
+            return;
+        }
+        streamingManualCookieController.showStreamingCookieDialog();
     }
 
     private void showStreamingPlaylistLoadedDialog(String message) {

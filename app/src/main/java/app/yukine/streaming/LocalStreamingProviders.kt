@@ -79,19 +79,28 @@ class LocalQqMusicStreamingProvider(
 }
 
 class LocalLuoxueStreamingProvider(
-    private val client: LocalLuoxueStreamingClient = LocalLuoxueStreamingClient()
+    private val client: LocalLuoxueStreamingClient = LocalLuoxueStreamingClient(),
+    private val sourceStore: LuoxueSourceStore? = null
 ) : StreamingProvider {
     override val descriptor: StreamingProviderDescriptor
-        get() = StreamingProviderCatalog.localFirstDescriptor(StreamingProviderName.LUOXUE)
-            .copy(
+        get() {
+            val sources = sourceStore?.load().orEmpty()
+            val sourceStatus = if (sources.isNotEmpty()) {
+                "已导入 ${sources.size} 个 LX JS 音源：" + sources.take(3).joinToString("、") { it.name }
+            } else {
+                "可选择本地 JS 文件或网络链接导入 LX 音源；内置 kw/kg/wy/tx 子源仍可用"
+            }
+            return StreamingProviderCatalog.localFirstDescriptor(StreamingProviderName.LUOXUE)
+                .copy(
                 auth = StreamingAuthState(
                     kind = StreamingAuthKind.NONE,
                     connected = false,
-                    statusMessage = "无需登录，支持 LX 的 kw/kg 子源；wy/tx 会复用网易云/QQ 登录"
+                    statusMessage = sourceStatus
                 ),
                 status = StreamingProviderStatus.READY,
-                statusMessage = "按 LX Music 方式支持 kw/kg/wy/tx 子源搜索、播放和歌单导入"
+                statusMessage = sourceStatus
             )
+        }
 
     override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult = client.search(request)
 
@@ -150,14 +159,15 @@ class LocalStreamingProviderRegistry(
     private val luoxueClient: LocalLuoxueStreamingClient = LocalLuoxueStreamingClient(
         neteaseClient = neteaseClient,
         qqMusicClient = qqMusicClient
-    )
+    ),
+    private val luoxueSourceStore: LuoxueSourceStore? = null
 ) {
     private val providersByName: Map<StreamingProviderName, StreamingProvider> =
         StreamingProviderCatalog.localFirstDescriptors().associate { descriptor ->
             val provider = when (descriptor.name) {
                 StreamingProviderName.NETEASE -> LocalNeteaseStreamingProvider(neteaseClient, authStore)
                 StreamingProviderName.QQ_MUSIC -> LocalQqMusicStreamingProvider(qqMusicClient, authStore)
-                StreamingProviderName.LUOXUE -> LocalLuoxueStreamingProvider(luoxueClient)
+                StreamingProviderName.LUOXUE -> LocalLuoxueStreamingProvider(luoxueClient, luoxueSourceStore)
                 else -> LocalUnsupportedStreamingProvider(descriptor)
             }
             descriptor.name to provider

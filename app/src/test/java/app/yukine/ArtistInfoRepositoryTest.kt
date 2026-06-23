@@ -63,4 +63,46 @@ class ArtistInfoRepositoryTest {
         assertTrue(info?.artist.orEmpty().contains("周杰伦"))
         assertTrue(info?.summary.orEmpty().contains("华语流行乐男歌手"))
     }
+
+    @Test
+    fun triesNextNeteaseArtistCandidateWhenFirstMatchHasNoIntro() {
+        val urls = ArrayList<String>()
+        val repository = ArtistInfoRepository(
+            textFetcher = { url ->
+                urls += url
+                when {
+                    url.contains("api/cloudsearch/pc") -> """
+                        {
+                          "result": {
+                            "artists": [
+                              {"id":17679,"name":"しほ","alias":["shiho"]},
+                              {"id":54970759,"name":"にほしか","alias":["しほ"]}
+                            ]
+                          }
+                        }
+                    """.trimIndent()
+                    url.contains("artist/head/info/get?id=17679") -> """
+                        {"code":200,"data":{"artist":{"id":17679,"name":"しほ","briefDesc":""}}}
+                    """.trimIndent()
+                    url.contains("artist/introduction?id=17679") -> """
+                        {"code":200,"introduction":[],"briefDesc":"","count":0}
+                    """.trimIndent()
+                    url.contains("artist/head/info/get?id=54970759") -> """
+                        {"code":200,"data":{"artist":{"id":54970759,"name":"にほしか","briefDesc":"にほしか，日本歌手，发布有云音乐热门歌曲。"}}}
+                    """.trimIndent()
+                    url.contains("artist/introduction?id=54970759") -> """
+                        {"code":200,"introduction":[],"briefDesc":"","count":0}
+                    """.trimIndent()
+                    else -> error("Unexpected URL $url")
+                }
+            }
+        )
+
+        val info = repository.loadArtistInfo("しほ")
+
+        assertEquals("网易云音乐", info?.source)
+        assertEquals("にほしか", info?.artist)
+        assertTrue(info?.summary.orEmpty().contains("日本歌手"))
+        assertTrue(urls.any { it.contains("artist/head/info/get?id=54970759") })
+    }
 }

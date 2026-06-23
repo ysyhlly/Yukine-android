@@ -75,58 +75,58 @@ val LocalEchoPalette = staticCompositionLocalOf<EchoPalette?> { null }
 // ── Typography scale ────────────────────────────────────────────────────────
 
 object EchoTypography {
-    private val outfit = FontFamily(
-        Font(R.font.outfit, FontWeight.Normal),
-        Font(R.font.outfit, FontWeight.Medium),
-        Font(R.font.outfit, FontWeight.SemiBold),
-        Font(R.font.outfit, FontWeight.Bold)
+    private val yukineCjk = FontFamily(
+        Font(R.font.noto_sans_cjk_sc_regular, FontWeight.Normal),
+        Font(R.font.noto_sans_cjk_sc_regular, FontWeight.Medium),
+        Font(R.font.noto_sans_cjk_sc_regular, FontWeight.SemiBold),
+        Font(R.font.noto_sans_cjk_sc_regular, FontWeight.Bold)
     )
 
     val display = TextStyle(
-        fontFamily = outfit,
+        fontFamily = yukineCjk,
         fontWeight = FontWeight.Bold,
         fontSize = 28.sp,
         lineHeight = 34.sp,
         letterSpacing = 0.sp
     )
     val headline = TextStyle(
-        fontFamily = outfit,
+        fontFamily = yukineCjk,
         fontWeight = FontWeight.Bold,
         fontSize = 22.sp,
         lineHeight = 28.sp
     )
     val title = TextStyle(
-        fontFamily = outfit,
+        fontFamily = yukineCjk,
         fontWeight = FontWeight.SemiBold,
         fontSize = 17.sp,
         lineHeight = 22.sp
     )
     val body = TextStyle(
-        fontFamily = outfit,
+        fontFamily = yukineCjk,
         fontWeight = FontWeight.Normal,
         fontSize = 15.sp,
         lineHeight = 21.sp
     )
     val bodyMedium = TextStyle(
-        fontFamily = outfit,
+        fontFamily = yukineCjk,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 20.sp
     )
     val label = TextStyle(
-        fontFamily = outfit,
+        fontFamily = yukineCjk,
         fontWeight = FontWeight.SemiBold,
         fontSize = 13.sp,
         lineHeight = 18.sp
     )
     val caption = TextStyle(
-        fontFamily = outfit,
+        fontFamily = yukineCjk,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 16.sp
     )
     val small = TextStyle(
-        fontFamily = outfit,
+        fontFamily = yukineCjk,
         fontWeight = FontWeight.Normal,
         fontSize = 11.sp,
         lineHeight = 14.sp

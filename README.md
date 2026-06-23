@@ -62,6 +62,17 @@ flowchart TD
 
 ## 功能矩阵
 
+## 最新更新
+
+- 搜索页升级为本地 + 多音源聚合搜索：一次搜索会并发查询所有已启用且支持搜索的在线音源，结果按音源和歌曲 ID 去重，点击歌曲仍按对应 provider 播放。
+- 下载管理增强：应用内下载支持断点续传、暂停后保留缓存、继续下载不再清零进度；支持 HTTP Range 的音源会使用有限分片并发下载，不支持时自动回退单连接下载。
+- 歌曲和封面下载：单曲下载会尽量同步保存封面；封面保存失败不应反向标记音频下载失败。
+- 状态环优化：中心音质色球、下载进度细环、内部频谱、常态呼吸和低频鼓点缩放继续保留；频谱显示更强调变化量，降低持续响度占比，避免一直撑满。
+- NowBar 排版优化：新 CJK 字体下歌名、歌手、专辑信息和收藏/循环/队列按钮不再挤压，底部控制区高度已重新分配。
+- 艺人详情增强：先显示本地统计和懒加载简介，再补充在线简介；歌手全部在线专辑以底部卡片展示，点击专辑可加载曲目并播放。
+- 流媒体账号与导入：网易云登录后可弹窗选择导入歌单；QQ 支持 Cookie 导入格式适配；LX/洛雪支持本地 `.js` 文件和网络链接导入多个自定义音源脚本。
+- 文档与合规：README 补充测试版定位、版权与音源风险、Cookie 本机保存、APK 分发和上架注意事项。
+
 ### 已实现
 
 - 首次启动引导：权限、扫描、歌单导入、流媒体连接入口。
@@ -75,20 +86,20 @@ flowchart TD
 - 状态栏/悬浮歌词：播放通知歌词、锁屏/状态栏歌词、悬浮窗歌词，支持 OPPO 流体云依赖通知展示。
 - 音效：系统 Equalizer、BassBoost、Virtualizer、LoudnessEnhancer 设置入口。
 - ReplayGain：读取本地音频 ReplayGain 标签并在播放时应用。
-- 流媒体：网易云登录、账号歌单加载、登录后弹窗选择导入歌单、在线搜索和播放源解析。
+- 流媒体：网易云登录、账号歌单加载、登录后弹窗选择导入歌单、在线搜索和播放源解析；QQ Cookie 导入和 LX 自定义源导入入口已接入。
 - 网络曲库：WebDAV、远程流列表、M3U/M3U8 导入。
-- 下载管理：设置页入口、当前歌曲/封面下载、单首暂停/继续、全部暂停/继续、系统下载通知。
-- 搜索：本地和在线搜索入口，搜索历史保留，离开搜索后不污染曲库显示。
-- 艺人详情：本地艺人目录和在线资料补充入口。
+- 下载管理：设置页入口、当前歌曲/封面下载、单首暂停/继续、全部暂停/继续、应用内断点续传、Range 分片并发下载和系统下载通知。
+- 搜索：本地和多音源在线聚合搜索入口，搜索历史保留，离开搜索后不污染曲库显示。
+- 艺人详情：本地艺人目录、在线资料补充、懒加载简介和在线专辑卡片入口。
 - 多语言：应用内语言映射、Android 13+ per-app language `LocaleConfig`。
 
 ### 部分实现或受限
 
-- QQ 音乐、LX/洛雪等 provider：已接入 provider 列表和登录状态约束，但本机直连解析能力仍需逐个补 Provider；不支持时不再显示为已登录。
-- 流媒体下载：当前优先走系统 DownloadManager。需要私有请求头或临时鉴权的音源可能下载失败，需要后续接入 provider 专用下载链路。
+- QQ 音乐、LX/洛雪等 provider：已接入 provider 列表、QQ Cookie 导入和 LX 自定义源导入入口，但完整本机直连搜索、播放源、歌词、封面和歌单同步仍需逐个补 Provider。
+- 流媒体下载：应用内下载已支持断点续传和 Range 分片并发，但受音源鉴权、会员、地区、Range 支持和临时 URL 时效影响，仍可能失败。
 - OPPO 流体云：通过播放通知和状态栏歌词提供内容，实际展示形态由系统和机型决定。
 - Android Auto：服务已以 MediaLibraryService 暴露基础能力，完整车机浏览树仍需继续验收和扩展。
-- 频谱/波形：NowBar 波形已可用，状态环频谱仍是体验调优项，不能阻塞音频播放。
+- 频谱/波形：NowBar 波形和状态环频谱已可用，仍属于体验调优项，不能阻塞音频播放。
 
 ### 规划中
 
@@ -241,6 +252,17 @@ flowchart TD
 
 ## Features
 
+## Latest Updates
+
+- Search now combines local results with multi-source online aggregation. One query can search every enabled provider that supports search, deduplicate by provider and track ID, and still play each result through its own provider.
+- Download management now supports resumable in-app downloads. Paused tasks keep cache files and continue without resetting progress; sources with HTTP Range support use limited segmented parallel downloads, while unsupported sources fall back to a single connection.
+- Track and artwork downloads are linked: track downloads try to save cover art as best effort, and artwork failures should not mark a completed audio download as failed.
+- The status ring keeps the quality center, download progress arc, internal spectrum, idle breathing, and kick-driven scaling. Spectrum rendering now emphasizes changes and reduces the weight of constant loudness.
+- NowBar layout was adjusted for the CJK font so title, artist/album, favorite, repeat, and queue controls do not crowd each other.
+- Artist detail pages now show local stats first, lazy-load online introductions, and render online album cards at the bottom. Album cards can load tracks and start playback.
+- Streaming account/import flow now includes NetEase playlist import selection after login, QQ cookie import normalization, and LX custom source import from local `.js` files or network links.
+- Documentation now calls out beta status, copyright/source risk, local-only cookie storage, APK distribution expectations, and store-review caveats.
+
 ### Implemented
 
 - First-run onboarding for permissions, scanning, playlist import, and streaming connection.
@@ -254,20 +276,20 @@ flowchart TD
 - Live lyric notification and floating lyrics. Supported OPPO fluid cloud panels can display lyric content from the notification.
 - Android system audio effects: Equalizer, BassBoost, Virtualizer, and LoudnessEnhancer.
 - ReplayGain parsing and playback gain application for local tracks.
-- NetEase login, account playlist loading, post-login playlist picker, online search, and playback URL resolution.
+- NetEase login, account playlist loading, post-login playlist picker, online search, and playback URL resolution; QQ cookie import and LX custom source import entries are available.
 - WebDAV, remote stream lists, and M3U/M3U8 import.
-- Download manager entry, current track/cover downloads, per-item pause/resume, pause/resume all, and system download notification.
-- Local and online search with history preservation.
-- Artist directory and online artist profile enrichment entry.
+- Download manager entry, current track/cover downloads, per-item pause/resume, pause/resume all, in-app resumable downloads, Range segmented downloads, and system download notification.
+- Local plus multi-source online aggregate search with history preservation.
+- Artist directory, online artist profile enrichment, lazy-loaded introductions, and online album card entry.
 - In-app language mapping plus Android 13+ per-app language support.
 
 ### Partial or Limited
 
-- QQ Music and LX providers are listed and their auth states are guarded, but full native provider search/playback/lyrics/artwork import still needs provider-specific implementation.
-- Streaming downloads currently use Android DownloadManager first. Header-protected or temporary authenticated URLs may require provider-specific download code.
+- QQ Music and LX providers are listed, QQ cookie import and LX custom-source import entries exist, but full native provider search, playback URL, lyrics, artwork, and playlist sync still need provider-specific implementation.
+- Streaming downloads support resumable in-app downloads and Range segmented downloads, but may still fail because of authentication, membership, region, missing Range support, or temporary URL expiry.
 - OPPO fluid cloud display is driven through notifications and depends on OS support.
 - Android Auto support has a MediaLibraryService base; the full browsable tree still needs device/emulator validation.
-- Spectrum and waveform visuals must never block audio playback.
+- Spectrum and waveform visuals are available but remain tuning surfaces and must never block audio playback.
 
 ### Planned
 

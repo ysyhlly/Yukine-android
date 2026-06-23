@@ -105,6 +105,35 @@ class RemoteStreamingGatewayTest {
                                             .put("logo", "https://y.qq.com/cover.jpg")
                                     )
                             )
+                    ),
+                "/fav/fcgi-bin/fcg_get_profile_order_asset.fcg" to JSONObject()
+                    .put(
+                        "data",
+                        JSONObject()
+                            .put(
+                                "cdlist",
+                                JSONArray()
+                                    .put(
+                                        JSONObject()
+                                            .put("dissid", "8001")
+                                            .put("dissname", "Collected Playlist")
+                                            .put("songnum", 4)
+                                    )
+                            )
+                    ),
+                "/rsc/fcgi-bin/fcg_get_profile_homepage.fcg" to JSONObject()
+                    .put(
+                        "data",
+                        JSONObject()
+                            .put(
+                                "mymusic",
+                                JSONArray()
+                                    .put(
+                                        JSONObject()
+                                            .put("id", "201")
+                                            .put("num0", 99)
+                                    )
+                            )
                     )
             )
         )
@@ -116,11 +145,18 @@ class RemoteStreamingGatewayTest {
 
         val playlists = gateway.userPlaylists(StreamingProviderName.QQ_MUSIC)
 
-        assertEquals("QQ Favorite", playlists.single().title)
-        assertEquals("7001", playlists.single().providerPlaylistId)
-        assertEquals(12, playlists.single().trackCount)
-        assertEquals(listOf("/rsc/fcgi-bin/fcg_user_created_diss"), qq.paths)
-        assertEquals("uin=o12345; qqmusic_key=local-key", qq.cookies.single())
+        assertEquals(listOf("201", "7001", "8001"), playlists.map { it.providerPlaylistId })
+        assertEquals(listOf("我喜欢", "QQ Favorite", "Collected Playlist"), playlists.map { it.title })
+        assertEquals(99, playlists.first().trackCount)
+        assertEquals(
+            listOf(
+                "/rsc/fcgi-bin/fcg_user_created_diss",
+                "/fav/fcgi-bin/fcg_get_profile_order_asset.fcg",
+                "/rsc/fcgi-bin/fcg_get_profile_homepage.fcg"
+            ),
+            qq.paths
+        )
+        assertTrue(qq.cookies.all { it == "uin=o12345; qqmusic_key=local-key" })
     }
 
     @Test

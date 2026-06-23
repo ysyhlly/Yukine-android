@@ -40,6 +40,7 @@ internal class StreamingPlaylistBindings(
     private val selectedPlaylistIdProvider: StreamingPlaylistIdProvider,
     private val selectedPlaylistIdSetter: StreamingPlaylistIdSetter,
     private val collectionsLoader: QueueNoArgAction,
+    private val libraryRefreshAfterImportAction: QueueNoArgAction,
     private val selectedPlaylistNameProvider: StreamingPlaylistNameProvider,
     private val selectedPlaylistTrackProvider: StreamingPlaylistTrackProvider,
     private val favoriteTrackProvider: StreamingPlaylistTrackProvider,
@@ -61,6 +62,10 @@ internal class StreamingPlaylistBindings(
 
     override fun loadCollections() {
         collectionsLoader.run()
+    }
+
+    override fun refreshLibraryAfterStreamingImport() {
+        libraryRefreshAfterImportAction.run()
     }
 
     override fun selectedPlaylistName(): String {

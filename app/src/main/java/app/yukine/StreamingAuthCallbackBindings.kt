@@ -21,6 +21,11 @@ internal class StreamingAuthCallbackBindings(
             ?.takeIf { it.isNotBlank() }
             ?.let(StreamingProviderName::fromWireName)
         val provider = parsedProvider ?: streamingViewModel.state.selectedProvider
+        if (queryParameter(uri.rawQuery, "manualCookie") == "1") {
+            actionGateway.openManualCookieImport(provider)
+            streamingViewModel.clearStreamingAuthLaunch()
+            return true
+        }
         streamingViewModel.completeStreamingAuth(provider, uri.toString(), cookieHeader) { loggedInProvider ->
             actionGateway.onStreamingLoginSuccess(loggedInProvider)
         }

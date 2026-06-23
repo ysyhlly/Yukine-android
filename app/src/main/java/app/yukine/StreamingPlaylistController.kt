@@ -20,6 +20,8 @@ internal class StreamingPlaylistController(
 
         fun loadCollections()
 
+        fun refreshLibraryAfterStreamingImport()
+
         fun selectedPlaylistName(): String
 
         fun selectedPlaylistTracks(): List<app.yukine.model.Track>
@@ -163,7 +165,7 @@ internal class StreamingPlaylistController(
             if (presentation.empty) {
                 return@syncStreamingPlaylistToLocal
             }
-            listener.loadCollections()
+            listener.refreshLibraryAfterStreamingImport()
         }
     }
 
@@ -188,7 +190,7 @@ internal class StreamingPlaylistController(
         if (presentation.showLoadedDialog) {
             listener.showStreamingPlaylistLoadedDialog(presentation.status)
         }
-        listener.loadCollections()
+        listener.refreshLibraryAfterStreamingImport()
     }
 
     fun onStreamingLoginSuccess(provider: StreamingProviderName) {
@@ -204,7 +206,7 @@ internal class StreamingPlaylistController(
             if (presentation.playlistId >= 0L) {
                 listener.setSelectedPlaylistId(presentation.playlistId)
             }
-            listener.loadCollections()
+            listener.refreshLibraryAfterStreamingImport()
             listener.renderSelectedTab()
             showAccountPlaylistSyncPicker(provider)
         }
@@ -244,7 +246,7 @@ internal class StreamingPlaylistController(
                     ""
                 }
             listener.setStatus(status)
-            listener.loadCollections()
+            listener.refreshLibraryAfterStreamingImport()
             listener.renderSelectedTab()
         }
     }

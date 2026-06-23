@@ -5,6 +5,7 @@ import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListModeAction
+import app.yukine.ui.TrackListAlbumCardUiState
 import java.util.ArrayList
 
 internal fun interface LibraryGroupSelectionClearer {
@@ -29,7 +30,8 @@ internal data class LibraryGroupTrackListRequest(
     val title: String,
     val tracks: ArrayList<Track>,
     val headerMetrics: ArrayList<TrackListHeaderMetric>,
-    val headerActions: ArrayList<TrackListHeaderAction>
+    val headerActions: ArrayList<TrackListHeaderAction>,
+    val footerAlbums: ArrayList<TrackListAlbumCardUiState> = ArrayList()
 )
 
 internal fun interface LibraryGroupTrackListRenderer {
@@ -86,14 +88,16 @@ internal class LibraryGroupsRenderBindings(
         title: String,
         tracks: ArrayList<Track>,
         headerMetrics: ArrayList<TrackListHeaderMetric>,
-        headerActions: ArrayList<TrackListHeaderAction>
+        headerActions: ArrayList<TrackListHeaderAction>,
+        footerAlbums: ArrayList<TrackListAlbumCardUiState>
     ) {
         trackListRenderer.render(
             LibraryGroupTrackListRequest(
                 title = title,
                 tracks = tracks,
                 headerMetrics = headerMetrics,
-                headerActions = headerActions
+                headerActions = headerActions,
+                footerAlbums = footerAlbums
             )
         )
     }

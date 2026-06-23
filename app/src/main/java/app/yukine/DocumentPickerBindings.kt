@@ -17,7 +17,8 @@ internal class DocumentPickerBindings(
     private val chooseDownloadFolderAction: DocumentUriAction,
     private val importStreamM3uAction: DocumentUriAction,
     private val exportPlaylistAction: DocumentUriAction,
-    private val importPlaylistM3uAction: DocumentUriAction
+    private val importPlaylistM3uAction: DocumentUriAction,
+    private val importLuoxueSourceUrisAction: DocumentAudioUrisImportAction
 ) : DocumentPickerController.Listener {
     override fun importAudioUris(uris: ArrayList<Uri>) {
         importAudioUrisAction.import(uris)
@@ -41,5 +42,9 @@ internal class DocumentPickerBindings(
 
     override fun importPlaylistM3u(playlistUri: Uri) {
         importPlaylistM3uAction.run(playlistUri)
+    }
+
+    override fun importLuoxueSourceUris(uris: ArrayList<Uri>) {
+        importLuoxueSourceUrisAction.import(uris)
     }
 }

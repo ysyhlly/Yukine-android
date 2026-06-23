@@ -195,7 +195,8 @@ class RemoteStreamingGateway(
     private val localLuoxueClient: LocalLuoxueStreamingClient = LocalLuoxueStreamingClient(
         neteaseClient = localNeteaseClient,
         qqMusicClient = localQqMusicClient
-    )
+    ),
+    private val luoxueSourceStore: LuoxueSourceStore? = null
 ) : StreamingGateway {
     private var consecutiveGatewayFailures = 0
     private var circuitOpenUntilMs = 0L
@@ -204,7 +205,8 @@ class RemoteStreamingGateway(
         localAuthStore,
         localNeteaseClient,
         localQqMusicClient,
-        localLuoxueClient
+        localLuoxueClient,
+        luoxueSourceStore
     )
 
     override suspend fun providers(): List<StreamingProviderDescriptor> {

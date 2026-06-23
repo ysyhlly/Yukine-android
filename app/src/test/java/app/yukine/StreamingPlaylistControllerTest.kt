@@ -61,17 +61,89 @@ class StreamingPlaylistControllerTest {
         assertEquals(listOf(StreamingProviderName.NETEASE), operations.ensureProviders)
         assertEquals(listOf(StreamingProviderName.NETEASE), gateway.userPlaylistProviders)
         assertEquals(listOf("picker:netease:100"), listener.events.filter { it.startsWith("picker:") })
-        assertTrue(listener.events.contains("loadCollections"))
+        assertTrue(listener.events.contains("refreshLibrary"))
         assertTrue(listener.events.contains("renderSelectedTab"))
         assertEquals(9L, listener.selectedPlaylistIdValue)
+    }
+
+    @Test
+    fun syncSelectedPlaylistRefreshesLibraryAfterSuccessfulSync() = runTest {
+        val gateway = FakeGateway(userPlaylistsResult = emptyList())
+        val operations = FakeStreamingLocalPlaylistOperations()
+        operations.linkedPlaylist = StreamingPlaylistSyncStore.LinkedPlaylist(
+            localPlaylistId = 42L,
+            provider = StreamingProviderName.NETEASE,
+            providerPlaylistId = "100",
+            lastSyncMs = 0L
+        )
+        gateway.playlistDetail = StreamingPlaylistDetail(
+            provider = StreamingProviderName.NETEASE,
+            providerPlaylistId = "100",
+            playlist = StreamingPlaylist(StreamingProviderName.NETEASE, "100", "每日推荐"),
+            tracks = listOf(streamingTrack("1")),
+            total = 1,
+            hasMore = false
+        )
+        val viewModel = StreamingViewModel()
+        viewModel.bindStreamingRepository(StreamingRepository(gateway))
+        viewModel.bindStreamingLocalPlaylistOperations(operations)
+        val listener = FakeStreamingPlaylistListener()
+        listener.selectedPlaylistIdValue = 42L
+        val controller = StreamingPlaylistController(
+            viewModel,
+            StreamingPlaylistController.LanguageProvider { AppLanguage.MODE_CHINESE },
+            listener
+        )
+
+        controller.syncSelectedPlaylistFromStreaming()
+        assertTrue(listener.awaitRefresh())
+
+        assertEquals(listOf(42L), operations.syncPlaylistIds)
+        assertTrue(listener.events.contains("refreshLibrary"))
+    }
+
+    @Test
+    fun selectedAccountPlaylistImportRefreshesLibraryAfterImport() = runTest {
+        val gateway = FakeGateway(userPlaylistsResult = emptyList())
+        gateway.playlistDetail = StreamingPlaylistDetail(
+            provider = StreamingProviderName.NETEASE,
+            providerPlaylistId = "100",
+            playlist = StreamingPlaylist(StreamingProviderName.NETEASE, "100", "每日推荐"),
+            tracks = listOf(streamingTrack("1")),
+            total = 1,
+            hasMore = false
+        )
+        val operations = FakeStreamingLocalPlaylistOperations()
+        val viewModel = StreamingViewModel()
+        viewModel.bindStreamingRepository(StreamingRepository(gateway))
+        viewModel.bindStreamingLocalPlaylistOperations(operations)
+        val listener = FakeStreamingPlaylistListener()
+        val controller = StreamingPlaylistController(
+            viewModel,
+            StreamingPlaylistController.LanguageProvider { AppLanguage.MODE_CHINESE },
+            listener
+        )
+
+        controller.importSelectedAccountPlaylists(
+            StreamingProviderName.NETEASE,
+            listOf(StreamingPlaylist(StreamingProviderName.NETEASE, "100", "每日推荐"))
+        )
+        assertTrue(listener.awaitRefresh())
+
+        assertEquals(listOf("100"), operations.importProviderPlaylistIds)
+        assertTrue(listener.events.contains("refreshLibrary"))
+        assertTrue(listener.events.contains("renderSelectedTab"))
     }
 
     private class FakeStreamingPlaylistListener : StreamingPlaylistController.Listener {
         val events = mutableListOf<String>()
         var selectedPlaylistIdValue = -1L
         private val pickerLatch = CountDownLatch(1)
+        private val refreshLatch = CountDownLatch(1)
 
         fun awaitPicker(): Boolean = pickerLatch.await(2, TimeUnit.SECONDS)
+
+        fun awaitRefresh(): Boolean = refreshLatch.await(2, TimeUnit.SECONDS)
 
         override fun selectedPlaylistId(): Long = selectedPlaylistIdValue
 
@@ -82,6 +154,11 @@ class StreamingPlaylistControllerTest {
 
         override fun loadCollections() {
             events += "loadCollections"
+        }
+
+        override fun refreshLibraryAfterStreamingImport() {
+            events += "refreshLibrary"
+            refreshLatch.countDown()
         }
 
         override fun selectedPlaylistName(): String = "Local"
@@ -120,6 +197,9 @@ class StreamingPlaylistControllerTest {
 
     private class FakeStreamingLocalPlaylistOperations : StreamingLocalPlaylistOperations {
         val ensureProviders = mutableListOf<StreamingProviderName>()
+        val importProviderPlaylistIds = mutableListOf<String>()
+        val syncPlaylistIds = mutableListOf<Long>()
+        var linkedPlaylist: StreamingPlaylistSyncStore.LinkedPlaylist? = null
 
         override fun importStreamingPlaylist(
             playlistName: String,
@@ -127,13 +207,18 @@ class StreamingPlaylistControllerTest {
             providerPlaylistId: String,
             streamingTracks: List<StreamingTrack>,
             linkWhenProviderPlaylistIdBlank: Boolean
-        ): PlaylistImportResult = PlaylistImportResult(1L, playlistName, streamingTracks.size, streamingTracks.size, 0, 0)
+        ): PlaylistImportResult {
+            importProviderPlaylistIds += providerPlaylistId
+            return PlaylistImportResult(1L, playlistName, streamingTracks.size, streamingTracks.size, 0, 0)
+        }
 
         override fun syncStreamingPlaylist(
             link: StreamingPlaylistSyncStore.LinkedPlaylist,
             streamingTracks: List<StreamingTrack>
-        ): StreamingLocalPlaylistSyncResult =
-            StreamingLocalPlaylistSyncResult(link.localPlaylistId, streamingTracks.size, streamingTracks.isEmpty())
+        ): StreamingLocalPlaylistSyncResult {
+            syncPlaylistIds += link.localPlaylistId
+            return StreamingLocalPlaylistSyncResult(link.localPlaylistId, streamingTracks.size, streamingTracks.isEmpty())
+        }
 
         override fun ensureStreamingLoginPlaylist(
             playlistName: String,
@@ -143,12 +228,14 @@ class StreamingPlaylistControllerTest {
             return StreamingLoginPlaylistResult(9L, playlistName)
         }
 
-        override fun linkedPlaylist(localPlaylistId: Long): StreamingPlaylistSyncStore.LinkedPlaylist? = null
+        override fun linkedPlaylist(localPlaylistId: Long): StreamingPlaylistSyncStore.LinkedPlaylist? =
+            linkedPlaylist?.takeIf { it.localPlaylistId == localPlaylistId }
 
         override fun linkedPlaylist(
             provider: StreamingProviderName,
             providerPlaylistId: String
-        ): StreamingPlaylistSyncStore.LinkedPlaylist? = null
+        ): StreamingPlaylistSyncStore.LinkedPlaylist? =
+            linkedPlaylist?.takeIf { it.provider == provider && it.providerPlaylistId == providerPlaylistId }
     }
 
     private class FakeGateway(
@@ -156,6 +243,7 @@ class StreamingPlaylistControllerTest {
     ) : StreamingGateway {
         val userPlaylistProviders = mutableListOf<StreamingProviderName>()
         private val provider = FakeProvider()
+        var playlistDetail: StreamingPlaylistDetail? = null
 
         override suspend fun providers(): List<StreamingProviderDescriptor> = listOf(provider.descriptor)
 
@@ -166,7 +254,7 @@ class StreamingPlaylistControllerTest {
         override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult = provider.search(request)
 
         override suspend fun playlist(request: StreamingPlaylistRequest): StreamingPlaylistDetail =
-            StreamingPlaylistDetail(
+            playlistDetail ?: StreamingPlaylistDetail(
                 provider = request.provider,
                 providerPlaylistId = request.providerPlaylistId,
                 tracks = emptyList()
@@ -233,4 +321,14 @@ class StreamingPlaylistControllerTest {
 
         override suspend fun authState(): StreamingAuthState = StreamingAuthState(connected = true)
     }
+
+    private fun streamingTrack(id: String): StreamingTrack =
+        StreamingTrack(
+            provider = StreamingProviderName.NETEASE,
+            providerTrackId = id,
+            title = "Song $id",
+            artist = "Artist",
+            album = "Album",
+            durationMs = 180000L
+        )
 }

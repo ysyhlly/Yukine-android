@@ -272,7 +272,7 @@ fun NowBar(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                    .height(36.dp),
+                        .height(EchoMobileLayoutMetrics.nowBarArtworkSize),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     NowBarTrackSection(
@@ -296,6 +296,7 @@ fun NowBar(
                     )
                 }
                 if (!waveformExpanded) {
+                    Spacer(Modifier.height(2.dp))
                     NowBarModeControls(modeSlice, onFavorite, onShuffle, onRepeat, onOpenQueue, onCollapseWaveform)
                 }
             }
@@ -513,10 +514,16 @@ private fun NowBarTrackSection(
     ) {
         AlbumArtThumb(uri, slice.title, slice.subtitle)
         Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
+        ) {
             Text(
                 slice.title,
-                style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                style = EchoTypography.bodyMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    lineHeight = 19.sp
+                ),
                 color = p.text,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -524,7 +531,7 @@ private fun NowBarTrackSection(
             if (slice.subtitle.isNotBlank()) {
                 Text(
                     slice.subtitle,
-                    style = EchoTypography.caption,
+                    style = EchoTypography.caption.copy(lineHeight = 15.sp),
                     color = p.muted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis

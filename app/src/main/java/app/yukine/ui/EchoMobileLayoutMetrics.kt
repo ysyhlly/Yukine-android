@@ -3,7 +3,7 @@ package app.yukine.ui
 import androidx.compose.ui.unit.dp
 
 object EchoMobileLayoutMetrics {
-    val nowBarHeight = 132.dp
+    val nowBarHeight = 148.dp
     val nowBarExpandedHeight = nowBarHeight
     val nowBarArtworkSize = 48.dp
     val nowBarArtworkCornerRadius = 6.dp

@@ -2041,6 +2041,9 @@ public final class EchoPlaybackService extends MediaLibraryService {
         if (!playerMirrorsQueue || player == null || player.getMediaItemCount() != queue.size()) {
             return false;
         }
+        if (!mirroredQueueMatchesCurrentPlayer()) {
+            return false;
+        }
         int targetIndex = safeCurrentIndex();
         Track track = currentTrack();
         if (track == null) {
@@ -2072,6 +2075,67 @@ public final class EchoPlaybackService extends MediaLibraryService {
             playerMirrorsQueue = false;
             return false;
         }
+    }
+
+    private boolean mirroredQueueMatchesCurrentPlayer() {
+        if (player == null || player.getMediaItemCount() != queue.size()) {
+            return false;
+        }
+        for (int i = 0; i < queue.size(); i++) {
+            Track track = queue.get(i);
+            if (track == null || !mediaItemMatchesTrackForReuse(
+                    player.getMediaItemAt(i),
+                    track.id,
+                    track.contentUri,
+                    cacheKeyForTrack(track))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static boolean mediaItemMatchesTrackForReuse(MediaItem mediaItem, long trackId, Uri contentUri, String cacheKey) {
+        if (mediaItem == null || mediaItem.localConfiguration == null) {
+            return false;
+        }
+        String mediaUri = mediaItem.localConfiguration.uri == null
+                ? null
+                : mediaItem.localConfiguration.uri.toString();
+        String trackUri = contentUri == null ? null : contentUri.toString();
+        return mediaItemIdentityMatchesForReuse(
+                mediaItem.mediaId,
+                mediaUri,
+                mediaItem.localConfiguration.customCacheKey,
+                trackId,
+                trackUri,
+                cacheKey
+        );
+    }
+
+    static boolean mediaItemIdentityMatchesForReuse(
+            String mediaId,
+            String mediaUri,
+            String mediaCacheKey,
+            long trackId,
+            String trackUri,
+            String trackCacheKey
+    ) {
+        if (!String.valueOf(trackId).equals(mediaId)) {
+            return false;
+        }
+        return stringEquals(mediaUri, trackUri)
+                && cacheKeyMatchesForReuse(mediaCacheKey, trackCacheKey);
+    }
+
+    private static boolean cacheKeyMatchesForReuse(String left, String right) {
+        if (left == null || right == null) {
+            return true;
+        }
+        return left.equals(right);
+    }
+
+    private static boolean stringEquals(String left, String right) {
+        return left == null ? right == null : left.equals(right);
     }
 
     private float replayGainMultiplier(Track track) {

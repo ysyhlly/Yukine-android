@@ -32,8 +32,22 @@ class LocalStreamingLoginEndpointsTest {
     fun qqMusicCookieDomainsCoverParentDomainAndMusicSubdomains() {
         val domains = LocalStreamingLoginEndpoints.cookieDomainHints(StreamingProviderName.QQ_MUSIC)
 
+        assertTrue(domains.any { it.contains("portal/pop_login.html") })
+        assertTrue(domains.any { it.contains("m.y.qq.com") || it.contains("i.y.qq.com/n2/m") })
         assertTrue(domains.any { it.contains("y.qq.com") })
         assertTrue(domains.any { it.contains("//qq.com") || it.contains("www.qq.com") })
+    }
+
+    @Test
+    fun qqMusicLoginUsesQqMobileScanPage() {
+        val url = LocalStreamingLoginEndpoints.loginUrl(
+            StreamingProviderName.QQ_MUSIC,
+            "echo-next://streaming-auth"
+        ).orEmpty()
+
+        assertTrue(url.contains("y.qq.com/portal/pop_login.html"))
+        assertFalse(url.contains("portal/profile.html"))
+        assertFalse(url.contains("wkframe/client/login.html"))
     }
 
     @Test

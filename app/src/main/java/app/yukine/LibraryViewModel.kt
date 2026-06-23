@@ -8,6 +8,7 @@ import app.yukine.model.RemoteSource
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
 import app.yukine.ui.LibraryGroupUiState
+import app.yukine.ui.TrackListAlbumCardUiState
 import app.yukine.ui.TrackRowUiState
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -739,8 +740,12 @@ class LibraryViewModel @JvmOverloads constructor(
     ): LibraryPlaylistActionPresentation =
         defaultPlaylistAddPresentation(added, languageMode)
 
-    fun updateTrackList(title: String, rows: List<TrackRowUiState>) {
-        trackListState.value = MainActivityTrackListUiState(title, rows.toList())
+    fun updateTrackList(
+        title: String,
+        rows: List<TrackRowUiState>,
+        footerAlbums: List<TrackListAlbumCardUiState> = emptyList()
+    ) {
+        trackListState.value = MainActivityTrackListUiState(title, rows.toList(), footerAlbums.toList())
     }
 
     fun clearTrackList() {

@@ -25,7 +25,7 @@ object LocalStreamingLoginEndpoints {
                 safeRedirect
             )
             StreamingProviderName.QQ_MUSIC -> attachCallback(
-                "https://y.qq.com/portal/profile.html",
+                "https://y.qq.com/portal/pop_login.html",
                 safeRedirect
             )
             StreamingProviderName.KUGOU -> attachCallback(
@@ -85,7 +85,10 @@ object LocalStreamingLoginEndpoints {
                 "https://163.com/"
             )
             StreamingProviderName.QQ_MUSIC -> listOf(
+                "https://y.qq.com/portal/pop_login.html",
                 "https://y.qq.com/",
+                "https://m.y.qq.com/",
+                "https://i.y.qq.com/n2/m/",
                 "https://c.y.qq.com/",
                 "https://i.y.qq.com/",
                 "https://qq.com/",
