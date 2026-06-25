@@ -30,6 +30,10 @@ internal fun interface PlaybackTrackListPlayer {
     fun play(tracks: List<Track>?, index: Int): PlaybackActionResultUi?
 }
 
+internal fun interface PlaybackQueueOpener {
+    fun open()
+}
+
 internal class PlaybackStartBindings(
     private val heartbeatRecommendationStopper: QueueNoArgAction,
     private val playbackServiceStarter: PlaybackStartServiceStarter,
@@ -40,9 +44,8 @@ internal class PlaybackStartBindings(
     private val pendingPlaybackClearer: QueueNoArgAction,
     private val resolvingStatusProvider: QueueStatusProvider,
     private val statusSink: QueueStatusSink,
-    private val streamingTrackListResolver: StreamingTrackListResolver,
-    private val playbackTrackListPlayer: PlaybackTrackListPlayer,
-    private val playbackActionResultApplier: QueuePlaybackActionResultApplier
+    private val playbackController: PlaybackController,
+    private val queueOpener: PlaybackQueueOpener
 ) : PlaybackStartController.Listener {
     override fun stopHeartbeatRecommendationMode() {
         heartbeatRecommendationStopper.run()
@@ -80,15 +83,11 @@ internal class PlaybackStartBindings(
         statusSink.set(status)
     }
 
-    override fun resolveAndPlayStreamingTrack(tracks: List<Track>?, index: Int): Boolean {
-        return streamingTrackListResolver.resolve(tracks, index)
+    override fun playbackController(): PlaybackController {
+        return playbackController
     }
 
-    override fun playTrackList(tracks: List<Track>?, index: Int): PlaybackActionResultUi? {
-        return playbackTrackListPlayer.play(tracks, index)
-    }
-
-    override fun applyPlaybackActionResult(result: PlaybackActionResultUi?) {
-        playbackActionResultApplier.apply(result)
+    override fun openQueue() {
+        queueOpener.open()
     }
 }

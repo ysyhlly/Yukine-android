@@ -12,8 +12,6 @@ internal class MainLibraryStore(
     private val viewModel: MainActivityViewModel
 ) {
     private val combinedSearchUseCase = LibraryCombinedSearchUseCase(searchUseCase)
-    private var recommendationStreamTitle: String = ""
-    private var recommendationStreamTracks = ArrayList<Track>()
 
     fun allTracks(): ArrayList<Track> {
         return ArrayList(state().allTracks)
@@ -68,22 +66,10 @@ internal class MainLibraryStore(
         )
     }
 
-    fun clearPlayHistory() {
-        viewModel.clearPlayHistory()
-    }
-
     fun applySearch(query: String?) {
         viewModel.updateVisibleTracks(
             combinedSearchUseCase.execute(allTracks(), selectedPlaylistTracks(), query)
         )
-    }
-
-    fun toggleFavorite(trackId: Long): Boolean {
-        return viewModel.toggleFavorite(trackId)
-    }
-
-    fun setFavorite(trackId: Long, favorite: Boolean) {
-        viewModel.setFavorite(trackId, favorite)
     }
 
     fun selectedPlaylistName(selectedPlaylistId: Long): String {
@@ -93,28 +79,6 @@ internal class MainLibraryStore(
             }
         }
         return "Playlist"
-    }
-
-    fun showRecommendationStreamList(title: String, tracks: List<Track>) {
-        recommendationStreamTitle = title
-        recommendationStreamTracks = ArrayList(tracks)
-    }
-
-    fun clearRecommendationStreamList() {
-        recommendationStreamTitle = ""
-        recommendationStreamTracks = ArrayList()
-    }
-
-    fun hasRecommendationStreamList(): Boolean {
-        return recommendationStreamTracks.isNotEmpty()
-    }
-
-    fun recommendationStreamTitle(): String {
-        return recommendationStreamTitle.ifBlank { "Daily recommendations" }
-    }
-
-    fun recommendationStreamTracks(): ArrayList<Track> {
-        return ArrayList(recommendationStreamTracks)
     }
 
     fun streamTrackCount(): Int {

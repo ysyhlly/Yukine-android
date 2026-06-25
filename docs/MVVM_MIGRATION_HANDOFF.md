@@ -1,0 +1,1013 @@
+# Yukine Android MVVM 迁移接手清单
+
+日期�?026-06-23  
+状态：架构审查后形成的接手文档，未要求一次性重写�? 
+适用范围：`app/src/main/java/app/yukine` 下当前单 Activity + Compose �?+ Java/Kotlin 迁移中间态�? 
+
+---
+
+## 0. 迁移原则
+
+### 0.1 目标架构
+
+目标不是套一个笨重框架，而是把当前混合架构收敛成清晰、轻量、可测试�?MVVM�?
+```text
+Compose UI
+  -> Feature ViewModel
+  -> UseCase / Feature Coordinator
+  -> Repository / Platform Gateway / Playback Boundary
+  -> Database / MediaStore / Service / Network / Android API
+```
+
+### 0.2 禁止方向
+
+- 不要�?`MainActivity` 继续当总调度中心�?- 不要�?`MainActivity` 拆成另一个万�?`AppCoordinator` / `GodManager`�?- 不要为了 MVVM 增加无意义转发层�?- 不要让一个按钮点击经�?7�? 层只为了保存一个设置�?- 不要�?Compose 同时�?ViewModel state �?Activity 手动同步 state�?- 不要�?ViewModel 直接持有 `Context`、`Intent`、Dialog、Activity Result 等平台细节�?- 不要为了架构整洁破坏播放、后台服务、通知、小部件、歌词、下载、流媒体登录、首次引导�?
+### 0.3 迁移验收总目�?
+- `MainActivity.java` 从当前约 3171 行降到宿主级别，目标小于 500 行，长期目标小于 300 行�?- `EchoPlaybackService.java` 保留播放服务职责，但 UI 不直接依赖具�?service�?- 单个 ViewModel 目标小于 500 行；复杂 feature 可拆多个 ViewModel�?- UI 只消�?`UiState`，只发�?`UiAction` / `UiEvent`�?- 平台能力通过小型 owner 暴露：picker、permission、backup、dialog、share、system setting�?- 播放、设置、曲库、队列、歌词、流媒体、推荐都能单独单测�?
+---
+
+## 1. 当前架构事实
+
+### 1.1 大类规模
+
+当前重点大类�?
+| 文件 | 当前角色 | 风险 |
+|---|---|---|
+| `MainActivity.java` | 应用宿主 + 路由 + 平台 API + �?feature 装配 + 大量回调 + 手动状态同�?| 上帝类，新增功能容易继续挂线 |
+| `EchoPlaybackService.java` | Media3 播放服务、队列、通知、小部件、播放状态、部分音�?| 播放边界合理，但 UI/Activity 直接触碰过多 |
+| `StreamingViewModel.kt` | 流媒体搜索、登录、导入、播放解析、推荐等大块逻辑 | 仍偏大，feature 边界未完全拆开 |
+| `SettingsViewModel.kt` | 设置 UI state、事件、保存偏好、状态文�?| 已有 MVVM 雏形，但外围转发链过�?|
+| `EchoNavHostState.kt` | Compose NavHost �?ViewModel 集合 + 大量 mutable chrome/actions/callback | �?ViewModel state 重复，Activity 手动同步 |
+
+### 1.2 MainActivity 当前职责
+
+`MainActivity.java` 目前至少承担这些职责�?
+- 创建和绑定多�?ViewModel�?- 创建和持有几十个 Controller / Bindings�?- 保存 `MainRouteController`、`MainSettingsStore`、`MainLibraryStore`、`MainPlaybackStore`�?- 绑定播放服务，直接读�?`EchoPlaybackService`�?- 处理权限、Activity Result、文档选择、图片选择、备份导入导出�?- 创建多个 Dialog：网络源、歌单、流媒体 Cookie、流媒体歌单导入等�?- 持有 Compose 导航 chrome 临时状态：`navTrackListActions` 等；`navSettingsActions` 已清退，`navNetworkMenuActions` 已由 `NetworkMenuViewModel` 接管�?- 手动调用 `renderSelectedTab()`、`renderNowBar()`、`syncNavHostState()`�?- 处理曲库、歌单、播放、搜索、网络、设置、推荐多�?feature 的具体业务流程�?
+### 1.3 当前事件路径示例
+
+#### 设置项点�?
+```text
+SettingsScreen
+  -> SettingsAction.onClick
+  -> SettingsViewModel.onEvent
+  -> SettingsEffect / SettingsPreferenceGateway / SettingsRuntimeEffectListener
+  -> settingsStore / repository / runtime applier
+  -> renderCurrentPage / state update
+```
+
+问题：链路太长，很多层只转发，无策略�?
+#### 导航/页面 chrome
+
+```text
+RenderController 生成 actions
+  -> MainActivity nav* 字段
+  -> syncNavHostState()
+  -> EchoNavHostState mutableStateOf
+  -> EchoNavGraph / Destination
+```
+
+问题：页�?state 不由 feature ViewModel 直接拥有，Activity 变成 Compose state 中转站�?
+#### 播放状�?
+```text
+EchoPlaybackService.snapshot()
+MainPlaybackStore.snapshot()
+PlaybackViewModel.playback
+NowPlayingViewModel state
+QueueViewModel bind(...)
+MainActivity publishNowPlayingState(...)
+```
+
+问题：播放状态有多个读点和镜像点，容易出现谁是事实源不明确�?
+---
+
+## 2. 目标包与命名建议
+
+不要第一步就大搬家。先�?feature 迁移，稳定后再整理包�?
+建议长期包结构：
+
+```text
+app.yukine
+  core/
+    model/
+    ui/
+    platform/
+    result/
+  data/
+    settings/
+    library/
+    playback/
+    lyrics/
+    streaming/
+    backup/
+  domain/
+    settings/
+    library/
+    playback/
+    lyrics/
+    streaming/
+    recommendation/
+  feature/
+    shell/
+    home/
+    library/
+    playlists/
+    player/
+    queue/
+    settings/
+    network/
+    streaming/
+    downloads/
+    onboarding/
+  playback/
+    service/
+  navigation/
+  ui/
+    components/
+    theme/
+```
+
+短期不强制移动已有文件。迁移新 owner 时优先放到现有相邻包，避免大规模 import churn�?
+---
+
+## 3. 全局迁移步骤
+
+### 3.1 �?0 阶段：建立迁移护�?
+#### 3.1.1 写架构契约测�?
+目标：阻止继续往 `MainActivity` 塞新业务�?
+具体任务�?
+- 更新或新�?`MainActivityArchitectureContractTest.java`�?- 增加断言�?  - `MainActivity.java` 不新增新�?`showXxxDialog`，除非是平台 owner 的安装入口�?  - `MainActivity.java` 不新增新�?`startActivityForResult`�?  - `MainActivity.java` 不新增新�?`nav*Actions` 字段�?  - 新设置项不得要求同时修改 `SettingsGateway`、`SettingsGatewayBindings`、`SettingsActionController`、`MainActivity` 四层以上�?
+验收�?
+- 新增一个纯偏好设置时，不需要改 `MainActivity.java`�?- 契约测试失败信息能指出应该放到哪�?owner�?
+#### 3.1.2 建立迁移工作�?
+每个迁移 PR/提交必须写清�?
+- 移走哪个职责�?- 原入口和新入口�?- 状态事实源是谁�?- 事件路径缩短了几层�?- 保留哪些兼容 facade�?- 删除哪些旧转发�?- 跑了哪些测试�?
+---
+
+## 4. MainActivity 收缩清单
+
+### 4.1 �?Activity Result / Picker 能力
+
+#### 现状
+
+`MainActivity` 直接处理�?
+- 音频文件选择�?- 音频文件夹选择�?- M3U/M3U8 导入导出�?- LX 源文件导入�?- 背景图片选择�?- 下载目录选择�?- 备份导入导出�?
+已有 `DocumentPickerController`，但仍有�?picker 直接回流 Activity�?
+#### 目标
+
+Activity 只注�?launcher，所�?picker 逻辑由独�?owner 管：
+
+```text
+MainActivity
+  -> PlatformLauncherRegistry
+  -> DocumentPickerController
+  -> BackupRestoreLauncher
+  -> BackgroundImagePickerController
+  -> DownloadDirectoryPickerController
+```
+
+#### 具体任务
+
+1. 新增 `BackgroundImagePickerController`�?   - 输入：`page: PageBackgroundTarget`�?   - 输出：`Flow` / callback `BackgroundImagePicked(page, uri)`�?   - 内部处理 `ACTION_OPEN_DOCUMENT`、`image/*`、持久读权限�?   - Activity 只调�?`backgroundImagePicker.open(page)`�?
+2. 新增 `BackupRestoreLauncher`�?   - 替代 `exportBackup()`、`importBackup()`、`handleBackupResult()`�?   - 输出 `BackupEffect.ShowStatus` �?callback�?   - 保持 `BackupManager.INSTANCE.export/restore` 不变�?
+3. 收敛 `DocumentPickerController`�?   - 把所�?`REQUEST_*` 常量集中�?controller�?   - Activity �?`onActivityResult` 只调用一�?`platformResultDispatcher.dispatch(...)`�?
+4. 后续改用 Activity Result API�?   - 先封装旧 `startActivityForResult`，再迁到 `registerForActivityResult`�?   - 不要�?feature ViewModel 中直接使�?launcher�?
+#### 文件
+
+- `MainActivity.java`
+- `DocumentPickerController.kt`
+- 新增 `BackgroundImagePickerController.kt`
+- 新增 `BackupRestoreLauncher.kt`
+- 新增 `PlatformActivityResultDispatcher.kt`
+
+#### 验收
+
+- `MainActivity.java` 中不再出现新增业�?picker �?`Intent` 构造�?- `MainActivity.java` �?`onActivityResult` 不包含业务判断，只做分发�?- 背景图片、备份、音频导入、M3U 导入全部原行为可用�?
+#### 测试
+
+- `BackgroundImagePickerControllerTest`：page 归一化、空 uri、持久权限失败降级�?- `BackupRestoreLauncherTest`：导�?导入 success/fail 映射状态�?- 手动回归：选图后重启仍显示；备份导�?导入仍返回状态�?
+#### 迁移进展�?026-06-23 / 2026-06-24 更新�?
+- 背景图片选择已迁�?`BackgroundImagePickerController` / `BackgroundImagePickerBindings`�?- 备份导入导出已迁�?`BackupRestoreLauncher` / `BackupRestoreBindings`�?- 状态消息本地化和最新状态事实源已迁�?`StatusMessageViewModel`；`StatusMessageController` 保留�?Activity 兼容门面�?- 设置页新�?`SettingsPage` typed model，`SettingsBackStack` 已改�?typed page；外�?route 字符串暂保留为兼容层�?- 新增 `SettingsPageStateBuilder`，已承接 `title + metrics + actions -> SettingsUiState` �?mapper，并已迁�?`Home` / `AboutGroup` / `AppearanceGroup` / `SourcesGroup` / `PlaybackGroup` / `LyricsGroup` / `Theme` / `AdvancedTheme` / `Accent` / `Language` / `PageBackground` / `AudioEffects` / `ConcurrentPlayback` / `NowPlayingGestures` / `PlaybackRestore` / `ReplayGain` / `StatusBarLyrics` / `FloatingLyrics` / `SleepTimer` / `PlaybackSpeed` / `AppVolume` / `StreamingAudioQuality` / `ShareStyle` / `StreamingGateway` / `Library` / `Lyrics` 页面装配；后续可继续处理其他 group 页等剩余设置页�?- `SettingsViewModel` 已具�?`SettingsState(page, preferences, runtime, actions, ui)` 状态源，`NavigateSettingsPage` 事件会直接基于当�?`SettingsPreferencesSnapshot` / `RuntimeSettingsStatus` 调用 `renderCurrentPage(...)` 重建页面，不再通过 `SettingsGateway` / `MainActivity.navigateSettingsPage(...)` 回流。`SettingsDestination` 已直接消�?`SettingsViewModel.state` 中的 `actions/ui`，`MainActivity` / `EchoNavHostState` 不再持有 `navSettingsActions`；`SettingsRenderCoordinator`、`SettingsPageEventController`、`SettingsPageChromeBindings`、`SettingsScrollStateSink` 已删除，`SettingsPageRenderController` 现在只作为滚动兼容门面，`SettingsViewModel` 自身持有 `scrollState`，不再把设置列表滚动状态放在页面渲染器里�?- `NetworkMenuViewModel` 已接管网络页标题 / metrics / actions 状态；`NetworkMenuChromeBindings` 只负责把导航 chrome 同步进该 ViewModel，`NetworkDestination` 直接消费�?`uiState`，`EchoNavHostState` 不再保存 `networkMenuTitle` / `networkMenuMetrics` / `networkMenuActions` 这类页面临时 state�?- `HomeDashboardViewModel` 已接管首�?`HomeDashboardActions`；`HomeDashboardRenderBindings` 直接�?actions 发布�?ViewModel，`HomeDestination` �?`MainActivityHomeDashboardUiState` 同时消费内容�?actions，`EchoNavHostState` 不再保存 `homeActions` / `navHomeActions`�?- `SettingsGatewayBindings` 已删除：主题、强调色、语言、播放速度、应用音量、流媒体音质、分享样式、并发播放、在线歌词、歌词偏移、音效、状态栏歌词、悬浮歌词、播放页手势、播放恢复、ReplayGain 等纯偏好/运行时设置事件由 `SettingsViewModel.onEvent(...)` 直接调用自身 apply/set 方法并通过 `SettingsPreferenceGateway` 保存；睡眠计时、加载曲库、歌词重载、流媒体网关 endpoint 等外部协作也已改�?`SettingsEffect`。`SettingsActionController` / `SettingsActionBindings` 已删除�?- 设置平台 effect 已继续收敛：`OpenNetworkSources` / `OpenDownloads`、加载曲库、音频文�?文件夹选择、悬浮歌词权限入口、页面背景选择、备份导入导出、歌词重载、睡眠计时、流媒体网关 endpoint 应用都由 `SettingsViewModel` 发出 `SettingsEffect`，`MainActivity` 直接�?effect 接到 `SettingsEffectBindings` 执行页面切换、平�?launcher 或播�?歌词边界调用，不再占�?`SettingsGatewayBindings` / `SettingsActionController` 构造参数；清除页面背景�?`SettingsViewModel` 基于当前 `SettingsPreferencesSnapshot.pageBackgrounds` 直接更新、保存并重建当前设置页�?- 设置运行时副作用 owner 已继续推进：`SettingsRuntimeApplier` 承接主题 surface、语言 surface、播�?service 控制、歌词开�?偏移与悬浮歌词权限应用；运行时应用已类型化为 `SettingsRuntimeEffect`，并�?`SettingsViewModel.applyXxx(...)` 保存路径通过 `SettingsRuntimeEffectListener` 直接发出，`MainActivity` 只接�?`settingsViewModel.bindRuntimeEffectListener(settingsRuntimeApplier::apply)`。`SettingsViewModel` 现在会在纯偏�?运行时设置应用后同步更新自身 `SettingsPreferencesSnapshot` / `RuntimeSettingsStatus` 并重建当前页，通过 `SettingsStoreMirror` 同步 `MainSettingsStore` 兼容镜像，并直接发出 `SettingsEffect.ShowStatus` / `SettingsEffect.ReloadCurrentLyrics`；`SettingsAppliedListenerBindings` 已删除，状态文案和歌词重载不再需要额�?applied listener 兼容层�?- `MainActivity` 只创�?controller、调�?`open(page)`，并�?`onActivityResult` 委托 `handleActivityResult(...)`�?- `MainActivity` 不再持有背景图片/备份选择�?request code、pending page、`image/*` �?`application/zip` Intent 构造�?- 音频文件、音频文件夹、歌�?M3U 导入、网络页 M3U 导入这类无额外兜底状态的 picker 入口已继续直�?`DocumentPickerController.openAudioFilePicker/openAudioFolderPicker/openPlaylistM3uFilePicker/openM3uFilePicker`；`MainActivity` 不再保留 `openAudioFilePicker()` / `openAudioFolderPicker()` / `openPlaylistM3uFilePicker()` / `openM3uFilePicker()` 单行 wrapper。下载目录选择的兜底反馈已迁入 `DownloadDirectoryPickerController`，`DownloadsEffect.OpenDirectoryPicker` 通过 `EchoNavHostState.openDownloadDirectoryPickerAction` 调用�?controller，`MainActivity` 不再保留 `openDownloadFolderPicker()` wrapper。洛雪源导入已迁�?`LuoxueSourceImportController` / `LuoxueSourceImportDialogController`：文�?picker 缺失兜底、URL 输入、后台读�?拉取、解析保存、状态提示和 streaming provider 刷新均由�?owner 承接，`MainActivity` 只保留装配和 `DocumentPickerController`/`ContentResolver` 平台适配，不再保�?`openLuoxueSourceFilePicker()` / `showLuoxueSourceUrlDialog()` / `importLuoxueSourcesFromUrls()` / `saveImportedLuoxueSources()` 等业务方法�?- 流媒体手�?Cookie 输入弹窗已迁�?`StreamingManualCookieDialogController`，`StreamingManualCookieController` 继续负责认证请求和登录成功回调；`MainActivity` 只装�?dialog owner，不再保�?`showStreamingCookieDialogContent(...)` 或直接拼�?Cookie `EditText` / `EchoDialog`�?- 流媒体歌单链接输入弹窗已迁入 `StreamingPlaylistImportDialogController`：普�?provider 的链接输入、洛�?provider 的源导入分流、确认后进入 `StreamingPlaylistController.importStreamingPlaylistFromLink(...)` 均由�?owner 承接；`MainActivity` 不再保留 `showImportStreamingPlaylistDialog()` 或直接拼装歌单链�?`EditText` / `EchoDialog`�?- 流媒体歌单导�?provider picker、导入完成提示、账号歌单多选导入、收藏导�?provider picker 已迁�?`StreamingPlaylistDialogController`；`StreamingPlaylistController` 保持业务编排，`MainActivity` 只装�?dialog owner，不再保�?`showStreamingProviderPicker(...)` / `showStreamingPlaylistLoadedDialog(...)` / `showAccountPlaylistImportPicker(...)` / `showImportStreamingFavoritesProviderPicker()` / `accountPlaylistLabel(...)`�?- 结果回调继续进入 `SettingsViewModel.applyPageBackgrounds(...)`；页面背景状态事实源仍是 `PageBackgrounds` / settings preferences�?- 备份结果回调继续映射 `backup.*` 状�?key，并�?Activity 现有状态栏入口展示�?- 2026-06-24 审查补丁：启动首屏实时频谱轮询改为仅在播放中运行，未播放/服务未连接时复用空频谱，避免 app 打开动画期间每帧触发 Compose 重组；QQ 音乐登录态校验收紧为需�?`qqmusic_key` / `qm_keyst` / `psrf_qqaccess_token` 等真实凭证，避免只含 `uin/p_uin` 的假登录态进入播放解析�?
+---
+
+### 4.2 �?Dialog 能力
+
+#### 现状
+
+`MainActivity` 直接创建多个 `EchoDialog`�?
+- WebDAV/网络源编辑�?- 歌单创建/重命�?删除确认�?- 添加到歌单�?- 流媒�?provider picker�?- 流媒�?Cookie 手动输入�?- LX 源导入方式选择�?- 账号歌单导入多选�?- 下载音质选择�?
+#### 目标
+
+Dialog 变成 UI effect，由 feature ViewModel �?feature coordinator 请求�?
+```text
+FeatureViewModel emits Effect.ShowDialog(...)
+  -> Activity / DialogHost collects effect
+  -> DialogController renders
+  -> Result sent back as ViewModel action
+```
+
+#### 具体任务
+
+1. 定义通用 effect�?
+```kotlin
+sealed interface UiEffect {
+    data class ShowMessage(val text: String) : UiEffect
+    data class ShowDialog(val request: DialogRequest) : UiEffect
+    data class LaunchPlatformAction(val request: PlatformRequest) : UiEffect
+}
+```
+
+2. 每个 feature 定义自己�?dialog request�?   - `PlaylistDialogRequest.Create`
+   - `PlaylistDialogRequest.Rename`
+   - `PlaylistDialogRequest.DeleteConfirm`
+   - `StreamingDialogRequest.ProviderPicker`
+   - `StreamingDialogRequest.CookieInput`
+   - `DownloadDialogRequest.QualityPicker`
+
+3. 新增 `DialogHostController`�?   - 只负责把 request 渲染�?`EchoDialog`�?   - 不做业务�?   - 用户确认后调�?`onDialogResult(result)`�?
+4. 删除 `MainActivity` 中直接拼 dialog layout 的逻辑�?
+#### 文件
+
+- `MainActivity.java`
+- `NetworkDialogController.java`
+- `PlaylistDialogController.java`
+- `ConfirmationDialogController.kt`
+- `StreamingManualCookieController.kt`
+- 新增 `DialogRequest.kt`
+- 新增 `DialogHostController.kt`
+
+#### 验收
+
+- feature 业务不依�?`EchoDialog`�?- `MainActivity` 不再知道 Cookie 输入框、账号歌单多选布局、下载音质选项细节�?- Dialog 结果可单测�?
+---
+
+### 4.3 抽状态消息能�?
+#### 现状
+
+多处直接 `setStatus(AppLanguage.text(...))`�?
+#### 目标
+
+统一为：
+
+```text
+ViewModel / UseCase -> UiEffect.ShowMessage(messageKey or message)
+StatusMessageViewModel -> Compose Snackbar/Status UI
+```
+
+#### 具体任务
+
+1. 新增 `StatusMessageViewModel` 或复�?`StatusMessageController` 但让 Compose collect�?2. 定义�?
+```kotlin
+data class StatusMessage(
+    val text: String,
+    val level: StatusLevel = Info,
+    val source: String = ""
+)
+```
+
+3. 新增 `MessageTextResolver`�?   - �?UI 层根�?`languageMode` 解析 key�?   - Repository/UseCase 不拼 UI 文案�?
+4. 逐步替换 `MainActivity.setStatus` 调用�?
+#### 验收
+
+- �?feature 不直接调�?`MainActivity.setStatus`�?- 状态消息可以在单元测试中断言 effect�?
+迁移进展�?026-06-24）：
+
+- `showActionFeedback(...)` 的空消息过滤与发布已下沉�?`StatusMessageController.showFeedback(...)`；下载请求、下载目录兜底、在线播放解�?音源切换、分享反馈等入口直接调用状态消�?owner，`MainActivity` 不再保留 `showActionFeedback(...)` �?wrapper�?- `MessageTextResolver` 已引入作�?UI �?message key 解析入口；备份导�?导出�?`backup.*` statusKey 现在通过 `StatusMessageController.setStatusKey(...)` 发布，`MainActivity` 不再�?`BackupRestoreLauncher` 直接调用 `AppLanguage.text(...)`�?- 设置返回栈已继续 typed 化：`MainBackNavigationPolicy` 直接接收 `SettingsPage`，`MainRouteController` 先把当前 settings route 转成 typed page 再参�?back policy，`SettingsBackStack.parentPage(String)` 兼容适配器已移除�?
+---
+
+## 5. 设置模块迁移清单
+
+设置模块是最适合先完�?MVVM 化的样板�?
+### 5.1 当前问题
+
+当前设置链路分散�?
+- `SettingsViewModel` 已同时持�?`SettingsState`、`SettingsUiState` 和滚动状态，事件大多已在 ViewModel 内处理，少量平台能力仍通过 effect 走外�?owner�?- `SettingsPageRenderController` 只保留页面滚动兼容入口与少量 label helper�?- `SettingsRenderCoordinator` 根据 `settingsPage` 调不�?render 方法�?- `SettingsGatewayBindings` 是很长的构造参数列表�?- `SettingsAppliedListenerBindings` 同时更新 `MainSettingsStore`、service、lyrics、状态消息、重新渲染�?- `MainSettingsStore`、DB settings、`SettingsViewModel`、`EchoNavHostState` 都参与状态�?
+### 5.2 目标
+
+设置页终态：
+
+```text
+SettingsScreen
+  collect SettingsViewModel.uiState
+  send SettingsAction
+
+SettingsViewModel
+  owns current page
+  owns displayed settings state
+  calls SettingsUseCases
+  emits SettingsEffect
+
+SettingsRepository
+  load/save persistent preferences
+
+SettingsRuntimeApplier
+  applies runtime side effects: theme, playback speed, lyrics switches
+```
+
+### 5.3 具体任务
+
+#### 5.3.1 合并页面渲染进入 ViewModel
+
+当前�?
+```text
+SettingsViewModel.onEvent(NavigateSettingsPage(page))
+  -> renderCurrentPage(page, preferences, runtime)
+  -> state/ui 更新
+```
+
+目标�?
+```text
+SettingsViewModel.onAction(NavigatePage(page))
+  -> state = buildPageState(page, preferences, runtimeStatus)
+```
+
+执行步骤�?
+1. 新增 `SettingsPageStateBuilder`�?   - �?`SettingsPageRenderController` 迁出�?mapper 逻辑�?   - 输入 `SettingsPreferencesSnapshot`、`RuntimeSettingsStatus`、`languageMode`、`page`�?   - 输出 `SettingsUiState`�?
+2. �?`SettingsViewModel` 持有�?
+```kotlin
+data class SettingsState(
+    val page: SettingsPage,
+    val preferences: SettingsPreferencesSnapshot,
+    val runtime: RuntimeSettingsStatus,
+    val ui: SettingsUiState
+)
+```
+
+3. `SettingsRenderCoordinator` 降级或删除�?
+验收�?
+- 设置页切换不需�?`MainActivity.navigateSettingsPage()`�?- `SettingsPageRenderController` 不再直接调用 `viewModel.updatePage`，页面滚动状态由 `SettingsViewModel.scrollState` 持有�?
+#### 5.3.2 替换 string page �?typed page
+
+当前�?
+- `MainRoutes.SETTINGS_*` 字符串�?- `SettingsBackStack.parentPage(settingsPage: String)`�?
+目标�?
+```kotlin
+sealed interface SettingsPage {
+    data object Home : SettingsPage
+    data object AppearanceGroup : SettingsPage
+    data object Theme : SettingsPage
+    data object Accent : SettingsPage
+    data object Language : SettingsPage
+    data object PageBackground : SettingsPage
+    ...
+}
+```
+
+执行步骤�?
+1. 新增 `SettingsPage.kt`�?2. 新增 `SettingsPage.fromRoute(route: String)` 兼容旧路由�?3. 修改 `SettingsBackStack` 接收 `SettingsPage`�?4. Compose 设置页只发�?typed page�?5. 保留�?`MainRoutes.SETTINGS_*` 作为导航兼容层，最后删除�?
+验收�?
+- 新设置页不再新增裸字符串 route�?- 设置返回栈单测覆盖每�?page�?
+#### 5.3.3 合并 SettingsGateway/Bindings
+
+当前 `SettingsGatewayBindings` 有大量一行转发�?
+目标�?
+```kotlin
+SettingsViewModel.onAction(SettingsAction.ApplyTheme(mode))
+  -> applySettingUseCase(...)
+  -> emit RuntimeEffect.ApplyTheme(mode)
+```
+
+需要保留的边界�?
+- 打开系统权限页�?- 打开文件选择器�?- 打开目录选择器�?- 打开网络源页面�?- 打开下载页面�?
+其他纯偏好保存不应通过 `SettingsGateway`�?
+执行步骤�?
+1. 定义�?
+```kotlin
+sealed interface SettingsPlatformEffect {
+    data object OpenAudioFilePicker : SettingsPlatformEffect
+    data object OpenAudioFolderPicker : SettingsPlatformEffect
+    data object OpenFloatingLyricsPermission : SettingsPlatformEffect
+    data class ChoosePageBackground(val page: PageBackgroundTarget) : SettingsPlatformEffect
+    data object OpenDownloads : SettingsPlatformEffect
+    data object OpenNetworkSources : SettingsPlatformEffect
+}
+```
+
+2. `SettingsViewModel` 对纯设置直接保存�?3. 对平台行�?emit effect�?4. Activity/DialogHost �?collect effect�?5. 删除 `SettingsGatewayBindings` 中非平台方法�?
+验收�?
+- 应用主题/强调�?语言/播放速度/音量/ReplayGain 不经�?Activity�?- 平台选择器仍通过 Activity/launcher 执行�?
+#### 5.3.4 建立 SettingsRepository
+
+当前偏好�?`MusicLibraryRepository -> EchoDatabaseHelper`�?
+目标�?
+```kotlin
+interface SettingsRepository {
+    val preferences: Flow<SettingsPreferencesSnapshot>
+    suspend fun save(update: SettingsPreferenceUpdate)
+}
+```
+
+执行步骤�?
+1. 新增 `SettingsPreferencesSnapshot`，包含：
+   - themeMode
+   - accentMode
+   - languageMode
+   - playbackSpeed
+   - appVolume
+   - streamingAudioQuality
+   - concurrentPlaybackEnabled
+   - audioEffectSettings
+   - statusBarLyricsEnabled
+   - floatingLyricsEnabled
+   - nowPlayingGesturesEnabled
+   - playbackRestoreEnabled
+   - replayGainEnabled
+   - shareStyle
+   - pageBackgrounds
+
+2. 新增 `DatabaseSettingsRepository`�?3. 先内部复�?`MusicLibraryRepository` �?`EchoDatabaseHelper`，后续再移出�?4. 删除 `LoadSettingsPreferencesUseCase` �?`ApplySettingsPreferenceUseCase` 中重复接口，或让它们依赖 `SettingsRepository`�?
+验收�?
+- 设置读写有唯一 Repository�?- `MainSettingsStore` 不再是主要状态源�?
+#### 5.3.5 设置运行时副作用 owner
+
+当前 `SettingsAppliedListenerBindings` 同时处理�?
+- 更新 `MainSettingsStore`�?- 应用主题�?- 更新语言�?- �?playback service�?- �?lyrics view model�?- �?floating lyrics service�?- setStatus�?- renderSelectedTab/renderNowBar�?
+目标拆分�?
+```text
+SettingsRuntimeApplier
+  -> ThemeRuntimeApplier
+  -> PlaybackRuntimeSettingsApplier
+  -> LyricsRuntimeSettingsApplier
+  -> FloatingLyricsRuntimeApplier
+```
+
+执行步骤�?
+1. 新增 `SettingsRuntimeEffect`�?
+```kotlin
+sealed interface SettingsRuntimeEffect {
+    data class ApplyTheme(val mode: String, val accent: String) : SettingsRuntimeEffect
+    data class ApplyPlaybackSpeed(val speed: Float) : SettingsRuntimeEffect
+    data class ApplyAppVolume(val volume: Float) : SettingsRuntimeEffect
+    data class ApplyAudioEffects(val settings: AudioEffectSettings) : SettingsRuntimeEffect
+    data class SetStatusBarLyrics(val enabled: Boolean) : SettingsRuntimeEffect
+    data class SetFloatingLyrics(val enabled: Boolean) : SettingsRuntimeEffect
+}
+```
+
+2. `SettingsViewModel` 保存成功�?emit effect�?3. Activity 只把 effect 交给 `SettingsRuntimeApplier`�?4. `SettingsRuntimeApplier` 不做 UI 渲染，只做运行时应用�?5. UI 刷新�?`SettingsViewModel.uiState` 自然更新�?
+验收�?
+- `SettingsAppliedListenerBindings` 已删除，后续不得恢复；设置应用后的状态提示通过 `SettingsEffect.ShowStatus`，在线歌词重载通过 `SettingsEffect.ReloadCurrentLyrics`�?- 应用设置不调�?`renderSelectedTab()`�?
+---
+
+## 6. 导航�?Compose Shell 迁移清单
+
+### 6.1 当前问题
+
+`EchoNavHostState` 同时持有�?
+- 多个 ViewModel�?- 当前 tab�?- 每个页面 action 列表�?- 每个页面 labels/metrics/empty text�?- 多个 callback�?- NowPlaying 手势开关�?- 页面背景�?- 搜索和下载目�?action�?
+它本质是 Activity �?Compose 的大状态包�?
+### 6.2 目标
+
+```text
+EchoAppHost
+  -> EchoNavGraph
+      collect NavigationViewModel.state
+      each Destination collect its own ViewModel.state
+```
+
+`EchoNavHostState` 最终删除，或只保留很薄的：
+
+```kotlin
+data class EchoNavHostState(
+    val appChromeState: AppChromeState
+)
+```
+
+### 6.3 具体任务
+
+#### 6.3.1 建立 AppShellViewModel
+
+职责�?
+- 当前 tab�?- 是否显示 onboarding�?- bottom nav labels�?- NowBar 是否显示�?- 页面背景选择�?- 全局状态消息�?
+不负责：
+
+- 曲库 action�?- 设置 action�?- 网络 action�?- 具体页面业务�?
+新增�?
+```kotlin
+data class AppShellUiState(
+    val selectedTab: TabRoute,
+    val tabs: List<EchoTabItem>,
+    val showOnboarding: Boolean,
+    val pageBackgrounds: PageBackgrounds,
+    val nowBarVisible: Boolean
+)
+```
+
+验收�?
+- `EchoNavGraph` 不再�?`EchoNavHostState` 读取页面 action�?- tab 切换可单测�?
+#### 6.3.2 页面 action 回归页面 ViewModel ✅ 已完成（2026-06-25 验证）
+
+验证结论：以下所有 nav* 字段均已从 `MainActivity.java` 删除，grep 无匹配。曲库 action 已类型化为 `LibraryEvent`，队列为 `QueueIntent`，各页面 ViewModel 直接持有 UiState。
+
+要删除的 Activity 字段（全部已删除）：
+- `navTrackListActions`
+- `navTrackListHeaderMetrics`
+- `navTrackListHeaderActions`
+- `navTrackListEmptyText`
+- `navTrackListModeActions`
+- `navTrackListLabels`
+- `navLibraryGroupActions`
+- `navLibraryGroupEmptyText`
+- `navLibraryGroupModeActions`
+- `navCollectionsActions`
+- `navSettingsActions`
+- `navSettingsScrollState`
+- `navNetworkSourceActions`
+- `navNetworkSourceHeaderActions`
+- `navNetworkSourceEmptyText`
+- `navNetworkSourceLabels`
+- `navNetworkMenuTitle`
+- `navNetworkMenuMetrics`
+- `navNetworkMenuActions`
+- `navStreamingSearchLabels`
+- `navStreamingSearchActions`
+- `navSearchActions`
+
+迁移方式�?
+- `HomeDashboardViewModel` 输出 `HomeDashboardUiState` + action event�?- `LibraryViewModel` 输出 `LibraryUiState`，包�?mode actions/header actions�?- `SettingsViewModel` 输出 `SettingsUiState`，包�?settings actions�?- `NetworkSourcesViewModel` 输出 `NetworkSourcesUiState`�?- `StreamingSearchViewModel` 输出 `StreamingSearchUiState`�?
+验收�?
+- `syncNavHostState()` 不再�?30 多个 setter�?- 新页�?action 不需要加 Activity 字段�?
+#### 6.3.3 路由状态单源化
+
+当前�?
+- `MainRouteController`
+- `NavigationViewModel`
+- `EchoNavHostState.selectedTabRoute`
+- Compose pager state
+
+目标�?
+- `NavigationViewModel` �?Compose Navigation 是唯一事实源�?- `MainRouteController` 只保留兼容层，逐步删除�?
+任务�?
+1. 定义 typed route�?
+```kotlin
+sealed interface AppRoute {
+    data object Home : AppRoute
+    data object Library : AppRoute
+    data object Player : AppRoute
+    data object Settings : AppRoute
+    data class Network(val page: NetworkPage) : AppRoute
+    data class Collection(val id: Long?) : AppRoute
+}
+```
+
+2. `MainRoutes.java` 字符串只作为旧桥�?3. `MainRouteController` 迁成 Kotlin，并只负�?route reducer�?4. `EchoNavGraph` 根据 `NavigationState` 渲染�?
+验收�?
+- 返回键逻辑单测覆盖�?- tab 切换、设置子页、网络子页、播放沉浸页不依赖业�?ViewModel 副作用�?
+---
+
+## 7. 播放模块迁移清单
+
+### 7.1 当前问题
+
+播放状态和命令分散�?
+- `EchoPlaybackService`
+- `MainPlaybackStore`
+- `PlaybackViewModel`
+- `NowPlayingViewModel`
+- `QueueViewModel`
+- `NowPlayingStateController`
+- `PlaybackStateUpdateController`
+- `PlaybackActionController`
+- `PlaybackStartController`
+- Activity 手动 publish/render
+
+### 7.2 目标
+
+建立播放边界�?
+```kotlin
+interface PlaybackController {
+    val state: StateFlow<PlaybackStateSnapshot>
+    val queue: StateFlow<List<Track>>
+    suspend fun playQueue(tracks: List<Track>, index: Int)
+    suspend fun toggle()
+    suspend fun next()
+    suspend fun previous()
+    suspend fun seekTo(positionMs: Long)
+    suspend fun setShuffle(enabled: Boolean)
+    suspend fun setRepeatMode(mode: Int)
+    suspend fun moveQueueItem(from: Int, to: Int)
+    suspend fun removeQueueItem(trackId: Long)
+}
+```
+
+Service 是实现细节：
+
+```text
+EchoPlaybackService
+  -> PlaybackServiceController : PlaybackController
+```
+
+### 7.3 具体任务
+
+#### 7.3.1 建立 PlaybackController facade
+
+1. 新增 `PlaybackController.kt`�?2. 新增 `PlaybackServiceController.kt`，内部绑定或代理 `EchoPlaybackService`�?3. Activity 持有 `PlaybackController`，不再直接把 service 传给各处�?4. `NowPlayingViewModel`、`QueueViewModel`、`PlaybackViewModel` 依赖 `PlaybackController` �?`PlaybackRepository`�?
+验收�?
+- UI/ViewModel 不直�?import `EchoPlaybackService`�?- 单测可用 fake `PlaybackController`�?
+#### 7.3.2 统一播放 UiState
+
+目标�?
+```kotlin
+data class PlaybackUiState(
+    val currentTrack: Track?,
+    val queue: List<Track>,
+    val playing: Boolean,
+    val positionMs: Long,
+    val durationMs: Long,
+    val shuffle: Boolean,
+    val repeatMode: Int,
+    val lyricsLine: String,
+    val waveform: WaveformState,
+    val spectrum: SpectrumState
+)
+```
+
+任务�?
+- `NowBar`、`NowPlayingScreen`、`QueueScreen` 使用同一 `PlaybackUiState` 派生 state�?- 删除 `publishNowPlayingState` 这种 Activity 中转�?- `QueueViewModel.bind(...)` 不再每次�?Activity 手动�?state�?
+验收�?
+- NowBar、播放页、队列页显示一致�?- 播放进度和当前曲不依赖手�?render�?
+现状与阻塞（2026-06-25 分析，详见 `docs/TASK_3_UNIFIED_PLAYBACK_STATE_ANALYSIS.md`）：
+- `NowPlayingViewModel` / `QueueViewModel` 已各自持有独立 `StateFlow<UiState>`，且已以 `PlaybackStateSnapshot` 作为数据传输对象，未直接耦合 service。
+- 仍为"推送式"而非"响应式"：`MainActivity` 中有约 9 处手动 `nowPlayingStateController.renderNowBar()` 调用，状态变化经 `NowPlayingStateController.publish(snapshot)` 手动推送到 ViewModel，而非 ViewModel 自动 `combine` 多个状态流。
+- 阻塞点：要做成响应式（删除手动 `renderNowBar()`），需先把 7.3.1 的 `PlaybackController` 真正集成进 `MainActivity` 并由 ViewModel 注入 `combine` 播放/收藏/歌词/语言流。该集成是独立大任务，未完成前 7.3.2 不宜开工。
+- 因此本节标记为"待 7.3.1 集成完成后启动"，避免半截改动破坏播放链路。
+
+#### 7.3.3 保留服务稳定性约�?
+迁移时禁止改动：
+
+- MediaLibraryService 对外能力�?- 前台服务通知�?- 小部�?action�?- 队列恢复�?- 耳机/车机控制�?- 歌词通知�?- 音效 session 绑定�?
+测试�?
+- 编译�?- 播放本地文件�?- 后台播放�?- 通知栏控制�?- 小部件控制�?- 杀进程恢复�?
+---
+
+## 8. 曲库与歌单迁移清�?
+### 8.1 当前问题
+
+曲库数据、路由和 UI action 混合�?
+- `MainLibraryStore` 保存可见曲目、收藏、选中歌单等�?- `LibraryViewModel` 已存在，但仍�?Activity �?`publishLibraryState`、`handleLibraryEvent`�?- `TrackListRenderController`、`LibraryGroupsRenderController`、`LibraryPlaylistsRenderController` 输出 chrome，再�?Activity 塞入 nav state�?
+### 8.2 目标
+
+```text
+LibraryScreen
+  -> LibraryViewModel.uiState
+  -> LibraryViewModel.onAction
+  -> LibraryUseCases
+  -> LibraryRepository
+```
+
+歌单独立�?
+```text
+PlaylistListScreen / PlaylistTrackScreen
+  -> PlaylistViewModel
+  -> PlaylistUseCases
+```
+
+### 8.3 具体任务
+
+#### 8.3.1 替换 MainLibraryStore
+
+1. 定义 `LibraryState`�?
+```kotlin
+data class LibraryState(
+    val allTracks: List<Track>,
+    val visibleTracks: List<Track>,
+    val favorites: Set<Long>,
+    val mode: LibraryMode,
+    val selectedGroup: LibraryGroup?,
+    val selectedPlaylistId: Long,
+    val searchQuery: String
+)
+```
+
+2. `LibraryViewModel` 持有 `MutableStateFlow<LibraryState>`�?3. `MainLibraryStore` 只作为兼容读取，逐步删除�?4. `replaceLibrary`、`loadCollections`、`refreshLibraryAfterStreamingImport` 迁入 ViewModel/use case�?
+验收：切换曲库模式不需要 `routeController.setLibraryMode` 后再 `renderSelectedTab`；收藏状态更新自动刷新列表和 NowBar。
+
+迁移进展（2026-06-25）：
+- ✅ `MainLibraryStore` 写接口已收敛：`setFavorite` / `toggleFavorite` / `clearPlayHistory` 等写方法移出，`MainLibraryStore` 退化为只读兼容 facade，所有读取都从 `MainActivityViewModel.library` 这一份 `MutableStateFlow<MainActivityLibraryState>` 派生。
+- ✅ 收藏写路径改走 `MainActivityViewModel.setFavorite(...)`，播放历史清空改走 `MainActivityViewModel.clearPlayHistory()`，`PlayHistoryActionController` 通过 `PlayHistoryStateStore { viewModel.clearPlayHistory() }` 单向同步，不再回写 store。
+- ✅ 契约测试 `MainActivityArchitectureContractTest` 已更新断言为 `libraryStateStore.clearPlayHistory()`，`PlayHistoryActionControllerTest` 已对齐到 `libraryStateStore` 装配。
+- 🔲 仍待迁移：`replaceLibrary` / `loadCollections` / `refreshLibraryAfterStreamingImport` 仍经 store 转发到 ViewModel；完整 `LibraryState`（mode / selectedGroup / searchQuery 等）尚未独立成型，仍由 `MainActivityLibraryState` + 外部 store 共担。
+
+#### 8.3.2 曲库 action typed �?
+当前 action 是多�?`Runnable` / actions list�?
+目标�?
+```kotlin
+sealed interface LibraryAction {
+    data object Scan : LibraryAction
+    data class Search(val query: String) : LibraryAction
+    data class SelectMode(val mode: LibraryMode) : LibraryAction
+    data class SelectGroup(val group: LibraryGroup) : LibraryAction
+    data class ToggleFavorite(val track: Track) : LibraryAction
+    data class Play(val tracks: List<Track>, val index: Int) : LibraryAction
+    data class AddToPlaylist(val track: Track) : LibraryAction
+}
+```
+
+验收�?
+- `TrackListScreen` 不接�?`List<TrackRowActions>`，而是 `onAction(LibraryAction)`�?
+#### 8.3.3 歌单独立 ViewModel
+
+新增 `PlaylistViewModel`，负责：
+
+- 歌单列表�?- 收藏歌单虚拟入口�?- 播放历史�?- 最�?最多播放�?- 歌单详情�?- 添加、移除、移动、重命名、删除�?- M3U 导入导出请求�?
+验收�?
+- 歌单 dialog 结果直接回到 `PlaylistViewModel.onAction`�?- Activity 不再处理 `createPlaylist`、`renamePlaylist`、`deletePlaylist`、`moveSelectedPlaylistTrack`�?
+迁移进展（2026-06-25）：
+- ✅ 歌单 CRUD 的"去 Activity 化"已完成：`MainActivity` 不再保留 `createPlaylist` / `renamePlaylist` / `deletePlaylist` / `addTrackToPlaylist` / `moveSelectedPlaylistTrack` / `removeSelectedPlaylistTrack` 业务方法，只通过方法引用装配 `PlaylistActionResultController` 与 `PlaylistDialogController`。
+- ✅ CRUD 业务逻辑位于 `LibraryViewModel`（`createPlaylist/renamePlaylist/deletePlaylist/addTrackToPlaylist/moveSelectedPlaylistTrack` + presentation 方法），`PlaylistActionResultController` 编排结果回调、状态发布、选中歌单与 collections reload，`PlaylistDialogController` 承接对话框。
+- 🔲 结构性拆分未做：歌单逻辑仍**并在** `LibraryViewModel` 中，尚未拆出独立 `PlaylistViewModel`。这是可选的后续结构优化，当前 `LibraryViewModel` 的歌单职责工作正常且有测试覆盖（`PlaylistActionResultControllerTest`），不强制拆分。
+- 判定：本节"Activity 不再处理 CRUD"验收项已满足；"新增独立 PlaylistViewModel"作为长期目标保留。
+
+---
+
+## 9. 流媒体迁移清�?
+已有 `docs/STREAMING_VIEWMODEL_SPLIT_PLAN.md`，这里给接手版拆分点�?
+### 9.1 当前问题
+
+`StreamingViewModel` 已经从旧全局 ViewModel 中拆出，但仍偏大，职责包含：
+
+- provider 列表和状态�?- 搜索�?- 登录/认证�?- Cookie 导入�?- 歌单导入�?- 播放 URL 解析�?- 推荐�?- 音质选择状态参与�?- 与本地歌�?匹配信息交互�?
+### 9.2 目标拆分
+
+建议拆成�?
+| �?owner | 职责 |
+|---|---|
+| `StreamingProviderViewModel` | provider 列表、选择、登录状�?|
+| `StreamingSearchViewModel` | 在线搜索、分页、搜索结果、搜索错�?|
+| `StreamingAuthViewModel` | 登录、Cookie、本�?auth store、认证回�?|
+| `StreamingPlaylistImportViewModel` | 账号歌单、URL/源歌单导入、本地落�?|
+| `StreamingPlaybackResolver` | 播放 URL 解析、质量降级、预解析 |
+| `StreamingRecommendationViewModel` | 每日推荐、心动推荐、推荐种�?|
+
+### 9.3 具体任务
+
+1. 先拆纯搜索�?   - 输入：query、provider、media type�?   - 输出：`StreamingSearchUiState`�?   - 保留�?`StreamingViewModel` facade 一轮�?
+2. 再拆认证�?   - `StreamingAuthLauncher` 仍是平台 owner�?   - ViewModel �?emit `LaunchAuth(provider)` effect�?
+3. 再拆歌单导入�?   - 导入确认 dialog 变成 effect�?   - 导入结果落到 `PlaylistRepository`�?
+4. 最后拆播放解析�?   - `StreamingPlaybackResolver` 不依�?Activity�?   - 播放入口通过 `PlaybackController.playQueue`�?
+验收�?
+- 新增 provider 不改 `MainActivity.java`�?- 搜索测试不需要构造完�?`StreamingViewModel`�?- 登录测试不需要播�?controller�?- 播放解析测试不需�?UI�?
+---
+
+## 10. 下载模块迁移清单
+
+### 10.1 当前问题
+
+下载已有 `DownloadsViewModel`，但下载触发、音质选择、结�?status 仍有 Activity 参与�?
+### 10.2 目标
+
+```text
+DownloadAction
+  -> DownloadsViewModel
+  -> TrackDownloadUseCase
+  -> TrackDownloadManager
+  -> DownloadUiState / DownloadEffect
+```
+
+### 10.3 具体任务
+
+1. 新增 `DownloadRequest`�?   - current track
+   - playlist
+   - current list
+   - with quality
+
+2. `DownloadsViewModel` 负责�?   - 创建下载请求�?   - 暂停/继续/全部暂停/全部继续�?   - 打开下载目录 effect�?   - 下载状态消�?effect�?
+3. Activity 只处理：
+   - 目录选择平台 effect�?   - Android system permission/platform result�?
+4. 下载音质 dialog 迁入 effect�?
+验收�?
+- `downloadTrackWithQuality`、`downloadTracks`、`showDownloadQualityDialog` 不在 Activity�?- 下载状态可单测�?
+迁移进展�?026-06-24）：
+
+- 下载触发、下载音质选择、未解析流媒体下载地址解析与入队刷新已迁入 `DownloadRequestController`�?- 下载音质 `EchoDialog` 渲染已迁�?`DownloadQualityDialogController`；`MainActivity` 只负责装�?chooser / resolver / status sink�?- `TrackDownloadManager` 通过 `TrackDownloadRequestQueue` 暴露下载入队与状态能力，便于 `DownloadRequestControllerTest` 使用 fake 队列覆盖普通单曲、未解析流媒体单曲、歌单批量下载路径�?- 下载目录预设切换与“选择目录”入口已迁入 `DownloadsViewModel` action / `DownloadsEffect.OpenDirectoryPicker`；`DownloadsDestination` 只消�?state/effect，目录能力由 `TrackDownloadDirectoryController` 暴露�?- `MainActivity` 已不再包�?`downloadTrackWithQuality`、`downloadTracks`、`enqueueTrackDownload`、`showDownloadQualityDialog`、`DownloadQualityCallback` 等下载业务方法�?- 歌单 CRUD / 曲目移除 / 曲目移动 / 添加到歌单的结果处理入口已继续收敛到 `PlaylistActionResultController`：`MainActivity` 不再保留 `createPlaylist(...)`、`renamePlaylist(...)`、`deletePlaylist(...)`、`removeSelectedPlaylistTrack(...)`、`moveSelectedPlaylistTrack(...)`、`addTrackToPlaylist(...)` 这组纯业务转发方法；Dialog/Collections 入口直接调用 `PlaylistActionResultController`，由其进�?`LibraryViewModel` 并统一发布状态、选中歌单�?collections reload�?- 歌单 dialog 入口继续下沉�?`PlaylistDialogController`：Library / Queue / Collections / NowPlaying 入口现在直接调用 `showAddToPlaylist(track)`，当前歌单列表由 `PlaylistProvider` 提供，无歌单时默认添加分支也�?dialog controller 回调 `addToDefaultPlaylist(track)`；创建、重命名、删除确认入口也直接进入 `PlaylistDialogController`，`MainActivity` 不再保留 `showCreatePlaylistDialog(...)`、`showRenamePlaylistDialog(...)`、`showAddToPlaylistDialog(...)`、`confirmDeletePlaylist(...)` 这组 dialog wrapper�?- 队列清空确认入口保留�?`QueueActionController.confirmClearQueue()` 做空队列判断，确认弹窗由 `QueueActionBindings` 进入 `ConfirmationDialogController.confirmClearQueue()`，确认后的执行动作通过 `ConfirmationDialogBindings` 调用 `QueueActionController.clearQueue()`；`MainActivity` 不再保留 `confirmClearQueue()` / `clearQueue()` 纯转发方法�?- 播放历史清空结果处理已迁�?`PlayHistoryActionController`：Collections 入口直接打开 `ConfirmationDialogController.confirmClearPlayHistory()`，确认后的执行动作通过 `ConfirmationDialogBindings` 调用 `PlayHistoryActionController.clearPlayHistory()`，由其进�?`LibraryViewModel.clearPlayHistory(...)`、同�?`MainLibraryStore`、发布状态并刷新 collections；`MainActivity` 不再保留 `confirmClearPlayHistory()` / `clearPlayHistory()` 业务 wrapper�?- 网络流媒体编辑和删除确认的薄转发继续移除：TrackList 入口直接调用 `NetworkDialogController.showEditStream(...)` / `ConfirmationDialogController.confirmDeleteTrack(...)`，分组删除直接调�?`ConfirmationDialogController.confirmDeleteTracks(...)`，确认后的删除动作直接进�?`NetworkRequestController.deleteAllStreams/deleteTrack/deleteTracks/deleteRemoteSource`；`MainActivity` 不再保留 `showEditStreamDialog(...)`、`confirmDeleteTrack(...)`、`confirmDeleteTracks(...)`、`deleteAllStreams()`、`deleteTrack(...)`、`deleteTracks(...)`、`deleteRemoteSource(...)` 这组网络业务 wrapper�?- WebDAV 远程源测�?同步已由 `NetworkSourcesEventController` 直接调用 `NetworkRequestController.testRemoteSource(...)` / `syncRemoteSource(sourceId, remoteSourceName)`，源名称�?`NetworkSourcesLibrarySourceBindings` 提供；远程源曲目列表页的同步 action 也直接进�?`NetworkRequestController.syncRemoteSource(sourceId, remoteSourceName(sourceId))`；`MainActivity` 中不再保�?`testRemoteSource(...)` / `syncRemoteSource(...)` wrapper�?
+---
+
+## 11. 歌词模块迁移清单
+
+### 11.1 当前问题
+
+`LyricsViewModel` 已存在，但歌�?reload、当前曲监听、通知/悬浮歌词开关仍�?Activity/Service/Settings 多点连接�?
+### 11.2 目标
+
+```text
+LyricsViewModel
+  -> LoadTrackLyricsUseCase
+  -> LyricsRepository
+  -> LyricsUiState
+```
+
+运行时发布：
+
+```text
+PlaybackController.currentTrack
+  -> LyricsViewModel.load(track)
+  -> LyricsPublisher
+      -> notification lyrics
+      -> floating lyrics
+```
+
+### 11.3 具体任务
+
+1. `LyricsReloadController` 合并�?`LyricsViewModel` �?`LoadLyricsForCurrentTrackUseCase`�?2. `SettingsViewModel` 不直接控制歌�?ViewModel，改�?`LyricsSettingsChanged` effect�?3. `FloatingLyricsService` 启停�?`FloatingLyricsRuntimeApplier` 处理�?4. `LiveLyricsNotificationService` 保持平台边界�?
+验收�?
+- 改歌词偏移只影响 Lyrics state，不触发全页�?render�?- 当前曲变化自动加载歌词�?- 无歌词时通知/悬浮歌词优雅降级�?
+迁移进展�?026-06-24）：
+
+- `LyricsReloadController` / `LyricsReloadBindings` 已合并进 `LyricsViewModel.bindReloadGateway(...)` �?`LyricsViewModel.reloadCurrentLyrics(...)`；设置页重新加载歌词现在直接进入歌词 ViewModel，状态提示仍通过绑定�?status sink 输出�?- `SettingsActionController` 保留设置入口和睡眠计时边界，但不再通过 listener 转发歌词 reload；`SettingsActionBindings` 已移�?`lyricsReloader`�?
+---
+
+## 12. 推荐模块迁移清单
+
+### 12.1 当前问题
+
+每日推荐已收敛到 `StreamingRecommendationViewModel` + typed `RecommendationAction`；心动推荐、种子选择、播放入口仍有部分兼容边界：
+
+- `HeartbeatRecommendationController`
+- `StreamingViewModel`
+- `MainActivity` helper 方法
+- `playbackStartController`
+
+### 12.2 目标
+
+```text
+RecommendationViewModel
+  -> RecommendationUseCases
+  -> StreamingRepository / LibraryRepository
+  -> PlaybackController
+```
+
+### 12.3 具体任务
+
+1. 定义�?
+```kotlin
+sealed interface RecommendationAction {
+    data class PlayDaily(val provider: StreamingProviderName) : RecommendationAction
+    data class PlayHeartbeat(val provider: StreamingProviderName) : RecommendationAction
+}
+```
+
+2. 建立 `RecommendationSeedResolver`�?   - 当前播放歌曲�?   - 当前队列�?   - 当前歌单�?   - 收藏/最近播放�?
+3. `RecommendationViewModel` 输出�?   - loading�?   - empty status�?   - ready status�?   - playable tracks�?
+4. 播放通过 `PlaybackController`，不�?Activity�?
+验收�?
+- `heartbeatRecommendationSeedRequest` 不在 Activity�?- 推荐失败、空结果、成功播放可单测�?
+迁移进展�?026-06-24）：
+
+- 每日推荐已先拆到 `StreamingRecommendationViewModel` + `StreamingDailyRecommendationUseCase`：provider 选择、loading/empty/ready 状态、仓库拉取和 presentation 生成不再�?`DailyRecommendationController` 直接调用 `StreamingViewModel`�?- `DailyRecommendationController` / `DailyRecommendationBindings` 兼容壳已删除；`DailyRecommendationPlayer` 接口归入 `StreamingRecommendationViewModel.kt`，`DailyRecommendationTrackListPlayer` 归入 `RecommendationActionController.kt`，每日推荐入口只�?typed `RecommendationAction.PlayDaily` -> `StreamingRecommendationViewModel.onAction(...)` -> presentation callback�?- `MainActivity` 仅保�?ViewModel 接线与播�?presentation 的平台尾部；provider 刷新后同步给 `StreamingRecommendationViewModel.updateProviders(...)`�?- 已补 `StreamingRecommendationViewModelTest`、`RecommendationActionControllerTest` 和架构契约；�?`DailyRecommendationControllerTest` / `DailyRecommendationBindingsTest` 已随兼容壳删除。下一步继续收敛心动推荐续�?refill，或�?dialog/settings 切片继续减少 `MainActivity` UI/platform 细节�?- 心动推荐种子请求已拆�?`HeartbeatRecommendationSeedResolver` / `HeartbeatRecommendationSeedResolverBindings`：候选队列合并、随机候选、direct seed、miss 诊断不再�?`StreamingViewModel.prepareHeartbeatRecommendationSeedRequest(...)` �?`MainActivity.heartbeatRecommendationSeedRequest(...)` 承担；`MainActivity` 只提�?service/store/viewModel/library context 快照来源�?- 心动推荐 owner 已继续迁�?`StreamingRecommendationViewModel` / `HeartbeatRecommendationPlayer`：`HeartbeatRecommendationController` 不再依赖整颗 `StreamingViewModel`，`resolveHeartbeatRecommendationSeed(...)`、`fetchHeartbeatRecommendations(...)`、refill/loading 状态、playlist/append presentation �?track-match store 绑定均由推荐 VM 持有；推荐播放尾部已收敛�?`PlaybackStartController.playRecommendation(...)` / `playHeartbeatRecommendation(...)` �?presentation 边界，`MainActivity` 不再保留 `playHeartbeatRecommendationTracks(...)` �?`openRecommendationPlaylist(...)` 兼容 helper�?- 推荐入口已整理为 typed `RecommendationAction` 并下沉到 `StreamingRecommendationViewModel.onAction(...)`：首页与流媒体页发�?`PlayDaily(provider)` / `PlayHeartbeat(provider)` action，`RecommendationActionController` 只保留语言�?status/seed/playback presentation 平台边界适配，不再分发到 `DailyRecommendationController` / `HeartbeatRecommendationController`；`MainActivity` 不再持有 `DailyRecommendationController`�?- 推荐播放启动边界已先引入小型 `PlaybackController` facade：`PlaybackStartController` 不再直接持有 `resolveAndPlayStreamingTrack` / `playTrackList` / `applyPlaybackActionResult` 三段 listener 回调，而是通过 `PlaybackController.playTrackList(...)` 进入 `PlaybackStartControllerAdapter`；`MainActivity` 只装�?adapter �?`StreamingPlaybackController` + `NowPlayingViewModel` + result applier。下一步可继续把该 adapter 下沉到播�?ViewModel/完整 `PlaybackController` 实现，并收敛心动续播 refill 入口�?- 播放缓存已改为当前播放优先的并发切片调度：当前歌曲首段缓存使用最高优先级并立即启动，当前歌曲后续切片其次，下一首轻量预取最低；切换当前歌曲时会取消�?`CacheWriter`，下一�?URL 预解析使用独立低优先级通道，不再挡住用户刚点击的当前歌曲解析�?- now-playing 状态发布入口再收一层：`MainActivity` 已不再保�?`publishNowPlayingState(...)` 这类�?wrapper，事件回放时直接交给 `NowPlayingStateController.publish(snapshot)`；`NowPlayingStateController` 继续作为 UI state/floating lyrics 的事实源�?
+---
+
+## 13. 数据层迁移清�?
+### 13.1 当前问题
+
+`MusicLibraryRepository` 承担过多�?
+- 曲库�?- 歌单�?- 设置�?- 播放队列�?- 远程源�?- WebDAV�?- 部分播放设置�?
+### 13.2 目标 Repository
+
+| Repository | 职责 |
+|---|---|
+| `SettingsRepository` | 所有设置偏�?|
+| `LibraryRepository` | 本地曲库、扫描、搜索、分�?|
+| `PlaylistRepository` | 歌单 CRUD、歌单曲目排序、M3U 导入导出 |
+| `PlaybackQueueRepository` | 队列持久化、恢�?|
+| `RemoteSourceRepository` | WebDAV/远程�?|
+| `LyricsRepository` | 本地/在线歌词 |
+| `StreamingRepository` | provider/gateway/search/playlists |
+| `DownloadRepository` | 下载记录、下载状�?|
+
+### 13.3 具体任务
+
+1. 先只加接口，不搬 DB�?
+```kotlin
+interface SettingsRepository { ... }
+interface PlaylistRepository { ... }
+interface LibraryRepository { ... }
+```
+
+2. 实现类内部暂时委�?`MusicLibraryRepository`�?3. ViewModel/UseCase 改依赖新接口�?4. 当调用方迁完后，�?`MusicLibraryRepository` 拆薄�?
+验收�?
+- 设置 feature 不依�?`MusicLibraryRepository`�?- 歌单 feature 不依赖曲库扫描方法�?- 远程�?feature 不依赖设置方法�?
+---
+
+## 14. 测试迁移清单
+
+### 14.1 必须新增�?fake
+
+- `FakeSettingsRepository`
+- `FakeLibraryRepository`
+- `FakePlaylistRepository`
+- `FakePlaybackController`
+- `FakeStreamingRepository`
+- `FakeLyricsRepository`
+- `FakePlatformEffectCollector`
+- `FakeStatusMessageSink`
+
+### 14.2 每个 feature 必测
+
+每个 ViewModel 至少覆盖�?
+- 初始 state�?- loading state�?- 成功 state�?- �?state�?- 错误 state�?- 用户 action�?- 一次�?effect�?- 语言切换或文�?key 映射�?
+### 14.3 回归命令
+
+轻量编译�?
+```powershell
+.\gradlew.bat --no-daemon :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+单测�?
+```powershell
+.\gradlew.bat --no-daemon :app:testDebugUnitTest --console=plain
+```
+
+打包�?
+```powershell
+.\gradlew.bat --no-daemon :app:assembleDebug --console=plain
+```
+
+完整检查：
+
+```powershell
+.\gradlew.bat --no-daemon :app:check --console=plain
+```
+
+### 14.4 关键手动回归
+
+- 首次启动引导�?- 扫描本地音乐�?- 播放本地歌曲�?- 后台播放�?- 通知栏控制�?- 桌面小部件控制�?- 播放队列恢复�?- 歌词加载和偏移�?- 状态栏/悬浮歌词�?- 流媒体登录�?- 在线搜索和播放�?- 歌单导入�?- 下载暂停/继续�?- 设置主题/语言/音效/ReplayGain�?- 备份导入导出�?
+---
+
+## 15. 推荐执行顺序
+
+### 15.1 第一批：低风险、收益高
+
+1. �?`BackgroundImagePickerController`�?2. �?`BackupRestoreLauncher`�?3. �?`StatusMessageViewModel` 或统一 status effect�?4. 设置�?typed `SettingsPage`�?5. `SettingsPageStateBuilder` 替代 render controller 的纯 mapper�?
+预期结果�?
+- 新设置不再加�?Activity�?- 设置迁移成为后续 feature 样板�?
+### 15.2 第二批：去掉 Activity 手动同步
+
+1. `SettingsViewModel` 直接拥有设置 page state�?2. 删除 `SettingsRenderCoordinator`�?3. 删除大部�?`SettingsGatewayBindings`�?4. `EchoNavHostState` 不再保存 settings actions�?
+预期结果�?
+- 设置 feature 完整 MVVM�?
+### 15.3 第三批：播放状态单源化
+
+1. 引入 `PlaybackController`�?2. `PlaybackViewModel` 收敛播放 state�?3. NowBar/NowPlaying/Queue 使用同一 state�?4. Activity 不再 publish now playing state�?
+预期结果�?
+- 播放 UI 行为更稳定，测试更好写�?
+### 15.4 第四批：曲库/歌单
+
+1. `LibraryViewModel` 接管 `MainLibraryStore`�?2. `PlaylistViewModel` 接管歌单 CRUD/dialog result�?3. 删除 `navTrackList*`、`navLibraryGroup*`、`navCollectionsActions`�?
+预期结果�?
+- 曲库新增功能不碰 Activity�?
+### 15.5 第五批：流媒体拆�?
+1. 搜索拆出�?2. 认证拆出�?3. 歌单导入拆出�?4. 播放解析拆出�?5. 推荐拆出�?
+预期结果�?
+- `StreamingViewModel` 不再是第二个上帝 ViewModel�?
+### 15.6 第六批：导航独立
+
+1. `AppShellViewModel`�?2. typed `AppRoute`�?3. 删除 `MainRouteController` 或降级为兼容 adapter�?4. 删除 `EchoNavHostState` 大状态包�?
+预期结果�?
+- Compose shell 真正�?ViewModel/Navigation state 驱动�?
+---
+
+## 16. 每次接手前检查表
+
+开始前�?
+- [ ] `git status --short`，确认他人改动�?- [ ] 读本文件对应章节�?- [ ] 读相�?feature ViewModel/Controller/Bindings�?- [ ] 写出当前事件路径�?- [ ] 写出目标事件路径�?- [ ] 明确状态事实源�?- [ ] 明确哪些旧类保留兼容�?
+改动中：
+
+- [ ] 不新增万�?manager/coordinator�?- [ ] 不新增只转发一行的 binding�?- [ ] 不把平台 API 放进 ViewModel�?- [ ] 不让 Repository 返回 UI 文案�?- [ ] 不让 Activity 新增业务分支�?- [ ] 不扩大播放服务职责�?
+提交前：
+
+- [ ] 编译通过�?- [ ] 对应 ViewModel/use case 测试通过�?- [ ] 关键手动路径不变�?- [ ] 删除不再使用的旧转发�?- [ ] 更新架构契约测试�?- [ ] 如果迁移了公共行为，更新本文件或相关 handoff�?
+---
+
+## 17. 完成定义
+
+这轮 MVVM 迁移完成时应满足�?
+- `MainActivity` 只负责宿主、launcher 注册、生命周期、Compose root、service bind�?- 业务事件不再回流�?Activity 编排�?- `EchoNavHostState` 被删除或变成极薄 app shell state�?- `MainSettingsStore`、`MainLibraryStore`、`MainPlaybackStore` 删除或只作为兼容 facade�?- 设置、曲库、歌单、播放、队列、歌词、流媒体、下载、推荐都有独�?ViewModel 和测试�?- 播放 service 通过 `PlaybackController` 暴露能力�?- 新增一个普通功能不需要修�?`MainActivity.java`�?- 新增一个设置不需要修改超�?3 个核心文件�?- 没有新的上帝类、上帝进程、万能协调器�?
+2026-06-24 note: streaming search chrome state now lives in StreamingViewModel and is consumed by NetworkDestination directly; EchoNavHostState no longer mirrors streamingSearchLabels / streamingSearchActions.
+2026-06-25 note: EchoNavHostState no longer mirrors nowPlayingGesturesEnabled / pageBackgrounds; EchoNavGraph reads both directly from SettingsViewModel.state.preferences and MainActivity no longer syncs them manually.
+2026-06-25 note: openSearchAction was removed from EchoNavHostState; EchoNavGraph now derives the local search navigation callback itself and passes it to the library destinations.
+2026-06-25 note: openDownloadDirectoryPickerAction / closeNowPlayingAction / nowPlayingEventHandler were also moved out of EchoNavHostState; EchoNavGraph/EchoNavHostBridge now receive those shell callbacks directly from EchoAppHost/MainActivity.
+2026-06-25 note: openLibraryModeFromHome/openCollectionsFromHome/openSearchFromHome/openFavoritesCollectionFromLibrary thin wrappers were collapsed into the render bindings, keeping MainActivity as a direct callback host instead of a forwarding layer.
+2026-06-25 note: openLibraryModeFromHome/openCollectionsFromHome/openSearchFromHome/openFavoritesCollectionFromLibrary thin wrappers were removed from MainActivity; call sites now enter route/navigation or library event paths directly.
+2026-06-25 note: syncRouteFieldsFromViewModel was removed; MainRouteController already restores its initial state, so MainActivity no longer keeps a one-off route restoration wrapper.
+2026-06-25 note: selectPlaylistFromCollections was removed; the collections binding now writes the selected playlist and reloads collections inline instead of going through a one-off MainActivity helper.
+2026-06-25 note: openSelectedPlaylistExportDocument was removed; the collections binding now calls PlaylistExportController directly with the selected playlist snapshot.
+2026-06-25 note: finishOnboarding/openStreamingFromOnboarding now share completeOnboarding as the common shell tail, reducing repeated onboarding cleanup in MainActivity.
+2026-06-25 note: searchViewModel was removed from EchoNavHostState; EchoAppHost now provides it as a direct NavHost bridge parameter, keeping the shell state focused on shared navigation state only.
+2026-06-25 note: openNowPlayingImmersive was moved out of EchoNavHostState and now lives as local state inside EchoNavGraph, since it only serves the current shell session's immersive handoff.
+
+
+
+2026-06-25 note: persistRouteFields was removed; MainActivity now calls MainRouteController.persist() directly at render/navigation persistence boundaries instead of keeping a forwarding-only helper.
+2026-06-25 goal alignment note: the project audit report from C:\Users\31283\.codex\attachments\18684c6a-7b8d-4bc7-bd9b-430f25ee48f6\pasted-text.txt is now part of the migration target interpretation.
+2026-06-25 goal alignment note: treat runtime stability, startup/playback smoothness, streaming/cache correctness, and shell-to-ViewModel ownership cleanup as higher priority than headline completion percentages.
+2026-06-25 note: dead recommendation-stream code removed. `MainLibraryStore` lost its only mutable state fields (`recommendationStreamTitle` / `recommendationStreamTracks`) and the 5 methods around them (`showRecommendationStreamList` / `clearRecommendationStreamList` / `hasRecommendationStreamList` / `recommendationStreamTitle()` / `recommendationStreamTracks()`); the sole writer `showRecommendationStreamList` had zero call sites (the populate path was dropped when daily recommendations moved to StreamingRecommendationViewModel), so `hasRecommendationStreamList()` was always false and the NetworkRenderCoordinator recommendation branch + `NetworkTrackListRenderController.renderRecommendationStreamList` were dead. Removing them also retired the now-unused `Listener.playTrackList` interface method, the `NetworkTrackListRenderBindings.playTrackListAction` param, and two no-op `clearRecommendationStreamList()` calls in MainActivity (navigateNetworkPage / navigateToNetworkTabPage simplified). `MainLibraryStore` is now a pure read-only facade over MainActivityViewModel state (only `combinedSearchUseCase` remains, a stateless val), matching the 8.3.1 target. Verified: compile + full :app:testDebugUnitTest green.
+2026-06-25 goal alignment note: use the audit as a prioritization input, not as a source of truth for exact percentages; validate each claimed milestone against current code, tests, and runtime behavior before marking it complete.
+2026-06-25 note: LibraryTrackListDestination and LibraryGroupsDestination no longer carry legacy host-injected chrome parameters; both now render directly from LibraryViewModel StateFlow snapshots, keeping the Compose library boundary aligned with ViewModel-owned state.
+2026-06-25 note: MainActivity no longer funnels library UI events through handleLibraryEvent/publishLibraryState; library render/queue/collections/now-playing call a narrower dispatchLibraryEvent path, while syncLibraryViewModelState is kept only as the explicit route+library snapshot sync boundary and favorites now read live IDs through LibraryFavoriteIdsProvider.
+2026-06-25 note: dispatchLibraryEvent has now been removed as well; library render/queue/collections/now-playing event sinks call LibraryViewModel.onEvent directly, while syncLibraryViewModelState remains the only explicit MainActivity-to-LibraryViewModel snapshot sync boundary.
+2026-06-25 note: syncLibraryViewModelState and LibraryViewModel.uiState/updateState have now been removed; production library rendering relies on LibraryViewModel track/group StateFlows plus direct event sinks, while favorite toggles read live IDs from MainLibraryStore through LibraryFavoriteIdsProvider instead of maintaining a separate route/library summary mirror.
+2026-06-25 note: PlaybackController facade landed (PlaybackController.kt + PlaybackServiceController.kt) with a FakePlaybackController test double and FakePlaybackControllerTest; Activity/ViewModel integration is deferred to a follow-up so the existing service path stays untouched until 7.3.2 starts. See docs/MVVM_MIGRATION_PROGRESS_2026-06-25.md.
+2026-06-25 note: MainLibraryStore write接口 (setFavorite/toggleFavorite/clearPlayHistory) removed; the store is now a read-only compatibility facade over MainActivityViewModel.library, with favorite writes going through MainActivityViewModel.setFavorite and play-history clears through MainActivityViewModel.clearPlayHistory via PlayHistoryStateStore.
+2026-06-25 note: fixed two stale test seams left by the write-path move — PlayHistoryActionControllerTest now wires libraryStateStore = PlayHistoryStateStore { viewModel.clearPlayHistory() }, and MainActivityArchitectureContractTest asserts libraryStateStore.clearPlayHistory(). Full :app:testDebugUnitTest --rerun-tasks is green (690 tests).
+2026-06-25 note: observed two flaky tests on the first full-suite pass (LyricsViewModelTest.loadPublishesLoadedLyricsState, StreamingViewModelTest.preResolveStreamingQueueWindowResolvesUpcomingTracksAfterNextTrack); both pass in isolation and on clean rerun, tracked as a separate follow-up (coroutine dispatcher timing / shared-state sensitivity), not caused by this session's changes.
+2026-06-25 verification note: compileDebugKotlin+Java BUILD SUCCESSFUL; :app:testDebugUnitTest --rerun-tasks BUILD SUCCESSFUL (690 tests) on the current working tree, re-verified per the handoff requirement rather than relying on earlier reports.
+2026-06-26 note: BackgroundImagePickerController was refined into a clearer two-stage platform owner. The preview screen now always uses the original picked image for zoom/pan fidelity, while persistence still happens only after Apply via an app-private compressed copy plus BackgroundTransform. This keeps the Activity free of picker/preview/save orchestration detail, preserves restart-safe backgrounds, and avoids regressing the user-visible preview quality.

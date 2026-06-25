@@ -21,8 +21,7 @@ internal class StreamingSearchNavigatorBindings(
     private val playlistRefImporter: StreamingPlaylistRefImporter,
     private val syncAccountPlaylistsAction: StreamingProviderAction,
     private val importLikedTracksAction: StreamingProviderAction,
-    private val dailyRecommendationsAction: StreamingRecommendationAction,
-    private val heartbeatRecommendationsAction: StreamingRecommendationAction,
+    private val recommendationActionRunner: RecommendationActionRunner,
     private val pasteImportPlaylistAction: Runnable,
     private val inputProviderCookieAction: Runnable
 ) : StreamingSearchEventController.Navigator {
@@ -43,11 +42,11 @@ internal class StreamingSearchNavigatorBindings(
     }
 
     override fun playDailyRecommendations() {
-        dailyRecommendationsAction.play(selectedProviderProvider.provider())
+        recommendationActionRunner.run(RecommendationAction.PlayDaily(selectedProviderProvider.provider()))
     }
 
     override fun playHeartbeatRecommendations() {
-        heartbeatRecommendationsAction.play(selectedProviderProvider.provider())
+        recommendationActionRunner.run(RecommendationAction.PlayHeartbeat(selectedProviderProvider.provider()))
     }
 
     override fun pasteImportPlaylist() {

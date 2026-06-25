@@ -1,6 +1,8 @@
 package app.yukine;
 
 import java.util.PriorityQueue;
+import java.util.Queue;
+import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicLong;
 
 final class StreamingPlaybackTaskScheduler {
@@ -18,30 +20,53 @@ final class StreamingPlaybackTaskScheduler {
         void complete();
     }
 
-    private final PriorityQueue<ScheduledTask> queue = new PriorityQueue<>();
+    private final PriorityQueue<ScheduledTask> criticalQueue = new PriorityQueue<>();
+    private final Queue<ScheduledTask> nextResolveQueue = new ArrayDeque<>();
     private final AtomicLong sequence = new AtomicLong();
-    private boolean active;
+    private boolean criticalActive;
+    private boolean nextResolveActive;
 
-    void schedule(Priority priority, Task task) {
+    synchronized void schedule(Priority priority, Task task) {
         if (task == null) {
             return;
         }
-        queue.offer(new ScheduledTask(priority, sequence.getAndIncrement(), task));
-        drain();
+        ScheduledTask scheduledTask = new ScheduledTask(priority, sequence.getAndIncrement(), task);
+        if (priority == Priority.NEXT_URL_RESOLVE) {
+            nextResolveQueue.offer(scheduledTask);
+            drainNextResolve();
+        } else {
+            criticalQueue.offer(scheduledTask);
+            drainCritical();
+        }
     }
 
-    private void drain() {
-        if (active) {
+    private synchronized void drainCritical() {
+        if (criticalActive) {
             return;
         }
-        ScheduledTask next = queue.poll();
+        ScheduledTask next = criticalQueue.poll();
         if (next == null) {
             return;
         }
-        active = true;
+        criticalActive = true;
         next.task.run(() -> {
-            active = false;
-            drain();
+            criticalActive = false;
+            drainCritical();
+        });
+    }
+
+    private synchronized void drainNextResolve() {
+        if (nextResolveActive) {
+            return;
+        }
+        ScheduledTask next = nextResolveQueue.poll();
+        if (next == null) {
+            return;
+        }
+        nextResolveActive = true;
+        next.task.run(() -> {
+            nextResolveActive = false;
+            drainNextResolve();
         });
     }
 

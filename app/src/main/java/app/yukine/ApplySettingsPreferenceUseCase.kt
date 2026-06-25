@@ -19,7 +19,8 @@ enum class SettingsPreferenceKey {
     NowPlayingGesturesEnabled,
     PlaybackRestoreEnabled,
     ReplayGainEnabled,
-    ShareStyle
+    ShareStyle,
+    PageBackgrounds
 }
 
 data class SettingsPreferenceUpdate(
@@ -44,6 +45,7 @@ internal interface SettingsPreferenceOperations {
     fun savePlaybackRestoreEnabled(enabled: Boolean)
     fun saveReplayGainEnabled(enabled: Boolean)
     fun saveShareStyle(style: String)
+    fun savePageBackgrounds(backgrounds: PageBackgrounds)
 }
 
 internal class MusicLibrarySettingsPreferenceOperations(
@@ -90,6 +92,9 @@ internal class MusicLibrarySettingsPreferenceOperations(
 
     override fun saveShareStyle(style: String) =
         repository.saveShareStyle(style)
+
+    override fun savePageBackgrounds(backgrounds: PageBackgrounds) =
+        repository.savePageBackgrounds(backgrounds)
 }
 
 internal class ApplySettingsPreferenceUseCase(
@@ -123,6 +128,8 @@ internal class ApplySettingsPreferenceUseCase(
                 operations.saveReplayGainEnabled(update.value as Boolean)
             SettingsPreferenceKey.ShareStyle ->
                 operations.saveShareStyle(update.value as String)
+            SettingsPreferenceKey.PageBackgrounds ->
+                operations.savePageBackgrounds(update.value as PageBackgrounds)
         }
     }
 }

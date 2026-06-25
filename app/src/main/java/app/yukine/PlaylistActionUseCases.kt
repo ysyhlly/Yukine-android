@@ -2,6 +2,7 @@ package app.yukine
 
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
+import app.yukine.streaming.StreamingPlaylistSyncStore
 
 internal data class DefaultPlaylistAddResult(
     @JvmField val playlistId: Long,
@@ -19,7 +20,8 @@ internal interface PlaylistActionOperations {
 }
 
 internal class MusicLibraryPlaylistActionOperations(
-    private val repository: MusicLibraryRepository
+    private val repository: MusicLibraryRepository,
+    private val syncStore: StreamingPlaylistSyncStore? = null
 ) : PlaylistActionOperations {
     override fun ensureDefaultPlaylist(): Long = repository.ensureDefaultPlaylist()
 
@@ -28,7 +30,13 @@ internal class MusicLibraryPlaylistActionOperations(
     override fun renamePlaylist(playlistId: Long, name: String): Boolean =
         repository.renamePlaylist(playlistId, name)
 
-    override fun deletePlaylist(playlistId: Long): Boolean = repository.deletePlaylist(playlistId)
+    override fun deletePlaylist(playlistId: Long): Boolean {
+        val deleted = repository.deletePlaylist(playlistId)
+        if (deleted) {
+            syncStore?.unlinkPlaylist(playlistId)
+        }
+        return deleted
+    }
 
     override fun addTrackToPlaylist(playlistId: Long, trackId: Long): Boolean =
         repository.addTrackToPlaylist(playlistId, trackId)

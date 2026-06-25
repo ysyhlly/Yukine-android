@@ -5,12 +5,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import app.yukine.MainActivityTrackListUiState
 import app.yukine.TrackDownloadItem
-import app.yukine.ui.TrackListHeaderAction
-import app.yukine.ui.TrackListHeaderMetric
-import app.yukine.ui.TrackListLabels
-import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.TrackListScreen
-import app.yukine.ui.TrackRowActions
 import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.StateFlow
 
@@ -18,20 +13,13 @@ import kotlinx.coroutines.flow.StateFlow
  * Native Compose destination for track-list screens (Library songs, playlist tracks, network
  * stream/webdav lists all share [TrackListScreen]).
  *
- * Reads title+rows from a [StateFlow] of [MainActivityTrackListUiState] via [collectAsState];
- * the per-row [actions] and the chrome bits (header metrics/actions, mode actions, labels) are
- * injected by the host, which reuses the existing TrackListRenderController assembly. Mirrors
- * the factory's StateFlow→TrackListScreen split so behaviour is identical to the legacy path.
+ * Reads a fully assembled [MainActivityTrackListUiState] from [state] via [collectAsState] and
+ * renders it directly through [TrackListScreen]. This keeps Compose aligned with
+ * [LibraryViewModel] as the single owner of track-list content plus chrome.
  */
 @Composable
 fun LibraryTrackListDestination(
     state: StateFlow<MainActivityTrackListUiState>,
-    actions: List<TrackRowActions>,
-    headerMetrics: List<TrackListHeaderMetric> = emptyList(),
-    headerActions: List<TrackListHeaderAction> = emptyList(),
-    emptyText: String = "",
-    modeActions: List<TrackListModeAction> = emptyList(),
-    labels: TrackListLabels = TrackListLabels(),
     onSearch: Runnable = Runnable { },
     activeDownload: TrackDownloadItem? = null,
     playbackQuality: String = "",
@@ -41,12 +29,12 @@ fun LibraryTrackListDestination(
     TrackListScreen(
         uiState.title,
         uiState.rows,
-        actions,
-        headerMetrics,
-        headerActions,
-        emptyText,
-        modeActions,
-        labels,
+        uiState.actions,
+        uiState.headerMetrics,
+        uiState.headerActions,
+        uiState.emptyText,
+        uiState.modeActions,
+        uiState.labels,
         onSearch,
         activeDownload,
         playbackQuality,

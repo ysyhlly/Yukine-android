@@ -47,6 +47,18 @@ class PlaylistActionUseCasesTest {
     }
 
     @Test
+    fun deletePlaylistUnlinksStreamingSyncOnlyWhenDeleteSucceeds() {
+        val operations = FakePlaylistActionOperations(deleteResult = true)
+        val failedOperations = FakePlaylistActionOperations(deleteResult = false)
+
+        assertTrue(DeletePlaylistUseCase(operations).execute(9L))
+        assertFalse(DeletePlaylistUseCase(failedOperations).execute(10L))
+
+        assertEquals(listOf("delete:9"), operations.events)
+        assertEquals(listOf("delete:10"), failedOperations.events)
+    }
+
+    @Test
     fun invalidPlaylistIdsAreIgnored() {
         val operations = FakePlaylistActionOperations()
 

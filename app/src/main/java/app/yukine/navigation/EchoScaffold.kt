@@ -27,15 +27,16 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.yukine.BackgroundTransform
 import app.yukine.ui.EchoGlassSurface
 import app.yukine.ui.EchoIcon
 import app.yukine.ui.EchoIconKind
 import app.yukine.ui.EchoMobileLayoutMetrics
 import app.yukine.ui.EchoMotion
+import app.yukine.ui.EchoPageBackground
 import app.yukine.ui.EchoShapes
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.EchoTypography
-import app.yukine.ui.echoPageBackground
 import app.yukine.ui.echoPressScale
 
 /**
@@ -66,9 +67,15 @@ fun EchoScaffold(
     onTabSelected: (TabRoute) -> Unit,
     nowBar: @Composable () -> Unit,
     topBar: @Composable () -> Unit = {},
+    backgroundUri: String = "",
+    backgroundTransform: BackgroundTransform = BackgroundTransform.IDENTITY,
     content: @Composable (Modifier) -> Unit
 ) {
-    Box(modifier = Modifier.echoPageBackground()) {
+    EchoPageBackground(
+        backgroundUri = backgroundUri,
+        modifier = Modifier.fillMaxSize(),
+        transform = backgroundTransform
+    ) {
         Column(modifier = Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.statusBars)

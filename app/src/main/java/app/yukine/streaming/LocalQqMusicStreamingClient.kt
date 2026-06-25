@@ -115,14 +115,9 @@ class LocalQqMusicStreamingClient(
     }
 
     fun playlist(request: StreamingPlaylistRequest): StreamingPlaylistDetail {
-        requireCookie()
+        val cookie = requireCookie()
         val normalized = request.normalizedLocal()
-        val body = httpClient.getJson(
-            "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg" +
-                "?type=1&json=1&utf8=1&onlysong=0&disstid=${encode(normalized.providerPlaylistId)}" +
-                "&format=json&g_tk=5381&loginUin=0&hostUin=0&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json",
-            defaultHeaders()
-        )
+        val body = playlistDetailBody(normalized.providerPlaylistId, cookie)
         val cdList = body.optJSONArray("cdlist")
         val playlistValue = cdList?.optJSONObject(0) ?: JSONObject()
         val songList = playlistValue.optJSONArray("songlist")
@@ -155,6 +150,26 @@ class LocalQqMusicStreamingClient(
             page = normalized.page,
             pageSize = normalized.pageSize,
             hasMore = offset + pageTracks.size < tracks.size
+        )
+    }
+
+    private fun playlistDetailBody(providerPlaylistId: String, cookie: String): JSONObject {
+        val encodedId = encode(providerPlaylistId)
+        val disstidBody = runCatching {
+            qqPlaylistDetailBody("disstid", encodedId, cookie)
+        }.getOrNull()
+        if (disstidBody != null && disstidBody.hasPlaylistSongs()) {
+            return disstidBody
+        }
+        return qqPlaylistDetailBody("dirid", encodedId, cookie)
+    }
+
+    private fun qqPlaylistDetailBody(parameterName: String, encodedId: String, cookie: String): JSONObject {
+        return httpClient.getJson(
+            "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg" +
+                "?type=1&json=1&utf8=1&onlysong=0&$parameterName=$encodedId" +
+                "&format=json&g_tk=5381&loginUin=0&hostUin=0&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json",
+            defaultHeaders(cookie)
         )
     }
 
@@ -281,8 +296,8 @@ class LocalQqMusicStreamingClient(
                     )
             )
         val result = httpClient.postJson("https://u.y.qq.com/cgi-bin/musicu.fcg", body, defaultHeaders(cookie))
-        val data = result.optJSONObject("req_0")?.optJSONObject("data") ?: JSONObject()
-        val midUrlInfo = data.optJSONArray("midurlinfo")?.optJSONObject(0) ?: JSONObject()
+        val data = qqVkeyData(result)
+        val midUrlInfo = qqMidUrlInfo(data)
         val purl = midUrlInfo.optionalStringLocal("purl")
         if (purl.isNullOrBlank()) {
             val message = midUrlInfo.optionalStringLocal("msg")
@@ -333,13 +348,10 @@ class LocalQqMusicStreamingClient(
                     )
             )
         val result = httpClient.postJson("https://u.y.qq.com/cgi-bin/musicu.fcg", body, defaultHeaders(cookie))
-        val songs = result.optJSONObject("req_1")
-            ?.optJSONObject("data")
-            ?.optJSONObject("body")
-            ?.optJSONArray("item_song")
-            ?: JSONArray()
-        return (0 until songs.length())
-            .mapNotNull { songs.optJSONObject(it) }
+        val songs = qqSearchSongArrays(result)
+        return songs.flatMap { array -> (0 until array.length()).mapNotNull { array.optJSONObject(it) } }
+            .distinctBy { qqTrackIdentity(it) }
+            .filter { qqTrackIdentity(it).isNotBlank() }
             .map(::track)
     }
 
@@ -354,13 +366,18 @@ class LocalQqMusicStreamingClient(
             .mapNotNull { songs.optJSONObject(it) }
             .map { item ->
                 val songMid = item.optionalStringLocal("mid") ?: item.optionalStringLocal("id") ?: ""
+                val albumMid = item.optionalStringLocal("albummid")
+                    ?: item.optionalStringLocal("album_mid")
+                    ?: item.optionalStringLocal("albumMid")
+                val cover = qqCoverUrl(albumMid)
                 StreamingTrack(
                     provider = StreamingProviderName.QQ_MUSIC,
                     providerTrackId = songMid,
-                    title = item.optionalStringLocal("name") ?: "",
-                    artist = item.optionalStringLocal("singer") ?: "",
-                    coverUrl = null,
-                    coverThumbUrl = null,
+                    title = cleanDisplayText(item.optionalStringLocal("name")).orEmpty(),
+                    artist = cleanDisplayText(item.optionalStringLocal("singer")).orEmpty(),
+                    album = cleanDisplayText(item.optionalStringLocal("album")),
+                    coverUrl = cover,
+                    coverThumbUrl = cover,
                     qualities = setOf(StreamingAudioQuality.STANDARD, StreamingAudioQuality.HIGH),
                     playable = songMid.isNotBlank(),
                     playbackCandidates = qqCandidates(songMid)
@@ -369,8 +386,9 @@ class LocalQqMusicStreamingClient(
     }
 
     private fun playlistSummary(value: JSONObject): StreamingPlaylist? {
-        val id = value.optionalStringLocal("dissid")
+        val id = value.optionalStringLocal("disstid")
             ?: value.optionalStringLocal("tid")
+            ?: value.optionalStringLocal("dissid")
             ?: value.optionalStringLocal("id")
             ?: value.optionalStringLocal("dirid")
             ?: value.optionalStringLocal("dirId")
@@ -413,10 +431,15 @@ class LocalQqMusicStreamingClient(
     private fun track(value: JSONObject): StreamingTrack {
         val songMid = value.optionalStringLocal("mid")
             ?: value.optionalStringLocal("songmid")
+            ?: value.optionalStringLocal("songMid")
             ?: idText(value.opt("id"))
             ?: ""
         val file = value.optJSONObject("file") ?: JSONObject()
-        val mediaMid = file.optionalStringLocal("media_mid") ?: songMid
+        val mediaMid = file.optionalStringLocal("media_mid")
+            ?: file.optionalStringLocal("mediaMid")
+            ?: value.optionalStringLocal("media_mid")
+            ?: value.optionalStringLocal("mediaMid")
+            ?: songMid
         val providerTrackId = if (mediaMid.isNotBlank() && mediaMid != songMid) "$songMid|$mediaMid" else songMid
         val album = value.optJSONObject("album") ?: value.optJSONObject("albumInfo") ?: JSONObject()
         val artists = qqArtistRefs(value.optJSONArray("singer"))
@@ -427,16 +450,18 @@ class LocalQqMusicStreamingClient(
         val title = value.optionalStringLocal("title")
             ?: value.optionalStringLocal("name")
             ?: value.optionalStringLocal("songname")
+            ?: value.optionalStringLocal("songName")
+            ?: value.optionalStringLocal("songorig")
             ?: ""
         val qualities = qqQualities(file)
         val playable = songMid.isNotBlank() && value.optInt("status", 0) >= 0
         return StreamingTrack(
             provider = StreamingProviderName.QQ_MUSIC,
             providerTrackId = providerTrackId,
-            title = title,
-            artist = artistText,
+            title = cleanDisplayText(title).orEmpty(),
+            artist = cleanDisplayText(artistText).orEmpty(),
             artists = artists,
-            album = album.optionalStringLocal("title") ?: album.optionalStringLocal("name"),
+            album = cleanDisplayText(album.optionalStringLocal("title") ?: album.optionalStringLocal("name")),
             albumId = idText(album.opt("id")),
             durationMs = value.optionalLongLocal("interval")?.times(1000L),
             coverUrl = cover,
@@ -552,7 +577,53 @@ class LocalQqMusicStreamingClient(
                 code = StreamingErrorCode.AUTH_REQUIRED
             )
         }
+        if (!hasCredentialCookie(cookie)) {
+            throw StreamingGatewayException(
+                "QQ 音乐登录凭证不完整（缺少有效的 qqmusic_key/qm_keyst），请退出登录后重新登录 QQ 音乐",
+                code = StreamingErrorCode.AUTH_REQUIRED
+            )
+        }
         return cookie
+    }
+
+    private fun qqVkeyData(result: JSONObject): JSONObject {
+        return result.optJSONObject("req_0")?.optJSONObject("data")
+            ?: result.optJSONObject("req_0")?.optJSONObject("result")
+            ?: result.optJSONObject("data")
+            ?: result
+    }
+
+    private fun qqMidUrlInfo(data: JSONObject): JSONObject {
+        val direct = data.optJSONArray("midurlinfo")?.optJSONObject(0)
+        if (direct != null) return direct
+        val nested = data.optJSONObject("data")?.optJSONArray("midurlinfo")?.optJSONObject(0)
+        if (nested != null) return nested
+        return data.optJSONObject("midurlinfo") ?: JSONObject()
+    }
+
+    private fun qqSearchSongArrays(result: JSONObject): List<JSONArray> {
+        val data = result.optJSONObject("req_1")?.optJSONObject("data")
+            ?: result.optJSONObject("data")
+            ?: result
+        return listOfNotNull(
+            data.optJSONObject("body")?.optJSONArray("item_song"),
+            data.optJSONObject("body")?.optJSONObject("song")?.optJSONArray("list"),
+            data.optJSONObject("song")?.optJSONArray("list"),
+            data.optJSONArray("list"),
+            data.optJSONArray("item_song")
+        ).filter { it.length() > 0 }
+    }
+
+    private fun qqTrackIdentity(value: JSONObject): String {
+        return value.optionalStringLocal("mid")
+            ?: value.optionalStringLocal("songmid")
+            ?: value.optionalStringLocal("songMid")
+            ?: idText(value.opt("id"))
+            ?: ""
+    }
+
+    private fun hasCredentialCookie(cookie: String): Boolean {
+        return cookieValue(cookie, "qqmusic_key", "qm_keyst", "psrf_qqaccess_token") != null
     }
 
     private fun uinFromCookie(cookie: String): String {
@@ -625,6 +696,27 @@ class LocalQqMusicStreamingClient(
 
     private fun JSONObject.optionalStringLocal(name: String): String? {
         return if (has(name) && !isNull(name)) optString(name).trim().takeIf { it.isNotBlank() } else null
+    }
+
+    private fun JSONObject.hasPlaylistSongs(): Boolean {
+        val playlistValue = optJSONArray("cdlist")?.optJSONObject(0) ?: return false
+        val songList = playlistValue.optJSONArray("songlist")
+            ?: playlistValue.optJSONArray("songList")
+            ?: return false
+        return songList.length() > 0
+    }
+
+    private fun cleanDisplayText(value: String?): String? {
+        return value
+            ?.replace(Regex("<[^>]+>"), " ")
+            ?.replace("&amp;", "&")
+            ?.replace("&lt;", "<")
+            ?.replace("&gt;", ">")
+            ?.replace("&quot;", "\"")
+            ?.replace("&#39;", "'")
+            ?.replace(Regex("\\s+"), " ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
     }
 
     private fun JSONObject.optionalLongLocal(name: String): Long? {

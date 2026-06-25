@@ -5,15 +5,15 @@ import org.junit.Test
 
 class StreamingPlaybackTaskQueueAdapterTest {
     @Test
-    fun schedulesTasksWithPlaybackPriorityOrder() {
+    fun currentPlaybackTasksDoNotWaitForActiveNextTrackResolve() {
         val scheduler = StreamingPlaybackTaskScheduler()
         val adapter = StreamingPlaybackTaskQueueAdapter(scheduler)
         val order = StringBuilder()
-        var lowCompletion: Runnable? = null
+        var nextCompletion: Runnable? = null
 
         adapter.scheduleNextUrlResolve { completion ->
             order.append("next-start,")
-            lowCompletion = completion
+            nextCompletion = completion
         }
         adapter.scheduleNextUrlResolve { completion ->
             order.append("next-queued,")
@@ -28,8 +28,8 @@ class StreamingPlaybackTaskQueueAdapterTest {
             completion.run()
         }
 
-        lowCompletion?.run()
+        nextCompletion?.run()
 
-        assertEquals("next-start,recovery,current,next-queued,", order.toString())
+        assertEquals("next-start,current,recovery,next-queued,", order.toString())
     }
 }

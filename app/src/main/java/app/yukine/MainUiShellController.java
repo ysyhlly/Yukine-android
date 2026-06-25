@@ -4,6 +4,7 @@ import android.os.Build;
 import android.view.View;
 import android.view.Window;
 import android.widget.ScrollView;
+import android.widget.Toast;
 
 import androidx.activity.ComponentActivity;
 
@@ -11,6 +12,8 @@ import app.yukine.ui.EchoTheme;
 
 final class MainUiShellController {
     private final ComponentActivity activity;
+    private String lastToastStatus = "";
+    private long lastToastAtMs = 0L;
 
     MainUiShellController(ComponentActivity activity) {
         this.activity = activity;
@@ -80,6 +83,25 @@ final class MainUiShellController {
     }
 
     void updateStatus(String status) {
+        if (status == null) {
+            return;
+        }
+        String message = status.trim();
+        if (message.isEmpty() || shouldSuppressToast(message)) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        if (message.equals(lastToastStatus) && now - lastToastAtMs < 1800L) {
+            return;
+        }
+        lastToastStatus = message;
+        lastToastAtMs = now;
+        Toast.makeText(activity, message, Toast.LENGTH_SHORT).show();
+    }
+
+    private boolean shouldSuppressToast(String message) {
+        return "正在加载曲库".equals(message)
+                || "Loading library".equals(message);
     }
 
     void setHeaderExpanded(boolean expanded) {

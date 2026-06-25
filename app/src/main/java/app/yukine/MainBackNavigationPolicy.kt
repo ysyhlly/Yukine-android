@@ -4,7 +4,7 @@ internal object MainBackNavigationPolicy {
     fun resolve(
         selectedTab: String,
         networkPage: String,
-        settingsPage: String,
+        settingsPage: SettingsPage,
         selectedLibraryGroupKey: String?,
         selectedPlaylistId: Long
     ): Result {
@@ -15,32 +15,32 @@ internal object MainBackNavigationPolicy {
             return Result.render(
                 selectedTab,
                 networkPage,
-                settingsPage,
+                settingsPage.route,
                 false,
                 true,
                 selectedLibraryGroupKey.startsWith("playlist:")
             )
         }
         if (MainRoutes.TAB_COLLECTIONS == selectedTab && selectedPlaylistId >= 0L) {
-            return Result.render(selectedTab, networkPage, settingsPage, false, false, true)
+            return Result.render(selectedTab, networkPage, settingsPage.route, false, false, true)
         }
-        if (MainRoutes.TAB_SETTINGS == selectedTab && MainRoutes.SETTINGS_HOME != settingsPage) {
-            return Result.render(selectedTab, networkPage, SettingsBackStack.parentPage(settingsPage), false, false)
+        if (MainRoutes.TAB_SETTINGS == selectedTab && SettingsPage.Home != settingsPage) {
+            return Result.render(selectedTab, networkPage, SettingsBackStack.parent(settingsPage).route, false, false)
         }
         if (MainRoutes.TAB_NETWORK == selectedTab && MainRoutes.NETWORK_STREAM_LIST == networkPage) {
-            return Result.render(selectedTab, MainRoutes.NETWORK_STREAMING, settingsPage, false, false)
+            return Result.render(selectedTab, MainRoutes.NETWORK_STREAMING, settingsPage.route, false, false)
         }
         if (MainRoutes.TAB_NETWORK == selectedTab && MainRoutes.NETWORK_WEBDAV_TRACKS == networkPage) {
-            return Result.render(selectedTab, MainRoutes.NETWORK_WEBDAV, settingsPage, false, false)
+            return Result.render(selectedTab, MainRoutes.NETWORK_WEBDAV, settingsPage.route, false, false)
         }
         if (MainRoutes.TAB_NETWORK == selectedTab && MainRoutes.NETWORK_WEBDAV_SOURCE_TRACKS == networkPage) {
-            return Result.render(selectedTab, MainRoutes.NETWORK_SOURCES, settingsPage, true, false)
+            return Result.render(selectedTab, MainRoutes.NETWORK_SOURCES, settingsPage.route, true, false)
         }
         if (MainRoutes.TAB_NETWORK == selectedTab && MainRoutes.NETWORK_HOME != networkPage) {
-            return Result.render(selectedTab, MainRoutes.NETWORK_HOME, settingsPage, true, false)
+            return Result.render(selectedTab, MainRoutes.NETWORK_HOME, settingsPage.route, true, false)
         }
         if (MainRoutes.TAB_HOME != selectedTab) {
-            return Result.navigate(MainRoutes.TAB_HOME, MainRoutes.NETWORK_HOME, MainRoutes.SETTINGS_HOME, true)
+            return Result.navigate(MainRoutes.TAB_HOME, MainRoutes.NETWORK_HOME, settingsPage.route, true)
         }
         return Result.notHandled()
     }

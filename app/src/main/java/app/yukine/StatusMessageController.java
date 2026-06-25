@@ -7,51 +7,41 @@ final class StatusMessageController {
         void updateStatus(String message);
     }
 
+    private final StatusMessageViewModel viewModel;
     private final Host host;
+    private final MessageTextResolver textResolver;
 
-    StatusMessageController(Host host) {
+    StatusMessageController(StatusMessageViewModel viewModel, Host host) {
+        this(viewModel, host, new MessageTextResolver(
+                host == null ? () -> AppLanguage.MODE_SYSTEM : host::languageMode
+        ));
+    }
+
+    StatusMessageController(StatusMessageViewModel viewModel, Host host, MessageTextResolver textResolver) {
+        this.viewModel = viewModel;
         this.host = host;
+        this.textResolver = textResolver;
     }
 
     void setStatus(String status) {
-        host.updateStatus(localize(status, host.languageMode()));
+        if (host == null) {
+            return;
+        }
+        host.updateStatus(viewModel.applyStatus(status, host.languageMode()));
+    }
+
+    void showFeedback(String message) {
+        if (message == null || message.trim().isEmpty()) {
+            return;
+        }
+        setStatus(message);
+    }
+
+    void setStatusKey(String key) {
+        setStatus(textResolver.text(key));
     }
 
     static String localize(String status, String languageMode) {
-        if (status == null || status.trim().isEmpty()) {
-            return "";
-        }
-        String value = status.trim();
-        if (value.equals("Status")) {
-            return AppLanguage.text(languageMode, "status");
-        }
-        if (value.equals("Loading library")) {
-            return AppLanguage.text(languageMode, "loading.library");
-        }
-        if (value.equals("Audio permission required")) {
-            return AppLanguage.text(languageMode, "audio.permission.required");
-        }
-        if (value.equals("No tracks to play")) {
-            return AppLanguage.text(languageMode, "no.tracks.to.play");
-        }
-        if (value.equals("Queue is not connected")) {
-            return AppLanguage.text(languageMode, "queue.not.connected");
-        }
-        if (value.equals("Playback service is not connected")) {
-            return AppLanguage.text(languageMode, "playback.service.not.connected");
-        }
-        if (value.equals("Cookie is empty") || value.equals("Cookie \u4e3a\u7a7a")) {
-            return AppLanguage.text(languageMode, "streaming.cookie.empty");
-        }
-        if (value.equals("Cookie saved") || value.equals("Cookie \u5df2\u4fdd\u5b58")) {
-            return AppLanguage.text(languageMode, "streaming.cookie.saved");
-        }
-        if (value.equals("Choose a streaming provider to sign in")) {
-            return AppLanguage.text(languageMode, "streaming.choose.login.provider");
-        }
-        if (value.startsWith("Status: ")) {
-            return AppLanguage.text(languageMode, "status") + ": " + value.substring("Status: ".length());
-        }
-        return PlaybackErrorMessageLocalizer.localize(value, languageMode);
+        return StatusMessageViewModel.localize(status, languageMode);
     }
 }

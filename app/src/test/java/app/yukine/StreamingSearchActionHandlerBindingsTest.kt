@@ -4,6 +4,7 @@ import app.yukine.model.Track
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingAuthKind
 import app.yukine.streaming.StreamingAuthState
+import app.yukine.streaming.StreamingMediaType
 import app.yukine.streaming.RegistryStreamingGateway
 import app.yukine.streaming.StreamingProviderCapabilities
 import app.yukine.streaming.StreamingProviderDescriptor
@@ -74,6 +75,8 @@ class StreamingSearchActionHandlerBindingsTest {
 
         assertEquals(listOf("echo"), netease.searchRequests.map { it.query })
         assertEquals(listOf("echo"), qq.searchRequests.map { it.query })
+        assertEquals(setOf(StreamingMediaType.TRACK), netease.searchRequests.single().mediaTypes)
+        assertEquals(setOf(StreamingMediaType.TRACK), qq.searchRequests.single().mediaTypes)
         assertEquals(
             setOf(StreamingProviderName.NETEASE, StreamingProviderName.QQ_MUSIC),
             streamingViewModel.streaming.value.searchResult?.tracks?.map { it.provider }?.toSet()

@@ -31,6 +31,7 @@ public final class MainRoutes {
     public static final String SETTINGS_ADVANCED_THEME = "settings_advanced_theme";
     public static final String SETTINGS_ACCENT = "settings_accent";
     public static final String SETTINGS_LANGUAGE = "settings_language";
+    public static final String SETTINGS_PAGE_BACKGROUND = "settings_page_background";
     public static final String SETTINGS_PLAYBACK_SPEED = "settings_playback_speed";
     public static final String SETTINGS_APP_VOLUME = "settings_app_volume";
     public static final String SETTINGS_AUDIO_EFFECTS = "settings_audio_effects";

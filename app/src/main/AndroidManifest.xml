@@ -52,6 +52,11 @@
             android:name=".StreamingWebAuthActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".BackgroundPreviewActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

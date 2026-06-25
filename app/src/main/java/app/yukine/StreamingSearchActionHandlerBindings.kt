@@ -16,14 +16,9 @@ internal class StreamingSearchActionHandlerBindings(
     }
 
     override fun search(query: String) {
-        val mediaTypes = streamingViewModel.state.providerCapabilities
-            .filter { it.supportsSearch }
-            .flatMap { it.supportedSearchMediaTypes }
-            .toSet()
-            .ifEmpty { setOf(StreamingMediaType.TRACK) }
         streamingViewModel.searchAllStreaming(
             query = query,
-            mediaTypes = mediaTypes,
+            mediaTypes = setOf(StreamingMediaType.TRACK),
             pageSize = 12
         )
     }

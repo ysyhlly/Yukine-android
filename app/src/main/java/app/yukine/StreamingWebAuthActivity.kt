@@ -279,8 +279,16 @@ class StreamingWebAuthActivity : Activity() {
             return null
         }
         val header = merged.entries.joinToString("; ") { "${it.key}=${it.value}" }
+        // A session token only proves login when it has a real value. QQ Music (and others) can set
+        // a name-only placeholder such as `qm_keyst=` before the credential is issued; counting that
+        // as logged-in produced a false success where the UI showed "connected" and search ran, but
+        // playback later failed with "cookie incomplete" because resolvePlayback needs the value.
+        // Validate against names that actually carry a non-blank value so login matches playback.
+        val namesWithValue = merged.entries
+            .filter { it.value.isNotBlank() }
+            .map { it.key }
         if (provider != null &&
-            !app.yukine.streaming.LocalStreamingLoginEndpoints.hasSessionToken(provider, merged.keys)
+            !app.yukine.streaming.LocalStreamingLoginEndpoints.hasSessionToken(provider, namesWithValue)
         ) {
             // We captured cookies but none of the names the provider uses to prove login. Treat as
             // not-logged-in so the UI does not report a false success. Returning null lets

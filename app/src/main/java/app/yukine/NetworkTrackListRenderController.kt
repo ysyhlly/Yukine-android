@@ -17,8 +17,6 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
 
         fun playRemoteSourceTracks(source: RemoteSource)
 
-        fun playTrackList(tracks: List<Track>, index: Int)
-
         fun renderTrackList(
             title: String,
             tracks: List<Track>,
@@ -61,50 +59,6 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
             headerActions,
             if (allStreams.isEmpty()) {
                 AppLanguage.text(languageMode, "no.streams")
-            } else {
-                AppLanguage.text(languageMode, "no.matching.streams")
-            },
-            trackListLabels(languageMode)
-        )
-    }
-
-    fun renderRecommendationStreamList(
-        languageMode: String,
-        title: String,
-        allRecommendations: ArrayList<Track>,
-        recommendations: ArrayList<Track>,
-        details: ArrayList<String>
-    ) {
-        val headerActions = ArrayList<TrackListHeaderAction>()
-        headerActions.add(
-            TrackListHeaderAction(AppLanguage.text(languageMode, "back")) {
-                listener.navigateNetworkPage(MainRoutes.NETWORK_STREAMING)
-            }
-        )
-        if (recommendations.isNotEmpty()) {
-            headerActions.add(
-                TrackListHeaderAction(AppLanguage.text(languageMode, "play.playlist")) {
-                    listener.playTrackList(recommendations, 0)
-                }
-            )
-        }
-        val headerMetrics = ArrayList<TrackListHeaderMetric>()
-        headerMetrics.add(
-            TrackListHeaderMetric(
-                AppLanguage.text(languageMode, "tracks"),
-                "${recommendations.size} / ${allRecommendations.size}"
-            )
-        )
-        listener.renderTrackList(
-            title,
-            recommendations,
-            false,
-            details,
-            false,
-            headerMetrics,
-            headerActions,
-            if (allRecommendations.isEmpty()) {
-                AppLanguage.text(languageMode, "streaming.recommend.daily.empty")
             } else {
                 AppLanguage.text(languageMode, "no.matching.streams")
             },
@@ -216,6 +170,7 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
         AppLanguage.text(languageMode, "remove.favorite"),
         AppLanguage.text(languageMode, "add.to.playlist"),
         AppLanguage.text(languageMode, "edit"),
-        AppLanguage.text(languageMode, "delete")
+        AppLanguage.text(languageMode, "delete"),
+        AppLanguage.text(languageMode, "download")
     )
 }

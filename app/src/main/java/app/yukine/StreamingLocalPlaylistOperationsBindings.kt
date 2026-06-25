@@ -11,6 +11,9 @@ internal class StreamingLocalPlaylistOperationsBindings(
     private val ensureLoginPlaylistUseCase: EnsureStreamingLoginPlaylistUseCase,
     private val linkUseCase: GetStreamingPlaylistLinkUseCase
 ) : StreamingLocalPlaylistOperations {
+    override fun playlistExists(localPlaylistId: Long): Boolean =
+        syncUseCase.playlistExists(localPlaylistId)
+
     override fun importStreamingPlaylist(
         playlistName: String,
         provider: StreamingProviderName,

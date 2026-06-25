@@ -67,15 +67,25 @@ interface TrackDownloadController {
     fun snapshot(): List<TrackDownloadItem>
     fun pause(downloadId: Long): TrackDownloadActionResult
     fun resume(downloadId: Long): TrackDownloadActionResult
+    fun remove(downloadId: Long): TrackDownloadActionResult
     fun pauseAll(): TrackDownloadActionResult
     fun resumeAll(): TrackDownloadActionResult
+}
+
+interface TrackDownloadDirectoryController : TrackDownloadController {
+    fun downloadDirectoryLabel(): String
+    fun setDownloadDirectory(directory: String)
+}
+
+interface TrackDownloadRequestQueue : TrackDownloadDirectoryController {
+    fun enqueue(track: Track, quality: StreamingAudioQuality = StreamingAudioQuality.HIGH): TrackDownloadResult
 }
 
 @Singleton
 class TrackDownloadManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val streamingHeaders: StreamingPlaybackHeaderStore
-) : TrackDownloadController {
+) : TrackDownloadRequestQueue {
     private val records = linkedMapOf<Long, TrackDownloadRecord>()
     private val preferences = context.getSharedPreferences("track_downloads", Context.MODE_PRIVATE)
     private val customExecutor = Executors.newFixedThreadPool(APP_DOWNLOAD_CONCURRENCY)
@@ -86,7 +96,7 @@ class TrackDownloadManager @Inject constructor(
         restoreRecords()
     }
 
-    fun enqueue(track: Track, quality: StreamingAudioQuality = StreamingAudioQuality.HIGH): TrackDownloadResult {
+    override fun enqueue(track: Track, quality: StreamingAudioQuality): TrackDownloadResult {
         val uri = downloadableUri(track)
             ?: return TrackDownloadResult(false, message = "当前歌曲暂不支持下载，请先播放解析成功后再试")
         customDownloadTreeUri()?.let { treeUri ->
@@ -144,14 +154,14 @@ class TrackDownloadManager @Inject constructor(
     fun downloadDirectory(): String =
         normalizeDirectory(preferences.getString(KEY_DIRECTORY, DOWNLOAD_DIRECTORY_MUSIC))
 
-    fun downloadDirectoryLabel(): String =
+    override fun downloadDirectoryLabel(): String =
         when (downloadDirectory()) {
             DOWNLOAD_DIRECTORY_CUSTOM -> "自定义目录/Yukine"
             DOWNLOAD_DIRECTORY_DOWNLOADS -> "下载/Yukine"
             else -> "音乐/Yukine"
         }
 
-    fun setDownloadDirectory(directory: String) {
+    override fun setDownloadDirectory(directory: String) {
         preferences.edit().putString(KEY_DIRECTORY, normalizeDirectory(directory)).apply()
     }
 
@@ -271,6 +281,20 @@ class TrackDownloadManager @Inject constructor(
         return TrackDownloadActionResult(true, "已继续下载")
     }
 
+    override fun remove(downloadId: Long): TrackDownloadActionResult {
+        val removed = synchronized(records) {
+            records.remove(downloadId)?.also {
+                persistRecordsLocked()
+            }
+        } ?: return TrackDownloadActionResult(false, "未找到下载任务")
+        if (downloadId >= 0L) {
+            val manager = context.getSystemService(DownloadManager::class.java)
+                ?: return TrackDownloadActionResult(true, "已移除下载记录")
+            runCatching { manager.remove(downloadId) }
+        }
+        return TrackDownloadActionResult(true, "已删除下载任务：${removed.title}")
+    }
+
     override fun pauseAll(): TrackDownloadActionResult {
         var changed = 0
         synchronized(records) {
@@ -387,6 +411,9 @@ class TrackDownloadManager @Inject constructor(
             }
             markPublicTargetFinished(targetUri)
             saveArtworkForTrack(track, treeUri)
+        } catch (_: DownloadRemovedException) {
+            targetUri?.let(::deleteTargetUri)
+            downloadWorkDir(id).deleteRecursively()
         } catch (_: DownloadPausedException) {
             updateCustomRecord(id) { it.copy(status = TrackDownloadStatus.Paused) }
         } catch (_: Exception) {
@@ -401,7 +428,7 @@ class TrackDownloadManager @Inject constructor(
             connection.setRequestProperty("Range", "bytes=0-0")
             val responseCode = connection.responseCode
             val contentRange = connection.getHeaderField("Content-Range").orEmpty()
-            val contentLength = connection.contentLengthLong
+            val contentLength = contentLengthCompat(connection)
             val totalFromRange = contentRange.substringAfterLast('/', "")
                 .toLongOrNull()
                 ?.takeIf { it > 0L }
@@ -469,6 +496,9 @@ class TrackDownloadManager @Inject constructor(
             futures.forEach { it.get() }
         } catch (error: Exception) {
             futures.forEach { it.cancel(true) }
+            if (!isDownloadRecordAlive(id)) {
+                throw DownloadRemovedException()
+            }
             if (isPaused(id)) {
                 throw DownloadPausedException()
             }
@@ -516,6 +546,7 @@ class TrackDownloadManager @Inject constructor(
                         val read = input.read(buffer)
                         if (read < 0) break
                         output.write(buffer, 0, read)
+                        throwIfRemoved(id)
                         if (isPaused(id)) {
                             throw DownloadPausedException()
                         }
@@ -548,6 +579,7 @@ class TrackDownloadManager @Inject constructor(
             if (read < 0) break
             output.write(buffer, 0, read)
             downloaded += read.toLong()
+            throwIfRemoved(id)
             if (isPaused(id)) {
                 throw DownloadPausedException()
             }
@@ -575,6 +607,7 @@ class TrackDownloadManager @Inject constructor(
                     if (read < 0) break
                     output.write(buffer, 0, read)
                     copied += read.toLong()
+                    throwIfRemoved(id)
                     if (isPaused(id)) {
                         throw DownloadPausedException()
                     }
@@ -605,8 +638,25 @@ class TrackDownloadManager @Inject constructor(
         return connection
     }
 
+    private fun contentLengthCompat(connection: HttpURLConnection): Long =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            connection.contentLengthLong
+        } else {
+            connection.getHeaderField("Content-Length")?.toLongOrNull()
+                ?: connection.contentLength.toLong()
+        }
+
     private fun isPaused(id: Long): Boolean =
         synchronized(records) { records[id]?.status == TrackDownloadStatus.Paused }
+
+    private fun isDownloadRecordAlive(id: Long): Boolean =
+        synchronized(records) { records.containsKey(id) }
+
+    private fun throwIfRemoved(id: Long) {
+        if (!isDownloadRecordAlive(id)) {
+            throw DownloadRemovedException()
+        }
+    }
 
     private fun downloadWorkDir(id: Long): File =
         File(context.cacheDir, "track-downloads/$id")
@@ -863,23 +913,15 @@ class TrackDownloadManager @Inject constructor(
             streamingHeaders.forDataPath(track.dataPath).isNotEmpty()
 
     private fun safeFileName(track: Track): String {
-        return "${safeBaseFileName(track)}.${extensionFor(track)}"
+        return TrackDownloadFileNamePolicy.audioFileName(track, extensionFor(track))
     }
 
     private fun safeBaseFileName(track: Track): String {
-        val base = listOf(track.artist, track.title)
-            .filter { it.isNotBlank() }
-            .joinToString(" - ")
-            .ifBlank { "Yukine Track ${track.id}" }
-            .replace(Regex("[\\\\/:*?\"<>|\\r\\n]+"), "_")
-            .trim()
-            .take(120)
-            .ifBlank { "Yukine Track ${track.id}" }
-        return base
+        return TrackDownloadFileNamePolicy.baseName(track)
     }
 
     private fun safeArtworkFileName(track: Track, artworkUri: Uri, mimeType: String): String {
-        return "${safeBaseFileName(track)} - cover.${artworkExtensionFor(artworkUri, mimeType)}"
+        return TrackDownloadFileNamePolicy.artworkFileName(track, artworkExtensionFor(artworkUri, mimeType))
     }
 
     private fun extensionFor(track: Track): String {
@@ -1173,3 +1215,5 @@ class TrackDownloadManager @Inject constructor(
 }
 
 private class DownloadPausedException : IOException()
+
+private class DownloadRemovedException : IOException()

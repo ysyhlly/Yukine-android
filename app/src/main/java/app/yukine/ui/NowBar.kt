@@ -165,7 +165,7 @@ private data class NowBarModeSlice(
 )
 
 fun nowBarEmptyState() = NowBarState(
-    title = "No track selected",
+    title = "\u672a\u9009\u4e2d\u6b4c\u66f2",
     subtitle = "",
     elapsed = Track.formatDuration(0),
     duration = Track.formatDuration(0),
@@ -176,13 +176,13 @@ fun nowBarEmptyState() = NowBarState(
     favoriteEnabled = false,
     canExpand = false,
     shuffleEnabled = false,
-    favoriteLabel = "Favorite",
-    favoritedLabel = "Favorited",
-    shuffleLabel = "Shuffle",
-    inOrderLabel = "In order",
-    repeatOneLabel = "Repeat one",
-    repeatAllLabel = "Repeat all",
-    repeatOffLabel = "Repeat off",
+    favoriteLabel = "\u6536\u85cf",
+    favoritedLabel = "\u5df2\u6536\u85cf",
+    shuffleLabel = "\u968f\u673a",
+    inOrderLabel = "\u987a\u5e8f",
+    repeatOneLabel = "\u5355\u66f2\u5faa\u73af",
+    repeatAllLabel = "\u5217\u8868\u5faa\u73af",
+    repeatOffLabel = "\u5173\u95ed\u5faa\u73af",
     repeatMode = EchoPlaybackService.REPEAT_ALL
 )
 
@@ -779,12 +779,11 @@ private fun WaveformProgress(
                         return@awaitEachGesture
                     }
                     var targetPosition = scrub.scrubTo(down.position.x, size.width.toFloat())
-                    val completed = drag(down.id) { change ->
+                    onSeek.seekTo(targetPosition)
+                    drag(down.id) { change ->
                         targetPosition = scrub.scrubTo(change.position.x, size.width.toFloat())
-                        change.consume()
-                    }
-                    if (completed) {
                         onSeek.seekTo(targetPosition)
+                        change.consume()
                     }
                     scrub.clearScrub()
                 }

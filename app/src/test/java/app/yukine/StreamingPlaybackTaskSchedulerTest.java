@@ -6,17 +6,21 @@ import org.junit.Test;
 
 public class StreamingPlaybackTaskSchedulerTest {
     @Test
-    public void runsHigherPriorityTaskBeforeQueuedNextTrackWork() {
+    public void currentPlaybackWorkDoesNotWaitForActiveNextTrackResolve() {
         StreamingPlaybackTaskScheduler scheduler = new StreamingPlaybackTaskScheduler();
         StringBuilder order = new StringBuilder();
-        final StreamingPlaybackTaskScheduler.Completion[] lowCompletion = new StreamingPlaybackTaskScheduler.Completion[1];
+        final StreamingPlaybackTaskScheduler.Completion[] nextCompletion = new StreamingPlaybackTaskScheduler.Completion[1];
 
         scheduler.schedule(StreamingPlaybackTaskScheduler.Priority.NEXT_URL_RESOLVE, completion -> {
             order.append("next-start,");
-            lowCompletion[0] = completion;
+            nextCompletion[0] = completion;
         });
         scheduler.schedule(StreamingPlaybackTaskScheduler.Priority.NEXT_URL_RESOLVE, completion -> {
             order.append("next-queued,");
+            completion.complete();
+        });
+        scheduler.schedule(StreamingPlaybackTaskScheduler.Priority.CURRENT_URL_RESOLVE, completion -> {
+            order.append("current,");
             completion.complete();
         });
         scheduler.schedule(StreamingPlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY, completion -> {
@@ -24,8 +28,8 @@ public class StreamingPlaybackTaskSchedulerTest {
             completion.complete();
         });
 
-        lowCompletion[0].complete();
+        nextCompletion[0].complete();
 
-        assertEquals("next-start,recovery,next-queued,", order.toString());
+        assertEquals("next-start,current,recovery,next-queued,", order.toString());
     }
 }

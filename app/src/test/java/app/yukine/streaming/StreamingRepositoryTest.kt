@@ -328,6 +328,80 @@ class StreamingRepositoryTest {
     }
 
     @Test
+    fun resolvePlaybackTrackFallsBackToCandidateSourceWhenPrimaryFails() = runTest {
+        // 主音源(网易)返回无效 URL 触发失败，备用音源(QQ)返回可用 URL。
+        val gateway = object : StreamingGateway by FakeStreamingGateway() {
+            val requestedProviders = mutableListOf<StreamingProviderName>()
+            override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource {
+                requestedProviders += request.provider
+                return if (request.provider == StreamingProviderName.NETEASE) {
+                    playbackSource("").copy(provider = request.provider, providerTrackId = request.providerTrackId)
+                } else {
+                    playbackSource("https://stream.example.test/qq-echo.flac")
+                        .copy(provider = request.provider, providerTrackId = request.providerTrackId)
+                }
+            }
+        }
+        val repository = StreamingRepository(gateway = gateway)
+        val metadata = StreamingTrack(
+            provider = StreamingProviderName.NETEASE,
+            providerTrackId = "netease-echo",
+            title = "Echo",
+            artist = "Artist",
+            playbackCandidates = listOf(
+                StreamingPlaybackCandidate(
+                    provider = StreamingProviderName.QQ_MUSIC,
+                    providerTrackId = "qq-echo"
+                )
+            )
+        )
+
+        val result = repository.resolvePlaybackTrack(
+            provider = StreamingProviderName.NETEASE,
+            providerTrackId = "netease-echo",
+            quality = StreamingAudioQuality.HIGH,
+            metadata = metadata
+        )
+
+        assertEquals("https://stream.example.test/qq-echo.flac", result.source.url)
+        assertEquals(StreamingProviderName.QQ_MUSIC, result.source.provider)
+        assertEquals(
+            listOf(StreamingProviderName.NETEASE, StreamingProviderName.QQ_MUSIC),
+            gateway.requestedProviders
+        )
+    }
+
+    @Test
+    fun resolvePlaybackTrackFailsWhenAllCandidateSourcesFail() = runTest {
+        val gateway = FakeStreamingGateway(playbackSource = playbackSource(""))
+        val repository = StreamingRepository(gateway = gateway)
+        val metadata = StreamingTrack(
+            provider = StreamingProviderName.NETEASE,
+            providerTrackId = "netease-echo",
+            title = "Echo",
+            artist = "Artist",
+            playbackCandidates = listOf(
+                StreamingPlaybackCandidate(
+                    provider = StreamingProviderName.QQ_MUSIC,
+                    providerTrackId = "qq-echo"
+                )
+            )
+        )
+
+        try {
+            repository.resolvePlaybackTrack(
+                provider = StreamingProviderName.NETEASE,
+                providerTrackId = "netease-echo",
+                quality = StreamingAudioQuality.HIGH,
+                metadata = metadata
+            )
+            fail("Expected playback resolution to fail when all sources are unavailable")
+        } catch (error: StreamingGatewayException) {
+            assertEquals(StreamingErrorCode.SOURCE_UNAVAILABLE, error.code)
+        }
+    }
+
+    @Test
     fun authStateUsesAndWritesCache() = runTest {
         val dao = FakeStreamingCacheDao()
         val cache = StreamingCacheRepository(dao) { 4_000L }

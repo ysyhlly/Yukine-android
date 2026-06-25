@@ -160,6 +160,87 @@ class RemoteStreamingGatewayTest {
     }
 
     @Test
+    fun unconfiguredEndpointLoadsQqPlaylistDetailWithCookieAndDiridFallback() = runTest {
+        val authStore = FakeLocalAuthStore(
+            cookies = mapOf(StreamingProviderName.QQ_MUSIC to "uin=o12345; qqmusic_key=local-key")
+        )
+        val emptyDetail = JSONObject()
+            .put("cdlist", JSONArray().put(JSONObject().put("dissname", "Empty")))
+        val diridDetail = JSONObject()
+            .put(
+                "cdlist",
+                JSONArray().put(
+                    JSONObject()
+                        .put("dissname", "Imported QQ Playlist")
+                        .put(
+                            "songlist",
+                            JSONArray().put(
+                                JSONObject()
+                                    .put("mid", "song-mid-1")
+                                    .put("title", "QQ Song")
+                                    .put("singer", JSONArray().put(JSONObject().put("name", "QQ Artist")))
+                                    .put("album", JSONObject().put("mid", "album-mid-1").put("title", "QQ Album"))
+                                    .put("interval", 120)
+                            )
+                        )
+                )
+            )
+        val qq = FakeQqMusicHttpClient(
+            responses = mapOf("/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg" to emptyDetail),
+            dynamicResponse = { url ->
+                if (java.net.URL(url).query.contains("dirid=dir-7001")) diridDetail else null
+            }
+        )
+        val gateway = RemoteStreamingGateway(
+            endpointBaseUrl = "gateway://unconfigured",
+            localAuthStore = authStore,
+            localQqMusicClient = LocalQqMusicStreamingClient(authStore, qq)
+        )
+
+        val detail = gateway.playlist(
+            StreamingPlaylistRequest(
+                provider = StreamingProviderName.QQ_MUSIC,
+                providerPlaylistId = "dir-7001"
+            )
+        )
+
+        assertEquals("Imported QQ Playlist", detail.playlist?.title)
+        assertEquals(listOf("song-mid-1"), detail.tracks.map { it.providerTrackId })
+        assertTrue(qq.queries[0].contains("disstid=dir-7001"))
+        assertTrue(qq.queries[1].contains("dirid=dir-7001"))
+        assertTrue(qq.cookies.all { it == "uin=o12345; qqmusic_key=local-key" })
+    }
+
+    @Test
+    fun qqPlaybackRejectsUinOnlyCookieBeforeCallingProvider() = runTest {
+        val authStore = FakeLocalAuthStore(
+            cookies = mapOf(StreamingProviderName.QQ_MUSIC to "uin=o12345; p_uin=o12345")
+        )
+        val qq = FakeQqMusicHttpClient(responses = emptyMap())
+        val gateway = RemoteStreamingGateway(
+            endpointBaseUrl = "gateway://unconfigured",
+            localAuthStore = authStore,
+            localQqMusicClient = LocalQqMusicStreamingClient(authStore, qq)
+        )
+
+        val error = try {
+            gateway.resolvePlayback(
+                StreamingPlaybackRequest(
+                    provider = StreamingProviderName.QQ_MUSIC,
+                    providerTrackId = "song-mid"
+                )
+            )
+            null
+        } catch (error: StreamingGatewayException) {
+            error
+        }
+
+        assertEquals(StreamingErrorCode.AUTH_REQUIRED, error?.code)
+        assertTrue(error?.message.orEmpty().contains("qqmusic_key/qm_keyst"))
+        assertTrue(qq.paths.isEmpty())
+    }
+
+    @Test
     fun unconfiguredEndpointSupportsOfflineMockProvider() = runTest {
         val gateway = RemoteStreamingGateway("gateway://unconfigured")
 
@@ -465,24 +546,32 @@ class RemoteStreamingGatewayTest {
     }
 
     private class FakeQqMusicHttpClient(
-        private val responses: Map<String, JSONObject>
+        private val responses: Map<String, JSONObject>,
+        private val dynamicResponse: ((String) -> JSONObject?)? = null
     ) : QqMusicHttpClient {
         val paths = mutableListOf<String>()
+        val queries = mutableListOf<String>()
         val cookies = mutableListOf<String?>()
 
         override fun getJson(url: String, headers: Map<String, String>): JSONObject {
-            paths += java.net.URL(url).path
+            val parsed = java.net.URL(url)
+            paths += parsed.path
+            queries += parsed.query.orEmpty()
             cookies += headers["Cookie"]
-            return responses[java.net.URL(url).path] ?: throw StreamingGatewayException(
+            dynamicResponse?.invoke(url)?.let { return it }
+            return responses[parsed.path] ?: throw StreamingGatewayException(
                 "Missing fake QQ response for $url",
                 code = StreamingErrorCode.SOURCE_UNAVAILABLE
             )
         }
 
         override fun postJson(url: String, body: JSONObject, headers: Map<String, String>): JSONObject {
-            paths += java.net.URL(url).path
+            val parsed = java.net.URL(url)
+            paths += parsed.path
+            queries += parsed.query.orEmpty()
             cookies += headers["Cookie"]
-            return responses[java.net.URL(url).path] ?: throw StreamingGatewayException(
+            dynamicResponse?.invoke(url)?.let { return it }
+            return responses[parsed.path] ?: throw StreamingGatewayException(
                 "Missing fake QQ response for $url",
                 code = StreamingErrorCode.SOURCE_UNAVAILABLE
             )

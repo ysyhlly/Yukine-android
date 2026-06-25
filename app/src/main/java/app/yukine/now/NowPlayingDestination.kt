@@ -25,7 +25,7 @@ fun NowPlayingDestination(
     defaultImmersive: Boolean = false,
     onDefaultImmersiveConsumed: () -> Unit = {},
     gesturesEnabled: Boolean = true,
-    onAppVolumeChanged: (Float) -> Unit = {},
+    onClose: Runnable = Runnable {},
     onEvent: (NowPlayingEvent) -> Unit = { viewModel.onEvent(it) },
     activeDownload: TrackDownloadItem? = null,
     playbackQuality: String = "",
@@ -77,7 +77,7 @@ fun NowPlayingDestination(
             NowPlayingGestureActions(
                 onPrevious = Runnable { onEvent(NowPlayingEvent.Previous) },
                 onNext = Runnable { onEvent(NowPlayingEvent.Next) },
-                onVolumeChange = onAppVolumeChanged
+                onClose = onClose
             )
         } else {
             NowPlayingGestureActions.Empty

@@ -17,7 +17,8 @@ internal data class LoadedSettingsPreferences(
     val nowPlayingGesturesEnabled: Boolean,
     val playbackRestoreEnabled: Boolean,
     val replayGainEnabled: Boolean,
-    val shareStyle: String
+    val shareStyle: String,
+    val pageBackgrounds: PageBackgrounds
 )
 
 internal interface SettingsPreferenceLoadOperations {
@@ -35,6 +36,7 @@ internal interface SettingsPreferenceLoadOperations {
     fun loadPlaybackRestoreEnabled(): Boolean
     fun loadReplayGainEnabled(): Boolean
     fun loadShareStyle(): String
+    fun loadPageBackgrounds(): PageBackgrounds
 }
 
 internal class MusicLibrarySettingsPreferenceLoadOperations(
@@ -74,6 +76,8 @@ internal class MusicLibrarySettingsPreferenceLoadOperations(
         repository.loadReplayGainEnabled()
 
     override fun loadShareStyle(): String = repository.loadShareStyle()
+
+    override fun loadPageBackgrounds(): PageBackgrounds = repository.loadPageBackgrounds()
 }
 
 internal class LoadSettingsPreferencesUseCase(
@@ -94,7 +98,8 @@ internal class LoadSettingsPreferencesUseCase(
             nowPlayingGesturesEnabled = operations.loadNowPlayingGesturesEnabled(),
             playbackRestoreEnabled = operations.loadPlaybackRestoreEnabled(),
             replayGainEnabled = operations.loadReplayGainEnabled(),
-            shareStyle = TrackShareStyle.normalize(operations.loadShareStyle())
+            shareStyle = TrackShareStyle.normalize(operations.loadShareStyle()),
+            pageBackgrounds = operations.loadPageBackgrounds()
         )
 }
 

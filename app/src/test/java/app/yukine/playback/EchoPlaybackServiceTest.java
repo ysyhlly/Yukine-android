@@ -81,4 +81,78 @@ public class EchoPlaybackServiceTest {
                 "streaming:netease:42|url=https://audio.example/current.flac"
         ));
     }
+
+    @Test
+    public void contentRangeTotalBytesAreParsedForSegmentedPrecacheProbe() {
+        assertEquals(1234567L, EchoPlaybackService.totalBytesFromContentRange("bytes 524288-524288/1234567"));
+        assertEquals(-1L, EchoPlaybackService.totalBytesFromContentRange("bytes 0-0/*"));
+        assertEquals(-1L, EchoPlaybackService.totalBytesFromContentRange(""));
+    }
+
+    @Test
+    public void segmentedPrecachePlanUsesProbedContentLengthWhenMetadataIsMissing() {
+        java.util.List<EchoPlaybackService.PrecacheSegment> segments =
+                EchoPlaybackService.planPrecacheSegments(
+                        512L,
+                        256L,
+                        1536L,
+                        1200L
+                );
+
+        assertEquals(3, segments.size());
+        assertEquals(512L, segments.get(0).start);
+        assertEquals(256L, segments.get(0).length);
+        assertEquals(1024L, segments.get(2).start);
+        assertEquals(176L, segments.get(2).length);
+    }
+
+    @Test
+    public void segmentedPrecachePlanSkipsAudioAlreadyCoveredByLeadingCache() {
+        assertTrue(EchoPlaybackService.planPrecacheSegments(
+                512L,
+                256L,
+                1536L,
+                500L
+        ).isEmpty());
+    }
+
+    @Test
+    public void segmentedPrecachePlanStartsAfterLeadingCacheAndUsesFixedChunks() {
+        java.util.List<EchoPlaybackService.PrecacheSegment> segments =
+                EchoPlaybackService.planPrecacheSegments(
+                        512L * 1024L,
+                        1024L * 1024L,
+                        5L * 1024L * 1024L,
+                        10L * 1024L * 1024L
+                );
+
+        assertEquals(5, segments.size());
+        assertEquals(512L * 1024L, segments.get(0).start);
+        assertEquals(1024L * 1024L, segments.get(0).length);
+        assertEquals(4L * 1024L * 1024L + 512L * 1024L, segments.get(4).start);
+        assertEquals(512L * 1024L, segments.get(4).length);
+    }
+
+    @Test
+    public void segmentedPrecacheStartSkipsLeadingRangeWhenPlayerOrCacheAlreadyFilledIt() {
+        assertEquals(512L, EchoPlaybackService.segmentedPrecacheStart(512L, 0L));
+        assertEquals(2048L, EchoPlaybackService.segmentedPrecacheStart(512L, 2048L));
+        assertEquals(512L, EchoPlaybackService.segmentedPrecacheStart(512L, -1L));
+    }
+
+    @Test
+    public void segmentedPrecachePlanCanStartAfterCurrentBufferedRange() {
+        java.util.List<EchoPlaybackService.PrecacheSegment> segments =
+                EchoPlaybackService.planPrecacheSegments(
+                        EchoPlaybackService.segmentedPrecacheStart(512L, 2048L),
+                        512L,
+                        4096L,
+                        4096L
+                );
+
+        assertEquals(4, segments.size());
+        assertEquals(2048L, segments.get(0).start);
+        assertEquals(512L, segments.get(0).length);
+        assertEquals(3584L, segments.get(3).start);
+    }
 }

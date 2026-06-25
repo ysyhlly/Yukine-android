@@ -445,12 +445,12 @@ class LocalLuoxueStreamingClient(
         return StreamingTrack(
             provider = StreamingProviderName.LUOXUE,
             providerTrackId = providerTrackId,
-            title = title,
-            artist = artist,
+            title = cleanDisplayText(title).orEmpty(),
+            artist = cleanDisplayText(artist).orEmpty(),
             artists = artist.takeIf { it.isNotBlank() }?.let {
                 listOf(StreamingArtistRef(StreamingProviderName.LUOXUE, "kw:$it", it))
             }.orEmpty(),
-            album = album.takeIf { it.isNotBlank() },
+            album = cleanDisplayText(album),
             albumId = albumId,
             durationMs = value.optionalLongLocal("DURATION")?.times(1000L)
                 ?: value.optionalLongLocal("duration")?.times(1000L),
@@ -528,12 +528,12 @@ class LocalLuoxueStreamingClient(
         return StreamingTrack(
             provider = StreamingProviderName.LUOXUE,
             providerTrackId = providerTrackId,
-            title = title,
-            artist = artist,
+            title = cleanDisplayText(title).orEmpty(),
+            artist = cleanDisplayText(artist).orEmpty(),
             artists = artist.takeIf { it.isNotBlank() }?.let {
                 listOf(StreamingArtistRef(StreamingProviderName.LUOXUE, "kg:$it", it))
             }.orEmpty(),
-            album = album.takeIf { it.isNotBlank() },
+            album = cleanDisplayText(album),
             albumId = albumId.takeIf { it != "0" },
             durationMs = value.optionalLongLocal("duration")?.let { if (it > 1000) it else it * 1000L }
                 ?: value.optionalLongLocal("Duration")?.let { if (it > 1000) it else it * 1000L },
@@ -872,6 +872,14 @@ class LocalLuoxueStreamingClient(
 
     private fun JSONObject.optionalStringLocal(name: String): String? {
         return if (has(name) && !isNull(name)) optString(name).trim().takeIf { it.isNotBlank() } else null
+    }
+
+    private fun cleanDisplayText(value: String?): String? {
+        return value
+            ?.replace(Regex("<[^>]+>"), " ")
+            ?.replace(Regex("\\s+"), " ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
     }
 
     private fun JSONObject.optionalIntLocal(name: String): Int? {

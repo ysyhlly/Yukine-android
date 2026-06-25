@@ -23,6 +23,7 @@ class LoadSettingsPreferencesUseCaseTest {
         operations.playbackRestoreEnabled = true
         operations.replayGainEnabled = false
         operations.shareStyle = TrackShareStyle.PLATFORM_CARD
+        operations.pageBackgrounds = PageBackgrounds(sharedUri = "content://all")
 
         val result = LoadSettingsPreferencesUseCase(operations).execute()
 
@@ -40,8 +41,9 @@ class LoadSettingsPreferencesUseCaseTest {
         assertEquals(true, result.playbackRestoreEnabled)
         assertFalse(result.replayGainEnabled)
         assertEquals(TrackShareStyle.PLATFORM_CARD, result.shareStyle)
+        assertEquals("content://all", result.pageBackgrounds.sharedUri)
         assertEquals(
-            listOf("theme", "accent", "language", "speed", "volume", "quality", "concurrent", "effects", "statusLyrics", "floatingLyrics", "gestures", "restore", "replayGain", "shareStyle"),
+            listOf("theme", "accent", "language", "speed", "volume", "quality", "concurrent", "effects", "statusLyrics", "floatingLyrics", "gestures", "restore", "replayGain", "shareStyle", "backgrounds"),
             operations.events
         )
     }
@@ -62,6 +64,7 @@ class LoadSettingsPreferencesUseCaseTest {
         var playbackRestoreEnabled = true
         var replayGainEnabled = true
         var shareStyle = TrackShareStyle.TEXT
+        var pageBackgrounds = PageBackgrounds.empty()
 
         override fun loadThemeMode(): String {
             events.add("theme")
@@ -131,6 +134,11 @@ class LoadSettingsPreferencesUseCaseTest {
         override fun loadShareStyle(): String {
             events.add("shareStyle")
             return shareStyle
+        }
+
+        override fun loadPageBackgrounds(): PageBackgrounds {
+            events.add("backgrounds")
+            return pageBackgrounds
         }
     }
 }

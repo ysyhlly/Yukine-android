@@ -10,7 +10,6 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -1180,7 +1179,7 @@ public final class LyricsRepository {
             return raw;
         }
         try {
-            byte[] decoded = Base64.getDecoder().decode(raw);
+            byte[] decoded = android.util.Base64.decode(raw, android.util.Base64.DEFAULT);
             String text = new String(decoded, StandardCharsets.UTF_8).trim();
             return text.isEmpty() ? raw : text;
         } catch (IllegalArgumentException ignored) {

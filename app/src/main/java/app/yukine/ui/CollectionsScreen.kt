@@ -64,14 +64,24 @@ data class CollectionsUiState(
     val selectedPlaylistEmptyDescription: String,
     val selectedPlaylistTopActions: List<CollectionActionUiState>,
     val selectedPlaylistTracks: List<PlaylistTrackUiState>,
-    val favoriteLabel: String = "Favorite",
-    val removeFavoriteLabel: String = "Remove favorite",
-    val addToPlaylistLabel: String = "Add to playlist",
-    val renameLabel: String = "Rename",
-    val deleteLabel: String = "Delete",
-    val upLabel: String = "Up",
-    val downLabel: String = "Down",
-    val removeLabel: String = "Remove"
+    val actions: CollectionsActions = emptyCollectionsActions(),
+    val favoriteLabel: String = "\u6536\u85cf",
+    val removeFavoriteLabel: String = "\u53d6\u6d88\u6536\u85cf",
+    val addToPlaylistLabel: String = "\u52a0\u5165\u6b4c\u5355",
+    val renameLabel: String = "\u91cd\u547d\u540d",
+    val deleteLabel: String = "\u5220\u9664",
+    val upLabel: String = "\u4e0a\u79fb",
+    val downLabel: String = "\u4e0b\u79fb",
+    val removeLabel: String = "\u79fb\u9664"
+)
+
+fun emptyCollectionsActions(): CollectionsActions = CollectionsActions(
+    onBack = null,
+    topActions = emptyList(),
+    trackSections = emptyList(),
+    playlistActions = emptyList(),
+    selectedPlaylistTopActions = emptyList(),
+    selectedPlaylistTrackActions = emptyList()
 )
 
 data class CollectionsActions(

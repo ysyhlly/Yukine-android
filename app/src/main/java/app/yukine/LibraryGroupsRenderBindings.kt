@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.model.Track
+import app.yukine.MainActivityLibraryGroupsUiState
 import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
@@ -26,6 +27,10 @@ internal fun interface LibraryGroupsChromeSink {
     fun publish(state: LibraryGroupsChromeState)
 }
 
+internal fun interface LibraryGroupsChromeStateSink {
+    fun publish(state: LibraryGroupsChromeState)
+}
+
 internal data class LibraryGroupTrackListRequest(
     val title: String,
     val tracks: ArrayList<Track>,
@@ -44,7 +49,8 @@ internal class LibraryGroupsRenderBindings(
     private val openFavoritesCollectionAction: Runnable,
     private val confirmDeleteGroupAction: TrackGroupDeleteConfirmer,
     private val chromeSink: LibraryGroupsChromeSink,
-    private val trackListRenderer: LibraryGroupTrackListRenderer
+    private val trackListRenderer: LibraryGroupTrackListRenderer,
+    private val chromeStateSink: LibraryGroupsChromeStateSink? = null
 ) : LibraryGroupsRenderController.Listener {
     override fun selectLibraryGroup(key: String, title: String) {
         libraryEventSink.send(LibraryEvent.OpenGroup(key, title))
@@ -76,6 +82,13 @@ internal class LibraryGroupsRenderBindings(
         modeActions: List<TrackListModeAction>
     ) {
         chromeSink.publish(
+            LibraryGroupsChromeState(
+                actions = ArrayList(actions),
+                emptyText = emptyText,
+                modeActions = ArrayList(modeActions)
+            )
+        )
+        chromeStateSink?.publish(
             LibraryGroupsChromeState(
                 actions = ArrayList(actions),
                 emptyText = emptyText,

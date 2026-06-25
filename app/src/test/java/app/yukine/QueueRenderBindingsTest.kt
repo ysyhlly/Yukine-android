@@ -28,8 +28,7 @@ class QueueRenderBindingsTest {
             removeQueueTrackAction = QueueTrackAction { calls += "remove:${it.id}" },
             confirmClearQueueAction = Runnable { calls += "confirmClear" },
             requestBackAction = Runnable { calls += "back" },
-            chromeSink = QueueChromeSink { chromeState = it },
-            stateContentSink = StateContentSink { calls += "state:$it" }
+            chromeSink = QueueChromeSink { chromeState = it }
         )
 
         bindings.playTrackList(tracks, 1)
@@ -39,10 +38,9 @@ class QueueRenderBindingsTest {
         bindings.confirmClearQueue()
         bindings.requestBack()
         bindings.publishQueueChrome(actions, clear, labels, back)
-        bindings.addStateContent("Empty")
 
         assertEquals(
-            listOf("play:2:1", "playlist:2", "remove:1", "confirmClear", "back", "state:Empty"),
+            listOf("play:2:1", "playlist:2", "remove:1", "confirmClear", "back"),
             calls
         )
         assertEquals(listOf(LibraryEvent.ToggleFavorite(tracks[0])), events)

@@ -28,8 +28,6 @@ internal class QueueRenderController(
             labels: QueueScreenLabels,
             onBack: Runnable
         )
-
-        fun addStateContent(message: String)
     }
 
     fun render(queue: List<Track>?, playbackState: PlaybackStateSnapshot?, favoriteIds: Set<Long>, languageMode: String) {

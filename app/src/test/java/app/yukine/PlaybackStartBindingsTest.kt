@@ -33,16 +33,12 @@ class PlaybackStartBindingsTest {
                 "Resolving"
             },
             statusSink = QueueStatusSink { status -> calls += "status:$status" },
-            streamingTrackListResolver = StreamingTrackListResolver { tracks, index ->
-                calls += "resolve:${tracks?.size ?: 0}:$index"
-                false
-            },
-            playbackTrackListPlayer = PlaybackTrackListPlayer { tracks, index ->
-                calls += "play:${tracks?.size ?: 0}:$index"
+            playbackController = PlaybackController { tracks, index ->
+                calls += "playback:${tracks?.size ?: 0}:$index"
                 result
             },
-            playbackActionResultApplier = QueuePlaybackActionResultApplier { nextResult ->
-                calls += "result:${nextResult?.status}"
+            queueOpener = PlaybackQueueOpener {
+                calls += "openQueue"
             }
         )
 
@@ -55,8 +51,8 @@ class PlaybackStartBindingsTest {
         bindings.clearPendingPlayback()
         bindings.resolvingStatus()
         bindings.setStatus("Ready")
-        bindings.resolveAndPlayStreamingTrack(listOf(track), 4)
-        bindings.applyPlaybackActionResult(bindings.playTrackList(listOf(track), 5))
+        bindings.playbackController().playTrackList(listOf(track), 4)
+        bindings.openQueue()
 
         assertEquals(
             listOf(
@@ -69,9 +65,8 @@ class PlaybackStartBindingsTest {
                 "clear",
                 "resolving",
                 "status:Ready",
-                "resolve:1:4",
-                "play:1:5",
-                "result:played"
+                "playback:1:4",
+                "openQueue"
             ),
             calls
         )

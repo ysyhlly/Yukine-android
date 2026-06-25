@@ -7,9 +7,15 @@ import app.yukine.model.Playlist
 import app.yukine.model.RemoteSource
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
+import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.LibraryGroupUiState
 import app.yukine.ui.TrackListAlbumCardUiState
+import app.yukine.ui.TrackListHeaderAction
+import app.yukine.ui.TrackListHeaderMetric
+import app.yukine.ui.TrackListLabels
+import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.TrackRowUiState
+import app.yukine.ui.TrackRowActions
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,18 +38,6 @@ sealed interface LibraryEvent {
     data object ScanLibrary : LibraryEvent
 }
 
-data class LibraryUiState(
-    val mode: String = LibraryGrouping.SONGS,
-    val selectedGroupKey: String = "",
-    val selectedGroupTitle: String = "",
-    val searchQuery: String = "",
-    val totalTracks: Int = 0,
-    val visibleTracks: Int = 0,
-    val favorites: Int = 0,
-    val playlists: Int = 0,
-    val selectedPlaylistId: Long = -1L
-)
-
 interface LibraryGateway {
     fun playTrackList(tracks: List<Track>, index: Int)
     fun showStatusKey(key: String)
@@ -64,6 +58,10 @@ fun interface LibraryPlaylistTrackLoader {
 
 fun interface LibraryFavoriteWriter {
     fun writeFavorite(track: Track, favorite: Boolean): Boolean
+}
+
+fun interface LibraryFavoriteIdsProvider {
+    fun favoriteIds(): Set<Long>
 }
 
 data class LibraryCollectionsResult(
@@ -208,9 +206,6 @@ fun interface LibraryTrackAddedToPlaylistCallback {
 class LibraryViewModel @JvmOverloads constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(LibraryUiState())
-    val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
-
     private val trackListState = MutableStateFlow(MainActivityTrackListUiState())
     val trackList: StateFlow<MainActivityTrackListUiState> = trackListState.asStateFlow()
 
@@ -220,6 +215,7 @@ class LibraryViewModel @JvmOverloads constructor(
     private var gateway: LibraryGateway? = null
     private var playlistTrackLoader: LibraryPlaylistTrackLoader? = null
     private var favoriteWriter: LibraryFavoriteWriter? = null
+    private var favoriteIdsProvider: LibraryFavoriteIdsProvider? = null
     private var collectionGateway: LibraryCollectionGateway? = null
     private var importGateway: LibraryImportGateway? = null
     private var documentGateway: LibraryDocumentGateway? = null
@@ -239,6 +235,10 @@ class LibraryViewModel @JvmOverloads constructor(
         favoriteWriter = nextWriter
     }
 
+    fun bindFavoriteIdsProvider(nextProvider: LibraryFavoriteIdsProvider?) {
+        favoriteIdsProvider = nextProvider
+    }
+
     fun bindCollectionGateway(nextGateway: LibraryCollectionGateway?) {
         collectionGateway = nextGateway
     }
@@ -255,26 +255,6 @@ class LibraryViewModel @JvmOverloads constructor(
         playlistActionGateway = nextGateway
     }
 
-    fun updateState(
-        routeState: MainActivityRouteState?,
-        libraryState: MainActivityLibraryState?
-    ) {
-        val route = routeState ?: MainActivityRouteState()
-        val library = libraryState ?: MainActivityLibraryState()
-        favoriteTrackIds = library.favoriteTrackIds.toSet()
-        _uiState.value = LibraryUiState(
-            mode = route.libraryMode,
-            selectedGroupKey = route.selectedLibraryGroupKey,
-            selectedGroupTitle = route.selectedLibraryGroupTitle,
-            searchQuery = route.searchQuery,
-            totalTracks = library.allTracks.size,
-            visibleTracks = library.visibleTracks.size,
-            favorites = library.favoriteTracks.size,
-            playlists = library.playlists.size,
-            selectedPlaylistId = route.selectedPlaylistId
-        )
-    }
-
     fun onEvent(event: LibraryEvent) {
         when (event) {
             is LibraryEvent.PlayTrackList -> gateway?.playTrackList(event.tracks, event.index)
@@ -285,10 +265,7 @@ class LibraryViewModel @JvmOverloads constructor(
             is LibraryEvent.OpenGroup -> gateway?.openGroup(event.key, event.title)
             is LibraryEvent.OpenPlaylist -> gateway?.openPlaylist(event.playlistId, event.title)
             LibraryEvent.BackFromGroup -> gateway?.backFromGroup()
-            is LibraryEvent.Search -> {
-                _uiState.value = _uiState.value.copy(searchQuery = event.query)
-                gateway?.search(event.query)
-            }
+            is LibraryEvent.Search -> gateway?.search(event.query)
             LibraryEvent.ImportFiles -> gateway?.importFiles()
             LibraryEvent.ScanLibrary -> gateway?.scanLibrary()
         }
@@ -297,6 +274,10 @@ class LibraryViewModel @JvmOverloads constructor(
     private fun toggleFavorite(track: Track?) {
         if (track == null || track.id < 0L) {
             return
+        }
+        val liveFavoriteIds = favoriteIdsProvider?.favoriteIds()
+        if (liveFavoriteIds != null) {
+            favoriteTrackIds = liveFavoriteIds.toSet()
         }
         val nextFavorite = !favoriteTrackIds.contains(track.id)
         favoriteTrackIds = if (nextFavorite) {
@@ -745,7 +726,11 @@ class LibraryViewModel @JvmOverloads constructor(
         rows: List<TrackRowUiState>,
         footerAlbums: List<TrackListAlbumCardUiState> = emptyList()
     ) {
-        trackListState.value = MainActivityTrackListUiState(title, rows.toList(), footerAlbums.toList())
+        trackListState.value = trackListState.value.copy(
+            title = title,
+            rows = rows.toList(),
+            footerAlbums = footerAlbums.toList()
+        )
     }
 
     fun clearTrackList() {
@@ -753,11 +738,68 @@ class LibraryViewModel @JvmOverloads constructor(
     }
 
     fun updateLibraryGroups(title: String, rows: List<LibraryGroupUiState>) {
-        libraryGroupsState.value = MainActivityLibraryGroupsUiState(title, rows.toList())
+        libraryGroupsState.value = libraryGroupsState.value.copy(
+            title = title,
+            rows = rows.toList()
+        )
     }
 
     fun clearLibraryGroups() {
         libraryGroupsState.value = MainActivityLibraryGroupsUiState()
+    }
+
+    fun updateTrackListChrome(
+        actions: List<TrackRowActions>,
+        headerMetrics: List<TrackListHeaderMetric>,
+        headerActions: List<TrackListHeaderAction>,
+        emptyText: String,
+        modeActions: List<TrackListModeAction>,
+        labels: TrackListLabels
+    ) {
+        trackListState.value = trackListState.value.copy(
+            actions = actions.toList(),
+            headerMetrics = headerMetrics.toList(),
+            headerActions = headerActions.toList(),
+            emptyText = emptyText,
+            modeActions = modeActions.toList(),
+            labels = labels
+        )
+    }
+
+    fun updateTrackListChrome(state: MainActivityTrackListUiState) {
+        // Chrome publish carries only chrome fields; the title/rows/footerAlbums are placeholders
+        // (built empty by the host). Preserve the content set by updateTrackList(...) instead of
+        // letting the blank placeholders wipe it, which would render an empty track list.
+        trackListState.value = trackListState.value.copy(
+            actions = state.actions.toList(),
+            headerMetrics = state.headerMetrics.toList(),
+            headerActions = state.headerActions.toList(),
+            emptyText = state.emptyText,
+            modeActions = state.modeActions.toList(),
+            labels = state.labels
+        )
+    }
+
+    fun updateLibraryGroupsChrome(
+        actions: List<LibraryGroupActions>,
+        emptyText: String,
+        modeActions: List<TrackListModeAction>
+    ) {
+        libraryGroupsState.value = libraryGroupsState.value.copy(
+            actions = actions.toList(),
+            emptyText = emptyText,
+            modeActions = modeActions.toList()
+        )
+    }
+
+    fun updateLibraryGroupsChrome(state: MainActivityLibraryGroupsUiState) {
+        // Chrome publish carries only chrome fields; title/rows are blank placeholders. Preserve
+        // the content set by updateLibraryGroups(...) so the group list does not get wiped.
+        libraryGroupsState.value = libraryGroupsState.value.copy(
+            actions = state.actions.toList(),
+            emptyText = state.emptyText,
+            modeActions = state.modeActions.toList()
+        )
     }
 
     private fun text(languageMode: String, key: String): String =

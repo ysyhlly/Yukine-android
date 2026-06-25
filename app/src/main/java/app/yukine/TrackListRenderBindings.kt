@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.model.Track
+import app.yukine.MainActivityTrackListUiState
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListLabels
@@ -32,13 +33,18 @@ internal fun interface TrackListChromeSink {
     fun publish(state: TrackListChromeState)
 }
 
+internal fun interface TrackListChromeStateSink {
+    fun publish(state: TrackListChromeState)
+}
+
 internal class TrackListRenderBindings(
     private val libraryEventSink: LibraryEventSink,
     private val editStreamAction: TrackAction,
     private val confirmDeleteTrackAction: TrackAction,
     private val downloadTrackAction: TrackAction,
     private val downloadTracksAction: TrackListAction,
-    private val chromeSink: TrackListChromeSink
+    private val chromeSink: TrackListChromeSink,
+    private val chromeStateSink: TrackListChromeStateSink? = null
 ) : TrackListRenderController.Listener {
     override fun playTrackList(tracks: List<Track>, index: Int) {
         libraryEventSink.send(LibraryEvent.PlayTrackList(tracks, index))
@@ -77,6 +83,16 @@ internal class TrackListRenderBindings(
         labels: TrackListLabels
     ) {
         chromeSink.publish(
+            TrackListChromeState(
+                actions = ArrayList(actions),
+                headerMetrics = ArrayList(headerMetrics),
+                headerActions = ArrayList(headerActions),
+                emptyText = emptyText,
+                modeActions = ArrayList(modeActions),
+                labels = labels
+            )
+        )
+        chromeStateSink?.publish(
             TrackListChromeState(
                 actions = ArrayList(actions),
                 headerMetrics = ArrayList(headerMetrics),

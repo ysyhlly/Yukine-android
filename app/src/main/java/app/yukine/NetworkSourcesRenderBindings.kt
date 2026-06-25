@@ -1,24 +1,9 @@
 package app.yukine
 
 import app.yukine.model.RemoteSource
-import app.yukine.ui.NetworkSourceActions
-import app.yukine.ui.NetworkSourceLabels
-import app.yukine.ui.TrackListHeaderAction
-
-internal data class NetworkSourcesChromeState(
-    val actions: List<NetworkSourceActions>,
-    val headerActions: List<TrackListHeaderAction>,
-    val emptyText: String,
-    val labels: NetworkSourceLabels
-)
-
-internal fun interface NetworkSourcesChromeSink {
-    fun publish(state: NetworkSourcesChromeState)
-}
 
 internal class NetworkSourcesRenderBindings(
-    private val events: NetworkSourcesRenderController.Listener,
-    private val chromeSink: NetworkSourcesChromeSink
+    private val events: NetworkSourcesRenderController.Listener
 ) : NetworkSourcesRenderController.Listener {
     override fun backToNetwork() {
         events.backToNetwork()
@@ -46,21 +31,5 @@ internal class NetworkSourcesRenderBindings(
 
     override fun confirmDeleteRemoteSource(source: RemoteSource) {
         events.confirmDeleteRemoteSource(source)
-    }
-
-    override fun publishNetworkSourcesChrome(
-        actions: List<NetworkSourceActions>,
-        headerActions: List<TrackListHeaderAction>,
-        emptyText: String,
-        labels: NetworkSourceLabels
-    ) {
-        chromeSink.publish(
-            NetworkSourcesChromeState(
-                actions = actions,
-                headerActions = headerActions,
-                emptyText = emptyText,
-                labels = labels
-            )
-        )
     }
 }

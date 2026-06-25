@@ -3,6 +3,7 @@ package app.yukine.settings
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import app.yukine.SettingsState
 import app.yukine.SettingsUiState
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.SettingsAction
@@ -23,31 +24,32 @@ class SettingsDestinationTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun rendersTitleMetricsAndInjectedActions() {
+    fun rendersTitleMetricsAndStateActions() {
         val state = MutableStateFlow(
-            SettingsUiState(
-                title = "设置",
-                metrics = listOf(SettingsMetric("曲目", "128")),
-                items = emptyList()
+            SettingsState(
+                actions = listOf(
+                    SettingsAction("Appearance", Runnable {}),
+                    SettingsAction("Playback", Runnable {})
+                ),
+                ui = SettingsUiState(
+                    title = "Settings",
+                    metrics = listOf(SettingsMetric("Tracks", "128")),
+                    items = emptyList()
+                )
             )
-        )
-        val actions = listOf(
-            SettingsAction("外观", Runnable {}),
-            SettingsAction("播放", Runnable {})
         )
 
         composeRule.setContent {
             EchoTheme.EchoTheme {
                 SettingsDestination(
                     state,
-                    actions,
                     audioMotion = YukineOrbAudioMotion.Empty.copy(visualMotionEnabled = false)
                 )
             }
         }
 
-        composeRule.onNodeWithText("设置").assertIsDisplayed()
-        composeRule.onNodeWithText("外观").assertIsDisplayed()
-        composeRule.onNodeWithText("播放").assertIsDisplayed()
+        composeRule.onNodeWithText("Settings").assertIsDisplayed()
+        composeRule.onNodeWithText("Appearance").assertIsDisplayed()
+        composeRule.onNodeWithText("Playback").assertIsDisplayed()
     }
 }

@@ -5,25 +5,20 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import app.yukine.MainActivityLibraryGroupsUiState
 import app.yukine.TrackDownloadItem
-import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.LibraryGroupsScreen
-import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Native Compose destination for Library grouping screens (albums / artists / folders).
  *
- * Reads title+rows from a [StateFlow] of [MainActivityLibraryGroupsUiState]; the per-group
- * [actions] and the [modeActions]/[emptyText] chrome are injected by the host (reusing the
- * existing LibraryGroupsRenderController assembly). Mirrors the factory's StateFlow split.
+ * Reads a fully assembled [MainActivityLibraryGroupsUiState] from [state] and renders it
+ * directly through [LibraryGroupsScreen], so Compose depends on [LibraryViewModel] state instead
+ * of legacy host-injected chrome parameters.
  */
 @Composable
 fun LibraryGroupsDestination(
     state: StateFlow<MainActivityLibraryGroupsUiState>,
-    actions: List<LibraryGroupActions>,
-    emptyText: String = "",
-    modeActions: List<TrackListModeAction> = emptyList(),
     onSearch: Runnable = Runnable { },
     activeDownload: TrackDownloadItem? = null,
     playbackQuality: String = "",
@@ -33,9 +28,9 @@ fun LibraryGroupsDestination(
     LibraryGroupsScreen(
         uiState.title,
         uiState.rows,
-        actions,
-        emptyText,
-        modeActions,
+        uiState.actions,
+        uiState.emptyText,
+        uiState.modeActions,
         onSearch,
         activeDownload,
         playbackQuality,

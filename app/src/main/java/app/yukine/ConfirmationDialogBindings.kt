@@ -9,7 +9,7 @@ internal fun interface NetworkTracksDeleteAction {
 }
 
 internal fun interface RemoteSourceDeleteAction {
-    fun delete(sourceId: Long, name: String)
+    fun delete(sourceId: Long)
 }
 
 internal class ConfirmationDialogBindings(
@@ -41,6 +41,6 @@ internal class ConfirmationDialogBindings(
     }
 
     override fun deleteRemoteSource(sourceId: Long, name: String) {
-        deleteRemoteSourceAction.delete(sourceId, name)
+        deleteRemoteSourceAction.delete(sourceId)
     }
 }

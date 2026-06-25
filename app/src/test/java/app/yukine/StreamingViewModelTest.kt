@@ -7,7 +7,10 @@ import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.streaming.StreamingAuthKind
 import app.yukine.streaming.StreamingAuthState
 import app.yukine.streaming.StreamingAudioQuality
+import app.yukine.streaming.StreamingAlbum
+import app.yukine.streaming.StreamingArtist
 import app.yukine.streaming.StreamingMediaType
+import app.yukine.streaming.StreamingMvItem
 import app.yukine.streaming.StreamingPlaybackAdapter
 import app.yukine.streaming.StreamingHeartbeatRequest
 import app.yukine.streaming.StreamingPlaylist
@@ -23,6 +26,7 @@ import app.yukine.streaming.StreamingProviderRegistry
 import app.yukine.streaming.StreamingProviderStatus
 import app.yukine.streaming.RegistryStreamingGateway
 import app.yukine.streaming.StreamingRepository
+import app.yukine.streaming.StreamingSearchItem
 import app.yukine.streaming.StreamingSearchRequest
 import app.yukine.streaming.StreamingSearchResult
 import app.yukine.streaming.StreamingTrack
@@ -43,8 +47,13 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.Rule
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class StreamingViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
@@ -86,6 +95,236 @@ class StreamingViewModelTest {
         assertEquals(listOf("1", "2"), result?.tracks?.map { it.providerTrackId })
         assertEquals(2, result?.unifiedItems?.size)
         assertFalse(viewModel.streaming.value.loadingMore)
+    }
+
+    @Test
+    fun updateSearchResultFiltersOutNonSongStreamingItems() {
+        val viewModel = StreamingViewModel()
+        val song = streamingTrack("song-1")
+        val album = StreamingAlbum(StreamingProviderName.NETEASE, "album-1", "Album", "Artist")
+        val artist = StreamingArtist(StreamingProviderName.NETEASE, "artist-1", "Artist")
+        val playlist = StreamingPlaylist(StreamingProviderName.NETEASE, "playlist-1", "Playlist")
+        val mv = StreamingMvItem(StreamingProviderName.NETEASE, "mv-1", title = "MV", artist = "Artist")
+
+        viewModel.updateStreamingSearchResult(
+            StreamingSearchResult(
+                provider = StreamingProviderName.NETEASE,
+                query = "echo",
+                page = 1,
+                pageSize = 20,
+                total = 5,
+                tracks = listOf(song),
+                albums = listOf(album),
+                artists = listOf(artist),
+                playlists = listOf(playlist),
+                mvs = listOf(mv),
+                items = listOf(
+                    StreamingSearchItem.fromTrack(song),
+                    StreamingSearchItem.fromAlbum(album),
+                    StreamingSearchItem.fromArtist(artist),
+                    StreamingSearchItem.fromPlaylist(playlist),
+                    StreamingSearchItem.fromMv(mv)
+                )
+            )
+        )
+
+        val result = viewModel.streaming.value.searchResult
+        assertEquals(listOf("song-1"), result?.tracks?.map { it.providerTrackId })
+        assertTrue(result?.albums.orEmpty().isEmpty())
+        assertTrue(result?.artists.orEmpty().isEmpty())
+        assertTrue(result?.playlists.orEmpty().isEmpty())
+        assertTrue(result?.mvs.orEmpty().isEmpty())
+        assertEquals(listOf(StreamingMediaType.TRACK), result?.unifiedItems?.map { it.type })
+        assertEquals(1, result?.total)
+    }
+
+    @Test
+    fun appendSearchResultFiltersOutNonSongStreamingItems() {
+        val viewModel = StreamingViewModel()
+        val song1 = streamingTrack("song-1")
+        val song2 = streamingTrack("song-2")
+        val playlist = StreamingPlaylist(StreamingProviderName.NETEASE, "playlist-1", "Playlist")
+        viewModel.updateStreamingSearchResult(
+            searchResult(StreamingProviderName.NETEASE, "echo", 1, listOf(song1))
+        )
+
+        viewModel.appendStreamingSearchResult(
+            StreamingSearchResult(
+                provider = StreamingProviderName.NETEASE,
+                query = "echo",
+                page = 2,
+                pageSize = 20,
+                total = 3,
+                tracks = listOf(song2),
+                playlists = listOf(playlist),
+                items = listOf(
+                    StreamingSearchItem.fromTrack(song2),
+                    StreamingSearchItem.fromPlaylist(playlist)
+                )
+            )
+        )
+
+        val result = viewModel.streaming.value.searchResult
+        assertEquals(listOf("song-1", "song-2"), result?.tracks?.map { it.providerTrackId })
+        assertTrue(result?.playlists.orEmpty().isEmpty())
+        assertEquals(listOf(StreamingMediaType.TRACK, StreamingMediaType.TRACK), result?.unifiedItems?.map { it.type })
+    }
+
+    @Test
+    fun searchAllProvidersRanksTracksBySimilarityBeforeProviderOrder() = runTest {
+        val weakProvider = FakeProvider(
+            descriptor = descriptor(StreamingProviderName.NETEASE, "NetEase"),
+            searchResult = searchResult(
+                StreamingProviderName.NETEASE,
+                "Echo",
+                1,
+                listOf(streamingTrack("netease-weak").copy(title = "Another Song", artist = "Other"))
+            )
+        )
+        val strongProvider = FakeProvider(
+            descriptor = descriptor(StreamingProviderName.QQ_MUSIC, "QQ Music"),
+            searchResult = searchResult(
+                StreamingProviderName.QQ_MUSIC,
+                "Echo",
+                1,
+                listOf(streamingTrack("qq-strong").copy(provider = StreamingProviderName.QQ_MUSIC, title = "Echo", artist = "Artist"))
+            )
+        )
+        val viewModel = StreamingViewModel()
+        viewModel.bindStreamingRepository(
+            StreamingRepository(
+                RegistryStreamingGateway(StreamingProviderRegistry(listOf(weakProvider, strongProvider)))
+            )
+        )
+        viewModel.updateStreamingProviders(
+            providers = listOf(
+                descriptor(StreamingProviderName.NETEASE, "NetEase"),
+                descriptor(StreamingProviderName.QQ_MUSIC, "QQ Music")
+            ),
+            capabilities = listOf(capability(StreamingProviderName.NETEASE), capability(StreamingProviderName.QQ_MUSIC)),
+            health = emptyList()
+        )
+
+        viewModel.searchAllStreaming("Echo", setOf(StreamingMediaType.TRACK), pageSize = 20)
+        waitUntil { !viewModel.streaming.value.loading }
+
+        assertEquals(
+            listOf("qq-strong", "netease-weak"),
+            viewModel.streaming.value.searchResult?.tracks?.map { it.providerTrackId }
+        )
+    }
+
+    @Test
+    fun searchAllProvidersMergesSameArtistAndTitleAcrossSources() = runTest {
+        val neteaseProvider = FakeProvider(
+            descriptor = descriptor(StreamingProviderName.NETEASE, "NetEase"),
+            searchResult = searchResult(
+                StreamingProviderName.NETEASE,
+                "Echo",
+                1,
+                listOf(
+                    streamingTrack("netease-echo").copy(
+                        title = "Echo",
+                        artist = "Artist",
+                        durationMs = 210_000L
+                    )
+                )
+            )
+        )
+        val qqProvider = FakeProvider(
+            descriptor = descriptor(StreamingProviderName.QQ_MUSIC, "QQ Music"),
+            searchResult = searchResult(
+                StreamingProviderName.QQ_MUSIC,
+                "Echo",
+                1,
+                listOf(
+                    streamingTrack("qq-echo").copy(
+                        provider = StreamingProviderName.QQ_MUSIC,
+                        title = "Echo",
+                        artist = "Artist",
+                        durationMs = 211_000L
+                    )
+                )
+            )
+        )
+        val viewModel = StreamingViewModel()
+        viewModel.bindStreamingRepository(
+            StreamingRepository(
+                RegistryStreamingGateway(StreamingProviderRegistry(listOf(neteaseProvider, qqProvider)))
+            )
+        )
+        viewModel.updateStreamingProviders(
+            providers = listOf(
+                descriptor(StreamingProviderName.NETEASE, "NetEase"),
+                descriptor(StreamingProviderName.QQ_MUSIC, "QQ Music")
+            ),
+            capabilities = listOf(capability(StreamingProviderName.NETEASE), capability(StreamingProviderName.QQ_MUSIC)),
+            health = emptyList()
+        )
+
+        viewModel.searchAllStreaming("Echo", setOf(StreamingMediaType.TRACK), pageSize = 20)
+        waitUntil { !viewModel.streaming.value.loading }
+
+        val tracks = viewModel.streaming.value.searchResult?.tracks.orEmpty()
+        assertEquals(1, tracks.size)
+        // 备用音源被折叠进代表项的候选列表，供失败回退与手动切换。
+        val candidateProviders = tracks.first().playbackCandidates.map { it.provider }
+        assertTrue(candidateProviders.contains(StreamingProviderName.QQ_MUSIC))
+    }
+
+    @Test
+    fun searchAllProvidersKeepsSameTitleDifferentDurationSeparate() = runTest {
+        val neteaseProvider = FakeProvider(
+            descriptor = descriptor(StreamingProviderName.NETEASE, "NetEase"),
+            searchResult = searchResult(
+                StreamingProviderName.NETEASE,
+                "Echo",
+                1,
+                listOf(
+                    streamingTrack("netease-echo").copy(
+                        title = "Echo",
+                        artist = "Artist",
+                        durationMs = 120_000L
+                    )
+                )
+            )
+        )
+        val qqProvider = FakeProvider(
+            descriptor = descriptor(StreamingProviderName.QQ_MUSIC, "QQ Music"),
+            searchResult = searchResult(
+                StreamingProviderName.QQ_MUSIC,
+                "Echo",
+                1,
+                listOf(
+                    streamingTrack("qq-echo").copy(
+                        provider = StreamingProviderName.QQ_MUSIC,
+                        title = "Echo",
+                        artist = "Artist",
+                        durationMs = 300_000L
+                    )
+                )
+            )
+        )
+        val viewModel = StreamingViewModel()
+        viewModel.bindStreamingRepository(
+            StreamingRepository(
+                RegistryStreamingGateway(StreamingProviderRegistry(listOf(neteaseProvider, qqProvider)))
+            )
+        )
+        viewModel.updateStreamingProviders(
+            providers = listOf(
+                descriptor(StreamingProviderName.NETEASE, "NetEase"),
+                descriptor(StreamingProviderName.QQ_MUSIC, "QQ Music")
+            ),
+            capabilities = listOf(capability(StreamingProviderName.NETEASE), capability(StreamingProviderName.QQ_MUSIC)),
+            health = emptyList()
+        )
+
+        viewModel.searchAllStreaming("Echo", setOf(StreamingMediaType.TRACK), pageSize = 20)
+        waitUntil { !viewModel.streaming.value.loading }
+
+        // 时长差 3 分钟，疑似同名不同曲，不应合并。
+        assertEquals(2, viewModel.streaming.value.searchResult?.tracks?.size)
     }
 
     @Test
@@ -193,7 +432,9 @@ class StreamingViewModelTest {
         )
 
         viewModel.searchNextStreamingPage()
-        waitUntil { provider.searchRequests.isNotEmpty() }
+        waitUntil {
+            viewModel.streaming.value.searchResult?.tracks?.map { it.providerTrackId } == listOf("song-1", "song-2")
+        }
 
         assertEquals(listOf(2), provider.searchRequests.map { it.page })
         assertEquals(listOf("song-1", "song-2"), viewModel.streaming.value.searchResult?.tracks?.map { it.providerTrackId })
@@ -337,6 +578,43 @@ class StreamingViewModelTest {
     }
 
     @Test
+    fun preResolveStreamingQueueWindowResolvesUpcomingTracksAfterNextTrack() = runTest {
+        // Unify viewModelScope (Main), the IO async children, and runTest on a single
+        // scheduler so awaitAll fully drains before job.join() returns. Mixing the class
+        // rule's Main scheduler with runTest's scheduler dropped one of the two resolves.
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        Dispatchers.setMain(dispatcher)
+        val provider = FakeProvider()
+        val viewModel = StreamingViewModel()
+        viewModel.bindIoDispatcherForTest(dispatcher)
+        val current = localTrack(id = 1L)
+        val next = streamingPlaceholderTrack(id = 2L, providerTrackId = "next-2")
+        val third = streamingPlaceholderTrack(id = 3L, providerTrackId = "next-3")
+        val fourth = streamingPlaceholderTrack(id = 4L, providerTrackId = "next-4")
+        val resolved = mutableListOf<Pair<Long, Track?>>()
+        viewModel.bindStreamingRepository(repository(provider))
+
+        val job = viewModel.preResolveStreamingQueueWindow(
+            snapshot = playbackSnapshot(currentTrack = current, currentIndex = 0, queueSize = 4, playing = true),
+            queue = listOf(current, next, third, fourth),
+            quality = StreamingAudioQuality.HIGH,
+            maxCount = 2
+        ) { oldTrackId, track -> resolved += oldTrackId to track }
+
+        job?.join()
+
+        assertEquals(
+            setOf(
+                StreamingPlaybackRequest(StreamingProviderName.NETEASE, "next-3", StreamingAudioQuality.HIGH),
+                StreamingPlaybackRequest(StreamingProviderName.NETEASE, "next-4", StreamingAudioQuality.HIGH)
+            ),
+            provider.playbackRequests.toSet()
+        )
+        assertEquals(listOf(3L, 4L), resolved.map { it.first })
+        assertEquals(listOf("Streaming 3", "Streaming 4"), resolved.map { it.second?.title })
+    }
+
+    @Test
     fun prepareCurrentStreamingQueueResolveTargetSelectsCurrentPlaceholder() {
         val viewModel = StreamingViewModel()
         val local = localTrack(id = 1L)
@@ -401,22 +679,12 @@ class StreamingViewModelTest {
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
         val liked = mutableListOf<List<StreamingTrack>>()
         val daily = mutableListOf<List<StreamingTrack>>()
-        val heartbeat = mutableListOf<List<StreamingTrack>>()
 
         viewModel.fetchUserLikedTracks(StreamingProviderName.NETEASE) { tracks -> liked += tracks }.join()
         viewModel.fetchDailyRecommendations(StreamingProviderName.NETEASE) { tracks -> daily += tracks }.join()
-        viewModel.fetchHeartbeatRecommendations(
-            StreamingProviderName.NETEASE,
-            providerTrackId = "seed-1",
-            providerPlaylistId = "playlist-1"
-        ) { tracks -> heartbeat += tracks }.join()
 
         assertEquals(listOf("liked-1"), liked.single().map { it.providerTrackId })
         assertEquals(listOf("daily-1"), daily.single().map { it.providerTrackId })
-        assertEquals(listOf("heart-1"), heartbeat.single().map { it.providerTrackId })
-        assertEquals(1, gateway.heartbeatRequests.size)
-        assertEquals(60, gateway.heartbeatRequests.single().count)
-        assertEquals("seed-1", gateway.heartbeatRequests.single().providerTrackId)
         assertFalse(viewModel.streaming.value.loading)
     }
 
@@ -701,6 +969,27 @@ class StreamingViewModelTest {
     }
 
     @Test
+    fun prepareStreamingPlaylistSyncStartRequestReturnsNotLinkedWhenPlaylistWasDeleted() {
+        val viewModel = StreamingViewModel()
+        val operations = FakeStreamingLocalPlaylistOperations().apply {
+            playlistExistsResult = false
+            linkedPlaylistResult = StreamingPlaylistSyncStore.LinkedPlaylist(
+                localPlaylistId = 42L,
+                provider = StreamingProviderName.NETEASE,
+                providerPlaylistId = "playlist-42",
+                lastSyncMs = 0L
+            )
+        }
+        viewModel.bindStreamingLocalPlaylistOperations(operations)
+
+        val syncStart = viewModel.prepareStreamingPlaylistSyncStartRequest(42L, AppLanguage.MODE_ENGLISH)
+
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.not.linked"), syncStart?.status)
+        assertEquals(false, syncStart?.valid)
+        assertEquals(null, syncStart?.link)
+    }
+
+    @Test
     fun streamingProviderTrackIdLoadsAndSavesThroughBoundStore() = runTest {
         val viewModel = StreamingViewModel()
         val track = localTrack(id = 42L)
@@ -719,153 +1008,6 @@ class StreamingViewModelTest {
         assertEquals(listOf(" cached-42 "), loaded)
         assertEquals(" cached-42 ", directLoaded)
         assertEquals(listOf("load:42", "load:42", "save:42:resolved-42"), store.events)
-    }
-
-    @Test
-    fun resolveHeartbeatRecommendationSeedSearchesAndSavesFirstMatch() = runTest {
-        val provider = FakeProvider()
-        provider.searchResult = searchResult(
-            StreamingProviderName.NETEASE,
-            "Local 88 Artist",
-            1,
-            listOf(
-                StreamingTrack(
-                    provider = StreamingProviderName.NETEASE,
-                    providerTrackId = "song-88",
-                    title = "Local 88",
-                    artist = "Artist"
-                )
-            )
-        )
-        val store = FakeStreamingTrackMatchStore()
-        val viewModel = StreamingViewModel()
-        viewModel.bindStreamingRepository(repository(provider))
-        viewModel.bindStreamingTrackMatchStore(store)
-        val resolvedTrackIds = mutableListOf<String>()
-
-        viewModel.resolveHeartbeatRecommendationSeed(
-            StreamingProviderName.NETEASE,
-            listOf(localTrack(id = 88L))
-        ) { providerTrackId -> resolvedTrackIds += providerTrackId }.join()
-
-        assertEquals(listOf("song-88"), resolvedTrackIds)
-        assertEquals(listOf("Local 88 Artist"), provider.searchRequests.map { it.query })
-        assertEquals(listOf("direct:88", "load:88", "save:88:song-88"), store.events)
-        assertFalse(viewModel.streaming.value.loading)
-    }
-
-    @Test
-    fun prepareHeartbeatRecommendationSeedRequestCollectsCandidatesAndDirectSeed() {
-        val viewModel = StreamingViewModel()
-        val serviceTrack = localTrack(id = 10L)
-        val queuedTrack = localTrack(id = 11L)
-        val playlistTrack = localTrack(id = 12L)
-        val store = FakeStreamingTrackMatchStore().apply {
-            heartbeatCandidates = listOf(serviceTrack, queuedTrack)
-            heartbeatQueueSnapshot = listOf(serviceTrack, queuedTrack)
-            providerTrackIdFromCandidateResult = " seed-11 "
-            heartbeatSeedMissLogMessage = "Heartbeat seed missing provider=netease"
-        }
-        viewModel.bindStreamingTrackMatchStore(store)
-
-        val request = viewModel.prepareHeartbeatRecommendationSeedRequest(
-            StreamingProviderName.NETEASE,
-            playbackSnapshot(serviceTrack, 0, 2, true),
-            listOf(serviceTrack),
-            playbackSnapshot(queuedTrack, 1, 2, true),
-            listOf(queuedTrack),
-            listOf(playlistTrack)
-        )
-
-        assertEquals(setOf(serviceTrack.id, queuedTrack.id), request.candidates.map { it.id }.toSet())
-        assertEquals(2, request.candidates.size)
-        assertEquals("seed-11", request.seedTrackId)
-        assertEquals("seed-11", request.playlistId)
-        assertEquals("Heartbeat seed missing provider=netease", request.seedMissingMessage)
-        assertEquals(listOf(12L, 10L), store.lastHeartbeatCandidateServiceQueue?.mapNotNull { it?.id })
-        assertEquals(listOf(12L, 10L), store.lastHeartbeatQueueServiceQueue?.mapNotNull { it?.id })
-        assertTrue(request.hasSeed)
-        assertTrue(request.hasCandidates)
-    }
-
-    @Test
-    fun prepareHeartbeatRecommendationSeedRequestVariesFirstCandidateAcrossClicks() {
-        val viewModel = StreamingViewModel()
-        val candidates = (1L..8L).map { id -> localTrack(id = id) }
-        val store = FakeStreamingTrackMatchStore().apply {
-            heartbeatCandidates = candidates
-            heartbeatQueueSnapshot = candidates
-            providerTrackIdFromCandidateResult = "seed"
-        }
-        viewModel.bindStreamingTrackMatchStore(store)
-
-        val firstCandidateIds = (1..24).mapNotNull {
-            viewModel.prepareHeartbeatRecommendationSeedRequest(
-                StreamingProviderName.NETEASE,
-                null,
-                emptyList(),
-                null,
-                emptyList()
-            ).candidates.firstOrNull()?.id
-        }.toSet()
-
-        assertTrue(firstCandidateIds.size > 1)
-    }
-
-    @Test
-    fun prepareStreamingHeartbeatRecommendationRequestUsesNetEaseAndStartsLoading() {
-        val viewModel = StreamingViewModel()
-        viewModel.updateStreamingProviders(
-            listOf(
-                descriptor(StreamingProviderName.QQ_MUSIC, "QQ Music"),
-                descriptor(StreamingProviderName.NETEASE, "NetEase")
-            )
-        )
-
-        val request = viewModel.prepareStreamingHeartbeatRecommendationRequest(
-            StreamingProviderName.QQ_MUSIC,
-            AppLanguage.MODE_ENGLISH
-        )
-
-        assertEquals(StreamingProviderName.NETEASE, request?.provider)
-        assertEquals(
-            AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.recommend.heartbeat.loading"),
-            request?.loadingStatus
-        )
-        assertTrue(viewModel.canContinueHeartbeatRecommendationLoading(StreamingProviderName.NETEASE))
-        assertFalse(viewModel.canContinueHeartbeatRecommendationLoading(StreamingProviderName.QQ_MUSIC))
-    }
-
-    @Test
-    fun prepareHeartbeatRecommendationPresentationOwnsDedupAndAppendStatus() {
-        val viewModel = StreamingViewModel()
-        val playingStatus = AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.recommend.heartbeat.playing")
-        val emptyStatus = AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.recommend.heartbeat.empty")
-
-        val presentation = viewModel.prepareHeartbeatRecommendationPresentation(
-            listOf(
-                streamingTrack("heart-1"),
-                streamingTrack("heart-1"),
-                streamingTrack("heart-2"),
-                streamingTrack("heart-3").copy(playable = false),
-                streamingTrack("   "),
-                streamingTrack("heart-4").copy(title = "", artist = "")
-            ),
-            emptyStatus,
-            playingStatus
-        )
-        val append = viewModel.prepareHeartbeatRecommendationAppendPresentation(
-            listOf(streamingTrack("heart-2"), streamingTrack("heart-3")),
-            AppLanguage.MODE_ENGLISH
-        )
-        val empty = viewModel.prepareHeartbeatRecommendationAppendPresentation(emptyList(), AppLanguage.MODE_ENGLISH)
-
-        assertEquals(2, presentation.tracks.size)
-        assertEquals("$playingStatus (2)", presentation.readyStatus)
-        assertEquals(1, append.tracks.size)
-        assertEquals("$playingStatus (+1)", append.readyStatus)
-        assertTrue(empty.empty)
-        assertEquals(emptyStatus, empty.emptyStatus)
     }
 
     private fun searchResult(
@@ -972,26 +1114,7 @@ class StreamingViewModelTest {
             supportedSearchMediaTypes = setOf(StreamingMediaType.TRACK)
         )
 
-    private class FakeProvider : StreamingProvider {
-        val searchRequests = mutableListOf<StreamingSearchRequest>()
-        val playbackRequests = mutableListOf<StreamingPlaybackRequest>()
-        val startAuthRedirectUris = mutableListOf<String?>()
-        val completeAuthCalls = mutableListOf<String>()
-        var signOutCalls = 0
-        var searchResult: StreamingSearchResult = StreamingSearchResult(
-            provider = StreamingProviderName.NETEASE,
-            query = "",
-            page = 1,
-            pageSize = 20
-        )
-        var startAuthResult: StreamingAuthResult = StreamingAuthResult(
-            StreamingProviderName.NETEASE,
-            StreamingAuthState()
-        )
-        var completeAuthState: StreamingAuthState = StreamingAuthState()
-        var signOutState: StreamingAuthState = StreamingAuthState()
-        var currentAuthState: StreamingAuthState = StreamingAuthState()
-
+    private class FakeProvider(
         override val descriptor: StreamingProviderDescriptor =
             StreamingProviderDescriptor(
                 name = StreamingProviderName.NETEASE,
@@ -1002,7 +1125,26 @@ class StreamingViewModelTest {
                     supportsPlayback = true,
                     supportsAuth = true
                 )
-            )
+            ),
+        var searchResult: StreamingSearchResult = StreamingSearchResult(
+            provider = descriptor.name,
+            query = "",
+            page = 1,
+            pageSize = 20
+        )
+    ) : StreamingProvider {
+        val searchRequests = mutableListOf<StreamingSearchRequest>()
+        val playbackRequests = mutableListOf<StreamingPlaybackRequest>()
+        val startAuthRedirectUris = mutableListOf<String?>()
+        val completeAuthCalls = mutableListOf<String>()
+        var signOutCalls = 0
+        var startAuthResult: StreamingAuthResult = StreamingAuthResult(
+            StreamingProviderName.NETEASE,
+            StreamingAuthState()
+        )
+        var completeAuthState: StreamingAuthState = StreamingAuthState()
+        var signOutState: StreamingAuthState = StreamingAuthState()
+        var currentAuthState: StreamingAuthState = StreamingAuthState()
 
         override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult {
             searchRequests += request
@@ -1198,8 +1340,11 @@ class StreamingViewModelTest {
         val syncTrackIds = mutableListOf<List<String>>()
         val ensurePlaylistNames = mutableListOf<String>()
         val ensureProviders = mutableListOf<StreamingProviderName>()
+        var playlistExistsResult = true
         var linkedPlaylistResult: StreamingPlaylistSyncStore.LinkedPlaylist? = null
         val linkedRemotePlaylists = mutableMapOf<String, StreamingPlaylistSyncStore.LinkedPlaylist>()
+
+        override fun playlistExists(localPlaylistId: Long): Boolean = playlistExistsResult
 
         override fun importStreamingPlaylist(
             playlistName: String,

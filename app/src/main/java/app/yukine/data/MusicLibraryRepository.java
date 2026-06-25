@@ -22,6 +22,7 @@ import app.yukine.model.StreamImportResult;
 import app.yukine.model.Track;
 import app.yukine.model.TrackPlayRecord;
 import app.yukine.model.WebDavSyncResult;
+import app.yukine.PageBackgrounds;
 import app.yukine.playback.AudioEffectSettings;
 import app.yukine.StreamingQualityPreference;
 import app.yukine.TrackShareStyle;
@@ -159,6 +160,14 @@ public final class MusicLibraryRepository {
 
     public void saveShareStyle(String style) {
         database.saveShareStyle(TrackShareStyle.normalize(style));
+    }
+
+    public PageBackgrounds loadPageBackgrounds() {
+        return database.loadPageBackgrounds();
+    }
+
+    public void savePageBackgrounds(PageBackgrounds backgrounds) {
+        database.savePageBackgrounds(backgrounds == null ? PageBackgrounds.empty() : backgrounds);
     }
 
     public boolean loadOnboardingCompleted() {

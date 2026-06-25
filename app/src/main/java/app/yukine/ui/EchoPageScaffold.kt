@@ -1,7 +1,10 @@
 package app.yukine.ui
 
+import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,10 +17,21 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.yukine.BackgroundTransform
 
 object EchoPageDefaults {
     val horizontalPadding: Dp = 18.dp
@@ -48,6 +63,82 @@ fun Modifier.echoPageBackground(): Modifier {
                 )
             )
         )
+}
+
+@Composable
+fun EchoPageBackground(
+    backgroundUri: String,
+    modifier: Modifier = Modifier,
+    transform: BackgroundTransform = BackgroundTransform.IDENTITY,
+    content: @Composable () -> Unit
+) {
+    val p = EchoTheme.colors()
+    val hasCustomBackground = backgroundUri.isNotBlank()
+    Box(modifier = modifier.echoPageBackground()) {
+        AsyncPageBackgroundImage(backgroundUri, transform)
+        if (hasCustomBackground) {
+            // 轻一点的整页蒙版：磨砂卡片本身半透，过重的蒙版会让背景看不见。
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(p.background.copy(alpha = 0.34f))
+            )
+        }
+        CompositionLocalProvider(LocalEchoCustomBackground provides hasCustomBackground) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun AsyncPageBackgroundImage(
+    backgroundUri: String,
+    transform: BackgroundTransform = BackgroundTransform.IDENTITY
+) {
+    if (backgroundUri.isBlank()) {
+        return
+    }
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val uri = remember(backgroundUri) { runCatching { Uri.parse(backgroundUri) }.getOrNull() }
+    var bitmap by remember(backgroundUri) {
+        mutableStateOf(uri?.let { ArtworkLoader.peekAnySize(it) })
+    }
+    val safeTransform = remember(transform) { transform.normalized() }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val targetPx = with(density) {
+            maxOf(maxWidth.toPx(), maxHeight.toPx()).toInt()
+        }.coerceIn(1, ArtworkLoader.MAX_TARGET_PX)
+        val widthPx = with(density) { maxWidth.toPx() }
+        val heightPx = with(density) { maxHeight.toPx() }
+        LaunchedEffect(uri, targetPx) {
+            bitmap = uri?.let { ArtworkLoader.load(context.applicationContext, it, targetPx) }
+        }
+        val current = bitmap
+        if (current != null) {
+            Image(
+                bitmap = current.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = safeTransform.scale
+                        scaleY = safeTransform.scale
+                        translationX = BackgroundTransformGeometry.translationPx(
+                            widthPx,
+                            safeTransform.scale,
+                            safeTransform.offsetX
+                        )
+                        translationY = BackgroundTransformGeometry.translationPx(
+                            heightPx,
+                            safeTransform.scale,
+                            safeTransform.offsetY
+                        )
+                    },
+                contentScale = ContentScale.Crop
+            )
+        }
+    }
 }
 
 fun echoPagePadding(

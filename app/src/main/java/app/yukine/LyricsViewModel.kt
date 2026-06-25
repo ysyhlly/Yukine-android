@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.yukine.model.LyricsLine
 import app.yukine.model.Track
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -38,6 +40,18 @@ fun interface LyricsLoader {
     fun load(track: Track, onlineEnabled: Boolean, neteaseProviderTrackId: String): List<LyricsLine>
 }
 
+fun interface CurrentLyricsTrackProvider {
+    fun currentTrack(): Track?
+}
+
+fun interface LyricsProviderTrackIdResolver {
+    fun providerTrackId(track: Track?): String
+}
+
+fun interface LyricsReloadStatusSink {
+    fun setStatus(status: String)
+}
+
 internal class LoadTrackLyricsUseCaseLyricsLoader(
     private val useCase: LoadTrackLyricsUseCase
 ) : LyricsLoader {
@@ -63,11 +77,20 @@ object LyricsStatusText {
     }
 }
 
-class LyricsViewModel : ViewModel() {
+class LyricsViewModel @JvmOverloads constructor(
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+) : ViewModel() {
+    companion object {
+        private const val LOAD_TIMEOUT_MS = 8000L
+    }
+
     private val _state = MutableStateFlow(LyricsState())
     val state: StateFlow<LyricsState> = _state
 
     private var lyricsLoader: LyricsLoader? = null
+    private var currentTrackProvider: CurrentLyricsTrackProvider? = null
+    private var providerTrackIdResolver: LyricsProviderTrackIdResolver? = null
+    private var reloadStatusSink: LyricsReloadStatusSink? = null
     private var listener: LyricsStateListener? = null
     private var requestToken = 0L
 
@@ -83,6 +106,16 @@ class LyricsViewModel : ViewModel() {
                 offsetMs = offsetMs
             )
         )
+    }
+
+    fun bindReloadGateway(
+        currentTrackProvider: CurrentLyricsTrackProvider?,
+        providerTrackIdResolver: LyricsProviderTrackIdResolver?,
+        reloadStatusSink: LyricsReloadStatusSink?
+    ) {
+        this.currentTrackProvider = currentTrackProvider
+        this.providerTrackIdResolver = providerTrackIdResolver
+        this.reloadStatusSink = reloadStatusSink
     }
 
     fun bindListener(listener: LyricsStateListener?) {
@@ -125,6 +158,20 @@ class LyricsViewModel : ViewModel() {
     }
 
     @JvmOverloads
+    fun reloadCurrentLyrics(languageMode: String? = AppLanguage.MODE_SYSTEM): Job {
+        val track = currentTrackProvider?.currentTrack()
+        val providerTrackId = track?.let { providerTrackIdResolver?.providerTrackId(it) }.orEmpty()
+        val job = load(track, providerTrackId)
+        reloadStatusSink?.setStatus(
+            AppLanguage.text(
+                languageMode ?: AppLanguage.MODE_SYSTEM,
+                if (track == null) "no.track.selected" else "reloading.lyrics"
+            )
+        )
+        return job
+    }
+
+    @JvmOverloads
     fun load(track: Track?, neteaseProviderTrackId: String? = ""): Job {
         val token = ++requestToken
         val previous = _state.value
@@ -151,8 +198,32 @@ class LyricsViewModel : ViewModel() {
         }
 
         val requestedTrackId = track.id
-        return viewModelScope.launch {
-            val loadedLines = withContext(Dispatchers.IO) {
+        val timeoutJob = viewModelScope.launch {
+            delay(LOAD_TIMEOUT_MS)
+            if (token != requestToken || _state.value.trackId != requestedTrackId) {
+                return@launch
+            }
+            val current = _state.value
+            if (current.statusKind != LyricsStatusKind.LOADING && current.statusKind != LyricsStatusKind.LOADING_LOCAL) {
+                return@launch
+            }
+            val keepFallbackLines = current.lines.isNotEmpty()
+            updateState(
+                current.copy(
+                    lines = if (keepFallbackLines) current.lines else emptyList(),
+                    loadedLineCount = if (keepFallbackLines) current.loadedLineCount else 0,
+                    statusKind = if (keepFallbackLines) {
+                        LyricsStatusKind.LOADED
+                    } else if (requestOnline) {
+                        LyricsStatusKind.NOT_FOUND
+                    } else {
+                        LyricsStatusKind.LOCAL_NOT_FOUND
+                    }
+                )
+            )
+        }
+        val loadJob = viewModelScope.launch {
+            val loadedLines = withContext(ioDispatcher) {
                 lyricsLoader?.load(track, requestOnline, providerTrackId).orEmpty()
             }
             if (token != requestToken || _state.value.trackId != requestedTrackId) {
@@ -174,6 +245,8 @@ class LyricsViewModel : ViewModel() {
                 )
             )
         }
+        loadJob.invokeOnCompletion { timeoutJob.cancel() }
+        return loadJob
     }
 
     private fun updateState(next: LyricsState) {

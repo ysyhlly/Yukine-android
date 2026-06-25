@@ -31,7 +31,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.yukine.TrackDownloadItem
 
-data class SettingsMetric(val label: String, val value: String)
+data class SettingsMetric(
+    val label: String,
+    val value: String,
+    val compact: Boolean = false
+)
 data class SettingsAction(val label: String, val onClick: Runnable, val description: String = "")
 
 class SettingsListScrollState(
@@ -202,9 +206,13 @@ private fun SettingsMetricRow(metric: SettingsMetric) {
             )
             Text(
                 metric.value,
-                style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                style = if (metric.compact) {
+                    EchoTypography.caption
+                } else {
+                    EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                },
                 color = p.text,
-                maxLines = 1,
+                maxLines = if (metric.compact) 3 else 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(start = 12.dp)
             )

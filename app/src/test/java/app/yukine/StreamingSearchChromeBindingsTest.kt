@@ -10,14 +10,18 @@ class StreamingSearchChromeBindingsTest {
     fun publishesStreamingSearchChromeState() {
         val labels = StreamingSearchLabels.empty()
         val actions = StreamingSearchActions.empty()
-        var state: StreamingSearchChromeState? = null
+        var publishedLabels: StreamingSearchLabels? = null
+        var publishedActions: StreamingSearchActions? = null
         val bindings = StreamingSearchChromeBindings(
-            StreamingSearchChromeSink { state = it }
+            StreamingSearchChromeSink { nextLabels, nextActions ->
+                publishedLabels = nextLabels
+                publishedActions = nextActions
+            }
         )
 
         bindings.publishStreamingSearchChrome(labels, actions)
 
-        assertSame(labels, state?.labels)
-        assertSame(actions, state?.actions)
+        assertSame(labels, publishedLabels)
+        assertSame(actions, publishedActions)
     }
 }

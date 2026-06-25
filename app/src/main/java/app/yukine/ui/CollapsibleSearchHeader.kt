@@ -24,7 +24,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 
-private val SearchHeaderHeight = 68.dp
+private val SearchHeaderHeight = 76.dp
 
 @Composable
 fun CollapsibleSearchHeader(
@@ -79,7 +79,7 @@ fun CollapsibleSearchHeader(
                     .height(SearchHeaderHeight)
                     .offset(y = headerOffset)
                     .alpha(headerAlpha)
-                    .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 8.dp)
+                    .padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 10.dp)
             ) {
                 header()
             }

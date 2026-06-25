@@ -1,35 +1,15 @@
 package app.yukine
 
 import app.yukine.model.RemoteSource
-import app.yukine.ui.NetworkSourceActions
-import app.yukine.ui.NetworkSourceLabels
-import app.yukine.ui.TrackListHeaderAction
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertSame
 import org.junit.Test
 
 class NetworkSourcesRenderBindingsTest {
     @Test
-    fun forwardsSourceActionsAndPublishesChromeState() {
+    fun forwardsSourceActions() {
         val listener = RecordingListener()
         val source = RemoteSource(7L, "webdav", "Source", "https://example.test", "", "", "", "", 0L)
-        val actions = listOf(
-            NetworkSourceActions(
-                onTest = Runnable { },
-                onSync = Runnable { },
-                onPlay = Runnable { },
-                onTracks = Runnable { },
-                onEdit = Runnable { },
-                onDelete = Runnable { }
-            )
-        )
-        val headerActions = listOf(TrackListHeaderAction("Back", Runnable { }))
-        val labels = NetworkSourceLabels("Test", "Sync", "Play", "Tracks", "Edit", "Delete")
-        var chromeState: NetworkSourcesChromeState? = null
-        val bindings = NetworkSourcesRenderBindings(
-            events = listener,
-            chromeSink = NetworkSourcesChromeSink { chromeState = it }
-        )
+        val bindings = NetworkSourcesRenderBindings(events = listener)
 
         bindings.backToNetwork()
         bindings.testRemoteSource(1L)
@@ -38,8 +18,6 @@ class NetworkSourcesRenderBindingsTest {
         bindings.openRemoteSourceTracks(3L)
         bindings.showEditWebDav(source)
         bindings.confirmDeleteRemoteSource(source)
-        bindings.publishNetworkSourcesChrome(actions, headerActions, "Empty", labels)
-
         assertEquals(
             listOf(
                 "back",
@@ -52,10 +30,6 @@ class NetworkSourcesRenderBindingsTest {
             ),
             listener.calls
         )
-        assertSame(actions, chromeState?.actions)
-        assertSame(headerActions, chromeState?.headerActions)
-        assertEquals("Empty", chromeState?.emptyText)
-        assertSame(labels, chromeState?.labels)
     }
 
     private class RecordingListener : NetworkSourcesRenderController.Listener {
@@ -88,12 +62,5 @@ class NetworkSourcesRenderBindingsTest {
         override fun confirmDeleteRemoteSource(source: RemoteSource) {
             calls += "delete:${source.id}"
         }
-
-        override fun publishNetworkSourcesChrome(
-            actions: List<NetworkSourceActions>,
-            headerActions: List<TrackListHeaderAction>,
-            emptyText: String,
-            labels: NetworkSourceLabels
-        ) = Unit
     }
 }

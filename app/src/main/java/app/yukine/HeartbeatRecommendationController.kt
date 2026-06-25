@@ -4,7 +4,7 @@ import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.streaming.StreamingProviderName
 
 internal class HeartbeatRecommendationController(
-    private val streamingViewModel: StreamingViewModel,
+    private val recommendationPlayer: HeartbeatRecommendationPlayer,
     private val languageProvider: LanguageProvider,
     private val listener: Listener
 ) {
@@ -21,11 +21,7 @@ internal class HeartbeatRecommendationController(
 
         fun appendToQueue(presentation: StreamingRecommendationPresentation)
 
-        fun playHeartbeatRecommendationTracks(
-            streamingTracks: List<app.yukine.streaming.StreamingTrack>,
-            emptyStatus: String,
-            playingStatus: String
-        )
+        fun playHeartbeatRecommendation(presentation: StreamingRecommendationPresentation)
 
         fun logSeedMiss(request: HeartbeatRecommendationSeedRequest)
 
@@ -34,9 +30,9 @@ internal class HeartbeatRecommendationController(
 
     fun playStreamingHeartbeatRecommendations(provider: StreamingProviderName?) {
         val languageMode = languageProvider.languageMode()
-        val request = streamingViewModel.prepareStreamingHeartbeatRecommendationRequest(provider, languageMode)
+        val request = recommendationPlayer.prepareStreamingHeartbeatRecommendationRequest(provider, languageMode)
         if (request == null) {
-            listener.setStatus(streamingViewModel.streamingHeartbeatRecommendationEmptyStatus(languageMode))
+            listener.setStatus(recommendationPlayer.streamingHeartbeatRecommendationEmptyStatus(languageMode))
             return
         }
         listener.setStatus(request.loadingStatus)
@@ -53,19 +49,19 @@ internal class HeartbeatRecommendationController(
             return
         }
         val languageMode = languageProvider.languageMode()
-        val refill = streamingViewModel.prepareHeartbeatRecommendationRefill(snapshot) ?: return
+        val refill = recommendationPlayer.prepareHeartbeatRecommendationRefill(snapshot) ?: return
         val provider = refill.provider
         val request = listener.seedRequest(provider)
         if (!request.hasSeed) {
             listener.stopHeartbeatRecommendationMode()
             return
         }
-        streamingViewModel.fetchHeartbeatRecommendations(provider, request.seedTrackId, request.playlistId) { streamingTracks ->
-            if (!streamingViewModel.acceptsHeartbeatRecommendationRefill(provider) || !listener.hasPlaybackService()) {
-                streamingViewModel.markHeartbeatRecommendationRefillFinished(provider)
+        recommendationPlayer.fetchHeartbeatRecommendations(provider, request.seedTrackId, request.playlistId) { streamingTracks ->
+            if (!recommendationPlayer.acceptsHeartbeatRecommendationRefill(provider) || !listener.hasPlaybackService()) {
+                recommendationPlayer.markHeartbeatRecommendationRefillFinished(provider)
                 return@fetchHeartbeatRecommendations
             }
-            val presentation = streamingViewModel.prepareHeartbeatRecommendationAppendPresentation(
+            val presentation = recommendationPlayer.prepareHeartbeatRecommendationAppendPresentation(
                 streamingTracks,
                 languageMode
             )
@@ -82,12 +78,13 @@ internal class HeartbeatRecommendationController(
         seedTrackId: String,
         playlistId: String
     ) {
-        streamingViewModel.fetchHeartbeatRecommendations(request.provider, seedTrackId, playlistId) { streamingTracks ->
-            listener.playHeartbeatRecommendationTracks(
+        recommendationPlayer.fetchHeartbeatRecommendations(request.provider, seedTrackId, playlistId) { streamingTracks ->
+            val presentation = recommendationPlayer.prepareHeartbeatRecommendationPresentation(
                 streamingTracks,
                 request.emptyStatus,
                 request.playingStatus
             )
+            listener.playHeartbeatRecommendation(presentation)
         }
     }
 
@@ -97,15 +94,15 @@ internal class HeartbeatRecommendationController(
     ) {
         if (!seedRequest.hasCandidates) {
             listener.logSeedMiss(seedRequest)
-            streamingViewModel.markHeartbeatRecommendationLoadingFinished()
+            recommendationPlayer.markHeartbeatRecommendationLoadingFinished()
             listener.setStatus(recommendationRequest.emptyStatus)
             return
         }
-        streamingViewModel.resolveHeartbeatRecommendationSeed(
+        recommendationPlayer.resolveHeartbeatRecommendationSeed(
             recommendationRequest.provider,
             seedRequest.candidates
         ) { resolvedTrackId ->
-            if (!streamingViewModel.canContinueHeartbeatRecommendationLoading(recommendationRequest.provider)) {
+            if (!recommendationPlayer.canContinueHeartbeatRecommendationLoading(recommendationRequest.provider)) {
                 return@resolveHeartbeatRecommendationSeed
             }
             if (!resolvedTrackId.isNullOrEmpty()) {
@@ -113,7 +110,7 @@ internal class HeartbeatRecommendationController(
                 return@resolveHeartbeatRecommendationSeed
             }
             listener.logSeedMiss(seedRequest)
-            streamingViewModel.markHeartbeatRecommendationLoadingFinished()
+            recommendationPlayer.markHeartbeatRecommendationLoadingFinished()
             listener.setStatus(recommendationRequest.emptyStatus)
         }
     }

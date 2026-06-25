@@ -26,6 +26,7 @@ class ApplySettingsPreferenceUseCaseTest {
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.PlaybackRestoreEnabled, true))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.ReplayGainEnabled, false))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.ShareStyle, TrackShareStyle.PLATFORM_CARD))
+        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.PageBackgrounds, PageBackgrounds(sharedUri = "content://bg")))
 
         assertEquals(
             listOf(
@@ -44,7 +45,8 @@ class ApplySettingsPreferenceUseCaseTest {
                 "gestures:false",
                 "restore:true",
                 "replayGain:false",
-                "shareStyle:${TrackShareStyle.PLATFORM_CARD}"
+                "shareStyle:${TrackShareStyle.PLATFORM_CARD}",
+                "background:content://bg"
             ),
             operations.events
         )
@@ -115,6 +117,10 @@ class ApplySettingsPreferenceUseCaseTest {
 
         override fun saveShareStyle(style: String) {
             events.add("shareStyle:$style")
+        }
+
+        override fun savePageBackgrounds(backgrounds: PageBackgrounds) {
+            events.add("background:${backgrounds.sharedUri}")
         }
     }
 }

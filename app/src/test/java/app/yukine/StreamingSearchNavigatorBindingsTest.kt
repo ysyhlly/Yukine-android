@@ -17,8 +17,12 @@ class StreamingSearchNavigatorBindingsTest {
             },
             syncAccountPlaylistsAction = StreamingProviderAction { calls += "sync:$it" },
             importLikedTracksAction = StreamingProviderAction { calls += "liked:$it" },
-            dailyRecommendationsAction = StreamingRecommendationAction { calls += "daily:$it" },
-            heartbeatRecommendationsAction = StreamingRecommendationAction { calls += "heartbeat:$it" },
+            recommendationActionRunner = RecommendationActionRunner { action ->
+                calls += when (action) {
+                    is RecommendationAction.PlayDaily -> "daily:${action.provider}"
+                    is RecommendationAction.PlayHeartbeat -> "heartbeat:${action.provider}"
+                }
+            },
             pasteImportPlaylistAction = Runnable { calls += "paste" },
             inputProviderCookieAction = Runnable { calls += "cookie" }
         )

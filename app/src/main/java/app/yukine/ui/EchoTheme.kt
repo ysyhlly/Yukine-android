@@ -72,6 +72,13 @@ data class EchoPalette(
  */
 val LocalEchoPalette = staticCompositionLocalOf<EchoPalette?> { null }
 
+/**
+ * True when a user-chosen background image is active behind the whole page. Card surfaces read
+ * this to switch from an opaque fill to a frosted, semi-transparent fill so the wallpaper shows
+ * through. Defaults to false (no custom background).
+ */
+val LocalEchoCustomBackground = staticCompositionLocalOf { false }
+
 // ── Typography scale ────────────────────────────────────────────────────────
 
 object EchoTypography {

@@ -5,6 +5,8 @@ import app.yukine.model.Playlist
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
 import app.yukine.ui.CollectionsUiState
+import app.yukine.ui.CollectionsActions
+import app.yukine.ui.emptyCollectionsActions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,6 +54,10 @@ class CollectionsViewModel : ViewModel() {
         screenState.value = state
     }
 
+    fun updateActions(actions: CollectionsActions) {
+        screenState.value = screenState.value.copy(actions = actions)
+    }
+
     private fun selectedPlaylist(
         playlists: List<Playlist>,
         selectedPlaylistTracks: List<Track>,
@@ -86,7 +92,8 @@ class CollectionsViewModel : ViewModel() {
                 selectedPlaylistEmptyText = "",
                 selectedPlaylistEmptyDescription = "",
                 selectedPlaylistTopActions = emptyList(),
-                selectedPlaylistTracks = emptyList()
+                selectedPlaylistTracks = emptyList(),
+                actions = emptyCollectionsActions()
             )
         }
     }

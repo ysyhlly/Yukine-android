@@ -19,6 +19,8 @@ public final class PlaybackStreamingDiagnostics {
     private int precacheAttempts;
     private int precacheSuccesses;
     private int precacheFailures;
+    private int precacheSegmentSuccesses;
+    private int precacheSegmentFailures;
 
     public synchronized Snapshot snapshot() {
         return new Snapshot(
@@ -27,6 +29,8 @@ public final class PlaybackStreamingDiagnostics {
                 precacheAttempts,
                 precacheSuccesses,
                 precacheFailures,
+                precacheSegmentSuccesses,
+                precacheSegmentFailures,
                 new ArrayList<>(recentEvents)
         );
     }
@@ -69,6 +73,22 @@ public final class PlaybackStreamingDiagnostics {
             addLocked(Event.precacheFailed(track, message(error)));
         }
         logWarning("PRECACHE_FAILED track=" + trackKey(track), error);
+    }
+
+    public void recordPrecacheSegmentComplete(Track track, long position, long bytesCached) {
+        synchronized (this) {
+            precacheSegmentSuccesses++;
+            addLocked(Event.precacheSegmentComplete(track, position, bytesCached));
+        }
+        logDebug("PRECACHE_SEGMENT_OK track=" + trackKey(track) + " position=" + position + " bytes=" + bytesCached);
+    }
+
+    public void recordPrecacheSegmentFailed(Track track, long position, Throwable error) {
+        synchronized (this) {
+            precacheSegmentFailures++;
+            addLocked(Event.precacheSegmentFailed(track, position, message(error)));
+        }
+        logWarning("PRECACHE_SEGMENT_FAILED track=" + trackKey(track) + " position=" + position, error);
     }
 
     private void addLocked(Event event) {
@@ -128,6 +148,8 @@ public final class PlaybackStreamingDiagnostics {
         public final int precacheAttempts;
         public final int precacheSuccesses;
         public final int precacheFailures;
+        public final int precacheSegmentSuccesses;
+        public final int precacheSegmentFailures;
         public final List<Event> recentEvents;
 
         private Snapshot(
@@ -136,6 +158,8 @@ public final class PlaybackStreamingDiagnostics {
                 int precacheAttempts,
                 int precacheSuccesses,
                 int precacheFailures,
+                int precacheSegmentSuccesses,
+                int precacheSegmentFailures,
                 List<Event> recentEvents
         ) {
             this.bufferingEvents = bufferingEvents;
@@ -143,6 +167,8 @@ public final class PlaybackStreamingDiagnostics {
             this.precacheAttempts = precacheAttempts;
             this.precacheSuccesses = precacheSuccesses;
             this.precacheFailures = precacheFailures;
+            this.precacheSegmentSuccesses = precacheSegmentSuccesses;
+            this.precacheSegmentFailures = precacheSegmentFailures;
             this.recentEvents = Collections.unmodifiableList(recentEvents);
         }
     }
@@ -193,6 +219,14 @@ public final class PlaybackStreamingDiagnostics {
 
         private static Event precacheFailed(Track track, String message) {
             return new Event("precache_failed", track, 0L, 0L, "", message);
+        }
+
+        private static Event precacheSegmentComplete(Track track, long position, long bytes) {
+            return new Event("precache_segment_complete", track, position, bytes, "", "");
+        }
+
+        private static Event precacheSegmentFailed(Track track, long position, String message) {
+            return new Event("precache_segment_failed", track, position, 0L, "", message);
         }
     }
 }

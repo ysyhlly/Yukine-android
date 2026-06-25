@@ -6,6 +6,7 @@ import app.yukine.dashboard.DashboardRepository
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
 import app.yukine.playback.PlaybackStateSnapshot
+import app.yukine.ui.HomeDashboardActions
 import app.yukine.ui.HomeDashboardUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -16,7 +17,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 data class MainActivityHomeDashboardUiState(
-    val content: HomeDashboardUiState = HomeDashboardUiState()
+    val content: HomeDashboardUiState = HomeDashboardUiState(),
+    val actions: HomeDashboardActions = emptyHomeDashboardActions()
+)
+
+internal fun emptyHomeDashboardActions(): HomeDashboardActions = HomeDashboardActions(
+    onOpenStat = emptyList(),
+    onContinue = Runnable { },
+    onOpenNowPlaying = Runnable { },
+    onPlayRecent = emptyList(),
+    onRefresh = Runnable { },
+    onViewQueue = Runnable { },
+    onShuffleAll = Runnable { },
+    onRecentTabChanged = { }
 )
 
 @HiltViewModel
@@ -30,13 +43,17 @@ class HomeDashboardViewModel @Inject constructor(
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
     fun updateHomeDashboard(content: HomeDashboardUiState) {
-        _uiState.value = MainActivityHomeDashboardUiState(content)
+        _uiState.value = _uiState.value.copy(content = content)
+    }
+
+    fun updateHomeDashboardActions(actions: HomeDashboardActions) {
+        _uiState.value = _uiState.value.copy(actions = actions)
     }
 
     fun updateStreamingConnected(connected: Boolean) {
         val current = _uiState.value.content
         if (current.streamingConnected != connected) {
-            _uiState.value = MainActivityHomeDashboardUiState(current.copy(streamingConnected = connected))
+            _uiState.value = _uiState.value.copy(content = current.copy(streamingConnected = connected))
         }
     }
 
@@ -58,8 +75,8 @@ class HomeDashboardViewModel @Inject constructor(
             (playback.positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
         }
         val current = _uiState.value.content
-        _uiState.value = MainActivityHomeDashboardUiState(
-            current.copy(
+        _uiState.value = _uiState.value.copy(
+            content = current.copy(
                 heroSubtitle = text(languageMode, "home.hero.subtitle.track.prefix") +
                     track.artist +
                     text(languageMode, "home.hero.subtitle.track.middle") +
@@ -102,9 +119,7 @@ class HomeDashboardViewModel @Inject constructor(
                     localPlayback
                 )
             }
-            _uiState.value = MainActivityHomeDashboardUiState(
-                state.copy(streamingConnected = streamingConnected)
-            )
+            _uiState.value = _uiState.value.copy(content = state.copy(streamingConnected = streamingConnected))
             _loading.value = false
             onComplete?.run()
         }

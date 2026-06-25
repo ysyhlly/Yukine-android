@@ -23,6 +23,18 @@ class SyncStreamingPlaylistUseCaseTest {
     }
 
     @Test
+    fun missingLocalPlaylistSkipsSyncAndMark() {
+        val operations = FakeStreamingPlaylistSyncOperations()
+        operations.playlistExists = false
+
+        val result = SyncStreamingPlaylistUseCase(operations).execute(link(12L), listOf(streamingTrack("100")))
+
+        assertTrue(result.empty)
+        assertEquals(0, result.syncedCount)
+        assertEquals(emptyList<String>(), operations.events)
+    }
+
+    @Test
     fun syncsPlaceholdersAndMarksPlaylistSynced() {
         val operations = FakeStreamingPlaylistSyncOperations()
         operations.nextCount = 2
@@ -43,9 +55,12 @@ class SyncStreamingPlaylistUseCaseTest {
     }
 
     private class FakeStreamingPlaylistSyncOperations : StreamingPlaylistSyncOperations {
+        var playlistExists = true
         var nextCount = 0
         var syncedTracks: List<Track> = emptyList()
         val events = mutableListOf<String>()
+
+        override fun playlistExists(playlistId: Long): Boolean = playlistExists
 
         override fun syncStreamingPlaylist(playlistId: Long, tracks: List<Track>): Int {
             events.add("sync:$playlistId")

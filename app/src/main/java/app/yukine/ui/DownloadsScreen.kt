@@ -14,11 +14,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,6 +43,7 @@ fun DownloadsScreen(
     onChooseDirectory: () -> Unit = {},
     onPauseItem: (Long) -> Unit = {},
     onResumeItem: (Long) -> Unit = {},
+    onRemoveItem: (Long) -> Unit = {},
     onPauseAll: () -> Unit = {},
     onResumeAll: () -> Unit = {}
 ) {
@@ -85,7 +90,8 @@ fun DownloadsScreen(
                 DownloadItemCard(
                     item = item,
                     onPause = { onPauseItem(item.downloadId) },
-                    onResume = { onResumeItem(item.downloadId) }
+                    onResume = { onResumeItem(item.downloadId) },
+                    onRemove = { onRemoveItem(item.downloadId) }
                 )
             }
         }
@@ -94,7 +100,12 @@ fun DownloadsScreen(
                 EchoSectionTitle("已下载")
             }
             items(state.finished, key = { "finished:${it.downloadId}" }) { item ->
-                DownloadItemCard(item = item, onPause = {}, onResume = {})
+                DownloadItemCard(
+                    item = item,
+                    onPause = {},
+                    onResume = {},
+                    onRemove = { onRemoveItem(item.downloadId) }
+                )
             }
         }
     }
@@ -232,10 +243,18 @@ private fun DownloadMiniActionButton(
 private fun DownloadItemCard(
     item: TrackDownloadItem,
     onPause: () -> Unit,
-    onResume: () -> Unit
+    onResume: () -> Unit,
+    onRemove: () -> Unit
 ) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     EchoGlassSurface(
+        modifier = Modifier.combinedClickable(
+            interactionSource = interaction,
+            indication = LocalIndication.current,
+            onClick = {},
+            onLongClick = onRemove
+        ),
         shape = EchoShapes.medium,
         contentPadding = PaddingValues(12.dp)
     ) {

@@ -2,6 +2,9 @@ package app.yukine;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.junit.Assert.assertEquals;
 
 public final class StatusMessageControllerTest {
@@ -46,6 +49,60 @@ public final class StatusMessageControllerTest {
     @Test
     public void preservesUnknownMessages() {
         assertEquals("Custom status", StatusMessageController.localize("Custom status", AppLanguage.MODE_CHINESE));
+    }
+
+    @Test
+    public void feedbackIgnoresBlankMessagesAndPublishesText() {
+        StatusMessageViewModel viewModel = new StatusMessageViewModel();
+        List<String> updates = new ArrayList<>();
+        StatusMessageController controller = new StatusMessageController(
+                viewModel,
+                new StatusMessageHostBindings(
+                        () -> AppLanguage.MODE_CHINESE,
+                        updates::add
+                )
+        );
+
+        controller.showFeedback(null);
+        controller.showFeedback("   ");
+        controller.showFeedback("Loading library");
+
+        assertEquals(1, updates.size());
+        assertEquals(AppLanguage.text(AppLanguage.MODE_CHINESE, "loading.library"), updates.get(0));
+        assertEquals(updates.get(0), viewModel.getState().getValue().getMessage());
+    }
+
+    @Test
+    public void statusKeyResolvesThroughMessageTextResolver() {
+        StatusMessageViewModel viewModel = new StatusMessageViewModel();
+        List<String> updates = new ArrayList<>();
+        StatusMessageController controller = new StatusMessageController(
+                viewModel,
+                new StatusMessageHostBindings(
+                        () -> AppLanguage.MODE_CHINESE,
+                        updates::add
+                )
+        );
+
+        controller.setStatusKey("backup.export.success");
+
+        assertEquals(1, updates.size());
+        assertEquals(AppLanguage.text(AppLanguage.MODE_CHINESE, "backup.export.success"), updates.get(0));
+        assertEquals(updates.get(0), viewModel.getState().getValue().getMessage());
+    }
+
+    @Test
+    public void ignoresStatusUpdatesWhenHostIsMissing() {
+        StatusMessageViewModel viewModel = new StatusMessageViewModel();
+        StatusMessageController controller = new StatusMessageController(
+                viewModel,
+                null,
+                new MessageTextResolver(() -> AppLanguage.MODE_CHINESE)
+        );
+
+        controller.setStatus("Loading library");
+
+        assertEquals("", viewModel.getState().getValue().getMessage());
     }
 
     @Test

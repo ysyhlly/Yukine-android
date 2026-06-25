@@ -54,7 +54,6 @@ import androidx.compose.ui.unit.sp
 import app.yukine.R
 import app.yukine.TrackDownloadItem
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 data class NowPlayingUiState(
     val pageTitle: String,
@@ -96,13 +95,13 @@ data class NowPlayingSourceOption(
 data class NowPlayingGestureActions(
     val onPrevious: Runnable,
     val onNext: Runnable,
-    val onVolumeChange: (Float) -> Unit
+    val onClose: Runnable
 ) {
     companion object {
         val Empty = NowPlayingGestureActions(
             Runnable {},
             Runnable {},
-            {}
+            Runnable {}
         )
     }
 }
@@ -286,7 +285,6 @@ private fun NowPlayingNormalView(
         Modifier
     } else {
         Modifier.nowPlayingGestureInput(
-            currentVolume = state.appVolume,
             actions = gestureActions
         )
     }
@@ -298,7 +296,9 @@ private fun NowPlayingNormalView(
     ) {
         item(key = "page-title") {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(gestureModifier),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -585,21 +585,16 @@ private fun NowPlayingQuickAction(
 
 @Composable
 private fun Modifier.nowPlayingGestureInput(
-    currentVolume: Float,
     actions: NowPlayingGestureActions
 ): Modifier {
-    val context = LocalContext.current
     val density = LocalDensity.current
     val swipeThreshold = with(density) { 72.dp.toPx() }
     val dominantRatio = 1.25f
-    val volumeStepDistance = with(density) { 42.dp.toPx() }
-    var startVolume by remember { mutableStateOf(currentVolume.coerceIn(0f, 1f)) }
     var totalX by remember { mutableStateOf(0f) }
     var totalY by remember { mutableStateOf(0f) }
-    return pointerInput(currentVolume, actions) {
+    return pointerInput(actions) {
         detectDragGestures(
             onDragStart = {
-                startVolume = currentVolume.coerceIn(0f, 1f)
                 totalX = 0f
                 totalY = 0f
             },
@@ -622,15 +617,8 @@ private fun Modifier.nowPlayingGestureInput(
                         }
                     }
                     absY >= swipeThreshold && absY > absX * dominantRatio -> {
-                        val deltaSteps = (-totalY / volumeStepDistance).roundToInt()
-                        if (deltaSteps != 0) {
-                            val nextVolume = (startVolume + deltaSteps * 0.05f).coerceIn(0f, 1f)
-                            actions.onVolumeChange(nextVolume)
-                            Toast.makeText(
-                                context,
-                                "音量 ${(nextVolume * 100).roundToInt()}%",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                        if (totalY > 0f) {
+                            actions.onClose.run()
                         }
                     }
                 }

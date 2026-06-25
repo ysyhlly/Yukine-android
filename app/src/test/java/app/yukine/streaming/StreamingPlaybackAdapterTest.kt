@@ -32,4 +32,39 @@ class StreamingPlaybackAdapterTest {
         assertEquals(StreamingProviderName.LUOXUE, StreamingPlaybackAdapter.providerName("streaming:mg:abc"))
         assertEquals("abc", StreamingPlaybackAdapter.providerTrackId("streaming:lx:abc"))
     }
+
+    @Test
+    fun qqMusicPlaceholderPreservesMediaMidTailInProviderTrackId() {
+        val track = StreamingTrack(
+            provider = StreamingProviderName.QQ_MUSIC,
+            providerTrackId = "songMid123|mediaMid456",
+            title = "Song",
+            artist = "Artist",
+            album = "Album"
+        )
+
+        val placeholder = StreamingPlaybackAdapter.placeholderTrack(track)
+
+        // 必须保留 "|mediaMid" 尾部，否则 QQ 回放会用错 mediaMid 导致解析失败被跳过。
+        assertEquals(
+            "songMid123|mediaMid456",
+            StreamingPlaybackAdapter.providerTrackId(placeholder.dataPath)
+        )
+        assertEquals(StreamingProviderName.QQ_MUSIC, StreamingPlaybackAdapter.providerName(placeholder.dataPath))
+    }
+
+    @Test
+    fun luoxueProviderTrackIdPreservesSourcePrefixColon() {
+        // 洛雪音源的 providerTrackId 形如 "kw:12345"，冒号是 ID 的一部分，不能被截断。
+        val track = StreamingTrack(
+            provider = StreamingProviderName.LUOXUE,
+            providerTrackId = "kw:12345",
+            title = "Song",
+            artist = "Artist"
+        )
+
+        val placeholder = StreamingPlaybackAdapter.placeholderTrack(track)
+
+        assertEquals("kw:12345", StreamingPlaybackAdapter.providerTrackId(placeholder.dataPath))
+    }
 }

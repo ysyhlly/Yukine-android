@@ -5,7 +5,6 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import app.yukine.MainActivityHomeDashboardUiState
 import app.yukine.ui.EchoTheme
-import app.yukine.ui.HomeDashboardActions
 import app.yukine.ui.HomeDashboardUiState
 import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,17 +21,6 @@ class HomeDestinationTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    private fun emptyActions() = HomeDashboardActions(
-        onOpenStat = emptyList(),
-        onContinue = Runnable {},
-        onOpenNowPlaying = Runnable {},
-        onPlayRecent = emptyList(),
-        onRefresh = Runnable {},
-        onViewQueue = Runnable {},
-        onShuffleAll = Runnable {},
-        onRecentTabChanged = {}
-    )
-
     private val staticMotion = YukineOrbAudioMotion.Empty.copy(visualMotionEnabled = false)
 
     @Test
@@ -45,7 +33,7 @@ class HomeDestinationTest {
 
         composeRule.setContent {
             EchoTheme.EchoTheme {
-                HomeDestination(state, emptyActions(), audioMotion = staticMotion)
+                HomeDestination(state, audioMotion = staticMotion)
             }
         }
 
@@ -60,7 +48,7 @@ class HomeDestinationTest {
 
         composeRule.setContent {
             EchoTheme.EchoTheme {
-                HomeDestination(state, emptyActions(), audioMotion = staticMotion)
+                HomeDestination(state, audioMotion = staticMotion)
             }
         }
 

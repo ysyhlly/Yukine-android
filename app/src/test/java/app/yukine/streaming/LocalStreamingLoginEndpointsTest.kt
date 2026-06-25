@@ -95,4 +95,20 @@ class LocalStreamingLoginEndpointsTest {
         assertTrue(LocalStreamingLoginEndpoints.sessionTokenNames(StreamingProviderName.QQ_MUSIC).contains("qqmusic_key"))
         assertEquals(listOf("SESSDATA"), LocalStreamingLoginEndpoints.sessionTokenNames(StreamingProviderName.BILIBILI))
     }
+
+    @Test
+    fun qqMusicSessionRequiresCredentialCookieNotOnlyUin() {
+        assertFalse(
+            LocalStreamingLoginEndpoints.hasSessionToken(
+                StreamingProviderName.QQ_MUSIC,
+                listOf("uin", "p_uin")
+            )
+        )
+        assertTrue(
+            LocalStreamingLoginEndpoints.hasSessionToken(
+                StreamingProviderName.QQ_MUSIC,
+                listOf("uin", "qm_keyst")
+            )
+        )
+    }
 }

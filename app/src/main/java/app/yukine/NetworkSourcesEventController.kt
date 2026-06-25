@@ -2,9 +2,6 @@ package app.yukine
 
 import app.yukine.model.RemoteSource
 import app.yukine.model.Track
-import app.yukine.ui.NetworkSourceActions
-import app.yukine.ui.NetworkSourceLabels
-import app.yukine.ui.TrackListHeaderAction
 import java.util.ArrayList
 
 internal class NetworkSourcesEventController(
@@ -85,10 +82,4 @@ internal class NetworkSourcesEventController(
         deleteConfirmation.confirmDeleteRemoteSource(source)
     }
 
-    override fun publishNetworkSourcesChrome(
-        actions: List<NetworkSourceActions>,
-        headerActions: List<TrackListHeaderAction>,
-        emptyText: String,
-        labels: NetworkSourceLabels
-    ) = Unit
 }

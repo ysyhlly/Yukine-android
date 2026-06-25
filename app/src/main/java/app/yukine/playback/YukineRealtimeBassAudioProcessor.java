@@ -3,9 +3,11 @@ package app.yukine.playback;
 import androidx.media3.common.C;
 import androidx.media3.common.audio.AudioProcessor;
 import androidx.media3.common.audio.BaseAudioProcessor;
+import androidx.media3.common.util.UnstableApi;
 
 import java.nio.ByteBuffer;
 
+@UnstableApi
 final class YukineRealtimeBassAudioProcessor extends BaseAudioProcessor {
     private final RealtimeBassDetector detector;
 

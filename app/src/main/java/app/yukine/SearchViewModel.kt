@@ -2,6 +2,7 @@ package app.yukine
 
 import androidx.lifecycle.ViewModel
 import app.yukine.model.Track
+import app.yukine.ui.UnifiedSearchActions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -9,7 +10,8 @@ import kotlinx.coroutines.flow.asStateFlow
 data class UnifiedSearchUiState(
     val query: String = "",
     val localTracks: List<Track> = emptyList(),
-    val searched: Boolean = false
+    val searched: Boolean = false,
+    val actions: UnifiedSearchActions = UnifiedSearchActions.empty()
 )
 
 class SearchViewModel : ViewModel() {
@@ -31,5 +33,9 @@ class SearchViewModel : ViewModel() {
 
     fun clearSearch() {
         searchState.value = UnifiedSearchUiState()
+    }
+
+    fun updateActions(actions: UnifiedSearchActions) {
+        searchState.value = searchState.value.copy(actions = actions)
     }
 }

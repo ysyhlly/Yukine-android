@@ -6,6 +6,7 @@ import app.yukine.navigation.EchoNavHostBridge
 import app.yukine.navigation.EchoNavHostState
 import app.yukine.navigation.EchoTabItem
 import app.yukine.navigation.TabRoute
+import app.yukine.NowPlayingEvent
 import app.yukine.queue.QueueViewModel
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.OnboardingActions
@@ -21,6 +22,10 @@ interface EchoNavHostMount {
     fun tabs(): List<EchoTabItem>
     fun queueViewModel(): QueueViewModel
     fun hostState(): EchoNavHostState
+    fun searchViewModel(): SearchViewModel = SearchViewModel()
+    fun openDownloadDirectoryPickerAction(): Runnable = Runnable { }
+    fun closeNowPlayingAction(): Runnable = Runnable { }
+    fun nowPlayingEventHandler(): (NowPlayingEvent) -> Unit = { event -> hostState().nowPlayingViewModel.onEvent(event) }
     fun showOnboarding(): Boolean = false
     fun audioPermissionGranted(): Boolean = true
     fun notificationPermissionGranted(): Boolean = true
@@ -55,6 +60,10 @@ object EchoAppHost {
                         tabs = tabs,
                         queueViewModel = queueViewModel,
                         hostState = hostState,
+                        searchViewModel = mount.searchViewModel(),
+                        openDownloadDirectoryPickerAction = mount.openDownloadDirectoryPickerAction(),
+                        closeNowPlayingAction = mount.closeNowPlayingAction(),
+                        nowPlayingEventHandler = mount.nowPlayingEventHandler(),
                         onTabChanged = { tab -> mount.onTabChanged(tab) }
                     )
                 }

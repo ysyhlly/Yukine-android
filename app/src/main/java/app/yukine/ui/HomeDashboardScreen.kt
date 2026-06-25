@@ -313,7 +313,7 @@ private fun NowPlayingCard(state: HomeDashboardUiState, actions: HomeDashboardAc
             .fillMaxWidth()
             .semantics { contentDescription = "正在播放" },
         shape = EchoShapes.large,
-        color = p.surface
+        color = echoCardColor(p.surface)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -440,7 +440,7 @@ private fun StatCard(stat: HomeDashboardStatUiState, action: Runnable?, modifier
             .heightIn(min = 80.dp)
             .semantics { contentDescription = stat.label },
         shape = EchoShapes.medium,
-        color = p.surface
+        color = echoCardColor(p.surface)
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -498,7 +498,7 @@ private fun RecentActivitySection(state: HomeDashboardUiState, actions: HomeDash
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = EchoShapes.medium,
-                color = p.surface
+                color = echoCardColor(p.surface)
             ) {
                 Text(
                     if (state.empty) "添加音乐后开始聆听" else "暂无最近播放",
@@ -582,7 +582,7 @@ private fun WeeklyRecapSection(state: HomeDashboardUiState) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = EchoShapes.medium,
-            color = p.surface
+            color = echoCardColor(p.surface)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 // Stats row
@@ -818,7 +818,7 @@ private fun RecommendationCard(
             .alpha(alpha)
             .semantics { contentDescription = title },
         shape = EchoShapes.medium,
-        color = p.surface
+        color = echoCardColor(p.surface)
     ) {
         Row(
             modifier = Modifier

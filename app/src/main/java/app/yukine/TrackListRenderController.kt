@@ -87,7 +87,11 @@ internal class TrackListRenderController(
         }
 
         viewModel.clearLibraryGroups()
-        viewModel.updateTrackList(title, rows, footerAlbums)
+        if (footerAlbums.isEmpty()) {
+            viewModel.updateTrackList(title, rows)
+        } else {
+            viewModel.updateTrackList(title, rows, footerAlbums)
+        }
         listener.publishTrackListChrome(actions, headerMetrics, effectiveHeaderActions, emptyText, modeActions, labels)
     }
 
@@ -127,7 +131,14 @@ internal class TrackListRenderController(
             listOf(TrackListHeaderAction(AppLanguage.text(languageMode, "download.current.list"), Runnable { listener.downloadTracks(tracks) })),
             "",
             emptyList(),
-            TrackListLabels()
+            TrackListLabels(
+                AppLanguage.text(languageMode, "favorite"),
+                AppLanguage.text(languageMode, "remove.favorite"),
+                AppLanguage.text(languageMode, "add.to.playlist"),
+                AppLanguage.text(languageMode, "edit"),
+                AppLanguage.text(languageMode, "delete"),
+                AppLanguage.text(languageMode, "download")
+            )
         )
     }
 }

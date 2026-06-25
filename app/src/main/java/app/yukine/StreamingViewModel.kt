@@ -8,22 +8,26 @@ import app.yukine.streaming.StreamingPlaybackAdapter
 import app.yukine.streaming.StreamingAuthKind
 import app.yukine.streaming.StreamingAuthState
 import app.yukine.streaming.StreamingGatewayDiagnostics
-import app.yukine.streaming.StreamingHeartbeatRequest
 import app.yukine.streaming.StreamingMediaType
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingCookieHeaderParser
 import app.yukine.streaming.StreamingPlaylist
 import app.yukine.streaming.StreamingPlaylistLinkParser
+import app.yukine.streaming.StreamingPlaybackCandidate
 import app.yukine.streaming.StreamingPlaybackSource
 import app.yukine.streaming.StreamingProviderCapability
 import app.yukine.streaming.StreamingProviderDescriptor
 import app.yukine.streaming.StreamingProviderHealth
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingRepository
+import app.yukine.streaming.StreamingSearchItem
 import app.yukine.streaming.StreamingSearchResult
 import app.yukine.streaming.StreamingTrack
 import app.yukine.streaming.StreamingTrackMatchPolicy
+import app.yukine.ui.StreamingSearchActions
+import app.yukine.ui.StreamingSearchLabels
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -33,10 +37,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.random.Random
+import kotlin.math.max
 import javax.inject.Inject
 
-private const val HEARTBEAT_SEED_SAMPLE_SIZE = 12
+private const val STREAMING_QUEUE_PRE_RESOLVE_LIMIT = 3
+private const val CROSS_SOURCE_DURATION_TOLERANCE_MS = 3_000L
 
 data class MainActivityStreamingState(
     val providers: List<StreamingProviderDescriptor> = emptyList(),
@@ -57,7 +62,9 @@ data class MainActivityStreamingState(
     val playlistImportSummary: app.yukine.streaming.StreamingPlaylistImporter.StreamingPlaylistImportSummary? = null,
     val playlistImporting: Boolean = false,
     val userPlaylists: List<app.yukine.streaming.StreamingPlaylist> = emptyList(),
-    val userPlaylistsLoading: Boolean = false
+    val userPlaylistsLoading: Boolean = false,
+    val searchChromeLabels: StreamingSearchLabels = StreamingSearchLabels.empty(),
+    val searchChromeActions: StreamingSearchActions = StreamingSearchActions.empty()
 )
 
 data class MainActivityStreamingAuthLaunch(
@@ -78,8 +85,7 @@ class StreamingViewModel @Inject constructor(
     private var streamingPlaybackTaskQueue: StreamingPlaybackTaskQueue? = null
     private var streamingLocalPlaylistOperations: StreamingLocalPlaylistOperations? = null
     private var streamingTrackMatchStore: StreamingTrackMatchStore? = null
-    private var heartbeatSeedCursor = 0
-    private val heartbeatRecommendationUseCase = StreamingHeartbeatRecommendationUseCase()
+    private var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
     val streaming: StateFlow<MainActivityStreamingState> = streamingState.asStateFlow()
     var state: MainActivityStreamingState
         get() = streamingState.value
@@ -89,6 +95,14 @@ class StreamingViewModel @Inject constructor(
 
     fun bindStreamingRepository(repository: StreamingRepository) {
         streamingRepository = repository
+    }
+
+    /**
+     * Test-only seam: lets unit tests inject a deterministic dispatcher so background resolves run
+     * on the test scheduler instead of the real IO thread pool. Production keeps [Dispatchers.IO].
+     */
+    internal fun bindIoDispatcherForTest(dispatcher: CoroutineDispatcher) {
+        ioDispatcher = dispatcher
     }
 
     fun configureStreamingRepository(): Job {
@@ -120,6 +134,13 @@ class StreamingViewModel @Inject constructor(
 
     fun bindStreamingTrackMatchStore(store: StreamingTrackMatchStore?) {
         streamingTrackMatchStore = store
+    }
+
+    fun updateStreamingSearchChrome(labels: StreamingSearchLabels, actions: StreamingSearchActions) {
+        streamingState.value = streamingState.value.copy(
+            searchChromeLabels = labels,
+            searchChromeActions = actions
+        )
     }
 
     fun refreshStreamingProviders(): Job {
@@ -226,10 +247,11 @@ class StreamingViewModel @Inject constructor(
     }
 
     fun updateStreamingSearchResult(result: StreamingSearchResult) {
+        val trackOnlyResult = result.trackOnlySearchResult()
         streamingState.value = streamingState.value.copy(
-            selectedProvider = result.provider,
-            searchQuery = result.query,
-            searchResult = result,
+            selectedProvider = trackOnlyResult.provider,
+            searchQuery = trackOnlyResult.query,
+            searchResult = trackOnlyResult,
             loading = false,
             loadingMore = false,
             errorMessage = null
@@ -239,22 +261,24 @@ class StreamingViewModel @Inject constructor(
     fun appendStreamingSearchResult(result: StreamingSearchResult) {
         val current = streamingState.value
         val previous = current.searchResult
+        val trackOnlyResult = result.trackOnlySearchResult()
         val merged = if (
             previous != null &&
-            previous.provider == result.provider &&
-            previous.query == result.query &&
-            result.page > previous.page
+            previous.provider == trackOnlyResult.provider &&
+            previous.query == trackOnlyResult.query &&
+            trackOnlyResult.page > previous.page
         ) {
-            result.copy(
-                tracks = previous.tracks + result.tracks,
-                albums = previous.albums + result.albums,
-                artists = previous.artists + result.artists,
-                playlists = previous.playlists + result.playlists,
-                mvs = previous.mvs + result.mvs,
-                items = previous.unifiedItems + result.unifiedItems
+            val mergedTracks = (previous.tracks + trackOnlyResult.tracks)
+                .distinctBy { "${it.provider.wireName}:${it.providerTrackId}" }
+            trackOnlyResult.copy(
+                tracks = mergedTracks,
+                total = mergedTracks.size,
+                items = (previous.unifiedItems + trackOnlyResult.unifiedItems)
+                    .filter { it.type == StreamingMediaType.TRACK && it.track != null }
+                    .distinctBy { "${it.provider.wireName}:${it.id}" }
             )
         } else {
-            result
+            trackOnlyResult
         }
         streamingState.value = current.copy(
             selectedProvider = merged.provider,
@@ -340,6 +364,8 @@ class StreamingViewModel @Inject constructor(
                 return@launch
             }
             val merged = mergeStreamingSearchResults(query, pageSize, successes)
+                .trackOnlySearchResult()
+                .mergeCrossSourceDuplicates()
             streamingState.value = streamingState.value.copy(
                 selectedProvider = successes.firstOrNull { it.tracks.isNotEmpty() }?.provider
                     ?: current.selectedProvider,
@@ -421,87 +447,6 @@ class StreamingViewModel @Inject constructor(
         }
     }
 
-    fun resolveHeartbeatRecommendationSeed(
-        provider: StreamingProviderName,
-        candidates: List<Track>?,
-        onResolved: StreamingCallback<String>
-    ): Job {
-        val seedCandidates = candidates.orEmpty()
-        if (seedCandidates.isEmpty()) {
-            streamingState.value = streamingState.value.copy(
-                loading = false,
-                errorMessage = null
-            )
-            return viewModelScope.launch {
-                onResolved.onResult("")
-            }
-        }
-        beginStreamingRequest()
-        return viewModelScope.launch {
-            val resolvedTrackId = resolveHeartbeatRecommendationSeedId(provider, seedCandidates)
-            streamingState.value = streamingState.value.copy(
-                loading = false,
-                errorMessage = null,
-                diagnostics = streamingRepository.diagnostics()
-            )
-            onResolved.onResult(resolvedTrackId)
-        }
-    }
-
-    private suspend fun resolveHeartbeatRecommendationSeedId(
-        provider: StreamingProviderName,
-        candidates: List<Track>
-    ): String {
-        val store = streamingTrackMatchStore
-        for (track in candidates) {
-            val directTrackId = store?.directProviderTrackId(track, provider).orEmpty().trim()
-            if (directTrackId.isNotEmpty()) {
-                saveHeartbeatSeedMatch(store, track, provider, directTrackId)
-                return directTrackId
-            }
-            val cachedTrackId = withContext(Dispatchers.IO) {
-                store?.providerTrackIdFor(track, provider).orEmpty().trim()
-            }
-            if (cachedTrackId.isNotEmpty()) {
-                return cachedTrackId
-            }
-            val resolvedTrackId = searchHeartbeatSeedMatch(provider, track)
-            if (resolvedTrackId.isNotEmpty()) {
-                saveHeartbeatSeedMatch(store, track, provider, resolvedTrackId)
-                return resolvedTrackId
-            }
-        }
-        return ""
-    }
-
-    private suspend fun searchHeartbeatSeedMatch(
-        provider: StreamingProviderName,
-        track: Track
-    ): String {
-        val query = StreamingTrackMatchPolicy.searchQuery(track)
-        if (query.isBlank()) {
-            return ""
-        }
-        return runCatching {
-            val result = streamingRepository.search(
-                provider = provider,
-                query = query,
-                mediaTypes = setOf(StreamingMediaType.TRACK),
-                page = 1,
-                pageSize = 5,
-                useCache = false
-            )
-            StreamingTrackMatchPolicy.pickBestCandidate(track, result.tracks)
-                ?.providerTrackId
-                .orEmpty()
-                .trim()
-        }.getOrElse { error ->
-            failStreamingRequest(error.message)
-            updateStreamingDiagnostics(streamingRepository.diagnostics())
-            ""
-        }
-    }
-
     private fun mergeStreamingSearchResults(
         query: String,
         pageSize: Int,
@@ -510,6 +455,7 @@ class StreamingViewModel @Inject constructor(
         val tracks = results
             .flatMap { it.tracks }
             .distinctBy { "${it.provider.wireName}:${it.providerTrackId}" }
+            .rankBySearchSimilarity(query)
         val albums = results
             .flatMap { it.albums }
             .distinctBy { "${it.provider.wireName}:${it.providerAlbumId}" }
@@ -538,22 +484,220 @@ class StreamingViewModel @Inject constructor(
             cached = results.all { it.cached },
             items = results.flatMap { it.unifiedItems }
                 .distinctBy { "${it.provider.wireName}:${it.type.wireName}:${it.id}" }
+                .rankItemsBySearchSimilarity(query)
         )
     }
 
-    private suspend fun saveHeartbeatSeedMatch(
-        store: StreamingTrackMatchStore?,
-        track: Track,
-        provider: StreamingProviderName,
-        providerTrackId: String
-    ) {
-        val cleanTrackId = providerTrackId.trim()
-        if (cleanTrackId.isEmpty()) {
-            return
+    /**
+     * 把不同音源里「同作者 + 同曲名」（时长在容差内）的曲目合并为一条，列表只保留一条代表项，
+     * 其余音源折叠进代表项的 [StreamingTrack.playbackCandidates]，供播放解析失败时自动回退、
+     * 以及在播放页手动切换音源使用。仅在多音源聚合搜索结果上调用。
+     */
+    private fun StreamingSearchResult.mergeCrossSourceDuplicates(): StreamingSearchResult {
+        if (tracks.size <= 1) {
+            return this
         }
-        withContext(Dispatchers.IO) {
-            store?.saveProviderTrackId(track, provider, cleanTrackId)
+        val itemsByKey = unifiedItems
+            .filter { it.type == StreamingMediaType.TRACK && it.track != null }
+            .associateBy { "${it.provider.wireName}:${it.id}" }
+        // 保持原有排序：按首次出现的代表项顺序聚类。
+        val clusters = LinkedHashMap<String, MutableList<StreamingTrack>>()
+        tracks.forEach { track ->
+            val key = track.crossSourceMergeKey()
+            val bucket = clusters.getOrPut(key) { mutableListOf() }
+            val sibling = bucket.firstOrNull { it.isSameSongAcrossSource(track) }
+            if (sibling != null || bucket.isEmpty()) {
+                bucket.add(track)
+            } else {
+                // 同作者+同曲名但时长差异过大（疑似同名不同曲），归入带序号的独立簇避免误合并。
+                clusters.getOrPut("$key#${clusters.size}") { mutableListOf() }.add(track)
+            }
         }
+        val mergedTracks = clusters.values
+            .filter { it.isNotEmpty() }
+            .map { group -> group.mergeSourcesIntoRepresentative() }
+        if (mergedTracks.size == tracks.size) {
+            return this
+        }
+        val mergedItems = mergedTracks.map { track ->
+            itemsByKey["${track.provider.wireName}:${track.providerTrackId}"]
+                ?.copy(track = track)
+                ?: StreamingSearchItem.fromTrack(track)
+        }
+        return copy(
+            tracks = mergedTracks,
+            total = mergedTracks.size,
+            items = mergedItems
+        )
+    }
+
+    /** 归一化「作者 + 曲名」作为合并主键；作者多人时排序 token 以兼容不同音源的拼接顺序。 */
+    private fun StreamingTrack.crossSourceMergeKey(): String {
+        val normalizedTitle = title.rankText()
+        val normalizedArtist = artist.rankText()
+            .split(' ')
+            .filter { it.isNotBlank() }
+            .sorted()
+            .joinToString(" ")
+        return "$normalizedArtist$normalizedTitle"
+    }
+
+    /** 作者名与曲名归一化相同，且时长缺失或落在 ±3 秒容差内时，判定为同一首歌。 */
+    private fun StreamingTrack.isSameSongAcrossSource(other: StreamingTrack): Boolean {
+        if (crossSourceMergeKey() != other.crossSourceMergeKey()) {
+            return false
+        }
+        val left = durationMs
+        val right = other.durationMs
+        if (left == null || right == null || left <= 0L || right <= 0L) {
+            return true
+        }
+        return kotlin.math.abs(left - right) <= CROSS_SOURCE_DURATION_TOLERANCE_MS
+    }
+
+    /** 选可播放的首项作代表，其余音源折叠为备用候选；代表项已有候选保留在前。 */
+    private fun List<StreamingTrack>.mergeSourcesIntoRepresentative(): StreamingTrack {
+        if (size == 1) {
+            return first()
+        }
+        val representative = firstOrNull { it.playable } ?: first()
+        val seen = linkedSetOf("${representative.provider.wireName}:${representative.providerTrackId}")
+        val candidates = representative.playbackCandidates.toMutableList()
+        forEach { track ->
+            val identity = "${track.provider.wireName}:${track.providerTrackId}"
+            if (!seen.add(identity)) {
+                return@forEach
+            }
+            candidates += StreamingPlaybackCandidate(
+                provider = track.provider,
+                quality = null,
+                label = track.provider.wireName,
+                providerTrackId = track.providerTrackId,
+                available = track.playable
+            )
+        }
+        return representative.copy(playbackCandidates = candidates)
+    }
+
+    private fun StreamingSearchResult.trackOnlySearchResult(): StreamingSearchResult {
+        val trackItems = unifiedItems
+            .filter { it.type == StreamingMediaType.TRACK && it.track != null }
+            .distinctBy { "${it.provider.wireName}:${it.id}" }
+        val trackItemsByKey = trackItems.associateBy { "${it.provider.wireName}:${it.id}" }
+        val normalizedTracks = (tracks + trackItems.mapNotNull { it.track })
+            .distinctBy { "${it.provider.wireName}:${it.providerTrackId}" }
+        val normalizedItems = normalizedTracks.map { track ->
+            trackItemsByKey["${track.provider.wireName}:${track.providerTrackId}"]
+                ?: StreamingSearchItem.fromTrack(track)
+        }
+        return copy(
+            tracks = normalizedTracks,
+            albums = emptyList(),
+            artists = emptyList(),
+            playlists = emptyList(),
+            mvs = emptyList(),
+            total = normalizedTracks.size,
+            items = normalizedItems
+        )
+    }
+
+    private fun List<StreamingTrack>.rankBySearchSimilarity(query: String): List<StreamingTrack> {
+        val normalizedQuery = query.rankText()
+        if (normalizedQuery.isBlank() || size <= 1) {
+            return this
+        }
+        return withIndex()
+            .sortedWith(
+                compareByDescending<IndexedValue<StreamingTrack>> { (_, track) ->
+                    track.searchSimilarityScore(normalizedQuery)
+                }.thenBy { it.index }
+            )
+            .map { it.value }
+    }
+
+    private fun List<StreamingSearchItem>.rankItemsBySearchSimilarity(query: String): List<StreamingSearchItem> {
+        val normalizedQuery = query.rankText()
+        if (normalizedQuery.isBlank() || size <= 1) {
+            return this
+        }
+        return withIndex()
+            .sortedWith(
+                compareByDescending<IndexedValue<StreamingSearchItem>> { (_, item) ->
+                    item.track?.searchSimilarityScore(normalizedQuery) ?: 0
+                }.thenBy { it.index }
+            )
+            .map { it.value }
+    }
+
+    private fun StreamingTrack.searchSimilarityScore(normalizedQuery: String): Int {
+        val title = title.rankText()
+        val artist = artist.rankText()
+        val album = album.orEmpty().rankText()
+        return similarityScore(normalizedQuery, title) * 6 +
+            similarityScore(normalizedQuery, "$title $artist") * 3 +
+            similarityScore(normalizedQuery, artist) * 2 +
+            similarityScore(normalizedQuery, album)
+    }
+
+    private fun similarityScore(query: String, candidate: String): Int {
+        if (query.isBlank() || candidate.isBlank()) {
+            return 0
+        }
+        if (query == candidate) {
+            return 1_000
+        }
+        if (candidate.startsWith(query)) {
+            return 850
+        }
+        if (candidate.contains(query)) {
+            return 720
+        }
+        val queryTokens = query.split(' ').filter { it.isNotBlank() }
+        val candidateTokens = candidate.split(' ').filter { it.isNotBlank() }
+        val tokenHits = queryTokens.count { token ->
+            candidateTokens.any { it == token || it.startsWith(token) || it.contains(token) }
+        }
+        val tokenScore = if (queryTokens.isNotEmpty()) tokenHits * 500 / queryTokens.size else 0
+        val distance = levenshteinDistance(query, candidate)
+        val maxLength = max(query.length, candidate.length).coerceAtLeast(1)
+        val fuzzyScore = ((maxLength - distance).coerceAtLeast(0) * 360) / maxLength
+        return max(tokenScore, fuzzyScore)
+    }
+
+    private fun levenshteinDistance(first: String, second: String): Int {
+        if (first == second) {
+            return 0
+        }
+        if (first.isEmpty()) {
+            return second.length
+        }
+        if (second.isEmpty()) {
+            return first.length
+        }
+        var previous = IntArray(second.length + 1) { it }
+        var current = IntArray(second.length + 1)
+        for (i in first.indices) {
+            current[0] = i + 1
+            for (j in second.indices) {
+                val cost = if (first[i] == second[j]) 0 else 1
+                current[j + 1] = minOf(
+                    current[j] + 1,
+                    previous[j + 1] + 1,
+                    previous[j] + cost
+                )
+            }
+            val swap = previous
+            previous = current
+            current = swap
+        }
+        return previous[second.length]
+    }
+
+    private fun String.rankText(): String {
+        return lowercase()
+            .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
     }
 
     fun refreshStreamingAuthState(provider: StreamingProviderName) {
@@ -726,6 +870,43 @@ class StreamingViewModel @Inject constructor(
         return true
     }
 
+    fun preResolveStreamingQueueWindow(
+        snapshot: PlaybackStateSnapshot?,
+        queue: List<Track>?,
+        quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
+        maxCount: Int = STREAMING_QUEUE_PRE_RESOLVE_LIMIT,
+        onResolved: StreamingBiCallback<Long, Track?>
+    ): Job? {
+        if (snapshot == null || !snapshot.playing || queue.isNullOrEmpty() || maxCount <= 0) {
+            return null
+        }
+        val targets = streamingQueuePreResolveTargets(snapshot, queue, maxCount)
+        if (targets.isEmpty()) {
+            return null
+        }
+        return viewModelScope.launch {
+            targets.map { target ->
+                async(ioDispatcher) {
+                    val resolved = runCatching {
+                        streamingRepository.resolvePlaybackTrack(
+                            target.provider,
+                            target.providerTrackId,
+                            quality,
+                            target.metadata
+                        )
+                    }.getOrNull()
+                    target.oldTrackId to resolved
+                }
+            }.awaitAll().forEach { (oldTrackId, result) ->
+                result?.let {
+                    updateStreamingPlaybackTrack(it.source, it.track)
+                    onResolved.onResult(oldTrackId, it.track)
+                }
+            }
+            updateStreamingDiagnostics(streamingRepository.diagnostics())
+        }
+    }
+
     fun resolveStreamingTrackListForPlayback(
         tracks: List<Track>?,
         index: Int,
@@ -783,6 +964,47 @@ class StreamingViewModel @Inject constructor(
         )
     }
 
+    private data class StreamingQueuePreResolveTarget(
+        val oldTrackId: Long,
+        val provider: StreamingProviderName,
+        val providerTrackId: String,
+        val metadata: StreamingTrack?
+    )
+
+    private fun streamingQueuePreResolveTargets(
+        snapshot: PlaybackStateSnapshot,
+        queue: List<Track>,
+        maxCount: Int
+    ): List<StreamingQueuePreResolveTarget> {
+        if (queue.size <= 2) {
+            return emptyList()
+        }
+        val startIndex = (snapshot.currentIndex + 2).floorMod(queue.size)
+        return (0 until queue.size)
+            .asSequence()
+            .map { offset -> (startIndex + offset).floorMod(queue.size) }
+            .filter { index -> index != snapshot.currentIndex }
+            .map { queue[it] }
+            .filter { StreamingPlaybackAdapter.isUnresolvedStreamingTrack(it) }
+            .distinctBy { it.dataPath }
+            .mapNotNull { track ->
+                val provider = StreamingPlaybackAdapter.providerName(track.dataPath) ?: return@mapNotNull null
+                val providerTrackId = StreamingPlaybackAdapter.providerTrackId(track.dataPath)
+                    .takeIf { it.isNotBlank() }
+                    ?: return@mapNotNull null
+                StreamingQueuePreResolveTarget(
+                    oldTrackId = track.id,
+                    provider = provider,
+                    providerTrackId = providerTrackId,
+                    metadata = ResolveStreamingPlaybackUseCase().metadataFor(track, provider, providerTrackId)
+                )
+            }
+            .take(maxCount)
+            .toList()
+    }
+
+    private fun Int.floorMod(modulus: Int): Int = ((this % modulus) + modulus) % modulus
+
     fun recoverStreamingBuffering(
         snapshot: PlaybackStateSnapshot?,
         selectedQuality: StreamingAudioQuality,
@@ -823,7 +1045,7 @@ class StreamingViewModel @Inject constructor(
         onResolved: StreamingCallback<String>
     ): Job {
         return viewModelScope.launch {
-            val providerTrackId = withContext(Dispatchers.IO) {
+            val providerTrackId = withContext(ioDispatcher) {
                 streamingTrackMatchStore?.providerTrackIdFor(track, provider).orEmpty()
             }
             onResolved.onResult(providerTrackId)
@@ -847,77 +1069,10 @@ class StreamingViewModel @Inject constructor(
             if (track == null || provider == null || cleanTrackId.isEmpty()) {
                 return@launch
             }
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 streamingTrackMatchStore?.saveProviderTrackId(track, provider, cleanTrackId)
             }
         }
-    }
-
-    fun prepareHeartbeatRecommendationSeedRequest(
-        provider: StreamingProviderName,
-        serviceSnapshot: PlaybackStateSnapshot?,
-        serviceQueue: List<Track?>?,
-        storeSnapshot: PlaybackStateSnapshot?,
-        viewModelQueue: List<Track?>?,
-        libraryContextTracks: List<Track?>? = null
-    ): HeartbeatRecommendationSeedRequest {
-        val store = streamingTrackMatchStore
-        val candidates = randomHeartbeatSeedCandidates(store?.heartbeatSeedCandidates(
-            serviceSnapshot,
-            mergeHeartbeatSeedQueues(serviceQueue, libraryContextTracks),
-            storeSnapshot,
-            viewModelQueue
-        ).orEmpty())
-        val seedTrackId = store?.providerTrackIdFromCandidates(candidates, provider).orEmpty().trim()
-        val playlistId = seedTrackId
-        val queue = store?.snapshotQueueForHeartbeat(
-            mergeHeartbeatSeedQueues(serviceQueue, libraryContextTracks),
-            viewModelQueue,
-            storeSnapshot
-        ).orEmpty()
-        val diagnosticSnapshot = serviceSnapshot ?: storeSnapshot
-        val seedMissingMessage = store?.heartbeatSeedMissMessage(
-            provider,
-            diagnosticSnapshot,
-            storeSnapshot,
-            queue
-        ).orEmpty()
-        return HeartbeatRecommendationSeedRequest(
-            candidates = candidates,
-            seedTrackId = seedTrackId,
-            playlistId = playlistId,
-            seedMissingMessage = seedMissingMessage
-        )
-    }
-
-    private fun mergeHeartbeatSeedQueues(
-        primaryQueue: List<Track?>?,
-        contextTracks: List<Track?>?
-    ): List<Track?>? {
-        if (contextTracks.isNullOrEmpty()) {
-            return primaryQueue
-        }
-        if (primaryQueue.isNullOrEmpty()) {
-            return contextTracks
-        }
-        return contextTracks + primaryQueue
-    }
-
-    private fun randomHeartbeatSeedCandidates(candidates: List<Track>): List<Track> {
-        if (candidates.size <= 1) {
-            return candidates
-        }
-        val cursor = heartbeatSeedCursor
-        heartbeatSeedCursor = if (heartbeatSeedCursor == Int.MAX_VALUE) 0 else heartbeatSeedCursor + 1
-        val entropy = System.nanoTime() xor System.currentTimeMillis() xor cursor.toLong()
-        val random = Random(entropy)
-        val anchorIndex = random.nextInt(candidates.size)
-        val anchor = candidates[anchorIndex]
-        val rest = candidates
-            .filterIndexed { index, _ -> index != anchorIndex }
-            .shuffled(random)
-            .take((HEARTBEAT_SEED_SAMPLE_SIZE - 1).coerceAtLeast(0))
-        return listOf(anchor) + rest
     }
 
     fun prepareRecommendationTrackList(
@@ -946,48 +1101,6 @@ class StreamingViewModel @Inject constructor(
     fun streamingDailyRecommendationEmptyStatus(languageMode: String): String =
         text(languageMode, "streaming.recommend.daily.empty")
 
-    fun stopHeartbeatRecommendationMode() {
-        heartbeatRecommendationUseCase.stop()
-    }
-
-    fun startHeartbeatRecommendationLoading(provider: StreamingProviderName) {
-        heartbeatRecommendationUseCase.startLoading(provider)
-    }
-
-    fun canContinueHeartbeatRecommendationLoading(provider: StreamingProviderName): Boolean =
-        heartbeatRecommendationUseCase.canContinueLoading(provider)
-
-    fun markHeartbeatRecommendationLoadingFinished() {
-        heartbeatRecommendationUseCase.markLoadingFinished()
-    }
-
-    fun prepareHeartbeatRecommendationRefill(snapshot: PlaybackStateSnapshot?): HeartbeatRefillRequest? =
-        heartbeatRecommendationUseCase.prepareRefill(snapshot)
-
-    fun acceptsHeartbeatRecommendationRefill(provider: StreamingProviderName): Boolean =
-        heartbeatRecommendationUseCase.accepts(provider)
-
-    fun markHeartbeatRecommendationRefillFinished(provider: StreamingProviderName) {
-        heartbeatRecommendationUseCase.markLoadingFinished(provider)
-    }
-
-    fun prepareStreamingHeartbeatRecommendationRequest(
-        requestedProvider: StreamingProviderName?,
-        languageMode: String
-    ): StreamingHeartbeatRecommendationRequest? {
-        val provider = recommendationProvider(requestedProvider) ?: return null
-        startHeartbeatRecommendationLoading(provider)
-        return StreamingHeartbeatRecommendationRequest(
-            provider = provider,
-            loadingStatus = text(languageMode, "streaming.recommend.heartbeat.loading"),
-            emptyStatus = text(languageMode, "streaming.recommend.heartbeat.empty"),
-            playingStatus = text(languageMode, "streaming.recommend.heartbeat.playing")
-        )
-    }
-
-    fun streamingHeartbeatRecommendationEmptyStatus(languageMode: String): String =
-        text(languageMode, "streaming.recommend.heartbeat.empty")
-
     fun prepareStreamingRecommendationPresentation(
         tracks: List<StreamingTrack>?,
         emptyStatus: String,
@@ -1002,57 +1115,6 @@ class StreamingViewModel @Inject constructor(
             emptyStatus = emptyStatus,
             readyStatus = "$title (${placeholders.size})",
             title = title
-        )
-    }
-
-    fun prepareHeartbeatRecommendationPlaylist(
-        tracks: List<StreamingTrack>?
-    ): StreamingRecommendationTrackList {
-        return StreamingRecommendationTrackList(
-            tracks = heartbeatRecommendationUseCase.playlistPlaceholders(tracks)
-        )
-    }
-
-    fun prepareHeartbeatRecommendationPresentation(
-        tracks: List<StreamingTrack>?,
-        emptyStatus: String,
-        playingStatus: String
-    ): StreamingRecommendationPresentation {
-        val placeholders = prepareHeartbeatRecommendationPlaylist(tracks).tracks
-        if (placeholders.isEmpty()) {
-            return StreamingRecommendationPresentation(emptyStatus = emptyStatus)
-        }
-        return StreamingRecommendationPresentation(
-            tracks = placeholders,
-            emptyStatus = emptyStatus,
-            readyStatus = "$playingStatus (${placeholders.size})",
-            title = playingStatus
-        )
-    }
-
-    fun prepareHeartbeatRecommendationAppend(
-        tracks: List<StreamingTrack>?
-    ): StreamingRecommendationTrackList {
-        return StreamingRecommendationTrackList(
-            tracks = heartbeatRecommendationUseCase.appendPlaceholders(tracks)
-        )
-    }
-
-    fun prepareHeartbeatRecommendationAppendPresentation(
-        tracks: List<StreamingTrack>?,
-        languageMode: String
-    ): StreamingRecommendationPresentation {
-        val playingStatus = text(languageMode, "streaming.recommend.heartbeat.playing")
-        val emptyStatus = text(languageMode, "streaming.recommend.heartbeat.empty")
-        val placeholders = prepareHeartbeatRecommendationAppend(tracks).tracks
-        if (placeholders.isEmpty()) {
-            return StreamingRecommendationPresentation(emptyStatus = emptyStatus)
-        }
-        return StreamingRecommendationPresentation(
-            tracks = placeholders,
-            emptyStatus = emptyStatus,
-            readyStatus = "$playingStatus (+${placeholders.size})",
-            title = playingStatus
         )
     }
 
@@ -1384,7 +1446,11 @@ class StreamingViewModel @Inject constructor(
         if (localPlaylistId < 0L) {
             return null
         }
-        val link = streamingLocalPlaylistOperations?.linkedPlaylist(localPlaylistId)
+        val operations = streamingLocalPlaylistOperations
+        if (operations != null && !operations.playlistExists(localPlaylistId)) {
+            return StreamingPlaylistSyncTarget(missingLink = true)
+        }
+        val link = operations?.linkedPlaylist(localPlaylistId)
         return if (link == null) {
             StreamingPlaylistSyncTarget(missingLink = true)
         } else {
@@ -1653,38 +1719,6 @@ class StreamingViewModel @Inject constructor(
         }
     }
 
-    fun fetchHeartbeatRecommendations(
-        provider: StreamingProviderName,
-        providerTrackId: String?,
-        providerPlaylistId: String?,
-        onResolved: StreamingCallback<List<StreamingTrack>>
-    ): Job {
-        beginStreamingRequest()
-        return viewModelScope.launch {
-            runCatching {
-                streamingRepository.heartbeatRecommendations(
-                    StreamingHeartbeatRequest(
-                        provider = provider,
-                        providerTrackId = providerTrackId,
-                        providerPlaylistId = providerPlaylistId,
-                        count = 60
-                    )
-                )
-            }.onSuccess { tracks ->
-                streamingState.value = streamingState.value.copy(
-                    loading = false,
-                    errorMessage = null,
-                    diagnostics = streamingRepository.diagnostics()
-                )
-                onResolved.onResult(tracks)
-            }.onFailure { error ->
-                failStreamingRequest(error.message)
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-                onResolved.onResult(emptyList())
-            }
-        }
-    }
-
     fun fetchStreamingPlaylistTracks(
         provider: StreamingProviderName,
         providerPlaylistId: String,
@@ -1831,7 +1865,7 @@ class StreamingViewModel @Inject constructor(
                 }
                 val operations = streamingLocalPlaylistOperations
                     ?: error("Streaming local playlist operations are not bound")
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     operations.syncStreamingPlaylist(link, tracks)
                 }
             }.onSuccess { result ->
@@ -1859,7 +1893,7 @@ class StreamingViewModel @Inject constructor(
             runCatching {
                 val operations = streamingLocalPlaylistOperations
                     ?: error("Streaming local playlist operations are not bound")
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     operations.ensureStreamingLoginPlaylist(playlistName, provider)
                 }
             }.onSuccess { result ->
@@ -1920,7 +1954,7 @@ class StreamingViewModel @Inject constructor(
     ): StreamingLocalPlaylistImportResult {
         val operations = streamingLocalPlaylistOperations
             ?: error("Streaming local playlist operations are not bound")
-        val result = withContext(Dispatchers.IO) {
+        val result = withContext(ioDispatcher) {
             operations.importStreamingPlaylist(
                 playlistName,
                 provider,

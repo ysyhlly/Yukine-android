@@ -16,6 +16,7 @@ import app.yukine.LibraryViewModel
 import app.yukine.MainActivityViewModel
 import app.yukine.model.Track
 import app.yukine.NavigationViewModel
+import app.yukine.NetworkMenuViewModel
 import app.yukine.NetworkSourcesViewModel
 import app.yukine.NowPlayingViewModel
 import app.yukine.SettingsUiState
@@ -26,8 +27,8 @@ import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.queue.QueueViewModel
 import app.yukine.ui.CollectionsActions
 import app.yukine.ui.CollectionsUiState
+import app.yukine.ui.emptyCollectionsActions
 import app.yukine.ui.EchoTheme
-import app.yukine.ui.HomeDashboardActions
 import app.yukine.ui.HomeDashboardUiState
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.SettingsMetric
@@ -51,11 +52,16 @@ class EchoNavGraphTest {
         EchoTabItem(QueueTab, "Playing"),
         EchoTabItem(SettingsTab, "Settings")
     )
+    private val emptyRealtimeBands = FloatArray(0)
 
     private fun emptyQueueViewModel(): QueueViewModel =
         QueueViewModel().also { it.bind(emptyList(), null, emptySet(), "en") }
 
-    private fun hostState(): EchoNavHostState {
+    private fun hostState(
+        visualMotionEnabled: Boolean = false,
+        realtimeBeatProvider: () -> Float = { 0f },
+        realtimeBandsProvider: () -> FloatArray = { emptyRealtimeBands }
+    ): EchoNavHostState {
         val homeDashboard = HomeDashboardViewModel(null).also {
             it.updateHomeDashboard(
                 HomeDashboardUiState(heroTitle = "Native home")
@@ -77,15 +83,16 @@ class EchoNavGraphTest {
                     selectedPlaylistEmptyText = "",
                     selectedPlaylistEmptyDescription = "",
                     selectedPlaylistTopActions = emptyList(),
-                    selectedPlaylistTracks = emptyList()
+                    selectedPlaylistTracks = emptyList(),
+                    actions = emptyCollectionsActions()
                 )
             )
         }
         val settings = SettingsViewModel().also {
-            it.updatePage(
-                "Native settings",
-                listOf(SettingsMetric("Metric", "1")),
-                listOf(SettingsAction("Appearance", Runnable {}))
+            it.renderPageFromHost(
+                app.yukine.SettingsPage.Home,
+                app.yukine.SettingsPreferencesSnapshot(),
+                app.yukine.RuntimeSettingsStatus()
             )
         }
         return EchoNavHostState(
@@ -96,29 +103,13 @@ class EchoNavGraphTest {
             libraryViewModel = LibraryViewModel(),
             collectionsViewModel = collections,
             settingsViewModel = settings,
+            networkMenuViewModel = NetworkMenuViewModel(),
             networkSourcesViewModel = NetworkSourcesViewModel(),
             streamingViewModel = StreamingViewModel(),
             playbackViewModel = app.yukine.PlaybackViewModel(),
-            visualMotionEnabled = false,
-            homeActions = HomeDashboardActions(
-                onOpenStat = emptyList(),
-                onContinue = Runnable {},
-                onOpenNowPlaying = Runnable {},
-                onPlayRecent = emptyList(),
-                onRefresh = Runnable {},
-                onViewQueue = Runnable {},
-                onShuffleAll = Runnable {},
-                onRecentTabChanged = {}
-            ),
-            collectionsActions = CollectionsActions(
-                onBack = null,
-                topActions = emptyList(),
-                trackSections = emptyList(),
-                playlistActions = emptyList(),
-                selectedPlaylistTopActions = emptyList(),
-                selectedPlaylistTrackActions = emptyList()
-            ),
-            settingsActions = listOf(SettingsAction("Appearance", Runnable {}))
+            realtimeBeatProvider = realtimeBeatProvider,
+            realtimeBandsProvider = realtimeBandsProvider,
+            visualMotionEnabled = visualMotionEnabled
         )
     }
 
@@ -135,6 +126,42 @@ class EchoNavGraphTest {
         }
 
         composeRule.onAllNodesWithText("Native home").assertCountEquals(1)
+    }
+
+    @Test
+    fun stoppedPlayback_doesNotPollRealtimeVisualProviders() {
+        composeRule.mainClock.autoAdvance = false
+        try {
+            var beatPolls = 0
+            var bandPolls = 0
+            val state = hostState(
+                visualMotionEnabled = true,
+                realtimeBeatProvider = {
+                    beatPolls += 1
+                    0.5f
+                },
+                realtimeBandsProvider = {
+                    bandPolls += 1
+                    floatArrayOf(0.2f)
+                }
+            )
+            composeRule.setContent {
+                EchoTheme.EchoTheme {
+                    EchoNavGraph(
+                        tabs = tabs,
+                        queueViewModel = emptyQueueViewModel(),
+                        hostState = state
+                    )
+                }
+            }
+
+            composeRule.mainClock.advanceTimeBy(500)
+
+            assertEquals(0, beatPolls)
+            assertEquals(0, bandPolls)
+        } finally {
+            composeRule.mainClock.autoAdvance = true
+        }
     }
 
     @Test
@@ -178,7 +205,7 @@ class EchoNavGraphTest {
     }
 
     @Test
-    fun selectingSettingsTab_rendersNativeSettingsWhenHostStateIsProvided() {
+    fun selectingSettingsTab_rendersSettingsHomeWhenHostStateIsProvided() {
         composeRule.setContent {
             EchoTheme.EchoTheme {
                 EchoNavGraph(
@@ -192,7 +219,6 @@ class EchoNavGraphTest {
         composeRule.onNode(hasContentDescription("Settings") and hasClickAction()).performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Native settings").assertIsDisplayed()
         composeRule.onNodeWithText("Appearance").assertIsDisplayed()
     }
 

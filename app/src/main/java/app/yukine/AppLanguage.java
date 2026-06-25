@@ -26,6 +26,7 @@ public final class AppLanguage {
         put("tab.search", "Search", "\u641c\u7d22");
         put("tab.settings", "Settings", "\u8bbe\u7f6e");
         put("search.music", "Search music", "\u641c\u7d22\u97f3\u4e50");
+        put("search.no.results", "No matching songs found", "\u6ca1\u6709\u627e\u5230\u76f8\u5173\u6b4c\u66f2");
         put("app.name", "YUKINE", "YUKINE");
         put("onboarding.enter", "Enter YUKINE", "\u8fdb\u5165 YUKINE");
         put("onboarding.action.grant", "Grant", "\u53bb\u6388\u6743");
@@ -59,6 +60,24 @@ public final class AppLanguage {
         put("results", "Results", "\u7ed3\u679c");
         put("videos", "Videos", "\u89c6\u9891");
         put("appearance", "Appearance", "\u5916\u89c2");
+        put("page.background", "Page background", "\u9875\u9762\u80cc\u666f");
+        put("page.background.hint", "Use the same image everywhere or customize each main page.", "\u53ef\u5168\u90e8\u4f7f\u7528\u540c\u4e00\u5f20\u56fe\uff0c\u4e5f\u53ef\u4e3a\u5404\u4e3b\u9875\u5355\u72ec\u8bbe\u7f6e\u3002");
+        put("page.background.description", "The shared background is used by default. A page-specific background overrides it for that page.", "\u5168\u5c40\u80cc\u666f\u4f5c\u4e3a\u9ed8\u8ba4\u80cc\u666f\uff0c\u5355\u72ec\u8bbe\u7f6e\u7684\u9875\u9762\u4f1a\u4f18\u5148\u4f7f\u7528\u81ea\u5df1\u7684\u80cc\u666f\u3002");
+        put("page.background.all", "All pages", "\u5168\u90e8\u9875\u9762");
+        put("page.background.all.description", "Apply one image to Home, Library, Playing, and Settings.", "\u5c06\u540c\u4e00\u5f20\u56fe\u5e94\u7528\u5230\u4e3b\u9875\u3001\u66f2\u5e93\u3001\u64ad\u653e\u548c\u8bbe\u7f6e\u3002");
+        put("page.background.single.description", "Override only this page while keeping other pages unchanged.", "\u4ec5\u8986\u76d6\u8fd9\u4e00\u9875\uff0c\u5176\u4ed6\u9875\u9762\u4fdd\u6301\u4e0d\u53d8\u3002");
+        put("page.background.custom.count", " custom pages", " \u4e2a\u9875\u9762\u5df2\u5355\u72ec\u8bbe\u7f6e");
+        put("choose.page.background", "Choose background", "\u9009\u62e9\u80cc\u666f");
+        put("clear.page.background", "Clear background", "\u6e05\u9664\u80cc\u666f");
+        put("page.background.preview.title", "Adjust background", "\u8c03\u6574\u80cc\u666f");
+        put("page.background.preview.hint", "Pinch to zoom, drag to move", "\u53cc\u6307\u7f29\u653e\uff0c\u62d6\u52a8\u79fb\u52a8\u753b\u9762");
+        put("page.background.preview.apply", "Apply", "\u5e94\u7528");
+        put("page.background.preview.reset", "Reset", "\u91cd\u7f6e");
+        put("page.background.preview.cancel", "Cancel", "\u53d6\u6d88");
+        put("page.background.preview.sample", "Sample card", "\u793a\u4f8b\u5361\u7247");
+        put("page.background.applied", "Background updated: ", "\u80cc\u666f\u5df2\u66f4\u65b0\uff1a");
+        put("page.background.cleared", "Background cleared: ", "\u80cc\u666f\u5df2\u6e05\u9664\uff1a");
+        put("page.background.copy.failed", "Background copy failed", "\u80cc\u666f\u590d\u5236\u5931\u8d25");
         put("settings.group.appearance", "Appearance", "\u5916\u89c2");
         put("settings.group.playback", "Playback", "\u64ad\u653e");
         put("settings.group.library", "Library", "\u66f2\u5e93");
@@ -110,7 +129,7 @@ public final class AppLanguage {
         put("overlay.permission", "Overlay permission", "\u60ac\u6d6e\u7a97\u6743\u9650");
         put("grant.overlay.permission", "Grant overlay permission", "\u53bb\u6388\u4e88\u60ac\u6d6e\u7a97\u6743\u9650");
         put("now.playing.gestures", "Now playing gestures", "\u64ad\u653e\u9875\u624b\u52bf");
-        put("now.playing.gestures.description", "On the Now Playing page: swipe left or right to switch tracks, swipe up or down to adjust Yukine volume.", "\u5728\u201c\u6b63\u5728\u64ad\u653e\u201d\u9875\uff1a\u5de6\u53f3\u6ed1\u5207\u6362\u6b4c\u66f2\uff0c\u4e0a\u4e0b\u6ed1\u8c03\u6574 Yukine \u97f3\u91cf\u3002");
+        put("now.playing.gestures.description", "On the Now Playing page: swipe left or right on the cover to switch tracks, swipe down to close the page.", "\u5728\u201c\u6b63\u5728\u64ad\u653e\u201d\u9875\uff1a\u5728\u5c01\u9762\u4e0a\u5de6\u53f3\u6ed1\u5207\u6362\u6b4c\u66f2\uff0c\u4e0b\u6ed1\u6536\u8d77\u9875\u9762\u3002");
         put("enable.now.playing.gestures", "Enable gestures", "\u5f00\u542f\u624b\u52bf");
         put("disable.now.playing.gestures", "Disable gestures", "\u5173\u95ed\u624b\u52bf");
         put("now.playing.gestures.enabled", "Now Playing gestures enabled", "\u5df2\u5f00\u542f\u64ad\u653e\u9875\u624b\u52bf");
@@ -124,7 +143,7 @@ public final class AppLanguage {
         put("replay.gain", "Volume leveling", "\u97f3\u91cf\u5747\u8861");
         put("audio.effects.hint", "Equalizer, bass, surround, and loudness", "\u5747\u8861\u5668\u3001\u4f4e\u97f3\u3001\u73af\u7ed5\u548c\u54cd\u5ea6\u589e\u5f3a");
         put("replay.gain.hint", "Auto-balance volume differences between songs", "\u81ea\u52a8\u5e73\u8861\u4e0d\u540c\u6b4c\u66f2\u4e4b\u95f4\u7684\u97f3\u91cf\u5dee\u5f02");
-        put("now.playing.gestures.hint", "Swipe on the player to switch songs and adjust volume", "\u5728\u64ad\u653e\u9875\u6ed1\u52a8\u5207\u6b4c\u3001\u8c03\u8282\u97f3\u91cf");
+        put("now.playing.gestures.hint", "Swipe left or right to switch songs; swipe down to close the player", "\u5728\u64ad\u653e\u9875\u5de6\u53f3\u6ed1\u52a8\u5207\u6b4c\uff0c\u4e0b\u6ed1\u5173\u95ed\u64ad\u653e\u9875");
         put("playback.restore.hint", "Restore the last queue when the app reopens", "\u91cd\u65b0\u6253\u5f00\u5e94\u7528\u65f6\u6062\u590d\u4e0a\u6b21\u7684\u64ad\u653e\u961f\u5217");
         put("concurrent.playback.hint", "Play alongside videos or calls without pausing them", "\u4e0e\u89c6\u9891\u3001\u901a\u8bdd\u7b49\u540c\u65f6\u51fa\u58f0\uff0c\u4e92\u4e0d\u6253\u65ad");
         put("remote.music.sources.hint", "Add WebDAV or other network music sources", "\u6dfb\u52a0 WebDAV \u7b49\u7f51\u7edc\u97f3\u4e50\u6765\u6e90");
@@ -219,6 +238,8 @@ public final class AppLanguage {
         put("audio.permission.description", "Allow audio access so Yukine can scan and play your local library.", "\u6388\u6743\u97f3\u9891\u8bbf\u95ee\u540e\uff0cYukine \u624d\u80fd\u626b\u63cf\u5e76\u64ad\u653e\u672c\u5730\u66f2\u5e93\u3002");
         put("no.music", "No music found", "\u672a\u627e\u5230\u97f3\u4e50");
         put("no.music.description", "Scan the device again or import files/folders to start building your library.", "\u53ef\u91cd\u65b0\u626b\u63cf\u8bbe\u5907\uff0c\u6216\u5bfc\u5165\u6587\u4ef6\u548c\u6587\u4ef6\u5939\u6765\u5efa\u7acb\u66f2\u5e93\u3002");
+        put("library.scan.found.prefix", "Found ", "\u5df2\u627e\u5230 ");
+        put("library.scan.found.suffix", " tracks", " \u9996\u6b4c\u66f2");
         put("playback.service.unavailable", "Playback is not ready", "\u64ad\u653e\u670d\u52a1\u6682\u672a\u5c31\u7eea");
         put("playback.service.unavailable.description", "Return to the library and start a track to initialize playback controls.", "\u8fd4\u56de\u66f2\u5e93\u5e76\u64ad\u653e\u4e00\u9996\u6b4c\uff0c\u5373\u53ef\u542f\u7528\u64ad\u653e\u63a7\u5236\u3002");
 
@@ -242,6 +263,8 @@ public final class AppLanguage {
         put("quality.high", "High", "\u9ad8\u97f3\u8d28");
         put("quality.lossless", "Lossless", "\u65e0\u635f");
         put("quality.hires", "Hi-Res", "Hi-Res");
+        put("quality.platform.mapping", "Platform mapping", "\u5e73\u53f0\u6620\u5c04");
+        put("quality.platform.mapping.summary", "Mapped to the closest available format on each source. Availability depends on source, account, membership, and region.", "\u4f1a\u6620\u5c04\u5230\u5404\u97f3\u6e90\u6700\u63a5\u8fd1\u7684\u771f\u5b9e\u683c\u5f0f\uff0c\u53ef\u7528\u6027\u53d7\u97f3\u6e90\u3001\u8d26\u53f7\u3001\u4f1a\u5458\u548c\u5730\u533a\u5f71\u54cd\u3002");
 
         put("theme.applied", "Theme: ", "\u4e3b\u9898\uff1a");
         put("accent.applied", "Accent: ", "\u5f3a\u8c03\u8272\uff1a");
@@ -296,6 +319,7 @@ public final class AppLanguage {
         put("play.recent", "Play recent", "\u64ad\u653e\u6700\u8fd1");
         put("play.most.played", "Play most played", "\u64ad\u653e\u6700\u591a");
         put("play.playlist", "Play playlist", "\u64ad\u653e\u6b4c\u5355");
+        put("download", "Download", "\u4e0b\u8f7d");
         put("download.playlist", "Download playlist", "\u4e0b\u8f7d\u6b4c\u5355");
         put("download.current.list", "Download current list", "\u4e0b\u8f7d\u5f53\u524d\u5217\u8868");
         put("download.manager", "Download manager", "\u4e0b\u8f7d\u7ba1\u7406");
@@ -443,6 +467,7 @@ public final class AppLanguage {
         put("streaming.account.playlists.loading", "Loading account playlists", "\u6b63\u5728\u52a0\u8f7d\u8d26\u6237\u6b4c\u5355");
         put("streaming.open.login.prefix", "Open ", "\u6253\u5f00 ");
         put("streaming.open.login.suffix", " login", " \u767b\u5f55");
+        put("streaming.login.primary", "Sign in to music account", "\u767b\u5f55\u6d41\u5a92\u4f53\u8d26\u53f7");
         put("streaming.matching.local.tracks", "Matching local songs to streaming", "\u6b63\u5728\u5339\u914d\u672c\u5730\u6b4c\u66f2\u5230\u6d41\u5a92\u4f53");
         put("streaming.playlist.import.title.prefix", "Playlist import: ", "\u6b4c\u5355\u5bfc\u5165\uff1a");
         put("streaming.matched.tracks", "Matched streaming songs", "\u5df2\u5339\u914d\u7684\u6d41\u5a92\u4f53\u6b4c\u66f2");

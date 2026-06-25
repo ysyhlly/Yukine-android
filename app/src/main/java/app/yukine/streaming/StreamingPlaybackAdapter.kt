@@ -185,9 +185,10 @@ object StreamingPlaybackAdapter {
         }
         val provider = providerNameFromDataPathWire(remainder.substring(0, providerEnd)) ?: return null
         val rawTrackId = remainder.substring(providerEnd + 1)
-        val trackId = rawTrackId.substringBefore(':')
-            .substringBefore('|')
-            .substringBefore('?')
+        // Only strip the URL-style delimiters that metadataQuery() appends ("?meta", "#frag").
+        // Do NOT strip ':' or '|': QQ Music's providerTrackId is "songMid|mediaMid" and dropping
+        // the '|' tail loses mediaMid, which breaks playback resolution on every replay.
+        val trackId = rawTrackId.substringBefore('?')
             .substringBefore('#')
             .trim()
         if (trackId.isBlank()) {

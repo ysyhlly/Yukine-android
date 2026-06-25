@@ -7,6 +7,8 @@ import app.yukine.streaming.StreamingPlaylistSyncStore
 import app.yukine.streaming.StreamingTrack
 
 internal interface StreamingPlaylistSyncOperations {
+    fun playlistExists(playlistId: Long): Boolean
+
     fun syncStreamingPlaylist(playlistId: Long, tracks: List<Track>): Int
 
     fun markSynced(playlistId: Long)
@@ -16,6 +18,9 @@ internal class MusicLibraryStreamingPlaylistSyncOperations(
     private val repository: MusicLibraryRepository,
     private val syncStore: StreamingPlaylistSyncStore
 ) : StreamingPlaylistSyncOperations {
+    override fun playlistExists(playlistId: Long): Boolean =
+        repository.loadPlaylists().any { it.id == playlistId }
+
     override fun syncStreamingPlaylist(playlistId: Long, tracks: List<Track>): Int =
         repository.syncStreamingPlaylist(playlistId, tracks)
 
@@ -33,10 +38,20 @@ internal data class SyncStreamingPlaylistResult(
 internal class SyncStreamingPlaylistUseCase(
     private val operations: StreamingPlaylistSyncOperations
 ) {
+    fun playlistExists(playlistId: Long): Boolean {
+        if (playlistId < 0L) {
+            return false
+        }
+        return operations.playlistExists(playlistId)
+    }
+
     fun execute(
         link: StreamingPlaylistSyncStore.LinkedPlaylist,
         streamingTracks: List<StreamingTrack?>?
     ): SyncStreamingPlaylistResult {
+        if (!playlistExists(link.localPlaylistId)) {
+            return SyncStreamingPlaylistResult(link.localPlaylistId, 0, true)
+        }
         val placeholders = streamingTracks
             .orEmpty()
             .mapNotNull { track -> track?.let { StreamingPlaybackAdapter.placeholderTrack(it) } }

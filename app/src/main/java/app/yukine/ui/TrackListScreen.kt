@@ -20,6 +20,9 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -101,13 +104,20 @@ data class TrackListAlbumCardUiState(
     val onClick: Runnable
 )
 data class TrackListLabels(
-    val favoriteLabel: String = "Favorite",
-    val removeFavoriteLabel: String = "Remove favorite",
-    val addToPlaylistLabel: String = "Add to playlist",
-    val editLabel: String = "Edit",
-    val deleteLabel: String = "Delete"
+    val favoriteLabel: String = "\u6536\u85cf",
+    val removeFavoriteLabel: String = "\u53d6\u6d88\u6536\u85cf",
+    val addToPlaylistLabel: String = "\u52a0\u5165\u6b4c\u5355",
+    val editLabel: String = "\u7f16\u8f91",
+    val deleteLabel: String = "\u5220\u9664",
+    val downloadLabel: String = "\u4e0b\u8f7d"
 )
 
+private data class TrackActionSheetState(
+    val track: TrackRowUiState,
+    val actions: TrackRowActions
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TrackListScreen(
     title: String,
@@ -125,8 +135,26 @@ internal fun TrackListScreen(
     footerAlbums: List<TrackListAlbumCardUiState> = emptyList()
 ) {
     val p = EchoTheme.colors()
+    var actionSheetState by remember { mutableStateOf<TrackActionSheetState?>(null) }
+    val actionSheet = actionSheetState
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val titleBackAction = headerActions.firstOrNull { isBackAction(it.label) }
     val visibleHeaderActions = if (titleBackAction != null) headerActions.drop(1) else headerActions
+    if (actionSheet != null) {
+        ModalBottomSheet(
+            onDismissRequest = { actionSheetState = null },
+            sheetState = sheetState,
+            containerColor = p.surface,
+            contentColor = p.text
+        ) {
+            TrackActionSheet(
+                track = actionSheet.track,
+                actions = actionSheet.actions,
+                labels = labels,
+                onDismiss = { actionSheetState = null }
+            )
+        }
+    }
     CollapsibleSearchHeader(
         header = { TrackListSearchRow(onSearch, activeDownload, playbackQuality, audioMotion) }
     ) { contentModifier, _ ->
@@ -168,7 +196,13 @@ internal fun TrackListScreen(
                 key = { index, track -> track.key.ifBlank { "${track.id}:$index" } }
             ) { i, track ->
                 actions.getOrNull(i)?.let { action ->
-                    TrackRow(track, action, labels, Modifier.echoEnter(i.coerceAtMost(8)))
+                    TrackRow(
+                        track,
+                        action,
+                        labels,
+                        Modifier.echoEnter(i.coerceAtMost(8)),
+                        onLongPress = { actionSheetState = TrackActionSheetState(track, action) }
+                    )
                 }
             }
             if (tracks.isEmpty() && emptyText.isNotBlank()) {
@@ -203,6 +237,91 @@ private fun TrackListSearchRow(
         playbackQuality = playbackQuality,
         audioMotion = audioMotion
     ) { onSearch.run() }
+}
+
+@Composable
+private fun TrackActionSheet(
+    track: TrackRowUiState,
+    actions: TrackRowActions,
+    labels: TrackListLabels,
+    onDismiss: () -> Unit
+) {
+    val p = EchoTheme.colors()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 22.dp, top = 8.dp, end = 22.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            track.title,
+            style = EchoTypography.title.copy(fontWeight = FontWeight.SemiBold),
+            color = p.text,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            track.subtitle,
+            style = EchoTypography.body,
+            color = p.muted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.height(4.dp))
+        TrackActionSheetRow(
+            icon = EchoIconKind.Heart,
+            label = if (track.favorite) labels.removeFavoriteLabel else labels.favoriteLabel
+        ) {
+            onDismiss()
+            actions.onFavorite.run()
+        }
+        if (track.showPlaylistAction) {
+            TrackActionSheetRow(EchoIconKind.PlaylistAdd, labels.addToPlaylistLabel) {
+                onDismiss()
+                actions.onAddToPlaylist.run()
+            }
+        }
+        TrackActionSheetRow(EchoIconKind.Import, labels.downloadLabel) {
+            onDismiss()
+            actions.onDownload.run()
+        }
+        actions.onEdit?.let { onEdit ->
+            TrackActionSheetRow(EchoIconKind.Edit, labels.editLabel) {
+                onDismiss()
+                onEdit.run()
+            }
+        }
+        actions.onDelete?.let { onDelete ->
+            TrackActionSheetRow(EchoIconKind.Delete, labels.deleteLabel) {
+                onDismiss()
+                onDelete.run()
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrackActionSheetRow(
+    icon: EchoIconKind,
+    label: String,
+    onClick: () -> Unit
+) {
+    val p = EchoTheme.colors()
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = EchoShapes.medium,
+        color = p.surfaceVariant.copy(alpha = 0.64f)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            EchoIcon(icon, Modifier.size(20.dp), p.accent)
+            Spacer(Modifier.width(12.dp))
+            Text(label, style = EchoTypography.bodyMedium, color = p.text)
+        }
+    }
 }
 
 @Composable
@@ -419,9 +538,16 @@ private fun HeaderMessageRow(message: String) {
 }
 
 @Composable
-private fun TrackRow(track: TrackRowUiState, actions: TrackRowActions, labels: TrackListLabels, modifier: Modifier = Modifier) {
+private fun TrackRow(
+    track: TrackRowUiState,
+    actions: TrackRowActions,
+    labels: TrackListLabels,
+    modifier: Modifier = Modifier,
+    onLongPress: (() -> Unit)? = null
+) {
     val p = EchoTheme.colors()
     val interaction = remember { MutableInteractionSource() }
+    var menuExpanded by remember { mutableStateOf(false) }
     val bg by androidx.compose.animation.animateColorAsState(
         targetValue = if (track.current) p.accentSoft else p.surface,
         animationSpec = EchoMotion.colorSpring(),
@@ -433,7 +559,7 @@ private fun TrackRow(track: TrackRowUiState, actions: TrackRowActions, labels: T
                 interactionSource = interaction,
                 indication = androidx.compose.foundation.LocalIndication.current,
                 onClick = { actions.onPlay.run() },
-                onLongClick = actions.onLongPress?.let { action -> { action.run() } }
+                onLongClick = { onLongPress?.invoke() ?: run { menuExpanded = true } }
             )
             .echoPressScale(interaction)
             .echoGlassLayer(p, EchoShapes.medium),
@@ -483,23 +609,74 @@ private fun TrackRow(track: TrackRowUiState, actions: TrackRowActions, labels: T
                 maxLines = 1,
                 overflow = TextOverflow.Clip
             )
-            TrackMoreMenu(track, actions, labels)
+            Box {
+                TrackMoreMenu(track, actions, labels)
+                TrackMoreMenuAnchor(
+                    track = track,
+                    actions = actions,
+                    labels = labels,
+                    expanded = menuExpanded,
+                    onExpandedChange = { menuExpanded = it }
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun TrackMoreMenu(track: TrackRowUiState, actions: TrackRowActions, labels: TrackListLabels) {
+private fun TrackMoreMenu(
+    track: TrackRowUiState,
+    actions: TrackRowActions,
+    labels: TrackListLabels
+) {
     var expanded by remember { mutableStateOf(false) }
+    TrackMoreMenuContent(
+        track = track,
+        actions = actions,
+        labels = labels,
+        expanded = expanded,
+        onExpandedChange = { expanded = it }
+    )
+}
+
+@Composable
+private fun TrackMoreMenuAnchor(
+    track: TrackRowUiState,
+    actions: TrackRowActions,
+    labels: TrackListLabels,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit
+) {
+    TrackMoreMenuContent(
+        track = track,
+        actions = actions,
+        labels = labels,
+        expanded = expanded,
+        onExpandedChange = onExpandedChange,
+        showButton = false
+    )
+}
+
+@Composable
+private fun TrackMoreMenuContent(
+    track: TrackRowUiState,
+    actions: TrackRowActions,
+    labels: TrackListLabels,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    showButton: Boolean = true
+) {
     Box {
-        MiniIconBtn(
-            icon = EchoIconKind.More,
-            desc = labels.editLabel + " / " + labels.deleteLabel,
-            onClick = { expanded = true }
-        )
+        if (showButton) {
+            MiniIconBtn(
+                icon = EchoIconKind.More,
+                desc = labels.editLabel + " / " + labels.deleteLabel,
+                onClick = { onExpandedChange(true) }
+            )
+        }
         DropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = { onExpandedChange(false) }
         ) {
             DropdownMenuItem(
                 text = { Text(if (track.favorite) labels.removeFavoriteLabel else labels.favoriteLabel) },
@@ -511,7 +688,7 @@ private fun TrackMoreMenu(track: TrackRowUiState, actions: TrackRowActions, labe
                     )
                 },
                 onClick = {
-                    expanded = false
+                    onExpandedChange(false)
                     actions.onFavorite.run()
                 }
             )
@@ -520,16 +697,16 @@ private fun TrackMoreMenu(track: TrackRowUiState, actions: TrackRowActions, labe
                     text = { Text(labels.addToPlaylistLabel) },
                     leadingIcon = { EchoIcon(EchoIconKind.PlaylistAdd, Modifier.size(18.dp), EchoTheme.colors().muted) },
                     onClick = {
-                        expanded = false
+                        onExpandedChange(false)
                         actions.onAddToPlaylist.run()
                     }
                 )
             }
             DropdownMenuItem(
-                text = { Text("下载") },
+                text = { Text(labels.downloadLabel) },
                 leadingIcon = { EchoIcon(EchoIconKind.Import, Modifier.size(18.dp), EchoTheme.colors().muted) },
                 onClick = {
-                    expanded = false
+                    onExpandedChange(false)
                     actions.onDownload.run()
                 }
             )
@@ -538,7 +715,7 @@ private fun TrackMoreMenu(track: TrackRowUiState, actions: TrackRowActions, labe
                     text = { Text(labels.editLabel) },
                     leadingIcon = { EchoIcon(EchoIconKind.Edit, Modifier.size(18.dp), EchoTheme.colors().muted) },
                     onClick = {
-                        expanded = false
+                        onExpandedChange(false)
                         onEdit.run()
                     }
                 )
@@ -548,7 +725,7 @@ private fun TrackMoreMenu(track: TrackRowUiState, actions: TrackRowActions, labe
                     text = { Text(labels.deleteLabel) },
                     leadingIcon = { EchoIcon(EchoIconKind.Delete, Modifier.size(18.dp), EchoTheme.colors().muted) },
                     onClick = {
-                        expanded = false
+                        onExpandedChange(false)
                         onDelete.run()
                     }
                 )

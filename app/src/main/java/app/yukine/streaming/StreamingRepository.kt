@@ -208,14 +208,69 @@ class StreamingRepository(
         metadata: StreamingTrack? = null
     ): StreamingResolvedPlayback {
         return withContext(Dispatchers.IO) {
-            val source = resolvePlayback(provider, providerTrackId, quality)
-            preflightPlaybackSource(source)
-            StreamingResolvedPlayback(
-                source = source,
-                track = playbackTrackAdapter.toTrack(source, metadata)
-            )
+            val attempts = playbackResolveAttempts(provider, providerTrackId, metadata)
+            var lastError: Throwable? = null
+            attempts.forEachIndexed { index, attempt ->
+                val attemptResult = runCatching {
+                    val source = resolvePlayback(attempt.provider, attempt.providerTrackId, quality)
+                    preflightPlaybackSource(source)
+                    source
+                }
+                attemptResult.getOrNull()?.let { source ->
+                    // 命中备用音源时，元数据沿用代表项但替换为实际播放的音源标识，
+                    // 让生成的 Track.dataPath 指向真正解析成功的音源。
+                    val resolvedMetadata = if (index == 0 || metadata == null) {
+                        metadata
+                    } else {
+                        metadata.copy(provider = attempt.provider, providerTrackId = attempt.providerTrackId)
+                    }
+                    return@withContext StreamingResolvedPlayback(
+                        source = source,
+                        track = playbackTrackAdapter.toTrack(source, resolvedMetadata)
+                    )
+                }
+                lastError = attemptResult.exceptionOrNull()
+                if (lastError != null && index < attempts.lastIndex) {
+                    logWarning(
+                        "Playback resolve failed for ${attempt.provider.wireName}:${attempt.providerTrackId}, " +
+                            "trying next source",
+                        lastError
+                    )
+                }
+            }
+            throw lastError ?: IllegalStateException("No playback source resolved")
         }
     }
+
+    /**
+     * 主音源排在第一位，其余来自 [StreamingTrack.playbackCandidates] 的跨音源候选按原顺序追加，
+     * 用于主音源解析失败时自动回退。按「音源 + 曲目 ID」去重。
+     */
+    private fun playbackResolveAttempts(
+        provider: StreamingProviderName,
+        providerTrackId: String,
+        metadata: StreamingTrack?
+    ): List<PlaybackResolveAttempt> {
+        val attempts = mutableListOf(PlaybackResolveAttempt(provider, providerTrackId))
+        val seen = linkedSetOf("${provider.wireName}:$providerTrackId")
+        metadata?.playbackCandidates?.forEach { candidate ->
+            val candidateTrackId = candidate.providerTrackId?.takeIf { it.isNotBlank() }
+                ?: providerTrackId.takeIf { candidate.provider == provider }
+                ?: return@forEach
+            if (!candidate.available) {
+                return@forEach
+            }
+            if (seen.add("${candidate.provider.wireName}:$candidateTrackId")) {
+                attempts += PlaybackResolveAttempt(candidate.provider, candidateTrackId)
+            }
+        }
+        return attempts
+    }
+
+    private data class PlaybackResolveAttempt(
+        val provider: StreamingProviderName,
+        val providerTrackId: String
+    )
 
     suspend fun authState(provider: StreamingProviderName): StreamingAuthState {
         return withContext(Dispatchers.IO) {

@@ -23,11 +23,16 @@ import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingSearchResult
 import app.yukine.streaming.StreamingPlaylistSyncStore
 import app.yukine.streaming.StreamingTrack
+import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.LibraryGroupUiState
-import app.yukine.ui.NetworkSourceUiState
 import app.yukine.ui.QueueTrackUiState
+import app.yukine.ui.TrackListHeaderAction
+import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListAlbumCardUiState
+import app.yukine.ui.TrackListLabels
+import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.TrackRowUiState
+import app.yukine.ui.TrackRowActions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -67,21 +72,25 @@ data class MainActivityLibraryState(
 data class MainActivityTrackListUiState(
     val title: String = "",
     val rows: List<TrackRowUiState> = emptyList(),
-    val footerAlbums: List<TrackListAlbumCardUiState> = emptyList()
+    val footerAlbums: List<TrackListAlbumCardUiState> = emptyList(),
+    val actions: List<TrackRowActions> = emptyList(),
+    val headerMetrics: List<TrackListHeaderMetric> = emptyList(),
+    val headerActions: List<TrackListHeaderAction> = emptyList(),
+    val emptyText: String = "",
+    val modeActions: List<TrackListModeAction> = emptyList(),
+    val labels: TrackListLabels = TrackListLabels()
 )
 
 data class MainActivityLibraryGroupsUiState(
     val title: String = "",
-    val rows: List<LibraryGroupUiState> = emptyList()
+    val rows: List<LibraryGroupUiState> = emptyList(),
+    val actions: List<LibraryGroupActions> = emptyList(),
+    val emptyText: String = "",
+    val modeActions: List<TrackListModeAction> = emptyList()
 )
 
 data class MainActivityQueueUiState(
     val rows: List<QueueTrackUiState> = emptyList()
-)
-
-data class MainActivityNetworkSourcesUiState(
-    val title: String = "",
-    val rows: List<NetworkSourceUiState> = emptyList()
 )
 
 data class StreamingManualCookieDialogState(
@@ -260,6 +269,8 @@ data class StreamingAccountPlaylistImportResult(
 )
 
 interface StreamingLocalPlaylistOperations {
+    fun playlistExists(localPlaylistId: Long): Boolean
+
     fun importStreamingPlaylist(
         playlistName: String,
         provider: StreamingProviderName,

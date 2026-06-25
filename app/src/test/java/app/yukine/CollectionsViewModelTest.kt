@@ -4,8 +4,10 @@ import android.net.Uri
 import app.yukine.model.Playlist
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
+import app.yukine.ui.CollectionsActions
 import app.yukine.ui.CollectionMetricUiState
 import app.yukine.ui.CollectionsUiState
+import app.yukine.ui.emptyCollectionsActions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -69,12 +71,30 @@ class CollectionsViewModelTest {
             selectedPlaylistEmptyText = "",
             selectedPlaylistEmptyDescription = "",
             selectedPlaylistTopActions = emptyList(),
-            selectedPlaylistTracks = emptyList()
+            selectedPlaylistTracks = emptyList(),
+            actions = emptyCollectionsActions()
         )
 
         viewModel.updateScreen(screen)
 
         assertEquals(screen, viewModel.screen.value)
+    }
+
+    @Test
+    fun updateActionsStoresActionsInsideScreenState() {
+        val viewModel = CollectionsViewModel()
+        val actions = CollectionsActions(
+            onBack = Runnable { },
+            topActions = emptyList(),
+            trackSections = emptyList(),
+            playlistActions = emptyList(),
+            selectedPlaylistTopActions = emptyList(),
+            selectedPlaylistTrackActions = emptyList()
+        )
+
+        viewModel.updateActions(actions)
+
+        assertEquals(actions, viewModel.screen.value.actions)
     }
 
     private fun track(id: Long): Track {

@@ -35,12 +35,12 @@ data class NetworkSourceActions(
 )
 
 data class NetworkSourceLabels(
-    val testLabel: String = "Test",
-    val syncLabel: String = "Sync",
-    val playLabel: String = "Play",
-    val tracksLabel: String = "Tracks",
-    val editLabel: String = "Edit",
-    val deleteLabel: String = "Delete"
+    val testLabel: String = "\u6d4b\u8bd5",
+    val syncLabel: String = "\u540c\u6b65",
+    val playLabel: String = "\u64ad\u653e",
+    val tracksLabel: String = "\u6b4c\u66f2",
+    val editLabel: String = "\u7f16\u8f91",
+    val deleteLabel: String = "\u5220\u9664"
 )
 
 @Composable

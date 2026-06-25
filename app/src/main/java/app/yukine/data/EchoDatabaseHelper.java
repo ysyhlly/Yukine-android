@@ -16,6 +16,7 @@ import app.yukine.model.Playlist;
 import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
 import app.yukine.model.TrackPlayRecord;
+import app.yukine.PageBackgrounds;
 import app.yukine.playback.AudioEffectSettings;
 
 public final class EchoDatabaseHelper extends SQLiteOpenHelper {
@@ -55,6 +56,16 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     private static final String SETTING_PLAYBACK_RESTORE_ENABLED = "playback_restore_enabled";
     private static final String SETTING_REPLAY_GAIN_ENABLED = "replay_gain_enabled";
     private static final String SETTING_SHARE_STYLE = "share_style";
+    private static final String SETTING_PAGE_BACKGROUND_SHARED = "page_background_shared";
+    private static final String SETTING_PAGE_BACKGROUND_HOME = "page_background_home";
+    private static final String SETTING_PAGE_BACKGROUND_LIBRARY = "page_background_library";
+    private static final String SETTING_PAGE_BACKGROUND_PLAYER = "page_background_player";
+    private static final String SETTING_PAGE_BACKGROUND_SETTINGS = "page_background_settings";
+    private static final String SETTING_PAGE_BACKGROUND_SHARED_TRANSFORM = "page_background_shared_transform";
+    private static final String SETTING_PAGE_BACKGROUND_HOME_TRANSFORM = "page_background_home_transform";
+    private static final String SETTING_PAGE_BACKGROUND_LIBRARY_TRANSFORM = "page_background_library_transform";
+    private static final String SETTING_PAGE_BACKGROUND_PLAYER_TRANSFORM = "page_background_player_transform";
+    private static final String SETTING_PAGE_BACKGROUND_SETTINGS_TRANSFORM = "page_background_settings_transform";
 
     public EchoDatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -488,6 +499,35 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
 
     public void saveShareStyle(String style) {
         saveSetting(SETTING_SHARE_STYLE, style == null ? "platform_card" : style);
+    }
+
+    public PageBackgrounds loadPageBackgrounds() {
+        return new PageBackgrounds(
+                loadSetting(SETTING_PAGE_BACKGROUND_SHARED, ""),
+                loadSetting(SETTING_PAGE_BACKGROUND_HOME, ""),
+                loadSetting(SETTING_PAGE_BACKGROUND_LIBRARY, ""),
+                loadSetting(SETTING_PAGE_BACKGROUND_PLAYER, ""),
+                loadSetting(SETTING_PAGE_BACKGROUND_SETTINGS, ""),
+                loadSetting(SETTING_PAGE_BACKGROUND_SHARED_TRANSFORM, ""),
+                loadSetting(SETTING_PAGE_BACKGROUND_HOME_TRANSFORM, ""),
+                loadSetting(SETTING_PAGE_BACKGROUND_LIBRARY_TRANSFORM, ""),
+                loadSetting(SETTING_PAGE_BACKGROUND_PLAYER_TRANSFORM, ""),
+                loadSetting(SETTING_PAGE_BACKGROUND_SETTINGS_TRANSFORM, "")
+        );
+    }
+
+    public void savePageBackgrounds(PageBackgrounds backgrounds) {
+        PageBackgrounds safe = backgrounds == null ? PageBackgrounds.empty() : backgrounds;
+        saveSetting(SETTING_PAGE_BACKGROUND_SHARED, safe.getSharedUri());
+        saveSetting(SETTING_PAGE_BACKGROUND_HOME, safe.getHomeUri());
+        saveSetting(SETTING_PAGE_BACKGROUND_LIBRARY, safe.getLibraryUri());
+        saveSetting(SETTING_PAGE_BACKGROUND_PLAYER, safe.getPlayerUri());
+        saveSetting(SETTING_PAGE_BACKGROUND_SETTINGS, safe.getSettingsUri());
+        saveSetting(SETTING_PAGE_BACKGROUND_SHARED_TRANSFORM, safe.getSharedTransform());
+        saveSetting(SETTING_PAGE_BACKGROUND_HOME_TRANSFORM, safe.getHomeTransform());
+        saveSetting(SETTING_PAGE_BACKGROUND_LIBRARY_TRANSFORM, safe.getLibraryTransform());
+        saveSetting(SETTING_PAGE_BACKGROUND_PLAYER_TRANSFORM, safe.getPlayerTransform());
+        saveSetting(SETTING_PAGE_BACKGROUND_SETTINGS_TRANSFORM, safe.getSettingsTransform());
     }
 
     public boolean loadOnboardingCompleted() {
@@ -1653,6 +1693,9 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
+            ArrayList<Long> orphanedImportedTrackIds = loadPlaylistOnlyImportedTrackIds(db, playlistId);
+            ArrayList<Long> orphanedStreamingTrackIds = loadPlaylistOnlyStreamingTrackIds(db, playlistId);
+            ArrayList<Long> queuedTrackIds = loadPlaybackQueueTrackIds(db);
             db.delete(
                     TABLE_PLAYLIST_TRACKS,
                     "playlist_id = ?",
@@ -1663,6 +1706,12 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                     "id = ?",
                     new String[]{String.valueOf(playlistId)}
             );
+            if (deleted > 0 && !orphanedImportedTrackIds.isEmpty()) {
+                deleteTracksByIds(db, orphanedImportedTrackIds, queuedTrackIds);
+            }
+            if (deleted > 0 && !orphanedStreamingTrackIds.isEmpty()) {
+                deleteStreamingTracksByIds(db, orphanedStreamingTrackIds);
+            }
             db.setTransactionSuccessful();
             return deleted > 0;
         } finally {
@@ -1823,6 +1872,65 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         return tracks;
     }
 
+    private ArrayList<Long> loadPlaylistOnlyImportedTrackIds(SQLiteDatabase db, long playlistId) {
+        ArrayList<Long> trackIds = new ArrayList<>();
+        String sql = "SELECT DISTINCT t.id "
+                + "FROM " + TABLE_PLAYLIST_TRACKS + " pt "
+                + "JOIN " + TABLE_TRACKS + " t ON t.id = pt.track_id "
+                + "LEFT JOIN " + TABLE_PLAYLIST_TRACKS + " other "
+                + "ON other.track_id = pt.track_id AND other.playlist_id != pt.playlist_id "
+                + "LEFT JOIN " + TABLE_FAVORITES + " f ON f.track_id = t.id "
+                + "LEFT JOIN " + TABLE_HISTORY + " h ON h.track_id = t.id "
+                + "LEFT JOIN " + TABLE_PLAY_EVENTS + " e ON e.track_id = t.id "
+                + "LEFT JOIN " + TABLE_PLAYBACK_QUEUE + " q ON q.track_id = t.id "
+                + "WHERE pt.playlist_id = ? "
+                + "AND other.track_id IS NULL "
+                + "AND f.track_id IS NULL "
+                + "AND h.track_id IS NULL "
+                + "AND e.track_id IS NULL "
+                + "AND q.track_id IS NULL "
+                + "AND (t.data_path LIKE ? OR t.data_path LIKE ?)";
+        try (Cursor cursor = db.rawQuery(sql, new String[]{
+                String.valueOf(playlistId),
+                "document:%",
+                "playlist-local:%"
+        })) {
+            while (cursor.moveToNext()) {
+                trackIds.add(cursor.getLong(0));
+            }
+        }
+        return trackIds;
+    }
+
+    private ArrayList<Long> loadPlaylistOnlyStreamingTrackIds(SQLiteDatabase db, long playlistId) {
+        ArrayList<Long> trackIds = new ArrayList<>();
+        String sql = "SELECT DISTINCT t.id "
+                + "FROM " + TABLE_PLAYLIST_TRACKS + " pt "
+                + "JOIN " + TABLE_TRACKS + " t ON t.id = pt.track_id "
+                + "LEFT JOIN " + TABLE_PLAYLIST_TRACKS + " other "
+                + "ON other.track_id = pt.track_id AND other.playlist_id != pt.playlist_id "
+                + "LEFT JOIN " + TABLE_FAVORITES + " f ON f.track_id = t.id "
+                + "LEFT JOIN " + TABLE_HISTORY + " h ON h.track_id = t.id "
+                + "LEFT JOIN " + TABLE_PLAY_EVENTS + " e ON e.track_id = t.id "
+                + "LEFT JOIN " + TABLE_PLAYBACK_QUEUE + " q ON q.track_id = t.id "
+                + "WHERE pt.playlist_id = ? "
+                + "AND other.track_id IS NULL "
+                + "AND f.track_id IS NULL "
+                + "AND h.track_id IS NULL "
+                + "AND e.track_id IS NULL "
+                + "AND q.track_id IS NULL "
+                + "AND t.data_path LIKE ?";
+        try (Cursor cursor = db.rawQuery(sql, new String[]{
+                String.valueOf(playlistId),
+                "streaming:%"
+        })) {
+            while (cursor.moveToNext()) {
+                trackIds.add(cursor.getLong(0));
+            }
+        }
+        return trackIds;
+    }
+
     private int playlistTrackPosition(SQLiteDatabase db, long playlistId, long trackId) {
         String sql = "SELECT position FROM " + TABLE_PLAYLIST_TRACKS
                 + " WHERE playlist_id = ? AND track_id = ?";
@@ -1851,6 +1959,57 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         try (Cursor cursor = db.rawQuery(sql, new String[]{String.valueOf(playlistId)})) {
             return cursor.moveToFirst() ? cursor.getInt(0) : 0;
         }
+    }
+
+    private int deleteTracksByIds(SQLiteDatabase db, List<Long> trackIds, List<Long> queuedTrackIds) {
+        if (trackIds == null || trackIds.isEmpty()) {
+            return 0;
+        }
+        HashSet<Long> deletedTrackIds = new HashSet<>(trackIds);
+        for (Long trackId : trackIds) {
+            String[] args = new String[]{String.valueOf(trackId)};
+            db.delete(TABLE_FAVORITES, "track_id = ?", args);
+            db.delete(TABLE_HISTORY, "track_id = ?", args);
+            db.delete(TABLE_PLAYLIST_TRACKS, "track_id = ?", args);
+            db.delete(TABLE_PLAYBACK_QUEUE, "track_id = ?", args);
+        }
+        StringBuilder placeholders = new StringBuilder();
+        String[] whereArgs = new String[trackIds.size()];
+        for (int i = 0; i < trackIds.size(); i++) {
+            if (i > 0) {
+                placeholders.append(',');
+            }
+            placeholders.append('?');
+            whereArgs[i] = String.valueOf(trackIds.get(i));
+        }
+        int removed = db.delete(TABLE_TRACKS, "id IN (" + placeholders + ")", whereArgs);
+        if (removed > 0) {
+            reconcilePlaybackStateAfterTrackDelete(db, deletedTrackIds, new ArrayList<>(queuedTrackIds));
+        }
+        return removed;
+    }
+
+    private int deleteStreamingTracksByIds(SQLiteDatabase db, List<Long> trackIds) {
+        if (trackIds == null || trackIds.isEmpty()) {
+            return 0;
+        }
+        for (Long trackId : trackIds) {
+            String[] args = new String[]{String.valueOf(trackId)};
+            db.delete(TABLE_FAVORITES, "track_id = ?", args);
+            db.delete(TABLE_HISTORY, "track_id = ?", args);
+            db.delete(TABLE_PLAYLIST_TRACKS, "track_id = ?", args);
+            db.delete(TABLE_PLAYBACK_QUEUE, "track_id = ?", args);
+        }
+        StringBuilder placeholders = new StringBuilder();
+        String[] whereArgs = new String[trackIds.size()];
+        for (int i = 0; i < trackIds.size(); i++) {
+            if (i > 0) {
+                placeholders.append(',');
+            }
+            placeholders.append('?');
+            whereArgs[i] = String.valueOf(trackIds.get(i));
+        }
+        return db.delete(TABLE_TRACKS, "id IN (" + placeholders + ")", whereArgs);
     }
 
     private void touchPlaylist(SQLiteDatabase db, long playlistId, long updatedAt) {

@@ -10,7 +10,7 @@ import java.util.ArrayList
 internal class DocumentPickerController(
     private val activity: ComponentActivity,
     private val listener: Listener
-) {
+) : DownloadDirectoryPickerOpener, LuoxueSourceFilePicker {
     interface Listener {
         fun importAudioUris(uris: ArrayList<Uri>)
 
@@ -46,7 +46,7 @@ internal class DocumentPickerController(
         activity.startActivityForResult(intent, REQUEST_IMPORT_AUDIO_FOLDER)
     }
 
-    fun openDownloadFolderPicker() {
+    override fun openDownloadFolderPicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
         intent.addFlags(
             Intent.FLAG_GRANT_READ_URI_PERMISSION or
@@ -69,7 +69,7 @@ internal class DocumentPickerController(
         activity.startActivityForResult(intent, REQUEST_IMPORT_PLAYLIST_M3U_FILE)
     }
 
-    fun openLuoxueSourceFilePicker() {
+    override fun openLuoxueSourceFilePicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
         intent.addCategory(Intent.CATEGORY_OPENABLE)
         intent.type = "*/*"

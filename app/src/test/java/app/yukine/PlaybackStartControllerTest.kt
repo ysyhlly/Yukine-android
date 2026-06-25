@@ -60,6 +60,44 @@ class PlaybackStartControllerTest {
         )
     }
 
+    @Test
+    fun playsRecommendationPresentationAndOpensQueue() {
+        val listener = FakeListener(hasService = true, streamResolved = false)
+        val controller = PlaybackStartController(listener)
+
+        controller.playRecommendation(
+            StreamingRecommendationPresentation(
+                tracks = listOf(playbackStartTrack(4L)),
+                emptyStatus = "Empty",
+                readyStatus = "Ready"
+            )
+        )
+
+        assertEquals(
+            listOf("status:Ready", "startService", "resolve:1:0", "play:1:0", "result:played", "openQueue"),
+            listener.calls
+        )
+    }
+
+    @Test
+    fun playsHeartbeatRecommendationWithoutStoppingHeartbeatModeOrOpeningQueue() {
+        val listener = FakeListener(hasService = true, streamResolved = false)
+        val controller = PlaybackStartController(listener)
+
+        controller.playHeartbeatRecommendation(
+            StreamingRecommendationPresentation(
+                tracks = listOf(playbackStartTrack(5L)),
+                emptyStatus = "Empty",
+                readyStatus = "Playing"
+            )
+        )
+
+        assertEquals(
+            listOf("status:Playing", "startService", "resolve:1:0", "play:1:0", "result:played"),
+            listener.calls
+        )
+    }
+
     private class FakeListener(
         private val hasService: Boolean,
         private val streamResolved: Boolean = false
@@ -67,6 +105,17 @@ class PlaybackStartControllerTest {
         val calls = mutableListOf<String>()
         var pendingTracks: List<Track> = emptyList()
         var pendingIndex: Int = -1
+        private val playbackController = PlaybackController { tracks, index ->
+            calls += "resolve:${tracks?.size ?: 0}:$index"
+            if (streamResolved) {
+                null
+            } else {
+                calls += "play:${tracks?.size ?: 0}:$index"
+                val result = PlaybackActionResultUi(null, "played", false, false, false, false)
+                calls += "result:${result.status}"
+                result
+            }
+        }
 
         override fun stopHeartbeatRecommendationMode() {
             calls += "stopHeartbeat"
@@ -100,18 +149,10 @@ class PlaybackStartControllerTest {
             calls += "status:$status"
         }
 
-        override fun resolveAndPlayStreamingTrack(tracks: List<Track>?, index: Int): Boolean {
-            calls += "resolve:${tracks?.size ?: 0}:$index"
-            return streamResolved
-        }
+        override fun playbackController(): PlaybackController = playbackController
 
-        override fun playTrackList(tracks: List<Track>?, index: Int): PlaybackActionResultUi? {
-            calls += "play:${tracks?.size ?: 0}:$index"
-            return PlaybackActionResultUi(null, "played", false, false, false, false)
-        }
-
-        override fun applyPlaybackActionResult(result: PlaybackActionResultUi?) {
-            calls += "result:${result?.status}"
+        override fun openQueue() {
+            calls += "openQueue"
         }
     }
 }

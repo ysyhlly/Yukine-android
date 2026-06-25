@@ -21,8 +21,8 @@ data class PlaylistRowActions(
     val onSelect: Runnable,
     val onRename: Runnable,
     val onDelete: Runnable,
-    val renameLabel: String = "Rename",
-    val deleteLabel: String = "Delete"
+    val renameLabel: String = "\u91cd\u547d\u540d",
+    val deleteLabel: String = "\u5220\u9664"
 )
 
 @Composable

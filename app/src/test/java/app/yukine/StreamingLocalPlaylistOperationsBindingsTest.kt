@@ -49,6 +49,17 @@ class StreamingLocalPlaylistOperationsBindingsTest {
     }
 
     @Test
+    fun playlistExistsDelegatesToSyncUseCase() {
+        val syncOperations = FakeStreamingPlaylistSyncOperations().apply {
+            existingPlaylistIds += 5L
+        }
+        val bindings = bindings(syncOperations = syncOperations)
+
+        assertEquals(true, bindings.playlistExists(5L))
+        assertEquals(false, bindings.playlistExists(6L))
+    }
+
+    @Test
     fun linkedPlaylistDelegatesToLinkUseCase() {
         val linkOperations = FakeStreamingPlaylistLinkOperations()
         val bindings = bindings(linkOperations = linkOperations)
@@ -97,6 +108,9 @@ class StreamingLocalPlaylistOperationsBindingsTest {
 
     private class FakeStreamingPlaylistSyncOperations : StreamingPlaylistSyncOperations {
         val events = mutableListOf<String>()
+        val existingPlaylistIds = mutableSetOf<Long>()
+
+        override fun playlistExists(playlistId: Long): Boolean = existingPlaylistIds.contains(playlistId)
 
         override fun syncStreamingPlaylist(playlistId: Long, tracks: List<Track>): Int {
             events += "sync:$playlistId:${tracks.size}"

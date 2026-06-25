@@ -23,10 +23,6 @@ internal fun interface QueueChromeSink {
     fun publish(state: QueueChromeState)
 }
 
-internal fun interface StateContentSink {
-    fun add(message: String)
-}
-
 internal class QueueRenderBindings(
     private val playTrackListAction: TrackListPlaybackAction,
     private val libraryEventSink: LibraryEventSink,
@@ -34,8 +30,7 @@ internal class QueueRenderBindings(
     private val removeQueueTrackAction: QueueTrackAction,
     private val confirmClearQueueAction: Runnable,
     private val requestBackAction: Runnable,
-    private val chromeSink: QueueChromeSink,
-    private val stateContentSink: StateContentSink
+    private val chromeSink: QueueChromeSink
 ) : QueueRenderController.Listener {
     override fun playTrackList(tracks: List<Track>, index: Int) {
         playTrackListAction.play(tracks, index)
@@ -75,9 +70,5 @@ internal class QueueRenderBindings(
                 onBack = onBack
             )
         )
-    }
-
-    override fun addStateContent(message: String) {
-        stateContentSink.add(message)
     }
 }

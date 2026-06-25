@@ -43,8 +43,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import app.yukine.MainActivity;
 import app.yukine.FloatingLyricsPublisher;
@@ -89,6 +96,7 @@ import androidx.media3.session.MediaLibraryService;
 import androidx.media3.session.MediaLibraryService.LibraryParams;
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession;
 import androidx.media3.session.LibraryResult;
+import androidx.media3.session.SessionError;
 import android.util.Base64;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
@@ -125,6 +133,16 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private static final long CROSSFADE_FADE_OUT_MS = 700L;
     private static final long CROSSFADE_FADE_STEP_MS = 70L;
     private static final int PRECACHE_BYTES = 512 * 1024;
+    private static final int UPCOMING_TRACK_PRECACHE_BYTES = 256 * 1024;
+    private static final long SEGMENTED_PRECACHE_BYTES = 12L * 1024L * 1024L;
+    private static final long SEGMENTED_PRECACHE_CHUNK_BYTES = 1024L * 1024L;
+    private static final int SEGMENTED_PRECACHE_CONCURRENCY = 4;
+    private static final int PLAYBACK_CACHE_PRIORITY_QUEUE_INITIAL_CAPACITY = SEGMENTED_PRECACHE_CONCURRENCY * 8;
+    private static final int PLAYBACK_CACHE_QUEUE_CAPACITY = SEGMENTED_PRECACHE_CONCURRENCY * 8;
+    private static final int PRECACHE_RANGE_PROBE_BYTES = 1;
+    private static final long CURRENT_TRACK_LEADING_PRECACHE_DELAY_MS = 0L;
+    private static final long CURRENT_TRACK_SEGMENTED_PRECACHE_DELAY_MS = 250L;
+    private static final long UPCOMING_TRACK_PRECACHE_DELAY_MS = 5500L;
     private static final long VISUALIZATION_CACHE_BYTES = 64L * 1024L * 1024L;
     // Buffering policy tuned for music streaming. Keep a generous read-ahead window (so a brief
     // network dip doesn't stall mid-song) but start and recover quickly so the user feels little
@@ -140,6 +158,9 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private static final int WAVEFORM_BAR_COUNT = 96;
     private static final long SPECTRUM_QUICK_START_MS = 6_000L;
     private static final float SPECTRUM_PROGRESS_STEP = 0.008f;
+    private static final long PLAYBACK_VISUALIZATION_WARMUP_MS = 1500L;
+    private static final long PLAYBACK_VISUALIZATION_CACHE_DELAY_MS = 1800L;
+    private static final float[] EMPTY_REALTIME_BANDS = new float[0];
     private static final int NOTIFICATION_ARTWORK_TARGET_PX = 512;
     private static final int NOTIFICATION_ARTWORK_CACHE_ENTRIES = 8;
     private static final long FOREGROUND_NOTIFICATION_MIN_INTERVAL_MS = 900L;
@@ -164,6 +185,15 @@ public final class EchoPlaybackService extends MediaLibraryService {
             new PlaybackTaskScheduler("EchoPlaybackScheduler", Process.THREAD_PRIORITY_AUDIO);
     private final PlaybackTaskScheduler visualizationTaskScheduler =
             new PlaybackTaskScheduler("YukineVisualizationScheduler", Process.THREAD_PRIORITY_BACKGROUND);
+    private final ThreadPoolExecutor playbackCacheExecutor =
+            new ThreadPoolExecutor(
+                    SEGMENTED_PRECACHE_CONCURRENCY,
+                    SEGMENTED_PRECACHE_CONCURRENCY,
+                    0L,
+                    TimeUnit.MILLISECONDS,
+                    new PriorityBlockingQueue<>(PLAYBACK_CACHE_PRIORITY_QUEUE_INITIAL_CAPACITY),
+                    new PlaybackCacheThreadFactory()
+            );
     private final RealtimeBassDetector realtimeBassDetector = new RealtimeBassDetector();
     private final YukineRealtimeBassAudioProcessor realtimeBassAudioProcessor =
             new YukineRealtimeBassAudioProcessor(realtimeBassDetector);
@@ -173,6 +203,11 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private final LruCache<String, byte[]> mediaMetadataArtworkCache =
             new LruCache<>(NOTIFICATION_ARTWORK_CACHE_ENTRIES);
     private final Set<String> notificationArtworkMisses = Collections.synchronizedSet(new HashSet<>());
+    private final Set<String> activePrecacheRanges =
+            Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<CacheWriter> activePrecacheWriters =
+            Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final AtomicInteger precacheGeneration = new AtomicInteger();
 
     private ExoPlayer player;
     private Player sessionPlayer;
@@ -207,7 +242,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private long lastSavedPositionMs;
     private long lastPositionSaveAtMs;
     private long lastErrorTrackId = -1L;
-    private String lastPrecacheKey = "";
+    private volatile String lastPrecacheKey = "";
     private String waveformTrackKey = "";
     private String waveformGeneratingKey = "";
     private float waveformGeneratedProgress;
@@ -216,6 +251,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private String spectrumGeneratingKey = "";
     private float spectrumGeneratedProgress;
     private PlaybackSpectrumSnapshot spectrumSnapshot = PlaybackSpectrumSnapshot.empty();
+    private long visualizationWarmupUntilMs;
     private String lastNotificationLyric = "";
     private long lastNotificationUpdateAtMs;
     private long lastLyricNotificationUpdateAtMs;
@@ -644,6 +680,10 @@ public final class EchoPlaybackService extends MediaLibraryService {
         unregisterNoisyReceiver();
         playbackTaskScheduler.shutdownNow();
         visualizationTaskScheduler.shutdownNow();
+        precacheGeneration.incrementAndGet();
+        activePrecacheRanges.clear();
+        cancelActivePrecacheWriters();
+        playbackCacheExecutor.shutdownNow();
         releaseWifiLock();
         releasePlayer();
         super.onDestroy();
@@ -994,9 +1034,18 @@ public final class EchoPlaybackService extends MediaLibraryService {
             return;
         }
         final Track visualTrack = track;
-        visualizationTaskScheduler.schedule(
-                PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE,
-                () -> cacheVisualizationWindow(visualTrack)
+        mainHandler.postDelayed(
+                () -> {
+                    Track current = currentTrack();
+                    if (current == null || visualTrack.id != current.id || !samePlaybackUri(visualTrack, current)) {
+                        return;
+                    }
+                    visualizationTaskScheduler.schedule(
+                            PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE,
+                            () -> cacheVisualizationWindow(visualTrack)
+                    );
+                },
+                PLAYBACK_VISUALIZATION_CACHE_DELAY_MS
         );
     }
 
@@ -1008,19 +1057,98 @@ public final class EchoPlaybackService extends MediaLibraryService {
         String precacheKey = cacheKey == null || cacheKey.isEmpty()
                 ? track.contentUri.toString()
                 : cacheKey;
-        if (precacheKey.equals(lastPrecacheKey)) {
+        if (precacheKey.equals(lastPrecacheKey) && shouldKeepExistingPrecache(cacheKey)) {
+            return;
+        }
+        Track current = currentTrack();
+        if (current != null && samePlaybackUri(track, current)) {
+            scheduleCurrentTrackPrecache(track);
+            return;
+        }
+        if (current != null) {
+            int generation = precacheGeneration.get();
+            final Track upcomingTrack = track;
+            streamingDiagnostics.recordPrecacheQueued(upcomingTrack);
+            submitPlaybackCacheTask(
+                    PrecachePriority.UPCOMING_TRACK,
+                    () -> precacheWithMediaCache(upcomingTrack, generation, PrecacheMode.UPCOMING_TRACK, false)
+            );
             return;
         }
         lastPrecacheKey = precacheKey;
+        int generation = precacheGeneration.incrementAndGet();
+        activePrecacheRanges.clear();
+        cancelActivePrecacheWriters();
+        playbackCacheExecutor.getQueue().clear();
+        playbackCacheExecutor.purge();
         final Track precacheTrack = track;
         streamingDiagnostics.recordPrecacheQueued(precacheTrack);
-        playbackTaskScheduler.schedule(
-                PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE,
-                () -> {
-                    precacheWithMediaCache(precacheTrack);
-                    cacheVisualizationWindow(precacheTrack);
-                }
-        );
+        scheduleCurrentTrackPrecache(precacheTrack, generation);
+    }
+
+    private void scheduleCurrentTrackPrecache(Track track) {
+        String cacheKey = cacheKeyForTrack(track);
+        String precacheKey = cacheKey == null || cacheKey.isEmpty()
+                ? track.contentUri.toString()
+                : cacheKey;
+        if (precacheKey.equals(lastPrecacheKey) && shouldKeepExistingPrecache(cacheKey)) {
+            return;
+        }
+        lastPrecacheKey = precacheKey;
+        int generation = precacheGeneration.incrementAndGet();
+        activePrecacheRanges.clear();
+        cancelActivePrecacheWriters();
+        playbackCacheExecutor.getQueue().clear();
+        playbackCacheExecutor.purge();
+        streamingDiagnostics.recordPrecacheQueued(track);
+        scheduleCurrentTrackPrecache(track, generation);
+    }
+
+    private void scheduleCurrentTrackPrecache(Track track, int generation) {
+        final Track precacheTrack = track;
+        final String cacheKey = cacheKeyForTrack(precacheTrack);
+        Runnable task = () -> {
+            Track current = currentTrack();
+            if (current == null
+                    || !samePlaybackUri(precacheTrack, current)
+                    || !isCurrentPrecacheGeneration(generation, cacheKey)) {
+                return;
+            }
+            final boolean playerAlreadyLoadsLeadingRange =
+                    currentPlayerLoadsCacheKey(precacheTrack, cacheKey);
+            submitPlaybackCacheTask(
+                    PrecachePriority.CURRENT_LEADING,
+                    () -> precacheWithMediaCache(
+                            precacheTrack,
+                            generation,
+                            PrecacheMode.CURRENT_TRACK,
+                            playerAlreadyLoadsLeadingRange
+                    )
+            );
+            scheduleCurrentSegmentedPrecache(precacheTrack, cacheKey, generation);
+            scheduleUpcomingTrackPrecache(generation);
+        };
+        if (CURRENT_TRACK_LEADING_PRECACHE_DELAY_MS <= 0L) {
+            task.run();
+        } else {
+            mainHandler.postDelayed(task, CURRENT_TRACK_LEADING_PRECACHE_DELAY_MS);
+        }
+    }
+
+    private boolean shouldKeepExistingPrecache(String cacheKey) {
+        if (!activePrecacheRanges.isEmpty()
+                || playbackCacheExecutor.getActiveCount() > 0
+                || !playbackCacheExecutor.getQueue().isEmpty()) {
+            return true;
+        }
+        if (cacheKey == null || cacheKey.isEmpty()) {
+            return false;
+        }
+        long contentLength = contentLengthForCacheKey(cacheKey);
+        long targetBytes = contentLength > 0L
+                ? Math.min(contentLength, SEGMENTED_PRECACHE_BYTES)
+                : SEGMENTED_PRECACHE_BYTES;
+        return targetBytes > 0L && cachedBytesInRange(cacheKey, 0L, targetBytes) >= targetBytes;
     }
 
     public void removeTracksById(Set<Long> trackIds) {
@@ -1268,8 +1396,9 @@ public final class EchoPlaybackService extends MediaLibraryService {
     public PlaybackStateSnapshot snapshot() {
         Track track = currentTrack();
         long duration = track == null ? 0L : Math.max(track.durationMs, durationMs());
-        PlaybackWaveformSnapshot waveform = waveformSnapshotFor(track, duration);
-        PlaybackSpectrumSnapshot spectrum = spectrumSnapshotFor(track, duration);
+        boolean deferVisualGeneration = shouldDeferPlaybackVisualization();
+        PlaybackWaveformSnapshot waveform = waveformSnapshotFor(track, duration, deferVisualGeneration);
+        PlaybackSpectrumSnapshot spectrum = spectrumSnapshotFor(track, duration, deferVisualGeneration);
         return new PlaybackStateSnapshot(
                 track,
                 currentIndex,
@@ -1295,7 +1424,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     public float[] realtimeBands() {
-        return isPlaying() ? realtimeBassDetector.bands() : new float[0];
+        return isPlaying() ? realtimeBassDetector.bands() : EMPTY_REALTIME_BANDS;
     }
 
     public void setShuffleEnabled(boolean enabled) {
@@ -1467,6 +1596,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         createPlayerIfNeeded();
         lastMarkedTrack = null;
         resetWaveformIfTrackChanged(track);
+        postponePlaybackVisualizationWarmup();
         streamingPlaybackHeaderStore.restoreForDataPath(track.dataPath);
         applyPlaybackSpeed();
         applyAppVolume();
@@ -1476,6 +1606,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         player.setPlayWhenReady(playWhenReady);
         try {
             player.prepare();
+            precacheTrack(track);
             scheduleVisualizationCache(track);
             if (startPositionMs > 0L) {
                 clearRestoredPosition();
@@ -1497,6 +1628,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         createPlayerIfNeeded();
         lastMarkedTrack = null;
         resetWaveformIfTrackChanged(track);
+        postponePlaybackVisualizationWarmup();
         streamingPlaybackHeaderStore.restoreForDataPath(track.dataPath);
         player.stop();
         player.clearMediaItems();
@@ -1507,6 +1639,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         player.setPlayWhenReady(playWhenReady);
         try {
             player.prepare();
+            precacheTrack(track);
             scheduleVisualizationCache(track);
             if (startPositionMs > 0L) {
                 player.seekTo(startPositionMs);
@@ -2392,7 +2525,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         ) {
             MediaItem item = itemForAutoMediaId(mediaId);
             if (item == null) {
-                return Futures.immediateFuture(LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE));
+                return Futures.immediateFuture(LibraryResult.ofError(SessionError.ERROR_BAD_VALUE));
             }
             return Futures.immediateFuture(LibraryResult.ofItem(item, null));
         }
@@ -2408,7 +2541,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         ) {
             List<MediaItem> children = childrenForAutoParent(parentId);
             if (children == null) {
-                return Futures.immediateFuture(LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE, params));
+                return Futures.immediateFuture(LibraryResult.ofError(SessionError.ERROR_BAD_VALUE, params));
             }
             return Futures.immediateFuture(LibraryResult.ofItemList(pagedItems(children, page, pageSize), params));
         }
@@ -2710,12 +2843,12 @@ public final class EchoPlaybackService extends MediaLibraryService {
         );
     }
 
-    private PlaybackWaveformSnapshot waveformSnapshotFor(Track track, long durationMs) {
+    private PlaybackWaveformSnapshot waveformSnapshotFor(Track track, long durationMs, boolean deferGeneration) {
         if (track == null || durationMs <= 0L || !isHttpUri(track.contentUri)) {
             return PlaybackWaveformSnapshot.empty();
         }
         resetWaveformIfTrackChanged(track);
-        if (!appVisible) {
+        if (!appVisible || deferGeneration) {
             return waveformSnapshot;
         }
         float cachedProgress = visualizationCachedProgress(track, durationMs);
@@ -2744,12 +2877,20 @@ public final class EchoPlaybackService extends MediaLibraryService {
         realtimeBassDetector.reset();
     }
 
-    private PlaybackSpectrumSnapshot spectrumSnapshotFor(Track track, long durationMs) {
+    private void postponePlaybackVisualizationWarmup() {
+        visualizationWarmupUntilMs = System.currentTimeMillis() + PLAYBACK_VISUALIZATION_WARMUP_MS;
+    }
+
+    private boolean shouldDeferPlaybackVisualization() {
+        return System.currentTimeMillis() < visualizationWarmupUntilMs;
+    }
+
+    private PlaybackSpectrumSnapshot spectrumSnapshotFor(Track track, long durationMs, boolean deferGeneration) {
         if (track == null || durationMs <= 0L || track.contentUri == null || Uri.EMPTY.equals(track.contentUri)) {
             return PlaybackSpectrumSnapshot.empty();
         }
         resetWaveformIfTrackChanged(track);
-        if (!appVisible) {
+        if (!appVisible || deferGeneration) {
             return spectrumSnapshot;
         }
         float cachedProgress = isHttpUri(track.contentUri) ? visualizationCachedProgress(track, durationMs) : 1.0f;
@@ -3030,30 +3171,358 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     @OptIn(markerClass = UnstableApi.class)
-    private void precacheWithMediaCache(Track track) {
+    private void precacheUpcomingTracks(int generation) {
+        if (queue.isEmpty() || currentIndex < 0) {
+            return;
+        }
+        int count = Math.min(queue.size(), SEGMENTED_PRECACHE_CONCURRENCY);
+        for (int offset = 1; offset <= count; offset++) {
+            int rawIndex = currentIndex + offset;
+            if (rawIndex >= queue.size() && repeatMode == REPEAT_OFF) {
+                break;
+            }
+            int index = rawIndex % queue.size();
+            if (index == currentIndex) {
+                continue;
+            }
+            Track upcomingTrack = queue.get(index);
+            if (upcomingTrack == null || !isHttpUri(upcomingTrack.contentUri)) {
+                continue;
+            }
+            String upcomingCacheKey = cacheKeyForTrack(upcomingTrack);
+            if (upcomingCacheKey == null || upcomingCacheKey.isEmpty()) {
+                continue;
+            }
+            submitPlaybackCacheTask(
+                    PrecachePriority.UPCOMING_TRACK,
+                    () -> precacheWithMediaCache(upcomingTrack, generation, PrecacheMode.UPCOMING_TRACK, false)
+            );
+        }
+    }
+
+    @OptIn(markerClass = UnstableApi.class)
+    private void precacheWithMediaCache(Track track, int generation, PrecacheMode mode) {
+        precacheWithMediaCache(track, generation, mode, false);
+    }
+
+    @OptIn(markerClass = UnstableApi.class)
+    private void precacheWithMediaCache(
+            Track track,
+            int generation,
+            PrecacheMode mode,
+            boolean playerAlreadyLoadsLeadingRange
+    ) {
         if (track == null || !isHttpUri(track.contentUri)) {
             return;
         }
+        String cacheKey = cacheKeyForTrack(track);
+        if (cacheKey == null || cacheKey.isEmpty()) {
+            return;
+        }
+        if (!isCurrentPrecacheGeneration(generation, cacheKey)) {
+            return;
+        }
         try {
-            final long[] bytesCached = {0L};
-            DataSpec dataSpec = new DataSpec.Builder()
-                    .setUri(track.contentUri)
-                    .setPosition(0L)
-                    .setLength(PRECACHE_BYTES)
-                    .setKey(cacheKeyForTrack(track))
-                    .setFlags(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION)
-                    .build();
-            CacheWriter writer = new CacheWriter(
-                    cacheDataSourceForTrack(track),
-                    dataSpec,
-                    new byte[16 * 1024],
-                    (requestLength, bytesCachedTotal, newBytesCached) -> bytesCached[0] = bytesCachedTotal
-            );
-            writer.cache();
-            streamingDiagnostics.recordPrecacheComplete(track, bytesCached[0]);
+            long leadingTargetBytes = leadingPrecacheBytes(mode);
+            if (shouldLetPlayerFillCurrentLeadingRange(mode, playerAlreadyLoadsLeadingRange)) {
+                streamingDiagnostics.recordPrecacheComplete(track, 0L);
+                return;
+            }
+            long leadingBytes = cacheMediaRange(track, cacheKey, 0L, leadingTargetBytes, generation);
+            if (leadingBytes > 0L || leadingTargetBytes <= 0L) {
+                streamingDiagnostics.recordPrecacheComplete(track, leadingBytes);
+            }
+        } catch (PrecacheSupersededException ignored) {
+            // A newer track was selected; old cache fills should disappear quietly.
         } catch (Exception error) {
             streamingDiagnostics.recordPrecacheFailed(track, error);
         }
+    }
+
+    private long leadingPrecacheBytes(PrecacheMode mode) {
+        return mode == PrecacheMode.UPCOMING_TRACK ? UPCOMING_TRACK_PRECACHE_BYTES : PRECACHE_BYTES;
+    }
+
+    private boolean shouldLetPlayerFillCurrentLeadingRange(
+            PrecacheMode mode,
+            boolean playerAlreadyLoadsLeadingRange
+    ) {
+        return mode == PrecacheMode.CURRENT_TRACK && playerAlreadyLoadsLeadingRange;
+    }
+
+    private void scheduleUpcomingTrackPrecache(int generation) {
+        mainHandler.postDelayed(() -> {
+            if (generation != precacheGeneration.get()) {
+                return;
+            }
+            precacheUpcomingTracks(generation);
+        }, UPCOMING_TRACK_PRECACHE_DELAY_MS);
+    }
+
+    private void scheduleCurrentSegmentedPrecache(Track track, String cacheKey, int generation) {
+        mainHandler.postDelayed(() -> {
+            Track current = currentTrack();
+            if (current == null
+                    || !samePlaybackUri(track, current)
+                    || !isCurrentPrecacheGeneration(generation, cacheKey)) {
+                return;
+            }
+            submitPlaybackCacheTask(PrecachePriority.CURRENT_SEGMENT, () -> {
+                SegmentedPrecacheProbe probe = probeSegmentedPrecache(track, cacheKey, generation);
+                if (!probe.supported || !isCurrentPrecacheGeneration(generation, cacheKey)) {
+                    return;
+                }
+                precacheMediaSegments(
+                        track,
+                        cacheKey,
+                        generation,
+                        probe.totalBytes,
+                        currentSegmentedPrecacheStart(cacheKey)
+                );
+            });
+        }, CURRENT_TRACK_SEGMENTED_PRECACHE_DELAY_MS);
+    }
+
+    private SegmentedPrecacheProbe probeSegmentedPrecache(Track track, String cacheKey, int generation) {
+        if (track == null || track.contentUri == null || cacheKey == null || cacheKey.isEmpty()) {
+            return SegmentedPrecacheProbe.unsupported();
+        }
+        if (!isCurrentPrecacheGeneration(generation, cacheKey)) {
+            return SegmentedPrecacheProbe.unsupported();
+        }
+        try {
+            HttpURLConnection connection = (HttpURLConnection) new URL(track.contentUri.toString()).openConnection();
+            try {
+                connection.setInstanceFollowRedirects(true);
+                connection.setConnectTimeout(4000);
+                connection.setReadTimeout(4000);
+                for (Map.Entry<String, String> entry : headersForTrack(track).entrySet()) {
+                    if (entry.getKey() != null && !entry.getKey().isEmpty() && entry.getValue() != null) {
+                        connection.setRequestProperty(entry.getKey(), entry.getValue());
+                    }
+                }
+                connection.setRequestProperty(
+                        "Range",
+                        "bytes=" + PRECACHE_BYTES + "-" + (PRECACHE_BYTES + PRECACHE_RANGE_PROBE_BYTES - 1)
+                );
+                int responseCode = connection.getResponseCode();
+                long totalBytes = totalBytesFromContentRange(connection.getHeaderField("Content-Range"));
+                boolean supported = responseCode == HttpURLConnection.HTTP_PARTIAL
+                        && totalBytes > PRECACHE_BYTES
+                        && isCurrentPrecacheGeneration(generation, cacheKey);
+                return supported
+                        ? new SegmentedPrecacheProbe(true, totalBytes)
+                        : SegmentedPrecacheProbe.unsupported();
+            } finally {
+                connection.disconnect();
+            }
+        } catch (Exception ignored) {
+            return SegmentedPrecacheProbe.unsupported();
+        }
+    }
+
+    static long totalBytesFromContentRange(String contentRange) {
+        if (contentRange == null || contentRange.trim().isEmpty()) {
+            return -1L;
+        }
+        int slash = contentRange.lastIndexOf('/');
+        if (slash < 0 || slash >= contentRange.length() - 1) {
+            return -1L;
+        }
+        try {
+            return Long.parseLong(contentRange.substring(slash + 1).trim());
+        } catch (NumberFormatException ignored) {
+            return -1L;
+        }
+    }
+
+    private void precacheMediaSegments(
+            Track track,
+            String cacheKey,
+            int generation,
+            long probedContentLength,
+            long startBytes
+    ) {
+        long contentLength = contentLengthForCacheKey(cacheKey);
+        long effectiveContentLength = contentLength > 0L ? contentLength : probedContentLength;
+        for (PrecacheSegment segment : planPrecacheSegments(
+                Math.max(PRECACHE_BYTES, startBytes),
+                SEGMENTED_PRECACHE_CHUNK_BYTES,
+                SEGMENTED_PRECACHE_BYTES,
+                effectiveContentLength
+        )) {
+            if (!isCurrentPrecacheGeneration(generation, cacheKey)) {
+                return;
+            }
+            if (cachedBytesInRange(cacheKey, segment.start, segment.length) >= segment.length) {
+                continue;
+            }
+            submitPlaybackCacheTask(PrecachePriority.CURRENT_SEGMENT, () -> {
+                try {
+                    if (!isCurrentPrecacheGeneration(generation, cacheKey)) {
+                        return;
+                    }
+                    long cached = cacheMediaRange(track, cacheKey, segment.start, segment.length, generation);
+                    if (cached > 0L) {
+                        streamingDiagnostics.recordPrecacheSegmentComplete(track, segment.start, cached);
+                    }
+                } catch (PrecacheSupersededException ignored) {
+                    // A newer track was selected; old cache fills should disappear quietly.
+                } catch (Exception error) {
+                    streamingDiagnostics.recordPrecacheSegmentFailed(track, segment.start, error);
+                }
+            });
+        }
+    }
+
+    private long currentSegmentedPrecacheStart(String cacheKey) {
+        long continuousCachedBytes = continuousCachedBytes(cacheKey);
+        return segmentedPrecacheStart(PRECACHE_BYTES, continuousCachedBytes);
+    }
+
+    static long segmentedPrecacheStart(long leadingBytes, long continuousCachedBytes) {
+        return Math.max(Math.max(0L, leadingBytes), Math.max(0L, continuousCachedBytes));
+    }
+
+    static List<PrecacheSegment> planPrecacheSegments(
+            long leadingBytes,
+            long segmentBytes,
+            long targetBytes,
+            long contentLength
+    ) {
+        long safeLeadingBytes = Math.max(0L, leadingBytes);
+        long safeSegmentBytes = Math.max(1L, segmentBytes);
+        long safeTargetBytes = Math.max(0L, targetBytes);
+        long maxBytes = contentLength > 0L
+                ? Math.min(contentLength, safeTargetBytes)
+                : safeTargetBytes;
+        if (maxBytes <= safeLeadingBytes) {
+            return Collections.emptyList();
+        }
+        ArrayList<PrecacheSegment> segments = new ArrayList<>();
+        for (long start = safeLeadingBytes; start < maxBytes; start += safeSegmentBytes) {
+            long length = Math.min(safeSegmentBytes, maxBytes - start);
+            if (length > 0L) {
+                segments.add(new PrecacheSegment(start, length));
+            }
+        }
+        return segments;
+    }
+
+    private void submitPlaybackCacheTask(PrecachePriority priority, Runnable task) {
+        if (task == null || playbackCacheExecutor.isShutdown()) {
+            return;
+        }
+        trimPlaybackCacheQueueIfNeeded(priority);
+        try {
+            playbackCacheExecutor.execute(new PrecacheTask(priority, task));
+        } catch (RejectedExecutionException ignored) {
+            // Service is shutting down or a newer cache generation cleared the queue.
+        }
+    }
+
+    private void trimPlaybackCacheQueueIfNeeded(PrecachePriority priority) {
+        if (priority != PrecachePriority.UPCOMING_TRACK) {
+            return;
+        }
+        if (playbackCacheExecutor.getQueue().size() < PLAYBACK_CACHE_QUEUE_CAPACITY) {
+            return;
+        }
+        playbackCacheExecutor.getQueue().removeIf(runnable ->
+                runnable instanceof PrecacheTask
+                        && ((PrecacheTask) runnable).priority == PrecachePriority.UPCOMING_TRACK
+        );
+    }
+
+    private boolean isCurrentPrecacheGeneration(int generation, String cacheKey) {
+        return generation == precacheGeneration.get()
+                && cacheKey != null
+                && !cacheKey.isEmpty();
+    }
+
+    private long cachedBytesInRange(String cacheKey, long position, long length) {
+        if (cacheKey == null || cacheKey.isEmpty() || length <= 0L) {
+            return 0L;
+        }
+        try {
+            long cached = audioCache().getCachedLength(cacheKey, Math.max(0L, position), length);
+            return cached > 0L ? Math.min(cached, length) : 0L;
+        } catch (RuntimeException ignored) {
+            return 0L;
+        }
+    }
+
+    private boolean currentPlayerLoadsCacheKey(Track track, String cacheKey) {
+        if (player == null || track == null || cacheKey == null || cacheKey.isEmpty()) {
+            return false;
+        }
+        try {
+            if (player.getPlaybackState() == Player.STATE_IDLE || player.getMediaItemCount() <= 0) {
+                return false;
+            }
+            MediaItem mediaItem = player.getCurrentMediaItem();
+            return mediaItemMatchesTrackForReuse(mediaItem, track.id, track.contentUri, cacheKey);
+        } catch (IllegalStateException ignored) {
+            return false;
+        }
+    }
+
+    @OptIn(markerClass = UnstableApi.class)
+    private long cacheMediaRange(Track track, String cacheKey, long position, long length, int generation) throws IOException {
+        if (track == null || track.contentUri == null || cacheKey == null || cacheKey.isEmpty() || length <= 0L) {
+            return 0L;
+        }
+        if (!isCurrentPrecacheGeneration(generation, cacheKey)) {
+            return 0L;
+        }
+        long start = Math.max(0L, position);
+        long remaining = length - cachedBytesInRange(cacheKey, start, length);
+        if (remaining <= 0L) {
+            return length;
+        }
+        String rangeKey = cacheKey + "@" + start + "+" + length;
+        if (!activePrecacheRanges.add(rangeKey)) {
+            return 0L;
+        }
+        final long[] bytesCached = {0L};
+        CacheWriter writer = null;
+        try {
+            DataSpec dataSpec = new DataSpec.Builder()
+                    .setUri(track.contentUri)
+                    .setPosition(start)
+                    .setLength(length)
+                    .setKey(cacheKey)
+                    .setFlags(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION)
+                    .build();
+            writer = new CacheWriter(
+                    cacheDataSourceForTrack(track),
+                    dataSpec,
+                    new byte[16 * 1024],
+                    (requestLength, bytesCachedTotal, newBytesCached) -> {
+                        if (!isCurrentPrecacheGeneration(generation, cacheKey)) {
+                            throw new PrecacheSupersededException();
+                        }
+                        bytesCached[0] = bytesCachedTotal;
+                    }
+            );
+            activePrecacheWriters.add(writer);
+            writer.cache();
+            return bytesCached[0];
+        } finally {
+            if (writer != null) {
+                activePrecacheWriters.remove(writer);
+            }
+            activePrecacheRanges.remove(rangeKey);
+        }
+    }
+
+    private void cancelActivePrecacheWriters() {
+        for (CacheWriter writer : activePrecacheWriters) {
+            if (writer != null) {
+                writer.cancel();
+            }
+        }
+        activePrecacheWriters.clear();
     }
 
     @OptIn(markerClass = UnstableApi.class)
@@ -3091,6 +3560,93 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     private String cacheKeyForTrack(Track track) {
         return mediaCacheKey(track);
+    }
+
+    private static final class PlaybackCacheThreadFactory implements ThreadFactory {
+        private final AtomicInteger counter = new AtomicInteger();
+
+        @Override
+        public Thread newThread(Runnable runnable) {
+            Thread thread = new Thread(() -> {
+                try {
+                    Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+                } catch (RuntimeException ignored) {
+                    // Keep cache fill alive even if a device rejects this priority.
+                }
+                runnable.run();
+            }, "YukinePlaybackCache-" + counter.incrementAndGet());
+            thread.setDaemon(true);
+            thread.setPriority(Thread.NORM_PRIORITY - 1);
+            return thread;
+        }
+    }
+
+    private static final class PrecacheTask implements Runnable, Comparable<PrecacheTask> {
+        private static final AtomicInteger sequenceGenerator = new AtomicInteger();
+        private final PrecachePriority priority;
+        private final Runnable delegate;
+        private final int sequence;
+
+        PrecacheTask(PrecachePriority priority, Runnable delegate) {
+            this.priority = priority == null ? PrecachePriority.CURRENT_SEGMENT : priority;
+            this.delegate = delegate;
+            this.sequence = sequenceGenerator.incrementAndGet();
+        }
+
+        @Override
+        public void run() {
+            delegate.run();
+        }
+
+        @Override
+        public int compareTo(PrecacheTask other) {
+            int priorityCompare = Integer.compare(priority.order, other.priority.order);
+            return priorityCompare != 0 ? priorityCompare : Integer.compare(sequence, other.sequence);
+        }
+    }
+
+    private static final class PrecacheSupersededException extends RuntimeException {
+    }
+
+    static final class SegmentedPrecacheProbe {
+        final boolean supported;
+        final long totalBytes;
+
+        SegmentedPrecacheProbe(boolean supported, long totalBytes) {
+            this.supported = supported;
+            this.totalBytes = totalBytes;
+        }
+
+        static SegmentedPrecacheProbe unsupported() {
+            return new SegmentedPrecacheProbe(false, -1L);
+        }
+    }
+
+    static final class PrecacheSegment {
+        final long start;
+        final long length;
+
+        PrecacheSegment(long start, long length) {
+            this.start = start;
+            this.length = length;
+        }
+    }
+
+    private enum PrecachePriority {
+        CURRENT_LEADING(0),
+        CURRENT_SEGMENT(1),
+        UPCOMING_TRACK(2);
+
+        private final int order;
+
+        PrecachePriority(int order) {
+            this.order = order;
+        }
+    }
+
+    private enum PrecacheMode {
+        CURRENT_TRACK,
+        UPCOMING_TRACK
     }
 
     static String mediaCacheKey(Track track) {

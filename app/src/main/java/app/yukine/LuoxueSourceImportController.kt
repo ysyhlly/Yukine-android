@@ -1,0 +1,127 @@
+package app.yukine
+
+import android.net.Uri
+import app.yukine.streaming.LuoxueImportedSource
+import app.yukine.streaming.LuoxueSourceImporter
+
+internal class LuoxueSourceImportController(
+    private val textProvider: LuoxueSourceImportTextProvider,
+    private val documentPickerProvider: LuoxueSourceDocumentPickerProvider,
+    private val documentReader: LuoxueSourceDocumentReader,
+    private val sourceStore: LuoxueSourceStoreWriter,
+    private val ioExecutor: LuoxueSourceTaskExecutor,
+    private val networkExecutor: LuoxueSourceTaskExecutor,
+    private val mainPoster: LuoxueSourceTaskPoster,
+    private val statusSink: LuoxueSourceImportStatusSink,
+    private val completionAction: LuoxueSourceImportCompletionAction
+) {
+    fun openFilePicker() {
+        val picker = documentPickerProvider.documentPicker()
+        if (picker == null) {
+            statusSink.setStatus(text("streaming.lx.import.failed"))
+            return
+        }
+        picker.openLuoxueSourceFilePicker()
+    }
+
+    fun importSelectedUris(uris: List<Uri>?) {
+        if (uris.isNullOrEmpty()) {
+            statusSink.setStatus(text("streaming.lx.source.none"))
+            return
+        }
+        statusSink.setStatus(text("streaming.lx.importing"))
+        ioExecutor.execute {
+            val parsed = mutableListOf<LuoxueImportedSource>()
+            var failed = 0
+            uris.forEach { uri ->
+                val text = documentReader.readText(uri)
+                if (text == null) {
+                    failed += 1
+                } else {
+                    parsed += LuoxueSourceImporter.parseMany(text, uri.toString())
+                }
+            }
+            val failedCount = failed
+            mainPoster.post {
+                saveImportedSources(parsed, failedCount)
+            }
+        }
+    }
+
+    fun importFromUrls(rawUrls: String?) {
+        val urls = LuoxueSourceImporter.urlLines(rawUrls)
+        if (urls.isEmpty()) {
+            statusSink.setStatus(text("streaming.lx.source.url.empty"))
+            return
+        }
+        statusSink.setStatus(text("streaming.lx.importing"))
+        networkExecutor.execute {
+            val parsed = mutableListOf<LuoxueImportedSource>()
+            var failed = 0
+            urls.forEach { url ->
+                try {
+                    val script = LuoxueSourceImporter.fetchUrl(url)
+                    parsed += LuoxueSourceImporter.parseMany(script, url)
+                } catch (_: Exception) {
+                    failed += 1
+                }
+            }
+            val failedCount = failed
+            mainPoster.post {
+                saveImportedSources(parsed, failedCount)
+            }
+        }
+    }
+
+    internal fun saveImportedSources(sources: List<LuoxueImportedSource>?, failedCount: Int) {
+        val cleanSources = sources.orEmpty()
+        val imported = if (cleanSources.isEmpty()) 0 else sourceStore.saveAll(cleanSources)
+        var status = text("streaming.lx.source.imported") + imported
+        if (failedCount > 0) {
+            status += "\uff0c" + text("streaming.lx.source.failed") + failedCount
+        }
+        if (imported == 0 && failedCount == 0) {
+            status = text("streaming.lx.source.none")
+        }
+        statusSink.setStatus(status)
+        completionAction.onImportComplete()
+    }
+
+    private fun text(key: String): String = textProvider.text(key)
+}
+
+internal fun interface LuoxueSourceImportTextProvider {
+    fun text(key: String): String
+}
+
+internal fun interface LuoxueSourceDocumentPickerProvider {
+    fun documentPicker(): LuoxueSourceFilePicker?
+}
+
+internal fun interface LuoxueSourceFilePicker {
+    fun openLuoxueSourceFilePicker()
+}
+
+internal fun interface LuoxueSourceDocumentReader {
+    fun readText(uri: Uri): String?
+}
+
+internal fun interface LuoxueSourceStoreWriter {
+    fun saveAll(sources: List<LuoxueImportedSource>): Int
+}
+
+internal fun interface LuoxueSourceTaskExecutor {
+    fun execute(task: Runnable)
+}
+
+internal fun interface LuoxueSourceTaskPoster {
+    fun post(task: Runnable)
+}
+
+internal fun interface LuoxueSourceImportStatusSink {
+    fun setStatus(status: String)
+}
+
+internal fun interface LuoxueSourceImportCompletionAction {
+    fun onImportComplete()
+}

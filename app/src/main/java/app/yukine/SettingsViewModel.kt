@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import app.yukine.playback.AudioEffectSettings
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.EchoTheme
+import app.yukine.ui.SettingsListScrollState
 import app.yukine.ui.SettingsMetric
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +25,47 @@ data class SettingsUiState(
     val title: String = "",
     val metrics: List<SettingsMetric> = emptyList(),
     val items: List<SettingsItem> = emptyList()
+)
+
+data class SettingsPreferencesSnapshot(
+    val themeMode: String = EchoTheme.MODE_SYSTEM,
+    val accentMode: String = EchoTheme.ACCENT_BLUE,
+    val languageMode: String = AppLanguage.MODE_SYSTEM,
+    val playbackSpeed: Float = 1.0f,
+    val appVolume: Float = 1.0f,
+    val streamingAudioQuality: String = StreamingQualityPreference.defaultValue(),
+    val concurrentPlaybackEnabled: Boolean = false,
+    val audioEffectSettings: AudioEffectSettings = AudioEffectSettings.DEFAULT,
+    val statusBarLyricsEnabled: Boolean = true,
+    val floatingLyricsEnabled: Boolean = false,
+    val nowPlayingGesturesEnabled: Boolean = true,
+    val playbackRestoreEnabled: Boolean = true,
+    val replayGainEnabled: Boolean = true,
+    val shareStyle: String = TrackShareStyle.defaultValue(),
+    val pageBackgrounds: PageBackgrounds = PageBackgrounds.empty()
+)
+
+data class RuntimeSettingsStatus(
+    val audioPermissionGranted: Boolean = false,
+    val notificationPermissionGranted: Boolean = false,
+    val overlayPermissionGranted: Boolean = false,
+    val playbackServiceConnected: Boolean = false,
+    val sleepTimerRemainingMs: Long = 0L,
+    val lyricsOffsetMs: Long = 0L,
+    val onlineLyricsEnabled: Boolean = false,
+    val librarySongCount: Int = 0,
+    val libraryAlbumCount: Int = 0,
+    val libraryArtistCount: Int = 0,
+    val streamingGatewayEndpoint: String = StreamingGatewaySettingsStore.UNCONFIGURED_ENDPOINT,
+    val streamingGatewayConfigured: Boolean = false
+)
+
+data class SettingsState(
+    val page: SettingsPage = SettingsPage.Home,
+    val preferences: SettingsPreferencesSnapshot = SettingsPreferencesSnapshot(),
+    val runtime: RuntimeSettingsStatus = RuntimeSettingsStatus(),
+    val actions: List<SettingsAction> = emptyList(),
+    val ui: SettingsUiState = SettingsUiState()
 )
 
 data class SettingsAppliedStatusText(
@@ -49,11 +91,30 @@ data class SettingsAppliedStatusText(
     val playbackRestoreDisabled: String = "",
     val replayGainEnabled: String = "",
     val replayGainDisabled: String = "",
-    val shareStyleApplied: String = ""
+    val shareStyleApplied: String = "",
+    val pageBackgroundApplied: String = "",
+    val pageBackgroundCleared: String = ""
 )
 
+sealed interface SettingsEffect {
+    data class ShowStatus(val message: String) : SettingsEffect
+    data object OpenNetworkSources : SettingsEffect
+    data object OpenDownloads : SettingsEffect
+    data object LoadLibrary : SettingsEffect
+    data object OpenAudioFilePicker : SettingsEffect
+    data object OpenAudioFolderPicker : SettingsEffect
+    data object ReloadCurrentLyrics : SettingsEffect
+    data class StartSleepTimer(val minutes: Int) : SettingsEffect
+    data object CancelSleepTimer : SettingsEffect
+    data object OpenFloatingLyricsPermission : SettingsEffect
+    data class ChoosePageBackground(val page: String) : SettingsEffect
+    data object ExportBackup : SettingsEffect
+    data object ImportBackup : SettingsEffect
+    data class ApplyStreamingGatewayEndpoint(val endpoint: String) : SettingsEffect
+}
+
 sealed interface SettingsEvent {
-    data class NavigateSettingsPage(val page: String) : SettingsEvent
+    data class NavigateSettingsPage(val page: SettingsPage) : SettingsEvent
     data object OpenNetworkSources : SettingsEvent
     data object OpenDownloads : SettingsEvent
     data object LoadLibrary : SettingsEvent
@@ -76,6 +137,8 @@ sealed interface SettingsEvent {
     data class SetNowPlayingGesturesEnabled(val enabled: Boolean) : SettingsEvent
     data class SetPlaybackRestoreEnabled(val enabled: Boolean) : SettingsEvent
     data class SetReplayGainEnabled(val enabled: Boolean) : SettingsEvent
+    data class ChoosePageBackground(val page: String) : SettingsEvent
+    data class ClearPageBackground(val page: String) : SettingsEvent
     data object ExportBackup : SettingsEvent
     data object ImportBackup : SettingsEvent
     data class ApplyThemeMode(val mode: String) : SettingsEvent
@@ -84,238 +147,602 @@ sealed interface SettingsEvent {
     data class ApplyStreamingGatewayEndpoint(val endpoint: String) : SettingsEvent
 }
 
-interface SettingsGateway {
-    fun navigateSettingsPage(page: String)
-    fun openNetworkSources()
-    fun openDownloads() = Unit
-    fun loadLibrary()
-    fun openAudioFilePicker()
-    fun openAudioFolderPicker()
-    fun setOnlineLyricsEnabled(enabled: Boolean)
-    fun reloadCurrentLyrics()
-    fun applyLyricsOffset(offsetMs: Long)
-    fun startSleepTimer(minutes: Int)
-    fun cancelSleepTimer()
-    fun applyPlaybackSpeed(speed: Float)
-    fun applyAppVolume(volume: Float)
-    fun applyStreamingAudioQuality(quality: String)
-    fun applyShareStyle(style: String)
-    fun setConcurrentPlaybackEnabled(enabled: Boolean)
-    fun applyAudioEffectSettings(settings: AudioEffectSettings)
-    fun setStatusBarLyricsEnabled(enabled: Boolean)
-    fun setFloatingLyricsEnabled(enabled: Boolean)
-    fun openFloatingLyricsPermission()
-    fun setNowPlayingGesturesEnabled(enabled: Boolean)
-    fun setPlaybackRestoreEnabled(enabled: Boolean)
-    fun setReplayGainEnabled(enabled: Boolean)
-    fun exportBackup()
-    fun importBackup()
-    fun applyThemeMode(mode: String)
-    fun applyAccentMode(accent: String)
-    fun applyLanguageMode(languageMode: String)
-    fun applyStreamingGatewayEndpoint(endpoint: String)
+fun interface SettingsEffectListener {
+    fun onEffect(effect: SettingsEffect)
+}
+
+fun interface SettingsRuntimeEffectListener {
+    fun onRuntimeEffect(effect: SettingsRuntimeEffect): Boolean
+}
+
+fun interface SettingsStoreMirror {
+    fun sync(preferences: SettingsPreferencesSnapshot)
 }
 
 fun interface SettingsPreferenceGateway {
     fun save(update: SettingsPreferenceUpdate)
 }
 
-interface SettingsAppliedListener {
-    fun onThemeModeApplied(mode: String)
-
-    fun onAccentModeApplied(accent: String)
-
-    fun onLanguageModeApplied(languageMode: String)
-
-    fun onPlaybackSpeedApplied(speed: Float)
-
-    fun onAppVolumeApplied(volume: Float)
-
-    fun onStreamingAudioQualityApplied(quality: String)
-    fun onShareStyleApplied(style: String)
-
-    fun onConcurrentPlaybackEnabledApplied(enabled: Boolean)
-
-    fun onAudioEffectSettingsApplied(settings: AudioEffectSettings)
-
-    fun onStatusBarLyricsEnabledApplied(enabled: Boolean)
-
-    fun onFloatingLyricsEnabledApplied(enabled: Boolean)
-
-    fun onFloatingLyricsPermissionRequested()
-
-    fun onNowPlayingGesturesEnabledApplied(enabled: Boolean)
-
-    fun onPlaybackRestoreEnabledApplied(enabled: Boolean)
-
-    fun onReplayGainEnabledApplied(enabled: Boolean)
-
-    fun onOnlineLyricsEnabledApplied(enabled: Boolean)
-
-    fun onLyricsOffsetApplied(offsetMs: Long)
-}
-
 class SettingsViewModel @JvmOverloads constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
+    val scrollState = SettingsListScrollState()
+    private val _state = MutableStateFlow(SettingsState())
+    val state: StateFlow<SettingsState> = _state.asStateFlow()
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
-    private var gateway: SettingsGateway? = null
+    private val pendingEffects = java.util.ArrayDeque<SettingsEffect>()
     private var preferenceGateway: SettingsPreferenceGateway? = null
-    private var appliedListener: SettingsAppliedListener? = null
-
-    fun bindGateway(nextGateway: SettingsGateway?) {
-        gateway = nextGateway
-    }
+    private var storeMirror: SettingsStoreMirror? = null
+    private var effectListener: SettingsEffectListener? = null
+    private var runtimeEffectListener: SettingsRuntimeEffectListener? = null
 
     fun bindPreferenceGateway(nextGateway: SettingsPreferenceGateway?) {
         preferenceGateway = nextGateway
     }
 
-    fun bindAppliedListener(nextListener: SettingsAppliedListener?) {
-        appliedListener = nextListener
+    fun bindStoreMirror(nextMirror: SettingsStoreMirror?) {
+        storeMirror = nextMirror
     }
 
-    fun updatePage(
-        title: String,
-        metrics: List<SettingsMetric>,
-        actions: List<SettingsAction>
+    fun bindEffectListener(nextListener: SettingsEffectListener?) {
+        effectListener = nextListener
+    }
+
+    fun bindRuntimeEffectListener(nextListener: SettingsRuntimeEffectListener?) {
+        runtimeEffectListener = nextListener
+    }
+
+    fun scrollToTopOnNextRender() {
+        scrollState.scrollToTop()
+    }
+
+    fun updateSettingsContext(
+        preferences: SettingsPreferencesSnapshot,
+        runtime: RuntimeSettingsStatus
     ) {
-        _uiState.value = SettingsUiState(
-            title = title,
-            metrics = metrics.toList(),
-            items = actions.map { action -> action.toSettingsItem() } +
-            metrics.map { metric -> SettingsItem.Metric(metric.label, metric.value) }
+        storeMirror?.sync(preferences)
+        _state.value = _state.value.copy(
+            preferences = preferences,
+            runtime = runtime
         )
     }
 
+    internal fun renderCurrentPage(
+        page: SettingsPage,
+        preferences: SettingsPreferencesSnapshot,
+        runtime: RuntimeSettingsStatus
+    ): SettingsPageStateContent {
+        val content = buildPageContent(page, preferences, runtime)
+        _state.value = _state.value.copy(
+            page = page,
+            preferences = preferences,
+            runtime = runtime,
+            actions = content.actions,
+            ui = content.uiState
+        )
+        _uiState.value = content.uiState
+        return content
+    }
+
+    internal fun renderCurrentPage(): SettingsPageStateContent {
+        val current = _state.value
+        val content = buildPageContent(current.page, current.preferences, current.runtime)
+        _state.value = current.copy(
+            actions = content.actions,
+            ui = content.uiState
+        )
+        _uiState.value = content.uiState
+        return content
+    }
+
+    fun renderPageFromHost(
+        page: SettingsPage,
+        preferences: SettingsPreferencesSnapshot,
+        runtime: RuntimeSettingsStatus
+    ) {
+        renderCurrentPage(page, preferences, runtime)
+    }
+
     fun onEvent(event: SettingsEvent) {
-        val currentGateway = gateway ?: return
-        when (event) {
-            is SettingsEvent.NavigateSettingsPage -> currentGateway.navigateSettingsPage(event.page)
-            SettingsEvent.OpenNetworkSources -> currentGateway.openNetworkSources()
-            SettingsEvent.OpenDownloads -> currentGateway.openDownloads()
-            SettingsEvent.LoadLibrary -> currentGateway.loadLibrary()
-            SettingsEvent.OpenAudioFilePicker -> currentGateway.openAudioFilePicker()
-            SettingsEvent.OpenAudioFolderPicker -> currentGateway.openAudioFolderPicker()
-            is SettingsEvent.SetOnlineLyricsEnabled -> currentGateway.setOnlineLyricsEnabled(event.enabled)
-            SettingsEvent.ReloadCurrentLyrics -> currentGateway.reloadCurrentLyrics()
-            is SettingsEvent.ApplyLyricsOffset -> currentGateway.applyLyricsOffset(event.offsetMs)
-            is SettingsEvent.StartSleepTimer -> currentGateway.startSleepTimer(event.minutes)
-            SettingsEvent.CancelSleepTimer -> currentGateway.cancelSleepTimer()
-            is SettingsEvent.ApplyPlaybackSpeed -> currentGateway.applyPlaybackSpeed(event.speed)
-            is SettingsEvent.ApplyAppVolume -> currentGateway.applyAppVolume(event.volume)
-            is SettingsEvent.ApplyStreamingAudioQuality -> currentGateway.applyStreamingAudioQuality(event.quality)
-            is SettingsEvent.ApplyShareStyle -> currentGateway.applyShareStyle(event.style)
-            is SettingsEvent.SetConcurrentPlaybackEnabled -> currentGateway.setConcurrentPlaybackEnabled(event.enabled)
-            is SettingsEvent.ApplyAudioEffectSettings -> currentGateway.applyAudioEffectSettings(event.settings)
-            is SettingsEvent.SetStatusBarLyricsEnabled -> currentGateway.setStatusBarLyricsEnabled(event.enabled)
-            is SettingsEvent.SetFloatingLyricsEnabled -> currentGateway.setFloatingLyricsEnabled(event.enabled)
-            SettingsEvent.OpenFloatingLyricsPermission -> currentGateway.openFloatingLyricsPermission()
-            is SettingsEvent.SetNowPlayingGesturesEnabled -> currentGateway.setNowPlayingGesturesEnabled(event.enabled)
-            is SettingsEvent.SetPlaybackRestoreEnabled -> currentGateway.setPlaybackRestoreEnabled(event.enabled)
-            is SettingsEvent.SetReplayGainEnabled -> currentGateway.setReplayGainEnabled(event.enabled)
-            is SettingsEvent.ExportBackup -> currentGateway.exportBackup()
-            is SettingsEvent.ImportBackup -> currentGateway.importBackup()
-            is SettingsEvent.ApplyThemeMode -> currentGateway.applyThemeMode(event.mode)
-            is SettingsEvent.ApplyAccentMode -> currentGateway.applyAccentMode(event.accent)
-            is SettingsEvent.ApplyLanguageMode -> currentGateway.applyLanguageMode(event.languageMode)
-            is SettingsEvent.ApplyStreamingGatewayEndpoint ->
-                currentGateway.applyStreamingGatewayEndpoint(event.endpoint)
+        if (event is SettingsEvent.NavigateSettingsPage) {
+            val current = _state.value
+            renderCurrentPage(event.page, current.preferences, current.runtime)
+            return
         }
+        when (event) {
+            is SettingsEvent.NavigateSettingsPage -> Unit
+            SettingsEvent.OpenNetworkSources -> emitEffect(SettingsEffect.OpenNetworkSources)
+            SettingsEvent.OpenDownloads -> emitEffect(SettingsEffect.OpenDownloads)
+            SettingsEvent.LoadLibrary -> emitEffect(SettingsEffect.LoadLibrary)
+            SettingsEvent.OpenAudioFilePicker -> emitEffect(SettingsEffect.OpenAudioFilePicker)
+            SettingsEvent.OpenAudioFolderPicker -> emitEffect(SettingsEffect.OpenAudioFolderPicker)
+            is SettingsEvent.SetOnlineLyricsEnabled -> setOnlineLyricsEnabled(event.enabled)
+            SettingsEvent.ReloadCurrentLyrics -> emitEffect(SettingsEffect.ReloadCurrentLyrics)
+            is SettingsEvent.ApplyLyricsOffset -> applyLyricsOffset(event.offsetMs)
+            is SettingsEvent.StartSleepTimer -> emitEffect(SettingsEffect.StartSleepTimer(event.minutes))
+            SettingsEvent.CancelSleepTimer -> emitEffect(SettingsEffect.CancelSleepTimer)
+            is SettingsEvent.ApplyPlaybackSpeed -> applyPlaybackSpeed(event.speed)
+            is SettingsEvent.ApplyAppVolume -> applyAppVolume(event.volume)
+            is SettingsEvent.ApplyStreamingAudioQuality -> applyStreamingAudioQuality(event.quality)
+            is SettingsEvent.ApplyShareStyle -> applyShareStyle(event.style)
+            is SettingsEvent.SetConcurrentPlaybackEnabled -> setConcurrentPlaybackEnabled(event.enabled)
+            is SettingsEvent.ApplyAudioEffectSettings -> applyAudioEffectSettings(event.settings)
+            is SettingsEvent.SetStatusBarLyricsEnabled -> setStatusBarLyricsEnabled(event.enabled)
+            is SettingsEvent.SetFloatingLyricsEnabled -> setFloatingLyricsEnabled(event.enabled)
+            SettingsEvent.OpenFloatingLyricsPermission -> emitEffect(SettingsEffect.OpenFloatingLyricsPermission)
+            is SettingsEvent.SetNowPlayingGesturesEnabled -> setNowPlayingGesturesEnabled(event.enabled)
+            is SettingsEvent.SetPlaybackRestoreEnabled -> setPlaybackRestoreEnabled(event.enabled)
+            is SettingsEvent.SetReplayGainEnabled -> setReplayGainEnabled(event.enabled)
+            is SettingsEvent.ChoosePageBackground -> emitEffect(SettingsEffect.ChoosePageBackground(event.page))
+            is SettingsEvent.ClearPageBackground -> clearPageBackground(event.page)
+            is SettingsEvent.ExportBackup -> emitEffect(SettingsEffect.ExportBackup)
+            is SettingsEvent.ImportBackup -> emitEffect(SettingsEffect.ImportBackup)
+            is SettingsEvent.ApplyThemeMode -> applyThemeMode(event.mode)
+            is SettingsEvent.ApplyAccentMode -> applyAccentMode(event.accent)
+            is SettingsEvent.ApplyLanguageMode -> applyLanguageMode(event.languageMode)
+            is SettingsEvent.ApplyStreamingGatewayEndpoint ->
+                emitEffect(SettingsEffect.ApplyStreamingGatewayEndpoint(event.endpoint))
+        }
+    }
+
+    fun drainEffects(): List<SettingsEffect> {
+        val drained = ArrayList<SettingsEffect>(pendingEffects.size)
+        while (pendingEffects.isNotEmpty()) {
+            drained.add(pendingEffects.removeFirst())
+        }
+        return drained
+    }
+
+    private fun buildPageContent(
+        page: SettingsPage,
+        preferences: SettingsPreferencesSnapshot,
+        runtime: RuntimeSettingsStatus
+    ): SettingsPageStateContent {
+        val languageMode = preferences.languageMode
+        return when (page) {
+            SettingsPage.AppearanceGroup ->
+                SettingsPageStateBuilder.appearanceGroup(
+                    languageMode,
+                    preferences.themeMode,
+                    preferences.accentMode,
+                    preferences.pageBackgrounds,
+                    onNavigate = ::navigateSettingsPage
+                )
+            SettingsPage.PlaybackGroup ->
+                SettingsPageStateBuilder.playbackGroup(
+                    languageMode,
+                    preferences.playbackSpeed,
+                    preferences.appVolume,
+                    preferences.concurrentPlaybackEnabled,
+                    preferences.audioEffectSettings,
+                    preferences.nowPlayingGesturesEnabled,
+                    preferences.playbackRestoreEnabled,
+                    preferences.replayGainEnabled,
+                    runtime.sleepTimerRemainingMs,
+                    onNavigate = ::navigateSettingsPage
+                )
+            SettingsPage.LibraryGroup,
+            SettingsPage.Library ->
+                SettingsPageStateBuilder.library(
+                    languageMode,
+                    runtime.librarySongCount,
+                    runtime.libraryAlbumCount,
+                    runtime.libraryArtistCount,
+                    runtime.audioPermissionGranted,
+                    onNavigate = ::navigateSettingsPage,
+                    onLoadLibrary = { onEvent(SettingsEvent.LoadLibrary) },
+                    onOpenAudioFilePicker = { onEvent(SettingsEvent.OpenAudioFilePicker) },
+                    onOpenAudioFolderPicker = { onEvent(SettingsEvent.OpenAudioFolderPicker) }
+                )
+            SettingsPage.LyricsGroup ->
+                SettingsPageStateBuilder.lyricsGroup(
+                    languageMode,
+                    runtime.lyricsOffsetMs,
+                    runtime.onlineLyricsEnabled,
+                    preferences.statusBarLyricsEnabled,
+                    preferences.floatingLyricsEnabled,
+                    runtime.overlayPermissionGranted,
+                    onNavigate = ::navigateSettingsPage,
+                    onOnlineLyricsEnabledChange = { enabled -> onEvent(SettingsEvent.SetOnlineLyricsEnabled(enabled)) },
+                    onReloadLyrics = { onEvent(SettingsEvent.ReloadCurrentLyrics) },
+                    onApplyLyricsOffset = { offset -> onEvent(SettingsEvent.ApplyLyricsOffset(offset)) }
+                )
+            SettingsPage.SourcesGroup ->
+                SettingsPageStateBuilder.sourcesGroup(
+                    languageMode,
+                    preferences.streamingAudioQuality,
+                    preferences.shareStyle,
+                    runtime.streamingGatewayConfigured,
+                    onNavigate = ::navigateSettingsPage,
+                    onOpenNetworkSources = { onEvent(SettingsEvent.OpenNetworkSources) }
+                )
+            SettingsPage.AboutGroup ->
+                SettingsPageStateBuilder.aboutGroup(
+                    languageMode,
+                    runtime.audioPermissionGranted,
+                    runtime.notificationPermissionGranted,
+                    runtime.playbackServiceConnected,
+                    onNavigate = ::navigateSettingsPage,
+                    onExportBackup = { onEvent(SettingsEvent.ExportBackup) },
+                    onImportBackup = { onEvent(SettingsEvent.ImportBackup) }
+                )
+            SettingsPage.Appearance ->
+                SettingsPageStateBuilder.theme(
+                    languageMode,
+                    preferences.themeMode,
+                    onNavigate = ::navigateSettingsPage,
+                    onApplyTheme = { mode -> onEvent(SettingsEvent.ApplyThemeMode(mode)) }
+                )
+            SettingsPage.AdvancedTheme ->
+                SettingsPageStateBuilder.advancedTheme(
+                    languageMode,
+                    preferences.themeMode,
+                    onNavigate = ::navigateSettingsPage,
+                    onApplyTheme = { mode -> onEvent(SettingsEvent.ApplyThemeMode(mode)) }
+                )
+            SettingsPage.Accent ->
+                SettingsPageStateBuilder.accent(
+                    languageMode,
+                    preferences.accentMode,
+                    onNavigate = ::navigateSettingsPage,
+                    onApplyAccent = { accent -> onEvent(SettingsEvent.ApplyAccentMode(accent)) }
+                )
+            SettingsPage.Language ->
+                SettingsPageStateBuilder.language(
+                    languageMode,
+                    onNavigate = ::navigateSettingsPage,
+                    onApplyLanguage = { mode -> onEvent(SettingsEvent.ApplyLanguageMode(mode)) }
+                )
+            SettingsPage.PageBackground ->
+                SettingsPageStateBuilder.pageBackgrounds(
+                    languageMode,
+                    preferences.pageBackgrounds,
+                    onNavigate = ::navigateSettingsPage,
+                    onChoosePageBackground = { target -> onEvent(SettingsEvent.ChoosePageBackground(target)) },
+                    onClearPageBackground = { target -> onEvent(SettingsEvent.ClearPageBackground(target)) }
+                )
+            SettingsPage.PlaybackSpeed ->
+                SettingsPageStateBuilder.playbackSpeed(
+                    languageMode,
+                    preferences.playbackSpeed,
+                    onNavigate = ::navigateSettingsPage,
+                    onApplySpeed = { speed -> onEvent(SettingsEvent.ApplyPlaybackSpeed(speed)) }
+                )
+            SettingsPage.AppVolume ->
+                SettingsPageStateBuilder.appVolume(
+                    languageMode,
+                    preferences.appVolume,
+                    onNavigate = ::navigateSettingsPage,
+                    onApplyVolume = { volume -> onEvent(SettingsEvent.ApplyAppVolume(volume)) }
+                )
+            SettingsPage.AudioEffects ->
+                SettingsPageStateBuilder.audioEffects(
+                    languageMode,
+                    preferences.audioEffectSettings,
+                    onNavigate = ::navigateSettingsPage,
+                    onApplyAudioEffects = { effects -> onEvent(SettingsEvent.ApplyAudioEffectSettings(effects)) }
+                )
+            SettingsPage.NowPlayingGestures ->
+                SettingsPageStateBuilder.nowPlayingGestures(
+                    languageMode,
+                    preferences.nowPlayingGesturesEnabled,
+                    onNavigate = ::navigateSettingsPage,
+                    onToggle = { enabled -> onEvent(SettingsEvent.SetNowPlayingGesturesEnabled(enabled)) }
+                )
+            SettingsPage.PlaybackRestore ->
+                SettingsPageStateBuilder.playbackRestore(
+                    languageMode,
+                    preferences.playbackRestoreEnabled,
+                    onNavigate = ::navigateSettingsPage,
+                    onToggle = { enabled -> onEvent(SettingsEvent.SetPlaybackRestoreEnabled(enabled)) }
+                )
+            SettingsPage.ReplayGain ->
+                SettingsPageStateBuilder.replayGain(
+                    languageMode,
+                    preferences.replayGainEnabled,
+                    onNavigate = ::navigateSettingsPage,
+                    onToggle = { enabled -> onEvent(SettingsEvent.SetReplayGainEnabled(enabled)) }
+                )
+            SettingsPage.StreamingAudioQuality ->
+                SettingsPageStateBuilder.streamingAudioQuality(
+                    languageMode,
+                    preferences.streamingAudioQuality,
+                    onNavigate = ::navigateSettingsPage,
+                    onApplyQuality = { quality -> onEvent(SettingsEvent.ApplyStreamingAudioQuality(quality)) }
+                )
+            SettingsPage.ShareStyle ->
+                SettingsPageStateBuilder.shareStyle(
+                    languageMode,
+                    preferences.shareStyle,
+                    onNavigate = ::navigateSettingsPage,
+                    onApplyStyle = { style -> onEvent(SettingsEvent.ApplyShareStyle(style)) }
+                )
+            SettingsPage.ConcurrentPlayback ->
+                SettingsPageStateBuilder.concurrentPlayback(
+                    languageMode,
+                    preferences.concurrentPlaybackEnabled,
+                    onNavigate = ::navigateSettingsPage,
+                    onToggle = { enabled -> onEvent(SettingsEvent.SetConcurrentPlaybackEnabled(enabled)) }
+                )
+            SettingsPage.SleepTimer ->
+                SettingsPageStateBuilder.sleepTimer(
+                    languageMode,
+                    runtime.sleepTimerRemainingMs,
+                    onNavigate = ::navigateSettingsPage,
+                    onStartTimer = { minutes -> onEvent(SettingsEvent.StartSleepTimer(minutes)) },
+                    onCancelTimer = { onEvent(SettingsEvent.CancelSleepTimer) }
+                )
+            SettingsPage.Lyrics ->
+                SettingsPageStateBuilder.lyrics(
+                    languageMode,
+                    runtime.lyricsOffsetMs,
+                    runtime.onlineLyricsEnabled,
+                    preferences.statusBarLyricsEnabled,
+                    preferences.floatingLyricsEnabled,
+                    runtime.overlayPermissionGranted,
+                    onNavigate = ::navigateSettingsPage,
+                    onOnlineLyricsEnabledChange = { enabled -> onEvent(SettingsEvent.SetOnlineLyricsEnabled(enabled)) },
+                    onReloadLyrics = { onEvent(SettingsEvent.ReloadCurrentLyrics) },
+                    onApplyLyricsOffset = { offset -> onEvent(SettingsEvent.ApplyLyricsOffset(offset)) }
+                )
+            SettingsPage.StatusBarLyrics ->
+                SettingsPageStateBuilder.statusBarLyrics(
+                    languageMode,
+                    preferences.statusBarLyricsEnabled,
+                    onNavigate = ::navigateSettingsPage,
+                    onToggle = { enabled -> onEvent(SettingsEvent.SetStatusBarLyricsEnabled(enabled)) }
+                )
+            SettingsPage.FloatingLyrics ->
+                SettingsPageStateBuilder.floatingLyrics(
+                    languageMode,
+                    preferences.floatingLyricsEnabled,
+                    runtime.overlayPermissionGranted,
+                    onNavigate = ::navigateSettingsPage,
+                    onOpenPermission = { onEvent(SettingsEvent.OpenFloatingLyricsPermission) },
+                    onToggle = { enabled -> onEvent(SettingsEvent.SetFloatingLyricsEnabled(enabled)) }
+                )
+            SettingsPage.StreamingGateway ->
+                SettingsPageStateBuilder.streamingGateway(
+                    languageMode,
+                    runtime.streamingGatewayEndpoint,
+                    runtime.streamingGatewayConfigured,
+                    onNavigate = ::navigateSettingsPage,
+                    onApplyEndpoint = { endpoint -> onEvent(SettingsEvent.ApplyStreamingGatewayEndpoint(endpoint)) }
+                )
+            SettingsPage.Home,
+            SettingsPage.Downloads ->
+                SettingsPageStateBuilder.home(
+                    preferences.themeMode,
+                    preferences.accentMode,
+                    languageMode,
+                    runtime.audioPermissionGranted,
+                    runtime.notificationPermissionGranted,
+                    runtime.playbackServiceConnected,
+                    onNavigate = ::navigateSettingsPage,
+                    onOpenDownloads = { onEvent(SettingsEvent.OpenDownloads) }
+                )
+        }
+    }
+
+    private fun navigateSettingsPage(page: SettingsPage) {
+        onEvent(SettingsEvent.NavigateSettingsPage(page))
+    }
+
+    private fun emitEffect(effect: SettingsEffect) {
+        pendingEffects.add(effect)
+        effectListener?.onEffect(effect)
+    }
+
+    private fun applyRuntimeEffect(effect: SettingsRuntimeEffect): Boolean {
+        return runtimeEffectListener?.onRuntimeEffect(effect) != false
+    }
+
+    private fun currentAppliedStatusText(offsetMs: Long = 0L): SettingsAppliedStatusText {
+        val current = _state.value
+        return prepareAppliedStatusText(
+            current.preferences.languageMode,
+            current.preferences.themeMode,
+            current.preferences.accentMode,
+            current.preferences.playbackSpeed,
+            current.preferences.appVolume,
+            offsetMs
+        )
+    }
+
+    private fun emitAppliedStatus(message: String) {
+        if (message.isNotBlank()) {
+            emitEffect(SettingsEffect.ShowStatus(message))
+        }
+    }
+
+    private fun streamingQualityAppliedStatus(quality: String): String {
+        val languageMode = _state.value.preferences.languageMode
+        return AppLanguage.text(languageMode, "streaming.quality.applied") +
+            SettingsPageRenderController.streamingQualityLabel(quality, languageMode)
+    }
+
+    private fun shareStyleAppliedStatus(style: String): String {
+        val languageMode = _state.value.preferences.languageMode
+        return currentAppliedStatusText().shareStyleApplied +
+            SettingsPageRenderController.shareStyleLabel(style, languageMode)
+    }
+
+    private fun pageBackgroundAppliedStatus(page: String, cleared: Boolean): String {
+        val languageMode = _state.value.preferences.languageMode
+        val statusText = currentAppliedStatusText()
+        val prefix = if (cleared) {
+            statusText.pageBackgroundCleared
+        } else {
+            statusText.pageBackgroundApplied
+        }
+        return prefix + SettingsPageRenderController.pageBackgroundPageLabel(page, languageMode)
+    }
+
+    private fun updatePreferences(transform: (SettingsPreferencesSnapshot) -> SettingsPreferencesSnapshot) {
+        val current = _state.value
+        val nextPreferences = transform(current.preferences)
+        storeMirror?.sync(nextPreferences)
+        renderCurrentPage(current.page, nextPreferences, current.runtime)
+    }
+
+    private fun updateRuntime(transform: (RuntimeSettingsStatus) -> RuntimeSettingsStatus) {
+        val current = _state.value
+        renderCurrentPage(current.page, current.preferences, transform(current.runtime))
     }
 
     fun applyThemeMode(nextMode: String) {
         val mode = EchoTheme.normalizeMode(nextMode)
         EchoTheme.setMode(mode)
-        appliedListener?.onThemeModeApplied(mode)
+        applyRuntimeEffect(SettingsRuntimeEffect.ApplyThemeSurface)
+        updatePreferences { it.copy(themeMode = mode) }
+        emitAppliedStatus(currentAppliedStatusText().themeApplied)
         savePreference(SettingsPreferenceKey.ThemeMode, mode)
     }
 
     fun applyAccentMode(nextAccent: String) {
         val accent = EchoTheme.normalizeAccent(nextAccent)
         EchoTheme.setAccent(accent)
-        appliedListener?.onAccentModeApplied(accent)
+        updatePreferences { it.copy(accentMode = accent) }
+        emitAppliedStatus(currentAppliedStatusText().accentApplied)
         savePreference(SettingsPreferenceKey.AccentMode, accent)
     }
 
     fun applyLanguageMode(nextLanguageMode: String) {
         val languageMode = AppLanguage.normalizeMode(nextLanguageMode)
-        appliedListener?.onLanguageModeApplied(languageMode)
+        applyRuntimeEffect(SettingsRuntimeEffect.UpdateLanguage(languageMode))
+        updatePreferences { it.copy(languageMode = languageMode) }
+        emitAppliedStatus(currentAppliedStatusText().languageApplied)
         savePreference(SettingsPreferenceKey.LanguageMode, languageMode)
     }
 
     fun applyPlaybackSpeed(speed: Float) {
         val normalizedSpeed = normalizePlaybackSpeed(speed)
-        appliedListener?.onPlaybackSpeedApplied(normalizedSpeed)
+        applyRuntimeEffect(SettingsRuntimeEffect.ApplyPlaybackSpeed(normalizedSpeed))
+        updatePreferences { it.copy(playbackSpeed = normalizedSpeed) }
+        emitAppliedStatus(currentAppliedStatusText().playbackSpeedApplied)
         savePreference(SettingsPreferenceKey.PlaybackSpeed, normalizedSpeed)
     }
 
     fun applyAppVolume(volume: Float) {
         val normalizedVolume = normalizeAppVolume(volume)
-        appliedListener?.onAppVolumeApplied(normalizedVolume)
+        applyRuntimeEffect(SettingsRuntimeEffect.ApplyAppVolume(normalizedVolume))
+        updatePreferences { it.copy(appVolume = normalizedVolume) }
+        emitAppliedStatus(currentAppliedStatusText().appVolumeApplied)
         savePreference(SettingsPreferenceKey.AppVolume, normalizedVolume)
     }
 
     fun applyStreamingAudioQuality(quality: String) {
         val normalizedQuality = StreamingQualityPreference.normalize(quality)
-        appliedListener?.onStreamingAudioQualityApplied(normalizedQuality)
+        updatePreferences { it.copy(streamingAudioQuality = normalizedQuality) }
+        emitAppliedStatus(streamingQualityAppliedStatus(normalizedQuality))
         savePreference(SettingsPreferenceKey.StreamingAudioQuality, normalizedQuality)
     }
 
     fun applyShareStyle(style: String) {
         val normalizedStyle = TrackShareStyle.normalize(style)
-        appliedListener?.onShareStyleApplied(normalizedStyle)
+        updatePreferences { it.copy(shareStyle = normalizedStyle) }
+        emitAppliedStatus(shareStyleAppliedStatus(normalizedStyle))
         savePreference(SettingsPreferenceKey.ShareStyle, normalizedStyle)
     }
 
     fun setOnlineLyricsEnabled(enabled: Boolean) {
-        appliedListener?.onOnlineLyricsEnabledApplied(enabled)
+        applyRuntimeEffect(SettingsRuntimeEffect.SetOnlineLyricsEnabled(enabled))
+        updateRuntime { it.copy(onlineLyricsEnabled = enabled) }
+        val statusText = currentAppliedStatusText()
+        emitAppliedStatus(if (enabled) statusText.onlineLyricsEnabled else statusText.onlineLyricsDisabled)
+        emitEffect(SettingsEffect.ReloadCurrentLyrics)
         savePreference(SettingsPreferenceKey.OnlineLyricsEnabled, enabled)
     }
 
     fun setConcurrentPlaybackEnabled(enabled: Boolean) {
-        appliedListener?.onConcurrentPlaybackEnabledApplied(enabled)
+        applyRuntimeEffect(SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(enabled))
+        updatePreferences { it.copy(concurrentPlaybackEnabled = enabled) }
+        val statusText = currentAppliedStatusText()
+        emitAppliedStatus(if (enabled) statusText.concurrentPlaybackEnabled else statusText.concurrentPlaybackDisabled)
         savePreference(SettingsPreferenceKey.ConcurrentPlaybackEnabled, enabled)
     }
 
     fun applyAudioEffectSettings(settings: AudioEffectSettings) {
-        appliedListener?.onAudioEffectSettingsApplied(settings)
+        applyRuntimeEffect(SettingsRuntimeEffect.ApplyAudioEffects(settings))
+        updatePreferences { it.copy(audioEffectSettings = settings) }
+        emitAppliedStatus(currentAppliedStatusText().audioEffectsApplied)
         savePreference(SettingsPreferenceKey.AudioEffectSettings, settings)
     }
 
     fun setStatusBarLyricsEnabled(enabled: Boolean) {
-        appliedListener?.onStatusBarLyricsEnabledApplied(enabled)
+        applyRuntimeEffect(SettingsRuntimeEffect.SetStatusBarLyrics(enabled))
+        updatePreferences { it.copy(statusBarLyricsEnabled = enabled) }
+        val statusText = currentAppliedStatusText()
+        emitAppliedStatus(if (enabled) statusText.statusBarLyricsEnabled else statusText.statusBarLyricsDisabled)
         savePreference(SettingsPreferenceKey.StatusBarLyricsEnabled, enabled)
     }
 
     fun setFloatingLyricsEnabled(enabled: Boolean) {
-        appliedListener?.onFloatingLyricsEnabledApplied(enabled)
+        val applied = applyRuntimeEffect(SettingsRuntimeEffect.ApplyFloatingLyrics(enabled))
+        updatePreferences { it.copy(floatingLyricsEnabled = enabled) }
+        val statusText = currentAppliedStatusText()
+        emitAppliedStatus(
+            if (!applied && enabled) {
+                statusText.floatingLyricsPermissionRequired
+            } else if (enabled) {
+                statusText.floatingLyricsEnabled
+            } else {
+                statusText.floatingLyricsDisabled
+            }
+        )
         savePreference(SettingsPreferenceKey.FloatingLyricsEnabled, enabled)
     }
 
     fun openFloatingLyricsPermission() {
-        appliedListener?.onFloatingLyricsPermissionRequested()
+        applyRuntimeEffect(SettingsRuntimeEffect.OpenFloatingLyricsPermissionSettings)
+        emitAppliedStatus(currentAppliedStatusText().floatingLyricsPermissionRequired)
     }
 
     fun setNowPlayingGesturesEnabled(enabled: Boolean) {
-        appliedListener?.onNowPlayingGesturesEnabledApplied(enabled)
+        updatePreferences { it.copy(nowPlayingGesturesEnabled = enabled) }
+        val statusText = currentAppliedStatusText()
+        emitAppliedStatus(if (enabled) statusText.nowPlayingGesturesEnabled else statusText.nowPlayingGesturesDisabled)
         savePreference(SettingsPreferenceKey.NowPlayingGesturesEnabled, enabled)
     }
 
     fun setPlaybackRestoreEnabled(enabled: Boolean) {
-        appliedListener?.onPlaybackRestoreEnabledApplied(enabled)
+        applyRuntimeEffect(SettingsRuntimeEffect.SetPlaybackRestoreEnabled(enabled))
+        updatePreferences { it.copy(playbackRestoreEnabled = enabled) }
+        val statusText = currentAppliedStatusText()
+        emitAppliedStatus(if (enabled) statusText.playbackRestoreEnabled else statusText.playbackRestoreDisabled)
         savePreference(SettingsPreferenceKey.PlaybackRestoreEnabled, enabled)
     }
 
     fun setReplayGainEnabled(enabled: Boolean) {
-        appliedListener?.onReplayGainEnabledApplied(enabled)
+        applyRuntimeEffect(SettingsRuntimeEffect.SetReplayGainEnabled(enabled))
+        updatePreferences { it.copy(replayGainEnabled = enabled) }
+        val statusText = currentAppliedStatusText()
+        emitAppliedStatus(if (enabled) statusText.replayGainEnabled else statusText.replayGainDisabled)
         savePreference(SettingsPreferenceKey.ReplayGainEnabled, enabled)
+    }
+
+    fun applyPageBackgrounds(backgrounds: PageBackgrounds, page: String, cleared: Boolean) {
+        updatePreferences { it.copy(pageBackgrounds = backgrounds) }
+        emitAppliedStatus(pageBackgroundAppliedStatus(page, cleared))
+        savePreference(SettingsPreferenceKey.PageBackgrounds, backgrounds)
+    }
+
+    fun clearPageBackground(page: String) {
+        val target = PageBackgrounds.normalizePage(page)
+        if (target.isEmpty()) {
+            return
+        }
+        val current = _state.value
+        val backgrounds = current.preferences.pageBackgrounds.clear(target)
+        applyPageBackgrounds(backgrounds, target, true)
     }
 
     fun applyLyricsOffset(offsetMs: Long) {
         val normalizedOffsetMs = normalizeLyricsOffsetMs(offsetMs)
-        appliedListener?.onLyricsOffsetApplied(normalizedOffsetMs)
+        applyRuntimeEffect(SettingsRuntimeEffect.SetLyricsOffsetMs(normalizedOffsetMs))
+        updateRuntime { it.copy(lyricsOffsetMs = normalizedOffsetMs) }
+        emitAppliedStatus(currentAppliedStatusText(normalizedOffsetMs).lyricsOffsetApplied)
         savePreference(SettingsPreferenceKey.LyricsOffsetMs, normalizedOffsetMs)
     }
 
@@ -357,16 +784,10 @@ class SettingsViewModel @JvmOverloads constructor(
             playbackRestoreDisabled = AppLanguage.text(normalizedLanguageMode, "playback.restore.disabled"),
             replayGainEnabled = AppLanguage.text(normalizedLanguageMode, "replay.gain.enabled"),
             replayGainDisabled = AppLanguage.text(normalizedLanguageMode, "replay.gain.disabled"),
-            shareStyleApplied = AppLanguage.text(normalizedLanguageMode, "share.style.applied")
+            shareStyleApplied = AppLanguage.text(normalizedLanguageMode, "share.style.applied"),
+            pageBackgroundApplied = AppLanguage.text(normalizedLanguageMode, "page.background.applied"),
+            pageBackgroundCleared = AppLanguage.text(normalizedLanguageMode, "page.background.cleared")
         )
-    }
-
-    private fun SettingsAction.toSettingsItem(): SettingsItem {
-        return if (description.isBlank()) {
-            SettingsItem.Action(label)
-        } else {
-            SettingsItem.Navigation(label, description)
-        }
     }
 
     private fun savePreference(key: SettingsPreferenceKey, value: Any) {

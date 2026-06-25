@@ -8,7 +8,6 @@ import app.yukine.ui.StreamingSearchActions
 import app.yukine.ui.StreamingSearchLabels
 
 internal class StreamingSearchRenderController(
-    private val viewModel: MainActivityViewModel,
     private val languageProvider: LanguageProvider,
     private val listener: Listener
 ) {

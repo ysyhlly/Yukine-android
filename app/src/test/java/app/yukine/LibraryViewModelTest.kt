@@ -1,7 +1,6 @@
 package app.yukine
 
 import android.net.Uri
-import app.yukine.model.Playlist
 import app.yukine.model.Track
 import app.yukine.ui.LibraryGroupUiState
 import app.yukine.ui.TrackRowUiState
@@ -26,40 +25,6 @@ class LibraryViewModelTest {
     val mainDispatcherRule = LibraryMainDispatcherRule()
 
     @Test
-    fun updateStateMirrorsRouteAndLibraryCounts() {
-        val viewModel = LibraryViewModel()
-        val tracks = listOf(track(1L), track(2L))
-        val route = MainActivityRouteState(
-            selectedTab = MainRoutes.TAB_LIBRARY,
-            libraryMode = LibraryGrouping.ALBUMS,
-            selectedLibraryGroupKey = "album:one",
-            selectedLibraryGroupTitle = "Album One",
-            selectedPlaylistId = 9L,
-            searchQuery = "echo"
-        )
-        val library = MainActivityLibraryState(
-            allTracks = tracks,
-            visibleTracks = tracks.take(1),
-            favoriteTrackIds = setOf(1L),
-            favoriteTracks = tracks.take(1),
-            playlists = listOf(Playlist(9L, "Mix", 2, 0L, 0L))
-        )
-
-        viewModel.updateState(route, library)
-
-        val state = viewModel.uiState.value
-        assertEquals(LibraryGrouping.ALBUMS, state.mode)
-        assertEquals("album:one", state.selectedGroupKey)
-        assertEquals("Album One", state.selectedGroupTitle)
-        assertEquals("echo", state.searchQuery)
-        assertEquals(2, state.totalTracks)
-        assertEquals(1, state.visibleTracks)
-        assertEquals(1, state.favorites)
-        assertEquals(1, state.playlists)
-        assertEquals(9L, state.selectedPlaylistId)
-    }
-
-    @Test
     fun trackEventsCallGateway() {
         val gateway = FakeGateway()
         val viewModel = LibraryViewModel()
@@ -73,6 +38,71 @@ class LibraryViewModelTest {
         assertEquals(listOf("play:2:1", "favorite:1:true", "playlist:2"), gateway.calls)
     }
 
+    /**
+     * Regression: opening a library group (folder/album/artist) detail must leave a non-blank
+     * track-list title and populated rows. The detail path runs TrackListRenderController.render
+     * (updateTrackList) and then publishes chrome; if the chrome publish replaces the whole
+     * track-list state with a blank title/rows, the NavHost renders an empty screen
+     * (groups.title blank + trackList.title blank). This pins the wiring used by MainActivity.
+     */
+    @Test
+    fun openingGroupDetailKeepsTrackListTitleAndRowsAfterChromePublish() {
+        val viewModel = LibraryViewModel()
+        // Mirror MainActivity wiring: chrome publish funnels through updateTrackListChrome(state)
+        // built with an empty title + empty rows (only chrome fields are meaningful there).
+        val listener = object : TrackListRenderController.Listener {
+            override fun playTrackList(tracks: List<Track>, index: Int) = Unit
+            override fun toggleFavorite(track: Track) = Unit
+            override fun showAddToPlaylist(track: Track) = Unit
+            override fun downloadTrack(track: Track) = Unit
+            override fun downloadTracks(tracks: List<Track>) = Unit
+            override fun showEditStream(track: Track) = Unit
+            override fun confirmDeleteTrack(track: Track) = Unit
+            override fun publishTrackListChrome(
+                actions: List<app.yukine.ui.TrackRowActions>,
+                headerMetrics: List<app.yukine.ui.TrackListHeaderMetric>,
+                headerActions: List<app.yukine.ui.TrackListHeaderAction>,
+                emptyText: String,
+                modeActions: List<app.yukine.ui.TrackListModeAction>,
+                labels: app.yukine.ui.TrackListLabels
+            ) {
+                viewModel.updateTrackListChrome(
+                    MainActivityTrackListUiState(
+                        "",
+                        emptyList(),
+                        emptyList(),
+                        actions,
+                        headerMetrics,
+                        headerActions,
+                        emptyText,
+                        modeActions,
+                        labels
+                    )
+                )
+            }
+        }
+        val controller = TrackListRenderController(viewModel, listener)
+
+        controller.render(
+            "Rock",
+            listOf(track(1L), track(2L)),
+            true,
+            listOf("", ""),
+            false,
+            emptyList(),
+            emptyList(),
+            "",
+            emptyList(),
+            app.yukine.ui.TrackListLabels(),
+            null,
+            emptySet()
+        )
+
+        assertEquals("Rock", viewModel.trackList.value.title)
+        assertEquals(2, viewModel.trackList.value.rows.size)
+        assertEquals("", viewModel.libraryGroups.value.title)
+    }
+
     @Test
     fun toggleFavoriteAppliesNextStateAndPersistsIt() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
@@ -84,10 +114,7 @@ class LibraryViewModelTest {
             writes.add("${track.id}:$favorite")
             true
         }
-        viewModel.updateState(
-            MainActivityRouteState(),
-            MainActivityLibraryState(favoriteTrackIds = setOf(1L))
-        )
+        viewModel.bindFavoriteIdsProvider { setOf(1L) }
 
         viewModel.onEvent(LibraryEvent.ToggleFavorite(track(1L)))
         viewModel.onEvent(LibraryEvent.ToggleFavorite(track(2L)))
@@ -95,6 +122,26 @@ class LibraryViewModelTest {
 
         assertEquals(listOf("favorite:1:false", "favorite:2:true"), gateway.calls)
         assertEquals(listOf("1:false", "2:true"), writes)
+    }
+
+    @Test
+    fun toggleFavoriteUsesBoundFavoriteIdsProviderBeforeComputingNextState() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val gateway = FakeGateway()
+        val writes = ArrayList<String>()
+        val viewModel = LibraryViewModel(dispatcher)
+        viewModel.bindGateway(gateway)
+        viewModel.bindFavoriteWriter { track, favorite ->
+            writes.add("${track.id}:$favorite")
+            true
+        }
+        viewModel.bindFavoriteIdsProvider { setOf(2L) }
+
+        viewModel.onEvent(LibraryEvent.ToggleFavorite(track(2L)))
+        advanceUntilIdle()
+
+        assertEquals(listOf("favorite:2:false"), gateway.calls)
+        assertEquals(listOf("2:false"), writes)
     }
 
     @Test
@@ -145,7 +192,6 @@ class LibraryViewModelTest {
             listOf("mode:artists", "group:artist:a:Artist A", "playlist-open:9:Daily Mix", "back", "search:kalafina"),
             gateway.calls
         )
-        assertEquals("kalafina", viewModel.uiState.value.searchQuery)
     }
 
     @Test

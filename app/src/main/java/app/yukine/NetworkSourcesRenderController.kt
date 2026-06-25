@@ -26,13 +26,6 @@ internal class NetworkSourcesRenderController(
         fun showEditWebDav(source: RemoteSource)
 
         fun confirmDeleteRemoteSource(source: RemoteSource)
-
-        fun publishNetworkSourcesChrome(
-            actions: List<NetworkSourceActions>,
-            headerActions: List<TrackListHeaderAction>,
-            emptyText: String,
-            labels: NetworkSourceLabels
-        )
     }
 
     fun render(languageMode: String, remoteSources: List<RemoteSource>, allTracks: List<Track>) {
@@ -70,7 +63,6 @@ internal class NetworkSourcesRenderController(
             AppLanguage.text(languageMode, "edit"),
             AppLanguage.text(languageMode, "delete")
         )
-        viewModel.updateSources(title, remoteSources, rows)
-        listener.publishNetworkSourcesChrome(actions, headerActions, emptyText, labels)
+        viewModel.updateSources(title, remoteSources, rows, actions, headerActions, emptyText, labels)
     }
 }

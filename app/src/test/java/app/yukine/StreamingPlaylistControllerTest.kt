@@ -201,6 +201,9 @@ class StreamingPlaylistControllerTest {
         val syncPlaylistIds = mutableListOf<Long>()
         var linkedPlaylist: StreamingPlaylistSyncStore.LinkedPlaylist? = null
 
+        override fun playlistExists(localPlaylistId: Long): Boolean =
+            linkedPlaylist?.localPlaylistId == localPlaylistId
+
         override fun importStreamingPlaylist(
             playlistName: String,
             provider: StreamingProviderName,

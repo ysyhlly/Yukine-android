@@ -10,7 +10,7 @@ import org.junit.Test
 
 class NetworkSourcesViewModelTest {
     @Test
-    fun updateSourcesPublishesDomainAndScreenState() {
+    fun updateSourcesPublishesDomainState() {
         val viewModel = NetworkSourcesViewModel()
         val source = source(4L)
         val rows = listOf(NetworkSourceUiState(4L, "NAS", "2 tracks", "OK"))
@@ -22,8 +22,6 @@ class NetworkSourcesViewModelTest {
         assertEquals(listOf(source), state.sources)
         assertEquals(rows, state.rows)
         assertEquals(4L, state.selectedSourceId)
-        assertEquals("Remote sources", viewModel.screen.value.title)
-        assertEquals(rows, viewModel.screen.value.rows)
     }
 
     @Test

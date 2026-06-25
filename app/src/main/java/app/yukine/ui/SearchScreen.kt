@@ -40,6 +40,7 @@ import app.yukine.MainActivityStreamingState
 import app.yukine.SearchViewModel
 import app.yukine.TrackDownloadItem
 import app.yukine.model.Track
+import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
 
 fun interface UnifiedSearchQueryAction {
@@ -146,7 +147,12 @@ fun UnifiedSearchScreen(
                 }
                 else -> {
                     items(onlineTracks, key = { it.stableKey }) { track ->
-                        StreamingTrackResultRow(track) { actions.onPlayStreamingTrack.run(track) }
+                        StreamingTrackResultRow(
+                            track = track,
+                            sourceLabel = streamingSourceLabel(streamingState, track.provider)
+                        ) {
+                            actions.onPlayStreamingTrack.run(track)
+                        }
                     }
                     if (streamingState.searchResult?.hasMore == true) {
                         item("online-more") {
@@ -254,16 +260,25 @@ private fun LocalTrackResultRow(track: Track, onClick: () -> Unit) {
         title = track.title,
         subtitle = listOf(track.artist, track.album).filter { it.isNotBlank() }.joinToString(" / "),
         coverUri = track.albumArtUri,
+        sourceLabel = "本地",
         onClick = onClick
     )
 }
 
 @Composable
-private fun StreamingTrackResultRow(track: StreamingTrack, onClick: () -> Unit) {
+private fun StreamingTrackResultRow(
+    track: StreamingTrack,
+    sourceLabel: String,
+    onClick: () -> Unit
+) {
     ResultRow(
-        title = track.title,
-        subtitle = listOf(track.artist, track.album.orEmpty()).filter { it.isNotBlank() }.joinToString(" / "),
+        title = cleanSearchDisplayText(track.title),
+        subtitle = listOf(track.artist, track.album.orEmpty())
+            .map(::cleanSearchDisplayText)
+            .filter { it.isNotBlank() }
+            .joinToString(" / "),
         coverUri = (track.coverThumbUrl ?: track.coverUrl)?.let(Uri::parse),
+        sourceLabel = sourceLabel,
         onClick = onClick
     )
 }
@@ -273,6 +288,7 @@ private fun ResultRow(
     title: String,
     subtitle: String,
     coverUri: Uri?,
+    sourceLabel: String,
     onClick: () -> Unit
 ) {
     val p = EchoTheme.colors()
@@ -315,9 +331,68 @@ private fun ResultRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
+            SourceChip(sourceLabel)
+            Spacer(Modifier.width(8.dp))
             EchoIcon(EchoIconKind.Play, Modifier.size(22.dp), p.accent)
         }
     }
+}
+
+@Composable
+private fun SourceChip(label: String) {
+    val p = EchoTheme.colors()
+    Surface(
+        shape = EchoShapes.small,
+        color = p.accent.copy(alpha = 0.10f)
+    ) {
+        Text(
+            label,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+            color = p.accent,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+private fun streamingSourceLabel(
+    streamingState: MainActivityStreamingState,
+    provider: StreamingProviderName
+): String {
+    val displayName = streamingState.providers
+        .firstOrNull { it.name == provider }
+        ?.displayName
+        ?.takeIf { it.isNotBlank() }
+    return displayName ?: fallbackSourceLabel(provider)
+}
+
+private fun fallbackSourceLabel(provider: StreamingProviderName): String = when (provider) {
+    StreamingProviderName.NETEASE -> "网易云音乐"
+    StreamingProviderName.QQ_MUSIC -> "QQ 音乐"
+    StreamingProviderName.LUOXUE -> "LX/洛雪"
+    StreamingProviderName.KUGOU -> "酷狗音乐"
+    StreamingProviderName.BILIBILI -> "哔哩哔哩"
+    StreamingProviderName.YOUTUBE -> "YouTube"
+    StreamingProviderName.SOUNDCLOUD -> "SoundCloud"
+    StreamingProviderName.SPOTIFY -> "Spotify"
+    StreamingProviderName.TIDAL -> "TIDAL"
+    StreamingProviderName.M3U8 -> "M3U8"
+    StreamingProviderName.PLUGIN -> "自定义"
+    StreamingProviderName.MOCK -> "在线"
+}
+
+private fun cleanSearchDisplayText(value: String?): String {
+    return value
+        ?.replace(Regex("<[^>]+>"), " ")
+        ?.replace("&amp;", "&")
+        ?.replace("&lt;", "<")
+        ?.replace("&gt;", ">")
+        ?.replace("&quot;", "\"")
+        ?.replace("&#39;", "'")
+        ?.replace(Regex("\\s+"), " ")
+        ?.trim()
+        .orEmpty()
 }
 
 @Composable

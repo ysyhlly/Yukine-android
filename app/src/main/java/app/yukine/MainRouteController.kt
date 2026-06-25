@@ -265,7 +265,7 @@ internal class MainRouteController(
         val result = MainBackNavigationPolicy.resolve(
             selectedTab(),
             networkPage(),
-            settingsPage(),
+            SettingsPage.fromRoute(settingsPage()),
             selectedLibraryGroupKey(),
             selectedPlaylistId()
         )

@@ -64,16 +64,16 @@ data class QueueTrackActions(
 )
 
 data class QueueScreenLabels(
-    val title: String = "Queue",
-    val back: String = "Back",
-    val clearQueue: String = "Clear queue",
-    val empty: String = "Queue is empty",
-    val emptyDescription: String = "Play a track or add music to build the queue.",
-    val tracks: String = "tracks",
-    val favorite: String = "Favorite",
-    val addToPlaylist: String = "Add to playlist",
-    val remove: String = "Remove",
-    val dragReorder: String = "Drag to reorder"
+    val title: String = "\u64ad\u653e\u961f\u5217",
+    val back: String = "\u8fd4\u56de",
+    val clearQueue: String = "\u6e05\u7a7a\u961f\u5217",
+    val empty: String = "\u961f\u5217\u4e3a\u7a7a",
+    val emptyDescription: String = "\u64ad\u653e\u4e00\u9996\u6b4c\uff0c\u6216\u628a\u6b4c\u66f2\u52a0\u5165\u961f\u5217\u3002",
+    val tracks: String = "\u9996\u6b4c",
+    val favorite: String = "\u6536\u85cf",
+    val addToPlaylist: String = "\u52a0\u5165\u6b4c\u5355",
+    val remove: String = "\u79fb\u9664",
+    val dragReorder: String = "\u62d6\u52a8\u6392\u5e8f"
 )
 
 @OptIn(ExperimentalFoundationApi::class)

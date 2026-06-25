@@ -14,16 +14,16 @@ import app.yukine.ui.YukineOrbAudioMotion
 fun SearchDestination(
     searchViewModel: SearchViewModel,
     streamingViewModel: StreamingViewModel,
-    actions: UnifiedSearchActions,
     activeDownload: TrackDownloadItem?,
     playbackQuality: String,
     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
+    val searchState by searchViewModel.uiState.collectAsState()
     val streamingState by streamingViewModel.streaming.collectAsState()
     UnifiedSearchScreen(
         state = searchViewModel,
         streamingState = streamingState,
-        actions = actions,
+        actions = searchState.actions,
         activeDownload = activeDownload,
         playbackQuality = playbackQuality,
         audioMotion = audioMotion

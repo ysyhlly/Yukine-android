@@ -22,10 +22,6 @@ internal fun interface NetworkPageNavigator {
     fun navigate(page: String)
 }
 
-internal fun interface StreamingRecommendationAction {
-    fun play(provider: StreamingProviderName)
-}
-
 internal fun interface HomeDashboardActionsSink {
     fun publish(actions: HomeDashboardActions)
 }
@@ -40,8 +36,7 @@ internal class HomeDashboardRenderBindings(
     private val allTracksProvider: TrackListProvider,
     private val openStreamingAction: Runnable,
     private val openCollectionsAction: Runnable,
-    private val dailyRecommendationsAction: StreamingRecommendationAction,
-    private val heartbeatRecommendationsAction: StreamingRecommendationAction,
+    private val recommendationActionRunner: RecommendationActionRunner,
     private val actionsSink: HomeDashboardActionsSink,
     private val openSearchAction: Runnable = Runnable { }
 ) : HomeDashboardRenderController.Listener {
@@ -91,11 +86,11 @@ internal class HomeDashboardRenderBindings(
     }
 
     override fun playDailyRecommendations() {
-        dailyRecommendationsAction.play(StreamingProviderName.NETEASE)
+        recommendationActionRunner.run(RecommendationAction.PlayDaily(StreamingProviderName.NETEASE))
     }
 
     override fun playHeartbeatRecommendations() {
-        heartbeatRecommendationsAction.play(StreamingProviderName.NETEASE)
+        recommendationActionRunner.run(RecommendationAction.PlayHeartbeat(StreamingProviderName.NETEASE))
     }
 
     override fun publishHomeDashboardActions(actions: HomeDashboardActions) {

@@ -17,8 +17,8 @@ class ConfirmationDialogBindingsTest {
             deleteTracksAction = NetworkTracksDeleteAction { trackIds, status ->
                 calls += "deleteTracks:${trackIds.joinToString(",")}:$status"
             },
-            deleteRemoteSourceAction = RemoteSourceDeleteAction { sourceId, name ->
-                calls += "deleteSource:$sourceId:$name"
+            deleteRemoteSourceAction = RemoteSourceDeleteAction { sourceId ->
+                calls += "deleteSource:$sourceId"
             }
         )
 
@@ -36,7 +36,7 @@ class ConfirmationDialogBindingsTest {
                 "deleteAllStreams",
                 "deleteTrack:7:Deleted",
                 "deleteTracks:1,2:Removed",
-                "deleteSource:9:NAS"
+                "deleteSource:9"
             ),
             calls
         )

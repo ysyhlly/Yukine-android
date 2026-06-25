@@ -39,25 +39,29 @@ class LibraryTrackListDestinationTest {
         key = key
     )
 
+    private fun actions(count: Int) = List(count) {
+        TrackRowActions(Runnable {}, Runnable {}, Runnable {}, Runnable {}, null, null)
+    }
+
     @Test
     fun rendersTitleAndRows() {
         val state = MutableStateFlow(
             MainActivityTrackListUiState(
-                title = "歌曲",
-                rows = listOf(row(1L, "第一首"), row(2L, "第二首"))
+                title = "Songs",
+                rows = listOf(row(1L, "First"), row(2L, "Second")),
+                actions = actions(2)
             )
         )
-        val actions = state.value.rows.map { TrackRowActions(Runnable {}, Runnable {}, Runnable {}, null, null) }
 
         composeRule.setContent {
             EchoTheme.EchoTheme {
-                LibraryTrackListDestination(state, actions, audioMotion = staticMotion)
+                LibraryTrackListDestination(state, audioMotion = staticMotion)
             }
         }
 
-        composeRule.onNodeWithText("歌曲").assertIsDisplayed()
-        composeRule.onNodeWithText("第一首").assertIsDisplayed()
-        composeRule.onNodeWithText("第二首").assertIsDisplayed()
+        composeRule.onNodeWithText("Songs").assertIsDisplayed()
+        composeRule.onNodeWithText("First").assertIsDisplayed()
+        composeRule.onNodeWithText("Second").assertIsDisplayed()
     }
 
     @Test
@@ -65,14 +69,14 @@ class LibraryTrackListDestinationTest {
         val state = MutableStateFlow(
             MainActivityTrackListUiState(
                 title = "Songs",
-                rows = listOf(row(7L, "Echo", "7:1"), row(7L, "Echo", "7:2"))
+                rows = listOf(row(7L, "Echo", "7:1"), row(7L, "Echo", "7:2")),
+                actions = actions(2)
             )
         )
-        val actions = state.value.rows.map { TrackRowActions(Runnable {}, Runnable {}, Runnable {}, null, null) }
 
         composeRule.setContent {
             EchoTheme.EchoTheme {
-                LibraryTrackListDestination(state, actions, audioMotion = staticMotion)
+                LibraryTrackListDestination(state, audioMotion = staticMotion)
             }
         }
 

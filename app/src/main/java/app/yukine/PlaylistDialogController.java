@@ -23,16 +23,38 @@ final class PlaylistDialogController {
 
         void deletePlaylist(long playlistId, String name);
 
+        void addToDefaultPlaylist(Track track);
+
         void addTrackToPlaylist(long playlistId, long trackId);
+    }
+
+    interface PlaylistProvider {
+        List<Playlist> playlists();
     }
 
     private final Context context;
     private final LanguageProvider languageProvider;
+    private final PlaylistProvider playlistProvider;
     private final Listener listener;
 
     PlaylistDialogController(Context context, LanguageProvider languageProvider, Listener listener) {
+        this(context, languageProvider, new PlaylistProvider() {
+            @Override
+            public List<Playlist> playlists() {
+                return null;
+            }
+        }, listener);
+    }
+
+    PlaylistDialogController(
+            Context context,
+            LanguageProvider languageProvider,
+            PlaylistProvider playlistProvider,
+            Listener listener
+    ) {
         this.context = context;
         this.languageProvider = languageProvider;
+        this.playlistProvider = playlistProvider;
         this.listener = listener;
     }
 
@@ -86,8 +108,15 @@ final class PlaylistDialogController {
                 .show();
     }
 
+    void showAddToPlaylist(final Track track) {
+        showAddToPlaylist(track, playlistProvider == null ? null : playlistProvider.playlists());
+    }
+
     void showAddToPlaylist(final Track track, final List<Playlist> playlists) {
         if (track == null || playlists == null || playlists.isEmpty()) {
+            if (track != null) {
+                listener.addToDefaultPlaylist(track);
+            }
             return;
         }
         final String[] names = new String[playlists.size()];

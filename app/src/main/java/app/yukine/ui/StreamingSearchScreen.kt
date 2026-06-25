@@ -142,64 +142,64 @@ data class StreamingSearchLabels(
         @JvmStatic
         fun empty(): StreamingSearchLabels = StreamingSearchLabels(
             languageMode = "system",
-            title = "Streaming",
-            back = "Back",
-            searchPrefix = "Search ",
+            title = "\u97f3\u6e90\u4e0e\u7f51\u7edc",
+            back = "\u8fd4\u56de",
+            searchPrefix = "\u641c\u7d22 ",
             searchSuffix = "",
-            sourceDefault = "Source",
-            searchUnavailableSuffix = " search unavailable",
-            importPlaylistFromStreaming = "Import playlist",
-            importLuoxueSource = "Import LX source / playlist",
-            luoxueImportHint = "Paste kw:playlistId, kg:playlistId, wy:NetEasePlaylistId, tx:QQPlaylistId, or an LX share link.",
-            loadAccountPlaylists = "Load account playlists",
-            importLikedTracks = "Import liked tracks",
-            dailyRecommendations = "Daily recommendations",
-            heartbeatRecommendations = "Heartbeat recommendations",
-            backupAccountConnection = "Backup account connection",
-            accountActions = "Account",
-            discoverMusic = "Discover",
-            advancedTools = "Advanced",
-            loadingAccountPlaylists = "Loading playlists",
-            accountPlaylists = "Account playlists",
-            openLoginPrefix = "Open login for ",
+            sourceDefault = "\u97f3\u6e90",
+            searchUnavailableSuffix = "\u6682\u4e0d\u652f\u6301\u641c\u7d22",
+            importPlaylistFromStreaming = "\u5bfc\u5165\u6b4c\u5355",
+            importLuoxueSource = "\u5bfc\u5165 LX \u97f3\u6e90 / \u6b4c\u5355",
+            luoxueImportHint = "\u53ef\u5bfc\u5165 LX \u97f3\u6e90 JS \u6587\u4ef6\u6216\u5206\u4eab\u94fe\u63a5\u3002",
+            loadAccountPlaylists = "\u52a0\u8f7d\u8d26\u53f7\u6b4c\u5355",
+            importLikedTracks = "\u5bfc\u5165\u6536\u85cf\u6b4c\u66f2",
+            dailyRecommendations = "\u6bcf\u65e5\u63a8\u8350",
+            heartbeatRecommendations = "\u5fc3\u52a8\u63a8\u8350",
+            backupAccountConnection = "\u5907\u7528\u8d26\u53f7\u8fde\u63a5",
+            accountActions = "\u8d26\u53f7",
+            discoverMusic = "\u53d1\u73b0\u97f3\u4e50",
+            advancedTools = "\u9ad8\u7ea7\u5de5\u5177",
+            loadingAccountPlaylists = "\u6b63\u5728\u52a0\u8f7d\u6b4c\u5355",
+            accountPlaylists = "\u8d26\u53f7\u6b4c\u5355",
+            openLoginPrefix = "\u767b\u5f55 ",
             openLoginSuffix = "",
-            loading = "Loading",
-            streamingRequestFailed = "Streaming request failed",
-            playlistImportFailed = "Playlist import failed",
-            accountPlaylistsFailed = "Could not load account playlists",
-            matchingLocalTracks = "Matching local tracks",
-            playlistImportPrefix = "Import: ",
-            matched = "Matched",
-            unresolved = "Unresolved",
-            results = "Results",
-            matchedStreamingTracks = "Matched tracks",
-            songs = "Songs",
-            albums = "Albums",
-            artists = "Artists",
-            playlists = "Playlists",
-            videos = "Videos",
-            noResults = "No results",
-            loadMore = "Load more",
-            playResolvedTrack = "Play resolved track",
-            signedIn = "Signed in",
-            onlineAuthenticated = "Online authenticated",
-            online = "Online",
-            unavailable = "Unavailable",
-            ready = "Ready",
-            needsAccount = "Needs account",
-            disabled = "Disabled",
-            error = "Error",
-            localLoginSaved = "Local login saved",
-            notSignedIn = "Not signed in",
-            localLoginComplete = "Local login complete",
-            gatewayLocalLogin = "Gateway unavailable; local login is available",
-            gatewayRequired = "Gateway required",
-            loginEntryMissing = "Login entry missing",
-            openLoginPage = "Open login page",
-            neteaseLikedPlaylistEmpty = "No liked playlist found",
-            neteaseAccountIdMissing = "NetEase account id missing",
-            neteaseLoginRequiredPlaylists = "Sign in to load account playlists",
-            trackCountSuffix = " tracks"
+            loading = "\u52a0\u8f7d\u4e2d",
+            streamingRequestFailed = "\u6d41\u5a92\u4f53\u8bf7\u6c42\u5931\u8d25",
+            playlistImportFailed = "\u6b4c\u5355\u5bfc\u5165\u5931\u8d25",
+            accountPlaylistsFailed = "\u65e0\u6cd5\u52a0\u8f7d\u8d26\u53f7\u6b4c\u5355",
+            matchingLocalTracks = "\u6b63\u5728\u5339\u914d\u672c\u5730\u6b4c\u66f2",
+            playlistImportPrefix = "\u5bfc\u5165\uff1a",
+            matched = "\u5df2\u5339\u914d",
+            unresolved = "\u672a\u5339\u914d",
+            results = "\u7ed3\u679c",
+            matchedStreamingTracks = "\u5df2\u5339\u914d\u6b4c\u66f2",
+            songs = "\u6b4c\u66f2",
+            albums = "\u4e13\u8f91",
+            artists = "\u827a\u4eba",
+            playlists = "\u6b4c\u5355",
+            videos = "\u89c6\u9891",
+            noResults = "\u6ca1\u6709\u627e\u5230\u6b4c\u66f2",
+            loadMore = "\u52a0\u8f7d\u66f4\u591a",
+            playResolvedTrack = "\u64ad\u653e\u5df2\u89e3\u6790\u6b4c\u66f2",
+            signedIn = "\u5df2\u767b\u5f55",
+            onlineAuthenticated = "\u5df2\u8fde\u63a5",
+            online = "\u5728\u7ebf",
+            unavailable = "\u4e0d\u53ef\u7528",
+            ready = "\u5c31\u7eea",
+            needsAccount = "\u9700\u8981\u767b\u5f55",
+            disabled = "\u5df2\u7981\u7528",
+            error = "\u9519\u8bef",
+            localLoginSaved = "\u672c\u673a\u767b\u5f55\u5df2\u4fdd\u5b58",
+            notSignedIn = "\u672a\u767b\u5f55",
+            localLoginComplete = "\u672c\u673a\u767b\u5f55\u5b8c\u6210",
+            gatewayLocalLogin = "\u7f51\u5173\u4e0d\u53ef\u7528\uff0c\u53ef\u4f7f\u7528\u672c\u673a\u767b\u5f55",
+            gatewayRequired = "\u9700\u8981\u7f51\u5173",
+            loginEntryMissing = "\u672a\u914d\u7f6e\u767b\u5f55\u5165\u53e3",
+            openLoginPage = "\u6253\u5f00\u767b\u5f55\u9875",
+            neteaseLikedPlaylistEmpty = "\u672a\u627e\u5230\u6536\u85cf\u6b4c\u5355",
+            neteaseAccountIdMissing = "\u7f3a\u5c11\u7f51\u6613\u4e91\u8d26\u53f7 ID",
+            neteaseLoginRequiredPlaylists = "\u8bf7\u5148\u767b\u5f55\u518d\u52a0\u8f7d\u6b4c\u5355",
+            trackCountSuffix = " \u9996"
         )
     }
 }
@@ -239,6 +239,7 @@ fun StreamingSearchScreen(
         provider.name != StreamingProviderName.NETEASE && !provider.enabled
     }
     val result = state.searchResult
+    val selectedAuthState = provider?.let { state.authStates[it.name] ?: it.auth }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = echoPagePadding(),
@@ -261,6 +262,13 @@ fun StreamingSearchScreen(
             }
         }
         if (state.providers.isNotEmpty()) {
+            if (provider != null && selectedAuthState?.connected != true) {
+                item(key = "manual-account-connect:${provider.name.wireName}") {
+                    ActionRow(labels.openLoginPrefix + provider.displayName + labels.openLoginSuffix, EchoIconKind.Action) {
+                        actions.onLogin.run(provider.name)
+                    }
+                }
+            }
             itemsIndexed(
                 items = state.providers,
                 key = { _, item -> "provider:${item.name.wireName}" }
@@ -374,11 +382,7 @@ fun StreamingSearchScreen(
             }
         }
         val tracks = result?.tracks.orEmpty()
-        val albums = result?.albums.orEmpty()
-        val artists = result?.artists.orEmpty()
-        val playlists = result?.playlists.orEmpty()
-        val mvs = result?.mvs.orEmpty()
-        val displayedCount = tracks.size + albums.size + artists.size + playlists.size + mvs.size
+        val displayedCount = tracks.size
         if (result != null) {
             item(key = "result-meta") {
                 MetricRow(labels.results, "$displayedCount${result.total?.let { " / $it" }.orEmpty()}")
@@ -409,50 +413,6 @@ fun StreamingSearchScreen(
                 StreamingTrackRow(track, trackProviderSupportsPlayback(state, track) && track.playable) {
                     actions.onPlayTrack.run(track)
                 }
-            }
-        }
-        if (albums.isNotEmpty()) {
-            item(key = "albums-title") {
-                SectionTitle(labels.albums)
-            }
-            itemsIndexed(
-                items = albums,
-                key = { _, album -> "album:${album.provider.wireName}:${album.providerAlbumId}" }
-            ) { _, album ->
-                StreamingAlbumRow(album, labels)
-            }
-        }
-        if (artists.isNotEmpty()) {
-            item(key = "artists-title") {
-                SectionTitle(labels.artists)
-            }
-            itemsIndexed(
-                items = artists,
-                key = { _, artist -> "artist:${artist.provider.wireName}:${artist.providerArtistId}" }
-            ) { _, artist ->
-                StreamingArtistRow(artist)
-            }
-        }
-        if (playlists.isNotEmpty()) {
-            item(key = "playlists-title") {
-                SectionTitle(labels.playlists)
-            }
-            itemsIndexed(
-                items = playlists,
-                key = { _, playlist -> "playlist:${playlist.provider.wireName}:${playlist.providerPlaylistId}" }
-            ) { _, playlist ->
-                StreamingPlaylistRow(playlist, labels) { actions.onImportPlaylist.run(playlist) }
-            }
-        }
-        if (mvs.isNotEmpty()) {
-            item(key = "mvs-title") {
-                SectionTitle(labels.videos)
-            }
-            itemsIndexed(
-                items = mvs,
-                key = { _, mv -> "mv:${mv.provider.wireName}:${mv.providerMvId}" }
-            ) { _, mv ->
-                StreamingMvRow(mv)
             }
         }
         if (result != null && displayedCount == 0 && !state.loading) {

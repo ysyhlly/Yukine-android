@@ -10,6 +10,7 @@ import app.yukine.ui.CollectionTrackSectionActions
 import app.yukine.ui.CollectionTrackSectionUiState
 import app.yukine.ui.CollectionsActions
 import app.yukine.ui.CollectionsUiState
+import app.yukine.ui.emptyCollectionsActions
 import app.yukine.ui.PlaylistRowActions
 import app.yukine.ui.PlaylistRowUiState
 import app.yukine.ui.PlaylistTrackActions
@@ -223,29 +224,30 @@ internal class CollectionsRenderController(
         }
 
         val state = CollectionsUiState(
-            text(languageMode, "tab.collections"),
-            text(languageMode, "back"),
-            metrics,
-            topActionRows,
-            trackSections,
-            text(languageMode, "playlists"),
-            text(languageMode, "no.playlists"),
-            text(languageMode, "no.playlists.description"),
-            playlistRows,
-            selectedPlaylistId >= 0L,
-            selectedPlaylistName(playlists, selectedPlaylistId, fallbackPlaylistTitle),
-            text(languageMode, "no.tracks.in.playlist"),
-            text(languageMode, "no.tracks.in.playlist.description"),
-            selectedPlaylistActionRows,
-            selectedPlaylistRows,
-            text(languageMode, "favorite"),
-            text(languageMode, "remove.favorite"),
-            text(languageMode, "add.to.playlist"),
-            text(languageMode, "rename"),
-            text(languageMode, "delete"),
-            text(languageMode, "up"),
-            text(languageMode, "down"),
-            text(languageMode, "remove")
+            title = text(languageMode, "tab.collections"),
+            backLabel = text(languageMode, "back"),
+            metrics = metrics,
+            topActions = topActionRows,
+            trackSections = trackSections,
+            playlistTitle = text(languageMode, "playlists"),
+            playlistEmptyText = text(languageMode, "no.playlists"),
+            playlistEmptyDescription = text(languageMode, "no.playlists.description"),
+            playlists = playlistRows,
+            selectedPlaylistVisible = selectedPlaylistId >= 0L,
+            selectedPlaylistTitle = selectedPlaylistName(playlists, selectedPlaylistId, fallbackPlaylistTitle),
+            selectedPlaylistEmptyText = text(languageMode, "no.tracks.in.playlist"),
+            selectedPlaylistEmptyDescription = text(languageMode, "no.tracks.in.playlist.description"),
+            selectedPlaylistTopActions = selectedPlaylistActionRows,
+            selectedPlaylistTracks = selectedPlaylistRows,
+            actions = emptyCollectionsActions(),
+            favoriteLabel = text(languageMode, "favorite"),
+            removeFavoriteLabel = text(languageMode, "remove.favorite"),
+            addToPlaylistLabel = text(languageMode, "add.to.playlist"),
+            renameLabel = text(languageMode, "rename"),
+            deleteLabel = text(languageMode, "delete"),
+            upLabel = text(languageMode, "up"),
+            downLabel = text(languageMode, "down"),
+            removeLabel = text(languageMode, "remove")
         )
         val actions = CollectionsActions(
             Runnable { listener.requestBack() },
@@ -256,7 +258,7 @@ internal class CollectionsRenderController(
             selectedPlaylistTrackActions
         )
         viewModel.updateScreen(state)
-        listener.publishCollectionsActions(actions)
+        viewModel.updateActions(actions)
     }
 
     private fun addCollectionAction(

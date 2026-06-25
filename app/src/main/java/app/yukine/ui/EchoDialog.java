@@ -144,7 +144,7 @@ public final class EchoDialog {
                 TextView messageView = new TextView(context);
                 messageView.setText(message);
                 messageView.setTextColor(muted);
-                messageView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+                messageView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
                 messageView.setLineSpacing(dp(2), 1f);
                 content.addView(messageView, new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));

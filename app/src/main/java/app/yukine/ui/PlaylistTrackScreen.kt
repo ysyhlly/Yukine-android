@@ -54,11 +54,11 @@ data class PlaylistTrackActions(
 )
 
 data class PlaylistTrackLabels(
-    val favoriteLabel: String = "Favorite",
-    val removeFavoriteLabel: String = "Remove favorite",
-    val moveUpLabel: String = "Move up",
-    val moveDownLabel: String = "Move down",
-    val removeLabel: String = "Remove"
+    val favoriteLabel: String = "\u6536\u85cf",
+    val removeFavoriteLabel: String = "\u53d6\u6d88\u6536\u85cf",
+    val moveUpLabel: String = "\u4e0a\u79fb",
+    val moveDownLabel: String = "\u4e0b\u79fb",
+    val removeLabel: String = "\u79fb\u9664"
 )
 
 @Composable

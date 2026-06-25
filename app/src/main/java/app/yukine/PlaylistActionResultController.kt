@@ -10,6 +10,51 @@ internal class PlaylistActionResultController(
     private val statusSink: PlaylistActionStatusSink,
     private val collectionsReloader: CollectionsReloader
 ) {
+    fun addToDefaultPlaylist(track: Track?) {
+        viewModel.addToDefaultPlaylist(track) { result ->
+            onDefaultPlaylistTrackAdded(result.playlistId, result.added)
+        }
+    }
+
+    fun createPlaylist(name: String) {
+        viewModel.createPlaylist(name) { playlistId ->
+            onPlaylistCreated(playlistId)
+        }
+    }
+
+    fun renamePlaylist(playlistId: Long, name: String) {
+        viewModel.renamePlaylist(playlistId, name) { renamed ->
+            onPlaylistRenamed(playlistId, renamed)
+        }
+    }
+
+    fun deletePlaylist(playlistId: Long, name: String) {
+        viewModel.deletePlaylist(playlistId, name) { deleted ->
+            onPlaylistDeleted(playlistId, name, deleted)
+        }
+    }
+
+    fun removeSelectedPlaylistTrack(playlistId: Long, track: Track?) {
+        viewModel.removeSelectedPlaylistTrack(playlistId, track) { removedTrack ->
+            onSelectedPlaylistTrackRemoved(playlistId, removedTrack)
+        }
+    }
+
+    fun moveSelectedPlaylistTrack(playlistId: Long, track: Track?, trackIndex: Int, direction: Int) {
+        if (track == null) {
+            return
+        }
+        viewModel.moveSelectedPlaylistTrack(playlistId, track, trackIndex, direction) { moved ->
+            onSelectedPlaylistTrackMoved(playlistId, track, direction, moved)
+        }
+    }
+
+    fun addTrackToPlaylist(playlistId: Long, trackId: Long) {
+        viewModel.addTrackToPlaylist(playlistId, trackId) { added ->
+            onTrackAddedToPlaylist(playlistId, added)
+        }
+    }
+
     fun onDefaultPlaylistTrackAdded(playlistId: Long, added: Boolean) {
         publishStatus(viewModel.defaultPlaylistAddPresentation(added, languageMode()).status)
         selectedPlaylistSink.setSelectedPlaylistId(playlistId)

@@ -18,6 +18,7 @@ internal class MainSettingsStore {
     private var playbackRestoreEnabled: Boolean = true
     private var replayGainEnabled: Boolean = true
     private var shareStyle: String = TrackShareStyle.defaultValue()
+    private var pageBackgrounds: PageBackgrounds = PageBackgrounds.empty()
 
     fun load(preferences: LoadedSettingsPreferences) {
         themeMode = preferences.themeMode
@@ -34,8 +35,27 @@ internal class MainSettingsStore {
         playbackRestoreEnabled = preferences.playbackRestoreEnabled
         replayGainEnabled = preferences.replayGainEnabled
         shareStyle = preferences.shareStyle
+        pageBackgrounds = preferences.pageBackgrounds
         EchoTheme.setMode(themeMode)
         EchoTheme.setAccent(accentMode)
+    }
+
+    fun sync(preferences: SettingsPreferencesSnapshot) {
+        themeMode = EchoTheme.normalizeMode(preferences.themeMode)
+        accentMode = EchoTheme.normalizeAccent(preferences.accentMode)
+        languageMode = AppLanguage.normalizeMode(preferences.languageMode)
+        playbackSpeed = preferences.playbackSpeed
+        appVolume = preferences.appVolume
+        streamingAudioQuality = StreamingQualityPreference.normalize(preferences.streamingAudioQuality)
+        concurrentPlaybackEnabled = preferences.concurrentPlaybackEnabled
+        audioEffectSettings = preferences.audioEffectSettings
+        statusBarLyricsEnabled = preferences.statusBarLyricsEnabled
+        floatingLyricsEnabled = preferences.floatingLyricsEnabled
+        nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled
+        playbackRestoreEnabled = preferences.playbackRestoreEnabled
+        replayGainEnabled = preferences.replayGainEnabled
+        shareStyle = TrackShareStyle.normalize(preferences.shareStyle)
+        pageBackgrounds = preferences.pageBackgrounds
     }
 
     fun themeMode(): String {
@@ -94,6 +114,10 @@ internal class MainSettingsStore {
         return shareStyle
     }
 
+    fun pageBackgrounds(): PageBackgrounds {
+        return pageBackgrounds
+    }
+
     fun setThemeMode(themeMode: String) {
         this.themeMode = EchoTheme.normalizeMode(themeMode)
     }
@@ -148,5 +172,9 @@ internal class MainSettingsStore {
 
     fun setShareStyle(style: String) {
         this.shareStyle = TrackShareStyle.normalize(style)
+    }
+
+    fun setPageBackgrounds(backgrounds: PageBackgrounds?) {
+        this.pageBackgrounds = backgrounds ?: PageBackgrounds.empty()
     }
 }

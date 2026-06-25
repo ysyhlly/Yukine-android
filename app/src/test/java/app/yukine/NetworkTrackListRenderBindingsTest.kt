@@ -25,9 +25,6 @@ class NetworkTrackListRenderBindingsTest {
             clearRemoteSourceAndNavigateAction = NetworkPageAction { calls += "clearNavigate:$it" },
             syncRemoteSourceAction = RemoteSourceIdAction { calls += "sync:$it" },
             playRemoteSourceTracksAction = RemoteSourceAction { calls += "source:${it.id}" },
-            playTrackListAction = TrackListPlaybackAction { nextTracks, index ->
-                calls += "play:${nextTracks.size}:$index"
-            },
             trackListRenderer = NetworkTrackListRenderer { request = it }
         )
 
@@ -35,7 +32,6 @@ class NetworkTrackListRenderBindingsTest {
         bindings.clearRemoteSourceAndNavigateNetworkPage(MainRoutes.NETWORK_SOURCES)
         bindings.syncRemoteSource(source.id)
         bindings.playRemoteSourceTracks(source)
-        bindings.playTrackList(tracks, 1)
         bindings.renderTrackList(
             title = "Songs",
             tracks = tracks,
@@ -53,8 +49,7 @@ class NetworkTrackListRenderBindingsTest {
                 "navigate:${MainRoutes.NETWORK_STREAMING}",
                 "clearNavigate:${MainRoutes.NETWORK_SOURCES}",
                 "sync:9",
-                "source:9",
-                "play:2:1"
+                "source:9"
             ),
             calls
         )

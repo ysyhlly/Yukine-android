@@ -20,8 +20,16 @@ internal fun interface PlaybackTrackAction {
     fun run(track: Track?)
 }
 
+internal fun interface SettingsSelectedTabProvider {
+    fun selectedTab(): String
+}
+
 internal fun interface PlaybackSnapshotAction {
     fun run(snapshot: PlaybackStateSnapshot)
+}
+
+internal fun interface ResolveCurrentStreamingTrackAction {
+    fun resolve(): Boolean
 }
 
 internal class PlaybackServiceQueueSourceBindings(
@@ -44,6 +52,7 @@ internal class PlaybackStateEventBindings(
     private val updateNowPlayingContentAction: Runnable,
     private val preResolveNextStreamingTrackAction: PlaybackSnapshotAction,
     private val recoverStreamingBufferingAction: PlaybackSnapshotAction,
+    private val resolveCurrentStreamingTrackAction: ResolveCurrentStreamingTrackAction,
     private val statusSink: SettingsStatusSink
 ) : PlaybackStateEventController.Listener {
     override fun selectedTab(): String {
@@ -88,6 +97,10 @@ internal class PlaybackStateEventBindings(
 
     override fun recoverStreamingBuffering(snapshot: PlaybackStateSnapshot) {
         recoverStreamingBufferingAction.run(snapshot)
+    }
+
+    override fun resolveCurrentStreamingTrackIfNeeded(): Boolean {
+        return resolveCurrentStreamingTrackAction.resolve()
     }
 
     override fun setStatus(status: String) {

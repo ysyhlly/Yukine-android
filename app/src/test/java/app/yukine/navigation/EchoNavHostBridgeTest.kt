@@ -14,6 +14,7 @@ import app.yukine.HomeDashboardViewModel
 import app.yukine.LibraryViewModel
 import app.yukine.MainActivityViewModel
 import app.yukine.NavigationViewModel
+import app.yukine.NetworkMenuViewModel
 import app.yukine.NetworkSourcesViewModel
 import app.yukine.NowPlayingViewModel
 import app.yukine.SettingsViewModel
@@ -21,8 +22,8 @@ import app.yukine.StreamingViewModel
 import app.yukine.queue.QueueViewModel
 import app.yukine.ui.CollectionsActions
 import app.yukine.ui.CollectionsUiState
+import app.yukine.ui.emptyCollectionsActions
 import app.yukine.ui.EchoTheme
-import app.yukine.ui.HomeDashboardActions
 import app.yukine.ui.HomeDashboardUiState
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -68,7 +69,8 @@ class EchoNavHostBridgeTest {
                     selectedPlaylistEmptyText = "",
                     selectedPlaylistEmptyDescription = "",
                     selectedPlaylistTopActions = emptyList(),
-                    selectedPlaylistTracks = emptyList()
+                    selectedPlaylistTracks = emptyList(),
+                    actions = emptyCollectionsActions()
                 )
             )
         }
@@ -80,28 +82,11 @@ class EchoNavHostBridgeTest {
             libraryViewModel = LibraryViewModel(),
             collectionsViewModel = collections,
             settingsViewModel = SettingsViewModel(),
+            networkMenuViewModel = NetworkMenuViewModel(),
             networkSourcesViewModel = NetworkSourcesViewModel(),
             streamingViewModel = StreamingViewModel(),
             playbackViewModel = app.yukine.PlaybackViewModel(),
-            visualMotionEnabled = false,
-            homeActions = HomeDashboardActions(
-                onOpenStat = emptyList(),
-                onContinue = Runnable {},
-                onOpenNowPlaying = Runnable {},
-                onPlayRecent = emptyList(),
-                onRefresh = Runnable {},
-                onViewQueue = Runnable {},
-                onShuffleAll = Runnable {},
-                onRecentTabChanged = {}
-            ),
-            collectionsActions = CollectionsActions(
-                onBack = null,
-                topActions = emptyList(),
-                trackSections = emptyList(),
-                playlistActions = emptyList(),
-                selectedPlaylistTopActions = emptyList(),
-                selectedPlaylistTrackActions = emptyList()
-            )
+            visualMotionEnabled = false
         )
     }
 

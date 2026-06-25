@@ -24,11 +24,9 @@ internal class PlaybackStartController(
 
         fun setStatus(status: String)
 
-        fun resolveAndPlayStreamingTrack(tracks: List<Track>?, index: Int): Boolean
+        fun playbackController(): PlaybackController
 
-        fun playTrackList(tracks: List<Track>?, index: Int): PlaybackActionResultUi?
-
-        fun applyPlaybackActionResult(result: PlaybackActionResultUi?)
+        fun openQueue()
     }
 
     fun playTrackList(tracks: List<Track>?, index: Int) {
@@ -36,8 +34,23 @@ internal class PlaybackStartController(
         playTrackListInternal(tracks, index)
     }
 
-    fun playHeartbeatRecommendationTrackList(tracks: List<Track>?, index: Int) {
-        playTrackListInternal(tracks, index)
+    fun playRecommendation(presentation: StreamingRecommendationPresentation) {
+        if (presentation.empty) {
+            listener.setStatus(presentation.emptyStatus)
+            return
+        }
+        listener.setStatus(presentation.readyStatus)
+        playTrackListInternal(presentation.tracks, 0)
+        listener.openQueue()
+    }
+
+    fun playHeartbeatRecommendation(presentation: StreamingRecommendationPresentation) {
+        if (presentation.empty) {
+            listener.setStatus(presentation.emptyStatus)
+            return
+        }
+        listener.setStatus(presentation.readyStatus)
+        playTrackListInternal(presentation.tracks, 0)
     }
 
     fun playPendingTracksIfNeeded() {
@@ -61,9 +74,6 @@ internal class PlaybackStartController(
             listener.setStatus(listener.resolvingStatus())
             return
         }
-        if (listener.resolveAndPlayStreamingTrack(tracks, index)) {
-            return
-        }
-        listener.applyPlaybackActionResult(listener.playTrackList(tracks, index))
+        listener.playbackController().playTrackList(tracks, index)
     }
 }

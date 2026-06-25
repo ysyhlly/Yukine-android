@@ -1,6 +1,5 @@
 package app.yukine
 
-import app.yukine.streaming.StreamingTrack
 import app.yukine.streaming.StreamingProviderName
 
 internal fun interface HeartbeatSeedRequestProvider {
@@ -11,8 +10,8 @@ internal fun interface HeartbeatQueueAppender {
     fun append(presentation: StreamingRecommendationPresentation)
 }
 
-internal fun interface HeartbeatTrackListPlayer {
-    fun play(streamingTracks: List<StreamingTrack>, emptyStatus: String, playingStatus: String)
+internal fun interface HeartbeatPresentationPlayer {
+    fun play(presentation: StreamingRecommendationPresentation)
 }
 
 internal fun interface HeartbeatSeedMissLogger {
@@ -24,7 +23,7 @@ internal class HeartbeatRecommendationBindings(
     private val seedRequestProvider: HeartbeatSeedRequestProvider,
     private val heartbeatRecommendationStopper: QueueNoArgAction,
     private val queueAppender: HeartbeatQueueAppender,
-    private val heartbeatTrackListPlayer: HeartbeatTrackListPlayer,
+    private val heartbeatPresentationPlayer: HeartbeatPresentationPlayer,
     private val seedMissLogger: HeartbeatSeedMissLogger,
     private val statusSink: QueueStatusSink
 ) : HeartbeatRecommendationController.Listener {
@@ -44,12 +43,8 @@ internal class HeartbeatRecommendationBindings(
         queueAppender.append(presentation)
     }
 
-    override fun playHeartbeatRecommendationTracks(
-        streamingTracks: List<StreamingTrack>,
-        emptyStatus: String,
-        playingStatus: String
-    ) {
-        heartbeatTrackListPlayer.play(streamingTracks, emptyStatus, playingStatus)
+    override fun playHeartbeatRecommendation(presentation: StreamingRecommendationPresentation) {
+        heartbeatPresentationPlayer.play(presentation)
     }
 
     override fun logSeedMiss(request: HeartbeatRecommendationSeedRequest) {

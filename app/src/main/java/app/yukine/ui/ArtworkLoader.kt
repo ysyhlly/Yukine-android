@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.annotation.SuppressLint
 import android.util.LruCache
 import android.util.TypedValue
 import androidx.annotation.DrawableRes
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,15 +32,20 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.yukine.data.EmbeddedArtwork
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParser
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 
 object ArtworkLoader {
     private const val BYTES_PER_KIB = 1024
@@ -59,6 +66,16 @@ object ArtworkLoader {
         cache.get(key)?.let { return it }
         return withContext(Dispatchers.IO) {
             decodeSampledBitmap(context, albumArtUri, safeTargetPx)?.also { bitmap ->
+                cache.put(key, bitmap)
+            }
+        }
+    }
+
+    suspend fun loadOriginal(context: Context, albumArtUri: Uri): Bitmap? {
+        val key = albumArtUri.toString() + "#original"
+        cache.get(key)?.let { return it }
+        return withContext(Dispatchers.IO) {
+            decodeOriginalBitmap(context, albumArtUri)?.also { bitmap ->
                 cache.put(key, bitmap)
             }
         }
@@ -101,6 +118,16 @@ object ArtworkLoader {
         return runCatching {
             openArtworkStream(context, uri)?.use { input ->
                 BitmapFactory.decodeStream(input, null, options)
+            }
+        }.getOrNull()
+    }
+
+    private fun decodeOriginalBitmap(context: Context, uri: Uri): Bitmap? {
+        return runCatching {
+            openArtworkStream(context, uri)?.use { input ->
+                BitmapFactory.decodeStream(input, null, BitmapFactory.Options().apply {
+                    inPreferredConfig = Bitmap.Config.ARGB_8888
+                })
             }
         }.getOrNull()
     }
@@ -159,9 +186,8 @@ object ArtworkLoader {
 
     private fun sampleSize(width: Int, height: Int, targetPx: Int): Int {
         var sample = 1
-        var halfWidth = width / 2
-        var halfHeight = height / 2
-        while (halfWidth / sample >= targetPx && halfHeight / sample >= targetPx) {
+        var maxEdge = maxOf(width, height)
+        while (maxEdge / sample > targetPx) {
             sample *= 2
         }
         return sample.coerceAtLeast(1)
@@ -234,7 +260,7 @@ fun AsyncArtwork(
                     contentScale = ContentScale.Crop
                 )
             } else if (uri == null) {
-                EchoArtworkFallback(title, subtitle, Modifier.fillMaxSize(), cornerRadius, fallbackTextSize)
+                InlineArtworkFallback(title, subtitle, Modifier.fillMaxSize(), cornerRadius, fallbackTextSize)
             } else if (fallbackPainter != null) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Image(
@@ -249,6 +275,67 @@ fun AsyncArtwork(
     }
 }
 
+@Composable
+private fun InlineArtworkFallback(
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    cornerRadius: Dp = 8.dp,
+    textSize: TextUnit = 22.sp
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(cornerRadius))
+            .background(inlineFallbackColor(title, subtitle)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = inlineFallbackInitials(title, subtitle),
+            color = Color.White,
+            fontSize = textSize,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Clip
+        )
+    }
+}
+
+private fun inlineFallbackColor(title: String, subtitle: String): Color {
+    val seed = inlineFallbackSeed(title, subtitle)
+    val colors = listOf(
+        Color(0xFF246BFE),
+        Color(0xFF087D70),
+        Color(0xFFD2386C),
+        Color(0xFF6D4AFF),
+        Color(0xFF138A4F),
+        Color(0xFF047C9C),
+        Color(0xFF5F7500),
+        Color(0xFF596273)
+    )
+    return colors[(seed.hashCode() and Int.MAX_VALUE) % colors.size]
+}
+
+private fun inlineFallbackInitials(title: String, subtitle: String): String {
+    val seed = inlineFallbackSeed(title, subtitle)
+    val clean = seed.filter { it.isLetterOrDigit() }.take(2)
+    return if (clean.isEmpty()) {
+        "E"
+    } else {
+        clean.uppercase(Locale.ROOT)
+    }
+}
+
+private fun inlineFallbackSeed(title: String, subtitle: String): String {
+    val cleanTitle = title.trim()
+    if (cleanTitle.isNotEmpty() && cleanTitle != "未选择歌曲") {
+        return cleanTitle
+    }
+    val cleanSubtitle = subtitle.trim()
+    return if (cleanSubtitle.isEmpty()) "Yukine" else cleanSubtitle
+}
+
+@SuppressLint("ResourceType")
 private fun isPainterResourceCompatible(context: Context, @DrawableRes resId: Int): Boolean {
     val value = TypedValue()
     return runCatching {

@@ -134,6 +134,19 @@ class MainRouteControllerTest {
     }
 
     @Test
+    fun backNavigationUsesTypedSettingsPageState() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_SETTINGS,
+            settingsPage = MainRoutes.SETTINGS_STREAMING_GATEWAY
+        )
+
+        val result = controller.applyBackNavigation()
+
+        assertEquals(true, result.handled)
+        assertEquals(MainRoutes.SETTINGS_SOURCES_GROUP, controller.current().settingsPage)
+    }
+
+    @Test
     fun backNavigationReturnsStreamingHubToNetworkHome() {
         val controller = controllerWith(
             selectedTab = MainRoutes.TAB_NETWORK,

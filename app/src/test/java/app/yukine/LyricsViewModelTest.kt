@@ -49,7 +49,7 @@ class LyricsViewModelTest {
         val operations = FakeLyricsLoader().apply {
             result = listOf(LyricsLine(1000L, "hello"), LyricsLine(2000L, "world"))
         }
-        val viewModel = LyricsViewModel()
+        val viewModel = LyricsViewModel(dispatcher)
         val notifications = mutableListOf<LyricsStatusKind>()
         viewModel.configure(operations, onlineEnabled = true, offsetMs = 100L)
         viewModel.bindListener { notifications += viewModel.state.value.statusKind }
@@ -68,7 +68,7 @@ class LyricsViewModelTest {
 
     @Test
     fun loadUsesLocalNotFoundWhenOfflineResultIsEmpty() = runTest {
-        val viewModel = LyricsViewModel()
+        val viewModel = LyricsViewModel(dispatcher)
         viewModel.configure(FakeLyricsLoader(), onlineEnabled = false, offsetMs = 0L)
 
         viewModel.load(track(9L), "").join()
@@ -80,7 +80,7 @@ class LyricsViewModelTest {
     @Test
     fun missingTrackPublishesNoTrackWithoutLoading() = runTest {
         val operations = FakeLyricsLoader()
-        val viewModel = LyricsViewModel()
+        val viewModel = LyricsViewModel(dispatcher)
         viewModel.configure(operations, onlineEnabled = true, offsetMs = 0L)
 
         viewModel.load(null, "123").join()
@@ -88,6 +88,46 @@ class LyricsViewModelTest {
         assertEquals(-1L, viewModel.trackId())
         assertEquals(LyricsStatusKind.NO_TRACK, viewModel.state.value.statusKind)
         assertTrue(operations.events.isEmpty())
+    }
+
+    @Test
+    fun reloadCurrentLyricsLoadsBoundCurrentTrackAndPublishesReloadingStatus() = runTest {
+        val operations = FakeLyricsLoader().apply {
+            result = listOf(LyricsLine(1000L, "hello"))
+        }
+        val viewModel = LyricsViewModel(dispatcher)
+        val statuses = mutableListOf<String>()
+        viewModel.configure(operations, onlineEnabled = true, offsetMs = 0L)
+        viewModel.bindReloadGateway(
+            CurrentLyricsTrackProvider { track(11L) },
+            LyricsProviderTrackIdResolver { nextTrack -> "provider:${nextTrack?.id}" },
+            LyricsReloadStatusSink { statuses += it }
+        )
+
+        viewModel.reloadCurrentLyrics(AppLanguage.MODE_ENGLISH).join()
+
+        assertEquals(listOf("load:11:true:provider:11"), operations.events)
+        assertEquals(listOf(AppLanguage.text(AppLanguage.MODE_ENGLISH, "reloading.lyrics")), statuses)
+        assertEquals(LyricsStatusKind.LOADED, viewModel.state.value.statusKind)
+    }
+
+    @Test
+    fun reloadCurrentLyricsPublishesNoTrackStatusWhenCurrentTrackIsMissing() = runTest {
+        val operations = FakeLyricsLoader()
+        val viewModel = LyricsViewModel(dispatcher)
+        val statuses = mutableListOf<String>()
+        viewModel.configure(operations, onlineEnabled = true, offsetMs = 0L)
+        viewModel.bindReloadGateway(
+            CurrentLyricsTrackProvider { null },
+            LyricsProviderTrackIdResolver { nextTrack -> "provider:${nextTrack?.id}" },
+            LyricsReloadStatusSink { statuses += it }
+        )
+
+        viewModel.reloadCurrentLyrics(AppLanguage.MODE_ENGLISH).join()
+
+        assertTrue(operations.events.isEmpty())
+        assertEquals(listOf(AppLanguage.text(AppLanguage.MODE_ENGLISH, "no.track.selected")), statuses)
+        assertEquals(LyricsStatusKind.NO_TRACK, viewModel.state.value.statusKind)
     }
 
     private class FakeLyricsLoader : LyricsLoader {

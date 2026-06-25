@@ -3,6 +3,7 @@ package app.yukine
 import app.yukine.playback.PlaybackStateSnapshot
 import android.net.Uri
 import app.yukine.model.Track
+import app.yukine.emptyHomeDashboardActions
 import org.junit.Assert.assertEquals
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertTrue
@@ -59,5 +60,19 @@ class HomeDashboardViewModelTest {
         assertEquals("Snowlight", content.continueTitle)
         assertEquals("Now playing", content.continueDetail)
         assertEquals(0.25f, content.continueProgress, 0.0001f)
+    }
+
+    @Test
+    fun updateHomeDashboardActionsKeepsActionsWithDashboardState() {
+        val viewModel = HomeDashboardViewModel(null)
+        var opened = false
+        val actions = emptyHomeDashboardActions().copy(
+            onOpenNowPlaying = Runnable { opened = true }
+        )
+
+        viewModel.updateHomeDashboardActions(actions)
+        viewModel.uiState.value.actions.onOpenNowPlaying.run()
+
+        assertTrue(opened)
     }
 }

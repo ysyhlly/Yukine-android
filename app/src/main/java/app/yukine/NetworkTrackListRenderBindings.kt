@@ -39,7 +39,6 @@ internal class NetworkTrackListRenderBindings(
     private val clearRemoteSourceAndNavigateAction: NetworkPageAction,
     private val syncRemoteSourceAction: RemoteSourceIdAction,
     private val playRemoteSourceTracksAction: RemoteSourceAction,
-    private val playTrackListAction: TrackListPlaybackAction,
     private val trackListRenderer: NetworkTrackListRenderer
 ) : NetworkTrackListRenderController.Listener {
     override fun navigateNetworkPage(page: String) {
@@ -56,10 +55,6 @@ internal class NetworkTrackListRenderBindings(
 
     override fun playRemoteSourceTracks(source: RemoteSource) {
         playRemoteSourceTracksAction.run(source)
-    }
-
-    override fun playTrackList(tracks: List<Track>, index: Int) {
-        playTrackListAction.play(tracks, index)
     }
 
     override fun renderTrackList(

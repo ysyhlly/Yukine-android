@@ -26,6 +26,7 @@ public class PlaybackStreamingDiagnosticsTest {
         diagnostics.recordRecovery(track, 1200L, "high");
         diagnostics.recordPrecacheQueued(track);
         diagnostics.recordPrecacheComplete(track, 131072L);
+        diagnostics.recordPrecacheSegmentComplete(track, 524288L, 262144L);
 
         PlaybackStreamingDiagnostics.Snapshot snapshot = diagnostics.snapshot();
         assertEquals(1, snapshot.bufferingEvents);
@@ -33,8 +34,11 @@ public class PlaybackStreamingDiagnosticsTest {
         assertEquals(1, snapshot.precacheAttempts);
         assertEquals(1, snapshot.precacheSuccesses);
         assertEquals(0, snapshot.precacheFailures);
-        assertEquals(4, snapshot.recentEvents.size());
-        assertEquals("precache_complete", snapshot.recentEvents.get(0).type);
-        assertEquals("buffering", snapshot.recentEvents.get(3).type);
+        assertEquals(1, snapshot.precacheSegmentSuccesses);
+        assertEquals(0, snapshot.precacheSegmentFailures);
+        assertEquals(5, snapshot.recentEvents.size());
+        assertEquals("precache_segment_complete", snapshot.recentEvents.get(0).type);
+        assertEquals(524288L, snapshot.recentEvents.get(0).positionMs);
+        assertEquals("buffering", snapshot.recentEvents.get(4).type);
     }
 }

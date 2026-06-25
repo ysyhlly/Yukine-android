@@ -30,8 +30,12 @@ class HomeDashboardRenderBindingsTest {
             allTracksProvider = TrackListProvider { listOf(first, second) },
             openStreamingAction = Runnable { calls += "streaming" },
             openCollectionsAction = Runnable { calls += "collections" },
-            dailyRecommendationsAction = StreamingRecommendationAction { calls += "daily:$it" },
-            heartbeatRecommendationsAction = StreamingRecommendationAction { calls += "heartbeat:$it" },
+            recommendationActionRunner = RecommendationActionRunner { action ->
+                calls += when (action) {
+                    is RecommendationAction.PlayDaily -> "daily:${action.provider}"
+                    is RecommendationAction.PlayHeartbeat -> "heartbeat:${action.provider}"
+                }
+            },
             actionsSink = HomeDashboardActionsSink { publishedActions = it }
         )
 
@@ -82,8 +86,7 @@ class HomeDashboardRenderBindingsTest {
             allTracksProvider = TrackListProvider { emptyList() },
             openStreamingAction = Runnable { calls += "streaming" },
             openCollectionsAction = Runnable { calls += "collections" },
-            dailyRecommendationsAction = StreamingRecommendationAction { calls += "daily" },
-            heartbeatRecommendationsAction = StreamingRecommendationAction { calls += "heartbeat" },
+            recommendationActionRunner = RecommendationActionRunner { calls += "recommend" },
             actionsSink = HomeDashboardActionsSink { calls += "actions" }
         )
 

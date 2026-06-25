@@ -64,6 +64,10 @@ class PlaybackStateEventBindingsTest {
                 recoveredSnapshot = it
                 calls += "recover"
             },
+            resolveCurrentStreamingTrackAction = ResolveCurrentStreamingTrackAction {
+                calls += "resolveCurrent"
+                true
+            },
             statusSink = SettingsStatusSink { calls += "status:$it" }
         )
 

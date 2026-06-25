@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import app.yukine.TrackDownloadStatus
 import app.yukine.TrackDownloadItem
+import app.yukine.NowPlayingEvent
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.layout.Box
@@ -30,11 +31,15 @@ import app.yukine.now.NowPlayingDestination
 import app.yukine.queue.QueueDestination
 import app.yukine.queue.QueueViewModel
 import app.yukine.search.SearchDestination
+import app.yukine.SearchViewModel
 import app.yukine.settings.SettingsDestination
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.delay
 import kotlin.math.max
+
+private val EmptyRealtimeBands = FloatArray(0)
+private const val RealtimeVisualPollMs = 33L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,6 +48,10 @@ fun EchoNavGraph(
     queueViewModel: QueueViewModel,
     onTabChanged: (TabRoute) -> Unit = {},
     hostState: EchoNavHostState,
+    searchViewModel: SearchViewModel = SearchViewModel(),
+    openDownloadDirectoryPickerAction: Runnable = Runnable { },
+    closeNowPlayingAction: Runnable = Runnable { },
+    nowPlayingEventHandler: (NowPlayingEvent) -> Unit = { hostState.nowPlayingViewModel.onEvent(it) },
     nowBar: (@Composable () -> Unit)? = null,
     topBar: @Composable () -> Unit = {}
 ) {
@@ -52,18 +61,30 @@ fun EchoNavGraph(
         mutableStateOf(0f)
     }
     var realtimeBands by remember(hostState) {
-        mutableStateOf(FloatArray(0))
+        mutableStateOf(EmptyRealtimeBands)
     }
-    LaunchedEffect(hostState, hostState.visualMotionEnabled) {
-        if (!hostState.visualMotionEnabled) {
-            realtimeBeat = 0f
-            realtimeBands = FloatArray(0)
+    val realtimeVisualsActive = hostState.visualMotionEnabled && playbackState.snapshot.playing
+    LaunchedEffect(hostState, realtimeVisualsActive) {
+        if (!realtimeVisualsActive) {
+            if (realtimeBeat != 0f) {
+                realtimeBeat = 0f
+            }
+            if (!realtimeBands.contentEquals(EmptyRealtimeBands)) {
+                realtimeBands = EmptyRealtimeBands
+            }
             return@LaunchedEffect
         }
         while (true) {
             withFrameNanos { }
-            realtimeBeat = hostState.realtimeBeatProvider().coerceIn(0f, 1f)
-            realtimeBands = hostState.realtimeBandsProvider()
+            val nextBeat = hostState.realtimeBeatProvider().coerceIn(0f, 1f)
+            val nextBands = hostState.realtimeBandsProvider()
+            if (realtimeBeat != nextBeat) {
+                realtimeBeat = nextBeat
+            }
+            if (!realtimeBands.contentEquals(nextBands)) {
+                realtimeBands = if (nextBands.isEmpty()) EmptyRealtimeBands else nextBands
+            }
+            delay(RealtimeVisualPollMs)
         }
     }
     val audioMotion = YukineOrbAudioMotion(
@@ -79,6 +100,7 @@ fun EchoNavGraph(
         realtimeBands = realtimeBands,
         visualMotionEnabled = hostState.visualMotionEnabled
     )
+    val settingsState by hostState.settingsViewModel.state.collectAsState()
     var activeDownload by remember(hostState.trackDownloadManager) {
         mutableStateOf<TrackDownloadItem?>(null)
     }
@@ -95,6 +117,8 @@ fun EchoNavGraph(
     val selectedPagerIndex = pagerTabs.indexOf(selectedTab)
     val selectedIndex = selectedPagerIndex.coerceAtLeast(0)
     val selectedInPager = selectedPagerIndex >= 0
+    val openSearchAction = remember(hostState) { Runnable { onTabChanged(SearchTab) } }
+    var openNowPlayingImmersive by remember { mutableStateOf(false) }
 
     val pagerState = rememberPagerState(initialPage = selectedIndex) { pagerTabs.size }
 
@@ -102,7 +126,7 @@ fun EchoNavGraph(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(selectedInPager, selectedIndex) {
-        if (!selectedInPager) {
+    if (!selectedInPager) {
             return@LaunchedEffect
         }
         if (pagerState.currentPage != selectedIndex) {
@@ -124,10 +148,10 @@ fun EchoNavGraph(
     }
 
     val persistentNowBar: @Composable () -> Unit = nowBar ?: {
-        EchoNowBar(
+            EchoNowBar(
             viewModel = hostState.nowPlayingViewModel,
             onOpenNowPlaying = {
-                hostState.openNowPlayingImmersive = true
+                openNowPlayingImmersive = true
                 hostState.selectedTabRoute = QueueTab.route
                 onTabChanged(QueueTab)
             },
@@ -143,7 +167,9 @@ fun EchoNavGraph(
             onTabChanged(tab)
         },
         nowBar = persistentNowBar,
-        topBar = topBar
+        topBar = topBar,
+        backgroundUri = settingsState.preferences.pageBackgrounds.uriFor(backgroundPageForTab(selectedTab)),
+        backgroundTransform = settingsState.preferences.pageBackgrounds.transformFor(backgroundPageForTab(selectedTab))
     ) { contentModifier ->
         if (!selectedInPager) {
             // Routes that live outside the 4-tab pager (Collections / Network / Now),
@@ -151,36 +177,32 @@ fun EchoNavGraph(
             // directly so navigating to them never leaves the pager showing a stale page.
             Box(modifier = contentModifier) {
                 when (selectedTab) {
-                    CollectionsTab -> CollectionsDestination(
-                        hostState.collectionsViewModel,
-                        hostState.collectionsActions
-                    )
+                    CollectionsTab -> CollectionsDestination(hostState.collectionsViewModel)
                     NetworkTab -> NetworkDestination(hostState)
                     DownloadsTab -> DownloadsDestination(
                         hostState.downloadsViewModel,
                         hostState.trackDownloadManager,
-                        hostState.openDownloadDirectoryPickerAction
+                        openDownloadDirectoryPickerAction
                     )
                     SearchTab -> SearchDestination(
-                        hostState.searchViewModel,
+                        searchViewModel,
                         hostState.streamingViewModel,
-                        hostState.searchActions,
                         activeDownload,
                         playbackQuality,
                         audioMotion
                     )
                     NowTab -> NowPlayingDestination(
                         hostState.nowPlayingViewModel,
-                        defaultImmersive = hostState.openNowPlayingImmersive,
-                        onDefaultImmersiveConsumed = { hostState.openNowPlayingImmersive = false },
-                        gesturesEnabled = hostState.nowPlayingGesturesEnabled,
-                        onAppVolumeChanged = { volume -> hostState.settingsViewModel.applyAppVolume(volume) },
-                        onEvent = hostState.nowPlayingEventHandler,
+                        defaultImmersive = openNowPlayingImmersive,
+                        onDefaultImmersiveConsumed = { openNowPlayingImmersive = false },
+                        gesturesEnabled = settingsState.preferences.nowPlayingGesturesEnabled,
+                        onClose = closeNowPlayingAction,
+                        onEvent = nowPlayingEventHandler,
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion
                     )
-                    else -> HomeDestination(hostState.homeDashboardViewModel.uiState, hostState.homeActions, activeDownload, playbackQuality, audioMotion)
+                    else -> HomeDestination(hostState.homeDashboardViewModel.uiState, activeDownload, playbackQuality, audioMotion)
                 }
             }
         } else {
@@ -191,28 +213,27 @@ fun EchoNavGraph(
             ) { page ->
                 val tab = pagerTabs[page]
                 when (tab) {
-                    HomeTab -> HomeDestination(hostState.homeDashboardViewModel.uiState, hostState.homeActions, activeDownload, playbackQuality, audioMotion)
-                    LibraryTab -> LibraryDestination(hostState, activeDownload, playbackQuality, audioMotion)
+                    HomeTab -> HomeDestination(hostState.homeDashboardViewModel.uiState, activeDownload, playbackQuality, audioMotion)
+                    LibraryTab -> LibraryDestination(hostState, openSearchAction, activeDownload, playbackQuality, audioMotion)
                     QueueTab -> NowPlayingDestination(
                         hostState.nowPlayingViewModel,
-                        defaultImmersive = hostState.openNowPlayingImmersive,
-                        onDefaultImmersiveConsumed = { hostState.openNowPlayingImmersive = false },
-                        gesturesEnabled = hostState.nowPlayingGesturesEnabled,
-                        onAppVolumeChanged = { volume -> hostState.settingsViewModel.applyAppVolume(volume) },
-                        onEvent = hostState.nowPlayingEventHandler,
+                        defaultImmersive = openNowPlayingImmersive,
+                        onDefaultImmersiveConsumed = { openNowPlayingImmersive = false },
+                        gesturesEnabled = settingsState.preferences.nowPlayingGesturesEnabled,
+                        onClose = closeNowPlayingAction,
+                        onEvent = nowPlayingEventHandler,
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion
                     )
                     SettingsTab -> SettingsDestination(
-                        state = hostState.settingsViewModel.uiState,
-                        actions = hostState.settingsActions,
-                        scrollState = hostState.settingsScrollState,
+                        state = hostState.settingsViewModel.state,
+                        scrollState = hostState.settingsViewModel.scrollState,
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion
                     )
-                    else -> HomeDestination(hostState.homeDashboardViewModel.uiState, hostState.homeActions, activeDownload, playbackQuality, audioMotion)
+                    else -> HomeDestination(hostState.homeDashboardViewModel.uiState, activeDownload, playbackQuality, audioMotion)
                 }
             }
         }
@@ -236,6 +257,7 @@ fun EchoNavGraph(
 @Composable
 private fun LibraryDestination(
     hostState: EchoNavHostState,
+    openSearchAction: Runnable,
     activeDownload: TrackDownloadItem?,
     playbackQuality: String,
     audioMotion: YukineOrbAudioMotion
@@ -246,10 +268,7 @@ private fun LibraryDestination(
     if (renderGroups) {
         LibraryGroupsDestination(
             state = hostState.libraryViewModel.libraryGroups,
-            actions = hostState.libraryGroupActions,
-            emptyText = hostState.libraryGroupEmptyText,
-            modeActions = hostState.libraryGroupModeActions,
-            onSearch = hostState.openSearchAction,
+            onSearch = openSearchAction,
             activeDownload = activeDownload,
             playbackQuality = playbackQuality,
             audioMotion = audioMotion
@@ -258,13 +277,7 @@ private fun LibraryDestination(
     }
     LibraryTrackListDestination(
         state = hostState.libraryViewModel.trackList,
-        actions = hostState.trackListActions,
-        headerMetrics = hostState.trackListHeaderMetrics,
-        headerActions = hostState.trackListHeaderActions,
-        emptyText = hostState.trackListEmptyText,
-        modeActions = hostState.trackListModeActions,
-        labels = hostState.trackListLabels,
-        onSearch = hostState.openSearchAction,
+        onSearch = openSearchAction,
         activeDownload = activeDownload,
         playbackQuality = playbackQuality,
         audioMotion = audioMotion
@@ -288,4 +301,12 @@ private fun qualityFromDataPath(dataPath: String): String {
         dataPath.indexOf('#', valueStart)
     ).filter { it >= 0 }.minOrNull() ?: dataPath.length
     return dataPath.substring(valueStart, valueEnd).trim().lowercase()
+}
+
+private fun backgroundPageForTab(tab: TabRoute): String = when (tab) {
+    HomeTab -> app.yukine.PageBackgrounds.PAGE_HOME
+    LibraryTab -> app.yukine.PageBackgrounds.PAGE_LIBRARY
+    QueueTab, NowTab -> app.yukine.PageBackgrounds.PAGE_PLAYER
+    SettingsTab -> app.yukine.PageBackgrounds.PAGE_SETTINGS
+    else -> ""
 }

@@ -73,6 +73,16 @@ class LibraryPlaylistActionGatewayBindingsTest {
         )
     }
 
+    @Test
+    fun deletePlaylistCanTriggerSyncCleanupThroughOperations() {
+        val operations = FakePlaylistActionOperations(deleteResult = true)
+        val gateway = LibraryPlaylistActionGatewayBindings(operations)
+
+        assertTrue(gateway.deletePlaylist(11L))
+
+        assertEquals(listOf("delete:11"), operations.events)
+    }
+
     private class FakePlaylistActionOperations(
         private val defaultPlaylistId: Long = -1L,
         private val createdPlaylistId: Long = -1L,

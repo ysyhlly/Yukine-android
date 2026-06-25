@@ -683,10 +683,10 @@ class LocalNeteaseStreamingClient(
         return StreamingTrack(
             provider = StreamingProviderName.NETEASE,
             providerTrackId = providerTrackId,
-            title = value.optionalStringLocal("name") ?: value.optionalStringLocal("title") ?: "",
-            artist = artistText,
+            title = cleanDisplayText(value.optionalStringLocal("name") ?: value.optionalStringLocal("title") ?: "").orEmpty(),
+            artist = cleanDisplayText(artistText).orEmpty(),
             artists = artists,
-            album = album.optionalStringLocal("name") ?: value.optionalStringLocal("album"),
+            album = cleanDisplayText(album.optionalStringLocal("name") ?: value.optionalStringLocal("album")),
             albumId = idText(album.opt("id")),
             durationMs = value.optionalLongLocal("dt") ?: value.optionalLongLocal("duration"),
             coverUrl = cover,
@@ -864,6 +864,19 @@ class LocalNeteaseStreamingClient(
 
     private fun JSONObject.optionalStringLocal(name: String): String? {
         return if (has(name) && !isNull(name)) optString(name).trim().takeIf { it.isNotBlank() } else null
+    }
+
+    private fun cleanDisplayText(value: String?): String? {
+        return value
+            ?.replace(Regex("<[^>]+>"), " ")
+            ?.replace("&amp;", "&")
+            ?.replace("&lt;", "<")
+            ?.replace("&gt;", ">")
+            ?.replace("&quot;", "\"")
+            ?.replace("&#39;", "'")
+            ?.replace(Regex("\\s+"), " ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
     }
 
     private fun JSONObject.optionalIntLocal(name: String): Int? {

@@ -46,18 +46,6 @@ internal class NetworkRenderCoordinator(
     }
 
     private fun renderStreamList(languageMode: String, searchQuery: String) {
-        if (libraryStore.hasRecommendationStreamList()) {
-            val allRecommendations = libraryStore.recommendationStreamTracks()
-            val recommendations = libraryStore.filteredTracks(allRecommendations, searchQuery)
-            trackListRenderer.renderRecommendationStreamList(
-                languageMode,
-                libraryStore.recommendationStreamTitle(),
-                allRecommendations,
-                recommendations,
-                ArrayList()
-            )
-            return
-        }
         val allStreams = libraryStore.streamTracks()
         val streams = libraryStore.filteredTracks(allStreams, searchQuery)
         trackListRenderer.renderStreamList(
