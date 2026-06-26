@@ -6,6 +6,10 @@ internal fun interface SettingsStatusSink {
     fun set(message: String)
 }
 
+internal fun interface SettingsSelectedTabProvider {
+    fun selectedTab(): String
+}
+
 internal interface SettingsPlaybackServiceControls {
     fun setPlaybackSpeed(speed: Float)
 

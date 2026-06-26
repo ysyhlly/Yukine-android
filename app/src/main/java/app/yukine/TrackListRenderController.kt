@@ -11,6 +11,15 @@ import app.yukine.ui.TrackRowActions
 import app.yukine.ui.TrackRowUiState
 import java.util.ArrayList
 
+internal data class TrackListChromeState(
+    val actions: List<TrackRowActions>,
+    val headerMetrics: List<TrackListHeaderMetric>,
+    val headerActions: List<TrackListHeaderAction>,
+    val emptyText: String,
+    val modeActions: List<TrackListModeAction>,
+    val labels: TrackListLabels
+)
+
 internal class TrackListRenderController(
     private val viewModel: LibraryViewModel,
     private val listener: Listener

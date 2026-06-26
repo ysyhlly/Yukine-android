@@ -36,7 +36,7 @@ class PlayHistoryActionControllerTest {
             languageModeProvider = PlayHistoryLanguageModeProvider { AppLanguage.MODE_ENGLISH },
             libraryStateStore = PlayHistoryStateStore { activityViewModel.clearPlayHistory() },
             statusSink = PlayHistoryStatusSink { statuses += it },
-            collectionsReloader = CollectionsReloader { reloads += 1 }
+            collectionsReloadAction = Runnable { reloads += 1 }
         )
 
         activityViewModel.applyCollections(

@@ -5,14 +5,14 @@ internal class PlayHistoryActionController(
     private val languageModeProvider: PlayHistoryLanguageModeProvider,
     private val libraryStateStore: PlayHistoryStateStore,
     private val statusSink: PlayHistoryStatusSink,
-    private val collectionsReloader: CollectionsReloader
+    private val collectionsReloadAction: Runnable
 ) {
     fun clearPlayHistory() {
         statusSink.setStatus(text("clearing.play.history"))
         viewModel.clearPlayHistory { removed ->
             libraryStateStore.clearPlayHistory()
             statusSink.setStatus(text("cleared.play.history.prefix") + removed)
-            collectionsReloader.reload()
+            collectionsReloadAction.run()
         }
     }
 

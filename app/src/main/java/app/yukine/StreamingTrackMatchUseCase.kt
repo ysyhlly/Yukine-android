@@ -26,8 +26,12 @@ internal class MusicLibraryStreamingTrackMatchOperations(
 
 internal class StreamingTrackMatchUseCase(
     private val operations: StreamingTrackMatchOperations
-) {
-    fun directProviderTrackId(track: Track?, provider: StreamingProviderName?): String {
+) : StreamingTrackMatchStore {
+    override fun directProviderTrackId(track: Track, provider: StreamingProviderName): String {
+        return directProviderTrackIdOrEmpty(track, provider)
+    }
+
+    private fun directProviderTrackIdOrEmpty(track: Track?, provider: StreamingProviderName?): String {
         if (track == null || provider == null) {
             return ""
         }
@@ -54,7 +58,7 @@ internal class StreamingTrackMatchUseCase(
         candidates.add(track!!)
     }
 
-    fun providerTrackIdFromCandidates(
+    override fun providerTrackIdFromCandidates(
         candidates: List<Track?>?,
         provider: StreamingProviderName?
     ): String {
@@ -64,12 +68,12 @@ internal class StreamingTrackMatchUseCase(
         return candidates
             .orEmpty()
             .firstNotNullOfOrNull { track ->
-                directProviderTrackId(track, provider).takeIf { it.isNotEmpty() }
+                directProviderTrackIdOrEmpty(track, provider).takeIf { it.isNotEmpty() }
             }
             .orEmpty()
     }
 
-    fun heartbeatSeedCandidates(
+    override fun heartbeatSeedCandidates(
         serviceSnapshot: PlaybackStateSnapshot?,
         serviceQueue: List<Track?>?,
         storeSnapshot: PlaybackStateSnapshot?,
@@ -86,7 +90,7 @@ internal class StreamingTrackMatchUseCase(
         return candidates
     }
 
-    fun snapshotQueueForHeartbeat(
+    override fun snapshotQueueForHeartbeat(
         serviceQueue: List<Track?>?,
         viewModelQueue: List<Track?>?,
         storeSnapshot: PlaybackStateSnapshot?
@@ -99,7 +103,7 @@ internal class StreamingTrackMatchUseCase(
         return queue
     }
 
-    fun heartbeatSeedMissMessage(
+    override fun heartbeatSeedMissMessage(
         provider: StreamingProviderName?,
         snapshot: PlaybackStateSnapshot?,
         storeSnapshot: PlaybackStateSnapshot?,
@@ -135,22 +139,16 @@ internal class StreamingTrackMatchUseCase(
         return builder.toString()
     }
 
-    fun providerTrackIdFor(track: Track?, provider: StreamingProviderName?): String {
-        val directTrackId = directProviderTrackId(track, provider)
+    override fun providerTrackIdFor(track: Track, provider: StreamingProviderName): String {
+        val directTrackId = directProviderTrackIdOrEmpty(track, provider)
         if (directTrackId.isNotEmpty()) {
             return directTrackId
-        }
-        if (track == null || provider == null) {
-            return ""
         }
         return operations.loadStreamingTrackMatch(track, provider.wireName).trim()
     }
 
-    fun saveProviderTrackId(track: Track?, provider: StreamingProviderName?, providerTrackId: String?) {
-        if (track == null || provider == null) {
-            return
-        }
-        val cleanTrackId = providerTrackId?.trim().orEmpty()
+    override fun saveProviderTrackId(track: Track, provider: StreamingProviderName, providerTrackId: String) {
+        val cleanTrackId = providerTrackId.trim()
         if (cleanTrackId.isEmpty()) {
             return
         }

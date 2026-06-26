@@ -23,10 +23,6 @@ internal interface StreamingSearchActionHandler {
     fun loadNextPage()
 }
 
-internal interface StreamingAuthCallbackHandler {
-    fun handleAuthCallback(callbackUri: String?, cookieHeader: String?): Boolean
-}
-
 interface MainActivityStreamingActionGateway {
     fun streamingPlaybackQuality(): StreamingAudioQuality
 

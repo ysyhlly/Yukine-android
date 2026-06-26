@@ -7,10 +7,30 @@ import kotlin.random.Random
 
 private const val HEARTBEAT_SEED_SAMPLE_SIZE = 12
 
+internal fun interface HeartbeatSeedRequestProvider {
+    fun request(provider: StreamingProviderName): HeartbeatRecommendationSeedRequest
+}
+
 internal class HeartbeatRecommendationSeedResolver(
-    private val trackMatchStore: StreamingTrackMatchStore
-) {
+    private val trackMatchStore: StreamingTrackMatchStore,
+    private val serviceSnapshotProvider: (() -> PlaybackStateSnapshot?)? = null,
+    private val serviceQueueProvider: (() -> List<Track>)? = null,
+    private val storeSnapshotProvider: (() -> PlaybackStateSnapshot?)? = null,
+    private val viewModelQueueProvider: (() -> List<Track>)? = null,
+    private val libraryContextProvider: (() -> List<Track>)? = null
+) : HeartbeatSeedRequestProvider {
     private var heartbeatSeedCursor = 0
+
+    override fun request(provider: StreamingProviderName): HeartbeatRecommendationSeedRequest {
+        return request(
+            provider,
+            serviceSnapshotProvider?.invoke(),
+            serviceQueueProvider?.invoke(),
+            storeSnapshotProvider?.invoke(),
+            viewModelQueueProvider?.invoke(),
+            libraryContextProvider?.invoke()
+        )
+    }
 
     fun request(
         provider: StreamingProviderName,
@@ -78,34 +98,6 @@ internal class HeartbeatRecommendationSeedResolver(
             .shuffled(random)
             .take((HEARTBEAT_SEED_SAMPLE_SIZE - 1).coerceAtLeast(0))
         return listOf(anchor) + rest
-    }
-}
-
-internal fun interface HeartbeatPlaybackSnapshotProvider {
-    fun snapshot(): PlaybackStateSnapshot?
-}
-
-internal fun interface HeartbeatQueueSnapshotProvider {
-    fun queue(): List<Track>
-}
-
-internal class HeartbeatRecommendationSeedResolverBindings(
-    private val resolver: HeartbeatRecommendationSeedResolver,
-    private val serviceSnapshotProvider: HeartbeatPlaybackSnapshotProvider,
-    private val serviceQueueProvider: HeartbeatQueueSnapshotProvider,
-    private val storeSnapshotProvider: HeartbeatPlaybackSnapshotProvider,
-    private val viewModelQueueProvider: HeartbeatQueueSnapshotProvider,
-    private val libraryContextProvider: HeartbeatQueueSnapshotProvider
-) : HeartbeatSeedRequestProvider {
-    override fun request(provider: StreamingProviderName): HeartbeatRecommendationSeedRequest {
-        return resolver.request(
-            provider,
-            serviceSnapshotProvider.snapshot(),
-            serviceQueueProvider.queue(),
-            storeSnapshotProvider.snapshot(),
-            viewModelQueueProvider.queue(),
-            libraryContextProvider.queue()
-        )
     }
 }
 

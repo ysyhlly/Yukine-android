@@ -31,10 +31,6 @@ fun interface RecommendationLanguageProvider {
     fun languageMode(): String
 }
 
-internal fun interface DailyRecommendationTrackListPlayer {
-    fun play(presentation: StreamingRecommendationPresentation)
-}
-
 fun interface RecommendationActionHandler {
     fun onAction(
         action: RecommendationAction,
@@ -50,33 +46,5 @@ internal class RecommendationActionController(
 ) : RecommendationActionRunner {
     override fun run(action: RecommendationAction) {
         recommendationActionHandler.onAction(action, languageProvider.languageMode(), callbacks)
-    }
-}
-
-internal class RecommendationActionBindings(
-    private val dailyRecommendationPlayer: DailyRecommendationTrackListPlayer,
-    private val seedRequestProvider: HeartbeatSeedRequestProvider,
-    private val heartbeatPresentationPlayer: HeartbeatPresentationPlayer,
-    private val seedMissLogger: HeartbeatSeedMissLogger,
-    private val statusSink: QueueStatusSink
-) : RecommendationActionCallbacks {
-    override fun setStatus(status: String) {
-        statusSink.set(status)
-    }
-
-    override fun playDailyRecommendation(presentation: StreamingRecommendationPresentation) {
-        dailyRecommendationPlayer.play(presentation)
-    }
-
-    override fun seedRequest(provider: StreamingProviderName): HeartbeatRecommendationSeedRequest {
-        return seedRequestProvider.request(provider)
-    }
-
-    override fun playHeartbeatRecommendation(presentation: StreamingRecommendationPresentation) {
-        heartbeatPresentationPlayer.play(presentation)
-    }
-
-    override fun logSeedMiss(request: HeartbeatRecommendationSeedRequest) {
-        seedMissLogger.log(request)
     }
 }

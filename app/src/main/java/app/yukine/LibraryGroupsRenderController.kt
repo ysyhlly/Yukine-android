@@ -16,6 +16,20 @@ internal fun interface LibraryGroupsUiDispatcher {
     fun dispatch(action: Runnable)
 }
 
+internal data class LibraryGroupsChromeState(
+    val actions: List<LibraryGroupActions>,
+    val emptyText: String,
+    val modeActions: List<TrackListModeAction>
+)
+
+internal data class LibraryGroupTrackListRequest(
+    val title: String,
+    val tracks: ArrayList<Track>,
+    val headerMetrics: ArrayList<TrackListHeaderMetric>,
+    val headerActions: ArrayList<TrackListHeaderAction>,
+    val footerAlbums: ArrayList<TrackListAlbumCardUiState> = ArrayList()
+)
+
 internal class LibraryGroupsRenderController(
     private val viewModel: LibraryViewModel,
     private val listener: Listener,

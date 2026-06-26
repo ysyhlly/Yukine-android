@@ -31,13 +31,13 @@
 
 | 项目 | 复核结果 | 备注 |
 |---|---:|---|
-| `app/src/main/java/app/yukine` 总源码文件数 | 338 | 旧审查的数量级基本成立 |
-| `app/src/main/java/app/yukine` 根目录文件数 | 210 | 根目录堆积问题属实 |
-| `*Controller` 文件数 | 59 | 旧审查说 58，当前略有变化 |
-| `*Bindings` 文件数 | 56 | 说明桥接层仍然很多 |
+| `app/src/main/java/app/yukine` ??????? | 288 | ??????????? |
+| `app/src/main/java/app/yukine` ?????? | 160 | ????????? |
+| `*Controller` ??? | 56 | ???? 58??????? |
+| `*Bindings` 文件数 | 3 | 说明桥接层仍然很多 |
 | `*ViewModel` 文件数 | 18 | ViewModel 已明显扩张 |
-| `app/src/test/java/app/yukine` 测试文件数 | 180 | 旧审查的 165 已过时，测试数量更高 |
-| `MainActivity.java` 行数 | 2299 | 仍是明显的宿主上帝类 |
+| `app/src/test/java/app/yukine` ????? | 137 | ???? 165 ?????????? |
+| `MainActivity.java` ?? | 3663 | ????????? |
 | `EchoPlaybackService.java` 行数 | 3893 | 播放边界体量很大 |
 | `StreamingViewModel.kt` 行数 | 1932 | 仍是超大 ViewModel |
 | `SettingsViewModel.kt` 行数 | 771 | 已迁出不少逻辑，但仍偏大 |
@@ -69,7 +69,7 @@
 |---|---|---|---|
 | A1 | 根目录文件爆炸 | 根目录 210 个文件 | 文件查找困难，owner 不清晰 |
 | A2 | 宿主过重 | `MainActivity.java` 2299 行，手动装配大量对象 | 新功能继续堆进 Activity |
-| A3 | 桥接层过多 | 59 个 Controller + 56 个 Bindings | 事件路径过长，测试成本高 |
+| A3 | ????? | 56 ? Controller + 3 ? Bindings | ???????????? |
 | A4 | DI 覆盖不完整 | 只有 2 个 Module，`MainActivity` 仍手动 `new` 大量依赖 | 替换实现困难，依赖图分散 |
 | A5 | 数据层同步接口为主 | `MusicLibraryRepository.java` 主要暴露 `List`/同步 load/save | UI 更新依赖手动刷新和桥接 |
 | A6 | 超大状态 owner | `StreamingViewModel.kt` 1932 行，`SettingsViewModel.kt` 771 行 | feature 边界继续模糊 |

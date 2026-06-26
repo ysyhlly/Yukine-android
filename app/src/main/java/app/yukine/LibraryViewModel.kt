@@ -38,6 +38,10 @@ sealed interface LibraryEvent {
     data object ScanLibrary : LibraryEvent
 }
 
+internal fun interface LibraryEventSink {
+    fun send(event: LibraryEvent)
+}
+
 interface LibraryGateway {
     fun playTrackList(tracks: List<Track>, index: Int)
     fun showStatusKey(key: String)

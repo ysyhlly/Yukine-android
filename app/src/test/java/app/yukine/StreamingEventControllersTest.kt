@@ -5,6 +5,7 @@ import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
 import app.yukine.ui.StreamingSearchActions
 import app.yukine.ui.StreamingSearchLabels
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -75,18 +76,22 @@ class StreamingEventControllersTest {
 
     @Test
     fun authCallbackControllerDelegatesInitialAndNewIntents() {
-        val handler = FakeAuthCallbackHandler()
-        val controller = StreamingAuthCallbackController(handler)
+        val streamingViewModel = StreamingViewModel()
+        val gateway = FakeGateway()
+        val controller = StreamingAuthCallbackController(streamingViewModel, gateway)
 
-        assertTrue(controller.handleInitialIntent(null))
-        assertTrue(controller.handleNewIntent(null))
+        assertFalse(controller.handleInitialIntent(null))
+        assertFalse(controller.handleNewIntent(null))
+        assertFalse(controller.handleInitialIntent(fakeIntent("bad://callback")))
+        assertTrue(
+            controller.handleInitialIntent(
+                fakeIntent("echo-next://streaming-auth?provider=qqmusic&manualCookie=1")
+            )
+        )
 
         assertEquals(
-            listOf(
-                "null|null",
-                "null|null"
-            ),
-            handler.callbacks
+            listOf(app.yukine.streaming.StreamingProviderName.QQ_MUSIC),
+            gateway.manualCookieProviders
         )
     }
 
@@ -173,14 +178,29 @@ class StreamingEventControllersTest {
         override fun publishStreamingSearchChrome(labels: StreamingSearchLabels, actions: StreamingSearchActions) = Unit
     }
 
-    private class FakeAuthCallbackHandler : StreamingAuthCallbackHandler {
-        val callbacks = ArrayList<String>()
+    private class FakeGateway : MainActivityStreamingActionGateway {
+        val loginSuccessProviders = ArrayList<app.yukine.streaming.StreamingProviderName>()
+        val manualCookieProviders = ArrayList<app.yukine.streaming.StreamingProviderName>()
 
-        override fun handleAuthCallback(callbackUri: String?, cookieHeader: String?): Boolean {
-            callbacks.add("$callbackUri|$cookieHeader")
-            return true
+        override fun streamingPlaybackQuality() = app.yukine.streaming.StreamingAudioQuality.LOSSLESS
+
+        override fun languageMode(): String = AppLanguage.MODE_ENGLISH
+
+        override fun openAuthLaunch(launch: MainActivityStreamingAuthLaunch?): Boolean = false
+
+        override fun playResolvedTrack(track: Track) = Unit
+
+        override fun onStreamingLoginSuccess(provider: app.yukine.streaming.StreamingProviderName) {
+            loginSuccessProviders += provider
+        }
+
+        override fun openManualCookieImport(provider: app.yukine.streaming.StreamingProviderName) {
+            manualCookieProviders += provider
         }
     }
+
+    private fun fakeIntent(data: String): android.content.Intent =
+        android.content.Intent().apply { this.data = android.net.Uri.parse(data) }
 
     private fun track(id: Long): Track =
         Track(id, "Track $id", "Artist", "Album", 1000L, android.net.Uri.EMPTY, "file:$id")

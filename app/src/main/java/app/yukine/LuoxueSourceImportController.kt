@@ -1,5 +1,6 @@
 package app.yukine
 
+import android.content.ContentResolver
 import android.net.Uri
 import app.yukine.streaming.LuoxueImportedSource
 import app.yukine.streaming.LuoxueSourceImporter
@@ -104,6 +105,15 @@ internal fun interface LuoxueSourceFilePicker {
 
 internal fun interface LuoxueSourceDocumentReader {
     fun readText(uri: Uri): String?
+}
+
+internal class ContentResolverLuoxueSourceDocumentReader(
+    private val contentResolver: ContentResolver?
+) : LuoxueSourceDocumentReader {
+    override fun readText(uri: Uri): String? {
+        val read = M3uDocumentHelper.readText(contentResolver, uri)
+        return if (read == null || !read.success) null else read.text
+    }
 }
 
 internal fun interface LuoxueSourceStoreWriter {

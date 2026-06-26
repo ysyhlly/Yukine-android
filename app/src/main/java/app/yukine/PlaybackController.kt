@@ -6,6 +6,14 @@ fun interface PlaybackController {
     fun playTrackList(tracks: List<Track>?, index: Int): PlaybackActionResultUi?
 }
 
+internal fun interface StreamingTrackListResolver {
+    fun resolve(tracks: List<Track>?, index: Int): Boolean
+}
+
+internal fun interface PlaybackTrackListPlayer {
+    fun play(tracks: List<Track>?, index: Int): PlaybackActionResultUi?
+}
+
 internal class PlaybackStartControllerAdapter(
     private val streamingTrackListResolver: StreamingTrackListResolver,
     private val playbackTrackListPlayer: PlaybackTrackListPlayer,

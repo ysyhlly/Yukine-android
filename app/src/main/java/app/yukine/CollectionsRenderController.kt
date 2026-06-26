@@ -21,6 +21,34 @@ import java.text.DateFormat
 import java.util.ArrayList
 import java.util.Date
 
+internal fun interface PlaylistIdAction {
+    fun run(playlistId: Long)
+}
+
+internal fun interface PlaylistAction {
+    fun run(playlist: Playlist)
+}
+
+internal fun interface SelectedPlaylistExportOpener {
+    fun open()
+}
+
+internal fun interface TrackListDownloadAction {
+    fun download(tracks: List<Track>)
+}
+
+internal fun interface SelectedPlaylistTrackMover {
+    fun move(playlistId: Long, track: Track, trackIndex: Int, direction: Int)
+}
+
+internal fun interface SelectedPlaylistTrackRemover {
+    fun remove(playlistId: Long, track: Track)
+}
+
+internal fun interface CollectionsActionsSink {
+    fun publish(actions: CollectionsActions)
+}
+
 internal class CollectionsRenderController(
     private val viewModel: CollectionsViewModel,
     private val listener: Listener

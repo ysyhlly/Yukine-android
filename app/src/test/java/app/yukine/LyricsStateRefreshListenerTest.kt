@@ -3,11 +3,11 @@ package app.yukine
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class LyricsStateListenerBindingsTest {
+class LyricsStateRefreshListenerTest {
     @Test
     fun stateChangesOutsideNowTabOnlyRefreshNowBar() {
         val calls = mutableListOf<String>()
-        val listener = LyricsStateListenerBindings(
+        val listener = LyricsStateRefreshListener(
             selectedTabProvider = SettingsSelectedTabProvider { MainRoutes.TAB_LIBRARY },
             renderNowBarAction = Runnable { calls += "nowbar" },
             updateNowPlayingContentAction = LyricsNowPlayingContentUpdater {
@@ -26,7 +26,7 @@ class LyricsStateListenerBindingsTest {
     fun stateChangesOnNowTabRenderSelectedTabOnlyWhenContentUpdateFails() {
         val calls = mutableListOf<String>()
         var updateResult = true
-        val listener = LyricsStateListenerBindings(
+        val listener = LyricsStateRefreshListener(
             selectedTabProvider = SettingsSelectedTabProvider { MainRoutes.TAB_NOW },
             renderNowBarAction = Runnable { calls += "nowbar" },
             updateNowPlayingContentAction = LyricsNowPlayingContentUpdater {
