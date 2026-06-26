@@ -1,33 +1,38 @@
 package app.yukine;
 
 final class StatusMessageController {
-    interface Host {
-        String languageMode();
-
-        void updateStatus(String message);
-    }
-
     private final StatusMessageViewModel viewModel;
-    private final Host host;
+    private final StatusLanguageModeProvider languageModeProvider;
+    private final RawStatusUpdater rawStatusUpdater;
     private final MessageTextResolver textResolver;
 
-    StatusMessageController(StatusMessageViewModel viewModel, Host host) {
-        this(viewModel, host, new MessageTextResolver(
-                host == null ? () -> AppLanguage.MODE_SYSTEM : host::languageMode
+    StatusMessageController(
+            StatusMessageViewModel viewModel,
+            StatusLanguageModeProvider languageModeProvider,
+            RawStatusUpdater rawStatusUpdater
+    ) {
+        this(viewModel, languageModeProvider, rawStatusUpdater, new MessageTextResolver(
+                languageModeProvider == null ? () -> AppLanguage.MODE_SYSTEM : languageModeProvider::languageMode
         ));
     }
 
-    StatusMessageController(StatusMessageViewModel viewModel, Host host, MessageTextResolver textResolver) {
+    StatusMessageController(
+            StatusMessageViewModel viewModel,
+            StatusLanguageModeProvider languageModeProvider,
+            RawStatusUpdater rawStatusUpdater,
+            MessageTextResolver textResolver
+    ) {
         this.viewModel = viewModel;
-        this.host = host;
+        this.languageModeProvider = languageModeProvider;
+        this.rawStatusUpdater = rawStatusUpdater;
         this.textResolver = textResolver;
     }
 
     void setStatus(String status) {
-        if (host == null) {
+        if (languageModeProvider == null || rawStatusUpdater == null) {
             return;
         }
-        host.updateStatus(viewModel.applyStatus(status, host.languageMode()));
+        rawStatusUpdater.update(viewModel.applyStatus(status, languageModeProvider.languageMode()));
     }
 
     void showFeedback(String message) {

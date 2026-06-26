@@ -11,10 +11,6 @@ import app.yukine.ui.EchoDialog;
 import app.yukine.ui.EchoTheme;
 
 final class NetworkDialogController {
-    interface LanguageProvider {
-        String languageMode();
-    }
-
     interface Listener {
         void addStream(String title, String url);
 
@@ -33,10 +29,10 @@ final class NetworkDialogController {
     }
 
     private final Context context;
-    private final LanguageProvider languageProvider;
+    private final DialogLanguageProvider languageProvider;
     private final Listener listener;
 
-    NetworkDialogController(Context context, LanguageProvider languageProvider, Listener listener) {
+    NetworkDialogController(Context context, DialogLanguageProvider languageProvider, Listener listener) {
         this.context = context;
         this.languageProvider = languageProvider;
         this.listener = listener;

@@ -23,7 +23,7 @@ internal class NetworkActionsResultBindings(
     private val playbackTracksRetainer: PlaybackTracksRetainer,
     private val streamQueueSynchronizer: StreamQueueSynchronizer,
     private val navigateNetworkPageAction: NetworkPageAction,
-    private val statusSink: NetworkRequestStatusSink,
+    private val statusSink: SettingsStatusSink,
     private val collectionsLoader: CollectionsLoader
 ) : NetworkActionsViewModel.Listener {
     override fun onStreamAdded(cached: List<Track>, favorites: Set<Long>, status: String) {
@@ -76,7 +76,7 @@ internal class NetworkActionsResultBindings(
     }
 
     override fun onRemoteSourceTested(status: String) {
-        statusSink.setStatus(status)
+        statusSink.set(status)
         collectionsLoader.load()
     }
 

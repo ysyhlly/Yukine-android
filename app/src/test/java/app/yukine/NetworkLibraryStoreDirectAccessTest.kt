@@ -7,33 +7,17 @@ import app.yukine.model.Track
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class NetworkLibrarySourceBindingsTest {
+class NetworkLibraryStoreDirectAccessTest {
     @Test
-    fun menuAndSourceBindingsReadNetworkLibraryStateFromStore() {
+    fun mainActivityCanReadNetworkLibraryStateDirectlyFromStore() {
         val store = populatedStore()
-        val menuSource = NetworkMenuLibrarySourceBindings(store)
-        val sourceBindings = NetworkSourcesLibrarySourceBindings(store)
 
-        assertEquals(listOf(1L), menuSource.streamTracks().map { it.id })
-        assertEquals(1, menuSource.streamTrackCount())
-        assertEquals(listOf(2L, 3L), menuSource.webDavTracks().map { it.id })
-        assertEquals(listOf(7L, 8L), menuSource.remoteSources().map { it.id })
-        assertEquals("NAS", sourceBindings.remoteSourceName(7L))
-        assertEquals(listOf(2L), sourceBindings.webDavTracksForSource(7L).map { it.id })
-    }
-
-    @Test
-    fun networkSourcesPlayerForwardsPlayback() {
-        val calls = mutableListOf<String>()
-        val player = NetworkSourcesPlayerBindings(
-            TrackListPlaybackAction { tracks, index ->
-                calls += "play:${tracks.size}:$index:${tracks.first().id}"
-            }
-        )
-
-        player.playTrackList(listOf(track(9L, "file:/tmp/song.mp3")), 0)
-
-        assertEquals(listOf("play:1:0:9"), calls)
+        assertEquals(listOf(1L), store.streamTracks().map { it.id })
+        assertEquals(1, store.streamTrackCount())
+        assertEquals(listOf(2L, 3L), store.webDavTracks().map { it.id })
+        assertEquals(listOf(7L, 8L), store.remoteSources().map { it.id })
+        assertEquals("NAS", store.remoteSourceName(7L))
+        assertEquals(listOf(2L), store.webDavTracksForSource(7L).map { it.id })
     }
 
     private fun populatedStore(): MainLibraryStore {

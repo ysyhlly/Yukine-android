@@ -5,12 +5,22 @@ import android.content.Intent
 import android.net.Uri
 import android.app.Activity
 import androidx.activity.ComponentActivity
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import java.util.ArrayList
 
-internal class DocumentPickerController(
+internal fun interface DocumentActivityResultLauncher {
+    fun launch(intent: Intent, onResult: (ActivityResult) -> Unit)
+}
+
+internal class DocumentPickerController @JvmOverloads constructor(
     private val activity: ComponentActivity,
-    private val listener: Listener
+    private val listener: Listener,
+    activityResultLauncher: DocumentActivityResultLauncher? = null
 ) : DownloadDirectoryPickerOpener, LuoxueSourceFilePicker {
+    private val activityResultLauncher: DocumentActivityResultLauncher =
+        activityResultLauncher ?: ActivityResultDocumentLauncher(activity)
+
     interface Listener {
         fun importAudioUris(uris: ArrayList<Uri>)
 
@@ -33,7 +43,7 @@ internal class DocumentPickerController(
         intent.type = "audio/*"
         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-        activity.startActivityForResult(intent, REQUEST_IMPORT_AUDIO_FILES)
+        launch(intent, DocumentAction.ImportAudioFiles)
     }
 
     fun openAudioFolderPicker() {
@@ -43,7 +53,7 @@ internal class DocumentPickerController(
                 Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
                 Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
         )
-        activity.startActivityForResult(intent, REQUEST_IMPORT_AUDIO_FOLDER)
+        launch(intent, DocumentAction.ImportAudioFolder)
     }
 
     override fun openDownloadFolderPicker() {
@@ -54,19 +64,19 @@ internal class DocumentPickerController(
                 Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
                 Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
         )
-        activity.startActivityForResult(intent, REQUEST_DOWNLOAD_FOLDER)
+        launch(intent, DocumentAction.DownloadFolder)
     }
 
     fun openM3uFilePicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
         M3uDocumentHelper.configureReadIntent(intent)
-        activity.startActivityForResult(intent, REQUEST_IMPORT_M3U_FILE)
+        launch(intent, DocumentAction.ImportStreamM3u)
     }
 
     fun openPlaylistM3uFilePicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
         M3uDocumentHelper.configureReadIntent(intent)
-        activity.startActivityForResult(intent, REQUEST_IMPORT_PLAYLIST_M3U_FILE)
+        launch(intent, DocumentAction.ImportPlaylistM3u)
     }
 
     override fun openLuoxueSourceFilePicker() {
@@ -76,7 +86,7 @@ internal class DocumentPickerController(
         intent.putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/javascript", "text/javascript", "text/plain", "application/octet-stream", "*/*"))
         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-        activity.startActivityForResult(intent, REQUEST_IMPORT_LUOXUE_SOURCE_FILE)
+        launch(intent, DocumentAction.ImportLuoxueSource)
     }
 
     fun openPlaylistExportDocument(playlistName: String) {
@@ -86,79 +96,71 @@ internal class DocumentPickerController(
         intent.putExtra(Intent.EXTRA_MIME_TYPES, M3uDocumentHelper.MIME_TYPES)
         intent.putExtra(Intent.EXTRA_TITLE, M3uDocumentHelper.exportFileName(playlistName))
         intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-        activity.startActivityForResult(intent, REQUEST_EXPORT_PLAYLIST_M3U)
+        launch(intent, DocumentAction.ExportPlaylistM3u)
     }
 
-    fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
-        if (resultCode != Activity.RESULT_OK || data == null) {
-            return isDocumentRequest(requestCode)
+    private fun launch(intent: Intent, action: DocumentAction) {
+        activityResultLauncher.launch(intent) { result ->
+            handleResult(action, result)
         }
-        if (requestCode == REQUEST_IMPORT_AUDIO_FILES) {
-            val uris = selectedAudioUris(data)
-            for (uri in uris) {
-                takePersistableReadPermission(data, uri)
-            }
-            listener.importAudioUris(uris)
-            return true
-        }
-        if (requestCode == REQUEST_IMPORT_AUDIO_FOLDER) {
-            val treeUri = data.data
-            if (treeUri != null) {
-                takePersistableReadPermission(data, treeUri)
-                listener.importAudioFolder(treeUri)
-            }
-            return true
-        }
-        if (requestCode == REQUEST_DOWNLOAD_FOLDER) {
-            val treeUri = data.data
-            if (treeUri != null) {
-                takePersistableReadWritePermission(data, treeUri)
-                listener.chooseDownloadFolder(treeUri)
-            }
-            return true
-        }
-        if (requestCode == REQUEST_IMPORT_M3U_FILE) {
-            val playlistUri = data.data
-            if (playlistUri != null) {
-                takePersistableReadPermission(data, playlistUri)
-                listener.importStreamM3u(playlistUri)
-            }
-            return true
-        }
-        if (requestCode == REQUEST_EXPORT_PLAYLIST_M3U) {
-            val exportUri = data.data
-            if (exportUri != null) {
-                listener.exportPlaylist(exportUri)
-            }
-            return true
-        }
-        if (requestCode == REQUEST_IMPORT_PLAYLIST_M3U_FILE) {
-            val playlistUri = data.data
-            if (playlistUri != null) {
-                takePersistableReadPermission(data, playlistUri)
-                listener.importPlaylistM3u(playlistUri)
-            }
-            return true
-        }
-        if (requestCode == REQUEST_IMPORT_LUOXUE_SOURCE_FILE) {
-            val uris = selectedDocumentUris(data)
-            for (uri in uris) {
-                takePersistableReadPermission(data, uri)
-            }
-            listener.importLuoxueSourceUris(uris)
-            return true
-        }
-        return false
     }
 
-    private fun isDocumentRequest(requestCode: Int): Boolean =
-            requestCode == REQUEST_IMPORT_AUDIO_FILES ||
-            requestCode == REQUEST_IMPORT_AUDIO_FOLDER ||
-            requestCode == REQUEST_DOWNLOAD_FOLDER ||
-            requestCode == REQUEST_IMPORT_M3U_FILE ||
-            requestCode == REQUEST_EXPORT_PLAYLIST_M3U ||
-            requestCode == REQUEST_IMPORT_PLAYLIST_M3U_FILE ||
-            requestCode == REQUEST_IMPORT_LUOXUE_SOURCE_FILE
+    private fun handleResult(action: DocumentAction, result: ActivityResult) {
+        val data = result.data
+        if (result.resultCode != Activity.RESULT_OK || data == null) {
+            return
+        }
+        when (action) {
+            DocumentAction.ImportAudioFiles -> {
+                val uris = selectedAudioUris(data)
+                for (uri in uris) {
+                    takePersistableReadPermission(data, uri)
+                }
+                listener.importAudioUris(uris)
+            }
+            DocumentAction.ImportAudioFolder -> {
+                val treeUri = data.data
+                if (treeUri != null) {
+                    takePersistableReadPermission(data, treeUri)
+                    listener.importAudioFolder(treeUri)
+                }
+            }
+            DocumentAction.DownloadFolder -> {
+                val treeUri = data.data
+                if (treeUri != null) {
+                    takePersistableReadWritePermission(data, treeUri)
+                    listener.chooseDownloadFolder(treeUri)
+                }
+            }
+            DocumentAction.ImportStreamM3u -> {
+                val playlistUri = data.data
+                if (playlistUri != null) {
+                    takePersistableReadPermission(data, playlistUri)
+                    listener.importStreamM3u(playlistUri)
+                }
+            }
+            DocumentAction.ExportPlaylistM3u -> {
+                val exportUri = data.data
+                if (exportUri != null) {
+                    listener.exportPlaylist(exportUri)
+                }
+            }
+            DocumentAction.ImportPlaylistM3u -> {
+                val playlistUri = data.data
+                if (playlistUri != null) {
+                    takePersistableReadPermission(data, playlistUri)
+                    listener.importPlaylistM3u(playlistUri)
+                }
+            }
+            DocumentAction.ImportLuoxueSource -> {
+                val uris = selectedDocumentUris(data)
+                for (uri in uris) {
+                    takePersistableReadPermission(data, uri)
+                }
+                listener.importLuoxueSourceUris(uris)
+            }
+        }
+    }
 
     private fun selectedAudioUris(data: Intent?): ArrayList<Uri> {
         return selectedDocumentUris(data)
@@ -217,13 +219,27 @@ internal class DocumentPickerController(
         }
     }
 
-    companion object {
-        @JvmField val REQUEST_IMPORT_AUDIO_FILES: Int = 4002
-        @JvmField val REQUEST_IMPORT_AUDIO_FOLDER: Int = 4003
-        @JvmField val REQUEST_IMPORT_M3U_FILE: Int = 4004
-        @JvmField val REQUEST_EXPORT_PLAYLIST_M3U: Int = 4005
-        @JvmField val REQUEST_IMPORT_PLAYLIST_M3U_FILE: Int = 4006
-        @JvmField val REQUEST_DOWNLOAD_FOLDER: Int = 4007
-        @JvmField val REQUEST_IMPORT_LUOXUE_SOURCE_FILE: Int = 4008
+    private enum class DocumentAction {
+        ImportAudioFiles,
+        ImportAudioFolder,
+        DownloadFolder,
+        ImportStreamM3u,
+        ExportPlaylistM3u,
+        ImportPlaylistM3u,
+        ImportLuoxueSource
+    }
+
+    private class ActivityResultDocumentLauncher(
+        activity: ComponentActivity
+    ) : DocumentActivityResultLauncher {
+        private var callback: ((ActivityResult) -> Unit)? = null
+        private val launcher = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            callback?.invoke(result)
+        }
+
+        override fun launch(intent: Intent, onResult: (ActivityResult) -> Unit) {
+            callback = onResult
+            launcher.launch(intent)
+        }
     }
 }

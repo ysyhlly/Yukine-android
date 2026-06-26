@@ -2,28 +2,22 @@ package app.yukine
 
 internal class StreamingGatewayEventController(
     private val streamingViewModel: StreamingViewModel,
-    private val host: Host
+    private val languageModeProvider: StatusLanguageModeProvider,
+    private val renderSelectedTabAction: Runnable,
+    private val statusSink: SettingsStatusSink
 ) : StreamingGatewayController.ViewModelBridge, StreamingGatewayController.Listener {
-    interface Host {
-        fun languageMode(): String
-
-        fun renderSelectedTab()
-
-        fun setStatus(message: String)
-    }
-
     override fun configureStreamingRepository() {
         streamingViewModel.configureStreamingRepository()
     }
 
     override fun refreshStreamingProviders() {
         streamingViewModel.refreshStreamingProviders().invokeOnCompletion {
-            host.renderSelectedTab()
+            renderSelectedTabAction.run()
         }
     }
 
     override fun onStreamingGatewayApplied(endpoint: String) {
-        host.renderSelectedTab()
-        host.setStatus(AppLanguage.text(host.languageMode(), "streaming.gateway.applied") + endpoint)
+        renderSelectedTabAction.run()
+        statusSink.set(AppLanguage.text(languageModeProvider.languageMode(), "streaming.gateway.applied") + endpoint)
     }
 }

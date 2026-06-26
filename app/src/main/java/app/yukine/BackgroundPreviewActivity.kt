@@ -13,7 +13,7 @@ import app.yukine.ui.EchoTheme
 /**
  * Full-screen editor that lets the user pinch-zoom and drag a freshly picked background image,
  * previews the frosted card look on top, and returns the chosen [BackgroundTransform] to the caller
- * via [startActivityForResult]. Pure presentation — persistence stays in the settings pipeline.
+ * via an activity result launcher. Pure presentation — persistence stays in the settings pipeline.
  */
 class BackgroundPreviewActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

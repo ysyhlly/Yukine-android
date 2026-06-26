@@ -12,10 +12,6 @@ import app.yukine.ui.EchoDialog;
 import app.yukine.ui.EchoTheme;
 
 final class PlaylistDialogController {
-    interface LanguageProvider {
-        String languageMode();
-    }
-
     interface Listener {
         void createPlaylist(String name);
 
@@ -33,11 +29,11 @@ final class PlaylistDialogController {
     }
 
     private final Context context;
-    private final LanguageProvider languageProvider;
+    private final DialogLanguageProvider languageProvider;
     private final PlaylistProvider playlistProvider;
     private final Listener listener;
 
-    PlaylistDialogController(Context context, LanguageProvider languageProvider, Listener listener) {
+    PlaylistDialogController(Context context, DialogLanguageProvider languageProvider, Listener listener) {
         this(context, languageProvider, new PlaylistProvider() {
             @Override
             public List<Playlist> playlists() {
@@ -48,7 +44,7 @@ final class PlaylistDialogController {
 
     PlaylistDialogController(
             Context context,
-            LanguageProvider languageProvider,
+            DialogLanguageProvider languageProvider,
             PlaylistProvider playlistProvider,
             Listener listener
     ) {

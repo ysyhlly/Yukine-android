@@ -7,30 +7,29 @@ import java.util.ArrayList
 internal class NetworkSourcesEventController(
     private val routeController: MainRouteController,
     private val requestController: NetworkRequestController,
-    private val librarySource: LibrarySource,
-    private val dialogs: Dialogs,
+    private val remoteSourceNameProvider: RemoteSourceNameProvider,
+    private val webDavTracksForSourceProvider: WebDavTracksForSourceProvider,
+    private val showEditWebDavAction: ShowEditWebDavAction,
     private val deleteConfirmation: DeleteConfirmation,
-    private val player: Player,
+    private val player: TrackListPlaybackAction,
     private val labels: Labels,
     private val statusSink: StatusSink,
     private val renderer: Renderer
 ) : NetworkSourcesRenderController.Listener {
-    interface LibrarySource {
+    fun interface RemoteSourceNameProvider {
         fun remoteSourceName(sourceId: Long): String
+    }
 
+    fun interface WebDavTracksForSourceProvider {
         fun webDavTracksForSource(sourceId: Long): ArrayList<Track>
     }
 
-    fun interface Dialogs {
+    fun interface ShowEditWebDavAction {
         fun showEditWebDav(source: RemoteSource)
     }
 
     fun interface DeleteConfirmation {
         fun confirmDeleteRemoteSource(source: RemoteSource)
-    }
-
-    fun interface Player {
-        fun playTrackList(tracks: List<Track>, index: Int)
     }
 
     fun interface Labels {
@@ -56,16 +55,16 @@ internal class NetworkSourcesEventController(
     }
 
     override fun syncRemoteSource(sourceId: Long) {
-        requestController.syncRemoteSource(sourceId, librarySource.remoteSourceName(sourceId))
+        requestController.syncRemoteSource(sourceId, remoteSourceNameProvider.remoteSourceName(sourceId))
     }
 
     override fun playRemoteSourceTracks(source: RemoteSource) {
-        val tracks = librarySource.webDavTracksForSource(source.id)
+        val tracks = webDavTracksForSourceProvider.webDavTracksForSource(source.id)
         if (tracks.isEmpty()) {
             statusSink.setStatus(labels.text("no.source.tracks.to.play"))
             return
         }
-        player.playTrackList(tracks, 0)
+        player.play(tracks, 0)
     }
 
     override fun openRemoteSourceTracks(sourceId: Long) {
@@ -75,7 +74,7 @@ internal class NetworkSourcesEventController(
     }
 
     override fun showEditWebDav(source: RemoteSource) {
-        dialogs.showEditWebDav(source)
+        showEditWebDavAction.showEditWebDav(source)
     }
 
     override fun confirmDeleteRemoteSource(source: RemoteSource) {

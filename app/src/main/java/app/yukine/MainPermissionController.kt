@@ -1,11 +1,27 @@
 package app.yukine
 
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 
-internal class MainPermissionController(
+internal fun interface PermissionRequestLauncher {
+    fun launch(permissions: Array<String>, onResult: (Map<String, Boolean>) -> Unit)
+}
+
+internal fun interface NeededPermissionsProvider {
+    fun neededPermissions(): Array<String>
+}
+
+internal class MainPermissionController @JvmOverloads constructor(
     private val activity: ComponentActivity,
-    private val listener: Listener
+    private val listener: Listener,
+    permissionRequestLauncher: PermissionRequestLauncher? = null,
+    neededPermissionsProvider: NeededPermissionsProvider? = null
 ) {
+    private val permissionRequestLauncher: PermissionRequestLauncher =
+        permissionRequestLauncher ?: ActivityResultPermissionRequestLauncher(activity)
+    private val neededPermissionsProvider: NeededPermissionsProvider =
+        neededPermissionsProvider ?: NeededPermissionsProvider { AppPermissions.neededPermissions(activity) }
+
     interface Listener {
         fun onAudioPermissionResult()
     }
@@ -21,18 +37,26 @@ internal class MainPermissionController(
     }
 
     fun requestNeededPermissions() {
-        AppPermissions.requestNeededPermissions(activity, REQUEST_AUDIO_PERMISSIONS)
-    }
-
-    fun handlePermissionsResult(requestCode: Int): Boolean {
-        if (requestCode != REQUEST_AUDIO_PERMISSIONS) {
-            return false
+        val permissions = neededPermissionsProvider.neededPermissions()
+        if (permissions.isEmpty()) {
+            return
         }
-        listener.onAudioPermissionResult()
-        return true
+        permissionRequestLauncher.launch(permissions) {
+            listener.onAudioPermissionResult()
+        }
     }
 
-    private companion object {
-        const val REQUEST_AUDIO_PERMISSIONS: Int = 4001
+    private class ActivityResultPermissionRequestLauncher(
+        activity: ComponentActivity
+    ) : PermissionRequestLauncher {
+        private var callback: ((Map<String, Boolean>) -> Unit)? = null
+        private val launcher = activity.registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+            callback?.invoke(result)
+        }
+
+        override fun launch(permissions: Array<String>, onResult: (Map<String, Boolean>) -> Unit) {
+            callback = onResult
+            launcher.launch(permissions)
+        }
     }
 }

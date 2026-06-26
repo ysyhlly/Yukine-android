@@ -1,35 +1,23 @@
 package app.yukine
 
 internal class MainTabRenderDispatcher(
-    private val renderer: Renderer
+    private val renderHomeAction: Runnable,
+    private val renderLibraryAction: Runnable,
+    private val renderCollectionsAction: Runnable,
+    private val renderQueueAction: Runnable,
+    private val renderNetworkAction: Runnable,
+    private val renderSettingsAction: Runnable,
+    private val renderSearchAction: Runnable
 ) {
-    interface Renderer {
-        fun renderHome()
-
-        fun renderLibrary()
-
-        fun renderCollections()
-
-        fun renderQueue()
-
-        fun renderNowPlaying()
-
-        fun renderNetwork()
-
-        fun renderSearch()
-
-        fun renderSettings()
-    }
-
     fun render(selectedTab: String) {
         when (selectedTab) {
-            MainRoutes.TAB_HOME -> renderer.renderHome()
-            MainRoutes.TAB_LIBRARY -> renderer.renderLibrary()
-            MainRoutes.TAB_COLLECTIONS -> renderer.renderCollections()
-            MainRoutes.TAB_QUEUE -> renderer.renderQueue()
-            MainRoutes.TAB_NETWORK -> renderer.renderNetwork()
-            MainRoutes.TAB_SEARCH -> renderer.renderSearch()
-            else -> renderer.renderSettings()
+            MainRoutes.TAB_HOME -> renderHomeAction.run()
+            MainRoutes.TAB_LIBRARY -> renderLibraryAction.run()
+            MainRoutes.TAB_COLLECTIONS -> renderCollectionsAction.run()
+            MainRoutes.TAB_QUEUE -> renderQueueAction.run()
+            MainRoutes.TAB_NETWORK -> renderNetworkAction.run()
+            MainRoutes.TAB_SEARCH -> renderSearchAction.run()
+            else -> renderSettingsAction.run()
         }
     }
 }

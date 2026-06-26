@@ -57,10 +57,8 @@ public final class StatusMessageControllerTest {
         List<String> updates = new ArrayList<>();
         StatusMessageController controller = new StatusMessageController(
                 viewModel,
-                new StatusMessageHostBindings(
-                        () -> AppLanguage.MODE_CHINESE,
-                        updates::add
-                )
+                () -> AppLanguage.MODE_CHINESE,
+                updates::add
         );
 
         controller.showFeedback(null);
@@ -78,10 +76,8 @@ public final class StatusMessageControllerTest {
         List<String> updates = new ArrayList<>();
         StatusMessageController controller = new StatusMessageController(
                 viewModel,
-                new StatusMessageHostBindings(
-                        () -> AppLanguage.MODE_CHINESE,
-                        updates::add
-                )
+                () -> AppLanguage.MODE_CHINESE,
+                updates::add
         );
 
         controller.setStatusKey("backup.export.success");
@@ -96,6 +92,7 @@ public final class StatusMessageControllerTest {
         StatusMessageViewModel viewModel = new StatusMessageViewModel();
         StatusMessageController controller = new StatusMessageController(
                 viewModel,
+                null,
                 null,
                 new MessageTextResolver(() -> AppLanguage.MODE_CHINESE)
         );

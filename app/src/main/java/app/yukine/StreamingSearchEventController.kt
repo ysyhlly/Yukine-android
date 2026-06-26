@@ -7,10 +7,14 @@ import app.yukine.streaming.StreamingTrack
 import app.yukine.ui.StreamingSearchActions
 import app.yukine.ui.StreamingSearchLabels
 
+internal fun interface StreamingSearchContentSink {
+    fun publishStreamingSearchChrome(labels: StreamingSearchLabels, actions: StreamingSearchActions)
+}
+
 internal class StreamingSearchEventController(
     private val actionsController: StreamingSearchActionHandler,
     private val navigator: Navigator,
-    private val contentSink: ContentSink
+    private val contentSink: StreamingSearchContentSink
 ) : StreamingSearchRenderController.Listener {
     interface Navigator {
         fun backToNetworkHome()
@@ -28,10 +32,6 @@ internal class StreamingSearchEventController(
         fun pasteImportPlaylist()
 
         fun inputProviderCookie()
-    }
-
-    interface ContentSink {
-        fun publishStreamingSearchChrome(labels: StreamingSearchLabels, actions: StreamingSearchActions) = Unit
     }
 
     override fun backToNetworkHome() {

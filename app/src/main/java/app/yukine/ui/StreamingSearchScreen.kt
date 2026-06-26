@@ -455,7 +455,7 @@ private fun trackProviderSupportsPlayback(state: MainActivityStreamingState, tra
     return StreamingCapabilityResolver.canPlayback(descriptor)
 }
 
-internal fun streamingProviderStatusText(
+fun streamingProviderStatusText(
     message: String?,
     status: StreamingProviderStatus,
     health: StreamingProviderHealth?,

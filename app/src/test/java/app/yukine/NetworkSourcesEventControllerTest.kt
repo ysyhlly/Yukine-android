@@ -88,11 +88,8 @@ class NetworkSourcesEventControllerTest {
             NetworkSourcesEventController(
                 routeController,
                 requestController,
-                object : NetworkSourcesEventController.LibrarySource {
-                    override fun remoteSourceName(sourceId: Long): String = "Source $sourceId"
-
-                    override fun webDavTracksForSource(sourceId: Long): ArrayList<Track> = sourceTracks
-                },
+                { sourceId -> "Source $sourceId" },
+                { sourceId -> sourceTracks },
                 { source -> events.add("dialog:edit:${source.id}") },
                 { source -> events.add("confirm:delete:${source.id}") },
                 { tracks, index -> events.add("play:${tracks.first().id}@$index") },

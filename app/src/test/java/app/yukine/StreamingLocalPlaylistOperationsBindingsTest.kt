@@ -31,7 +31,9 @@ class StreamingLocalPlaylistOperationsBindingsTest {
 
     @Test
     fun syncAndLoginMapUseCaseResultsToViewModelContracts() {
-        val syncOperations = FakeStreamingPlaylistSyncOperations()
+        val syncOperations = FakeStreamingPlaylistSyncOperations().apply {
+            existingPlaylistIds += 5L
+        }
         val loginOperations = FakeStreamingLoginPlaylistOperations()
         val bindings = bindings(syncOperations = syncOperations, loginOperations = loginOperations)
         val link = StreamingPlaylistSyncStore.LinkedPlaylist(5L, StreamingProviderName.NETEASE, "p-1", 0L)

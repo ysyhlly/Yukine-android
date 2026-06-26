@@ -7,13 +7,9 @@ import app.yukine.ui.EchoDialog
 
 internal class ConfirmationDialogController(
     private val context: Context,
-    private val languageProvider: LanguageProvider,
+    private val languageProvider: DialogLanguageProvider,
     private val listener: Listener
 ) {
-    interface LanguageProvider {
-        fun languageMode(): String
-    }
-
     interface Listener {
         fun clearPlayHistory()
 

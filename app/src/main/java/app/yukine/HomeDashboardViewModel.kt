@@ -21,7 +21,7 @@ data class MainActivityHomeDashboardUiState(
     val actions: HomeDashboardActions = emptyHomeDashboardActions()
 )
 
-internal fun emptyHomeDashboardActions(): HomeDashboardActions = HomeDashboardActions(
+fun emptyHomeDashboardActions(): HomeDashboardActions = HomeDashboardActions(
     onOpenStat = emptyList(),
     onContinue = Runnable { },
     onOpenNowPlaying = Runnable { },

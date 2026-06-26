@@ -88,35 +88,20 @@ class NetworkMenuEventControllerTest {
         fun controller(): NetworkMenuEventController =
             NetworkMenuEventController(
                 { page -> events.add("navigate:$page") },
-                object : NetworkMenuEventController.Dialogs {
-                    override fun showAddStream() {
-                        events.add("dialog:addStream")
-                    }
-
-                    override fun showImportM3u() {
-                        events.add("dialog:importM3u")
-                    }
-
-                    override fun showAddWebDav() {
-                        events.add("dialog:addWebDav")
-                    }
-                },
+                Runnable { events.add("dialog:addStream") },
+                Runnable { events.add("dialog:importM3u") },
+                Runnable { events.add("dialog:addWebDav") },
                 { events.add("picker:m3u") },
-                object : NetworkMenuEventController.LibrarySource {
-                    override fun streamTracks(): ArrayList<Track> = streamTracks
-
-                    override fun streamTrackCount(): Int = streamTracks.size
-
-                    override fun webDavTracks(): ArrayList<Track> = webDavTracks
-
-                    override fun remoteSources(): List<RemoteSource> = remoteSources
-                },
+                { streamTracks },
+                { streamTracks.size },
+                { webDavTracks },
+                { remoteSources },
                 { sourceIds -> events.add("syncAll:${sourceIds.joinToString(",")}") },
                 { events.add("confirm:deleteAllStreams") },
                 { tracks, index -> events.add("play:${tracks.first().id}@$index") },
                 { key -> "label:$key" },
                 { status -> events.add("status:$status") },
-                object : NetworkMenuEventController.ContentSink {}
+                { _, _, _ -> }
             )
     }
 

@@ -3,6 +3,8 @@ package app.yukine
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
+import app.yukine.ui.StreamingSearchActions
+import app.yukine.ui.StreamingSearchLabels
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -167,7 +169,9 @@ class StreamingEventControllersTest {
         }
     }
 
-    private class FakeContentSink : StreamingSearchEventController.ContentSink
+    private class FakeContentSink : StreamingSearchContentSink {
+        override fun publishStreamingSearchChrome(labels: StreamingSearchLabels, actions: StreamingSearchActions) = Unit
+    }
 
     private class FakeAuthCallbackHandler : StreamingAuthCallbackHandler {
         val callbacks = ArrayList<String>()

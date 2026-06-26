@@ -11,17 +11,15 @@ import android.provider.Settings
 
 internal object AppPermissions {
     @JvmStatic
-    fun requestNeededPermissions(activity: Activity, requestCode: Int) {
+    fun neededPermissions(context: Context): Array<String> {
         val permissions = ArrayList<String>()
-        if (!hasAudioPermission(activity)) {
+        if (!hasAudioPermission(context)) {
             permissions.add(audioPermission())
         }
-        if (Build.VERSION.SDK_INT >= 33 && !hasNotificationPermission(activity)) {
+        if (Build.VERSION.SDK_INT >= 33 && !hasNotificationPermission(context)) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
-        if (permissions.isNotEmpty()) {
-            activity.requestPermissions(permissions.toTypedArray(), requestCode)
-        }
+        return permissions.toTypedArray()
     }
 
     @JvmStatic

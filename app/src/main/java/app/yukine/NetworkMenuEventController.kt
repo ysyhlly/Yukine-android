@@ -6,41 +6,48 @@ import app.yukine.model.RemoteSource
 import app.yukine.model.Track
 import java.util.ArrayList
 
+internal fun interface NetworkMenuContentSink {
+    fun publishNetworkMenu(title: String, metrics: List<SettingsMetric>, actions: List<SettingsAction>)
+}
+
 internal class NetworkMenuEventController(
     private val navigator: Navigator,
-    private val dialogs: Dialogs,
+    private val showAddStreamAction: Runnable,
+    private val showImportM3uAction: Runnable,
+    private val showAddWebDavAction: Runnable,
     private val documentPicker: DocumentPicker,
-    private val librarySource: LibrarySource,
+    private val streamTracksProvider: StreamTracksProvider,
+    private val streamTrackCountProvider: StreamTrackCountProvider,
+    private val webDavTracksProvider: WebDavTracksProvider,
+    private val remoteSourcesProvider: RemoteSourcesProvider,
     private val requests: Requests,
     private val deleteConfirmation: DeleteConfirmation,
-    private val player: Player,
+    private val player: TrackListPlaybackAction,
     private val labels: Labels,
     private val statusSink: StatusSink,
-    private val contentSink: ContentSink
+    private val contentSink: NetworkMenuContentSink
 ) : NetworkMenuRenderController.Listener {
     fun interface Navigator {
         fun navigateNetworkPage(page: String)
-    }
-
-    interface Dialogs {
-        fun showAddStream()
-
-        fun showImportM3u()
-
-        fun showAddWebDav()
     }
 
     fun interface DocumentPicker {
         fun openM3uFilePicker()
     }
 
-    interface LibrarySource {
+    fun interface StreamTracksProvider {
         fun streamTracks(): ArrayList<Track>
+    }
 
+    fun interface StreamTrackCountProvider {
         fun streamTrackCount(): Int
+    }
 
+    fun interface WebDavTracksProvider {
         fun webDavTracks(): ArrayList<Track>
+    }
 
+    fun interface RemoteSourcesProvider {
         fun remoteSources(): List<RemoteSource>
     }
 
@@ -52,10 +59,6 @@ internal class NetworkMenuEventController(
         fun confirmDeleteAllStreams()
     }
 
-    fun interface Player {
-        fun playTrackList(tracks: List<Track>, index: Int)
-    }
-
     fun interface Labels {
         fun text(key: String): String
     }
@@ -64,20 +67,16 @@ internal class NetworkMenuEventController(
         fun setStatus(status: String)
     }
 
-    interface ContentSink {
-        fun publishNetworkMenu(title: String, metrics: List<SettingsMetric>, actions: List<SettingsAction>) = Unit
-    }
-
     override fun navigateNetworkPage(page: String) {
         navigator.navigateNetworkPage(page)
     }
 
     override fun showAddStream() {
-        dialogs.showAddStream()
+        showAddStreamAction.run()
     }
 
     override fun showImportM3u() {
-        dialogs.showImportM3u()
+        showImportM3uAction.run()
     }
 
     override fun openM3uFilePicker() {
@@ -85,16 +84,16 @@ internal class NetworkMenuEventController(
     }
 
     override fun playAllStreams() {
-        val streams = librarySource.streamTracks()
+        val streams = streamTracksProvider.streamTracks()
         if (streams.isEmpty()) {
             statusSink.setStatus(labels.text("no.streams.to.play"))
             return
         }
-        player.playTrackList(streams, 0)
+        player.play(streams, 0)
     }
 
     override fun confirmDeleteAllStreams() {
-        if (librarySource.streamTrackCount() == 0) {
+        if (streamTrackCountProvider.streamTrackCount() == 0) {
             statusSink.setStatus(labels.text("no.streams.to.delete"))
             return
         }
@@ -102,12 +101,12 @@ internal class NetworkMenuEventController(
     }
 
     override fun showAddWebDav() {
-        dialogs.showAddWebDav()
+        showAddWebDavAction.run()
     }
 
     override fun syncAllWebDavSources() {
         val sourceIds = ArrayList<Long>()
-        librarySource.remoteSources().forEach { source ->
+        remoteSourcesProvider.remoteSources().forEach { source ->
             if (RemoteSource.TYPE_WEBDAV == source.type) {
                 sourceIds.add(source.id)
             }
@@ -120,12 +119,12 @@ internal class NetworkMenuEventController(
     }
 
     override fun playAllWebDavTracks() {
-        val tracks = librarySource.webDavTracks()
+        val tracks = webDavTracksProvider.webDavTracks()
         if (tracks.isEmpty()) {
             statusSink.setStatus(labels.text("no.webdav.tracks.to.play"))
             return
         }
-        player.playTrackList(tracks, 0)
+        player.play(tracks, 0)
     }
 
     override fun publishNetworkMenu(

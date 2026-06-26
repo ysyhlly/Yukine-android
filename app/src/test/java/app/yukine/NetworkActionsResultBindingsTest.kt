@@ -79,7 +79,7 @@ class NetworkActionsResultBindingsTest {
             navigateNetworkPageAction = NetworkPageAction { page ->
                 calls += "navigate:$page"
             },
-            statusSink = NetworkRequestStatusSink { status ->
+            statusSink = SettingsStatusSink { status ->
                 calls += "status:$status"
             },
             collectionsLoader = CollectionsLoader {
