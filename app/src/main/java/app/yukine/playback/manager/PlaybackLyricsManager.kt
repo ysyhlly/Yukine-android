@@ -91,10 +91,6 @@ internal class PlaybackLyricsManager(
         return if (activeLine.isBlank()) "" else sanitizeNotificationLyric(activeLine)
     }
 
-    fun currentNotificationLyric(track: Track?): String {
-        return notificationLyricText(track)
-    }
-
     override fun sanitizeNotificationLyric(value: String?): String {
         if (value == null) {
             return ""

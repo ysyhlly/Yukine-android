@@ -230,6 +230,10 @@ internal class PlaybackMediaLibraryCallback(
         return tracks
     }
 
+    fun resolveTracksForMediaItems(mediaItems: List<MediaItem>?): List<Track> {
+        return tracksForMediaItems(mediaItems)
+    }
+
     private fun trackForMediaItem(mediaItem: MediaItem?, tracksById: Map<Long, Track>): Track? {
         if (mediaItem == null) {
             return null
@@ -308,6 +312,10 @@ internal class PlaybackMediaLibraryCallback(
             .setCustomCacheKey(dataSource.cacheKeyForTrack(track))
             .setMediaMetadata(dataSource.mediaMetadataForTrack(track))
             .build()
+    }
+
+    fun mediaItemForPlaybackTrack(track: Track): MediaItem {
+        return mediaItemForTrack(track)
     }
 
     companion object {

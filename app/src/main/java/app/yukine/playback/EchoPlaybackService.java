@@ -8,8 +8,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Build;
@@ -22,7 +20,6 @@ import android.util.Log;
 import android.util.LruCache;
 
 import java.io.File;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -30,41 +27,46 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CopyOnWriteArraySet;
 
 import app.yukine.MainActivity;
 import app.yukine.R;
 import app.yukine.data.EmbeddedArtwork;
 import app.yukine.data.MusicLibraryRepository;
-import app.yukine.playback.manager.PlaybackQueueStore;
 import app.yukine.playback.manager.PlaybackAudioEffectManager;
+import app.yukine.playback.manager.PlaybackErrorRecoveryManager;
 import app.yukine.playback.manager.PlaybackLyricsManager;
 import app.yukine.playback.manager.PlaybackMediaLibraryCallback;
+import app.yukine.playback.manager.PlaybackNoisyReceiverManager;
 import app.yukine.playback.manager.PlaybackNotificationManager;
 import app.yukine.playback.manager.PlaybackNotificationChannelOwner;
+import app.yukine.playback.manager.PlaybackPositionManager;
+import app.yukine.playback.manager.PlaybackProgressUpdateManager;
+import app.yukine.playback.manager.PlaybackQueueManager;
+import app.yukine.playback.manager.PlaybackQueueRuntimeStateManager;
+import app.yukine.playback.manager.PlaybackQueueStore;
+import app.yukine.playback.manager.PlaybackQueueStoreImpl;
+import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 import app.yukine.playback.manager.PlaybackSessionManager;
+import app.yukine.playback.manager.PlaybackSleepTimerManager;
+import app.yukine.playback.manager.PlaybackTransitionStateManager;
+import app.yukine.playback.manager.PlaybackWifiLockManager;
 import app.yukine.model.Playlist;
-import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
 import app.yukine.model.TrackPlayRecord;
 import app.yukine.streaming.StreamingPlaybackHeaderStore;
 import androidx.annotation.OptIn;
-import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.ForwardingPlayer;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackException;
-import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DefaultDataSource;
@@ -116,7 +118,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private static final String EMPTY_NOTIFICATION_TEXT = "Ready to resume playback";
     private static final String EXTRA_REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing";
     private static final int NOTIFICATION_ACCENT = 0xFFEBC9A6;
-    private static final long PLAYBACK_POSITION_SAVE_INTERVAL_MS = 5000L;
     private static final long CROSSFADE_FADE_OUT_MS = 700L;
     private static final long CROSSFADE_FADE_STEP_MS = 70L;
     private static final long VISUALIZATION_CACHE_BYTES = 64L * 1024L * 1024L;
@@ -149,7 +150,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private static final String AUTO_TRACK_PREFIX = "echo:auto:track:";
     private final LocalBinder binder = new LocalBinder();
     private final CopyOnWriteArrayList<Track> queue = new CopyOnWriteArrayList<>();
-    private final Set<PlaybackStateListener> listeners = new CopyOnWriteArraySet<>();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Random random = new Random();
     private final PlaybackTaskScheduler playbackTaskScheduler =
@@ -162,86 +162,53 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private final PlaybackStreamingDiagnostics streamingDiagnostics = new PlaybackStreamingDiagnostics();
 
     private ExoPlayer player;
-    private boolean playerMirrorsQueue;
+    private final PlaybackQueueRuntimeStateManager playbackQueueRuntimeStateManager = new PlaybackQueueRuntimeStateManager();
+    private final PlaybackRuntimeStateManager playbackRuntimeStateManager =
+            new PlaybackRuntimeStateManager(new PlaybackRuntimeStateManager.StateProvider() {
+                @Override
+                public ExoPlayer player() {
+                    return player;
+                }
+
+                @Override
+                public boolean playerMirrorsQueue() {
+                    return playbackQueueRuntimeStateManager.playerMirrorsQueue();
+                }
+
+                @Override
+                public Track currentTrack() {
+                    return EchoPlaybackService.this.currentTrack();
+                }
+            });
     private final PlaybackAudioEffectManager audioEffectManager =
             new PlaybackAudioEffectManager(TAG);
-    private PlaybackSessionManager playbackSessionManager;
+    private PlaybackSessionGateway playbackSessionGateway;
+    private app.yukine.playback.manager.LyricsPublisher playbackLyricsManager;
+    private PlaybackMediaLibraryCallback playbackMediaLibraryCallback;
+    private PlaybackStatePublisher playbackStatePublisher;
+    private PlaybackErrorRecoveryManager playbackErrorRecoveryManager;
     private PlaybackQueueStore queueStore;
-    private PlaybackLyricsManager playbackLyricsManager;
+    private PlaybackQueueManager playbackQueueManager;
+    private PlaybackPositionManager playbackPositionManager;
     private PlaybackNotificationManager playbackNotificationManager;
+    private PlaybackSleepTimerManager playbackSleepTimerManager;
     private PlaybackVisualizationAnalyzer playbackVisualizationAnalyzer;
     private PlaybackVisualizationCacheManager playbackVisualizationCacheManager;
     private PlaybackNotificationArtworkManager playbackNotificationArtworkManager;
     private PlaybackPrecacheManager playbackPrecacheManager;
+    private PlaybackWarmupCoordinator playbackWarmupCoordinator;
+    private PlaybackShutdownCoordinator playbackShutdownCoordinator;
+    private PlaybackWifiLockManager playbackWifiLockManager;
+    private PlaybackNoisyReceiverManager playbackNoisyReceiverManager;
+    private PlaybackProgressUpdateManager playbackProgressUpdateManager;
     private SimpleCache audioCache;
-    private android.net.wifi.WifiManager.WifiLock wifiLock;
     @Inject
     MusicLibraryRepository repository;
     @Inject
     StreamingPlaybackHeaderStore streamingPlaybackHeaderStore;
-    private int currentIndex = -1;
-    private boolean preparing;
-    private boolean shuffleEnabled;
-    private int repeatMode = REPEAT_ALL;
-    private float playbackSpeed = 1.0f;
-    private float appVolume = 1.0f;
     private AudioEffectSettings audioEffectSettings = AudioEffectSettings.DEFAULT;
-    private boolean concurrentPlaybackEnabled = false;
-    private boolean statusBarLyricsEnabled = true;
-    private boolean playbackRestoreEnabled = true;
-    private boolean replayGainEnabled = true;
-    private long sleepTimerEndsAtMs;
-    private long restoredPositionTrackId = -1L;
-    private long restoredPositionMs;
-    private boolean restoredPositionExplicit;
-    private long lastSavedPositionTrackId = -1L;
-    private long lastSavedPositionMs;
-    private long lastPositionSaveAtMs;
-    private long lastErrorTrackId = -1L;
-    private long lastNotificationUpdateAtMs;
-    private String errorMessage = "";
-    private Track lastMarkedTrack;
-    private boolean noisyReceiverRegistered;
-    private boolean fadeOutAdvancing;
+    private final PlaybackTransitionStateManager playbackTransitionStateManager = new PlaybackTransitionStateManager();
     private volatile boolean appVisible;
-
-    private final BroadcastReceiver noisyReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent == null ? "" : intent.getAction();
-            if (AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(action) && isPlaying()) {
-                pause();
-            }
-        }
-    };
-
-    private final Runnable progressRunnable = new Runnable() {
-        @Override
-        public void run() {
-            publishState();
-            persistPlaybackPositionThrottled(false);
-            if (isPlaying() || preparing) {
-                mainHandler.postDelayed(this, 1000L);
-            }
-        }
-    };
-
-    private final Runnable sleepTimerRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (sleepTimerEndsAtMs <= 0L) {
-                return;
-            }
-            long remainingMs = sleepTimerRemainingMs();
-            if (remainingMs <= 0L) {
-                sleepTimerEndsAtMs = 0L;
-                pause();
-                return;
-            }
-            publishState();
-            mainHandler.postDelayed(this, Math.min(remainingMs, 60000L));
-        }
-    };
 
     private final Player.Listener playerListener = new Player.Listener() {
         @Override
@@ -250,13 +217,15 @@ public final class EchoPlaybackService extends MediaLibraryService {
                 return;
             }
             if (playbackState == Player.STATE_READY) {
-                preparing = false;
-                errorMessage = "";
-                lastErrorTrackId = -1L;
+                playbackRuntimeStateManager.setPreparing(false);
+                playbackRuntimeStateManager.setErrorMessage("");
+                if (playbackErrorRecoveryManager != null) {
+                    playbackErrorRecoveryManager.onPlaybackReady();
+                }
                 Track track = currentTrack();
-                if (player.getPlayWhenReady() && track != null && (lastMarkedTrack == null || lastMarkedTrack.id != track.id)) {
+                if (player.getPlayWhenReady() && track != null && (playbackTransitionStateManager.lastMarkedTrack() == null || playbackTransitionStateManager.lastMarkedTrack().id != track.id)) {
                     repository.markPlayed(track.id);
-                    lastMarkedTrack = track;
+                    playbackTransitionStateManager.setLastMarkedTrack(track);
                 }
             } else if (playbackState == Player.STATE_ENDED) {
                 playAfterCompletion();
@@ -271,29 +240,32 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
         @Override
         public void onMediaItemTransition(MediaItem mediaItem, int reason) {
-            if (!playerMirrorsQueue || player == null || queue.isEmpty()) {
+            if (!playbackQueueRuntimeStateManager.playerMirrorsQueue() || player == null || queue.isEmpty()) {
                 return;
             }
             int nextIndex = player.getCurrentMediaItemIndex();
-            if (nextIndex < 0 || nextIndex >= queue.size() || nextIndex == currentIndex) {
+            if (nextIndex < 0 || nextIndex >= queue.size() || nextIndex == currentIndex()) {
                 return;
             }
-            if (repeatMode == REPEAT_OFF && isAutomaticMediaItemAdvance(reason)) {
-                stopAfterAutomaticAdvance(currentIndex);
+            int repeat = playbackRuntimeStateManager != null ? playbackRuntimeStateManager.repeatMode() : REPEAT_ALL;
+            if (repeat == REPEAT_OFF && isAutomaticMediaItemAdvance(reason)) {
+                stopAfterAutomaticAdvance(currentIndex());
                 return;
             }
             persistPlaybackPositionThrottled(true);
-            currentIndex = nextIndex;
+            setCurrentIndex(nextIndex);
             Track track = currentTrack();
-            errorMessage = "";
-            lastMarkedTrack = null;
+            playbackRuntimeStateManager.setErrorMessage("");
+            playbackTransitionStateManager.setLastMarkedTrack(null);
             clearRestoredPosition();
             resetCurrentPlaybackPosition();
             if (track != null) {
                 resetWaveformIfTrackChanged(track);
                 streamingPlaybackHeaderStore.restoreForDataPath(track.dataPath);
             }
-            applyAppVolume();
+            if (playbackRuntimeStateManager != null) {
+                playbackRuntimeStateManager.applyAppVolume();
+            }
             persistPlaybackQueue();
             publishState();
             startProgressUpdates();
@@ -305,9 +277,13 @@ public final class EchoPlaybackService extends MediaLibraryService {
             // playback (explicit play, auto-advance, queue tap, restore) keeps WiFi awake, and
             // every pause/stop releases it. acquire/release are idempotent (guarded by isHeld).
             if (isPlaying) {
-                acquireWifiLockIfStreaming();
+                if (playbackWifiLockManager != null) {
+                    playbackWifiLockManager.acquireIfStreaming();
+                }
             } else {
-                releaseWifiLock();
+                if (playbackWifiLockManager != null) {
+                    playbackWifiLockManager.release();
+                }
             }
             publishState();
             startProgressUpdates();
@@ -315,32 +291,13 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
         @Override
         public void onPlayerError(PlaybackException error) {
-            preparing = false;
+            playbackRuntimeStateManager.setPreparing(false);
+            if (playbackErrorRecoveryManager != null) {
+                playbackErrorRecoveryManager.onPlayerError(error);
+                return;
+            }
             Log.w(TAG, "Playback failed for " + debugTrack(currentTrack()), error);
-            // A transient streaming/network hiccup must not leave playback silently stuck.
-            // Retry the current track once; if it fails again, skip to the next track so
-            // playback keeps moving instead of "mysteriously pausing".
-            Track failed = currentTrack();
-            long failedId = failed == null ? -1L : failed.id;
-            boolean isStreaming = failed != null && isHttpUri(failed.contentUri);
-            if (isStreaming && failedId != -1L && failedId != lastErrorTrackId) {
-                lastErrorTrackId = failedId;
-                Log.w(TAG, "Retrying streaming track after error: " + debugTrack(failed));
-                mainHandler.postDelayed(() -> {
-                    if (currentTrack() != null && currentTrack().id == failedId) {
-                        prepareCurrent(true);
-                    }
-                }, 1500L);
-                return;
-            }
-            if (failedId != -1L && queue.size() > 1) {
-                lastErrorTrackId = -1L;
-                Log.w(TAG, "Skipping unplayable track: " + debugTrack(failed));
-                errorMessage = "";
-                skipToNext();
-                return;
-            }
-            errorMessage = "Unable to play this track.";
+            playbackRuntimeStateManager.setErrorMessage("Unable to play this track.");
             publishState();
         }
     };
@@ -355,13 +312,134 @@ public final class EchoPlaybackService extends MediaLibraryService {
     @UnstableApi
     public void onCreate() {
         super.onCreate();
-        shuffleEnabled = repository.loadShuffleEnabled();
-        repeatMode = repository.loadRepeatMode();
         audioEffectSettings = repository.loadAudioEffectSettings();
-        statusBarLyricsEnabled = repository.loadStatusBarLyricsEnabled();
-        playbackRestoreEnabled = repository.loadPlaybackRestoreEnabled();
-        replayGainEnabled = repository.loadReplayGainEnabled();
         new PlaybackNotificationChannelOwner(this).createNotificationChannel();
+        queueStore = new PlaybackQueueStoreImpl(repository);
+        playbackPositionManager = new PlaybackPositionManager(queueStore, new PlaybackPositionManager.StateProvider() {
+            @Override
+            public Track currentTrack() {
+                return EchoPlaybackService.this.currentTrack();
+            }
+
+            @Override
+            public long positionMs() {
+                return EchoPlaybackService.this.positionMs();
+            }
+        });
+        playbackSleepTimerManager = new PlaybackSleepTimerManager(
+                new PlaybackSleepTimerManager.CallbackScheduler() {
+                    @Override
+                    public void postDelayed(Runnable runnable, long delayMs) {
+                        mainHandler.postDelayed(runnable, delayMs);
+                    }
+
+                    @Override
+                    public void removeCallbacks(Runnable runnable) {
+                        mainHandler.removeCallbacks(runnable);
+                    }
+                },
+                new PlaybackSleepTimerManager.Actions() {
+                    @Override
+                    public void pausePlayback() {
+                        EchoPlaybackService.this.pause();
+                    }
+
+                    @Override
+                    public void publishState() {
+                        EchoPlaybackService.this.publishState();
+                    }
+                }
+        );
+        playbackErrorRecoveryManager = new PlaybackErrorRecoveryManager(
+                new PlaybackErrorRecoveryManager.RetryScheduler() {
+                    @Override
+                    public void postDelayed(Runnable runnable, long delayMs) {
+                        mainHandler.postDelayed(runnable, delayMs);
+                    }
+                },
+                new PlaybackErrorRecoveryManager.Actions() {
+                    @Override
+                    public Track currentTrack() {
+                        return EchoPlaybackService.this.currentTrack();
+                    }
+
+                    @Override
+                    public boolean isHttpUri(Uri uri) {
+                        return EchoPlaybackService.this.isHttpUri(uri);
+                    }
+
+                    @Override
+                    public int queueSize() {
+                        return queue.size();
+                    }
+
+                    @Override
+                    public String debugTrack(Track track) {
+                        return EchoPlaybackService.this.debugTrack(track);
+                    }
+
+                    @Override
+                    public void prepareCurrent(boolean playWhenReady) {
+                        EchoPlaybackService.this.prepareCurrent(playWhenReady);
+                    }
+
+                    @Override
+                    public void skipToNext() {
+                        EchoPlaybackService.this.skipToNext();
+                    }
+
+                    @Override
+                    public void setErrorMessage(String message) {
+                        playbackRuntimeStateManager.setErrorMessage(message);
+                    }
+
+                    @Override
+                    public void publishState() {
+                        EchoPlaybackService.this.publishState();
+                    }
+
+                    @Override
+                    public void logWarning(String message, Exception error) {
+                        Log.w(TAG, message, error);
+                    }
+                },
+                1500L
+        );
+        playbackProgressUpdateManager = new PlaybackProgressUpdateManager(
+                new PlaybackProgressUpdateManager.CallbackScheduler() {
+                    @Override
+                    public void postDelayed(Runnable runnable, long delayMs) {
+                        mainHandler.postDelayed(runnable, delayMs);
+                    }
+
+                    @Override
+                    public void removeCallbacks(Runnable runnable) {
+                        mainHandler.removeCallbacks(runnable);
+                    }
+                },
+                new PlaybackProgressUpdateManager.StateProvider() {
+                    @Override
+                    public boolean isPlaying() {
+                        return EchoPlaybackService.this.isPlaying();
+                    }
+
+                    @Override
+                    public boolean isPreparing() {
+                        return playbackRuntimeStateManager.preparing();
+                    }
+                },
+                new PlaybackProgressUpdateManager.Actions() {
+                    @Override
+                    public void publishState() {
+                        EchoPlaybackService.this.publishState();
+                    }
+
+                    @Override
+                    public void persistPlaybackPosition() {
+                        EchoPlaybackService.this.persistPlaybackPositionThrottled(false);
+                    }
+                }
+        );
         createPlayerIfNeeded();
         playbackLyricsManager = new PlaybackLyricsManager(this, new PlaybackLyricsManager.StateProvider() {
             @Override
@@ -386,17 +464,16 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
             @Override
             public boolean isPreparing() {
-                return preparing;
+                return playbackRuntimeStateManager.preparing();
             }
 
             @Override
             public void notifyMediaNotification(boolean force) {
-                if (playbackNotificationManager != null) {
-                    playbackNotificationManager.updateMediaNotification(force);
-                }
+                publishPlaybackNotification(force);
             }
 
         });
+        playbackLyricsManager.setStatusBarLyricsEnabled(repository.loadStatusBarLyricsEnabled());
         playbackNotificationManager = new PlaybackNotificationManager(
                 this,
                 new PlaybackNotificationManager.ForegroundPresenter() {
@@ -427,7 +504,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
                     @Override
                     public boolean isPreparing() {
-                        return preparing;
+                        return playbackRuntimeStateManager.preparing();
                     }
 
                     @Override
@@ -437,13 +514,13 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
                     @Override
                     public android.media.session.MediaSession.Token playbackSessionPlatformToken() {
-                        return playbackSessionManager == null ? null : playbackSessionManager.session().getPlatformToken();
+                        return playbackSessionGateway == null ? null : playbackSessionGateway.platformToken();
                     }
                 },
                 new PlaybackNotificationManager.LyricsTextProvider() {
                     @Override
                     public String currentNotificationLyric(Track track) {
-                        return playbackLyricsManager == null ? "" : playbackLyricsManager.currentNotificationLyric(track);
+                        return playbackLyricsManager == null ? "" : playbackLyricsManager.notificationLyricText(track);
                     }
 
                     @Override
@@ -467,7 +544,223 @@ public final class EchoPlaybackService extends MediaLibraryService {
                     }
                 }
         );
-        PlaybackMediaLibraryCallback mediaLibraryCallback = new PlaybackMediaLibraryCallback(
+        playbackRuntimeStateManager.setShuffleEnabled(repository.loadShuffleEnabled());
+        playbackRuntimeStateManager.setRepeatMode(repository.loadRepeatMode());
+        playbackRuntimeStateManager.setReplayGainEnabled(repository.loadReplayGainEnabled());
+        playbackRuntimeStateManager.setConcurrentPlaybackEnabled(repository.loadConcurrentPlaybackEnabled());
+        playbackRuntimeStateManager.setPlaybackSpeed(repository.loadPlaybackSpeed());
+        playbackRuntimeStateManager.setAppVolume(repository.loadAppVolume());
+        playbackQueueManager = new PlaybackQueueManager(
+                queueStore,
+                new PlaybackQueueManager.QueueProvider() {
+                    @Override
+                    public java.util.List<Track> queue() {
+                        return queue;
+                    }
+
+                    @Override
+                    public int currentIndex() {
+                        return currentIndex();
+                    }
+
+                    @Override
+                    public Track currentTrack() {
+                        return EchoPlaybackService.this.currentTrack();
+                    }
+
+                    @Override
+                    public int repeatMode() {
+                        return playbackRuntimeStateManager != null ? playbackRuntimeStateManager.repeatMode() : REPEAT_ALL;
+                    }
+
+                    @Override
+                    public boolean shuffleEnabled() {
+                        return playbackRuntimeStateManager != null && playbackRuntimeStateManager.shuffleEnabled();
+                    }
+
+                    @Override
+                    public boolean isPlaying() {
+                        return EchoPlaybackService.this.isPlaying();
+                    }
+
+                    @Override
+                    public boolean preparing() {
+                        return playbackRuntimeStateManager.preparing();
+                    }
+
+                    @Override
+                    public void clearRestoredPosition() {
+                        if (playbackPositionManager != null) {
+                            playbackPositionManager.clearRestoredPosition();
+                        }
+                    }
+
+                    @Override
+                    public void resetCurrentPlaybackPosition() {
+                        if (playbackPositionManager != null) {
+                            playbackPositionManager.resetCurrentPlaybackPosition();
+                        }
+                    }
+
+                    @Override
+                    public void savePlaybackResumeRequested(boolean requested) {
+                        EchoPlaybackService.this.savePlaybackResumeRequested(requested);
+                    }
+
+                    @Override
+                    public void prepareCurrent(boolean playWhenReady) {
+                        EchoPlaybackService.this.prepareCurrent(playWhenReady);
+                    }
+
+                    @Override
+                    public void publishState() {
+                        EchoPlaybackService.this.publishState();
+                    }
+
+                    @Override
+                    public void stopAndClear() {
+                        EchoPlaybackService.this.stopAndClear();
+                    }
+
+                    @Override
+                    public boolean seekMirroredQueueToCurrentIndex(boolean playWhenReady) {
+                        return EchoPlaybackService.this.seekMirroredQueueToCurrentIndex(playWhenReady);
+                    }
+
+                    @Override
+                    public long playbackPositionMs() {
+                        return EchoPlaybackService.this.positionMs();
+                    }
+
+                    @Override
+                    public Track restoredTrackFor(Track track) {
+                        return streamingPlaybackHeaderStore.restoredTrackFor(track);
+                    }
+
+                    @Override
+                    public void restoreForDataPath(String dataPath) {
+                        streamingPlaybackHeaderStore.restoreForDataPath(dataPath);
+                    }
+
+                    @Override
+                    public boolean isRestorableQueueTrack(Track track) {
+                        return EchoPlaybackService.this.isRestorableQueueTrack(track);
+                    }
+
+                    @Override
+                    public void setRestoredPosition(long trackId, long positionMs, boolean explicit) {
+                        if (playbackPositionManager != null) {
+                            playbackPositionManager.setRestoredPosition(trackId, positionMs, explicit);
+                        }
+                    }
+
+                    @Override
+                    public void setCurrentIndex(int index) {
+                        EchoPlaybackService.this.setCurrentIndex(index);
+                    }
+
+                    @Override
+                    public void setErrorMessage(String message) {
+                        playbackRuntimeStateManager.setErrorMessage(message);
+                    }
+
+                    @Override
+                    public void setPreparing(boolean preparing) {
+                        playbackRuntimeStateManager.setPreparing(preparing);
+                    }
+
+                    @Override
+                    public void setLastMarkedTrack(Track track) {
+                        playbackTransitionStateManager.setLastMarkedTrack(track);
+                    }
+
+                    @Override
+                    public boolean queueIsEmpty() {
+                        return queue.isEmpty();
+                    }
+
+                    @Override
+                    public boolean samePlaybackUri(Track first, Track second) {
+                        return EchoPlaybackService.this.samePlaybackUri(first, second);
+                    }
+
+                    @Override
+                    public long setExplicitRestoredPosition(Track track, long positionMs) {
+                        return playbackPositionManager == null
+                                ? 0L
+                                : playbackPositionManager.setExplicitRestoredPosition(track, positionMs);
+                    }
+
+                    @Override
+                    public void recordStreamingRecovery(Track track, long restoredPositionMs) {
+                        streamingDiagnostics.recordRecovery(track, restoredPositionMs, qualityFromDataPath(track.dataPath));
+                    }
+
+                    @Override
+                    public void schedulePrepareCurrent(boolean playWhenReady) {
+                        playbackTaskScheduler.schedule(
+                                PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY,
+                                () -> mainHandler.post(() -> prepareCurrent(playWhenReady))
+                        );
+                    }
+
+                    @Override
+                    public boolean mirroredQueueMatchesCurrentPlayer() {
+                        return EchoPlaybackService.this.mirroredQueueMatchesCurrentPlayer();
+                    }
+
+                    @Override
+                    public void resetWaveformIfTrackChanged(Track track) {
+                        EchoPlaybackService.this.resetWaveformIfTrackChanged(track);
+                    }
+
+                    @Override
+                    public void applyPlaybackParametersToPlayer() {
+                        EchoPlaybackService.this.applyPlaybackParametersToPlayer();
+                    }
+
+                    @Override
+                    public void applyPlaybackModeToPlayer() {
+                        EchoPlaybackService.this.applyPlaybackModeToPlayer();
+                    }
+
+                    @Override
+                    public boolean seekMirroredQueueTo(int index, long positionMs, boolean playWhenReady) {
+                        if (player == null) {
+                            return false;
+                        }
+                        try {
+                            player.seekTo(index, positionMs);
+                            player.setPlayWhenReady(playWhenReady);
+                            if (playWhenReady) {
+                                player.play();
+                            }
+                            return true;
+                        } catch (IllegalStateException error) {
+                            Log.w(TAG, "Unable to reuse mirrored queue", error);
+                            return false;
+                        }
+                    }
+
+                    @Override
+                    public void setPlayerMirrorsQueue(boolean enabled) {
+                        playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(enabled);
+                    }
+
+                    @Override
+                    public void acquireWifiLockIfStreaming() {
+                        if (playbackWifiLockManager != null) {
+                            playbackWifiLockManager.acquireIfStreaming();
+                        }
+                    }
+
+                    @Override
+                    public void startProgressUpdates() {
+                        EchoPlaybackService.this.startProgressUpdates();
+                    }
+                }
+        );
+        playbackMediaLibraryCallback = new PlaybackMediaLibraryCallback(
                 new PlaybackMediaLibraryCallback.DataSource() {
                     @Override
                     public String appName() {
@@ -505,12 +798,12 @@ public final class EchoPlaybackService extends MediaLibraryService {
                     }
                 }
         );
-        playbackSessionManager = new PlaybackSessionManager(
+        playbackSessionGateway = new PlaybackSessionGateway(new PlaybackSessionManager(
                 this,
                 this::createSessionPlayer,
-                mediaLibraryCallback,
+                playbackMediaLibraryCallback,
                 this::activityPendingIntent
-        );
+        ));
         playbackVisualizationAnalyzer = new PlaybackVisualizationAnalyzer(
                 this,
                 visualizationTaskScheduler,
@@ -604,6 +897,73 @@ public final class EchoPlaybackService extends MediaLibraryService {
                     }
                 }
         );
+        playbackWarmupCoordinator = new PlaybackWarmupCoordinator(
+                track -> {
+                    if (playbackPrecacheManager != null) {
+                        playbackPrecacheManager.precacheTrack(track);
+                    }
+                },
+                track -> {
+                    if (playbackVisualizationCacheManager != null) {
+                        playbackVisualizationCacheManager.scheduleVisualizationCache(track);
+                    }
+                }
+        );
+        playbackShutdownCoordinator = new PlaybackShutdownCoordinator(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        if (playbackLyricsManager != null) {
+                            playbackLyricsManager.release();
+                        }
+                    }
+                },
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        if (playbackNotificationArtworkManager != null) {
+                            playbackNotificationArtworkManager.release();
+                        }
+                    }
+                },
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        if (playbackPrecacheManager != null) {
+                            playbackPrecacheManager.release();
+                        }
+                    }
+                },
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        if (playbackNoisyReceiverManager != null) {
+                            playbackNoisyReceiverManager.unregister();
+                        }
+                    }
+                },
+                new Runnable() {
+                    @Override
+                    public void run() {
+                    playbackTaskScheduler.shutdownNow();
+                    visualizationTaskScheduler.shutdownNow();
+                    }
+                },
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        if (playbackWifiLockManager != null) {
+                            playbackWifiLockManager.release();
+                        }
+                    }
+                },
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        releasePlayer();
+                    }
+                }
+        );
         playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(
                 this,
                 new PlaybackNotificationArtworkManager.StateProvider() {
@@ -613,20 +973,26 @@ public final class EchoPlaybackService extends MediaLibraryService {
                     }
 
                     @Override
-                    public void refreshNotificationArtwork() {
-                        if (playbackSessionManager != null) {
-                            playbackSessionManager.refreshPlayer();
+                    public void refreshPlaybackSession() {
+                        if (playbackSessionGateway != null) {
+                            playbackSessionGateway.refresh();
                         }
                     }
 
                     @Override
-                    public void updateMediaNotification(boolean force) {
-                        if (playbackNotificationManager != null) {
-                            playbackNotificationManager.updateMediaNotification(force);
-                        }
+                    public void updateMediaNotification() {
+                        publishPlaybackNotification(true);
                     }
                 }
         );
+        playbackStatePublisher = new PlaybackStatePublisher(
+                this::snapshot,
+                playbackLyricsManager,
+                playbackNotificationManager == null ? null : force -> playbackNotificationManager.updateMediaNotification(force),
+                playbackNotificationArtworkManager == null ? null : track -> playbackNotificationArtworkManager.notificationArtworkFor(track),
+                (snapshot, artwork) -> EchoPlaybackWidgetProvider.update(this, snapshot, artwork)
+        );
+        playbackQueueManager.setPlaybackRestoreEnabled(repository.loadPlaybackRestoreEnabled());
         playbackPrecacheManager = new PlaybackPrecacheManager(new PlaybackPrecacheManager.StateProvider() {
             @Override
             public List<Track> queueSnapshot() {
@@ -635,12 +1001,12 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
             @Override
             public int currentIndex() {
-                return currentIndex;
+                return currentIndex();
             }
 
             @Override
             public int repeatMode() {
-                return repeatMode;
+                return playbackRuntimeStateManager != null ? playbackRuntimeStateManager.repeatMode() : REPEAT_ALL;
             }
 
             @Override
@@ -711,16 +1077,72 @@ public final class EchoPlaybackService extends MediaLibraryService {
         });
         restorePlaybackQueue();
         if (hasNotificationWorthyState()) {
-            playbackNotificationManager.updateMediaNotification(true);
+            publishPlaybackNotification(true);
         }
         playbackLyricsManager.bind();
-        registerNoisyReceiver();
+        playbackNoisyReceiverManager = new PlaybackNoisyReceiverManager(
+                new PlaybackNoisyReceiverManager.Registrar() {
+                    @Override
+                    public void register(BroadcastReceiver receiver, IntentFilter filter) {
+                        if (Build.VERSION.SDK_INT >= 33) {
+                            EchoPlaybackService.this.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+                        } else {
+                            EchoPlaybackService.this.registerReceiver(receiver, filter);
+                        }
+                    }
+
+                    @Override
+                    public void unregister(BroadcastReceiver receiver) {
+                        EchoPlaybackService.this.unregisterReceiver(receiver);
+                    }
+                },
+                new PlaybackNoisyReceiverManager.Actions() {
+                    @Override
+                    public void pauseIfPlaying() {
+                        if (EchoPlaybackService.this.isPlaying()) {
+                            EchoPlaybackService.this.pause();
+                        }
+                    }
+                }
+        );
+        playbackNoisyReceiverManager.register();
         android.net.wifi.WifiManager wifiManager =
                 (android.net.wifi.WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+        android.net.wifi.WifiManager.WifiLock wifiLock = null;
         if (wifiManager != null) {
             wifiLock = wifiManager.createWifiLock(
                     android.net.wifi.WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "echo:playback");
         }
+        final android.net.wifi.WifiManager.WifiLock streamingWifiLock = wifiLock;
+        playbackWifiLockManager = new PlaybackWifiLockManager(
+                streamingWifiLock == null ? null : new PlaybackWifiLockManager.Lock() {
+                    @Override
+                    public boolean isHeld() {
+                        return streamingWifiLock.isHeld();
+                    }
+
+                    @Override
+                    public void acquire() {
+                        streamingWifiLock.acquire();
+                    }
+
+                    @Override
+                    public void release() {
+                        streamingWifiLock.release();
+                    }
+                },
+                new PlaybackWifiLockManager.StreamingTrackProvider() {
+                    @Override
+                    public Track currentTrack() {
+                        return EchoPlaybackService.this.currentTrack();
+                    }
+
+                    @Override
+                    public boolean isHttpUri(Uri uri) {
+                        return EchoPlaybackService.this.isHttpUri(uri);
+                    }
+                }
+        );
         publishState();
     }
 
@@ -884,7 +1306,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     @Override
     public MediaLibrarySession onGetSession(MediaSession.ControllerInfo controllerInfo) {
-        return playbackSessionManager == null ? null : playbackSessionManager.session();
+        return playbackSessionGateway == null ? null : playbackSessionGateway.session();
     }
 
     @Override
@@ -893,7 +1315,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         String action = intent == null ? "" : intent.getAction();
         boolean notificationRequested = isPlaybackServiceAction(action);
         if (notificationRequested) {
-            playbackNotificationManager.updateMediaNotification(true);
+            publishPlaybackNotification(true);
         }
         if (ACTION_PLAY.equals(action)) {
             play();
@@ -913,7 +1335,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
             stopAndClear();
         }
         if (notificationRequested && hasNotificationWorthyState()) {
-            playbackNotificationManager.updateMediaNotification(true);
+            publishPlaybackNotification(true);
         } else if (notificationRequested && !ACTION_STOP.equals(action)) {
             stopForeground(true);
             stopSelf();
@@ -936,9 +1358,9 @@ public final class EchoPlaybackService extends MediaLibraryService {
     public void onTaskRemoved(Intent rootIntent) {
         persistPlaybackPositionThrottled(true);
         persistPlaybackQueue();
-        savePlaybackResumeRequested(isPlaying() || preparing);
+        savePlaybackResumeRequested(isPlaying() || playbackRuntimeStateManager.preparing());
         if (hasNotificationWorthyState()) {
-            playbackNotificationManager.updateMediaNotification(true);
+            publishPlaybackNotification(true);
         }
         super.onTaskRemoved(rootIntent);
     }
@@ -946,42 +1368,33 @@ public final class EchoPlaybackService extends MediaLibraryService {
     @Override
     public void onDestroy() {
         persistPlaybackPositionThrottled(true);
-        if (playbackLyricsManager != null) {
-            playbackLyricsManager.release();
-        }
         mainHandler.removeCallbacksAndMessages(null);
-        unregisterNoisyReceiver();
-        playbackTaskScheduler.shutdownNow();
-        visualizationTaskScheduler.shutdownNow();
-        if (playbackNotificationArtworkManager != null) {
-            playbackNotificationArtworkManager.release();
+        if (playbackShutdownCoordinator != null) {
+            playbackShutdownCoordinator.releaseServiceResources();
         }
-        if (playbackPrecacheManager != null) {
-            playbackPrecacheManager.release();
-        }
-        releaseWifiLock();
-        releasePlayer();
         super.onDestroy();
     }
 
     public void registerListener(PlaybackStateListener listener) {
-        if (listener == null) {
+        if (playbackStatePublisher != null) {
+            playbackStatePublisher.registerListener(listener);
             return;
         }
-        listeners.add(listener);
-        listener.onPlaybackStateChanged(snapshot());
+        if (listener != null) {
+            listener.onPlaybackStateChanged(snapshot());
+        }
     }
 
     public void unregisterListener(PlaybackStateListener listener) {
-        if (listener != null) {
-            listeners.remove(listener);
+        if (playbackStatePublisher != null) {
+            playbackStatePublisher.unregisterListener(listener);
         }
     }
 
     public void setAppVisible(boolean visible) {
         appVisible = visible;
         if (visible && hasNotificationWorthyState()) {
-            playbackNotificationManager.updateMediaNotification(true);
+            publishPlaybackNotification(true);
         }
     }
 
@@ -996,52 +1409,18 @@ public final class EchoPlaybackService extends MediaLibraryService {
         if (tracks == null || tracks.isEmpty()) {
             return;
         }
-        queue.clear();
-        queue.addAll(tracks);
-        currentIndex = Math.max(0, Math.min(startIndex, queue.size() - 1));
-        errorMessage = "";
-        lastMarkedTrack = null;
-        clearRestoredPosition();
-        persistPlaybackQueue();
-        resetCurrentPlaybackPosition();
-        if (startPositionMs >= 0L) {
-            Track track = currentTrack();
-            if (track != null) {
-                restoredPositionTrackId = track.id;
-                restoredPositionMs = startPositionMs;
-                restoredPositionExplicit = true;
-            }
+        if (playbackQueueManager != null) {
+            playbackQueueManager.playQueue(tracks, startIndex, startPositionMs);
         }
-        savePlaybackResumeRequested(true);
-        prepareCurrent(true);
-    }
-
-    private void queueTracks(List<Track> tracks, int startIndex) {
-        queue.clear();
-        queue.addAll(tracks);
-        currentIndex = Math.max(0, Math.min(startIndex, queue.size() - 1));
     }
 
     public void appendToQueue(List<Track> tracks) {
         if (tracks == null || tracks.isEmpty()) {
             return;
         }
-        boolean wasEmpty = queue.isEmpty();
-        queue.addAll(tracks);
-        if (currentIndex < 0 || currentIndex >= queue.size()) {
-            currentIndex = 0;
+        if (playbackQueueManager != null) {
+            playbackQueueManager.appendToQueue(tracks);
         }
-        persistPlaybackQueue();
-        if (wasEmpty) {
-            errorMessage = "";
-            lastMarkedTrack = null;
-            clearRestoredPosition();
-            resetCurrentPlaybackPosition();
-            savePlaybackResumeRequested(true);
-            prepareCurrent(true);
-            return;
-        }
-        publishState();
     }
 
     public void play() {
@@ -1053,7 +1432,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
             }
             return;
         }
-        if (preparing) {
+        if (playbackRuntimeStateManager.preparing()) {
             return;
         }
         Track track = currentTrack();
@@ -1070,37 +1449,34 @@ public final class EchoPlaybackService extends MediaLibraryService {
         }
         player.play();
         savePlaybackResumeRequested(true);
-        acquireWifiLockIfStreaming();
+        if (playbackWifiLockManager != null) {
+            playbackWifiLockManager.acquireIfStreaming();
+        }
         publishState();
         startProgressUpdates();
     }
 
     private void playFirstQueuedTrack() {
-        if (queue.isEmpty()) {
-            return;
+        if (playbackQueueManager != null) {
+            playbackQueueManager.playFirstQueuedTrack();
         }
-        currentIndex = 0;
-        errorMessage = "";
-        lastMarkedTrack = null;
-        clearRestoredPosition();
-        persistPlaybackQueue();
-        resetCurrentPlaybackPosition();
-        prepareCurrent(true);
     }
 
     public void pause() {
-        fadeOutAdvancing = false;
+        playbackTransitionStateManager.setFadeOutAdvancing(false);
         if (player != null && isPlaying()) {
             player.pause();
         }
         savePlaybackResumeRequested(false);
-        releaseWifiLock();
+        if (playbackWifiLockManager != null) {
+            playbackWifiLockManager.release();
+        }
         persistPlaybackPositionThrottled(true);
         publishState();
     }
 
     public void seekTo(long positionMs) {
-        if (player == null || preparing) {
+        if (player == null || playbackRuntimeStateManager.preparing()) {
             return;
         }
         try {
@@ -1108,7 +1484,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
             persistPlaybackPositionThrottled(true);
             publishState();
         } catch (IllegalStateException ignored) {
-            errorMessage = "Playback is not ready.";
+            playbackRuntimeStateManager.setErrorMessage("Playback is not ready.");
             publishState();
         }
     }
@@ -1124,75 +1500,62 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private void advanceQueueIndexToNext() {
-        if (shuffleEnabled && queue.size() > 1) {
-            int nextIndex = currentIndex;
-            while (nextIndex == currentIndex) {
-                nextIndex = random.nextInt(queue.size());
-            }
-            currentIndex = nextIndex;
-            return;
+        if (playbackQueueManager != null) {
+            playbackQueueManager.advanceQueueIndexToNext();
         }
-        if (currentIndex >= queue.size() - 1) {
-            if (repeatMode == REPEAT_OFF) {
-                persistPlaybackQueue();
-                publishState();
-                return;
-            }
-            currentIndex = 0;
-            return;
-        }
-        currentIndex += 1;
     }
 
     private void skipToNextImmediately() {
-        persistPlaybackPositionThrottled(true);
-        advanceQueueIndexToNext();
-        if (seekMirroredQueueToCurrentIndex(true)) {
-            return;
+        if (playbackQueueManager != null) {
+            playbackQueueManager.skipToNextImmediately();
         }
-        errorMessage = "";
-        lastMarkedTrack = null;
-        clearRestoredPosition();
-        persistPlaybackQueue();
-        resetCurrentPlaybackPosition();
-        savePlaybackResumeRequested(true);
-        prepareCurrent(true);
     }
 
     private boolean startFadeOutThenNext() {
-        if (fadeOutAdvancing || player == null || !isPlaying() || queue.size() < 2) {
+        if (playbackTransitionStateManager.fadeOutAdvancing() || player == null || !isPlaying() || queue.size() < 2) {
             return false;
         }
-        if (repeatMode == REPEAT_OFF && currentIndex >= queue.size() - 1) {
+        int repeat = playbackRuntimeStateManager != null ? playbackRuntimeStateManager.repeatMode() : REPEAT_ALL;
+        if (repeat == REPEAT_OFF && currentIndex() >= queue.size() - 1) {
             return false;
         }
-        fadeOutAdvancing = true;
-        final float baseVolume = normalizeAppVolume(appVolume * replayGainMultiplier(currentTrack()));
+        playbackTransitionStateManager.setFadeOutAdvancing(true);
+        final float baseVolume = playbackRuntimeStateManager == null
+                ? 1.0f
+                : playbackRuntimeStateManager.normalizeAppVolume(
+                        playbackRuntimeStateManager.appVolume()
+                                * playbackRuntimeStateManager.replayGainMultiplierForTrack(currentTrack()));
         final long startedAtMs = System.currentTimeMillis();
         mainHandler.post(new Runnable() {
             @Override
             public void run() {
                 if (player == null) {
-                    fadeOutAdvancing = false;
+                    playbackTransitionStateManager.setFadeOutAdvancing(false);
                     return;
                 }
                 if (!isPlaying()) {
-                    fadeOutAdvancing = false;
-                    applyAppVolume();
+                    playbackTransitionStateManager.setFadeOutAdvancing(false);
+                    if (playbackRuntimeStateManager != null) {
+                        playbackRuntimeStateManager.applyAppVolume();
+                    }
                     return;
                 }
                 long elapsedMs = System.currentTimeMillis() - startedAtMs;
                 if (elapsedMs >= CROSSFADE_FADE_OUT_MS) {
                     skipToNextImmediately();
-                    fadeOutAdvancing = false;
-                    applyAppVolume();
+                    playbackTransitionStateManager.setFadeOutAdvancing(false);
+                    if (playbackRuntimeStateManager != null) {
+                        playbackRuntimeStateManager.applyAppVolume();
+                    }
                     return;
                 }
                 float fraction = 1.0f - Math.max(0f, Math.min(1.0f, elapsedMs / (float) CROSSFADE_FADE_OUT_MS));
                 try {
-                    player.setVolume(normalizeAppVolume(baseVolume * fraction));
+                    player.setVolume(playbackRuntimeStateManager == null
+                            ? baseVolume * fraction
+                            : playbackRuntimeStateManager.normalizeAppVolume(baseVolume * fraction));
                 } catch (IllegalStateException ignored) {
-                    fadeOutAdvancing = false;
+                    playbackTransitionStateManager.setFadeOutAdvancing(false);
                     return;
                 }
                 mainHandler.postDelayed(this, CROSSFADE_FADE_STEP_MS);
@@ -1209,18 +1572,9 @@ public final class EchoPlaybackService extends MediaLibraryService {
             seekTo(0L);
             return;
         }
-        persistPlaybackPositionThrottled(true);
-        currentIndex = currentIndex <= 0 ? queue.size() - 1 : currentIndex - 1;
-        if (seekMirroredQueueToCurrentIndex(true)) {
-            return;
+        if (playbackQueueManager != null) {
+            playbackQueueManager.skipToPrevious();
         }
-        errorMessage = "";
-        lastMarkedTrack = null;
-        clearRestoredPosition();
-        persistPlaybackQueue();
-        resetCurrentPlaybackPosition();
-        savePlaybackResumeRequested(true);
-        prepareCurrent(true);
     }
 
     public List<Track> queueSnapshot() {
@@ -1228,13 +1582,13 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private boolean seekMirroredQueueToCurrentIndex(boolean playWhenReady) {
-        if (!playerMirrorsQueue || player == null || player.getMediaItemCount() != queue.size()) {
+        if (!playbackQueueRuntimeStateManager.playerMirrorsQueue() || player == null || player.getMediaItemCount() != queue.size()) {
             return false;
         }
         int targetIndex = safeCurrentIndex();
         Track track = currentTrack();
-        errorMessage = "";
-        lastMarkedTrack = null;
+        playbackRuntimeStateManager.setErrorMessage("");
+        playbackTransitionStateManager.setLastMarkedTrack(null);
         clearRestoredPosition();
         persistPlaybackQueue();
         resetCurrentPlaybackPosition();
@@ -1243,7 +1597,9 @@ public final class EchoPlaybackService extends MediaLibraryService {
             streamingPlaybackHeaderStore.restoreForDataPath(track.dataPath);
         }
         try {
-            applyAppVolume();
+            if (playbackRuntimeStateManager != null) {
+                playbackRuntimeStateManager.applyAppVolume();
+            }
             player.seekTo(targetIndex, 0L);
             if (playWhenReady) {
                 player.play();
@@ -1254,27 +1610,15 @@ public final class EchoPlaybackService extends MediaLibraryService {
             return true;
         } catch (IllegalStateException error) {
             Log.w(TAG, "Unable to seek mirrored queue", error);
-            playerMirrorsQueue = false;
+            playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false);
             return false;
         }
     }
 
     public void moveQueueTrack(int fromIndex, int toIndex) {
-        if (queue.isEmpty() || fromIndex == toIndex || fromIndex < 0 || fromIndex >= queue.size()) {
-            return;
+        if (playbackQueueManager != null) {
+            playbackQueueManager.moveQueueTrack(fromIndex, toIndex);
         }
-        int targetIndex = Math.max(0, Math.min(toIndex, queue.size() - 1));
-        Track current = currentTrack();
-        Track moved = queue.remove(fromIndex);
-        queue.add(targetIndex, moved);
-        if (current != null) {
-            currentIndex = indexOfTrackOccurrence(current);
-        } else {
-            currentIndex = Math.max(0, Math.min(currentIndex, queue.size() - 1));
-        }
-        persistPlaybackQueue();
-        persistPlaybackPositionThrottled(true);
-        publishState();
     }
 
     public PlaybackStreamingDiagnostics.Snapshot streamingDiagnostics() {
@@ -1282,31 +1626,9 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     public void replaceCurrentTrackAndResume(Track replacement, long positionMs) {
-        if (replacement == null || currentIndex < 0 || currentIndex >= queue.size()) {
-            return;
+        if (playbackQueueManager != null) {
+            playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs);
         }
-        Track current = currentTrack();
-        long resumePositionMs = Math.max(Math.max(0L, positionMs), positionMs());
-        if (samePlaybackUri(current, replacement)) {
-            queue.set(currentIndex, replacement);
-            errorMessage = "";
-            persistPlaybackQueue();
-            persistPlaybackPositionThrottled(true);
-            publishState();
-            return;
-        }
-        queue.set(currentIndex, replacement);
-        errorMessage = "";
-        lastMarkedTrack = null;
-        restoredPositionTrackId = replacement.id;
-        restoredPositionMs = clampPlaybackPosition(replacement, resumePositionMs);
-        restoredPositionExplicit = true;
-        streamingDiagnostics.recordRecovery(replacement, restoredPositionMs, qualityFromDataPath(replacement.dataPath));
-        persistPlaybackQueue();
-        playbackTaskScheduler.schedule(
-                PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY,
-                () -> mainHandler.post(() -> prepareCurrent(true))
-        );
     }
 
     private boolean samePlaybackUri(Track first, Track second) {
@@ -1316,11 +1638,10 @@ public final class EchoPlaybackService extends MediaLibraryService {
         return first.contentUri.equals(second.contentUri);
     }
 
-    private void scheduleVisualizationCache(Track track) {
-        if (playbackVisualizationCacheManager == null) {
-            return;
+    public void removeTracksById(Set<Long> trackIds) {
+        if (playbackQueueManager != null) {
+            playbackQueueManager.removeTracksById(trackIds);
         }
-        playbackVisualizationCacheManager.scheduleVisualizationCache(track);
     }
 
     public void precacheTrack(Track track) {
@@ -1329,71 +1650,21 @@ public final class EchoPlaybackService extends MediaLibraryService {
         }
     }
 
-    public void removeTracksById(Set<Long> trackIds) {
-        if (trackIds == null || trackIds.isEmpty() || queue.isEmpty()) {
-            return;
-        }
-        Track current = currentTrack();
-        boolean removedCurrent = current != null && trackIds.contains(current.id);
-        int removedBeforeCurrent = 0;
-        for (int i = 0; i < queue.size(); i++) {
-            Track track = queue.get(i);
-            if (i < currentIndex && trackIds.contains(track.id)) {
-                removedBeforeCurrent++;
-            }
-        }
-        for (int i = queue.size() - 1; i >= 0; i--) {
-            if (trackIds.contains(queue.get(i).id)) {
-                queue.remove(i);
-            }
-        }
-        if (queue.isEmpty()) {
-            stopAndClear();
-            return;
-        }
-        if (currentIndex >= 0) {
-            currentIndex = Math.max(0, currentIndex - removedBeforeCurrent);
-        }
-        if (currentIndex >= queue.size()) {
-            currentIndex = queue.size() - 1;
-        }
-        errorMessage = "";
-        lastMarkedTrack = null;
-        clearRestoredPosition();
-        if (removedCurrent) {
-            persistPlaybackQueue();
-            resetCurrentPlaybackPosition();
-            prepareCurrent(false);
-        } else {
-            persistPlaybackQueue();
-            persistPlaybackPositionThrottled(true);
-            publishState();
-        }
-    }
-
     public void retainTracksById(Set<Long> trackIdsToKeep) {
-        if (trackIdsToKeep == null || queue.isEmpty()) {
-            return;
+        if (playbackQueueManager != null) {
+            playbackQueueManager.retainTracksById(trackIdsToKeep);
         }
-        HashSet<Long> trackIdsToRemove = new HashSet<>();
-        for (Track track : queue) {
-            if (!trackIdsToKeep.contains(track.id)) {
-                trackIdsToRemove.add(track.id);
-            }
-        }
-        removeTracksById(trackIdsToRemove);
     }
 
     public void clearQueue() {
-        if (queue.isEmpty()) {
-            return;
+        if (playbackQueueManager != null) {
+            playbackQueueManager.clearQueue();
         }
-        stopAndClear();
     }
 
     private void clearQueueState() {
         queue.clear();
-        currentIndex = -1;
+        setCurrentIndex(-1);
     }
 
     public void toggleCurrentFavorite() {
@@ -1406,14 +1677,16 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     public void restoreLastPlayback(boolean playWhenRestored) {
-        if (!playbackRestoreEnabled) {
+        if (playbackQueueManager != null) {
+            playbackQueueManager.restorePlaybackQueue();
+        } else {
+            restorePlaybackQueue();
+        }
+        if (queue.isEmpty()) {
             publishState();
             return;
         }
         createPlayerIfNeeded();
-        if (queue.isEmpty()) {
-            restorePlaybackQueue();
-        }
         if (currentTrack() == null) {
             publishState();
             return;
@@ -1423,156 +1696,14 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     public void replaceQueuedTrack(Track replacement) {
-        if (replacement == null || queue.isEmpty()) {
-            return;
-        }
-        boolean replaced = false;
-        boolean replacedCurrent = false;
-        for (int i = 0; i < queue.size(); i++) {
-            if (queue.get(i).id == replacement.id) {
-                if (i == currentIndex) {
-                    replacedCurrent = true;
-                }
-                queue.set(i, replacement);
-                replaced = true;
-            }
-        }
-        if (replaced) {
-            errorMessage = "";
-            lastMarkedTrack = null;
-            clearRestoredPosition();
-            persistPlaybackQueue();
-            if (replacedCurrent) {
-                resetCurrentPlaybackPosition();
-                prepareCurrent(isPlaying() || player == null || player.getMediaItemCount() == 0);
-                return;
-            }
-            publishState();
-            playbackNotificationManager.updateMediaNotification(true);
+        if (playbackQueueManager != null) {
+            playbackQueueManager.replaceQueuedTrack(replacement);
         }
     }
 
     public void replaceQueuedTrackById(long oldTrackId, Track replacement) {
-        if (replacement == null || queue.isEmpty()) {
-            return;
-        }
-        if (oldTrackId == replacement.id) {
-            replaceQueuedTrack(replacement);
-            return;
-        }
-        boolean targetAlreadyQueued = false;
-        for (Track track : queue) {
-            if (track.id == replacement.id) {
-                targetAlreadyQueued = true;
-                break;
-            }
-        }
-        if (targetAlreadyQueued) {
-            replaceAndCollapseQueuedTrack(oldTrackId, replacement);
-            return;
-        }
-        boolean replaced = false;
-        boolean replacedCurrent = false;
-        for (int i = 0; i < queue.size(); i++) {
-            if (queue.get(i).id == oldTrackId) {
-                queue.set(i, replacement);
-                replaced = true;
-                if (i == currentIndex) {
-                    replacedCurrent = true;
-                }
-            }
-        }
-        if (!replaced) {
-            replaceQueuedTrack(replacement);
-            return;
-        }
-        errorMessage = "";
-        lastMarkedTrack = null;
-        clearRestoredPosition();
-        persistPlaybackQueue();
-        if (replacedCurrent) {
-            resetCurrentPlaybackPosition();
-            prepareCurrent(isPlaying());
-        } else {
-            persistPlaybackPositionThrottled(true);
-            publishState();
-        }
-    }
-
-    private void replaceAndCollapseQueuedTrack(long oldTrackId, Track replacement) {
-        int preferredIndex = -1;
-        if (currentIndex >= 0 && currentIndex < queue.size()) {
-            long currentId = queue.get(currentIndex).id;
-            if (currentId == oldTrackId || currentId == replacement.id) {
-                preferredIndex = currentIndex;
-            }
-        }
-        if (preferredIndex < 0) {
-            for (int i = 0; i < queue.size(); i++) {
-                long trackId = queue.get(i).id;
-                if (trackId == oldTrackId || trackId == replacement.id) {
-                    preferredIndex = i;
-                    break;
-                }
-            }
-        }
-        if (preferredIndex < 0) {
-            return;
-        }
-
-        boolean replaced = false;
-        boolean currentWasOldTrack = false;
-        ArrayList<Track> collapsedQueue = new ArrayList<>();
-        int collapsedCurrentIndex = -1;
-        for (int i = 0; i < queue.size(); i++) {
-            Track track = queue.get(i);
-            boolean isOldTrack = track.id == oldTrackId;
-            boolean isReplacementTrack = track.id == replacement.id;
-            if (isOldTrack) {
-                replaced = true;
-                if (i == currentIndex) {
-                    currentWasOldTrack = true;
-                }
-            }
-            if (isOldTrack || isReplacementTrack) {
-                if (i == preferredIndex) {
-                    collapsedCurrentIndex = collapsedQueue.size();
-                    collapsedQueue.add(replacement);
-                }
-                continue;
-            }
-            if (i == currentIndex) {
-                collapsedCurrentIndex = collapsedQueue.size();
-            }
-            collapsedQueue.add(track);
-        }
-        if (!replaced) {
-            return;
-        }
-        queue.clear();
-        queue.addAll(collapsedQueue);
-        if (queue.isEmpty()) {
-            stopAndClear();
-            return;
-        }
-        if (collapsedCurrentIndex >= 0) {
-            currentIndex = collapsedCurrentIndex;
-        } else if (currentIndex >= 0) {
-            currentIndex = Math.min(currentIndex, queue.size() - 1);
-        } else {
-            currentIndex = -1;
-        }
-        errorMessage = "";
-        lastMarkedTrack = null;
-        clearRestoredPosition();
-        persistPlaybackQueue();
-        if (currentWasOldTrack) {
-            resetCurrentPlaybackPosition();
-            prepareCurrent(isPlaying());
-        } else {
-            persistPlaybackPositionThrottled(true);
-            publishState();
-            playbackNotificationManager.updateMediaNotification(true);
+        if (playbackQueueManager != null) {
+            playbackQueueManager.replaceQueuedTrackById(oldTrackId, replacement);
         }
     }
 
@@ -1584,17 +1715,17 @@ public final class EchoPlaybackService extends MediaLibraryService {
         PlaybackSpectrumSnapshot spectrum = spectrumSnapshotFor(track, duration, deferVisualGeneration);
         return new PlaybackStateSnapshot(
                 track,
-                currentIndex,
+                currentIndex(),
                 queue.size(),
                 positionMs(),
                 duration,
                 isPlaying(),
-                preparing,
-                errorMessage,
-                shuffleEnabled,
-                repeatMode,
-                playbackSpeed,
-                appVolume,
+                playbackRuntimeStateManager.preparing(),
+                playbackRuntimeStateManager.errorMessage(),
+                playbackRuntimeStateManager != null && playbackRuntimeStateManager.shuffleEnabled(),
+                playbackRuntimeStateManager != null ? playbackRuntimeStateManager.repeatMode() : REPEAT_ALL,
+                playbackRuntimeStateManager == null ? 1.0f : playbackRuntimeStateManager.playbackSpeed(),
+                playbackRuntimeStateManager == null ? 1.0f : playbackRuntimeStateManager.appVolume(),
                 sleepTimerRemainingMs(),
                 waveform,
                 spectrum,
@@ -1611,84 +1742,87 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     public void setShuffleEnabled(boolean enabled) {
-        shuffleEnabled = enabled;
-        repository.saveShuffleEnabled(shuffleEnabled);
+        if (playbackRuntimeStateManager != null) {
+            playbackRuntimeStateManager.setShuffleEnabled(enabled);
+        }
+        repository.saveShuffleEnabled(playbackRuntimeStateManager != null && playbackRuntimeStateManager.shuffleEnabled());
         applyPlaybackModeToPlayer();
         publishState();
     }
 
     public void setRepeatMode(int mode) {
-        if (mode != REPEAT_ALL && mode != REPEAT_ONE && mode != REPEAT_OFF) {
-            mode = REPEAT_ALL;
+        if (playbackRuntimeStateManager != null) {
+            playbackRuntimeStateManager.setRepeatMode(mode);
         }
-        repeatMode = mode;
-        repository.saveRepeatMode(repeatMode);
+        repository.saveRepeatMode(playbackRuntimeStateManager != null ? playbackRuntimeStateManager.repeatMode() : (mode != REPEAT_ALL && mode != REPEAT_ONE && mode != REPEAT_OFF ? REPEAT_ALL : mode));
         applyPlaybackModeToPlayer();
         publishState();
     }
 
     public void cycleRepeatMode() {
-        if (repeatMode == REPEAT_ALL) {
-            repeatMode = REPEAT_ONE;
-        } else if (repeatMode == REPEAT_ONE) {
-            repeatMode = REPEAT_OFF;
-        } else {
-            repeatMode = REPEAT_ALL;
+        if (playbackRuntimeStateManager != null) {
+            playbackRuntimeStateManager.cycleRepeatMode();
         }
-        repository.saveRepeatMode(repeatMode);
+        repository.saveRepeatMode(playbackRuntimeStateManager != null ? playbackRuntimeStateManager.repeatMode() : REPEAT_ALL);
         applyPlaybackModeToPlayer();
         publishState();
     }
 
     public void setPlaybackSpeed(float speed) {
-        playbackSpeed = normalizePlaybackSpeed(speed);
-        applyPlaybackSpeed();
+        if (playbackRuntimeStateManager != null) {
+            playbackRuntimeStateManager.setPlaybackSpeed(speed);
+        }
+        applyPlaybackParametersToPlayer();
         publishState();
     }
 
     public float playbackSpeed() {
-        return playbackSpeed;
+        return playbackRuntimeStateManager == null ? 1.0f : playbackRuntimeStateManager.playbackSpeed();
     }
 
     public void setAppVolume(float volume) {
-        appVolume = normalizeAppVolume(volume);
-        applyAppVolume();
+        if (playbackRuntimeStateManager != null) {
+            playbackRuntimeStateManager.setAppVolume(volume);
+        }
+        applyPlaybackParametersToPlayer();
         publishState();
     }
 
     public float appVolume() {
-        return appVolume;
+        return playbackRuntimeStateManager == null ? 1.0f : playbackRuntimeStateManager.appVolume();
     }
 
     public void setConcurrentPlaybackEnabled(boolean enabled) {
-        concurrentPlaybackEnabled = enabled;
+        if (playbackRuntimeStateManager != null) {
+            playbackRuntimeStateManager.setConcurrentPlaybackEnabled(enabled);
+        }
         applyAudioFocusHandling();
     }
 
     public boolean concurrentPlaybackEnabled() {
-        return concurrentPlaybackEnabled;
+        return playbackRuntimeStateManager != null && playbackRuntimeStateManager.concurrentPlaybackEnabled();
     }
 
     public void setStatusBarLyricsEnabled(boolean enabled) {
         if (playbackLyricsManager != null) {
             playbackLyricsManager.setStatusBarLyricsEnabled(enabled);
         }
-        statusBarLyricsEnabled = enabled;
-        if (playbackSessionManager != null) {
-            playbackSessionManager.refreshPlayer();
-        }
-        if (playbackNotificationManager != null) {
-            playbackNotificationManager.updateMediaNotification(true);
-        }
+        refreshPlaybackSession();
+        publishPlaybackNotification(true);
     }
 
     public void setPlaybackRestoreEnabled(boolean enabled) {
-        playbackRestoreEnabled = enabled;
+        if (playbackQueueManager != null) {
+            playbackQueueManager.setPlaybackRestoreEnabled(enabled);
+        }
+        repository.savePlaybackRestoreEnabled(enabled);
     }
 
     public void setReplayGainEnabled(boolean enabled) {
-        replayGainEnabled = enabled;
-        applyAppVolume();
+        if (playbackRuntimeStateManager != null) {
+            playbackRuntimeStateManager.setReplayGainEnabled(enabled);
+        }
+        applyPlaybackParametersToPlayer();
         publishState();
     }
 
@@ -1707,31 +1841,25 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     private PlaybackQueueStore queueStore() {
         if (queueStore == null && repository != null) {
-            queueStore = new PlaybackQueueStore(repository);
+            queueStore = new PlaybackQueueStoreImpl(repository);
         }
         return queueStore;
     }
 
     public void startSleepTimerMinutes(int minutes) {
-        if (minutes <= 0) {
-            cancelSleepTimer();
-            return;
+        if (playbackSleepTimerManager != null) {
+            playbackSleepTimerManager.startMinutes(minutes);
         }
-        long durationMs = Math.min(minutes, 240) * 60000L;
-        sleepTimerEndsAtMs = System.currentTimeMillis() + durationMs;
-        scheduleSleepTimer();
-        publishState();
     }
 
     public void cancelSleepTimer() {
-        cancelSleepTimerInternal(true);
+        if (playbackSleepTimerManager != null) {
+            playbackSleepTimerManager.cancel(true);
+        }
     }
 
     public long sleepTimerRemainingMs() {
-        if (sleepTimerEndsAtMs <= 0L) {
-            return 0L;
-        }
-        return Math.max(0L, sleepTimerEndsAtMs - System.currentTimeMillis());
+        return playbackSleepTimerManager == null ? 0L : playbackSleepTimerManager.remainingMs();
     }
 
     @OptIn(markerClass = UnstableApi.class)
@@ -1746,10 +1874,10 @@ public final class EchoPlaybackService extends MediaLibraryService {
             track = restoredTrack;
         }
         if (Uri.EMPTY.equals(track.contentUri)) {
-            preparing = false;
-            errorMessage = isStreamingPlaceholder(track)
+            playbackRuntimeStateManager.setPreparing(false);
+            playbackRuntimeStateManager.setErrorMessage(isStreamingPlaceholder(track)
                     ? "Streaming track is not resolved yet. Tap the track again to play."
-                    : "Unable to open this track.";
+                    : "Unable to open this track.");
             Log.w(TAG, "Refusing to prepare empty uri for " + debugTrack(track));
             publishState();
             return;
@@ -1784,33 +1912,31 @@ public final class EchoPlaybackService extends MediaLibraryService {
             streamingPlaybackHeaderStore.restoreForDataPath(queueTrack.dataPath);
             mediaSources.add(mediaSourceFactory(queueTrack).createMediaSource(mediaItemForTrack(queueTrack)));
         }
-        preparing = true;
+        playbackRuntimeStateManager.setPreparing(true);
         createPlayerIfNeeded();
-        lastMarkedTrack = null;
+        playbackTransitionStateManager.setLastMarkedTrack(null);
         resetWaveformIfTrackChanged(track);
         postponePlaybackVisualizationWarmup();
         streamingPlaybackHeaderStore.restoreForDataPath(track.dataPath);
-        applyPlaybackSpeed();
-        applyAppVolume();
+        applyPlaybackParametersToPlayer();
         player.clearMediaItems();
         player.setMediaSources(mediaSources, safeCurrentIndex(), Math.max(0L, startPositionMs));
-        playerMirrorsQueue = true;
+        playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(true);
         player.setPlayWhenReady(playWhenReady);
         try {
             player.prepare();
-            precacheTrack(track);
-            scheduleVisualizationCache(track);
+            if (playbackWarmupCoordinator != null) {
+                playbackWarmupCoordinator.warmup(track);
+            }
             if (startPositionMs > 0L) {
                 clearRestoredPosition();
             }
             publishState();
-            if (playbackNotificationManager != null) {
-                playbackNotificationManager.updateMediaNotification(true);
-            }
+            publishPlaybackNotification(true);
         } catch (IllegalStateException error) {
-            preparing = false;
+            playbackRuntimeStateManager.setPreparing(false);
             Log.w(TAG, "Unable to prepare mirrored queue for " + debugTrack(track), error);
-            errorMessage = "Unable to open this track.";
+            playbackRuntimeStateManager.setErrorMessage("Unable to open this track.");
             releasePlayer();
             publishState();
         }
@@ -1818,42 +1944,40 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     @OptIn(markerClass = UnstableApi.class)
     private void prepareSingleTrack(Track track, final boolean playWhenReady, final long startPositionMs) {
-        preparing = true;
+        playbackRuntimeStateManager.setPreparing(true);
         createPlayerIfNeeded();
-        lastMarkedTrack = null;
+        playbackTransitionStateManager.setLastMarkedTrack(null);
         resetWaveformIfTrackChanged(track);
         postponePlaybackVisualizationWarmup();
         streamingPlaybackHeaderStore.restoreForDataPath(track.dataPath);
         player.stop();
         player.clearMediaItems();
-        playerMirrorsQueue = false;
-        applyPlaybackSpeed();
-        applyAppVolume();
+        playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false);
+        applyPlaybackParametersToPlayer();
         player.setMediaSource(mediaSourceFactory(track).createMediaSource(mediaItemForTrack(track)));
         player.setPlayWhenReady(playWhenReady);
         try {
             player.prepare();
-            precacheTrack(track);
-            scheduleVisualizationCache(track);
+            if (playbackWarmupCoordinator != null) {
+                playbackWarmupCoordinator.warmup(track);
+            }
             if (startPositionMs > 0L) {
                 player.seekTo(startPositionMs);
                 clearRestoredPosition();
             }
             publishState();
-            if (playbackNotificationManager != null) {
-                playbackNotificationManager.updateMediaNotification(true);
-            }
+            publishPlaybackNotification(true);
         } catch (IllegalStateException error) {
-            preparing = false;
+            playbackRuntimeStateManager.setPreparing(false);
             Log.w(TAG, "Unable to prepare player for " + debugTrack(track), error);
-            errorMessage = "Unable to open this track.";
+            playbackRuntimeStateManager.setErrorMessage("Unable to open this track.");
             releasePlayer();
             publishState();
         }
     }
 
     private boolean canMirrorQueueToPlayer() {
-        if (queue.isEmpty() || currentIndex < 0 || currentIndex >= queue.size()) {
+        if (queue.isEmpty() || currentIndex() < 0 || currentIndex() >= queue.size()) {
             return false;
         }
         for (Track track : queue) {
@@ -1882,16 +2006,12 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     private void releasePlayer() {
         if (player == null) {
-            if (playbackSessionManager != null) {
-                playbackSessionManager.release();
-            }
+            releasePlaybackSession();
             audioEffectManager.release();
             releaseAudioCache();
             return;
         }
-        if (playbackSessionManager != null) {
-            playbackSessionManager.release();
-        }
+        releasePlaybackSession();
         audioEffectManager.release();
         try {
             player.removeListener(playerListener);
@@ -1901,8 +2021,8 @@ public final class EchoPlaybackService extends MediaLibraryService {
         }
         player.release();
         player = null;
-        playerMirrorsQueue = false;
-        preparing = false;
+        playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false);
+        playbackRuntimeStateManager.setPreparing(false);
         releaseAudioCache();
     }
 
@@ -1919,24 +2039,24 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private void stopAndClear() {
-        cancelSleepTimerInternal(false);
-        clearRestoredPosition();
-        queueStore().savePlaybackPosition(-1L, 0L);
-        lastSavedPositionTrackId = -1L;
-        lastSavedPositionMs = 0L;
-        releasePlayer();
-        preparing = false;
-        errorMessage = "";
-        lastMarkedTrack = null;
-        fadeOutAdvancing = false;
+        if (playbackSleepTimerManager != null) {
+            playbackSleepTimerManager.cancel(false);
+        }
+        if (playbackPositionManager != null) {
+            playbackPositionManager.clearPlaybackPosition();
+        }
+        if (playbackShutdownCoordinator != null) {
+            playbackShutdownCoordinator.releasePlaybackResources();
+        } else {
+            releasePlayer();
+        }
+        playbackRuntimeStateManager.setPreparing(false);
+        playbackRuntimeStateManager.setErrorMessage("");
+        playbackTransitionStateManager.clear();
         clearQueueState();
         persistPlaybackQueue();
         savePlaybackResumeRequested(false);
-        mainHandler.removeCallbacks(progressRunnable);
-        releaseWifiLock();
-        if (playbackLyricsManager != null) {
-            playbackLyricsManager.release();
-        }
+        stopProgressUpdates();
         stopForeground(true);
         publishState();
         stopSelf();
@@ -1949,14 +2069,15 @@ public final class EchoPlaybackService extends MediaLibraryService {
         }
         Track completed = currentTrack();
         if (completed != null) {
-            queueStore().savePlaybackPosition(completed.id, 0L);
+            saveTrackPlaybackPosition(completed, 0L);
         }
-        if (repeatMode == REPEAT_ONE) {
+        int repeat = playbackRuntimeStateManager != null ? playbackRuntimeStateManager.repeatMode() : REPEAT_ALL;
+        if (repeat == REPEAT_ONE) {
             clearRestoredPosition();
             prepareCurrent(true);
             return;
         }
-        if (repeatMode == REPEAT_OFF && currentIndex >= queue.size() - 1) {
+        if (repeat == REPEAT_OFF && currentIndex() >= queue.size() - 1) {
             stopAtEndOfQueue();
             savePlaybackResumeRequested(false);
             return;
@@ -1966,10 +2087,10 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     private void stopAtEndOfQueue() {
         clearRestoredPosition();
-        preparing = false;
-        errorMessage = "";
-        lastMarkedTrack = null;
-        mainHandler.removeCallbacks(progressRunnable);
+        playbackRuntimeStateManager.setPreparing(false);
+        playbackRuntimeStateManager.setErrorMessage("");
+        playbackTransitionStateManager.setLastMarkedTrack(null);
+        stopProgressUpdates();
         if (player == null) {
             createPlayerIfNeeded();
         } else {
@@ -1986,61 +2107,80 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private void startProgressUpdates() {
-        mainHandler.removeCallbacks(progressRunnable);
-        if (isPlaying() || preparing) {
-            mainHandler.postDelayed(progressRunnable, 1000L);
+        if (playbackProgressUpdateManager != null) {
+            playbackProgressUpdateManager.startIfNeeded();
         }
     }
 
-    private void scheduleSleepTimer() {
-        mainHandler.removeCallbacks(sleepTimerRunnable);
-        long remainingMs = sleepTimerRemainingMs();
-        if (remainingMs > 0L) {
-            mainHandler.postDelayed(sleepTimerRunnable, Math.min(remainingMs, 60000L));
-        }
-    }
-
-    private void cancelSleepTimerInternal(boolean publish) {
-        sleepTimerEndsAtMs = 0L;
-        mainHandler.removeCallbacks(sleepTimerRunnable);
-        if (publish) {
-            publishState();
+    private void stopProgressUpdates() {
+        if (playbackProgressUpdateManager != null) {
+            playbackProgressUpdateManager.stop();
         }
     }
 
     private void publishState() {
-        PlaybackStateSnapshot snapshot = snapshot();
-        if (playbackLyricsManager != null) {
-            playbackLyricsManager.syncFloatingLyricsPlaybackState(snapshot);
+        if (playbackStatePublisher != null) {
+            playbackStatePublisher.publishState();
+            return;
         }
-        applyPlaybackModeToPlayer();
-        if (playbackNotificationManager != null) {
-            playbackNotificationManager.updateMediaNotification(false);
-        }
-        Track track = snapshot == null ? null : snapshot.currentTrack;
-        Bitmap artwork = track == null || playbackNotificationArtworkManager == null
-                ? null
-                : playbackNotificationArtworkManager.notificationArtworkFor(track);
-        EchoPlaybackWidgetProvider.update(this, snapshot, artwork);
-        for (PlaybackStateListener listener : listeners) {
-            listener.onPlaybackStateChanged(snapshot);
+        if (playbackRuntimeStateManager != null) {
+            playbackRuntimeStateManager.applyPlaybackModeToPlayer();
         }
     }
 
-    private void publishBufferingState() {
-        PlaybackStateSnapshot snapshot = snapshot();
-        streamingDiagnostics.recordBuffering(snapshot.currentTrack, snapshot.positionMs);
-        for (PlaybackStateListener listener : listeners) {
-            listener.onPlaybackBuffering(snapshot);
+    private void publishPlaybackNotification(boolean force) {
+        if (playbackStatePublisher != null) {
+            playbackStatePublisher.publishNotification(force);
+            return;
+        }
+        if (playbackNotificationManager != null) {
+            playbackNotificationManager.updateMediaNotification(force);
         }
     }
 
     private void applyPlaybackModeToPlayer() {
-        if (player == null) {
+        if (playbackRuntimeStateManager != null) {
+            playbackRuntimeStateManager.applyPlaybackModeToPlayer();
+        }
+    }
+
+    private void applyPlaybackParametersToPlayer() {
+        if (playbackRuntimeStateManager != null) {
+            playbackRuntimeStateManager.applyPlaybackSpeed();
+            playbackRuntimeStateManager.applyAppVolume();
+        }
+    }
+
+    private void applyAudioFocusHandling() {
+        if (playbackRuntimeStateManager != null) {
+            playbackRuntimeStateManager.applyAudioFocusHandling();
+        }
+    }
+
+    private void refreshPlaybackSession() {
+        if (playbackSessionGateway != null) {
+            playbackSessionGateway.refresh();
+        }
+    }
+
+    private void releasePlaybackSession() {
+        if (playbackSessionGateway != null) {
+            playbackSessionGateway.release();
+        }
+    }
+
+    private void publishBufferingState() {
+        if (playbackStatePublisher != null) {
+            playbackStatePublisher.publishBufferingState(new PlaybackStatePublisher.BufferingRecorder() {
+                @Override
+                public void record(PlaybackStateSnapshot snapshot) {
+                    streamingDiagnostics.recordBuffering(snapshot.currentTrack, snapshot.positionMs);
+                }
+            });
             return;
         }
-        player.setShuffleModeEnabled(shuffleEnabled);
-        player.setRepeatMode(media3RepeatModeForAppRepeatMode(repeatMode, playerMirrorsQueue));
+        PlaybackStateSnapshot snapshot = snapshot();
+        streamingDiagnostics.recordBuffering(snapshot.currentTrack, snapshot.positionMs);
     }
 
     static int media3RepeatModeForAppRepeatMode(int appRepeatMode) {
@@ -2085,10 +2225,10 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     private void stopAfterAutomaticAdvance(int completedIndex) {
         persistPlaybackPositionThrottled(true);
-        currentIndex = Math.max(0, Math.min(completedIndex, queue.size() - 1));
+        setClampedCurrentIndex(completedIndex);
         Track completed = currentTrack();
         if (completed != null) {
-            queueStore().savePlaybackPosition(completed.id, 0L);
+            saveTrackPlaybackPosition(completed, 0L);
         }
         stopAtEndOfQueue();
     }
@@ -2125,45 +2265,23 @@ public final class EchoPlaybackService extends MediaLibraryService {
                 .setWakeMode(androidx.media3.common.C.WAKE_MODE_LOCAL)
                 .setHandleAudioBecomingNoisy(true)
                 .build();
-        applyAudioFocusHandling();
+        if (playbackRuntimeStateManager != null) {
+            playbackRuntimeStateManager.applyAudioFocusHandling();
+        }
         player.addListener(playerListener);
-        applyPlaybackSpeed();
-        applyAppVolume();
+        applyPlaybackParametersToPlayer();
         applyPlaybackModeToPlayer();
         audioEffectManager.bind(player, audioEffectSettings);
-        if (playbackSessionManager != null) {
-            playbackSessionManager.bind();
+        if (playbackSessionGateway != null) {
+            playbackSessionGateway.bind();
         }
     }
 
     private void restorePlaybackQueue() {
-        if (!playbackRestoreEnabled) {
+        if (playbackQueueManager == null) {
             return;
         }
-        PlaybackQueueState savedQueue = queueStore().load();
-        if (savedQueue.isEmpty()) {
-            return;
-        }
-        queue.clear();
-        for (Track track : savedQueue.tracks) {
-            if (!isRestorableQueueTrack(track)) {
-                continue;
-            }
-            Track restoredTrack = streamingPlaybackHeaderStore.restoredTrackFor(track);
-            Track queueTrack = restoredTrack == null ? track : restoredTrack;
-            queue.add(queueTrack);
-            streamingPlaybackHeaderStore.restoreForDataPath(queueTrack.dataPath);
-        }
-        if (queue.isEmpty()) {
-            currentIndex = -1;
-            return;
-        }
-        currentIndex = Math.max(0, Math.min(savedQueue.currentIndex, queue.size() - 1));
-        restoredPositionTrackId = queueStore().loadPlaybackPositionTrackId();
-        restoredPositionMs = queueStore().loadPlaybackPositionMs();
-        errorMessage = "";
-        lastMarkedTrack = null;
-        persistPlaybackQueue();
+        playbackQueueManager.restorePlaybackQueue();
     }
 
     private boolean isRestorableQueueTrack(Track track) {
@@ -2201,7 +2319,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
                 return i;
             }
         }
-        return Math.max(0, Math.min(currentIndex, queue.size() - 1));
+        return Math.max(0, Math.min(currentIndex(), queue.size() - 1));
     }
 
     private boolean safeEquals(Object left, Object right) {
@@ -2212,7 +2330,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         if (queue.isEmpty()) {
             return 0;
         }
-        return Math.max(0, Math.min(currentIndex, queue.size() - 1));
+        return Math.max(0, Math.min(currentIndex(), queue.size() - 1));
     }
 
     private void savePlaybackResumeRequested(boolean requested) {
@@ -2220,152 +2338,70 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private void replaceCurrentQueueTrack(Track track) {
-        if (track == null || currentIndex < 0 || currentIndex >= queue.size()) {
+        if (track == null || currentIndex() < 0 || currentIndex() >= queue.size()) {
             return;
         }
-        queue.set(currentIndex, track);
+        queue.set(currentIndex(), track);
         persistPlaybackQueue();
     }
 
     private void persistPlaybackQueue() {
-        queueStore().save(new ArrayList<>(queue), currentIndex);
+        queueStore().save(new ArrayList<>(queue), currentIndex());
     }
 
     private void persistPlaybackPositionThrottled(boolean force) {
-        Track track = currentTrack();
-        if (track == null) {
-            return;
+        if (playbackPositionManager != null) {
+            playbackPositionManager.persistCurrentPosition(force);
         }
-        long position = positionMs();
-        long now = System.currentTimeMillis();
-        if (!force
-                && track.id == lastSavedPositionTrackId
-                && Math.abs(position - lastSavedPositionMs) < PLAYBACK_POSITION_SAVE_INTERVAL_MS
-                && now - lastPositionSaveAtMs < PLAYBACK_POSITION_SAVE_INTERVAL_MS) {
-            return;
-        }
-        queueStore().savePlaybackPosition(track.id, clampPlaybackPosition(track, position));
-        lastSavedPositionTrackId = track.id;
-        lastSavedPositionMs = position;
-        lastPositionSaveAtMs = now;
     }
 
     private void resetCurrentPlaybackPosition() {
-        Track track = currentTrack();
-        if (track == null) {
-            return;
+        if (playbackPositionManager != null) {
+            playbackPositionManager.resetCurrentPlaybackPosition();
         }
-        queueStore().savePlaybackPosition(track.id, 0L);
-        lastSavedPositionTrackId = track.id;
-        lastSavedPositionMs = 0L;
-        lastPositionSaveAtMs = System.currentTimeMillis();
     }
 
     private long restoredPositionFor(Track track) {
-        if (track == null || track.id != restoredPositionTrackId) {
-            return 0L;
-        }
-        if (track.dataPath != null && track.dataPath.startsWith("streaming:") && !restoredPositionExplicit) {
-            return 0L;
-        }
-        return clampPlaybackPosition(track, restoredPositionMs);
-    }
-
-    private long clampPlaybackPosition(Track track, long positionMs) {
-        long position = Math.max(0L, positionMs);
-        long duration = track == null ? 0L : track.durationMs;
-        if (duration <= 0L) {
-            return position;
-        }
-        long latestResumePosition = Math.max(0L, duration - 2000L);
-        return Math.min(position, latestResumePosition);
+        return playbackPositionManager == null ? 0L : playbackPositionManager.restoredPositionFor(track);
     }
 
     private void clearRestoredPosition() {
-        restoredPositionTrackId = -1L;
-        restoredPositionMs = 0L;
-        restoredPositionExplicit = false;
-    }
-
-    private void registerNoisyReceiver() {
-        if (noisyReceiverRegistered) {
-            return;
-        }
-        IntentFilter filter = new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY);
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(noisyReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            registerReceiver(noisyReceiver, filter);
-        }
-        noisyReceiverRegistered = true;
-    }
-
-    private void unregisterNoisyReceiver() {
-        if (!noisyReceiverRegistered) {
-            return;
-        }
-        try {
-            unregisterReceiver(noisyReceiver);
-        } catch (IllegalArgumentException ignored) {
-            // Receiver was already unregistered by the system.
-        }
-        noisyReceiverRegistered = false;
-    }
-
-    private void applyPlaybackSpeed() {
-        if (player != null) {
-            player.setPlaybackParameters(new PlaybackParameters(playbackSpeed));
+        if (playbackPositionManager != null) {
+            playbackPositionManager.clearRestoredPosition();
         }
     }
 
-    private void applyAppVolume() {
-        if (player != null) {
-            player.setVolume(normalizeAppVolume(appVolume * replayGainMultiplier(currentTrack())));
+    private int currentIndex() {
+        return playbackQueueRuntimeStateManager.currentIndex();
+    }
+
+    private void setCurrentIndex(int index) {
+        playbackQueueRuntimeStateManager.setCurrentIndex(index);
+    }
+
+    private int clampedCurrentIndex() {
+        return playbackQueueRuntimeStateManager.clampCurrentIndex(queue.size());
+    }
+
+    private void setClampedCurrentIndex(int index) {
+        playbackQueueRuntimeStateManager.setClampedCurrentIndex(index, queue.size());
+    }
+
+    private void saveTrackPlaybackPosition(Track track, long positionMs) {
+        if (playbackPositionManager != null) {
+            playbackPositionManager.saveTrackPosition(track, positionMs);
         }
     }
 
     private boolean seekExistingMirroredQueue(boolean playWhenReady, long startPositionMs) {
-        if (!playerMirrorsQueue || player == null || player.getMediaItemCount() != queue.size()) {
-            return false;
-        }
-        if (!mirroredQueueMatchesCurrentPlayer()) {
-            return false;
-        }
-        int targetIndex = safeCurrentIndex();
-        Track track = currentTrack();
-        if (track == null) {
-            return false;
-        }
-        try {
-            preparing = false;
-            errorMessage = "";
-            lastMarkedTrack = null;
-            resetWaveformIfTrackChanged(track);
-            streamingPlaybackHeaderStore.restoreForDataPath(track.dataPath);
-            applyPlaybackSpeed();
-            applyAppVolume();
-            player.seekTo(targetIndex, Math.max(0L, startPositionMs));
-            player.setPlayWhenReady(playWhenReady);
-            if (playWhenReady) {
-                player.play();
-                savePlaybackResumeRequested(true);
-                acquireWifiLockIfStreaming();
-            }
-            if (startPositionMs > 0L) {
-                clearRestoredPosition();
-            }
-            publishState();
-            startProgressUpdates();
-            return true;
-        } catch (IllegalStateException error) {
-            Log.w(TAG, "Unable to reuse mirrored queue", error);
-            playerMirrorsQueue = false;
-            return false;
-        }
+        return playbackQueueManager != null
+                && playbackQueueManager.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs);
     }
 
     private boolean mirroredQueueMatchesCurrentPlayer() {
-        if (player == null || player.getMediaItemCount() != queue.size()) {
+        if (!playbackQueueRuntimeStateManager.playerMirrorsQueue()
+                || player == null
+                || player.getMediaItemCount() != queue.size()) {
             return false;
         }
         for (int i = 0; i < queue.size(); i++) {
@@ -2425,53 +2461,10 @@ public final class EchoPlaybackService extends MediaLibraryService {
         return left == null ? right == null : left.equals(right);
     }
 
-    private float replayGainMultiplier(Track track) {
-        if (!replayGainEnabled || track == null) {
-            return 1.0f;
-        }
-        float gainDb = Math.abs(track.replayGainTrackDb) > 0.001f
-                ? track.replayGainTrackDb
-                : track.replayGainAlbumDb;
-        if (Math.abs(gainDb) <= 0.001f) {
-            return 1.0f;
-        }
-        return (float) Math.pow(10.0, gainDb / 20.0);
-    }
-
-    private void applyAudioFocusHandling() {
-        if (player != null) {
-            // When concurrent playback is enabled we do NOT request audio focus, so Yukine
-            // mixes with other media apps instead of pausing them (and won't be auto-paused
-            // by them). When disabled, ExoPlayer manages exclusive audio focus as usual.
-            player.setAudioAttributes(new AudioAttributes.Builder()
-                    .setUsage(C.USAGE_MEDIA)
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                    .build(), !concurrentPlaybackEnabled);
-        }
-    }
-
-    private float normalizePlaybackSpeed(float speed) {
-        if (speed < 0.5f) {
-            return 0.5f;
-        }
-        if (speed > 2.0f) {
-            return 2.0f;
-        }
-        return Math.round(speed * 100.0f) / 100.0f;
-    }
-
-    private float normalizeAppVolume(float volume) {
-        if (volume < 0.0f) {
-            return 0.0f;
-        }
-        if (volume > 1.0f) {
-            return 1.0f;
-        }
-        return Math.round(volume * 100.0f) / 100.0f;
-    }
-
     private boolean setControllerMediaItems(List<MediaItem> mediaItems, int startIndex, long startPositionMs) {
-        List<Track> tracks = tracksForMediaItems(mediaItems);
+        List<Track> tracks = playbackMediaLibraryCallback == null
+                ? Collections.emptyList()
+                : playbackMediaLibraryCallback.resolveTracksForMediaItems(mediaItems);
         if (tracks.isEmpty()) {
             return false;
         }
@@ -2479,72 +2472,17 @@ public final class EchoPlaybackService extends MediaLibraryService {
         return true;
     }
 
-    private List<Track> tracksForMediaItems(List<MediaItem> mediaItems) {
-        if (mediaItems == null || mediaItems.isEmpty()) {
-            return Collections.emptyList();
-        }
-        Map<Long, Track> tracksById = tracksById(repository.loadCachedTracks());
-        ArrayList<Track> tracks = new ArrayList<>();
-        for (MediaItem mediaItem : mediaItems) {
-            Track track = trackForMediaItem(mediaItem, tracksById);
-            if (track != null) {
-                tracks.add(track);
-            }
-        }
-        return tracks;
-    }
-
-    private Track trackForMediaItem(MediaItem mediaItem, Map<Long, Track> tracksById) {
-        if (mediaItem == null) {
-            return null;
-        }
-        long trackId = trackIdFromAutoMediaId(mediaItem.mediaId);
-        if (trackId < 0L) {
-            trackId = parseLong(mediaItem.mediaId, -1L);
-        }
-        return trackId < 0L ? null : tracksById.get(trackId);
-    }
-
-    private Map<Long, Track> tracksById(List<Track> tracks) {
-        HashMap<Long, Track> byId = new HashMap<>();
-        if (tracks == null) {
-            return byId;
-        }
-        for (Track track : tracks) {
-            if (track != null) {
-                byId.put(track.id, track);
-            }
-        }
-        return byId;
-    }
-
-    private long trackIdFromAutoMediaId(String mediaId) {
-        if (mediaId == null || !mediaId.startsWith(AUTO_TRACK_PREFIX)) {
-            return -1L;
-        }
-        return parseLong(mediaId.substring(AUTO_TRACK_PREFIX.length()), -1L);
-    }
-
-    private long parseLong(String value, long fallback) {
-        if (value == null || value.isEmpty()) {
-            return fallback;
-        }
-        try {
-            return Long.parseLong(value);
-        } catch (NumberFormatException ignored) {
-            return fallback;
-        }
-    }
-
     private MediaItem mediaItemForTrack(Track track) {
-        return new MediaItem.Builder()
+        return playbackMediaLibraryCallback == null
+                ? new MediaItem.Builder()
                 .setUri(track.contentUri)
                 .setMediaId(String.valueOf(track.id))
                 .setCustomCacheKey(cacheKeyForTrack(track))
                 .setMediaMetadata(playbackNotificationManager == null
                         ? new MediaMetadata.Builder().build()
                         : playbackNotificationManager.mediaMetadataForTrack(track))
-                .build();
+                .build()
+                : playbackMediaLibraryCallback.mediaItemForPlaybackTrack(track);
     }
 
     @OptIn(markerClass = UnstableApi.class)
@@ -2726,19 +2664,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
         return "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
     }
 
-    private void acquireWifiLockIfStreaming() {
-        Track track = currentTrack();
-        if (track != null && isHttpUri(track.contentUri) && wifiLock != null && !wifiLock.isHeld()) {
-            wifiLock.acquire();
-        }
-    }
-
-    private void releaseWifiLock() {
-        if (wifiLock != null && wifiLock.isHeld()) {
-            wifiLock.release();
-        }
-    }
-
     private String cacheKeyForTrack(Track track) {
         return mediaCacheKey(track);
     }
@@ -2816,7 +2741,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private boolean hasNotificationWorthyState() {
-        return currentTrack() != null || !queue.isEmpty() || preparing || isPlaying();
+        return currentTrack() != null || !queue.isEmpty() || playbackRuntimeStateManager.preparing() || isPlaying();
     }
 
     private boolean startPlaybackForeground(Notification notification) {
@@ -2856,10 +2781,10 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private Track currentTrack() {
-        if (currentIndex < 0 || currentIndex >= queue.size()) {
+        if (currentIndex() < 0 || currentIndex() >= queue.size()) {
             return null;
         }
-        return queue.get(currentIndex);
+        return queue.get(currentIndex());
     }
 
     private boolean isPlaying() {

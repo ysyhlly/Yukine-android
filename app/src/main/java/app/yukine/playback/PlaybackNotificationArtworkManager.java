@@ -21,8 +21,8 @@ import app.yukine.model.Track;
 final class PlaybackNotificationArtworkManager {
     interface StateProvider {
         Track currentTrack();
-        void refreshNotificationArtwork();
-        void updateMediaNotification(boolean force);
+        void refreshPlaybackSession();
+        void updateMediaNotification();
     }
 
     private static final int NOTIFICATION_ARTWORK_TARGET_PX = 512;
@@ -83,8 +83,8 @@ final class PlaybackNotificationArtworkManager {
             if (current == null || !key.equals(notificationArtworkKey(current))) {
                 return;
             }
-            stateProvider.refreshNotificationArtwork();
-            stateProvider.updateMediaNotification(true);
+            stateProvider.refreshPlaybackSession();
+            stateProvider.updateMediaNotification();
         });
     }
 

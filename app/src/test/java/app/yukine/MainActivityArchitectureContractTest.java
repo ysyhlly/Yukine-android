@@ -3489,7 +3489,8 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void playbackQueuePersistenceIsOwnedOutsideEchoPlaybackService() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
-        String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackQueueStore.kt");
+        String queueStoreOwner = read("app/src/main/java/app/yukine/playback/manager/PlaybackQueueStore.kt");
+        String positionOwner = read("app/src/main/java/app/yukine/playback/manager/PlaybackPositionManager.kt");
 
         assertFalse(service.contains("repository.loadPlaybackQueue()"));
         assertFalse(service.contains("repository.savePlaybackQueue("));
@@ -3497,26 +3498,299 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("repository.loadPlaybackPositionMs()"));
         assertFalse(service.contains("repository.savePlaybackPosition("));
         assertFalse(service.contains("repository.savePlaybackResumeRequested("));
-        assertTrue(service.contains("queueStore().load()"));
+        assertTrue(service.contains("playbackQueueManager.restorePlaybackQueue()"));
         assertTrue(service.contains("queueStore().save("));
-        assertTrue(service.contains("queueStore().loadPlaybackPositionTrackId()"));
-        assertTrue(service.contains("queueStore().loadPlaybackPositionMs()"));
-        assertTrue(service.contains("queueStore().savePlaybackPosition("));
+        assertFalse(service.contains("queueStore().loadPlaybackPositionTrackId()"));
+        assertFalse(service.contains("queueStore().loadPlaybackPositionMs()"));
+        assertFalse(service.contains("queueStore().savePlaybackPosition("));
+        assertTrue(service.contains("playbackPositionManager.persistCurrentPosition(force)"));
+        assertTrue(service.contains("playbackPositionManager.restoredPositionFor(track)"));
         assertTrue(service.contains("queueStore().saveResumeRequested("));
-        assertTrue(owner.contains("class PlaybackQueueStore"));
-        assertTrue(owner.contains("fun load(): PlaybackQueueState"));
-        assertTrue(owner.contains("fun save(tracks: List<Track>, currentIndex: Int)"));
-        assertTrue(owner.contains("fun savePlaybackPosition(trackId: Long, positionMs: Long)"));
-        assertTrue(owner.contains("fun saveResumeRequested(requested: Boolean)"));
+        assertTrue(queueStoreOwner.contains("interface PlaybackQueueStore"));
+        assertTrue(queueStoreOwner.contains("fun load(): PlaybackQueueState"));
+        assertTrue(queueStoreOwner.contains("fun save(tracks: List<Track>, currentIndex: Int)"));
+        assertTrue(queueStoreOwner.contains("fun savePlaybackPosition(trackId: Long, positionMs: Long)"));
+        assertTrue(queueStoreOwner.contains("fun saveResumeRequested(requested: Boolean)"));
+        assertTrue(positionOwner.contains("class PlaybackPositionManager"));
+        assertTrue(positionOwner.contains("fun restoredPositionFor(track: Track?)"));
+        assertTrue(positionOwner.contains("fun persistCurrentPosition(force: Boolean)"));
+        assertTrue(positionOwner.contains("fun setExplicitRestoredPosition(track: Track?, positionMs: Long)"));
     }
 
     @Test
     public void playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackQueueManager.kt");
 
-        assertTrue(service.contains("private void queueTracks(List<Track> tracks, int startIndex)"));
-        assertTrue(service.contains("private void advanceQueueIndexToNext()"));
+        assertTrue(service.contains("private PlaybackQueueManager playbackQueueManager"));
+        assertTrue(service.contains("playbackQueueManager.playQueue(tracks, startIndex, startPositionMs)"));
+        assertTrue(service.contains("playbackQueueManager.advanceQueueIndexToNext()"));
+        assertTrue(service.contains("playbackQueueManager.appendToQueue(tracks)"));
+        assertTrue(service.contains("playbackQueueManager.removeTracksById(trackIds)"));
+        assertTrue(service.contains("playbackQueueManager.replaceQueuedTrack(replacement)"));
+        assertTrue(service.contains("playbackQueueManager.replaceQueuedTrackById(oldTrackId, replacement)"));
+        assertTrue(service.contains("playbackQueueManager.skipToPrevious()"));
+        assertTrue(service.contains("playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs)"));
+        assertTrue(service.contains("playbackQueueManager.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs)"));
+        assertTrue(service.contains("playbackQueueManager.clearQueue()"));
         assertTrue(service.contains("private void clearQueueState()"));
+        assertTrue(owner.contains("fun reuseMirroredQueueIfAvailable(playWhenReady: Boolean, startPositionMs: Long): Boolean"));
+        assertTrue(owner.contains("queueProvider.mirroredQueueMatchesCurrentPlayer()"));
+        assertTrue(owner.contains("queueProvider.seekMirroredQueueTo(targetIndex, startAtMs, playWhenReady)"));
+        assertFalse(service.contains("boolean wasEmpty = queue.isEmpty()"));
+        assertFalse(service.contains("int removedBeforeCurrent = 0"));
+        assertFalse(service.contains("boolean targetAlreadyQueued = false"));
+        assertFalse(service.contains("ArrayList<Track> collapsedQueue"));
+        assertFalse(service.contains("random.nextInt(queue.size())"));
+        assertFalse(service.contains("private void replaceAndCollapseQueuedTrack("));
+        assertFalse(service.contains("setCurrentIndex(currentIndex() <= 0 ? queue.size() - 1 : currentIndex() - 1)"));
+        assertFalse(service.contains("queue.set(currentIndex(), replacement)"));
+        assertFalse(service.contains("streamingDiagnostics.recordRecovery(replacement"));
+        assertFalse(service.contains("player.seekTo(targetIndex, Math.max(0L, startPositionMs))"));
+    }
+
+    @Test
+    public void playbackSleepTimerStateIsOwnedOutsideEchoPlaybackService() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackSleepTimerManager.kt");
+
+        assertFalse(service.contains("sleepTimerEndsAtMs"));
+        assertFalse(service.contains("sleepTimerRunnable"));
+        assertFalse(service.contains("scheduleSleepTimer()"));
+        assertFalse(service.contains("cancelSleepTimerInternal("));
+        assertTrue(service.contains("private PlaybackSleepTimerManager playbackSleepTimerManager"));
+        assertTrue(service.contains("playbackSleepTimerManager.startMinutes(minutes)"));
+        assertTrue(service.contains("playbackSleepTimerManager.cancel(true)"));
+        assertTrue(service.contains("playbackSleepTimerManager.remainingMs()"));
+        assertTrue(owner.contains("class PlaybackSleepTimerManager"));
+        assertTrue(owner.contains("fun startMinutes(minutes: Int)"));
+        assertTrue(owner.contains("fun cancel(publish: Boolean)"));
+        assertTrue(owner.contains("fun remainingMs(): Long"));
+    }
+
+    @Test
+    public void playbackWifiLockIsOwnedOutsideEchoPlaybackService() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackWifiLockManager.kt");
+
+        assertFalse(service.contains("private android.net.wifi.WifiManager.WifiLock wifiLock"));
+        assertFalse(service.contains("private void acquireWifiLockIfStreaming()"));
+        assertFalse(service.contains("private void releaseWifiLock()"));
+        assertTrue(service.contains("private PlaybackWifiLockManager playbackWifiLockManager"));
+        assertTrue(service.contains("playbackWifiLockManager.acquireIfStreaming()"));
+        assertTrue(service.contains("playbackWifiLockManager.release()"));
+        assertTrue(owner.contains("class PlaybackWifiLockManager"));
+        assertTrue(owner.contains("interface Lock"));
+        assertTrue(owner.contains("interface StreamingTrackProvider"));
+        assertTrue(owner.contains("fun acquireIfStreaming()"));
+        assertTrue(owner.contains("fun release()"));
+    }
+
+    @Test
+    public void playbackNoisyReceiverIsOwnedOutsideEchoPlaybackService() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackNoisyReceiverManager.kt");
+
+        assertFalse(service.contains("private final BroadcastReceiver noisyReceiver"));
+        assertFalse(service.contains("noisyReceiverRegistered"));
+        assertFalse(service.contains("private void registerNoisyReceiver()"));
+        assertFalse(service.contains("private void unregisterNoisyReceiver()"));
+        assertTrue(service.contains("private PlaybackNoisyReceiverManager playbackNoisyReceiverManager"));
+        assertTrue(service.contains("playbackNoisyReceiverManager.register()"));
+        assertTrue(service.contains("playbackNoisyReceiverManager.unregister()"));
+        assertTrue(owner.contains("class PlaybackNoisyReceiverManager"));
+        assertTrue(owner.contains("interface Registrar"));
+        assertTrue(owner.contains("interface Actions"));
+        assertTrue(owner.contains("fun register()"));
+        assertTrue(owner.contains("fun unregister()"));
+    }
+
+    @Test
+    public void playbackProgressUpdatesAreOwnedOutsideEchoPlaybackService() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackProgressUpdateManager.kt");
+
+        assertFalse(service.contains("private final Runnable progressRunnable"));
+        assertFalse(service.contains("mainHandler.removeCallbacks(progressRunnable)"));
+        assertFalse(service.contains("mainHandler.postDelayed(progressRunnable"));
+        assertTrue(service.contains("private PlaybackProgressUpdateManager playbackProgressUpdateManager"));
+        assertTrue(service.contains("playbackProgressUpdateManager.startIfNeeded()"));
+        assertTrue(service.contains("playbackProgressUpdateManager.stop()"));
+        assertTrue(owner.contains("class PlaybackProgressUpdateManager"));
+        assertTrue(owner.contains("interface CallbackScheduler"));
+        assertTrue(owner.contains("interface StateProvider"));
+        assertTrue(owner.contains("interface Actions"));
+        assertTrue(owner.contains("fun startIfNeeded()"));
+        assertTrue(owner.contains("fun stop()"));
+    }
+
+    @Test
+    public void playbackStateBroadcastsAreOwnedOutsideEchoPlaybackService() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String owner = read("app/src/main/java/app/yukine/playback/PlaybackStatePublisher.kt");
+
+        assertFalse(service.contains("private final Set<PlaybackStateListener> listeners"));
+        assertFalse(service.contains("listeners.add(listener)"));
+        assertFalse(service.contains("listeners.remove(listener)"));
+        assertFalse(service.contains("for (PlaybackStateListener listener : listeners)"));
+        assertTrue(service.contains("playbackStatePublisher.registerListener(listener)"));
+        assertTrue(service.contains("playbackStatePublisher.unregisterListener(listener)"));
+        assertTrue(service.contains("playbackStatePublisher.publishState()"));
+        assertTrue(service.contains("playbackStatePublisher.publishBufferingState("));
+        assertTrue(owner.contains("class PlaybackStatePublisher"));
+        assertTrue(owner.contains("fun registerListener(listener: PlaybackStateListener?)"));
+        assertTrue(owner.contains("fun unregisterListener(listener: PlaybackStateListener?)"));
+        assertTrue(owner.contains("fun publishBufferingState("));
+    }
+
+    @Test
+    public void playbackErrorRecoveryIsOwnedOutsideEchoPlaybackService() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackErrorRecoveryManager.kt");
+
+        assertFalse(service.contains("Retrying streaming track after error"));
+        assertFalse(service.contains("Skipping unplayable track"));
+        assertTrue(service.contains("playbackErrorRecoveryManager.onPlaybackReady()"));
+        assertTrue(service.contains("playbackErrorRecoveryManager.onPlayerError(error)"));
+        assertTrue(owner.contains("class PlaybackErrorRecoveryManager"));
+        assertTrue(owner.contains("private var lastErrorTrackId"));
+        assertTrue(owner.contains("fun onPlaybackReady()"));
+        assertTrue(owner.contains("fun onPlayerError(error: Exception)"));
+    }
+
+    @Test
+    public void playbackRestoreEnablementIsOwnedOutsideEchoPlaybackService() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackQueueManager.kt");
+
+        assertFalse(service.contains("private boolean playbackRestoreEnabled"));
+        assertFalse(service.contains("if (playbackQueueManager == null && !repository.loadPlaybackRestoreEnabled())"));
+        assertFalse(service.contains("if (!playbackRestoreEnabled)"));
+        assertTrue(service.contains("playbackQueueManager.setPlaybackRestoreEnabled(repository.loadPlaybackRestoreEnabled())"));
+        assertTrue(service.contains("repository.savePlaybackRestoreEnabled(enabled)"));
+        assertTrue(owner.contains("private var playbackRestoreEnabled"));
+        assertTrue(owner.contains("fun setPlaybackRestoreEnabled(enabled: Boolean)"));
+        assertTrue(owner.contains("if (!playbackRestoreEnabled)"));
+    }
+
+    @Test
+    public void playbackRuntimeStateIsOwnedOutsideEchoPlaybackService() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackRuntimeStateManager.kt");
+
+        assertFalse(service.contains("private float playbackSpeed"));
+        assertFalse(service.contains("private float appVolume"));
+        assertFalse(service.contains("private boolean shuffleEnabled"));
+        assertFalse(service.contains("private int repeatMode"));
+        assertFalse(service.contains("private boolean replayGainEnabled"));
+        assertFalse(service.contains("private boolean concurrentPlaybackEnabled"));
+        assertFalse(service.contains("private boolean preparing"));
+        assertFalse(service.contains("private String errorMessage"));
+        assertFalse(service.contains("shuffleEnabled = repository.loadShuffleEnabled()"));
+        assertFalse(service.contains("repeatMode = repository.loadRepeatMode()"));
+        assertFalse(service.contains("playbackSpeed = playbackRuntimeStateManager.normalizePlaybackSpeed(speed)"));
+        assertFalse(service.contains("appVolume = playbackRuntimeStateManager.normalizeAppVolume(volume)"));
+        assertFalse(service.contains("repository.saveShuffleEnabled(enabled)"));
+        assertFalse(service.contains("repository.saveRepeatMode(mode)"));
+        assertFalse(service.contains("replayGainEnabled = repository.loadReplayGainEnabled()"));
+        assertFalse(service.contains("concurrentPlaybackEnabled = enabled"));
+        assertFalse(service.contains("return playbackSpeed;"));
+        assertFalse(service.contains("return appVolume;"));
+        assertFalse(service.contains("return shuffleEnabled;"));
+        assertFalse(service.contains("return repeatMode;"));
+        assertFalse(service.contains("return concurrentPlaybackEnabled;"));
+        assertTrue(service.contains("playbackRuntimeStateManager.setShuffleEnabled(repository.loadShuffleEnabled())"));
+        assertTrue(service.contains("playbackRuntimeStateManager.setRepeatMode(repository.loadRepeatMode())"));
+        assertTrue(service.contains("playbackRuntimeStateManager.setPlaybackSpeed(repository.loadPlaybackSpeed())"));
+        assertTrue(service.contains("playbackRuntimeStateManager.setAppVolume(repository.loadAppVolume())"));
+        assertTrue(service.contains("playbackRuntimeStateManager.setShuffleEnabled(enabled)"));
+        assertTrue(service.contains("playbackRuntimeStateManager.setRepeatMode(mode)"));
+        assertTrue(service.contains("playbackRuntimeStateManager.cycleRepeatMode()"));
+        assertTrue(service.contains("playbackRuntimeStateManager.setReplayGainEnabled(repository.loadReplayGainEnabled())"));
+        assertTrue(service.contains("playbackRuntimeStateManager.setConcurrentPlaybackEnabled(repository.loadConcurrentPlaybackEnabled())"));
+        assertTrue(service.contains("playbackRuntimeStateManager.setPlaybackSpeed(speed)"));
+        assertTrue(service.contains("playbackRuntimeStateManager.setAppVolume(volume)"));
+        assertTrue(service.contains("playbackRuntimeStateManager.setReplayGainEnabled(enabled)"));
+        assertTrue(service.contains("playbackRuntimeStateManager.setConcurrentPlaybackEnabled(enabled)"));
+        assertTrue(service.contains("playbackRuntimeStateManager.setPreparing(true)"));
+        assertTrue(service.contains("playbackRuntimeStateManager.setPreparing(false)"));
+        assertTrue(service.contains("playbackRuntimeStateManager.setErrorMessage("));
+        assertTrue(service.contains("playbackRuntimeStateManager.preparing()"));
+        assertTrue(service.contains("playbackRuntimeStateManager.errorMessage()"));
+        assertTrue(owner.contains("private var shuffleEnabled"));
+        assertTrue(owner.contains("private var repeatMode"));
+        assertTrue(owner.contains("fun setShuffleEnabled(enabled: Boolean)"));
+        assertTrue(owner.contains("fun setRepeatMode(mode: Int)"));
+        assertTrue(owner.contains("fun cycleRepeatMode()"));
+        assertTrue(owner.contains("fun shuffleEnabled(): Boolean"));
+        assertTrue(owner.contains("fun repeatMode(): Int"));
+        assertTrue(owner.contains("private var playbackSpeed"));
+        assertTrue(owner.contains("private var appVolume"));
+        assertTrue(owner.contains("fun setPlaybackSpeed(speed: Float)"));
+        assertTrue(owner.contains("fun setAppVolume(volume: Float)"));
+        assertTrue(owner.contains("fun playbackSpeed(): Float"));
+        assertTrue(owner.contains("fun appVolume(): Float"));
+        assertTrue(owner.contains("private var replayGainEnabled"));
+        assertTrue(owner.contains("private var concurrentPlaybackEnabled"));
+        assertTrue(owner.contains("fun setReplayGainEnabled(enabled: Boolean)"));
+        assertTrue(owner.contains("fun setConcurrentPlaybackEnabled(enabled: Boolean)"));
+        assertTrue(owner.contains("fun replayGainEnabled(): Boolean"));
+        assertTrue(owner.contains("fun concurrentPlaybackEnabled(): Boolean"));
+        assertTrue(owner.contains("private var preparing"));
+        assertTrue(owner.contains("private var errorMessage"));
+        assertTrue(owner.contains("fun setPreparing(preparing: Boolean)"));
+        assertTrue(owner.contains("fun preparing(): Boolean"));
+        assertTrue(owner.contains("fun setErrorMessage(message: String?)"));
+        assertTrue(owner.contains("fun errorMessage(): String"));
+    }
+
+    @Test
+    public void playbackTransitionStateIsOwnedOutsideEchoPlaybackService() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackTransitionStateManager.kt");
+
+        assertFalse(service.contains("private Track lastMarkedTrack"));
+        assertFalse(service.contains("private boolean fadeOutAdvancing"));
+        assertFalse(service.contains("lastMarkedTrack = null"));
+        assertFalse(service.contains("fadeOutAdvancing = false"));
+        assertFalse(service.contains("fadeOutAdvancing = true"));
+        assertTrue(service.contains("playbackTransitionStateManager.setLastMarkedTrack(track)"));
+        assertTrue(service.contains("playbackTransitionStateManager.setFadeOutAdvancing(true)"));
+        assertTrue(service.contains("playbackTransitionStateManager.setFadeOutAdvancing(false)"));
+        assertTrue(service.contains("playbackTransitionStateManager.clear()"));
+        assertTrue(owner.contains("private var lastMarkedTrack"));
+        assertTrue(owner.contains("private var fadeOutAdvancing"));
+        assertTrue(owner.contains("fun setLastMarkedTrack(track: Track?)"));
+        assertTrue(owner.contains("fun lastMarkedTrack(): Track?"));
+        assertTrue(owner.contains("fun setFadeOutAdvancing(enabled: Boolean)"));
+        assertTrue(owner.contains("fun fadeOutAdvancing(): Boolean"));
+        assertTrue(owner.contains("fun clear()"));
+    }
+
+    @Test
+    public void playbackQueueRuntimeStateIsOwnedOutsideEchoPlaybackService() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackQueueRuntimeStateManager.kt");
+
+        assertFalse(service.contains("private boolean playerMirrorsQueue"));
+        assertFalse(service.contains("private int currentIndex ="));
+        assertFalse(service.contains("playerMirrorsQueue = true"));
+        assertFalse(service.contains("playerMirrorsQueue = false"));
+        assertFalse(service.contains("currentIndex = "));
+        assertTrue(service.contains("playbackQueueRuntimeStateManager.playerMirrorsQueue()"));
+        assertTrue(service.contains("playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(true)"));
+        assertTrue(service.contains("playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false)"));
+        assertTrue(service.contains("playbackQueueRuntimeStateManager.currentIndex()"));
+        assertTrue(service.contains("playbackQueueRuntimeStateManager.setCurrentIndex(index)"));
+        assertTrue(service.contains("playbackQueueRuntimeStateManager.setClampedCurrentIndex(index, queue.size())"));
+        assertTrue(owner.contains("private var playerMirrorsQueue"));
+        assertTrue(owner.contains("private var currentIndex"));
+        assertTrue(owner.contains("fun playerMirrorsQueue(): Boolean"));
+        assertTrue(owner.contains("fun setPlayerMirrorsQueue(enabled: Boolean)"));
+        assertTrue(owner.contains("fun currentIndex(): Int"));
+        assertTrue(owner.contains("fun setCurrentIndex(index: Int)"));
+        assertTrue(owner.contains("fun clampCurrentIndex(queueSize: Int): Int"));
+        assertTrue(owner.contains("fun setClampedCurrentIndex(index: Int, queueSize: Int)"));
     }
 
     @Test
