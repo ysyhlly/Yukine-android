@@ -3532,11 +3532,15 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackQueueManager.skipToPrevious()"));
         assertTrue(service.contains("playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs)"));
         assertTrue(service.contains("playbackQueueManager.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs)"));
+        assertTrue(service.contains("playbackQueueManager.mirroredQueueTracksForPreparation()"));
         assertTrue(service.contains("playbackQueueManager.clearQueue()"));
         assertTrue(service.contains("private void clearQueueState()"));
         assertTrue(owner.contains("fun reuseMirroredQueueIfAvailable(playWhenReady: Boolean, startPositionMs: Long): Boolean"));
+        assertTrue(owner.contains("fun mirroredQueueTracksForPreparation(): List<Track>?"));
         assertTrue(owner.contains("queueProvider.mirroredQueueMatchesCurrentPlayer()"));
         assertTrue(owner.contains("queueProvider.seekMirroredQueueTo(targetIndex, startAtMs, playWhenReady)"));
+        assertTrue(owner.contains("queueProvider.canPrepareMirroredQueueTrack(track)"));
+        assertTrue(owner.contains("queueProvider.restoreForDataPath(track.dataPath)"));
         assertFalse(service.contains("boolean wasEmpty = queue.isEmpty()"));
         assertFalse(service.contains("int removedBeforeCurrent = 0"));
         assertFalse(service.contains("boolean targetAlreadyQueued = false"));
@@ -3547,6 +3551,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("queue.set(currentIndex(), replacement)"));
         assertFalse(service.contains("streamingDiagnostics.recordRecovery(replacement"));
         assertFalse(service.contains("player.seekTo(targetIndex, Math.max(0L, startPositionMs))"));
+        assertFalse(service.contains("if (queueTrack == null || Uri.EMPTY.equals(queueTrack.contentUri))"));
+        assertFalse(service.contains("streamingPlaybackHeaderStore.restoreForDataPath(queueTrack.dataPath)"));
     }
 
     @Test

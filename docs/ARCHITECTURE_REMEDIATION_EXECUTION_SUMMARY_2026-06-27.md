@@ -122,3 +122,13 @@
 - Guard: PlaybackQueueManagerTest covers skipToPrevious and replaceCurrentTrackAndResume recovery scheduling; MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster rejects direct previous cursor mutation, direct queue.set(currentIndex(), replacement), and inline streaming recovery recording returning to EchoPlaybackService.
 - Verification: serial `gradlew.bat --no-daemon --max-workers=1 :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain` and focused PlaybackQueueManagerTest / architecture contract passed.
 - Follow-up: remaining queue-facing service code is mostly playback preparation/reuse, current-track replacement helper, and Media3 mirrored-queue integration.
+## NOTE 36 - Playback mirrored queue reuse owner (2026-06-27)
+- PlaybackQueueManager now owns the mirrored-queue reuse decision and queue-side reuse state reset.
+- EchoPlaybackService.seekExistingMirroredQueue(...) now delegates to PlaybackQueueManager.reuseMirroredQueueIfAvailable(...), while Media3 player seek/play remains in the service boundary.
+- Added PlaybackQueueManagerTest coverage for successful reuse and failed-seek mirror cleanup; strengthened the playback queue mutation architecture contract.
+- Verified serially with `gradlew.bat --no-daemon --max-workers=1 :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain` and focused PlaybackQueueManagerTest / architecture contract.
+## NOTE 37 - Playback mirrored queue preparation owner (2026-06-27)
+- PlaybackQueueManager now owns mirrored-queue preparation eligibility and header-restore iteration.
+- EchoPlaybackService.prepareMirroredQueue(...) now consumes PlaybackQueueManager.mirroredQueueTracksForPreparation() and keeps only MediaSource construction plus ExoPlayer calls.
+- PlaybackQueueManagerTest covers snapshot/header restore and unplayable-track rejection; the architecture contract rejects the old queueTrack Uri/header loop in EchoPlaybackService.
+- Verified serially with focused PlaybackQueueManagerTest / architecture contract and compileDebugKotlin/compileDebugJavaWithJavac using --max-workers=1.

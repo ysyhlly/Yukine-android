@@ -3,6 +3,7 @@ package app.yukine.playback.manager
 import app.yukine.playback.EchoPlaybackService.REPEAT_OFF
 import app.yukine.model.PlaybackQueueState
 import app.yukine.model.Track
+import java.util.ArrayList
 import java.util.HashSet
 import java.util.LinkedList
 import java.util.Random
@@ -33,6 +34,7 @@ internal class PlaybackQueueManager(
         fun restoredTrackFor(track: Track): Track?
         fun restoreForDataPath(dataPath: String?)
         fun isRestorableQueueTrack(track: Track): Boolean
+        fun canPrepareMirroredQueueTrack(track: Track): Boolean
         fun setRestoredPosition(trackId: Long, positionMs: Long, explicit: Boolean)
         fun setCurrentIndex(index: Int)
         fun setErrorMessage(message: String)
@@ -386,6 +388,22 @@ internal class PlaybackQueueManager(
         return true
     }
 
+    fun mirroredQueueTracksForPreparation(): List<Track>? {
+        val queue = queueProvider.queue()
+        if (queue.isEmpty() || queueProvider.currentTrack() == null) {
+            return null
+        }
+        val tracks = ArrayList<Track>(queue.size)
+        for (track in queue) {
+            if (!queueProvider.canPrepareMirroredQueueTrack(track)) {
+                return null
+            }
+            queueProvider.restoreForDataPath(track.dataPath)
+            tracks.add(track)
+        }
+        return tracks
+    }
+
     private fun replaceAndCollapseQueuedTrack(oldTrackId: Long, replacement: Track) {
         val queue = queueProvider.queue()
         var preferredIndex = -1
@@ -513,9 +531,6 @@ internal class PlaybackQueueManager(
     }
 
     private fun indexOfTrackOccurrence(queue: List<Track>, target: Track): Int {
-        if (target == null) {
-            return -1
-        }
         for (i in queue.indices) {
             val candidate = queue[i]
             if (candidate === target || candidate.id == target.id && candidate.dataPath == target.dataPath && candidate.contentUri == target.contentUri) {

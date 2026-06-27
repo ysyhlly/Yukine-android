@@ -648,6 +648,11 @@ public final class EchoPlaybackService extends MediaLibraryService {
                     }
 
                     @Override
+                    public boolean canPrepareMirroredQueueTrack(Track track) {
+                        return track != null && !Uri.EMPTY.equals(track.contentUri);
+                    }
+
+                    @Override
                     public void setRestoredPosition(long trackId, long positionMs, boolean explicit) {
                         if (playbackPositionManager != null) {
                             playbackPositionManager.setRestoredPosition(trackId, positionMs, explicit);
@@ -1903,13 +1908,15 @@ public final class EchoPlaybackService extends MediaLibraryService {
         if (seekExistingMirroredQueue(playWhenReady, startPositionMs)) {
             return;
         }
+        List<Track> mirroredQueueTracks = playbackQueueManager == null
+                ? Collections.emptyList()
+                : playbackQueueManager.mirroredQueueTracksForPreparation();
+        if (mirroredQueueTracks == null || mirroredQueueTracks.isEmpty()) {
+            prepareSingleTrack(track, playWhenReady, startPositionMs);
+            return;
+        }
         ArrayList<MediaSource> mediaSources = new ArrayList<>();
-        for (Track queueTrack : queue) {
-            if (queueTrack == null || Uri.EMPTY.equals(queueTrack.contentUri)) {
-                prepareSingleTrack(track, playWhenReady, startPositionMs);
-                return;
-            }
-            streamingPlaybackHeaderStore.restoreForDataPath(queueTrack.dataPath);
+        for (Track queueTrack : mirroredQueueTracks) {
             mediaSources.add(mediaSourceFactory(queueTrack).createMediaSource(mediaItemForTrack(queueTrack)));
         }
         playbackRuntimeStateManager.setPreparing(true);
