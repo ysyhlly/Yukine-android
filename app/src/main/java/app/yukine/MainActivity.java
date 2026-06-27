@@ -162,8 +162,7 @@ public final class MainActivity extends ComponentActivity {
     private StreamingManualCookieController streamingManualCookieController;
     private HeartbeatRecommendationController heartbeatRecommendationController;
     private RecommendationActionController recommendationActionController;
-    private final LateBoundHeartbeatSeedRequestProvider heartbeatSeedRequestProvider =
-            new LateBoundHeartbeatSeedRequestProvider();
+    private HeartbeatRecommendationSeedBinder heartbeatSeedBinder;
     private NetworkActionsViewModel networkActionsViewModel;
     private NetworkRequestController networkRequestController;
     private HomeDashboardRenderController homeDashboardRenderController;
@@ -179,19 +178,16 @@ public final class MainActivity extends ComponentActivity {
     private int pendingPlaybackIndex = -1;
     private int unifiedStreamingPlaybackRequestId = 0;
     private boolean scrollContentToTopOnNextRender;
-    private boolean onboardingVisible;
     private app.yukine.navigation.EchoNavHostState navHostState;
 
     private NetworkDialogController networkDialogController;
     private PlaylistDialogController playlistDialogController;
     private ConfirmationDialogController confirmationDialogController;
-    private boolean onboardingLibraryScanCompleted;
-    private boolean onboardingLibraryScanInProgress;
+    private OnboardingController onboardingController;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        onboardingVisible = repository != null && !repository.loadOnboardingCompleted();
         viewModel = new ViewModelProvider(this).get(MainActivityViewModel.class);
         navigationViewModel = new ViewModelProvider(this).get(NavigationViewModel.class);
         playbackViewModel = new ViewModelProvider(this).get(PlaybackViewModel.class);
@@ -437,7 +433,7 @@ public final class MainActivity extends ComponentActivity {
                 if (permissionController.hasAudioPermission()) {
                     loadLibrary(false);
                 }
-                if (onboardingVisible) {
+                if (showOnboarding()) {
                     mountNavHostShell();
                 }
             }
@@ -769,6 +765,15 @@ public final class MainActivity extends ComponentActivity {
                 ));
             }
         });
+        heartbeatSeedBinder = new HeartbeatRecommendationSeedBinder(
+                () -> playbackService == null ? null : playbackService.snapshot(),
+                () -> playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot(),
+                () -> playbackStore == null ? null : playbackStore.snapshot(),
+                () -> playbackViewModel == null || playbackViewModel.getPlayback().getValue() == null
+                        ? Collections.emptyList()
+                        : playbackViewModel.getPlayback().getValue().getQueue(),
+                this::heartbeatLibraryContextTracks
+        );
         recommendationActionController = new RecommendationActionController(
                 streamingRecommendationViewModel,
                 () -> settingsStore.languageMode(),
@@ -785,7 +790,9 @@ public final class MainActivity extends ComponentActivity {
 
                     @Override
                     public HeartbeatRecommendationSeedRequest seedRequest(StreamingProviderName provider) {
-                        return heartbeatSeedRequestProvider.request(provider);
+                        return heartbeatSeedBinder == null
+                                ? new HeartbeatRecommendationSeedRequest()
+                                : heartbeatSeedBinder.request(provider);
                     }
 
                     @Override
@@ -980,7 +987,9 @@ public final class MainActivity extends ComponentActivity {
 
             @Override
             public HeartbeatRecommendationSeedRequest seedRequest(StreamingProviderName provider) {
-                return heartbeatSeedRequestProvider.request(provider);
+                return heartbeatSeedBinder == null
+                        ? new HeartbeatRecommendationSeedRequest()
+                        : heartbeatSeedBinder.request(provider);
             }
 
             @Override
@@ -1885,16 +1894,9 @@ public final class MainActivity extends ComponentActivity {
         );
         streamingViewModel.bindStreamingTrackMatchStore(streamingTrackMatchUseCase);
         streamingRecommendationViewModel.bindStreamingTrackMatchStore(streamingTrackMatchUseCase);
-        heartbeatSeedRequestProvider.bind(new HeartbeatRecommendationSeedResolver(
-                streamingTrackMatchUseCase,
-                () -> playbackService == null ? null : playbackService.snapshot(),
-                () -> playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot(),
-                () -> playbackStore == null ? null : playbackStore.snapshot(),
-                () -> playbackViewModel == null || playbackViewModel.getPlayback().getValue() == null
-                        ? Collections.emptyList()
-                        : playbackViewModel.getPlayback().getValue().getQueue(),
-                this::heartbeatLibraryContextTracks
-        ));
+        if (heartbeatSeedBinder != null) {
+            heartbeatSeedBinder.bind(streamingTrackMatchUseCase);
+        }
         toggleFavoriteUseCase = new ToggleFavoriteUseCase(
                 new MusicLibraryFavoriteOperations(repository)
         );
@@ -2247,10 +2249,61 @@ public final class MainActivity extends ComponentActivity {
         );
         streamingAuthCallbackController.handleInitialIntent(getIntent());
         uiShellController.applyThemeSurface();
+        onboardingController = new OnboardingController(new OnboardingController.Listener() {
+            @Override
+            public boolean hasAudioPermission() {
+                return permissionController != null && permissionController.hasAudioPermission();
+            }
+
+            @Override
+            public boolean hasNotificationPermission() {
+                return permissionController != null && permissionController.hasNotificationPermission();
+            }
+
+            @Override
+            public void requestNeededPermissions() {
+                if (permissionController != null) {
+                    permissionController.requestNeededPermissions();
+                }
+            }
+
+            @Override
+            public void mountNavHostShell() {
+                MainActivity.this.mountNavHostShell();
+            }
+
+            @Override
+            public void loadLibrary(boolean allowCachedFirst) {
+                MainActivity.this.loadLibrary(allowCachedFirst);
+            }
+
+            @Override
+            public void navigateToNetworkTabPage(String page) {
+                MainActivity.this.navigateToNetworkTabPage(page);
+            }
+
+            @Override
+            public void renderAndPersistSelectedTab() {
+                MainActivity.this.renderAndPersistSelectedTab();
+            }
+
+            @Override
+            public void openPlaylistM3uFilePicker() {
+                documentPickerController.openPlaylistM3uFilePicker();
+            }
+
+            @Override
+            public void onboardingCompleted() {
+                if (repository != null) {
+                    repository.saveOnboardingCompleted(true);
+                }
+            }
+        });
+        onboardingController.initialize(repository == null || !repository.loadOnboardingCompleted());
         mountNavHostShell();
         installBackNavigation();
         playbackServiceConnectionController.bind();
-        if (!onboardingVisible) {
+        if (!showOnboarding()) {
             permissionController.requestNeededPermissions();
             loadLibraryOnStartup();
         } else {
@@ -2260,26 +2313,30 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void finishOnboarding() {
-        completeOnboarding(() -> renderAndPersistSelectedTab());
+        if (onboardingController != null) {
+            onboardingController.finishOnboarding();
+        }
     }
 
     private void openStreamingFromOnboarding() {
-        completeOnboarding(() -> navigateToNetworkTabPage(NETWORK_STREAMING));
+        if (onboardingController != null) {
+            onboardingController.openStreamingFromOnboarding();
+        }
     }
 
-    private void completeOnboarding(Runnable afterComplete) {
-        if (!canFinishOnboarding()) {
-            statusMessageController.setStatus(onboardingMissingSetupMessage());
-            mountNavHostShell();
-            return;
+    private boolean showOnboarding() {
+        return onboardingController != null && onboardingController.showOnboarding();
+    }
+
+    private void scanLibraryFromOnboarding() {
+        if (onboardingController != null) {
+            onboardingController.scanLibraryFromOnboarding();
         }
-        onboardingVisible = false;
-        if (repository != null) {
-            repository.saveOnboardingCompleted(true);
-        }
-        mountNavHostShell();
-        if (afterComplete != null) {
-            afterComplete.run();
+    }
+
+    private void importPlaylistFromOnboarding() {
+        if (onboardingController != null) {
+            onboardingController.importPlaylistFromOnboarding();
         }
     }
 
@@ -2575,7 +2632,7 @@ public final class MainActivity extends ComponentActivity {
 
         @Override
         public boolean showOnboarding() {
-            return onboardingVisible;
+            return onboardingController != null && onboardingController.showOnboarding();
         }
 
         @Override
@@ -2590,12 +2647,12 @@ public final class MainActivity extends ComponentActivity {
 
         @Override
         public boolean libraryScanCompleted() {
-            return onboardingLibraryScanCompleted;
+            return onboardingController != null && onboardingController.libraryScanCompleted();
         }
 
         @Override
         public boolean libraryScanInProgress() {
-            return onboardingLibraryScanInProgress;
+            return onboardingController != null && onboardingController.libraryScanInProgress();
         }
 
         @Override
@@ -2659,10 +2716,8 @@ public final class MainActivity extends ComponentActivity {
                     if (canScan && !allowCachedFirst) {
                         statusMessageController.setStatus(libraryScanResultStatus(result.getTracks().size()));
                     }
-                    if (onboardingVisible && onboardingLibraryScanInProgress) {
-                        onboardingLibraryScanInProgress = false;
-                        onboardingLibraryScanCompleted = canScan;
-                        mountNavHostShell();
+                    if (onboardingController != null) {
+                        onboardingController.onLibraryScanResult(canScan);
                     }
                 },
                 status -> {
@@ -2945,50 +3000,6 @@ public final class MainActivity extends ComponentActivity {
             statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), "search.no.results"));
         }
         renderAndPersistSelectedTab();
-    }
-
-    private boolean canFinishOnboarding() {
-        return permissionController != null
-                && permissionController.hasAudioPermission()
-                && permissionController.hasNotificationPermission()
-                && onboardingLibraryScanCompleted;
-    }
-
-    private String onboardingMissingSetupMessage() {
-        List<String> missing = new ArrayList<>();
-        if (permissionController == null || !permissionController.hasAudioPermission()) {
-            missing.add("\u97f3\u9891\u6743\u9650");
-        }
-        if (permissionController == null || !permissionController.hasNotificationPermission()) {
-            missing.add("\u901a\u77e5\u6743\u9650");
-        }
-        if (!onboardingLibraryScanCompleted) {
-            missing.add(onboardingLibraryScanInProgress ? "\u7b49\u5f85\u66f2\u5e93\u626b\u63cf\u5b8c\u6210" : "\u626b\u63cf\u672c\u5730\u66f2\u5e93");
-        }
-        return "\u5b8c\u6210\u540e\u624d\u80fd\u8fdb\u5165\uff1a" + String.join("\u3001", missing);
-    }
-
-    private void scanLibraryFromOnboarding() {
-        if (permissionController == null || !permissionController.hasAudioPermission()) {
-            statusMessageController.setStatus(onboardingMissingSetupMessage());
-            if (permissionController != null) {
-                permissionController.requestNeededPermissions();
-            }
-            mountNavHostShell();
-            return;
-        }
-        onboardingLibraryScanInProgress = true;
-        mountNavHostShell();
-        loadLibrary(false);
-    }
-
-    private void importPlaylistFromOnboarding() {
-        if (!canFinishOnboarding()) {
-            statusMessageController.setStatus(onboardingMissingSetupMessage());
-            mountNavHostShell();
-            return;
-        }
-        documentPickerController.openPlaylistM3uFilePicker();
     }
 
     private void renderAndPersistSelectedTab() {

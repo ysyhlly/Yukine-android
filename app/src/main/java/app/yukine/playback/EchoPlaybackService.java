@@ -1,7 +1,5 @@
 package app.yukine.playback;
 
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Notification;
 import android.content.pm.ServiceInfo;
@@ -12,10 +10,6 @@ import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.media.AudioManager;
-import android.media.audiofx.BassBoost;
-import android.media.audiofx.Equalizer;
-import android.media.audiofx.LoudnessEnhancer;
-import android.media.audiofx.Virtualizer;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Build;
@@ -43,23 +37,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import app.yukine.MainActivity;
-import app.yukine.FloatingLyricsPublisher;
-import app.yukine.FloatingLyricsState;
-import app.yukine.LiveLyricsNotificationService;
 import app.yukine.R;
 import app.yukine.data.EmbeddedArtwork;
 import app.yukine.data.MusicLibraryRepository;
+import app.yukine.playback.manager.PlaybackQueueStore;
+import app.yukine.playback.manager.PlaybackAudioEffectManager;
+import app.yukine.playback.manager.PlaybackLyricsManager;
+import app.yukine.playback.manager.PlaybackMediaLibraryCallback;
+import app.yukine.playback.manager.PlaybackNotificationManager;
+import app.yukine.playback.manager.PlaybackNotificationChannelOwner;
+import app.yukine.playback.manager.PlaybackSessionManager;
 import app.yukine.model.Playlist;
 import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.RemoteSource;
@@ -76,11 +67,9 @@ import androidx.media3.common.PlaybackException;
 import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
-import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.datasource.cache.CacheDataSource;
-import androidx.media3.datasource.cache.CacheWriter;
 import androidx.media3.datasource.cache.ContentMetadata;
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor;
 import androidx.media3.datasource.cache.SimpleCache;
@@ -125,24 +114,11 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private static final String TAG = "EchoPlaybackService";
     private static final String EMPTY_NOTIFICATION_TITLE = "Yukine";
     private static final String EMPTY_NOTIFICATION_TEXT = "Ready to resume playback";
-    private static final String EXTRA_CURRENT_LYRIC = "app.yukine.extra.CURRENT_LYRIC";
-    private static final String EXTRA_LYRIC_TRACK_TITLE = "app.yukine.extra.LYRIC_TRACK_TITLE";
     private static final String EXTRA_REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing";
     private static final int NOTIFICATION_ACCENT = 0xFFEBC9A6;
     private static final long PLAYBACK_POSITION_SAVE_INTERVAL_MS = 5000L;
     private static final long CROSSFADE_FADE_OUT_MS = 700L;
     private static final long CROSSFADE_FADE_STEP_MS = 70L;
-    private static final int PRECACHE_BYTES = 512 * 1024;
-    private static final int UPCOMING_TRACK_PRECACHE_BYTES = 256 * 1024;
-    private static final long SEGMENTED_PRECACHE_BYTES = 12L * 1024L * 1024L;
-    private static final long SEGMENTED_PRECACHE_CHUNK_BYTES = 1024L * 1024L;
-    private static final int SEGMENTED_PRECACHE_CONCURRENCY = 4;
-    private static final int PLAYBACK_CACHE_PRIORITY_QUEUE_INITIAL_CAPACITY = SEGMENTED_PRECACHE_CONCURRENCY * 8;
-    private static final int PLAYBACK_CACHE_QUEUE_CAPACITY = SEGMENTED_PRECACHE_CONCURRENCY * 8;
-    private static final int PRECACHE_RANGE_PROBE_BYTES = 1;
-    private static final long CURRENT_TRACK_LEADING_PRECACHE_DELAY_MS = 0L;
-    private static final long CURRENT_TRACK_SEGMENTED_PRECACHE_DELAY_MS = 250L;
-    private static final long UPCOMING_TRACK_PRECACHE_DELAY_MS = 5500L;
     private static final long VISUALIZATION_CACHE_BYTES = 64L * 1024L * 1024L;
     // Buffering policy tuned for music streaming. Keep a generous read-ahead window (so a brief
     // network dip doesn't stall mid-song) but start and recover quickly so the user feels little
@@ -154,11 +130,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private static final int STREAMING_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 3500;
     private static final int STREAMING_BACK_BUFFER_MS = 60000;
     private static final long AUDIO_CACHE_MAX_BYTES = 1024L * 1024L * 1024L;
-    private static final float WAVEFORM_PROGRESS_STEP = 0.015f;
-    private static final int WAVEFORM_BAR_COUNT = 96;
-    private static final long SPECTRUM_QUICK_START_MS = 6_000L;
-    private static final float SPECTRUM_PROGRESS_STEP = 0.008f;
-    private static final long PLAYBACK_VISUALIZATION_WARMUP_MS = 1500L;
     private static final long PLAYBACK_VISUALIZATION_CACHE_DELAY_MS = 1800L;
     private static final float[] EMPTY_REALTIME_BANDS = new float[0];
     private static final int NOTIFICATION_ARTWORK_TARGET_PX = 512;
@@ -185,38 +156,23 @@ public final class EchoPlaybackService extends MediaLibraryService {
             new PlaybackTaskScheduler("EchoPlaybackScheduler", Process.THREAD_PRIORITY_AUDIO);
     private final PlaybackTaskScheduler visualizationTaskScheduler =
             new PlaybackTaskScheduler("YukineVisualizationScheduler", Process.THREAD_PRIORITY_BACKGROUND);
-    private final ThreadPoolExecutor playbackCacheExecutor =
-            new ThreadPoolExecutor(
-                    SEGMENTED_PRECACHE_CONCURRENCY,
-                    SEGMENTED_PRECACHE_CONCURRENCY,
-                    0L,
-                    TimeUnit.MILLISECONDS,
-                    new PriorityBlockingQueue<>(PLAYBACK_CACHE_PRIORITY_QUEUE_INITIAL_CAPACITY),
-                    new PlaybackCacheThreadFactory()
-            );
     private final RealtimeBassDetector realtimeBassDetector = new RealtimeBassDetector();
     private final YukineRealtimeBassAudioProcessor realtimeBassAudioProcessor =
             new YukineRealtimeBassAudioProcessor(realtimeBassDetector);
     private final PlaybackStreamingDiagnostics streamingDiagnostics = new PlaybackStreamingDiagnostics();
-    private final LruCache<String, Bitmap> notificationArtworkCache =
-            new LruCache<>(NOTIFICATION_ARTWORK_CACHE_ENTRIES);
-    private final LruCache<String, byte[]> mediaMetadataArtworkCache =
-            new LruCache<>(NOTIFICATION_ARTWORK_CACHE_ENTRIES);
-    private final Set<String> notificationArtworkMisses = Collections.synchronizedSet(new HashSet<>());
-    private final Set<String> activePrecacheRanges =
-            Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private final Set<CacheWriter> activePrecacheWriters =
-            Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private final AtomicInteger precacheGeneration = new AtomicInteger();
 
     private ExoPlayer player;
-    private Player sessionPlayer;
-    private MediaLibrarySession mediaSession;
     private boolean playerMirrorsQueue;
-    private Equalizer equalizer;
-    private BassBoost bassBoost;
-    private Virtualizer virtualizer;
-    private LoudnessEnhancer loudnessEnhancer;
+    private final PlaybackAudioEffectManager audioEffectManager =
+            new PlaybackAudioEffectManager(TAG);
+    private PlaybackSessionManager playbackSessionManager;
+    private PlaybackQueueStore queueStore;
+    private PlaybackLyricsManager playbackLyricsManager;
+    private PlaybackNotificationManager playbackNotificationManager;
+    private PlaybackVisualizationAnalyzer playbackVisualizationAnalyzer;
+    private PlaybackVisualizationCacheManager playbackVisualizationCacheManager;
+    private PlaybackNotificationArtworkManager playbackNotificationArtworkManager;
+    private PlaybackPrecacheManager playbackPrecacheManager;
     private SimpleCache audioCache;
     private android.net.wifi.WifiManager.WifiLock wifiLock;
     @Inject
@@ -242,44 +198,12 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private long lastSavedPositionMs;
     private long lastPositionSaveAtMs;
     private long lastErrorTrackId = -1L;
-    private volatile String lastPrecacheKey = "";
-    private String waveformTrackKey = "";
-    private String waveformGeneratingKey = "";
-    private float waveformGeneratedProgress;
-    private int waveformGeneratedBarCount;
-    private PlaybackWaveformSnapshot waveformSnapshot = PlaybackWaveformSnapshot.empty();
-    private String spectrumGeneratingKey = "";
-    private float spectrumGeneratedProgress;
-    private PlaybackSpectrumSnapshot spectrumSnapshot = PlaybackSpectrumSnapshot.empty();
-    private long visualizationWarmupUntilMs;
-    private String lastNotificationLyric = "";
     private long lastNotificationUpdateAtMs;
-    private long lastLyricNotificationUpdateAtMs;
     private String errorMessage = "";
     private Track lastMarkedTrack;
     private boolean noisyReceiverRegistered;
     private boolean fadeOutAdvancing;
     private volatile boolean appVisible;
-
-    private final FloatingLyricsPublisher.Listener floatingLyricsListener = state -> {
-        String nextLyric = state == null ? "" : sanitizeNotificationLyric(state.getActiveLine());
-        if (nextLyric.equals(lastNotificationLyric)) {
-            return;
-        }
-        lastNotificationLyric = nextLyric;
-        if (hasNotificationWorthyState()) {
-            mainHandler.post(() -> {
-                long now = System.currentTimeMillis();
-                if (!appVisible && now - lastLyricNotificationUpdateAtMs < BACKGROUND_LYRIC_NOTIFICATION_MIN_INTERVAL_MS) {
-                    return;
-                }
-                lastLyricNotificationUpdateAtMs = now;
-                refreshMediaSessionMetadata();
-                updateMediaNotification(false);
-                updateLiveLyricsNotificationService(nextLyric);
-            });
-        }
-    };
 
     private final BroadcastReceiver noisyReceiver = new BroadcastReceiver() {
         @Override
@@ -437,13 +361,359 @@ public final class EchoPlaybackService extends MediaLibraryService {
         statusBarLyricsEnabled = repository.loadStatusBarLyricsEnabled();
         playbackRestoreEnabled = repository.loadPlaybackRestoreEnabled();
         replayGainEnabled = repository.loadReplayGainEnabled();
-        createNotificationChannel();
+        new PlaybackNotificationChannelOwner(this).createNotificationChannel();
         createPlayerIfNeeded();
+        playbackLyricsManager = new PlaybackLyricsManager(this, new PlaybackLyricsManager.StateProvider() {
+            @Override
+            public boolean hasNotificationWorthyState() {
+                return EchoPlaybackService.this.hasNotificationWorthyState();
+            }
+
+            @Override
+            public boolean isAppVisible() {
+                return appVisible;
+            }
+
+            @Override
+            public Track currentTrack() {
+                return EchoPlaybackService.this.currentTrack();
+            }
+
+            @Override
+            public boolean isPlaying() {
+                return EchoPlaybackService.this.isPlaying();
+            }
+
+            @Override
+            public boolean isPreparing() {
+                return preparing;
+            }
+
+            @Override
+            public void notifyMediaNotification(boolean force) {
+                if (playbackNotificationManager != null) {
+                    playbackNotificationManager.updateMediaNotification(force);
+                }
+            }
+
+        });
+        playbackNotificationManager = new PlaybackNotificationManager(
+                this,
+                new PlaybackNotificationManager.ForegroundPresenter() {
+                    @Override
+                    public PendingIntent activityPendingIntent() {
+                        return EchoPlaybackService.this.activityPendingIntent();
+                    }
+
+                    @Override
+                    public PendingIntent serviceActionPendingIntent(String action, int requestCode) {
+                        return EchoPlaybackService.this.serviceActionPendingIntent(action, requestCode);
+                    }
+
+                    @Override
+                    public void startPlaybackForeground(Notification notification) {
+                        EchoPlaybackService.this.startPlaybackForeground(notification);
+                    }
+
+                    @Override
+                    public boolean hasNotificationWorthyState() {
+                        return EchoPlaybackService.this.hasNotificationWorthyState();
+                    }
+
+                    @Override
+                    public boolean isPlaying() {
+                        return EchoPlaybackService.this.isPlaying();
+                    }
+
+                    @Override
+                    public boolean isPreparing() {
+                        return preparing;
+                    }
+
+                    @Override
+                    public Track currentTrack() {
+                        return EchoPlaybackService.this.currentTrack();
+                    }
+
+                    @Override
+                    public android.media.session.MediaSession.Token playbackSessionPlatformToken() {
+                        return playbackSessionManager == null ? null : playbackSessionManager.session().getPlatformToken();
+                    }
+                },
+                new PlaybackNotificationManager.LyricsTextProvider() {
+                    @Override
+                    public String currentNotificationLyric(Track track) {
+                        return playbackLyricsManager == null ? "" : playbackLyricsManager.currentNotificationLyric(track);
+                    }
+
+                    @Override
+                    public String sanitizeNotificationLyric(String value) {
+                        return playbackLyricsManager == null ? "" : playbackLyricsManager.sanitizeNotificationLyric(value);
+                    }
+                },
+                new PlaybackNotificationManager.ArtworkProvider() {
+                    @Override
+                    public Bitmap notificationArtworkFor(Track track) {
+                        return playbackNotificationArtworkManager == null
+                                ? null
+                                : playbackNotificationArtworkManager.notificationArtworkFor(track);
+                    }
+
+                    @Override
+                    public byte[] notificationArtworkDataFor(Track track) {
+                        return playbackNotificationArtworkManager == null
+                                ? null
+                                : playbackNotificationArtworkManager.notificationArtworkDataFor(track);
+                    }
+                }
+        );
+        PlaybackMediaLibraryCallback mediaLibraryCallback = new PlaybackMediaLibraryCallback(
+                new PlaybackMediaLibraryCallback.DataSource() {
+                    @Override
+                    public String appName() {
+                        return getString(R.string.app_name);
+                    }
+
+                    @Override
+                    public List<Track> loadCachedTracks() {
+                        return repository.loadCachedTracks();
+                    }
+
+                    @Override
+                    public List<Playlist> loadPlaylists() {
+                        return repository.loadPlaylists();
+                    }
+
+                    @Override
+                    public List<TrackPlayRecord> loadRecentlyPlayed(int limit) {
+                        return repository.loadRecentlyPlayed(limit);
+                    }
+
+                    @Override
+                    public List<Track> loadPlaylistTracks(long playlistId) {
+                        return repository.loadPlaylistTracks(playlistId);
+                    }
+
+                    @Override
+                    public MediaMetadata mediaMetadataForTrack(Track track) {
+                        return playbackNotificationManager.mediaMetadataForTrack(track);
+                    }
+
+                    @Override
+                    public String cacheKeyForTrack(Track track) {
+                        return EchoPlaybackService.this.cacheKeyForTrack(track);
+                    }
+                }
+        );
+        playbackSessionManager = new PlaybackSessionManager(
+                this,
+                this::createSessionPlayer,
+                mediaLibraryCallback,
+                this::activityPendingIntent
+        );
+        playbackVisualizationAnalyzer = new PlaybackVisualizationAnalyzer(
+                this,
+                visualizationTaskScheduler,
+                new PlaybackVisualizationAnalyzer.StateProvider() {
+                    @Override
+                    public boolean isAppVisible() {
+                        return appVisible;
+                    }
+
+                    @Override
+                    public boolean isHttpUri(Uri uri) {
+                        return EchoPlaybackService.this.isHttpUri(uri);
+                    }
+
+                    @Override
+                    public CacheDataSource cacheDataSourceForTrack(Track track) {
+                        return EchoPlaybackService.this.cacheDataSourceForTrack(track);
+                    }
+
+                    @Override
+                    public String mediaCacheKeyForTrack(Track track) {
+                        return EchoPlaybackService.this.mediaCacheKeyForTrack(track);
+                    }
+
+                    @Override
+                    public long continuousCachedBytes(String cacheKey) {
+                        return EchoPlaybackService.this.continuousCachedBytes(cacheKey);
+                    }
+
+                    @Override
+                    public float bufferedProgress(long durationMs) {
+                        return EchoPlaybackService.this.bufferedProgress(durationMs);
+                    }
+
+                    @Override
+                    public long contentLengthForCacheKey(String cacheKey) {
+                        return EchoPlaybackService.this.contentLengthForCacheKey(cacheKey);
+                    }
+
+                    @Override
+                    public void publishState() {
+                        EchoPlaybackService.this.publishState();
+                    }
+                }
+        );
+        playbackVisualizationCacheManager = new PlaybackVisualizationCacheManager(
+                new PlaybackVisualizationCacheManager.StateProvider() {
+                    @Override
+                    public boolean isHttpUri(Uri uri) {
+                        return EchoPlaybackService.this.isHttpUri(uri);
+                    }
+
+                    @Override
+                    public String cacheKeyForTrack(Track track) {
+                        return EchoPlaybackService.this.cacheKeyForTrack(track);
+                    }
+
+                    @Override
+                    public long continuousCachedBytes(String cacheKey) {
+                        return EchoPlaybackService.this.continuousCachedBytes(cacheKey);
+                    }
+
+                    @Override
+                    public PlaybackTaskScheduler visualizationTaskScheduler() {
+                        return visualizationTaskScheduler;
+                    }
+
+                    @Override
+                    public PlaybackVisualizationCacheManager.PlaybackCacheDependencies cacheDependencies() {
+                        return new PlaybackVisualizationCacheManager.PlaybackCacheDependencies() {
+                            @Override
+                            public CacheDataSource cacheDataSourceForTrack(Track track) {
+                                return EchoPlaybackService.this.cacheDataSourceForTrack(track);
+                            }
+                        };
+                    }
+
+                    @Override
+                    public Handler mainHandler() {
+                        return mainHandler;
+                    }
+
+                    @Override
+                    public Track currentTrack() {
+                        return EchoPlaybackService.this.currentTrack();
+                    }
+
+                    @Override
+                    public boolean samePlaybackUri(Track first, Track second) {
+                        return EchoPlaybackService.this.samePlaybackUri(first, second);
+                    }
+                }
+        );
+        playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(
+                this,
+                new PlaybackNotificationArtworkManager.StateProvider() {
+                    @Override
+                    public Track currentTrack() {
+                        return EchoPlaybackService.this.currentTrack();
+                    }
+
+                    @Override
+                    public void refreshNotificationArtwork() {
+                        if (playbackSessionManager != null) {
+                            playbackSessionManager.refreshPlayer();
+                        }
+                    }
+
+                    @Override
+                    public void updateMediaNotification(boolean force) {
+                        if (playbackNotificationManager != null) {
+                            playbackNotificationManager.updateMediaNotification(force);
+                        }
+                    }
+                }
+        );
+        playbackPrecacheManager = new PlaybackPrecacheManager(new PlaybackPrecacheManager.StateProvider() {
+            @Override
+            public List<Track> queueSnapshot() {
+                return new ArrayList<>(queue);
+            }
+
+            @Override
+            public int currentIndex() {
+                return currentIndex;
+            }
+
+            @Override
+            public int repeatMode() {
+                return repeatMode;
+            }
+
+            @Override
+            public Track currentTrack() {
+                return EchoPlaybackService.this.currentTrack();
+            }
+
+            @Override
+            public boolean samePlaybackUri(Track first, Track second) {
+                return EchoPlaybackService.this.samePlaybackUri(first, second);
+            }
+
+            @Override
+            public boolean isHttpUri(Uri uri) {
+                return EchoPlaybackService.this.isHttpUri(uri);
+            }
+
+            @Override
+            public String cacheKeyForTrack(Track track) {
+                return EchoPlaybackService.this.cacheKeyForTrack(track);
+            }
+
+            @Override
+            public Map<String, String> headersForTrack(Track track) {
+                return EchoPlaybackService.this.headersForTrack(track);
+            }
+
+            @Override
+            public SimpleCache audioCache() {
+                return EchoPlaybackService.this.audioCache();
+            }
+
+            @Override
+            public CacheDataSource cacheDataSourceForTrack(Track track) {
+                return EchoPlaybackService.this.cacheDataSourceForTrack(track);
+            }
+
+            @Override
+            public boolean currentPlayerLoadsCacheKey(Track track, String cacheKey) {
+                if (player == null || track == null || cacheKey == null || cacheKey.isEmpty()) {
+                    return false;
+                }
+                try {
+                    if (player.getPlaybackState() == Player.STATE_IDLE || player.getMediaItemCount() <= 0) {
+                        return false;
+                    }
+                    MediaItem mediaItem = player.getCurrentMediaItem();
+                    return mediaItemMatchesTrackForReuse(mediaItem, track.id, track.contentUri, cacheKey);
+                } catch (IllegalStateException ignored) {
+                    return false;
+                }
+            }
+
+            @Override
+            public long contentLengthForCacheKey(String cacheKey) {
+                return EchoPlaybackService.this.contentLengthForCacheKey(cacheKey);
+            }
+
+            @Override
+            public PlaybackStreamingDiagnostics streamingDiagnostics() {
+                return streamingDiagnostics;
+            }
+
+            @Override
+            public Handler mainHandler() {
+                return mainHandler;
+            }
+        });
         restorePlaybackQueue();
         if (hasNotificationWorthyState()) {
-            updateMediaNotification(true);
+            playbackNotificationManager.updateMediaNotification(true);
         }
-        FloatingLyricsPublisher.addListener(floatingLyricsListener);
+        playbackLyricsManager.bind();
         registerNoisyReceiver();
         android.net.wifi.WifiManager wifiManager =
                 (android.net.wifi.WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
@@ -551,7 +821,9 @@ public final class EchoPlaybackService extends MediaLibraryService {
             @Override
             public MediaMetadata getMediaMetadata() {
                 Track track = currentTrack();
-                return track == null ? super.getMediaMetadata() : mediaMetadataForTrack(track);
+                return track == null || playbackNotificationManager == null
+                        ? super.getMediaMetadata()
+                        : playbackNotificationManager.mediaMetadataForTrack(track);
             }
 
             @Override
@@ -612,7 +884,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     @Override
     public MediaLibrarySession onGetSession(MediaSession.ControllerInfo controllerInfo) {
-        return mediaSession;
+        return playbackSessionManager == null ? null : playbackSessionManager.session();
     }
 
     @Override
@@ -621,7 +893,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         String action = intent == null ? "" : intent.getAction();
         boolean notificationRequested = isPlaybackServiceAction(action);
         if (notificationRequested) {
-            updateMediaNotification(true);
+            playbackNotificationManager.updateMediaNotification(true);
         }
         if (ACTION_PLAY.equals(action)) {
             play();
@@ -641,7 +913,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
             stopAndClear();
         }
         if (notificationRequested && hasNotificationWorthyState()) {
-            updateMediaNotification(true);
+            playbackNotificationManager.updateMediaNotification(true);
         } else if (notificationRequested && !ACTION_STOP.equals(action)) {
             stopForeground(true);
             stopSelf();
@@ -666,7 +938,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         persistPlaybackQueue();
         savePlaybackResumeRequested(isPlaying() || preparing);
         if (hasNotificationWorthyState()) {
-            updateMediaNotification(true);
+            playbackNotificationManager.updateMediaNotification(true);
         }
         super.onTaskRemoved(rootIntent);
     }
@@ -674,16 +946,19 @@ public final class EchoPlaybackService extends MediaLibraryService {
     @Override
     public void onDestroy() {
         persistPlaybackPositionThrottled(true);
-        FloatingLyricsPublisher.removeListener(floatingLyricsListener);
-        LiveLyricsNotificationService.stop(this);
+        if (playbackLyricsManager != null) {
+            playbackLyricsManager.release();
+        }
         mainHandler.removeCallbacksAndMessages(null);
         unregisterNoisyReceiver();
         playbackTaskScheduler.shutdownNow();
         visualizationTaskScheduler.shutdownNow();
-        precacheGeneration.incrementAndGet();
-        activePrecacheRanges.clear();
-        cancelActivePrecacheWriters();
-        playbackCacheExecutor.shutdownNow();
+        if (playbackNotificationArtworkManager != null) {
+            playbackNotificationArtworkManager.release();
+        }
+        if (playbackPrecacheManager != null) {
+            playbackPrecacheManager.release();
+        }
         releaseWifiLock();
         releasePlayer();
         super.onDestroy();
@@ -706,7 +981,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
     public void setAppVisible(boolean visible) {
         appVisible = visible;
         if (visible && hasNotificationWorthyState()) {
-            updateMediaNotification(true);
+            playbackNotificationManager.updateMediaNotification(true);
         }
     }
 
@@ -739,6 +1014,12 @@ public final class EchoPlaybackService extends MediaLibraryService {
         }
         savePlaybackResumeRequested(true);
         prepareCurrent(true);
+    }
+
+    private void queueTracks(List<Track> tracks, int startIndex) {
+        queue.clear();
+        queue.addAll(tracks);
+        currentIndex = Math.max(0, Math.min(startIndex, queue.size() - 1));
     }
 
     public void appendToQueue(List<Track> tracks) {
@@ -842,24 +1123,30 @@ public final class EchoPlaybackService extends MediaLibraryService {
         skipToNextImmediately();
     }
 
-    private void skipToNextImmediately() {
-        persistPlaybackPositionThrottled(true);
+    private void advanceQueueIndexToNext() {
         if (shuffleEnabled && queue.size() > 1) {
             int nextIndex = currentIndex;
             while (nextIndex == currentIndex) {
                 nextIndex = random.nextInt(queue.size());
             }
             currentIndex = nextIndex;
-        } else if (currentIndex >= queue.size() - 1) {
+            return;
+        }
+        if (currentIndex >= queue.size() - 1) {
             if (repeatMode == REPEAT_OFF) {
                 persistPlaybackQueue();
                 publishState();
                 return;
             }
             currentIndex = 0;
-        } else {
-            currentIndex += 1;
+            return;
         }
+        currentIndex += 1;
+    }
+
+    private void skipToNextImmediately() {
+        persistPlaybackPositionThrottled(true);
+        advanceQueueIndexToNext();
         if (seekMirroredQueueToCurrentIndex(true)) {
             return;
         }
@@ -1030,125 +1317,16 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private void scheduleVisualizationCache(Track track) {
-        if (track == null || !isHttpUri(track.contentUri)) {
+        if (playbackVisualizationCacheManager == null) {
             return;
         }
-        final Track visualTrack = track;
-        mainHandler.postDelayed(
-                () -> {
-                    Track current = currentTrack();
-                    if (current == null || visualTrack.id != current.id || !samePlaybackUri(visualTrack, current)) {
-                        return;
-                    }
-                    visualizationTaskScheduler.schedule(
-                            PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE,
-                            () -> cacheVisualizationWindow(visualTrack)
-                    );
-                },
-                PLAYBACK_VISUALIZATION_CACHE_DELAY_MS
-        );
+        playbackVisualizationCacheManager.scheduleVisualizationCache(track);
     }
 
     public void precacheTrack(Track track) {
-        if (track == null || !isHttpUri(track.contentUri)) {
-            return;
+        if (playbackPrecacheManager != null) {
+            playbackPrecacheManager.precacheTrack(track);
         }
-        String cacheKey = cacheKeyForTrack(track);
-        String precacheKey = cacheKey == null || cacheKey.isEmpty()
-                ? track.contentUri.toString()
-                : cacheKey;
-        if (precacheKey.equals(lastPrecacheKey) && shouldKeepExistingPrecache(cacheKey)) {
-            return;
-        }
-        Track current = currentTrack();
-        if (current != null && samePlaybackUri(track, current)) {
-            scheduleCurrentTrackPrecache(track);
-            return;
-        }
-        if (current != null) {
-            int generation = precacheGeneration.get();
-            final Track upcomingTrack = track;
-            streamingDiagnostics.recordPrecacheQueued(upcomingTrack);
-            submitPlaybackCacheTask(
-                    PrecachePriority.UPCOMING_TRACK,
-                    () -> precacheWithMediaCache(upcomingTrack, generation, PrecacheMode.UPCOMING_TRACK, false)
-            );
-            return;
-        }
-        lastPrecacheKey = precacheKey;
-        int generation = precacheGeneration.incrementAndGet();
-        activePrecacheRanges.clear();
-        cancelActivePrecacheWriters();
-        playbackCacheExecutor.getQueue().clear();
-        playbackCacheExecutor.purge();
-        final Track precacheTrack = track;
-        streamingDiagnostics.recordPrecacheQueued(precacheTrack);
-        scheduleCurrentTrackPrecache(precacheTrack, generation);
-    }
-
-    private void scheduleCurrentTrackPrecache(Track track) {
-        String cacheKey = cacheKeyForTrack(track);
-        String precacheKey = cacheKey == null || cacheKey.isEmpty()
-                ? track.contentUri.toString()
-                : cacheKey;
-        if (precacheKey.equals(lastPrecacheKey) && shouldKeepExistingPrecache(cacheKey)) {
-            return;
-        }
-        lastPrecacheKey = precacheKey;
-        int generation = precacheGeneration.incrementAndGet();
-        activePrecacheRanges.clear();
-        cancelActivePrecacheWriters();
-        playbackCacheExecutor.getQueue().clear();
-        playbackCacheExecutor.purge();
-        streamingDiagnostics.recordPrecacheQueued(track);
-        scheduleCurrentTrackPrecache(track, generation);
-    }
-
-    private void scheduleCurrentTrackPrecache(Track track, int generation) {
-        final Track precacheTrack = track;
-        final String cacheKey = cacheKeyForTrack(precacheTrack);
-        Runnable task = () -> {
-            Track current = currentTrack();
-            if (current == null
-                    || !samePlaybackUri(precacheTrack, current)
-                    || !isCurrentPrecacheGeneration(generation, cacheKey)) {
-                return;
-            }
-            final boolean playerAlreadyLoadsLeadingRange =
-                    currentPlayerLoadsCacheKey(precacheTrack, cacheKey);
-            submitPlaybackCacheTask(
-                    PrecachePriority.CURRENT_LEADING,
-                    () -> precacheWithMediaCache(
-                            precacheTrack,
-                            generation,
-                            PrecacheMode.CURRENT_TRACK,
-                            playerAlreadyLoadsLeadingRange
-                    )
-            );
-            scheduleCurrentSegmentedPrecache(precacheTrack, cacheKey, generation);
-            scheduleUpcomingTrackPrecache(generation);
-        };
-        if (CURRENT_TRACK_LEADING_PRECACHE_DELAY_MS <= 0L) {
-            task.run();
-        } else {
-            mainHandler.postDelayed(task, CURRENT_TRACK_LEADING_PRECACHE_DELAY_MS);
-        }
-    }
-
-    private boolean shouldKeepExistingPrecache(String cacheKey) {
-        if (!activePrecacheRanges.isEmpty()
-                || playbackCacheExecutor.getActiveCount() > 0
-                || !playbackCacheExecutor.getQueue().isEmpty()) {
-            return true;
-        }
-        if (cacheKey == null || cacheKey.isEmpty()) {
-            return false;
-        }
-        long contentLength = contentLengthForCacheKey(cacheKey);
-        long targetBytes = contentLength > 0L
-                ? Math.min(contentLength, SEGMENTED_PRECACHE_BYTES)
-                : SEGMENTED_PRECACHE_BYTES;
-        return targetBytes > 0L && cachedBytesInRange(cacheKey, 0L, targetBytes) >= targetBytes;
     }
 
     public void removeTracksById(Set<Long> trackIds) {
@@ -1213,6 +1391,11 @@ public final class EchoPlaybackService extends MediaLibraryService {
         stopAndClear();
     }
 
+    private void clearQueueState() {
+        queue.clear();
+        currentIndex = -1;
+    }
+
     public void toggleCurrentFavorite() {
         Track track = currentTrack();
         if (track == null || repository == null) {
@@ -1265,7 +1448,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
                 return;
             }
             publishState();
-            updateMediaNotification(true);
+            playbackNotificationManager.updateMediaNotification(true);
         }
     }
 
@@ -1389,7 +1572,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         } else {
             persistPlaybackPositionThrottled(true);
             publishState();
-            updateMediaNotification(true);
+            playbackNotificationManager.updateMediaNotification(true);
         }
     }
 
@@ -1487,14 +1670,16 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     public void setStatusBarLyricsEnabled(boolean enabled) {
-        if (statusBarLyricsEnabled == enabled) {
-            return;
+        if (playbackLyricsManager != null) {
+            playbackLyricsManager.setStatusBarLyricsEnabled(enabled);
         }
         statusBarLyricsEnabled = enabled;
-        lastNotificationLyric = "";
-        refreshMediaSessionMetadata();
-        updateMediaNotification(true);
-        updateLiveLyricsNotificationService(notificationLyricText(currentTrack()));
+        if (playbackSessionManager != null) {
+            playbackSessionManager.refreshPlayer();
+        }
+        if (playbackNotificationManager != null) {
+            playbackNotificationManager.updateMediaNotification(true);
+        }
     }
 
     public void setPlaybackRestoreEnabled(boolean enabled) {
@@ -1516,8 +1701,15 @@ public final class EchoPlaybackService extends MediaLibraryService {
         if (repository != null) {
             repository.saveAudioEffectSettings(audioEffectSettings);
         }
-        bindAudioEffects();
+        audioEffectManager.bind(player, audioEffectSettings);
         publishState();
+    }
+
+    private PlaybackQueueStore queueStore() {
+        if (queueStore == null && repository != null) {
+            queueStore = new PlaybackQueueStore(repository);
+        }
+        return queueStore;
     }
 
     public void startSleepTimerMinutes(int minutes) {
@@ -1612,7 +1804,9 @@ public final class EchoPlaybackService extends MediaLibraryService {
                 clearRestoredPosition();
             }
             publishState();
-            updateMediaNotification(true);
+            if (playbackNotificationManager != null) {
+                playbackNotificationManager.updateMediaNotification(true);
+            }
         } catch (IllegalStateException error) {
             preparing = false;
             Log.w(TAG, "Unable to prepare mirrored queue for " + debugTrack(track), error);
@@ -1646,7 +1840,9 @@ public final class EchoPlaybackService extends MediaLibraryService {
                 clearRestoredPosition();
             }
             publishState();
-            updateMediaNotification(true);
+            if (playbackNotificationManager != null) {
+                playbackNotificationManager.updateMediaNotification(true);
+            }
         } catch (IllegalStateException error) {
             preparing = false;
             Log.w(TAG, "Unable to prepare player for " + debugTrack(track), error);
@@ -1686,13 +1882,17 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     private void releasePlayer() {
         if (player == null) {
-            releaseMediaSession();
-            releaseAudioEffects();
+            if (playbackSessionManager != null) {
+                playbackSessionManager.release();
+            }
+            audioEffectManager.release();
             releaseAudioCache();
             return;
         }
-        releaseMediaSession();
-        releaseAudioEffects();
+        if (playbackSessionManager != null) {
+            playbackSessionManager.release();
+        }
+        audioEffectManager.release();
         try {
             player.removeListener(playerListener);
             player.stop();
@@ -1701,7 +1901,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
         }
         player.release();
         player = null;
-        sessionPlayer = null;
         playerMirrorsQueue = false;
         preparing = false;
         releaseAudioCache();
@@ -1719,20 +1918,10 @@ public final class EchoPlaybackService extends MediaLibraryService {
         audioCache = null;
     }
 
-    private void releaseMediaSession() {
-        if (mediaSession != null) {
-            mediaSession.release();
-            mediaSession = null;
-        }
-        sessionPlayer = null;
-    }
-
     private void stopAndClear() {
         cancelSleepTimerInternal(false);
         clearRestoredPosition();
-        if (repository != null) {
-            repository.savePlaybackPosition(-1L, 0L);
-        }
+        queueStore().savePlaybackPosition(-1L, 0L);
         lastSavedPositionTrackId = -1L;
         lastSavedPositionMs = 0L;
         releasePlayer();
@@ -1740,13 +1929,14 @@ public final class EchoPlaybackService extends MediaLibraryService {
         errorMessage = "";
         lastMarkedTrack = null;
         fadeOutAdvancing = false;
-        queue.clear();
-        currentIndex = -1;
+        clearQueueState();
         persistPlaybackQueue();
         savePlaybackResumeRequested(false);
         mainHandler.removeCallbacks(progressRunnable);
         releaseWifiLock();
-        LiveLyricsNotificationService.stop(this);
+        if (playbackLyricsManager != null) {
+            playbackLyricsManager.release();
+        }
         stopForeground(true);
         publishState();
         stopSelf();
@@ -1758,8 +1948,8 @@ public final class EchoPlaybackService extends MediaLibraryService {
             return;
         }
         Track completed = currentTrack();
-        if (completed != null && repository != null) {
-            repository.savePlaybackPosition(completed.id, 0L);
+        if (completed != null) {
+            queueStore().savePlaybackPosition(completed.id, 0L);
         }
         if (repeatMode == REPEAT_ONE) {
             clearRestoredPosition();
@@ -1820,45 +2010,21 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     private void publishState() {
         PlaybackStateSnapshot snapshot = snapshot();
-        syncFloatingLyricsPlaybackState(snapshot);
-        updateMediaSessionState(snapshot);
-        updateMediaNotification(false);
-        updatePlaybackWidget(snapshot);
+        if (playbackLyricsManager != null) {
+            playbackLyricsManager.syncFloatingLyricsPlaybackState(snapshot);
+        }
+        applyPlaybackModeToPlayer();
+        if (playbackNotificationManager != null) {
+            playbackNotificationManager.updateMediaNotification(false);
+        }
+        Track track = snapshot == null ? null : snapshot.currentTrack;
+        Bitmap artwork = track == null || playbackNotificationArtworkManager == null
+                ? null
+                : playbackNotificationArtworkManager.notificationArtworkFor(track);
+        EchoPlaybackWidgetProvider.update(this, snapshot, artwork);
         for (PlaybackStateListener listener : listeners) {
             listener.onPlaybackStateChanged(snapshot);
         }
-    }
-
-    private void syncFloatingLyricsPlaybackState(PlaybackStateSnapshot snapshot) {
-        if (snapshot == null || snapshot.currentTrack == null) {
-            return;
-        }
-        FloatingLyricsState state = FloatingLyricsPublisher.snapshot();
-        Track track = snapshot.currentTrack;
-        String activeLine = state != null && floatingLyricsTrackMatches(state, track)
-                ? state.getActiveLine()
-                : "";
-        FloatingLyricsPublisher.update(
-                track.title,
-                track.artist,
-                track.albumArtUriString(),
-                snapshot.playing || snapshot.preparing,
-                activeLine
-        );
-    }
-
-    private boolean floatingLyricsTrackMatches(FloatingLyricsState state, Track track) {
-        if (state == null || track == null) {
-            return false;
-        }
-        return track.title.equals(state.getTrackTitle())
-                && track.artist.equals(state.getArtist());
-    }
-
-    private void updatePlaybackWidget(PlaybackStateSnapshot snapshot) {
-        Track track = snapshot == null ? null : snapshot.currentTrack;
-        Bitmap artwork = track == null ? null : notificationArtworkFor(track);
-        EchoPlaybackWidgetProvider.update(this, snapshot, artwork);
     }
 
     private void publishBufferingState() {
@@ -1867,10 +2033,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
         for (PlaybackStateListener listener : listeners) {
             listener.onPlaybackBuffering(snapshot);
         }
-    }
-
-    private void updateMediaSessionState(PlaybackStateSnapshot snapshot) {
-        applyPlaybackModeToPlayer();
     }
 
     private void applyPlaybackModeToPlayer() {
@@ -1925,8 +2087,8 @@ public final class EchoPlaybackService extends MediaLibraryService {
         persistPlaybackPositionThrottled(true);
         currentIndex = Math.max(0, Math.min(completedIndex, queue.size() - 1));
         Track completed = currentTrack();
-        if (completed != null && repository != null) {
-            repository.savePlaybackPosition(completed.id, 0L);
+        if (completed != null) {
+            queueStore().savePlaybackPosition(completed.id, 0L);
         }
         stopAtEndOfQueue();
     }
@@ -1968,15 +2130,17 @@ public final class EchoPlaybackService extends MediaLibraryService {
         applyPlaybackSpeed();
         applyAppVolume();
         applyPlaybackModeToPlayer();
-        bindAudioEffects();
-        bindMediaSessionPlayer();
+        audioEffectManager.bind(player, audioEffectSettings);
+        if (playbackSessionManager != null) {
+            playbackSessionManager.bind();
+        }
     }
 
     private void restorePlaybackQueue() {
         if (!playbackRestoreEnabled) {
             return;
         }
-        PlaybackQueueState savedQueue = repository.loadPlaybackQueue();
+        PlaybackQueueState savedQueue = queueStore().load();
         if (savedQueue.isEmpty()) {
             return;
         }
@@ -1995,8 +2159,8 @@ public final class EchoPlaybackService extends MediaLibraryService {
             return;
         }
         currentIndex = Math.max(0, Math.min(savedQueue.currentIndex, queue.size() - 1));
-        restoredPositionTrackId = repository.loadPlaybackPositionTrackId();
-        restoredPositionMs = repository.loadPlaybackPositionMs();
+        restoredPositionTrackId = queueStore().loadPlaybackPositionTrackId();
+        restoredPositionMs = queueStore().loadPlaybackPositionMs();
         errorMessage = "";
         lastMarkedTrack = null;
         persistPlaybackQueue();
@@ -2052,9 +2216,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private void savePlaybackResumeRequested(boolean requested) {
-        if (repository != null) {
-            repository.savePlaybackResumeRequested(requested);
-        }
+        queueStore().saveResumeRequested(requested);
     }
 
     private void replaceCurrentQueueTrack(Track track) {
@@ -2066,15 +2228,10 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private void persistPlaybackQueue() {
-        if (repository != null) {
-            repository.savePlaybackQueue(new ArrayList<>(queue), currentIndex);
-        }
+        queueStore().save(new ArrayList<>(queue), currentIndex);
     }
 
     private void persistPlaybackPositionThrottled(boolean force) {
-        if (repository == null) {
-            return;
-        }
         Track track = currentTrack();
         if (track == null) {
             return;
@@ -2087,21 +2244,18 @@ public final class EchoPlaybackService extends MediaLibraryService {
                 && now - lastPositionSaveAtMs < PLAYBACK_POSITION_SAVE_INTERVAL_MS) {
             return;
         }
-        repository.savePlaybackPosition(track.id, clampPlaybackPosition(track, position));
+        queueStore().savePlaybackPosition(track.id, clampPlaybackPosition(track, position));
         lastSavedPositionTrackId = track.id;
         lastSavedPositionMs = position;
         lastPositionSaveAtMs = now;
     }
 
     private void resetCurrentPlaybackPosition() {
-        if (repository == null) {
-            return;
-        }
         Track track = currentTrack();
         if (track == null) {
             return;
         }
-        repository.savePlaybackPosition(track.id, 0L);
+        queueStore().savePlaybackPosition(track.id, 0L);
         lastSavedPositionTrackId = track.id;
         lastSavedPositionMs = 0L;
         lastPositionSaveAtMs = System.currentTimeMillis();
@@ -2296,115 +2450,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
         }
     }
 
-    private void bindAudioEffects() {
-        if (player == null) {
-            return;
-        }
-        releaseAudioEffects();
-        if (audioEffectSettings == null || !audioEffectSettings.enabled) {
-            return;
-        }
-        int sessionId;
-        try {
-            sessionId = player.getAudioSessionId();
-        } catch (IllegalStateException error) {
-            Log.w(TAG, "Unable to read audio session for effects", error);
-            return;
-        }
-        if (sessionId == 0) {
-            return;
-        }
-        try {
-            equalizer = new Equalizer(0, sessionId);
-            applyEqualizerSettings();
-        } catch (RuntimeException error) {
-            Log.w(TAG, "Equalizer unavailable", error);
-            equalizer = null;
-        }
-        try {
-            bassBoost = new BassBoost(0, sessionId);
-            bassBoost.setStrength(audioEffectSettings.bassBoostStrength);
-            bassBoost.setEnabled(audioEffectSettings.bassBoostStrength > 0);
-        } catch (RuntimeException error) {
-            Log.w(TAG, "BassBoost unavailable", error);
-            bassBoost = null;
-        }
-        try {
-            virtualizer = new Virtualizer(0, sessionId);
-            virtualizer.setStrength(audioEffectSettings.virtualizerStrength);
-            virtualizer.setEnabled(audioEffectSettings.virtualizerStrength > 0);
-        } catch (RuntimeException error) {
-            Log.w(TAG, "Virtualizer unavailable", error);
-            virtualizer = null;
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            try {
-                loudnessEnhancer = new LoudnessEnhancer(sessionId);
-                loudnessEnhancer.setTargetGain(audioEffectSettings.loudnessGainMb);
-                loudnessEnhancer.setEnabled(audioEffectSettings.loudnessGainMb != 0);
-            } catch (RuntimeException error) {
-                Log.w(TAG, "LoudnessEnhancer unavailable", error);
-                loudnessEnhancer = null;
-            }
-        }
-    }
-
-    private void applyEqualizerSettings() {
-        if (equalizer == null || audioEffectSettings == null) {
-            return;
-        }
-        short presetCount = equalizer.getNumberOfPresets();
-        if (audioEffectSettings.preset >= 0 && audioEffectSettings.preset < presetCount) {
-            equalizer.usePreset((short) audioEffectSettings.preset);
-        } else {
-            short bands = equalizer.getNumberOfBands();
-            short[] range = equalizer.getBandLevelRange();
-            short min = range != null && range.length > 0 ? range[0] : -1500;
-            short max = range != null && range.length > 1 ? range[1] : 1500;
-            for (short band = 0; band < bands && band < audioEffectSettings.bandLevels.length; band++) {
-                short level = audioEffectSettings.bandLevels[band];
-                if (level < min) {
-                    level = min;
-                } else if (level > max) {
-                    level = max;
-                }
-                equalizer.setBandLevel(band, level);
-            }
-        }
-        equalizer.setEnabled(audioEffectSettings.enabled);
-    }
-
-    private void releaseAudioEffects() {
-        if (equalizer != null) {
-            try {
-                equalizer.release();
-            } catch (RuntimeException ignored) {
-            }
-            equalizer = null;
-        }
-        if (bassBoost != null) {
-            try {
-                bassBoost.release();
-            } catch (RuntimeException ignored) {
-            }
-            bassBoost = null;
-        }
-        if (virtualizer != null) {
-            try {
-                virtualizer.release();
-            } catch (RuntimeException ignored) {
-            }
-            virtualizer = null;
-        }
-        if (loudnessEnhancer != null) {
-            try {
-                loudnessEnhancer.release();
-            } catch (RuntimeException ignored) {
-            }
-            loudnessEnhancer = null;
-        }
-    }
-
     private float normalizePlaybackSpeed(float speed) {
         if (speed < 0.5f) {
             return 0.5f;
@@ -2423,19 +2468,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
             return 1.0f;
         }
         return Math.round(volume * 100.0f) / 100.0f;
-    }
-
-    @OptIn(markerClass = UnstableApi.class)
-    private void bindMediaSessionPlayer() {
-        sessionPlayer = createSessionPlayer();
-        if (mediaSession == null) {
-            mediaSession = new MediaLibrarySession.Builder(this, sessionPlayer, new EchoMediaLibraryCallback())
-                    .setId("echo_next_playback")
-                    .setSessionActivity(activityPendingIntent())
-                    .build();
-        } else {
-            mediaSession.setPlayer(sessionPlayer);
-        }
     }
 
     private boolean setControllerMediaItems(List<MediaItem> mediaItems, int startIndex, long startPositionMs) {
@@ -2504,309 +2536,15 @@ public final class EchoPlaybackService extends MediaLibraryService {
         }
     }
 
-    private final class EchoMediaLibraryCallback implements MediaLibrarySession.Callback {
-        @Override
-        public ListenableFuture<LibraryResult<MediaItem>> onGetLibraryRoot(
-                MediaLibrarySession session,
-                MediaSession.ControllerInfo browser,
-                LibraryParams params
-        ) {
-            return Futures.immediateFuture(LibraryResult.ofItem(
-                    browsableItem(AUTO_ROOT, getString(R.string.app_name), MediaMetadata.MEDIA_TYPE_FOLDER_MIXED),
-                    params
-            ));
-        }
-
-        @Override
-        public ListenableFuture<LibraryResult<MediaItem>> onGetItem(
-                MediaLibrarySession session,
-                MediaSession.ControllerInfo browser,
-                String mediaId
-        ) {
-            MediaItem item = itemForAutoMediaId(mediaId);
-            if (item == null) {
-                return Futures.immediateFuture(LibraryResult.ofError(SessionError.ERROR_BAD_VALUE));
-            }
-            return Futures.immediateFuture(LibraryResult.ofItem(item, null));
-        }
-
-        @Override
-        public ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> onGetChildren(
-                MediaLibrarySession session,
-                MediaSession.ControllerInfo browser,
-                String parentId,
-                int page,
-                int pageSize,
-                LibraryParams params
-        ) {
-            List<MediaItem> children = childrenForAutoParent(parentId);
-            if (children == null) {
-                return Futures.immediateFuture(LibraryResult.ofError(SessionError.ERROR_BAD_VALUE, params));
-            }
-            return Futures.immediateFuture(LibraryResult.ofItemList(pagedItems(children, page, pageSize), params));
-        }
-
-        @Override
-        public ListenableFuture<List<MediaItem>> onAddMediaItems(
-                MediaSession session,
-                MediaSession.ControllerInfo controller,
-                List<MediaItem> mediaItems
-        ) {
-            ArrayList<MediaItem> resolved = new ArrayList<>();
-            for (Track track : tracksForMediaItems(mediaItems)) {
-                resolved.add(mediaItemForTrack(track));
-            }
-            return Futures.immediateFuture(resolved);
-        }
-
-        @Override
-        public ListenableFuture<MediaSession.MediaItemsWithStartPosition> onSetMediaItems(
-                MediaSession session,
-                MediaSession.ControllerInfo controller,
-                List<MediaItem> mediaItems,
-                int startIndex,
-                long startPositionMs
-        ) {
-            ArrayList<MediaItem> resolved = new ArrayList<>();
-            for (Track track : tracksForMediaItems(mediaItems)) {
-                resolved.add(mediaItemForTrack(track));
-            }
-            if (resolved.isEmpty()) {
-                resolved.addAll(mediaItems);
-            }
-            return Futures.immediateFuture(new MediaSession.MediaItemsWithStartPosition(
-                    resolved,
-                    Math.max(0, Math.min(startIndex, Math.max(resolved.size() - 1, 0))),
-                    startPositionMs
-            ));
-        }
-    }
-
-    private MediaItem itemForAutoMediaId(String mediaId) {
-        if (AUTO_ROOT.equals(mediaId)) {
-            return browsableItem(AUTO_ROOT, getString(R.string.app_name), MediaMetadata.MEDIA_TYPE_FOLDER_MIXED);
-        }
-        if (AUTO_ALL.equals(mediaId)) {
-            return browsableItem(AUTO_ALL, "All songs", MediaMetadata.MEDIA_TYPE_FOLDER_MIXED);
-        }
-        if (AUTO_RECENT.equals(mediaId)) {
-            return browsableItem(AUTO_RECENT, "Recently played", MediaMetadata.MEDIA_TYPE_FOLDER_MIXED);
-        }
-        if (AUTO_PLAYLISTS.equals(mediaId)) {
-            return browsableItem(AUTO_PLAYLISTS, "Playlists", MediaMetadata.MEDIA_TYPE_FOLDER_PLAYLISTS);
-        }
-        if (AUTO_ARTISTS.equals(mediaId)) {
-            return browsableItem(AUTO_ARTISTS, "Artists", MediaMetadata.MEDIA_TYPE_FOLDER_ARTISTS);
-        }
-        if (AUTO_ALBUMS.equals(mediaId)) {
-            return browsableItem(AUTO_ALBUMS, "Albums", MediaMetadata.MEDIA_TYPE_FOLDER_ALBUMS);
-        }
-        if (mediaId != null && mediaId.startsWith(AUTO_PLAYLIST_PREFIX)) {
-            long playlistId = parseLong(mediaId.substring(AUTO_PLAYLIST_PREFIX.length()), -1L);
-            for (Playlist playlist : repository.loadPlaylists()) {
-                if (playlist.id == playlistId) {
-                    return browsableItem(mediaId, playlist.name, MediaMetadata.MEDIA_TYPE_PLAYLIST);
-                }
-            }
-            return null;
-        }
-        if (mediaId != null && mediaId.startsWith(AUTO_ARTIST_PREFIX)) {
-            String artist = mediaId.substring(AUTO_ARTIST_PREFIX.length());
-            return browsableItem(mediaId, artist, MediaMetadata.MEDIA_TYPE_ARTIST);
-        }
-        if (mediaId != null && mediaId.startsWith(AUTO_ALBUM_PREFIX)) {
-            String album = mediaId.substring(AUTO_ALBUM_PREFIX.length());
-            return browsableItem(mediaId, album, MediaMetadata.MEDIA_TYPE_ALBUM);
-        }
-        long trackId = trackIdFromAutoMediaId(mediaId);
-        if (trackId >= 0L) {
-            Track track = tracksById(repository.loadCachedTracks()).get(trackId);
-            return track == null ? null : autoMediaItemForTrack(track);
-        }
-        return null;
-    }
-
-    private List<MediaItem> childrenForAutoParent(String parentId) {
-        if (AUTO_ROOT.equals(parentId)) {
-            ArrayList<MediaItem> roots = new ArrayList<>();
-            roots.add(browsableItem(AUTO_ALL, "All songs", MediaMetadata.MEDIA_TYPE_FOLDER_MIXED));
-            roots.add(browsableItem(AUTO_RECENT, "Recently played", MediaMetadata.MEDIA_TYPE_FOLDER_MIXED));
-            roots.add(browsableItem(AUTO_PLAYLISTS, "Playlists", MediaMetadata.MEDIA_TYPE_FOLDER_PLAYLISTS));
-            roots.add(browsableItem(AUTO_ARTISTS, "Artists", MediaMetadata.MEDIA_TYPE_FOLDER_ARTISTS));
-            roots.add(browsableItem(AUTO_ALBUMS, "Albums", MediaMetadata.MEDIA_TYPE_FOLDER_ALBUMS));
-            return roots;
-        }
-        if (AUTO_ALL.equals(parentId)) {
-            return autoItemsForTracks(repository.loadCachedTracks());
-        }
-        if (AUTO_RECENT.equals(parentId)) {
-            ArrayList<Track> tracks = new ArrayList<>();
-            for (TrackPlayRecord record : repository.loadRecentlyPlayed(100)) {
-                if (record != null && record.track != null) {
-                    tracks.add(record.track);
-                }
-            }
-            return autoItemsForTracks(tracks);
-        }
-        if (AUTO_PLAYLISTS.equals(parentId)) {
-            ArrayList<MediaItem> playlists = new ArrayList<>();
-            for (Playlist playlist : repository.loadPlaylists()) {
-                playlists.add(browsableItem(
-                        AUTO_PLAYLIST_PREFIX + playlist.id,
-                        playlist.name,
-                        MediaMetadata.MEDIA_TYPE_PLAYLIST
-                ));
-            }
-            return playlists;
-        }
-        if (parentId != null && parentId.startsWith(AUTO_PLAYLIST_PREFIX)) {
-            long playlistId = parseLong(parentId.substring(AUTO_PLAYLIST_PREFIX.length()), -1L);
-            return playlistId < 0L ? null : autoItemsForTracks(repository.loadPlaylistTracks(playlistId));
-        }
-        if (AUTO_ARTISTS.equals(parentId)) {
-            return groupedAutoItems(AUTO_ARTIST_PREFIX, MediaMetadata.MEDIA_TYPE_ARTIST, true);
-        }
-        if (parentId != null && parentId.startsWith(AUTO_ARTIST_PREFIX)) {
-            String artist = parentId.substring(AUTO_ARTIST_PREFIX.length());
-            return autoItemsForTracks(filterTracksByArtist(repository.loadCachedTracks(), artist));
-        }
-        if (AUTO_ALBUMS.equals(parentId)) {
-            return groupedAutoItems(AUTO_ALBUM_PREFIX, MediaMetadata.MEDIA_TYPE_ALBUM, false);
-        }
-        if (parentId != null && parentId.startsWith(AUTO_ALBUM_PREFIX)) {
-            String album = parentId.substring(AUTO_ALBUM_PREFIX.length());
-            return autoItemsForTracks(filterTracksByAlbum(repository.loadCachedTracks(), album));
-        }
-        return null;
-    }
-
-    private List<MediaItem> groupedAutoItems(String prefix, int mediaType, boolean groupByArtist) {
-        LinkedHashMap<String, Integer> counts = new LinkedHashMap<>();
-        for (Track track : repository.loadCachedTracks()) {
-            String key = groupByArtist ? track.artist : track.album;
-            counts.put(key, counts.containsKey(key) ? counts.get(key) + 1 : 1);
-        }
-        ArrayList<MediaItem> items = new ArrayList<>();
-        for (String key : counts.keySet()) {
-            items.add(browsableItem(prefix + key, key, mediaType));
-        }
-        return items;
-    }
-
-    private List<Track> filterTracksByArtist(List<Track> tracks, String artist) {
-        ArrayList<Track> matches = new ArrayList<>();
-        for (Track track : tracks) {
-            if (track != null && track.artist.equals(artist)) {
-                matches.add(track);
-            }
-        }
-        return matches;
-    }
-
-    private List<Track> filterTracksByAlbum(List<Track> tracks, String album) {
-        ArrayList<Track> matches = new ArrayList<>();
-        for (Track track : tracks) {
-            if (track != null && track.album.equals(album)) {
-                matches.add(track);
-            }
-        }
-        return matches;
-    }
-
-    private List<MediaItem> autoItemsForTracks(List<Track> tracks) {
-        ArrayList<MediaItem> items = new ArrayList<>();
-        if (tracks == null) {
-            return items;
-        }
-        for (Track track : tracks) {
-            if (track != null && !Uri.EMPTY.equals(track.contentUri)) {
-                items.add(autoMediaItemForTrack(track));
-            }
-        }
-        return items;
-    }
-
-    private MediaItem autoMediaItemForTrack(Track track) {
-        MediaMetadata.Builder metadata = new MediaMetadata.Builder()
-                .populate(mediaMetadataForTrack(track))
-                .setIsBrowsable(false)
-                .setIsPlayable(true)
-                .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC);
-        return mediaItemForTrack(track)
-                .buildUpon()
-                .setMediaId(AUTO_TRACK_PREFIX + track.id)
-                .setMediaMetadata(metadata.build())
-                .build();
-    }
-
-    private MediaItem browsableItem(String mediaId, String title, int mediaType) {
-        return new MediaItem.Builder()
-                .setMediaId(mediaId)
-                .setMediaMetadata(new MediaMetadata.Builder()
-                        .setTitle(title)
-                        .setIsBrowsable(true)
-                        .setIsPlayable(false)
-                        .setMediaType(mediaType)
-                        .build())
-                .build();
-    }
-
-    private List<MediaItem> pagedItems(List<MediaItem> items, int page, int pageSize) {
-        if (items == null || items.isEmpty()) {
-            return Collections.emptyList();
-        }
-        if (page < 0 || pageSize <= 0) {
-            return items;
-        }
-        int fromIndex = page * pageSize;
-        if (fromIndex >= items.size()) {
-            return Collections.emptyList();
-        }
-        int toIndex = Math.min(items.size(), fromIndex + pageSize);
-        return items.subList(fromIndex, toIndex);
-    }
-
     private MediaItem mediaItemForTrack(Track track) {
         return new MediaItem.Builder()
                 .setUri(track.contentUri)
                 .setMediaId(String.valueOf(track.id))
                 .setCustomCacheKey(cacheKeyForTrack(track))
-                .setMediaMetadata(mediaMetadataForTrack(track))
+                .setMediaMetadata(playbackNotificationManager == null
+                        ? new MediaMetadata.Builder().build()
+                        : playbackNotificationManager.mediaMetadataForTrack(track))
                 .build();
-    }
-
-    private MediaMetadata mediaMetadataForTrack(Track track) {
-        String lyricText = notificationLyricText(track);
-        MediaMetadata.Builder metadata = new MediaMetadata.Builder()
-                .setTitle(track.title)
-                .setArtist(track.artist)
-                .setAlbumTitle(track.album)
-                .setDurationMs(track.durationMs > 0L ? track.durationMs : null)
-                .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC);
-        if (!lyricText.isEmpty()) {
-            Bundle extras = new Bundle();
-            extras.putString(EXTRA_CURRENT_LYRIC, lyricText);
-            extras.putString(EXTRA_LYRIC_TRACK_TITLE, track.title);
-            metadata.setSubtitle(lyricText)
-                    .setDescription(lyricText)
-                    .setExtras(extras);
-        }
-        if (track.albumArtUri != null) {
-            metadata.setArtworkUri(track.albumArtUri);
-            byte[] artworkData = mediaMetadataArtworkCache.get(notificationArtworkKey(track));
-            if (artworkData != null && artworkData.length > 0) {
-                metadata.setArtworkData(artworkData, MediaMetadata.PICTURE_TYPE_FRONT_COVER);
-            }
-        }
-        return metadata.build();
-    }
-
-    private void refreshMediaSessionMetadata() {
-        if (player == null || mediaSession == null) {
-            return;
-        }
-        sessionPlayer = createSessionPlayer();
-        mediaSession.setPlayer(sessionPlayer);
     }
 
     @OptIn(markerClass = UnstableApi.class)
@@ -2844,213 +2582,44 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private PlaybackWaveformSnapshot waveformSnapshotFor(Track track, long durationMs, boolean deferGeneration) {
-        if (track == null || durationMs <= 0L || !isHttpUri(track.contentUri)) {
-            return PlaybackWaveformSnapshot.empty();
-        }
-        resetWaveformIfTrackChanged(track);
-        if (!appVisible || deferGeneration) {
-            return waveformSnapshot;
-        }
-        float cachedProgress = visualizationCachedProgress(track, durationMs);
-        PlaybackWaveformSnapshot current = waveformSnapshot;
-        if (cachedProgress > current.cachedProgress && !current.hasBars()) {
-            current = new PlaybackWaveformSnapshot(current.bars, current.generatedBars, cachedProgress);
-            waveformSnapshot = current;
-        }
-        maybeGenerateStreamingWaveform(track, durationMs, cachedProgress);
-        return current;
+        return playbackVisualizationAnalyzer == null
+                ? PlaybackWaveformSnapshot.empty()
+                : playbackVisualizationAnalyzer.waveformSnapshot(track, durationMs, deferGeneration);
     }
 
     private void resetWaveformIfTrackChanged(Track track) {
-        String key = waveformKey(track);
-        if (key.equals(waveformTrackKey)) {
-            return;
+        if (playbackVisualizationAnalyzer != null) {
+            playbackVisualizationAnalyzer.resetWaveformIfTrackChanged(track);
         }
-        waveformTrackKey = key;
-        waveformGeneratingKey = "";
-        waveformGeneratedProgress = 0.0f;
-        waveformGeneratedBarCount = 0;
-        waveformSnapshot = PlaybackWaveformSnapshot.empty();
-        spectrumGeneratingKey = "";
-        spectrumGeneratedProgress = 0.0f;
-        spectrumSnapshot = PlaybackSpectrumSnapshot.empty();
-        realtimeBassDetector.reset();
     }
 
     private void postponePlaybackVisualizationWarmup() {
-        visualizationWarmupUntilMs = System.currentTimeMillis() + PLAYBACK_VISUALIZATION_WARMUP_MS;
+        if (playbackVisualizationAnalyzer != null) {
+            playbackVisualizationAnalyzer.postponePlaybackVisualizationWarmup();
+        }
     }
 
     private boolean shouldDeferPlaybackVisualization() {
-        return System.currentTimeMillis() < visualizationWarmupUntilMs;
+        return playbackVisualizationAnalyzer != null
+                && playbackVisualizationAnalyzer.shouldDeferPlaybackVisualization();
     }
 
     private PlaybackSpectrumSnapshot spectrumSnapshotFor(Track track, long durationMs, boolean deferGeneration) {
-        if (track == null || durationMs <= 0L || track.contentUri == null || Uri.EMPTY.equals(track.contentUri)) {
-            return PlaybackSpectrumSnapshot.empty();
-        }
-        resetWaveformIfTrackChanged(track);
-        if (!appVisible || deferGeneration) {
-            return spectrumSnapshot;
-        }
-        float cachedProgress = isHttpUri(track.contentUri) ? visualizationCachedProgress(track, durationMs) : 1.0f;
-        PlaybackSpectrumSnapshot current = spectrumSnapshot;
-        if (cachedProgress > current.cachedProgress && !current.hasBands()) {
-            current = new PlaybackSpectrumSnapshot(current.bands, current.generatedFrames, current.bandCount, cachedProgress);
-            spectrumSnapshot = current;
-        }
-        maybeGenerateSpectrum(track, durationMs, cachedProgress, true);
-        return current;
+        return playbackVisualizationAnalyzer == null
+                ? PlaybackSpectrumSnapshot.empty()
+                : playbackVisualizationAnalyzer.spectrumSnapshot(track, durationMs, deferGeneration);
     }
 
     private void maybeGenerateSpectrum(Track track, long durationMs, float cachedProgress, boolean allowQuickStart) {
-        if (track == null || track.contentUri == null || Uri.EMPTY.equals(track.contentUri) || cachedProgress <= 0.005f) {
-            return;
+        if (playbackVisualizationAnalyzer != null) {
+            playbackVisualizationAnalyzer.spectrumSnapshot(track, durationMs, false);
         }
-        float targetProgress = cachedProgress;
-        boolean quickStart = false;
-        if (allowQuickStart && !spectrumSnapshot.hasBands()) {
-            float quickProgress = durationMs <= 0L ? cachedProgress : Math.min(cachedProgress, SPECTRUM_QUICK_START_MS / (float) durationMs);
-            targetProgress = Math.max(0.006f, Math.min(cachedProgress, quickProgress));
-            quickStart = targetProgress + SPECTRUM_PROGRESS_STEP < cachedProgress;
-        }
-        int targetGeneratedFrames = Math.max(1, Math.min(
-                PlaybackSpectrumGenerator.FRAME_COUNT,
-                (int) Math.ceil(PlaybackSpectrumGenerator.FRAME_COUNT * Math.min(1.0f, targetProgress))
-        ));
-        if (spectrumSnapshot.hasBands()
-                && targetGeneratedFrames <= spectrumSnapshot.generatedFrames
-                && targetProgress - spectrumGeneratedProgress < SPECTRUM_PROGRESS_STEP) {
-            return;
-        }
-        final String taskKey = waveformKey(track) + "|spectrum|" + targetGeneratedFrames;
-        if (taskKey.equals(spectrumGeneratingKey)) {
-            return;
-        }
-        spectrumGeneratingKey = taskKey;
-        final Track spectrumTrack = track;
-        final long spectrumDurationMs = durationMs;
-        final float spectrumCachedProgress = targetProgress;
-        final float requestedCachedProgress = cachedProgress;
-        final boolean spectrumQuickStart = quickStart;
-        final boolean spectrumIsHttp = isHttpUri(track.contentUri);
-        final String spectrumCacheKey = spectrumIsHttp ? mediaCacheKeyForTrack(track) : "";
-        final long spectrumCachedBytes = spectrumIsHttp ? continuousCachedBytes(spectrumCacheKey) : 0L;
-        if (spectrumIsHttp && (spectrumCacheKey == null || spectrumCacheKey.isEmpty() || spectrumCachedBytes <= 0L)) {
-            spectrumGeneratingKey = "";
-            return;
-        }
-        visualizationTaskScheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_WAVEFORM, () -> {
-            PlaybackSpectrumSnapshot generated;
-            if (spectrumIsHttp) {
-                DataSpec dataSpec = new DataSpec.Builder()
-                        .setUri(spectrumTrack.contentUri)
-                        .setPosition(0L)
-                        .setLength(spectrumCachedBytes)
-                        .setKey(spectrumCacheKey)
-                        .setFlags(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION)
-                        .build();
-                generated = PlaybackSpectrumGenerator.extract(
-                        cacheDataSourceForTrack(spectrumTrack),
-                        dataSpec,
-                        spectrumDurationMs,
-                        spectrumCachedProgress
-                );
-            } else {
-                generated = PlaybackSpectrumGenerator.extract(
-                        EchoPlaybackService.this,
-                        spectrumTrack.contentUri,
-                        spectrumDurationMs,
-                        spectrumCachedProgress
-                );
-            }
-            mainHandler.post(() -> {
-                if (!waveformKey(spectrumTrack).equals(waveformTrackKey) || !taskKey.equals(spectrumGeneratingKey)) {
-                    return;
-                }
-                spectrumGeneratingKey = "";
-                spectrumGeneratedProgress = Math.max(spectrumGeneratedProgress, spectrumCachedProgress);
-                if (generated != null && generated.hasBands()
-                        && generated.generatedFrames >= spectrumSnapshot.generatedFrames) {
-                    spectrumSnapshot = generated;
-                } else if (spectrumCachedProgress > spectrumSnapshot.cachedProgress) {
-                    spectrumSnapshot = new PlaybackSpectrumSnapshot(
-                            spectrumSnapshot.bands,
-                            spectrumSnapshot.generatedFrames,
-                            spectrumSnapshot.bandCount,
-                            spectrumCachedProgress
-                    );
-                }
-                publishState();
-                if (spectrumQuickStart && requestedCachedProgress > spectrumCachedProgress + SPECTRUM_PROGRESS_STEP) {
-                    maybeGenerateSpectrum(spectrumTrack, spectrumDurationMs, requestedCachedProgress, false);
-                }
-            });
-        });
     }
 
     private void maybeGenerateStreamingWaveform(Track track, long durationMs, float cachedProgress) {
-        String cacheKey = mediaCacheKeyForTrack(track);
-        if (cacheKey == null || cacheKey.isEmpty() || cachedProgress <= 0.005f) {
-            return;
+        if (playbackVisualizationAnalyzer != null) {
+            playbackVisualizationAnalyzer.waveformSnapshot(track, durationMs, false);
         }
-        int targetGeneratedBars = Math.max(1, Math.min(
-                WAVEFORM_BAR_COUNT,
-                (int) Math.ceil(WAVEFORM_BAR_COUNT * Math.min(1.0f, cachedProgress))
-        ));
-        int currentGeneratedBars = Math.max(waveformGeneratedBarCount, waveformSnapshot.generatedBars);
-        if (targetGeneratedBars <= currentGeneratedBars && waveformSnapshot.hasBars()) {
-            return;
-        }
-        if (cachedProgress - waveformGeneratedProgress < WAVEFORM_PROGRESS_STEP
-                && targetGeneratedBars <= currentGeneratedBars + 1
-                && waveformSnapshot.hasBars()) {
-            return;
-        }
-        long cachedBytes = continuousCachedBytes(cacheKey);
-        if (cachedBytes <= 0L) {
-            return;
-        }
-        final String taskKey = waveformKey(track) + "|" + targetGeneratedBars;
-        if (taskKey.equals(waveformGeneratingKey)) {
-            return;
-        }
-        waveformGeneratingKey = taskKey;
-        final Track waveformTrack = track;
-        final long waveformDurationMs = durationMs;
-        final float waveformCachedProgress = cachedProgress;
-        final long waveformCachedBytes = cachedBytes;
-        visualizationTaskScheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_WAVEFORM, () -> {
-            DataSpec dataSpec = new DataSpec.Builder()
-                    .setUri(waveformTrack.contentUri)
-                    .setPosition(0L)
-                    .setLength(waveformCachedBytes)
-                    .setKey(cacheKey)
-                    .setFlags(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION)
-                    .build();
-            PlaybackWaveformSnapshot generated = StreamingWaveformGenerator.extract(
-                    EchoPlaybackService.this,
-                    cacheDataSourceForTrack(waveformTrack),
-                    dataSpec,
-                    waveformDurationMs,
-                    waveformCachedProgress,
-                    cacheKey
-            );
-            mainHandler.post(() -> {
-                if (!waveformKey(waveformTrack).equals(waveformTrackKey) || !taskKey.equals(waveformGeneratingKey)) {
-                    return;
-                }
-                waveformGeneratingKey = "";
-                waveformGeneratedProgress = waveformCachedProgress;
-                waveformGeneratedBarCount = Math.max(waveformGeneratedBarCount, targetGeneratedBars);
-                waveformSnapshot = PlaybackWaveformMergePolicy.merge(
-                        waveformSnapshot,
-                        generated,
-                        waveformCachedProgress
-                );
-                publishState();
-            });
-        });
     }
 
     private long continuousCachedBytes(String cacheKey) {
@@ -3170,483 +2739,8 @@ public final class EchoPlaybackService extends MediaLibraryService {
         }
     }
 
-    @OptIn(markerClass = UnstableApi.class)
-    private void precacheUpcomingTracks(int generation) {
-        if (queue.isEmpty() || currentIndex < 0) {
-            return;
-        }
-        int count = Math.min(queue.size(), SEGMENTED_PRECACHE_CONCURRENCY);
-        for (int offset = 1; offset <= count; offset++) {
-            int rawIndex = currentIndex + offset;
-            if (rawIndex >= queue.size() && repeatMode == REPEAT_OFF) {
-                break;
-            }
-            int index = rawIndex % queue.size();
-            if (index == currentIndex) {
-                continue;
-            }
-            Track upcomingTrack = queue.get(index);
-            if (upcomingTrack == null || !isHttpUri(upcomingTrack.contentUri)) {
-                continue;
-            }
-            String upcomingCacheKey = cacheKeyForTrack(upcomingTrack);
-            if (upcomingCacheKey == null || upcomingCacheKey.isEmpty()) {
-                continue;
-            }
-            submitPlaybackCacheTask(
-                    PrecachePriority.UPCOMING_TRACK,
-                    () -> precacheWithMediaCache(upcomingTrack, generation, PrecacheMode.UPCOMING_TRACK, false)
-            );
-        }
-    }
-
-    @OptIn(markerClass = UnstableApi.class)
-    private void precacheWithMediaCache(Track track, int generation, PrecacheMode mode) {
-        precacheWithMediaCache(track, generation, mode, false);
-    }
-
-    @OptIn(markerClass = UnstableApi.class)
-    private void precacheWithMediaCache(
-            Track track,
-            int generation,
-            PrecacheMode mode,
-            boolean playerAlreadyLoadsLeadingRange
-    ) {
-        if (track == null || !isHttpUri(track.contentUri)) {
-            return;
-        }
-        String cacheKey = cacheKeyForTrack(track);
-        if (cacheKey == null || cacheKey.isEmpty()) {
-            return;
-        }
-        if (!isCurrentPrecacheGeneration(generation, cacheKey)) {
-            return;
-        }
-        try {
-            long leadingTargetBytes = leadingPrecacheBytes(mode);
-            if (shouldLetPlayerFillCurrentLeadingRange(mode, playerAlreadyLoadsLeadingRange)) {
-                streamingDiagnostics.recordPrecacheComplete(track, 0L);
-                return;
-            }
-            long leadingBytes = cacheMediaRange(track, cacheKey, 0L, leadingTargetBytes, generation);
-            if (leadingBytes > 0L || leadingTargetBytes <= 0L) {
-                streamingDiagnostics.recordPrecacheComplete(track, leadingBytes);
-            }
-        } catch (PrecacheSupersededException ignored) {
-            // A newer track was selected; old cache fills should disappear quietly.
-        } catch (Exception error) {
-            streamingDiagnostics.recordPrecacheFailed(track, error);
-        }
-    }
-
-    private long leadingPrecacheBytes(PrecacheMode mode) {
-        return mode == PrecacheMode.UPCOMING_TRACK ? UPCOMING_TRACK_PRECACHE_BYTES : PRECACHE_BYTES;
-    }
-
-    private boolean shouldLetPlayerFillCurrentLeadingRange(
-            PrecacheMode mode,
-            boolean playerAlreadyLoadsLeadingRange
-    ) {
-        return mode == PrecacheMode.CURRENT_TRACK && playerAlreadyLoadsLeadingRange;
-    }
-
-    private void scheduleUpcomingTrackPrecache(int generation) {
-        mainHandler.postDelayed(() -> {
-            if (generation != precacheGeneration.get()) {
-                return;
-            }
-            precacheUpcomingTracks(generation);
-        }, UPCOMING_TRACK_PRECACHE_DELAY_MS);
-    }
-
-    private void scheduleCurrentSegmentedPrecache(Track track, String cacheKey, int generation) {
-        mainHandler.postDelayed(() -> {
-            Track current = currentTrack();
-            if (current == null
-                    || !samePlaybackUri(track, current)
-                    || !isCurrentPrecacheGeneration(generation, cacheKey)) {
-                return;
-            }
-            submitPlaybackCacheTask(PrecachePriority.CURRENT_SEGMENT, () -> {
-                SegmentedPrecacheProbe probe = probeSegmentedPrecache(track, cacheKey, generation);
-                if (!probe.supported || !isCurrentPrecacheGeneration(generation, cacheKey)) {
-                    return;
-                }
-                precacheMediaSegments(
-                        track,
-                        cacheKey,
-                        generation,
-                        probe.totalBytes,
-                        currentSegmentedPrecacheStart(cacheKey)
-                );
-            });
-        }, CURRENT_TRACK_SEGMENTED_PRECACHE_DELAY_MS);
-    }
-
-    private SegmentedPrecacheProbe probeSegmentedPrecache(Track track, String cacheKey, int generation) {
-        if (track == null || track.contentUri == null || cacheKey == null || cacheKey.isEmpty()) {
-            return SegmentedPrecacheProbe.unsupported();
-        }
-        if (!isCurrentPrecacheGeneration(generation, cacheKey)) {
-            return SegmentedPrecacheProbe.unsupported();
-        }
-        try {
-            HttpURLConnection connection = (HttpURLConnection) new URL(track.contentUri.toString()).openConnection();
-            try {
-                connection.setInstanceFollowRedirects(true);
-                connection.setConnectTimeout(4000);
-                connection.setReadTimeout(4000);
-                for (Map.Entry<String, String> entry : headersForTrack(track).entrySet()) {
-                    if (entry.getKey() != null && !entry.getKey().isEmpty() && entry.getValue() != null) {
-                        connection.setRequestProperty(entry.getKey(), entry.getValue());
-                    }
-                }
-                connection.setRequestProperty(
-                        "Range",
-                        "bytes=" + PRECACHE_BYTES + "-" + (PRECACHE_BYTES + PRECACHE_RANGE_PROBE_BYTES - 1)
-                );
-                int responseCode = connection.getResponseCode();
-                long totalBytes = totalBytesFromContentRange(connection.getHeaderField("Content-Range"));
-                boolean supported = responseCode == HttpURLConnection.HTTP_PARTIAL
-                        && totalBytes > PRECACHE_BYTES
-                        && isCurrentPrecacheGeneration(generation, cacheKey);
-                return supported
-                        ? new SegmentedPrecacheProbe(true, totalBytes)
-                        : SegmentedPrecacheProbe.unsupported();
-            } finally {
-                connection.disconnect();
-            }
-        } catch (Exception ignored) {
-            return SegmentedPrecacheProbe.unsupported();
-        }
-    }
-
-    static long totalBytesFromContentRange(String contentRange) {
-        if (contentRange == null || contentRange.trim().isEmpty()) {
-            return -1L;
-        }
-        int slash = contentRange.lastIndexOf('/');
-        if (slash < 0 || slash >= contentRange.length() - 1) {
-            return -1L;
-        }
-        try {
-            return Long.parseLong(contentRange.substring(slash + 1).trim());
-        } catch (NumberFormatException ignored) {
-            return -1L;
-        }
-    }
-
-    private void precacheMediaSegments(
-            Track track,
-            String cacheKey,
-            int generation,
-            long probedContentLength,
-            long startBytes
-    ) {
-        long contentLength = contentLengthForCacheKey(cacheKey);
-        long effectiveContentLength = contentLength > 0L ? contentLength : probedContentLength;
-        for (PrecacheSegment segment : planPrecacheSegments(
-                Math.max(PRECACHE_BYTES, startBytes),
-                SEGMENTED_PRECACHE_CHUNK_BYTES,
-                SEGMENTED_PRECACHE_BYTES,
-                effectiveContentLength
-        )) {
-            if (!isCurrentPrecacheGeneration(generation, cacheKey)) {
-                return;
-            }
-            if (cachedBytesInRange(cacheKey, segment.start, segment.length) >= segment.length) {
-                continue;
-            }
-            submitPlaybackCacheTask(PrecachePriority.CURRENT_SEGMENT, () -> {
-                try {
-                    if (!isCurrentPrecacheGeneration(generation, cacheKey)) {
-                        return;
-                    }
-                    long cached = cacheMediaRange(track, cacheKey, segment.start, segment.length, generation);
-                    if (cached > 0L) {
-                        streamingDiagnostics.recordPrecacheSegmentComplete(track, segment.start, cached);
-                    }
-                } catch (PrecacheSupersededException ignored) {
-                    // A newer track was selected; old cache fills should disappear quietly.
-                } catch (Exception error) {
-                    streamingDiagnostics.recordPrecacheSegmentFailed(track, segment.start, error);
-                }
-            });
-        }
-    }
-
-    private long currentSegmentedPrecacheStart(String cacheKey) {
-        long continuousCachedBytes = continuousCachedBytes(cacheKey);
-        return segmentedPrecacheStart(PRECACHE_BYTES, continuousCachedBytes);
-    }
-
-    static long segmentedPrecacheStart(long leadingBytes, long continuousCachedBytes) {
-        return Math.max(Math.max(0L, leadingBytes), Math.max(0L, continuousCachedBytes));
-    }
-
-    static List<PrecacheSegment> planPrecacheSegments(
-            long leadingBytes,
-            long segmentBytes,
-            long targetBytes,
-            long contentLength
-    ) {
-        long safeLeadingBytes = Math.max(0L, leadingBytes);
-        long safeSegmentBytes = Math.max(1L, segmentBytes);
-        long safeTargetBytes = Math.max(0L, targetBytes);
-        long maxBytes = contentLength > 0L
-                ? Math.min(contentLength, safeTargetBytes)
-                : safeTargetBytes;
-        if (maxBytes <= safeLeadingBytes) {
-            return Collections.emptyList();
-        }
-        ArrayList<PrecacheSegment> segments = new ArrayList<>();
-        for (long start = safeLeadingBytes; start < maxBytes; start += safeSegmentBytes) {
-            long length = Math.min(safeSegmentBytes, maxBytes - start);
-            if (length > 0L) {
-                segments.add(new PrecacheSegment(start, length));
-            }
-        }
-        return segments;
-    }
-
-    private void submitPlaybackCacheTask(PrecachePriority priority, Runnable task) {
-        if (task == null || playbackCacheExecutor.isShutdown()) {
-            return;
-        }
-        trimPlaybackCacheQueueIfNeeded(priority);
-        try {
-            playbackCacheExecutor.execute(new PrecacheTask(priority, task));
-        } catch (RejectedExecutionException ignored) {
-            // Service is shutting down or a newer cache generation cleared the queue.
-        }
-    }
-
-    private void trimPlaybackCacheQueueIfNeeded(PrecachePriority priority) {
-        if (priority != PrecachePriority.UPCOMING_TRACK) {
-            return;
-        }
-        if (playbackCacheExecutor.getQueue().size() < PLAYBACK_CACHE_QUEUE_CAPACITY) {
-            return;
-        }
-        playbackCacheExecutor.getQueue().removeIf(runnable ->
-                runnable instanceof PrecacheTask
-                        && ((PrecacheTask) runnable).priority == PrecachePriority.UPCOMING_TRACK
-        );
-    }
-
-    private boolean isCurrentPrecacheGeneration(int generation, String cacheKey) {
-        return generation == precacheGeneration.get()
-                && cacheKey != null
-                && !cacheKey.isEmpty();
-    }
-
-    private long cachedBytesInRange(String cacheKey, long position, long length) {
-        if (cacheKey == null || cacheKey.isEmpty() || length <= 0L) {
-            return 0L;
-        }
-        try {
-            long cached = audioCache().getCachedLength(cacheKey, Math.max(0L, position), length);
-            return cached > 0L ? Math.min(cached, length) : 0L;
-        } catch (RuntimeException ignored) {
-            return 0L;
-        }
-    }
-
-    private boolean currentPlayerLoadsCacheKey(Track track, String cacheKey) {
-        if (player == null || track == null || cacheKey == null || cacheKey.isEmpty()) {
-            return false;
-        }
-        try {
-            if (player.getPlaybackState() == Player.STATE_IDLE || player.getMediaItemCount() <= 0) {
-                return false;
-            }
-            MediaItem mediaItem = player.getCurrentMediaItem();
-            return mediaItemMatchesTrackForReuse(mediaItem, track.id, track.contentUri, cacheKey);
-        } catch (IllegalStateException ignored) {
-            return false;
-        }
-    }
-
-    @OptIn(markerClass = UnstableApi.class)
-    private long cacheMediaRange(Track track, String cacheKey, long position, long length, int generation) throws IOException {
-        if (track == null || track.contentUri == null || cacheKey == null || cacheKey.isEmpty() || length <= 0L) {
-            return 0L;
-        }
-        if (!isCurrentPrecacheGeneration(generation, cacheKey)) {
-            return 0L;
-        }
-        long start = Math.max(0L, position);
-        long remaining = length - cachedBytesInRange(cacheKey, start, length);
-        if (remaining <= 0L) {
-            return length;
-        }
-        String rangeKey = cacheKey + "@" + start + "+" + length;
-        if (!activePrecacheRanges.add(rangeKey)) {
-            return 0L;
-        }
-        final long[] bytesCached = {0L};
-        CacheWriter writer = null;
-        try {
-            DataSpec dataSpec = new DataSpec.Builder()
-                    .setUri(track.contentUri)
-                    .setPosition(start)
-                    .setLength(length)
-                    .setKey(cacheKey)
-                    .setFlags(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION)
-                    .build();
-            writer = new CacheWriter(
-                    cacheDataSourceForTrack(track),
-                    dataSpec,
-                    new byte[16 * 1024],
-                    (requestLength, bytesCachedTotal, newBytesCached) -> {
-                        if (!isCurrentPrecacheGeneration(generation, cacheKey)) {
-                            throw new PrecacheSupersededException();
-                        }
-                        bytesCached[0] = bytesCachedTotal;
-                    }
-            );
-            activePrecacheWriters.add(writer);
-            writer.cache();
-            return bytesCached[0];
-        } finally {
-            if (writer != null) {
-                activePrecacheWriters.remove(writer);
-            }
-            activePrecacheRanges.remove(rangeKey);
-        }
-    }
-
-    private void cancelActivePrecacheWriters() {
-        for (CacheWriter writer : activePrecacheWriters) {
-            if (writer != null) {
-                writer.cancel();
-            }
-        }
-        activePrecacheWriters.clear();
-    }
-
-    @OptIn(markerClass = UnstableApi.class)
-    private void cacheVisualizationWindow(Track track) {
-        if (track == null || !isHttpUri(track.contentUri)) {
-            return;
-        }
-        String cacheKey = cacheKeyForTrack(track);
-        if (cacheKey == null || cacheKey.isEmpty()) {
-            return;
-        }
-        long cached = continuousCachedBytes(cacheKey);
-        if (cached >= VISUALIZATION_CACHE_BYTES) {
-            return;
-        }
-        try {
-            DataSpec dataSpec = new DataSpec.Builder()
-                    .setUri(track.contentUri)
-                    .setPosition(cached)
-                    .setLength(VISUALIZATION_CACHE_BYTES - cached)
-                    .setKey(cacheKey)
-                    .setFlags(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION)
-                    .build();
-            CacheWriter writer = new CacheWriter(
-                    cacheDataSourceForTrack(track),
-                    dataSpec,
-                    new byte[16 * 1024],
-                    null
-            );
-            writer.cache();
-        } catch (Exception ignored) {
-            // Visualization cache is best-effort. Playback must never wait for it.
-        }
-    }
-
     private String cacheKeyForTrack(Track track) {
         return mediaCacheKey(track);
-    }
-
-    private static final class PlaybackCacheThreadFactory implements ThreadFactory {
-        private final AtomicInteger counter = new AtomicInteger();
-
-        @Override
-        public Thread newThread(Runnable runnable) {
-            Thread thread = new Thread(() -> {
-                try {
-                    Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
-                } catch (RuntimeException ignored) {
-                    // Keep cache fill alive even if a device rejects this priority.
-                }
-                runnable.run();
-            }, "YukinePlaybackCache-" + counter.incrementAndGet());
-            thread.setDaemon(true);
-            thread.setPriority(Thread.NORM_PRIORITY - 1);
-            return thread;
-        }
-    }
-
-    private static final class PrecacheTask implements Runnable, Comparable<PrecacheTask> {
-        private static final AtomicInteger sequenceGenerator = new AtomicInteger();
-        private final PrecachePriority priority;
-        private final Runnable delegate;
-        private final int sequence;
-
-        PrecacheTask(PrecachePriority priority, Runnable delegate) {
-            this.priority = priority == null ? PrecachePriority.CURRENT_SEGMENT : priority;
-            this.delegate = delegate;
-            this.sequence = sequenceGenerator.incrementAndGet();
-        }
-
-        @Override
-        public void run() {
-            delegate.run();
-        }
-
-        @Override
-        public int compareTo(PrecacheTask other) {
-            int priorityCompare = Integer.compare(priority.order, other.priority.order);
-            return priorityCompare != 0 ? priorityCompare : Integer.compare(sequence, other.sequence);
-        }
-    }
-
-    private static final class PrecacheSupersededException extends RuntimeException {
-    }
-
-    static final class SegmentedPrecacheProbe {
-        final boolean supported;
-        final long totalBytes;
-
-        SegmentedPrecacheProbe(boolean supported, long totalBytes) {
-            this.supported = supported;
-            this.totalBytes = totalBytes;
-        }
-
-        static SegmentedPrecacheProbe unsupported() {
-            return new SegmentedPrecacheProbe(false, -1L);
-        }
-    }
-
-    static final class PrecacheSegment {
-        final long start;
-        final long length;
-
-        PrecacheSegment(long start, long length) {
-            this.start = start;
-            this.length = length;
-        }
-    }
-
-    private enum PrecachePriority {
-        CURRENT_LEADING(0),
-        CURRENT_SEGMENT(1),
-        UPCOMING_TRACK(2);
-
-        private final int order;
-
-        PrecachePriority(int order) {
-            this.order = order;
-        }
-    }
-
-    private enum PrecacheMode {
-        CURRENT_TRACK,
-        UPCOMING_TRACK
     }
 
     static String mediaCacheKey(Track track) {
@@ -3721,358 +2815,8 @@ public final class EchoPlaybackService extends MediaLibraryService {
         return dataPath.substring(start, end);
     }
 
-    private void updateMediaNotification(boolean force) {
-        Track track = currentTrack();
-        if (track == null && !hasNotificationWorthyState()) {
-            return;
-        }
-        long now = System.currentTimeMillis();
-        long minInterval = appVisible
-                ? FOREGROUND_NOTIFICATION_MIN_INTERVAL_MS
-                : BACKGROUND_NOTIFICATION_MIN_INTERVAL_MS;
-        if (!force && now - lastNotificationUpdateAtMs < minInterval) {
-            return;
-        }
-        lastNotificationUpdateAtMs = now;
-        try {
-            startPlaybackForeground(playbackNotification(track));
-        } catch (RuntimeException error) {
-            Log.w(TAG, "Unable to update playback notification", error);
-        }
-    }
-
     private boolean hasNotificationWorthyState() {
         return currentTrack() != null || !queue.isEmpty() || preparing || isPlaying();
-    }
-
-    private Notification playbackNotification(Track track) {
-        boolean playing = isPlaying() || preparing;
-        boolean hasTrack = track != null;
-        boolean isFavorite = hasTrack && repository != null && repository.isFavorite(track.id);
-        String lyricText = notificationLyricText(track);
-        String contentText = !lyricText.isEmpty()
-                ? lyricText
-                : hasTrack ? track.subtitle() : EMPTY_NOTIFICATION_TEXT;
-        String titleText = hasTrack ? track.title : EMPTY_NOTIFICATION_TITLE;
-        String capsuleText = !lyricText.isEmpty()
-                ? shortCriticalText(lyricText)
-                : hasTrack ? shortCriticalText(track.title) : "Yukine";
-        String favoriteTitle = isFavorite ? "Favorited" : "Favorite";
-        int favoriteIcon = isFavorite ? R.drawable.ic_notif_favorite_filled : R.drawable.ic_notif_favorite_outline;
-        Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                ? new Notification.Builder(this, CHANNEL_ID)
-                : new Notification.Builder(this);
-        builder.setSmallIcon(R.drawable.ic_stat_echo)
-                .setContentTitle(titleText)
-                .setContentText(contentText)
-                .setContentIntent(activityPendingIntent())
-                .setTicker(contentText)
-                .setSubText(hasTrack ? track.subtitle() : "Yukine")
-                .setCategory(Notification.CATEGORY_TRANSPORT)
-                .setColor(NOTIFICATION_ACCENT)
-                .setShowWhen(false)
-                .setOngoing(hasTrack || playing || preparing)
-                .setOnlyAlertOnce(true)
-                .setPriority(Notification.PRIORITY_LOW)
-                .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .addAction(R.drawable.ic_notif_previous, "Previous", serviceActionPendingIntent(ACTION_PREVIOUS, 1))
-                .addAction(
-                        playing ? R.drawable.ic_notif_pause : R.drawable.ic_notif_play,
-                        playing ? "Pause" : "Play",
-                        serviceActionPendingIntent(playing ? ACTION_PAUSE : ACTION_RESTORE_AND_PLAY, 2)
-                )
-                .addAction(R.drawable.ic_notif_next, "Next", serviceActionPendingIntent(ACTION_NEXT, 3))
-                .addAction(favoriteIcon, favoriteTitle, serviceActionPendingIntent(ACTION_TOGGLE_FAVORITE, 4))
-                .addAction(R.drawable.ic_notif_stop, "Stop", serviceActionPendingIntent(ACTION_STOP, 5));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
-        }
-        if (hasTrack) {
-            Bundle extras = new Bundle();
-            extras.putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true);
-            extras.putString("extra_title", titleText);
-            extras.putString("extra_body", contentText);
-            extras.putString("extra_short_text", capsuleText);
-            extras.putBoolean("extra_show_close_action", false);
-            extras.putBoolean("extra_show_notification_icon", true);
-            extras.putString(Notification.EXTRA_TITLE, titleText);
-            extras.putString(Notification.EXTRA_TEXT, contentText);
-            extras.putString(Notification.EXTRA_BIG_TEXT, contentText);
-            extras.putString(Notification.EXTRA_SUB_TEXT, track.subtitle());
-            extras.putString(Notification.EXTRA_SUMMARY_TEXT, track.subtitle());
-            extras.putCharSequenceArray(Notification.EXTRA_TEXT_LINES, new CharSequence[]{contentText});
-            extras.putString(EXTRA_CURRENT_LYRIC, lyricText.isEmpty() ? contentText : lyricText);
-            extras.putString(EXTRA_LYRIC_TRACK_TITLE, track.title);
-            builder.addExtras(extras);
-        }
-        Bitmap artwork = hasTrack ? notificationArtworkFor(track) : null;
-        if (artwork != null) {
-            builder.setLargeIcon(artwork);
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            Notification.MediaStyle style = new Notification.MediaStyle()
-                    .setShowActionsInCompactView(0, 1, 2);
-            if (mediaSession != null) {
-                style.setMediaSession(mediaSession.getPlatformToken());
-            }
-            builder.setStyle(style);
-        } else if (!lyricText.isEmpty()) {
-            builder.setStyle(new Notification.BigTextStyle().bigText(lyricText));
-        }
-        requestPromotedOngoing(builder, true);
-        setShortCriticalText(builder, capsuleText);
-        return builder.build();
-    }
-
-    private String shortCriticalText(String value) {
-        String compact = sanitizeNotificationLyric(value).replace('\n', ' ');
-        if (compact.isEmpty()) {
-            return "Yukine";
-        }
-        if (compact.length() <= 9) {
-            return "\u266A " + compact;
-        }
-        if (compact.length() <= 14) {
-            return "\u266A " + compact.substring(0, 9);
-        }
-        return "\u266A " + compact.substring(0, 8) + "...";
-    }
-
-    private void requestPromotedOngoing(Notification.Builder builder, boolean requested) {
-        try {
-            Notification.Builder.class
-                    .getMethod("setRequestPromotedOngoing", boolean.class)
-                    .invoke(builder, requested);
-        } catch (ReflectiveOperationException ignored) {
-        } catch (RuntimeException ignored) {
-        }
-    }
-
-    private void setShortCriticalText(Notification.Builder builder, String text) {
-        if (text == null || text.isEmpty()) {
-            return;
-        }
-        try {
-            Notification.Builder.class
-                    .getMethod("setShortCriticalText", String.class)
-                    .invoke(builder, text);
-        } catch (ReflectiveOperationException ignored) {
-        } catch (RuntimeException ignored) {
-        }
-    }
-
-    private String notificationLyricText(Track track) {
-        if (!statusBarLyricsEnabled) {
-            return "";
-        }
-        if (track == null) {
-            return "";
-        }
-        try {
-            FloatingLyricsState state = FloatingLyricsPublisher.snapshot();
-            if (state == null || !track.title.equals(state.getTrackTitle())) {
-                return "";
-            }
-            String activeLine = state.getActiveLine();
-            if (activeLine == null) {
-                return "";
-            }
-            return sanitizeNotificationLyric(activeLine);
-        } catch (RuntimeException ignored) {
-            return "";
-        }
-    }
-
-    private void updateLiveLyricsNotificationService(String lyricText) {
-        if (!statusBarLyricsEnabled
-                || currentTrack() == null
-                || (!isPlaying() && !preparing)) {
-            LiveLyricsNotificationService.stop(this);
-            return;
-        }
-        try {
-            LiveLyricsNotificationService.start(this);
-        } catch (RuntimeException error) {
-            Log.w(TAG, "Unable to start live lyrics notification", error);
-        }
-    }
-
-    private String sanitizeNotificationLyric(String value) {
-        if (value == null) {
-            return "";
-        }
-        String[] rawLines = value.replace('\r', '\n').split("\n");
-        StringBuilder builder = new StringBuilder();
-        int count = 0;
-        for (String rawLine : rawLines) {
-            String line = rawLine == null ? "" : rawLine.trim();
-            while (line.contains("  ")) {
-                line = line.replace("  ", " ");
-            }
-            if (line.isEmpty()) {
-                continue;
-            }
-            if (builder.length() > 0) {
-                builder.append('\n');
-            }
-            builder.append(line);
-            count++;
-            if (count >= 2) {
-                break;
-            }
-        }
-        String text = builder.toString();
-        if (text.length() > 140) {
-            return text.substring(0, 139) + "...";
-        }
-        return text;
-    }
-
-    private Bitmap notificationArtworkFor(Track track) {
-        if (track == null || track.albumArtUri == null) {
-            return null;
-        }
-        String key = notificationArtworkKey(track);
-        Bitmap cached = notificationArtworkCache.get(key);
-        if (cached != null) {
-            return cached;
-        }
-        if (!notificationArtworkMisses.contains(key)) {
-            notificationArtworkMisses.add(key);
-            loadNotificationArtworkAsync(track, key);
-        }
-        return null;
-    }
-
-    private void loadNotificationArtworkAsync(Track track, String key) {
-        visualizationTaskScheduler.schedule(PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE, () -> {
-            Bitmap bitmap = decodeNotificationArtwork(track.albumArtUri);
-            if (bitmap == null) {
-                return;
-            }
-            notificationArtworkCache.put(key, bitmap);
-            byte[] artworkData = encodeMetadataArtwork(bitmap);
-            if (artworkData != null) {
-                mediaMetadataArtworkCache.put(key, artworkData);
-            }
-            mainHandler.post(() -> {
-                Track current = currentTrack();
-                if (current == null || !key.equals(notificationArtworkKey(current))) {
-                    return;
-                }
-                refreshMediaSessionMetadata();
-                updateMediaNotification(true);
-            });
-        });
-    }
-
-    private String notificationArtworkKey(Track track) {
-        if (track == null || track.albumArtUri == null) {
-            return "";
-        }
-        return track.id + "|" + track.albumArtUri;
-    }
-
-    private Bitmap decodeNotificationArtwork(Uri uri) {
-        if (uri == null) {
-            return null;
-        }
-        if (EmbeddedArtwork.isEmbeddedArtworkUri(uri)) {
-            byte[] bytes = EmbeddedArtwork.read(this, uri);
-            return decodeNotificationArtworkBytes(bytes);
-        }
-        BitmapFactory.Options bounds = new BitmapFactory.Options();
-        bounds.inJustDecodeBounds = true;
-        try (InputStream input = openNotificationArtworkStream(uri)) {
-            if (input == null) {
-                return null;
-            }
-            BitmapFactory.decodeStream(input, null, bounds);
-        } catch (IOException | RuntimeException ignored) {
-            return null;
-        }
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-            return null;
-        }
-        BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inSampleSize = artworkSampleSize(
-                bounds.outWidth,
-                bounds.outHeight,
-                NOTIFICATION_ARTWORK_TARGET_PX
-        );
-        options.inPreferredConfig = Bitmap.Config.RGB_565;
-        try (InputStream input = openNotificationArtworkStream(uri)) {
-            if (input == null) {
-                return null;
-            }
-            return BitmapFactory.decodeStream(input, null, options);
-        } catch (IOException | RuntimeException ignored) {
-            return null;
-        }
-    }
-
-    private Bitmap decodeNotificationArtworkBytes(byte[] bytes) {
-        if (bytes == null || bytes.length == 0) {
-            return null;
-        }
-        BitmapFactory.Options bounds = new BitmapFactory.Options();
-        bounds.inJustDecodeBounds = true;
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-            return null;
-        }
-        BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inSampleSize = artworkSampleSize(
-                bounds.outWidth,
-                bounds.outHeight,
-                NOTIFICATION_ARTWORK_TARGET_PX
-        );
-        options.inPreferredConfig = Bitmap.Config.RGB_565;
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
-    }
-
-    private byte[] encodeMetadataArtwork(Bitmap bitmap) {
-        if (bitmap == null || bitmap.isRecycled()) {
-            return null;
-        }
-        try {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 88, output)) {
-                return null;
-            }
-            return output.toByteArray();
-        } catch (RuntimeException ignored) {
-            return null;
-        }
-    }
-
-    private InputStream openNotificationArtworkStream(Uri uri) throws IOException {
-        String scheme = uri.getScheme();
-        if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
-            return getContentResolver().openInputStream(uri);
-        }
-        HttpURLConnection connection = (HttpURLConnection) new URL(uri.toString()).openConnection();
-        connection.setConnectTimeout(8000);
-        connection.setReadTimeout(12000);
-        connection.setInstanceFollowRedirects(true);
-        connection.setRequestProperty("User-Agent", "Mozilla/5.0 Yukine-Android");
-        connection.setRequestProperty("Referer", "https://music.163.com/");
-        int code = connection.getResponseCode();
-        if (code < 200 || code >= 300) {
-            connection.disconnect();
-            return null;
-        }
-        return connection.getInputStream();
-    }
-
-    private int artworkSampleSize(int width, int height, int targetPx) {
-        int sample = 1;
-        int halfWidth = width / 2;
-        int halfHeight = height / 2;
-        while (halfWidth / sample >= targetPx && halfHeight / sample >= targetPx) {
-            sample *= 2;
-        }
-        return Math.max(1, sample);
     }
 
     private boolean startPlaybackForeground(Notification notification) {
@@ -4109,23 +2853,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     private int pendingIntentFlags() {
         return PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
-    }
-
-    private NotificationManager notificationManager() {
-        return (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-    }
-
-    private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return;
-        }
-        NotificationChannel channel = new NotificationChannel(
-                CHANNEL_ID,
-                "Playback",
-                NotificationManager.IMPORTANCE_LOW
-        );
-        channel.setDescription("Yukine playback controls");
-        notificationManager().createNotificationChannel(channel);
     }
 
     private Track currentTrack() {
