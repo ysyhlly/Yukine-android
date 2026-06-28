@@ -38,10 +38,6 @@ sealed interface LibraryEvent {
     data object ScanLibrary : LibraryEvent
 }
 
-internal fun interface LibraryEventSink {
-    fun send(event: LibraryEvent)
-}
-
 interface LibraryGateway {
     fun playTrackList(tracks: List<Track>, index: Int)
     fun showStatusKey(key: String)
@@ -83,8 +79,6 @@ interface LibraryCollectionGateway {
     fun loadCollections(selectedPlaylistId: Long): LibraryCollectionsResult
 
     fun clearPlayHistory(): Int
-
-    fun setFavorite(trackId: Long, favorite: Boolean)
 }
 
 data class LibraryLoadResultUi(
@@ -122,10 +116,6 @@ fun interface LibraryPlaylistImportCallback {
     fun onImported(result: LibraryPlaylistImportResultUi)
 }
 
-fun interface LibraryPlaylistExportCallback {
-    fun onExported(exported: Boolean)
-}
-
 interface LibraryDocumentGateway {
     fun importStreamM3u(playlistUri: Uri?): LibraryLoadResultUi
 
@@ -161,10 +151,6 @@ interface LibraryPlaylistActionGateway {
 
 fun interface LibraryCollectionsCallback {
     fun onLoaded(result: LibraryCollectionsResult)
-}
-
-fun interface LibraryPlayHistoryClearedCallback {
-    fun onCleared(removed: Int)
 }
 
 fun interface LibraryLoadCallback {
@@ -350,26 +336,6 @@ class LibraryViewModel @JvmOverloads constructor(
         }
     }
 
-    fun clearPlayHistoryJava(onCleared: LibraryPlayHistoryClearedCallback?) {
-        clearPlayHistory { removed -> onCleared?.onCleared(removed) }
-    }
-
-    fun saveLibraryFavorite(trackId: Long, favorite: Boolean, onSaved: (() -> Unit)? = null) {
-        if (trackId < 0L) {
-            return
-        }
-        val gateway = collectionGateway ?: return
-        viewModelScope.launch {
-            withContext(ioDispatcher) {
-                gateway.setFavorite(trackId, favorite)
-            }
-            onSaved?.invoke()
-        }
-    }
-
-    fun saveLibraryFavoriteJava(trackId: Long, favorite: Boolean, onSaved: Runnable?) {
-        saveLibraryFavorite(trackId, favorite) { onSaved?.run() }
-    }
     fun loadLibrary(
         allowCachedFirst: Boolean,
         canScan: Boolean,
@@ -504,10 +470,9 @@ class LibraryViewModel @JvmOverloads constructor(
     fun exportPlaylistJava(
         exportUri: Uri?,
         playlistId: Long,
-        playlistName: String,
-        onExported: LibraryPlaylistExportCallback?
+        playlistName: String
     ) {
-        exportPlaylist(exportUri, playlistId, playlistName) { exported -> onExported?.onExported(exported) }
+        exportPlaylist(exportUri, playlistId, playlistName)
     }
 
     fun addToDefaultPlaylist(

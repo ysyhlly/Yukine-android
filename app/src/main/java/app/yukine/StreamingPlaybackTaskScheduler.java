@@ -5,7 +5,7 @@ import java.util.Queue;
 import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicLong;
 
-final class StreamingPlaybackTaskScheduler {
+final class StreamingPlaybackTaskScheduler implements StreamingPlaybackTaskQueue {
     enum Priority {
         CURRENT_PLAYBACK_RECOVERY,
         CURRENT_URL_RESOLVE,
@@ -18,6 +18,28 @@ final class StreamingPlaybackTaskScheduler {
 
     interface Completion {
         void complete();
+    }
+
+    @Override
+    public void scheduleCurrentPlaybackRecovery(StreamingPlaybackTask task) {
+        schedule(Priority.CURRENT_PLAYBACK_RECOVERY, taskFrom(task));
+    }
+
+    @Override
+    public void scheduleCurrentUrlResolve(StreamingPlaybackTask task) {
+        schedule(Priority.CURRENT_URL_RESOLVE, taskFrom(task));
+    }
+
+    @Override
+    public void scheduleNextUrlResolve(StreamingPlaybackTask task) {
+        schedule(Priority.NEXT_URL_RESOLVE, taskFrom(task));
+    }
+
+    private Task taskFrom(StreamingPlaybackTask task) {
+        if (task == null) {
+            return null;
+        }
+        return completion -> task.run(completion::complete);
     }
 
     private final PriorityQueue<ScheduledTask> criticalQueue = new PriorityQueue<>();

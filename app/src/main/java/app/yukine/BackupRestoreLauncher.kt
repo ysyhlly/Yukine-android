@@ -18,13 +18,9 @@ internal interface BackupFileOperations {
     fun restore(context: Context, uri: Uri): Boolean
 }
 
-internal fun interface BackupStatusSink {
-    fun setStatusKey(statusKey: String)
-}
-
 internal class BackupRestoreLauncher @JvmOverloads constructor(
     private val activity: ComponentActivity,
-    private val statusSink: BackupStatusSink,
+    private val statusSink: (String) -> Unit,
     activityResultLauncher: BackupActivityResultLauncher? = null,
     private val operations: BackupFileOperations = BackupManagerOperations
 ) {
@@ -59,7 +55,7 @@ internal class BackupRestoreLauncher @JvmOverloads constructor(
             BackupAction.EXPORT -> exportStatus(uri)
             BackupAction.IMPORT -> importStatus(uri)
         }
-        statusSink.setStatusKey(statusKey)
+        statusSink(statusKey)
     }
 
     private fun exportStatus(uri: Uri): String {

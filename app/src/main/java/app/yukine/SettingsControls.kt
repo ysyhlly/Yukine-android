@@ -2,10 +2,6 @@ package app.yukine
 
 import app.yukine.playback.AudioEffectSettings
 
-internal fun interface SettingsStatusSink {
-    fun set(message: String)
-}
-
 internal fun interface SettingsSelectedTabProvider {
     fun selectedTab(): String
 }

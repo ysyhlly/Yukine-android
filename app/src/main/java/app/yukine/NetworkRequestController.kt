@@ -6,7 +6,7 @@ internal class NetworkRequestController(
     private val operations: NetworkOperationSink,
     private val labels: Labels,
     private val listener: Listener
-) {
+) : NetworkDialogController.Listener {
     interface Labels {
         fun text(key: String): String
     }
@@ -15,14 +15,26 @@ internal class NetworkRequestController(
         fun setStatus(status: String)
     }
 
+    override fun addStream(title: String, url: String) {
+        addStreamUrl(title, url)
+    }
+
     fun addStreamUrl(title: String, url: String) {
         listener.setStatus(labels.text("adding.stream"))
         operations.addStreamUrl(title, url)
     }
 
+    override fun updateStream(track: Track, title: String, url: String) {
+        updateStreamUrl(track, title, url)
+    }
+
     fun updateStreamUrl(oldTrack: Track?, title: String, url: String) {
         listener.setStatus(labels.text("updating.stream"))
         operations.updateStreamUrl(oldTrack, title, url)
+    }
+
+    override fun importM3u(url: String) {
+        importM3uPlaylist(url)
     }
 
     fun importM3uPlaylist(url: String) {
@@ -50,7 +62,7 @@ internal class NetworkRequestController(
         operations.deleteRemoteSource(sourceId)
     }
 
-    fun saveWebDavSource(
+    override fun saveWebDavSource(
         sourceId: Long,
         name: String,
         baseUrl: String,

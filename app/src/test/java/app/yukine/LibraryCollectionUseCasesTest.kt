@@ -58,24 +58,6 @@ class LibraryCollectionUseCasesTest {
         assertEquals(listOf("clearHistory"), operations.events)
     }
 
-    @Test
-    fun setFavoriteIgnoresInvalidTrackId() {
-        val operations = FakeLibraryCollectionOperations()
-
-        SetLibraryFavoriteUseCase(operations).execute(-1L, true)
-
-        assertEquals(emptyList<String>(), operations.events)
-    }
-
-    @Test
-    fun setFavoriteDelegatesValidTrackId() {
-        val operations = FakeLibraryCollectionOperations()
-
-        SetLibraryFavoriteUseCase(operations).execute(7L, true)
-
-        assertEquals(listOf("favorite:7:true"), operations.events)
-    }
-
     private class FakeLibraryCollectionOperations(
         private val defaultPlaylistId: Long = -1L,
         private val removedHistory: Int = 0
@@ -140,9 +122,6 @@ class LibraryCollectionUseCasesTest {
             return removedHistory
         }
 
-        override fun setFavorite(trackId: Long, favorite: Boolean) {
-            events.add("favorite:$trackId:$favorite")
-        }
     }
 
     private fun playlist(id: Long): Playlist = Playlist(id, "Playlist $id", 1, 0L, 0L)

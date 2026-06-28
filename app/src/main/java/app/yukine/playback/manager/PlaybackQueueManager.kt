@@ -18,7 +18,6 @@ internal class PlaybackQueueManager(
     interface QueueProvider {
         fun queue(): MutableList<Track>
         fun currentIndex(): Int
-        fun currentTrack(): Track?
         fun repeatMode(): Int
         fun shuffleEnabled(): Boolean
         fun isPlaying(): Boolean
@@ -34,14 +33,11 @@ internal class PlaybackQueueManager(
         fun restoredTrackFor(track: Track): Track?
         fun restoreForDataPath(dataPath: String?)
         fun isRestorableQueueTrack(track: Track): Boolean
-        fun canPrepareMirroredQueueTrack(track: Track): Boolean
         fun setRestoredPosition(trackId: Long, positionMs: Long, explicit: Boolean)
         fun setCurrentIndex(index: Int)
         fun setErrorMessage(message: String)
         fun setPreparing(preparing: Boolean)
         fun setLastMarkedTrack(track: Track?)
-        fun queueIsEmpty(): Boolean
-        fun samePlaybackUri(first: Track?, second: Track?): Boolean
         fun setExplicitRestoredPosition(track: Track?, positionMs: Long): Long
         fun recordStreamingRecovery(track: Track, restoredPositionMs: Long)
         fun schedulePrepareCurrent(playWhenReady: Boolean)
@@ -79,7 +75,7 @@ internal class PlaybackQueueManager(
         persistQueue()
         queueProvider.resetCurrentPlaybackPosition()
         if (startPositionMs >= 0L) {
-            queueProvider.currentTrack()?.let { track ->
+            currentTrack()?.let { track ->
                 queueProvider.setRestoredPosition(track.id, startPositionMs, explicit = true)
             }
         }
@@ -111,7 +107,7 @@ internal class PlaybackQueueManager(
     }
 
     fun playFirstQueuedTrack() {
-        if (queueProvider.queueIsEmpty()) {
+        if (queueProvider.queue().isEmpty()) {
             return
         }
         queueProvider.setCurrentIndex(0)
@@ -190,7 +186,7 @@ internal class PlaybackQueueManager(
             return
         }
         val targetIndex = maxOf(0, minOf(toIndex, queue.size - 1))
-        val current = queueProvider.currentTrack()
+        val current = currentTrack()
         val moved = queue.removeAt(fromIndex)
         queue.add(targetIndex, moved)
         if (current != null) {
@@ -208,7 +204,7 @@ internal class PlaybackQueueManager(
         if (trackIds.isEmpty() || queue.isEmpty()) {
             return
         }
-        val current = queueProvider.currentTrack()
+        val current = currentTrack()
         val removedCurrent = current != null && trackIds.contains(current.id)
         var removedBeforeCurrent = 0
         for (i in queue.indices) {
@@ -245,7 +241,7 @@ internal class PlaybackQueueManager(
     }
 
     fun retainTracksById(trackIdsToKeep: Set<Long>) {
-        if (trackIdsToKeep.isEmpty() || queueProvider.queueIsEmpty()) {
+        if (trackIdsToKeep.isEmpty() || queueProvider.queue().isEmpty()) {
             return
         }
         val trackIdsToRemove = HashSet<Long>()
@@ -280,7 +276,7 @@ internal class PlaybackQueueManager(
             persistQueue()
             if (replacedCurrent) {
                 queueProvider.resetCurrentPlaybackPosition()
-                queueProvider.prepareCurrent(queueProvider.isPlaying() || queueProvider.preparing() || queueProvider.queueIsEmpty())
+                queueProvider.prepareCurrent(queueProvider.isPlaying() || queueProvider.preparing() || queueProvider.queue().isEmpty())
                 return
             }
             queueProvider.publishState()
@@ -288,7 +284,7 @@ internal class PlaybackQueueManager(
     }
 
     fun replaceQueuedTrackById(oldTrackId: Long, replacement: Track) {
-        if (queueProvider.queueIsEmpty()) {
+        if (queueProvider.queue().isEmpty()) {
             return
         }
         if (oldTrackId == replacement.id) {
@@ -340,11 +336,11 @@ internal class PlaybackQueueManager(
         if (replacement == null || queueProvider.currentIndex() < 0 || queueProvider.currentIndex() >= queue.size) {
             return
         }
-        val current = queueProvider.currentTrack()
+        val current = currentTrack()
         val resumePositionMs = maxOf(maxOf(0L, positionMs), queueProvider.playbackPositionMs())
         queue[queueProvider.currentIndex()] = replacement
         queueProvider.setErrorMessage("")
-        if (queueProvider.samePlaybackUri(current, replacement)) {
+        if (current != null && current.contentUri == replacement.contentUri && current.dataPath == replacement.dataPath) {
             persistQueue()
             persistPlaybackPosition()
             queueProvider.publishState()
@@ -363,7 +359,7 @@ internal class PlaybackQueueManager(
             return false
         }
         val targetIndex = maxOf(0, minOf(queueProvider.currentIndex(), queue.size - 1))
-        val track = queueProvider.currentTrack() ?: return false
+        val track = currentTrack() ?: return false
         queueProvider.setPreparing(false)
         queueProvider.setErrorMessage("")
         queueProvider.setLastMarkedTrack(null)
@@ -390,12 +386,12 @@ internal class PlaybackQueueManager(
 
     fun mirroredQueueTracksForPreparation(): List<Track>? {
         val queue = queueProvider.queue()
-        if (queue.isEmpty() || queueProvider.currentTrack() == null) {
+        if (queue.isEmpty() || currentTrack() == null) {
             return null
         }
         val tracks = ArrayList<Track>(queue.size)
         for (track in queue) {
-            if (!queueProvider.canPrepareMirroredQueueTrack(track)) {
+            if (track.contentUri == null || track.contentUri.toString().isEmpty()) {
                 return null
             }
             queueProvider.restoreForDataPath(track.dataPath)
@@ -482,7 +478,7 @@ internal class PlaybackQueueManager(
     }
 
     fun clearQueue() {
-        if (queueProvider.queueIsEmpty()) {
+        if (queueProvider.queue().isEmpty()) {
             return
         }
         queueProvider.stopAndClear()
@@ -526,8 +522,14 @@ internal class PlaybackQueueManager(
     }
 
     private fun persistPlaybackPosition() {
-        val track = queueProvider.currentTrack() ?: return
+        val track = currentTrack() ?: return
         queueStore.savePlaybackPosition(track.id, queueProvider.playbackPositionMs())
+    }
+
+    private fun currentTrack(): Track? {
+        val index = queueProvider.currentIndex()
+        val queue = queueProvider.queue()
+        return if (index in queue.indices) queue[index] else null
     }
 
     private fun indexOfTrackOccurrence(queue: List<Track>, target: Track): Int {

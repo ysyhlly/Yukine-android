@@ -17,7 +17,7 @@ internal class DocumentPickerController @JvmOverloads constructor(
     private val activity: ComponentActivity,
     private val listener: Listener,
     activityResultLauncher: DocumentActivityResultLauncher? = null
-) : DownloadDirectoryPickerOpener, LuoxueSourceFilePicker {
+) : LuoxueSourceFilePicker {
     private val activityResultLauncher: DocumentActivityResultLauncher =
         activityResultLauncher ?: ActivityResultDocumentLauncher(activity)
 
@@ -30,7 +30,7 @@ internal class DocumentPickerController @JvmOverloads constructor(
 
         fun importStreamM3u(playlistUri: Uri)
 
-        fun exportPlaylist(exportUri: Uri)
+        fun exportPlaylist(exportUri: Uri, playlistId: Long, playlistName: String)
 
         fun importPlaylistM3u(playlistUri: Uri)
 
@@ -56,7 +56,7 @@ internal class DocumentPickerController @JvmOverloads constructor(
         launch(intent, DocumentAction.ImportAudioFolder)
     }
 
-    override fun openDownloadFolderPicker() {
+    fun openDownloadFolderPicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
         intent.addFlags(
             Intent.FLAG_GRANT_READ_URI_PERMISSION or
@@ -89,7 +89,12 @@ internal class DocumentPickerController @JvmOverloads constructor(
         launch(intent, DocumentAction.ImportLuoxueSource)
     }
 
-    fun openPlaylistExportDocument(playlistName: String) {
+    private var pendingPlaylistExportId: Long = -1L
+    private var pendingPlaylistExportName: String = ""
+
+    fun openPlaylistExportDocument(playlistId: Long, playlistName: String) {
+        pendingPlaylistExportId = playlistId
+        pendingPlaylistExportName = playlistName
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
         intent.addCategory(Intent.CATEGORY_OPENABLE)
         intent.type = "application/vnd.apple.mpegurl"
@@ -142,7 +147,13 @@ internal class DocumentPickerController @JvmOverloads constructor(
             DocumentAction.ExportPlaylistM3u -> {
                 val exportUri = data.data
                 if (exportUri != null) {
-                    listener.exportPlaylist(exportUri)
+                    val playlistId = pendingPlaylistExportId
+                    val playlistName = pendingPlaylistExportName
+                    pendingPlaylistExportId = -1L
+                    pendingPlaylistExportName = ""
+                    if (playlistId >= 0L) {
+                        listener.exportPlaylist(exportUri, playlistId, playlistName)
+                    }
                 }
             }
             DocumentAction.ImportPlaylistM3u -> {

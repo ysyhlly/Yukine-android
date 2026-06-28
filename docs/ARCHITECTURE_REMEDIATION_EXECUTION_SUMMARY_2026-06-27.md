@@ -132,3 +132,57 @@
 - EchoPlaybackService.prepareMirroredQueue(...) now consumes PlaybackQueueManager.mirroredQueueTracksForPreparation() and keeps only MediaSource construction plus ExoPlayer calls.
 - PlaybackQueueManagerTest covers snapshot/header restore and unplayable-track rejection; the architecture contract rejects the old queueTrack Uri/header loop in EchoPlaybackService.
 - Verified serially with focused PlaybackQueueManagerTest / architecture contract and compileDebugKotlin/compileDebugJavaWithJavac using --max-workers=1.
+## 2026-06-27 DIRECTION PIVOT: stabilization before more extraction
+
+- New controlling doc: `docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md`.
+- This pivot supersedes the previous default of continuing fast owner/manager extraction when the two conflict.
+- Freeze broad architecture expansion first: do not add new `Manager`, `Coordinator`, `Controller`, `Bindings`, or `Gateway` layers by default.
+- Stabilize the dirty migration surface, record current counts, and prefer reviewable commits/checkpoints before more migration.
+- Reduce existing over-abstraction: merge/delete forwarding-only owners, shrink oversized provider/listener interfaces, and shorten UI -> service/data call chains.
+- Do not expand `PlaybackQueueManager.QueueProvider` or similar large interfaces without a prior split/merge/inline plan.
+- String-based architecture contracts are not enough for fragile flows; pair them with behavior tests, dependency-direction checks, integration smoke, or device evidence.
+- Continue P1/P2 only after a slice demonstrably reduces net files, methods, state sources, dependencies, or call-chain length.
+## 2026-06-27 ????
+
+- ???????????/????????????? owner ????
+- `EchoPlaybackService` ???? `MainActivity` ???????????/???????? launcher intent?
+- `PlaybackQueueManager.QueueProvider` ??????????????????????????????
+- ?????????????????????????????
+- ???????? `docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md`???? P1/P2 ????????????????
+
+## 2026-06-27 current slice note
+
+- `EchoPlaybackService` no longer depends on `MainActivity` for launch intent creation.
+- `samePlaybackUri` was removed from the service boundary and remains as direct comparison logic inside the relevant playback owners.
+- `PlaybackQueueManagerTest` was kept on Robolectric with `sdk = [34]` and the focused playback contract/tests passed.
+- `StreamingPlaybackTaskScheduler` now owns the task queue interface directly; the adapter file was deleted and the focused scheduler test was renamed accordingly.
+- The scheduler binding in `MainActivity` is now direct, so the streaming task queue path has one fewer forwarding layer.
+- `PlaybackStartController` no longer uses the temporary `PlaybackController` facade. It receives the streaming resolver, local track-list player, and playback-result applier directly, removing the `PlaybackStartControllerAdapter` hop from the playback start path.
+- The old `app.yukine.playback.PlaybackController` / `PlaybackServiceController` facade and its fake test double were deleted because production no longer referenced them.
+- `docs/MVVM_MIGRATION_HANDOFF.md` now marks the old playback facade task as retired history rather than current migration work.
+- The old 7.3.1 facade plan is treated as retired history in the migration ledger, not an active to-do item.
+- Current playback migration work now continues from the streamlined shell/service/boundary paths, not from the retired playback facade track.
+- `NetworkRequestController` now implements `NetworkDialogController.Listener` directly, replacing the forwarding-only `NetworkDialogEventController` in the network dialog path.
+- `MainActivity` now passes `networkRequestController` directly to `NetworkDialogController`, removing one network dialog wiring object without moving the status or network operation policy.
+- `NetworkRequestControllerTest` covers the dialog listener path; `MainActivityArchitectureContractTest.mainActivityDelegatesNetworkOperationsThroughRequestController` rejects the old event-controller bridge.
+- Verified serially with `gradlew.bat --no-daemon --max-workers=1 :app:testDebugUnitTest --tests app.yukine.NetworkRequestControllerTest --tests app.yukine.MainActivityArchitectureContractTest.mainActivityDelegatesNetworkOperationsThroughRequestController --console=plain`.
+- `StreamingGatewayEventController` was removed first; the remaining thin `StreamingGatewayController` was later folded into direct `MainActivity` helper methods for provider refresh and endpoint application.
+- `MainActivity` no longer keeps a gateway controller field or construction path; `refreshStreamingProviders()` and `applyStreamingGatewayEndpoint(...)` call `StreamingViewModel` / `StreamingGatewaySettingsStore` directly.
+- The architecture contract rejects the old event-controller and gateway-controller bridges while preserving provider refresh, endpoint normalization, render, and status publication behavior.
+- Verified serially with `gradlew.bat --no-daemon --max-workers=1 :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest.mainActivityDoesNotDirectlyOwnStreamingRepositoryProvider --tests app.yukine.MainActivityArchitectureContractTest.streamingGatewaySettingsBoundaryIsKotlin --tests app.yukine.MainActivityArchitectureContractTest.settingsEventsStayInSettingsViewModel --console=plain`.
+- `NowPlayingRenderController` was deleted after rechecking the active runtime path: `NowPlayingDestination` collects `NowPlayingViewModel.uiState`, while the old controller only created an unpublished `NowPlayingUiState` and returned whether a current track existed.
+- `MainActivity.updateNowPlayingContent()` now checks the playback snapshot directly for the lyrics refresh fallback, and the unused `renderNowPlaying()` method was removed.
+- The now-playing architecture contract now rejects `NowPlayingRenderController` and the stale `renderNowPlaying()` entry point.
+- `MainActivity` one-hop wrappers were further reduced: `removeQueueTrack`, `moveQueueTrack`, `syncUpdatedStreamQueue`, `retainPlaybackTracks`, `syncSelectedPlaylistFromStreaming`, and `remoteSourceName` were removed.
+- Their call sites now enter the real owners directly: `QueueActionController`, `NowPlayingViewModel`, `StreamingPlaylistController`, and `MainLibraryStore`.
+- The architecture contract now rejects the removed private wrappers while preserving the direct owner calls.
+- `StreamingSearchEventController` was removed as a pure forwarding layer; `MainActivity` now wires `StreamingSearchRenderController.Listener` inline to `DefaultStreamingSearchActionHandler`, playlist/recommendation/dialog owners, and `StreamingViewModel.updateStreamingSearchChrome(...)`.
+- `LibraryDocumentGatewayBindings` was renamed to `ContentResolverLibraryDocumentGateway`, leaving no root-package `*Bindings` files while preserving M3U import/export document behavior.
+- WebDAV remote-source playback now goes through `NetworkSourcesEventController.playRemoteSourceTracks(...)` from both source rows and source track-list actions; the duplicate `MainActivity.playRemoteSourceTracks(...)` logic was removed.
+- Onboarding actions now call `OnboardingController` directly from `OnboardingActions`; the private onboarding action wrappers were removed from `MainActivity`.
+- Streaming playlist import refresh now calls `loadLibrary(true)` directly from `StreamingPlaylistController.Listener`; the private `refreshLibraryAfterStreamingImport()` host wrapper was removed.
+- Host-only wrappers for manual streaming cookie import, streaming playback pre-resolve, remote-source clear-and-navigate, and UiShell scrolling/tab updates were inlined to their real owners.
+- Startup library loading now branches on media permission inline; the private `loadLibraryOnStartup()` wrapper was removed.
+- Lyrics state refresh now reads the `LyricsViewModel` snapshot directly from the listener, and unused `ensureLyricsLoaded(...)` was removed.
+- `QueueIntentController` was removed as a pure queue intent forwarding layer; `QueueViewModel.bindIntentListener(...)` now dispatches directly to the existing owner calls.
+- The no-op runtime language update bridge was removed from `SettingsRuntimeEffect`, `SettingsRuntimeApplier`, and `MainUiShellController`.

@@ -8,7 +8,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(manifest = Config.NONE, sdk = [34])
 class PlaybackQueueManagerTest {
     @Test
     fun playQueuePersistsAndStartsPlayback() {
@@ -87,7 +92,6 @@ class PlaybackQueueManagerTest {
         provider.queue.add(track(1L))
         provider.currentIndexValue = 0
         provider.playbackPositionMsValue = 1200L
-        provider.samePlaybackUriValue = false
         val manager = PlaybackQueueManager(store, provider)
         val replacement = track(2L)
 
@@ -147,7 +151,12 @@ class PlaybackQueueManagerTest {
     fun mirroredQueueTracksForPreparationRestoresHeadersAndReturnsSnapshot() {
         val store = FakeQueueStore()
         val provider = FakeQueueProvider()
-        provider.queue.addAll(listOf(track(1L), track(2L)))
+        provider.queue.addAll(
+                listOf(
+                        track(1L, android.net.Uri.parse("content://music/1")),
+                        track(2L, android.net.Uri.parse("content://music/2"))
+                )
+        )
         provider.currentIndexValue = 0
         val manager = PlaybackQueueManager(store, provider)
 
@@ -161,9 +170,8 @@ class PlaybackQueueManagerTest {
     fun mirroredQueueTracksForPreparationRejectsUnplayableTrack() {
         val store = FakeQueueStore()
         val provider = FakeQueueProvider()
-        provider.queue.add(track(1L))
+        provider.queue.add(track(1L, null, ""))
         provider.currentIndexValue = 0
-        provider.canPrepareMirroredQueueTrackValue = false
         val manager = PlaybackQueueManager(store, provider)
 
         val tracks = manager.mirroredQueueTracksForPreparation()
@@ -172,7 +180,7 @@ class PlaybackQueueManagerTest {
         assertTrue(provider.restoredDataPaths.isEmpty())
     }
 
-    private fun track(id: Long, uri: android.net.Uri = android.net.Uri.parse("file:///music/$id")): Track {
+    private fun track(id: Long, uri: android.net.Uri? = null, dataPath: String = "/music/$id"): Track {
         return Track(
                 id,
                 "t$id",
@@ -180,7 +188,7 @@ class PlaybackQueueManagerTest {
                 "album",
                 1000L,
                 uri,
-                "/music/$id"
+                dataPath
         )
     }
 
@@ -212,11 +220,9 @@ class PlaybackQueueManagerTest {
         var restoredPositionMs = 0L
         var restoredPositionExplicit = false
         val restoredDataPaths = mutableListOf<String?>()
-        var canPrepareMirroredQueueTrackValue = true
         var playbackPositionMsValue = 0L
         var recoveryRecorded = false
         var prepareCurrentScheduled = false
-        var samePlaybackUriValue = true
         var preparingValue = true
         var mirroredQueueMatchesPlayerValue = false
         var seekMirroredQueueToValue = false
@@ -231,7 +237,6 @@ class PlaybackQueueManagerTest {
         var playerMirrorsQueueValue = true
         override fun queue(): MutableList<Track> = queue
         override fun currentIndex(): Int = currentIndexValue
-        override fun currentTrack(): Track? = if (currentIndexValue in queue.indices) queue[currentIndexValue] else null
         override fun repeatMode(): Int = EchoPlaybackService.REPEAT_ALL
         override fun shuffleEnabled(): Boolean = false
         override fun isPlaying(): Boolean = false
@@ -247,7 +252,6 @@ class PlaybackQueueManagerTest {
         override fun restoredTrackFor(track: Track): Track? = track
         override fun restoreForDataPath(dataPath: String?) { restoredDataPaths.add(dataPath) }
         override fun isRestorableQueueTrack(track: Track): Boolean = true
-        override fun canPrepareMirroredQueueTrack(track: Track): Boolean = canPrepareMirroredQueueTrackValue
         override fun setRestoredPosition(trackId: Long, positionMs: Long, explicit: Boolean) {
             restoredTrackId = trackId
             restoredPositionMs = positionMs
@@ -257,8 +261,6 @@ class PlaybackQueueManagerTest {
         override fun setErrorMessage(message: String) {}
         override fun setPreparing(preparing: Boolean) { preparingValue = preparing }
         override fun setLastMarkedTrack(track: Track?) {}
-        override fun queueIsEmpty(): Boolean = queue.isEmpty()
-        override fun samePlaybackUri(first: Track?, second: Track?): Boolean = samePlaybackUriValue
         override fun setExplicitRestoredPosition(track: Track?, positionMs: Long): Long {
             restoredTrackId = track?.id ?: -1L
             restoredPositionMs = positionMs

@@ -38,7 +38,7 @@ object StreamingQualityPlatformMapping {
 
     @JvmStatic
     fun optionLabel(quality: StreamingAudioQuality, languageMode: String): String {
-        val label = SettingsPageRenderController.streamingQualityLabel(quality.wireName, languageMode)
+        val label = SettingsLabelFormatter.streamingQualityLabel(quality.wireName, languageMode)
         return "$label - ${shortExplanation(quality, languageMode)}"
     }
 

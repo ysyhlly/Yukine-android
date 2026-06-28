@@ -20,7 +20,6 @@ final class PlaybackVisualizationCacheManager {
         PlaybackCacheDependencies cacheDependencies();
         Handler mainHandler();
         Track currentTrack();
-        boolean samePlaybackUri(Track first, Track second);
     }
 
     interface PlaybackCacheDependencies {
@@ -40,7 +39,10 @@ final class PlaybackVisualizationCacheManager {
         final Track visualTrack = track;
         stateProvider.mainHandler().post(() -> {
             Track active = stateProvider.currentTrack();
-            if (active == null || visualTrack.id != active.id || !stateProvider.samePlaybackUri(visualTrack, active)) {
+            if (active == null
+                    || visualTrack.id != active.id
+                    || active.contentUri == null
+                    || !active.contentUri.equals(visualTrack.contentUri)) {
                 return;
             }
             stateProvider.visualizationTaskScheduler().schedule(

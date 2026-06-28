@@ -98,7 +98,7 @@ class DocumentPickerControllerTest {
         )
         val exportUri = Uri.parse("content://playlist/export")
 
-        controller.openPlaylistExportDocument("Road Mix")
+        controller.openPlaylistExportDocument(8L, "Road Mix")
 
         val intent = launcher.launches.single()
         assertEquals(Intent.ACTION_CREATE_DOCUMENT, intent.action)
@@ -107,7 +107,7 @@ class DocumentPickerControllerTest {
 
         launcher.emit(ActivityResult(Activity.RESULT_OK, Intent().setData(exportUri)))
 
-        assertEquals(listOf(exportUri), listener.playlistExports)
+        assertEquals(listOf(PlaylistExport(exportUri, 8L, "Road Mix")), listener.playlistExports)
     }
 
     @Test
@@ -148,7 +148,7 @@ class DocumentPickerControllerTest {
         val audioFolders = mutableListOf<Uri>()
         val downloadFolders = mutableListOf<Uri>()
         val streamM3uImports = mutableListOf<Uri>()
-        val playlistExports = mutableListOf<Uri>()
+        val playlistExports = mutableListOf<PlaylistExport>()
         val playlistM3uImports = mutableListOf<Uri>()
         val luoxueSourceImports = mutableListOf<List<Uri>>()
 
@@ -168,8 +168,8 @@ class DocumentPickerControllerTest {
             streamM3uImports += playlistUri
         }
 
-        override fun exportPlaylist(exportUri: Uri) {
-            playlistExports += exportUri
+        override fun exportPlaylist(exportUri: Uri, playlistId: Long, playlistName: String) {
+            playlistExports += PlaylistExport(exportUri, playlistId, playlistName)
         }
 
         override fun importPlaylistM3u(playlistUri: Uri) {
@@ -189,4 +189,10 @@ class DocumentPickerControllerTest {
                 playlistM3uImports +
                 luoxueSourceImports
     }
+
+    private data class PlaylistExport(
+        val uri: Uri,
+        val playlistId: Long,
+        val playlistName: String
+    )
 }

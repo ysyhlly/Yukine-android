@@ -9,7 +9,7 @@ class PlaybackStartControllerTest {
     @Test
     fun storesPendingPlaybackWhenServiceIsUnavailable() {
         val listener = FakeListener(hasService = false)
-        val controller = PlaybackStartController(listener)
+        val controller = listener.controller()
 
         controller.playTrackList(listOf(playbackStartTrack(1L)), 1)
 
@@ -22,7 +22,7 @@ class PlaybackStartControllerTest {
     @Test
     fun playsImmediatelyWhenServiceIsAvailableAndStreamingDoesNotIntercept() {
         val listener = FakeListener(hasService = true, streamResolved = false)
-        val controller = PlaybackStartController(listener)
+        val controller = listener.controller()
 
         controller.playTrackList(listOf(playbackStartTrack(1L), playbackStartTrack(2L)), 1)
 
@@ -35,7 +35,7 @@ class PlaybackStartControllerTest {
     @Test
     fun skipsLocalPlayWhenStreamingResolverSchedulesPlayback() {
         val listener = FakeListener(hasService = true, streamResolved = true)
-        val controller = PlaybackStartController(listener)
+        val controller = listener.controller()
 
         controller.playTrackList(listOf(playbackStartTrack(1L)), 0)
 
@@ -50,7 +50,7 @@ class PlaybackStartControllerTest {
         val listener = FakeListener(hasService = true, streamResolved = false)
         listener.pendingTracks = listOf(playbackStartTrack(3L))
         listener.pendingIndex = 0
-        val controller = PlaybackStartController(listener)
+        val controller = listener.controller()
 
         controller.playPendingTracksIfNeeded()
 
@@ -63,7 +63,7 @@ class PlaybackStartControllerTest {
     @Test
     fun playsRecommendationPresentationAndOpensQueue() {
         val listener = FakeListener(hasService = true, streamResolved = false)
-        val controller = PlaybackStartController(listener)
+        val controller = listener.controller()
 
         controller.playRecommendation(
             StreamingRecommendationPresentation(
@@ -82,7 +82,7 @@ class PlaybackStartControllerTest {
     @Test
     fun playsHeartbeatRecommendationWithoutStoppingHeartbeatModeOrOpeningQueue() {
         val listener = FakeListener(hasService = true, streamResolved = false)
-        val controller = PlaybackStartController(listener)
+        val controller = listener.controller()
 
         controller.playHeartbeatRecommendation(
             StreamingRecommendationPresentation(
@@ -105,16 +105,21 @@ class PlaybackStartControllerTest {
         val calls = mutableListOf<String>()
         var pendingTracks: List<Track> = emptyList()
         var pendingIndex: Int = -1
-        private val playbackController = PlaybackController { tracks, index ->
-            calls += "resolve:${tracks?.size ?: 0}:$index"
-            if (streamResolved) {
-                null
-            } else {
-                calls += "play:${tracks?.size ?: 0}:$index"
-                val result = PlaybackActionResultUi(null, "played", false, false, false, false)
-                calls += "result:${result.status}"
-                result
-            }
+        fun controller(): PlaybackStartController {
+            return PlaybackStartController(
+                streamingTrackListResolver = StreamingTrackListResolver { tracks, index ->
+                    calls += "resolve:${tracks?.size ?: 0}:$index"
+                    streamResolved
+                },
+                playbackTrackListPlayer = PlaybackTrackListPlayer { tracks, index ->
+                    calls += "play:${tracks?.size ?: 0}:$index"
+                    val result = PlaybackActionResultUi(null, "played", false, false, false, false)
+                    calls += "result:${result.status}"
+                    result
+                },
+                playbackActionResultApplier = QueuePlaybackActionResultApplier {},
+                listener = this
+            )
         }
 
         override fun stopHeartbeatRecommendationMode() {
@@ -148,8 +153,6 @@ class PlaybackStartControllerTest {
         override fun setStatus(status: String) {
             calls += "status:$status"
         }
-
-        override fun playbackController(): PlaybackController = playbackController
 
         override fun openQueue() {
             calls += "openQueue"

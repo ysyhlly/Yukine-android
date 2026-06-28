@@ -31,7 +31,6 @@ internal interface LibraryCollectionOperations {
     fun loadRemoteSources(): List<RemoteSource>
     fun loadPlaylistTracks(playlistId: Long): List<Track>
     fun clearPlayHistory(): Int
-    fun setFavorite(trackId: Long, favorite: Boolean)
 }
 
 internal class MusicLibraryCollectionOperations(
@@ -60,10 +59,6 @@ internal class MusicLibraryCollectionOperations(
         repository.loadPlaylistTracks(playlistId)
 
     override fun clearPlayHistory(): Int = repository.clearPlayHistory()
-
-    override fun setFavorite(trackId: Long, favorite: Boolean) {
-        repository.setFavorite(trackId, favorite)
-    }
 }
 
 internal class LoadLibraryCollectionsUseCase @JvmOverloads constructor(
@@ -112,15 +107,4 @@ internal class ClearPlayHistoryUseCase(
     private val operations: LibraryCollectionOperations
 ) {
     fun execute(): Int = operations.clearPlayHistory()
-}
-
-internal class SetLibraryFavoriteUseCase(
-    private val operations: LibraryCollectionOperations
-) {
-    fun execute(trackId: Long, favorite: Boolean) {
-        if (trackId < 0L) {
-            return
-        }
-        operations.setFavorite(trackId, favorite)
-    }
 }

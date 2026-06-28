@@ -3,14 +3,6 @@ package app.yukine
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingAudioQuality
 
-internal fun interface DownloadStatusSink {
-    fun show(status: String)
-}
-
-internal fun interface DownloadManagerProvider {
-    fun manager(): TrackDownloadRequestQueue?
-}
-
 internal fun interface StreamingDownloadResolver {
     fun resolve(request: StreamingDownloadResolveRequest, quality: StreamingAudioQuality, callback: StreamingDownloadResolvedCallback)
 }
@@ -20,16 +12,16 @@ internal fun interface StreamingDownloadResolvedCallback {
 }
 
 internal class DownloadRequestController(
-    private val downloadManagerProvider: DownloadManagerProvider,
+    private val downloadManagerProvider: () -> TrackDownloadRequestQueue?,
     private val downloadsViewModel: DownloadsViewModel,
     private val resolveStreamingPlaybackUseCase: StreamingPlaybackResolvePlanner,
     private val qualityChooser: DownloadQualityChooser,
     private val streamingResolver: StreamingDownloadResolver,
-    private val statusSink: DownloadStatusSink
+    private val statusSink: (String) -> Unit
 ) {
     fun downloadTrack(track: Track?) {
         if (track == null) {
-            statusSink.show("未选择歌曲")
+            statusSink("未选择歌曲")
             return
         }
         qualityChooser.choose("选择下载音质") { quality ->
@@ -39,16 +31,16 @@ internal class DownloadRequestController(
 
     fun downloadTracks(tracks: List<Track>?) {
         if (tracks.isNullOrEmpty()) {
-            statusSink.show("当前歌单没有可下载的歌曲")
+            statusSink("当前歌单没有可下载的歌曲")
             return
         }
         val queuedTracks = tracks.filterNotNull()
         qualityChooser.choose("选择歌单下载音质") { quality ->
-            statusSink.show("已创建下载队列：${queuedTracks.size} 首，音质：${downloadQualityLabel(quality)}")
+            statusSink("已创建下载队列：${queuedTracks.size} 首，音质：${downloadQualityLabel(quality)}")
             queuedTracks.forEach { track ->
                 downloadTrackWithQuality(track, quality, silent = true)
             }
-            statusSink.show("下载队列已创建：${queuedTracks.size} 首。可到“下载管理”查看进度。")
+            statusSink("下载队列已创建：${queuedTracks.size} 首。可到“下载管理”查看进度。")
         }
     }
 
@@ -56,12 +48,12 @@ internal class DownloadRequestController(
         val request = resolveStreamingPlaybackUseCase.prepareDownload(track)
         if (request != null) {
             if (!silent) {
-                statusSink.show("正在解析 ${downloadQualityLabel(quality)} 下载地址：${track.title}")
+                statusSink("正在解析 ${downloadQualityLabel(quality)} 下载地址：${track.title}")
             }
             streamingResolver.resolve(request, quality) { resolved ->
                 if (resolved == null) {
                     if (!silent) {
-                        statusSink.show("下载地址解析失败，请先确认该音源可以播放")
+                        statusSink("下载地址解析失败，请先确认该音源可以播放")
                     }
                     return@resolve
                 }
@@ -73,20 +65,20 @@ internal class DownloadRequestController(
     }
 
     private fun enqueueTrackDownload(track: Track, quality: StreamingAudioQuality, silent: Boolean) {
-        val downloadManager = downloadManagerProvider.manager()
+        val downloadManager = downloadManagerProvider()
         if (downloadManager == null) {
             if (!silent) {
-                statusSink.show("下载服务暂不可用")
+                statusSink("下载服务暂不可用")
             }
             return
         }
         val result = downloadManager.enqueue(track, quality)
         if (!silent) {
-            statusSink.show(result.message)
+            statusSink(result.message)
         }
         downloadsViewModel.refresh(downloadManager)
         if (result.started && !silent) {
-            statusSink.show("${result.message}。可到“下载管理”查看进度。")
+            statusSink("${result.message}。可到“下载管理”查看进度。")
         }
     }
 

@@ -5,22 +5,14 @@ import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.PlaybackStateSnapshot
 import java.util.ArrayList
 
-internal fun interface PlaybackServiceProvider {
-    fun service(): EchoPlaybackService?
-}
-
-internal fun interface PlaybackServiceStarter {
-    fun start(action: String?)
-}
-
 internal class NowPlayingPlaybackGatewayAdapter(
-    private val serviceProvider: PlaybackServiceProvider,
-    private val serviceStarter: PlaybackServiceStarter
+    private val serviceProvider: () -> EchoPlaybackService?,
+    private val serviceStarter: (String?) -> Unit
 ) : NowPlayingPlaybackGateway {
     override fun serviceConnected(): Boolean = service() != null
 
     override fun startPlaybackService(action: String?) {
-        serviceStarter.start(action)
+        serviceStarter(action)
     }
 
     override fun snapshot(): PlaybackStateSnapshot? = service()?.snapshot()
@@ -107,5 +99,5 @@ internal class NowPlayingPlaybackGatewayAdapter(
         service()?.setRepeatMode(repeatMode)
     }
 
-    private fun service(): EchoPlaybackService? = serviceProvider.service()
+    private fun service(): EchoPlaybackService? = serviceProvider()
 }

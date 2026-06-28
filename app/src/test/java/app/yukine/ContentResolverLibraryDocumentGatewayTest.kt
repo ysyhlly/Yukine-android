@@ -13,13 +13,13 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
-class LibraryDocumentGatewayBindingsTest {
+class ContentResolverLibraryDocumentGatewayTest {
     @Test
     fun failedStreamImportFallsBackToCachedSnapshot() {
         val operations = FakeLibraryImportOperations()
         operations.cached = listOf(track(1L))
         operations.favorites = setOf(1L)
-        val gateway = LibraryDocumentGatewayBindings(null, operations)
+        val gateway = ContentResolverLibraryDocumentGateway(null, operations)
 
         val result = gateway.importStreamM3u(Uri.parse("content://missing/stream.m3u8"))
 
@@ -34,7 +34,7 @@ class LibraryDocumentGatewayBindingsTest {
         val operations = FakeLibraryImportOperations()
         operations.cached = listOf(track(2L))
         operations.favorites = setOf(2L)
-        val gateway = LibraryDocumentGatewayBindings(null, operations)
+        val gateway = ContentResolverLibraryDocumentGateway(null, operations)
 
         val result = gateway.importPlaylistM3u(Uri.parse("content://missing/list.m3u8"))
 
@@ -49,7 +49,7 @@ class LibraryDocumentGatewayBindingsTest {
     fun exportPlaylistReturnsFalseWhenDocumentCannotBeOpened() {
         val operations = FakeLibraryImportOperations()
         operations.playlistTracks = listOf(track(5L))
-        val gateway = LibraryDocumentGatewayBindings(null, operations)
+        val gateway = ContentResolverLibraryDocumentGateway(null, operations)
 
         val exported = gateway.exportPlaylist(Uri.parse("content://missing/export.m3u8"), 8L, "List")
 

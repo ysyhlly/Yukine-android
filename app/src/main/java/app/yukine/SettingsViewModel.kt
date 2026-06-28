@@ -559,13 +559,13 @@ class SettingsViewModel @JvmOverloads constructor(
     private fun streamingQualityAppliedStatus(quality: String): String {
         val languageMode = _state.value.preferences.languageMode
         return AppLanguage.text(languageMode, "streaming.quality.applied") +
-            SettingsPageRenderController.streamingQualityLabel(quality, languageMode)
+            SettingsLabelFormatter.streamingQualityLabel(quality, languageMode)
     }
 
     private fun shareStyleAppliedStatus(style: String): String {
         val languageMode = _state.value.preferences.languageMode
         return currentAppliedStatusText().shareStyleApplied +
-            SettingsPageRenderController.shareStyleLabel(style, languageMode)
+            SettingsLabelFormatter.shareStyleLabel(style, languageMode)
     }
 
     private fun pageBackgroundAppliedStatus(page: String, cleared: Boolean): String {
@@ -576,7 +576,7 @@ class SettingsViewModel @JvmOverloads constructor(
         } else {
             statusText.pageBackgroundApplied
         }
-        return prefix + SettingsPageRenderController.pageBackgroundPageLabel(page, languageMode)
+        return prefix + SettingsLabelFormatter.pageBackgroundPageLabel(page, languageMode)
     }
 
     private fun updatePreferences(transform: (SettingsPreferencesSnapshot) -> SettingsPreferencesSnapshot) {
@@ -610,7 +610,6 @@ class SettingsViewModel @JvmOverloads constructor(
 
     fun applyLanguageMode(nextLanguageMode: String) {
         val languageMode = AppLanguage.normalizeMode(nextLanguageMode)
-        applyRuntimeEffect(SettingsRuntimeEffect.UpdateLanguage(languageMode))
         updatePreferences { it.copy(languageMode = languageMode) }
         emitAppliedStatus(currentAppliedStatusText().languageApplied)
         savePreference(SettingsPreferenceKey.LanguageMode, languageMode)
@@ -763,15 +762,15 @@ class SettingsViewModel @JvmOverloads constructor(
             languageApplied = AppLanguage.text(normalizedLanguageMode, "language.applied") +
                     AppLanguage.labelFor(normalizedLanguageMode),
             playbackSpeedApplied = AppLanguage.text(normalizedLanguageMode, "speed.applied") +
-                    SettingsPageRenderController.playbackSpeedLabel(playbackSpeed),
+                    SettingsLabelFormatter.playbackSpeedLabel(playbackSpeed),
             appVolumeApplied = AppLanguage.text(normalizedLanguageMode, "volume.applied") +
-                    SettingsPageRenderController.appVolumeLabel(appVolume),
+                    SettingsLabelFormatter.appVolumeLabel(appVolume),
             onlineLyricsEnabled = AppLanguage.text(normalizedLanguageMode, "online.lyrics.enabled"),
             onlineLyricsDisabled = AppLanguage.text(normalizedLanguageMode, "online.lyrics.disabled"),
             concurrentPlaybackEnabled = AppLanguage.text(normalizedLanguageMode, "concurrent.playback.enabled"),
             concurrentPlaybackDisabled = AppLanguage.text(normalizedLanguageMode, "concurrent.playback.disabled"),
             lyricsOffsetApplied = AppLanguage.text(normalizedLanguageMode, "lyrics.offset.applied") +
-                    SettingsPageRenderController.lyricsOffsetLabel(lyricsOffsetMs),
+                    SettingsLabelFormatter.lyricsOffsetLabel(lyricsOffsetMs),
             audioEffectsApplied = AppLanguage.text(normalizedLanguageMode, "audio.effects.applied"),
             statusBarLyricsEnabled = AppLanguage.text(normalizedLanguageMode, "status.bar.lyrics.enabled"),
             statusBarLyricsDisabled = AppLanguage.text(normalizedLanguageMode, "status.bar.lyrics.disabled"),

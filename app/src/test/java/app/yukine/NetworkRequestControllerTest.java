@@ -35,6 +35,33 @@ public final class NetworkRequestControllerTest {
     }
 
     @Test
+    public void dialogListenerRequestsPublishStatusBeforeDelegatingOperation() {
+        FakeSink sink = new FakeSink();
+        FakeListener listener = new FakeListener();
+        NetworkDialogController.Listener controller = controller(sink, listener);
+        Track track = new Track(9L, "Old", "Artist", "Album", 1000L, null, "file:old");
+
+        controller.addStream("Title", "https://example.test/audio.mp3");
+        controller.importM3u("https://example.test/list.m3u8");
+        controller.updateStream(track, "Updated", "https://example.test/updated.mp3");
+        controller.saveWebDavSource(3L, "Home", "https://dav.example.test", "u", "p", "Music");
+
+        assertEquals(
+                Arrays.asList(
+                        "status:label:adding.stream",
+                        "addStream:Title|https://example.test/audio.mp3",
+                        "status:label:importing.m3u.playlist",
+                        "importM3u:https://example.test/list.m3u8",
+                        "status:label:updating.stream",
+                        "updateStream:Updated|https://example.test/updated.mp3",
+                        "status:label:saving.webdav.source",
+                        "saveWebDav:3|Home|https://dav.example.test|u|p|Music"
+                ),
+                events(listener, sink)
+        );
+    }
+
+    @Test
     public void destructiveRequestsPublishStatusBeforeDelegatingOperation() {
         FakeSink sink = new FakeSink();
         FakeListener listener = new FakeListener();

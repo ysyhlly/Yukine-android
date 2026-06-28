@@ -10,10 +10,6 @@ internal fun interface TrackListPlaybackAction {
     fun play(tracks: List<Track>, index: Int)
 }
 
-internal fun interface QueueTrackAction {
-    fun run(track: Track)
-}
-
 internal class QueueRenderController(
     private val listener: Listener
 ) {

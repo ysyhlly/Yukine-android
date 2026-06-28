@@ -3,7 +3,7 @@ package app.yukine
 import android.content.ContentResolver
 import android.net.Uri
 
-internal class LibraryDocumentGatewayBindings(
+internal class ContentResolverLibraryDocumentGateway(
     private val contentResolver: ContentResolver?,
     operations: LibraryImportOperations
 ) : LibraryDocumentGateway {

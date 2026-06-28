@@ -6,10 +6,6 @@ import app.yukine.model.RemoteSource
 import app.yukine.model.Track
 import java.util.ArrayList
 
-internal fun interface NetworkMenuContentSink {
-    fun publishNetworkMenu(title: String, metrics: List<SettingsMetric>, actions: List<SettingsAction>)
-}
-
 internal class NetworkMenuEventController(
     private val navigator: Navigator,
     private val showAddStreamAction: Runnable,
@@ -25,7 +21,7 @@ internal class NetworkMenuEventController(
     private val player: TrackListPlaybackAction,
     private val labels: Labels,
     private val statusSink: StatusSink,
-    private val contentSink: NetworkMenuContentSink
+    private val networkMenuViewModel: NetworkMenuViewModel
 ) : NetworkMenuRenderController.Listener {
     fun interface Navigator {
         fun navigateNetworkPage(page: String)
@@ -132,6 +128,6 @@ internal class NetworkMenuEventController(
         metrics: List<SettingsMetric>,
         actions: List<SettingsAction>
     ) {
-        contentSink.publishNetworkMenu(title, metrics, actions)
+        networkMenuViewModel.updateMenu(title, metrics, actions)
     }
 }

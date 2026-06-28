@@ -32,10 +32,6 @@ sealed interface NowPlayingEvent {
     data object CycleRepeatMode : NowPlayingEvent
 }
 
-fun interface NowPlayingEventHandler {
-    fun onEvent(event: NowPlayingEvent)
-}
-
 sealed interface NowPlayingEffect {
     data object OpenQueue : NowPlayingEffect
     data class OpenAddToPlaylist(val track: Track) : NowPlayingEffect

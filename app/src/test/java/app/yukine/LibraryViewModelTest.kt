@@ -287,21 +287,6 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun saveLibraryFavoriteDelegatesToBoundGateway() = runTest {
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        val viewModel = LibraryViewModel(dispatcher)
-        val gateway = FakeCollectionGateway()
-        var saved = false
-        viewModel.bindCollectionGateway(gateway)
-
-        viewModel.saveLibraryFavorite(44L, true) { saved = true }
-        viewModel.saveLibraryFavorite(-1L, false) { saved = false }
-        advanceUntilIdle()
-
-        assertEquals(listOf("favorite:44:true"), gateway.calls)
-        assertEquals(true, saved)
-    }
-    @Test
     fun loadLibraryEmitsCachedThenFreshResult() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val viewModel = LibraryViewModel(dispatcher)
@@ -519,9 +504,6 @@ class LibraryViewModelTest {
             return 3
         }
 
-        override fun setFavorite(trackId: Long, favorite: Boolean) {
-            calls.add("favorite:$trackId:$favorite")
-        }
     }
     private class FakeImportGateway : LibraryImportGateway {
         val calls = ArrayList<String>()

@@ -1123,7 +1123,7 @@ class StreamingViewModel @Inject constructor(
         quality: StreamingAudioQuality? = null
     ): StreamingPlaybackStatusText {
         val qualityLabel = quality?.let {
-            SettingsPageRenderController.streamingQualityLabel(
+            SettingsLabelFormatter.streamingQualityLabel(
                 StreamingQualityPreference.valueFor(it),
                 languageMode
             )
@@ -1141,7 +1141,7 @@ class StreamingViewModel @Inject constructor(
         qualityPreference: String? = null
     ): StreamingStatusText {
         val qualityLabel = qualityPreference?.let {
-            SettingsPageRenderController.streamingQualityLabel(it, languageMode)
+            SettingsLabelFormatter.streamingQualityLabel(it, languageMode)
         }.orEmpty()
         return StreamingStatusText(
             streamingQualityApplied = text(languageMode, "streaming.quality.applied") + qualityLabel

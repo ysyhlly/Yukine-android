@@ -6,13 +6,8 @@ internal fun interface SettingsThemeSurfaceApplier {
     fun apply()
 }
 
-internal fun interface SettingsRuntimeLanguageUpdater {
-    fun update(languageMode: String)
-}
-
 sealed interface SettingsRuntimeEffect {
     data object ApplyThemeSurface : SettingsRuntimeEffect
-    data class UpdateLanguage(val languageMode: String) : SettingsRuntimeEffect
     data class ApplyPlaybackSpeed(val speed: Float) : SettingsRuntimeEffect
     data class ApplyAppVolume(val volume: Float) : SettingsRuntimeEffect
     data class SetConcurrentPlaybackEnabled(val enabled: Boolean) : SettingsRuntimeEffect
@@ -28,7 +23,6 @@ sealed interface SettingsRuntimeEffect {
 
 internal class SettingsRuntimeApplier(
     private val applyThemeSurfaceAction: SettingsThemeSurfaceApplier,
-    private val updateLanguageAction: SettingsRuntimeLanguageUpdater,
     private val playbackServiceControlsProvider: SettingsPlaybackServiceControlsProvider,
     private val lyricsControlsProvider: SettingsLyricsControlsProvider,
     private val floatingLyricsControlsProvider: SettingsFloatingLyricsControlsProvider
@@ -37,10 +31,6 @@ internal class SettingsRuntimeApplier(
         return when (effect) {
             SettingsRuntimeEffect.ApplyThemeSurface -> {
                 applyThemeSurfaceAction.apply()
-                true
-            }
-            is SettingsRuntimeEffect.UpdateLanguage -> {
-                updateLanguageAction.update(effect.languageMode)
                 true
             }
             is SettingsRuntimeEffect.ApplyPlaybackSpeed -> {
@@ -91,10 +81,6 @@ internal class SettingsRuntimeApplier(
 
     fun applyThemeSurface() {
         apply(SettingsRuntimeEffect.ApplyThemeSurface)
-    }
-
-    fun updateLanguage(languageMode: String) {
-        apply(SettingsRuntimeEffect.UpdateLanguage(languageMode))
     }
 
     fun applyPlaybackSpeed(speed: Float) {

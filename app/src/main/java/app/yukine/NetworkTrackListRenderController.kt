@@ -7,10 +7,6 @@ import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListLabels
 import java.util.ArrayList
 
-internal fun interface NetworkPageAction {
-    fun run(page: String)
-}
-
 internal data class NetworkTrackListRequest(
     val title: String,
     val tracks: List<Track>,

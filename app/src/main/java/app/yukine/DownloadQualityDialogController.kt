@@ -4,19 +4,15 @@ import android.content.Context
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.ui.EchoDialog
 
-internal fun interface DownloadQualitySelectedCallback {
-    fun onQualitySelected(quality: StreamingAudioQuality)
-}
-
 internal interface DownloadQualityChooser {
-    fun choose(title: String, onQualitySelected: DownloadQualitySelectedCallback)
+    fun choose(title: String, onQualitySelected: (StreamingAudioQuality) -> Unit)
 }
 
 internal class DownloadQualityDialogController(
     private val context: Context,
     private val languageModeProvider: () -> String
 ) : DownloadQualityChooser {
-    override fun choose(title: String, onQualitySelected: DownloadQualitySelectedCallback) {
+    override fun choose(title: String, onQualitySelected: (StreamingAudioQuality) -> Unit) {
         val languageMode = languageModeProvider()
         val qualities = arrayOf(
             StreamingAudioQuality.STANDARD,
@@ -30,7 +26,7 @@ internal class DownloadQualityDialogController(
         EchoDialog.builder(context)
             .setTitle(title)
             .setMessage(StreamingQualityPlatformMapping.downloadDialogMessage(languageMode))
-            .setItems(labels) { _, which -> onQualitySelected.onQualitySelected(qualities[which]) }
+            .setItems(labels) { _, which -> onQualitySelected(qualities[which]) }
             .setNegativeButton("取消", null)
             .show()
     }

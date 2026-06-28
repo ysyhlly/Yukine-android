@@ -22,7 +22,7 @@ import org.junit.Rule
 import org.junit.Test
 import kotlinx.coroutines.test.runTest
 
-class StreamingSearchActionHandlerBindingsTest {
+class DefaultStreamingSearchActionHandlerTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
@@ -30,9 +30,9 @@ class StreamingSearchActionHandlerBindingsTest {
     fun delegatesProviderSelectionIntoViewModelState() {
         val streamingViewModel = StreamingViewModel()
         val gateway = FakeGateway()
-        val bindings = StreamingSearchActionHandlerBindings(streamingViewModel, gateway)
+        val handler = DefaultStreamingSearchActionHandler(streamingViewModel, gateway)
 
-        bindings.selectProvider(StreamingProviderName.NETEASE)
+        handler.selectProvider(StreamingProviderName.NETEASE)
 
         assertEquals(StreamingProviderName.NETEASE, streamingViewModel.streaming.value.selectedProvider)
     }
@@ -40,7 +40,7 @@ class StreamingSearchActionHandlerBindingsTest {
     @Test
     fun searchWithoutSearchableProviderReportsNoSearchableSource() {
         val streamingViewModel = StreamingViewModel()
-        val bindings = StreamingSearchActionHandlerBindings(streamingViewModel, FakeGateway())
+        val handler = DefaultStreamingSearchActionHandler(streamingViewModel, FakeGateway())
         streamingViewModel.updateStreamingProviders(
             providers = listOf(
                 StreamingProviderDescriptor(
@@ -55,7 +55,7 @@ class StreamingSearchActionHandlerBindingsTest {
             )
         )
 
-        bindings.search("echo")
+        handler.search("echo")
         assertTrue(streamingViewModel.streaming.value.errorMessage?.contains("可搜索") == true)
     }
 
@@ -65,12 +65,12 @@ class StreamingSearchActionHandlerBindingsTest {
         val qq = FakeProvider(StreamingProviderName.QQ_MUSIC, searchTrackId = "qq-song")
         val streamingViewModel = StreamingViewModel()
         streamingViewModel.bindStreamingRepository(repository(netease, qq))
-        val bindings = StreamingSearchActionHandlerBindings(streamingViewModel, FakeGateway())
+        val handler = DefaultStreamingSearchActionHandler(streamingViewModel, FakeGateway())
         streamingViewModel.updateStreamingProviders(
             providers = listOf(netease.descriptor, qq.descriptor)
         )
 
-        bindings.search("echo")
+        handler.search("echo")
         waitUntil { streamingViewModel.streaming.value.searchResult?.tracks?.size == 2 }
 
         assertEquals(listOf("echo"), netease.searchRequests.map { it.query })
@@ -86,7 +86,7 @@ class StreamingSearchActionHandlerBindingsTest {
     @Test
     fun loginUnsupportedAuthUsesStreamingViewModelState() {
         val streamingViewModel = StreamingViewModel()
-        val bindings = StreamingSearchActionHandlerBindings(streamingViewModel, FakeGateway())
+        val handler = DefaultStreamingSearchActionHandler(streamingViewModel, FakeGateway())
         streamingViewModel.updateStreamingProviders(
             providers = listOf(
                 StreamingProviderDescriptor(
@@ -101,19 +101,19 @@ class StreamingSearchActionHandlerBindingsTest {
             )
         )
 
-        bindings.login(StreamingProviderName.NETEASE)
+        handler.login(StreamingProviderName.NETEASE)
         assertTrue(streamingViewModel.streaming.value.errorMessage?.contains("NetEase") == true)
     }
 
     @Test
     fun playResolvedTrackGoesDirectlyToActionGateway() {
         val gateway = FakeGateway()
-        val bindings = StreamingSearchActionHandlerBindings(
+        val handler = DefaultStreamingSearchActionHandler(
             StreamingViewModel(),
             gateway
         )
 
-        bindings.playResolvedTrack(Track(7L, "Song", "Artist", "Album", 1_000L, null, "file:7"))
+        handler.playResolvedTrack(Track(7L, "Song", "Artist", "Album", 1_000L, null, "file:7"))
 
         assertEquals(listOf(7L), gateway.playedTrackIds)
     }
@@ -121,7 +121,7 @@ class StreamingSearchActionHandlerBindingsTest {
     @Test
     fun playStreamingTrackUnsupportedProviderUsesStreamingViewModelState() {
         val streamingViewModel = StreamingViewModel()
-        val bindings = StreamingSearchActionHandlerBindings(streamingViewModel, FakeGateway())
+        val handler = DefaultStreamingSearchActionHandler(streamingViewModel, FakeGateway())
         streamingViewModel.updateStreamingProviders(
             providers = listOf(
                 StreamingProviderDescriptor(
@@ -136,7 +136,7 @@ class StreamingSearchActionHandlerBindingsTest {
             )
         )
 
-        bindings.playStreamingTrack(
+        handler.playStreamingTrack(
             app.yukine.streaming.StreamingTrack(
                 provider = StreamingProviderName.NETEASE,
                 providerTrackId = "song-1",
@@ -156,12 +156,12 @@ class StreamingSearchActionHandlerBindingsTest {
         val gateway = FakeGateway().apply {
             quality = StreamingAudioQuality.HIRES
         }
-        val bindings = StreamingSearchActionHandlerBindings(streamingViewModel, gateway)
+        val handler = DefaultStreamingSearchActionHandler(streamingViewModel, gateway)
         streamingViewModel.updateStreamingProviders(
             providers = listOf(newProvider.descriptor)
         )
 
-        bindings.playStreamingTrack(
+        handler.playStreamingTrack(
             app.yukine.streaming.StreamingTrack(
                 provider = StreamingProviderName.NETEASE,
                 providerTrackId = "song-1",
@@ -183,7 +183,7 @@ class StreamingSearchActionHandlerBindingsTest {
     fun openAuthLaunchGoesDirectlyToGatewayAndClearsPendingLaunch() {
         val streamingViewModel = StreamingViewModel()
         val gateway = FakeGateway(openAuthResult = true)
-        val bindings = StreamingSearchActionHandlerBindings(
+        val handler = DefaultStreamingSearchActionHandler(
             streamingViewModel,
             gateway
         )
@@ -193,7 +193,7 @@ class StreamingSearchActionHandlerBindingsTest {
             "https://login"
         )
 
-        bindings.openAuthLaunch()
+        handler.openAuthLaunch()
 
         assertEquals(listOf("https://login"), gateway.launchedUrls)
         assertEquals(null, streamingViewModel.streaming.value.pendingAuthLaunch)

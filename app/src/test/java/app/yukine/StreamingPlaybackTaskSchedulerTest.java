@@ -1,35 +1,36 @@
 package app.yukine;
 
-import static org.junit.Assert.assertEquals;
-
+import org.junit.Assert;
 import org.junit.Test;
 
 public class StreamingPlaybackTaskSchedulerTest {
     @Test
-    public void currentPlaybackWorkDoesNotWaitForActiveNextTrackResolve() {
+    public void currentPlaybackTasksDoNotWaitForActiveNextTrackResolve() {
         StreamingPlaybackTaskScheduler scheduler = new StreamingPlaybackTaskScheduler();
         StringBuilder order = new StringBuilder();
-        final StreamingPlaybackTaskScheduler.Completion[] nextCompletion = new StreamingPlaybackTaskScheduler.Completion[1];
+        final Runnable[] nextCompletion = new Runnable[1];
 
-        scheduler.schedule(StreamingPlaybackTaskScheduler.Priority.NEXT_URL_RESOLVE, completion -> {
+        scheduler.scheduleNextUrlResolve(completion -> {
             order.append("next-start,");
             nextCompletion[0] = completion;
         });
-        scheduler.schedule(StreamingPlaybackTaskScheduler.Priority.NEXT_URL_RESOLVE, completion -> {
+        scheduler.scheduleNextUrlResolve(completion -> {
             order.append("next-queued,");
-            completion.complete();
+            completion.run();
         });
-        scheduler.schedule(StreamingPlaybackTaskScheduler.Priority.CURRENT_URL_RESOLVE, completion -> {
+        scheduler.scheduleCurrentUrlResolve(completion -> {
             order.append("current,");
-            completion.complete();
+            completion.run();
         });
-        scheduler.schedule(StreamingPlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY, completion -> {
+        scheduler.scheduleCurrentPlaybackRecovery(completion -> {
             order.append("recovery,");
-            completion.complete();
+            completion.run();
         });
 
-        nextCompletion[0].complete();
+        if (nextCompletion[0] != null) {
+            nextCompletion[0].run();
+        }
 
-        assertEquals("next-start,current,recovery,next-queued,", order.toString());
+        Assert.assertEquals("next-start,current,recovery,next-queued,", order.toString());
     }
 }

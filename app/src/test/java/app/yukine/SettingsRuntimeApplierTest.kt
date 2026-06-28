@@ -61,14 +61,12 @@ class SettingsRuntimeApplierTest {
         }
         val applier = SettingsRuntimeApplier(
             applyThemeSurfaceAction = SettingsThemeSurfaceApplier { calls += "theme" },
-            updateLanguageAction = SettingsRuntimeLanguageUpdater { language -> calls += "language:$language" },
             playbackServiceControlsProvider = SettingsPlaybackServiceControlsProvider { playbackControls },
             lyricsControlsProvider = SettingsLyricsControlsProvider { lyricsControls },
             floatingLyricsControlsProvider = SettingsFloatingLyricsControlsProvider { floatingControls }
         )
 
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyThemeSurface))
-        assertTrue(applier.apply(SettingsRuntimeEffect.UpdateLanguage(AppLanguage.MODE_ENGLISH)))
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyPlaybackSpeed(1.25f)))
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyAppVolume(0.75f)))
         assertTrue(applier.apply(SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(true)))
@@ -86,7 +84,6 @@ class SettingsRuntimeApplierTest {
         assertEquals(
             listOf(
                 "theme",
-                "language:en",
                 "speed:1.25",
                 "volume:0.75",
                 "concurrent:true",

@@ -3,6 +3,7 @@ package app.yukine;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -12,20 +13,36 @@ import static org.junit.Assert.assertTrue;
 
 public final class MainActivityArchitectureContractTest {
     @Test
+    public void playbackServiceDoesNotDependOnMainActivityClass() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+
+        assertFalse(service.contains("import app.yukine.MainActivity"));
+        assertFalse(service.contains("MainActivity.class"));
+        assertTrue(service.contains("getPackageManager().getLaunchIntentForPackage(getPackageName())"));
+        assertTrue(service.contains("intent = new Intent(Intent.ACTION_MAIN)"));
+    }
+
+    @Test
+    public void rootPackageHasNoMigrationBindingsFiles() throws Exception {
+        assertEquals(0, countFiles("app/src/main/java/app/yukine", "*Bindings*"));
+        assertEquals(0, countFiles("app/src/test/java/app/yukine", "*Bindings*"));
+    }
+
+    @Test
     public void mainActivityDoesNotDirectlyOwnStreamingRepositoryProvider() throws Exception {
         String mainActivity = read("app/src/main/java/app/yukine/MainActivity.java");
-        String gatewayEvents = read("app/src/main/java/app/yukine/StreamingGatewayEventController.kt");
 
         assertFalse(mainActivity.contains("StreamingRepositoryProvider"));
         assertFalse(mainActivity.contains("streamingRepositoryProvider"));
         assertFalse(mainActivity.contains(".setStreamingRepository("));
         assertFalse(mainActivity.contains("viewModel.configureStreamingRepository()"));
-        assertFalse(mainActivity.contains("viewModel.refreshStreamingProviders()"));
-        assertTrue(mainActivity.contains("streamingGatewayController.configureRepository()"));
-        assertTrue(mainActivity.contains("streamingGatewayEventController.refreshStreamingProviders()"));
-        assertTrue(gatewayEvents.contains("streamingViewModel.configureStreamingRepository()"));
-        assertTrue(gatewayEvents.contains("streamingViewModel.refreshStreamingProviders()"));
-        assertFalse(gatewayEvents.contains("MainActivityViewModel"));
+        assertTrue(mainActivity.contains("streamingViewModel.configureStreamingRepository()"));
+        assertTrue(mainActivity.contains("streamingViewModel.refreshStreamingProviders()"));
+        assertFalse(mainActivity.contains("streamingGatewayController.configureRepository()"));
+        assertFalse(exists("app/src/main/java/app/yukine/StreamingGatewayController.kt"));
+        assertFalse(exists("app/src/test/java/app/yukine/StreamingGatewayControllerTest.kt"));
+        assertFalse(mainActivity.contains("StreamingGatewayController streamingGatewayController"));
+        assertFalse(mainActivity.contains("new StreamingGatewayController("));
     }
 
     @Test
@@ -49,7 +66,6 @@ public final class MainActivityArchitectureContractTest {
     public void mainActivityDelegatesNetworkOperationsThroughRequestController() throws Exception {
         String mainActivity = read("app/src/main/java/app/yukine/MainActivity.java");
         String requestController = read("app/src/main/java/app/yukine/NetworkRequestController.kt");
-        String dialogEventController = read("app/src/main/java/app/yukine/NetworkDialogEventController.kt");
         String actionsViewModel = read("app/src/main/java/app/yukine/NetworkActionsViewModel.kt");
         String operationSink = read("app/src/main/java/app/yukine/NetworkOperationSink.kt");
         String webDavUseCases = read("app/src/main/java/app/yukine/WebDavSourceUseCases.kt");
@@ -61,30 +77,29 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(exists("app/src/main/java/app/yukine/NetworkRequestBindings.java"));
         assertFalse(exists("app/src/main/java/app/yukine/NetworkActionsResultBindings.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/NetworkActionsResultBindings.java"));
+        assertFalse(exists("app/src/main/java/app/yukine/NetworkDialogEventController.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/NetworkDialogEventController.java"));
         assertFalse(exists("app/src/main/java/app/yukine/NetworkActionsController.java"));
         assertFalse(exists("app/src/main/java/app/yukine/NetworkActionsController.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/NetworkOperationSink.java"));
-        assertTrue(requestController.contains("internal class NetworkRequestController"));
+        assertTrue(requestController.contains("internal class NetworkRequestController("));
+        assertTrue(requestController.contains(": NetworkDialogController.Listener"));
         assertTrue(requestController.contains("private val operations: NetworkOperationSink"));
         assertTrue(requestController.contains("interface Labels"));
         assertTrue(requestController.contains("interface Listener"));
+        assertTrue(requestController.contains("override fun addStream(title: String, url: String)"));
+        assertTrue(requestController.contains("override fun importM3u(url: String)"));
+        assertTrue(requestController.contains("override fun updateStream(track: Track, title: String, url: String)"));
         assertTrue(requestController.contains("listener.setStatus(labels.text(\"adding.stream\"))"));
         assertTrue(requestController.contains("operations.syncAllWebDavSources(sourceIds)"));
-        assertTrue(dialogEventController.contains("internal class NetworkDialogEventController"));
-        assertTrue(dialogEventController.contains(": NetworkDialogController.Listener"));
-        assertTrue(dialogEventController.contains("private val requestController: NetworkRequestController"));
-        assertTrue(dialogEventController.contains("requestController.addStreamUrl(title, url)"));
-        assertTrue(dialogEventController.contains("requestController.importM3uPlaylist(url)"));
-        assertTrue(dialogEventController.contains("requestController.updateStreamUrl(track, title, url)"));
-        assertTrue(dialogEventController.contains("requestController.saveWebDavSource(sourceId, name, baseUrl, username, password, rootPath)"));
-        assertTrue(mainActivity.contains("new NetworkDialogEventController(networkRequestController)"));
+        assertTrue(mainActivity.contains("new NetworkDialogController(this, dialogLanguageProvider, networkRequestController)"));
         assertTrue(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), key)"));
         assertTrue(mainActivity.contains("status -> statusMessageController.setStatus(status)"));
         assertFalse(mainActivity.contains("new NetworkRequestController.Labels()"));
         assertFalse(mainActivity.contains("new NetworkRequestController.Listener()"));
         assertFalse(mainActivity.contains("new NetworkRequestLabels("));
         assertFalse(mainActivity.contains("new NetworkRequestStatusListener("));
+        assertFalse(mainActivity.contains("new NetworkDialogEventController("));
         assertFalse(mainActivity.contains("new NetworkDialogController.Listener()"));
         assertFalse(mainActivity.contains("private void addStreamUrl("));
         assertFalse(mainActivity.contains("private void updateStreamUrl("));
@@ -108,6 +123,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("networkActionsViewModel.bindUseCases("));
         assertTrue(mainActivity.contains("networkActionsViewModel.bindListener("));
         assertTrue(mainActivity.contains("new NetworkActionsViewModel.Listener()"));
+        assertTrue(mainActivity.contains("nowPlayingViewModel.replaceQueuedTrack(oldTrackId, updated);"));
+        assertTrue(mainActivity.contains("nowPlayingViewModel.retainTracks(cached);"));
+        assertFalse(mainActivity.contains("private void syncUpdatedStreamQueue("));
+        assertFalse(mainActivity.contains("private void retainPlaybackTracks("));
         assertTrue(mainActivity.contains("replaceLibrary(cached, favorites, status);"));
         assertTrue(mainActivity.contains("navigateToNetworkTabPage(MainRoutes.NETWORK_STREAM_LIST);"));
         assertTrue(mainActivity.contains("loadCollections();"));
@@ -191,10 +210,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("private OnboardingController onboardingController"));
         assertTrue(mainActivity.contains("private boolean showOnboarding()"));
         assertTrue(mainActivity.contains("onboardingController.initialize(repository == null || !repository.loadOnboardingCompleted())"));
-        assertTrue(mainActivity.contains("private void finishOnboarding()"));
-        assertTrue(mainActivity.contains("private void openStreamingFromOnboarding()"));
-        assertTrue(mainActivity.contains("private void scanLibraryFromOnboarding()"));
-        assertTrue(mainActivity.contains("private void importPlaylistFromOnboarding()"));
+        assertTrue(mainActivity.contains("onboardingController.scanLibraryFromOnboarding();"));
+        assertTrue(mainActivity.contains("onboardingController.importPlaylistFromOnboarding();"));
+        assertTrue(mainActivity.contains("onboardingController.openStreamingFromOnboarding();"));
+        assertTrue(mainActivity.contains("onboardingController.finishOnboarding();"));
+        assertFalse(mainActivity.contains("private void finishOnboarding()"));
+        assertFalse(mainActivity.contains("private void openStreamingFromOnboarding()"));
+        assertFalse(mainActivity.contains("private void scanLibraryFromOnboarding()"));
+        assertFalse(mainActivity.contains("private void importPlaylistFromOnboarding()"));
         assertFalse(mainActivity.contains("private void completeOnboarding(Runnable afterComplete)"));
         assertFalse(mainActivity.contains("private boolean canFinishOnboarding()"));
         assertFalse(mainActivity.contains("private String onboardingMissingSetupMessage()"));
@@ -204,23 +227,25 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("private void syncLibraryViewModelState()"));
         assertTrue(mainActivity.contains("statusMessageController.setStatus(status)"));
         assertTrue(mainActivity.contains("statusMessageController.showFeedback("));
-        assertTrue(mainActivity.contains("message -> statusMessageController.showFeedback(message)"));
+        assertTrue(mainActivity.contains("statusMessageController.showFeedback(message);"));
         assertFalse(mainActivity.contains("private void addStateContent("));
         assertFalse(mainActivity.contains("this::addStateContent"));
         assertFalse(mainActivity.contains("addStateContent("));
         assertTrue(statusController.contains("StatusMessageViewModel viewModel"));
-        assertTrue(statusController.contains("viewModel.applyStatus(status, languageModeProvider.languageMode())"));
+        assertTrue(statusController.contains("viewModel.applyStatus(status, languageModeProvider.get())"));
         assertTrue(statusController.contains("void showFeedback(String message)"));
         assertTrue(statusController.contains("if (message == null || message.trim().isEmpty())"));
         assertTrue(statusController.contains("MessageTextResolver textResolver"));
         assertTrue(statusController.contains("void setStatusKey(String key)"));
         assertTrue(statusController.contains("setStatus(textResolver.text(key))"));
-        assertTrue(statusContracts.contains("internal fun interface StatusLanguageModeProvider"));
+        assertFalse(statusContracts.contains("internal fun interface StatusLanguageModeProvider"));
         assertTrue(statusContracts.contains("internal fun interface RawStatusUpdater"));
         assertFalse(statusController.contains("interface Host"));
         assertFalse(statusController.contains("StatusMessageController.Host"));
         assertTrue(messageTextResolver.contains("internal class MessageTextResolver("));
-        assertTrue(messageTextResolver.contains("AppLanguage.text(languageModeProvider.languageMode(), cleanKey)"));
+        assertFalse(messageTextResolver.contains("internal fun interface MessageLanguageModeProvider"));
+        assertTrue(messageTextResolver.contains("private val languageModeProvider: Supplier<String>"));
+        assertTrue(messageTextResolver.contains("AppLanguage.text(languageModeProvider.get(), cleanKey)"));
         assertFalse(mainActivity.contains("new StatusMessageController.Host()"));
         assertFalse(mainActivity.contains("new StatusMessageHostBindings("));
         assertFalse(mainActivity.contains("localizeStatus("));
@@ -298,21 +323,24 @@ public final class MainActivityArchitectureContractTest {
         String shellController = read("app/src/main/java/app/yukine/MainUiShellController.java");
         String nowBarStateFactory = read("app/src/main/java/app/yukine/NowBarStateFactory.kt");
         String nowPlayingStateFactory = read("app/src/main/java/app/yukine/NowPlayingStateFactory.kt");
-        String nowPlayingRenderController = read("app/src/main/java/app/yukine/NowPlayingRenderController.kt");
         String nowPlayingScreen = read("app/src/main/java/app/yukine/ui/NowPlayingScreen.kt");
         String echoNowBar = read("app/src/main/java/app/yukine/navigation/EchoNowBar.kt");
         String nowPlayingViewModel = read("app/src/main/java/app/yukine/NowPlayingViewModel.kt");
         String nowPlayingPlaybackGatewayAdapter = read("app/src/main/java/app/yukine/NowPlayingPlaybackGatewayAdapter.kt");
-        String nowPlayingEffectController = read("app/src/main/java/app/yukine/NowPlayingEffectController.kt");
         String trackShareLauncher = read("app/src/main/java/app/yukine/TrackShareLauncher.kt");
         String nowPlayingStateController = read("app/src/main/java/app/yukine/NowPlayingStateController.kt");
         String lyricsViewModel = read("app/src/main/java/app/yukine/LyricsViewModel.kt");
         String queueRenderController = read("app/src/main/java/app/yukine/QueueRenderController.kt");
         String queueActionContracts = read("app/src/main/java/app/yukine/QueueActionContracts.kt");
         String playbackActionController = read("app/src/main/java/app/yukine/PlaybackActionController.kt");
-        String playbackController = read("app/src/main/java/app/yukine/PlaybackController.kt");
         String playbackStartController = read("app/src/main/java/app/yukine/PlaybackStartController.kt");
-        String recommendationActionController = read("app/src/main/java/app/yukine/RecommendationActionController.kt");
+        assertFalse(exists("app/src/main/java/app/yukine/PlaybackController.kt"));
+        assertFalse(exists("app/src/main/java/app/yukine/playback/PlaybackController.kt"));
+        assertFalse(exists("app/src/main/java/app/yukine/playback/PlaybackServiceController.kt"));
+        assertFalse(exists("app/src/test/java/app/yukine/PlaybackControllerTest.kt"));
+        assertFalse(exists("app/src/test/java/app/yukine/playback/FakePlaybackController.kt"));
+        assertFalse(exists("app/src/test/java/app/yukine/playback/FakePlaybackControllerTest.kt"));
+        String recommendationActionContracts = read("app/src/main/java/app/yukine/RecommendationAction.kt");
         String streamingRecommendationViewModel = read("app/src/main/java/app/yukine/StreamingRecommendationViewModel.kt");
         String streamingDailyRecommendationUseCase = read("app/src/main/java/app/yukine/StreamingDailyRecommendationUseCase.kt");
         String heartbeatRecommendationController = read("app/src/main/java/app/yukine/HeartbeatRecommendationController.kt");
@@ -356,9 +384,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(exists("app/src/main/java/app/yukine/NowPlayingGatewayBindings.java"));
         assertFalse(exists("app/src/main/java/app/yukine/NowPlayingPlaybackGatewayAdapter.java"));
         assertTrue(queueActionContracts.contains("internal fun interface QueuePlaybackActionResultApplier"));
-        assertTrue(queueActionContracts.contains("internal fun interface QueuePlaybackServiceAvailability"));
-        assertTrue(queueActionContracts.contains("internal fun interface QueueStatusProvider"));
-        assertTrue(queueActionContracts.contains("internal fun interface QueueStatusSink"));
+        assertFalse(queueActionContracts.contains("QueuePlaybackServiceAvailability"));
+        assertFalse(queueActionContracts.contains("QueueStatusProvider"));
+        assertFalse(queueActionContracts.contains("QueueStatusSink"));
+        assertFalse(queueActionContracts.contains("QueueNoArgAction"));
         assertTrue(playbackServiceConnectionController.contains("internal class PlaybackServiceConnectionController"));
         assertTrue(playbackServiceConnectionController.contains("private val playbackStateListener: PlaybackStateListener"));
         assertTrue(playbackServiceConnectionController.contains("object : ServiceConnection"));
@@ -432,6 +461,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(nowPlayingViewModel.contains("data class PlaybackActionResultUi"));
         assertTrue(nowPlayingViewModel.contains("interface NowPlayingPlaybackGateway"));
         assertTrue(nowPlayingViewModel.contains("class NowPlayingViewModel : ViewModel()"));
+        assertFalse(nowPlayingViewModel.contains("NowPlayingEventHandler"));
         assertTrue(nowPlayingViewModel.contains("fun bindPlaybackGateway(nextGateway: NowPlayingPlaybackGateway?)"));
         assertTrue(nowPlayingViewModel.contains("fun onEvent(event: NowPlayingEvent)"));
         assertTrue(nowPlayingViewModel.contains("fun playTrackList(tracks: List<Track>?, index: Int): PlaybackActionResultUi"));
@@ -449,36 +479,41 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(shellController.contains("listener.onNowPlayingEvent(event);"));
         assertFalse(shellController.contains("void onAddCurrentToPlaylist();"));
         assertFalse(shellController.contains("listener.onAddCurrentToPlaylist();"));
+        assertFalse(exists("app/src/main/java/app/yukine/NowPlayingEffectController.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/NowPlayingEffectController.java"));
+        assertFalse(exists("app/src/test/java/app/yukine/NowPlayingEffectControllerTest.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/NowPlayingEffectBindings.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/NowPlayingEffectBindings.java"));
-        assertTrue(nowPlayingEffectController.contains("internal class NowPlayingEffectController("));
-        assertTrue(nowPlayingEffectController.contains("fun handle(effects: List<NowPlayingEffect>?)"));
-        assertTrue(nowPlayingEffectController.contains("NowPlayingEffect.OpenQueue -> listener.openQueue()"));
-        assertTrue(nowPlayingEffectController.contains("is NowPlayingEffect.OpenAddToPlaylist -> listener.openAddToPlaylist(effect)"));
-        assertTrue(nowPlayingEffectController.contains("is NowPlayingEffect.ShowMessage -> listener.showMessage(effect.message)"));
-        assertTrue(mainActivity.contains("new NowPlayingEffectController(new NowPlayingEffectController.Listener()"));
-        assertTrue(mainActivity.contains("public void openQueue()"));
-        assertTrue(mainActivity.contains("public void openAddToPlaylist(NowPlayingEffect.OpenAddToPlaylist effect)"));
-        assertTrue(mainActivity.contains("public void showMessage(String message)"));
+        assertFalse(mainActivity.contains("NowPlayingEffectController nowPlayingEffectController"));
+        assertFalse(mainActivity.contains("new NowPlayingEffectController("));
+        assertFalse(mainActivity.contains("nowPlayingEffectController.handle("));
+        assertTrue(mainActivity.contains("List<NowPlayingEffect> effects = nowPlayingViewModel.drainEffects();"));
+        assertTrue(mainActivity.contains("effect == NowPlayingEffect.OpenQueue.INSTANCE"));
+        assertTrue(mainActivity.contains("playlistDialogController.showAddToPlaylist(openAddToPlaylist.getTrack())"));
+        assertTrue(mainActivity.contains("statusMessageController.setStatus(showMessage.getMessage())"));
         assertFalse(mainActivity.contains("new NowPlayingEffectBindings("));
         assertFalse(exists("app/src/main/java/app/yukine/TrackShareLauncher.java"));
         assertTrue(trackShareLauncher.contains("internal class TrackShareLauncher"));
         assertTrue(trackShareLauncher.contains("internal class TrackShareManagerOperations("));
+        assertFalse(trackShareLauncher.contains("internal fun interface TrackShareLanguageProvider"));
+        assertFalse(trackShareLauncher.contains("internal fun interface TrackShareStyleProvider"));
+        assertTrue(trackShareLauncher.contains("private val languageProvider: () -> String"));
+        assertTrue(trackShareLauncher.contains("private val shareStyleProvider: () -> String"));
         assertTrue(trackShareLauncher.contains("fun share(track: Track?)"));
+        assertTrue(trackShareLauncher.contains("AppLanguage.text(languageProvider(), \"no.track.selected\")"));
+        assertTrue(trackShareLauncher.contains("TrackShareStyle.normalize(shareStyleProvider())"));
         assertTrue(trackShareLauncher.contains("nativeMusicShareManager?.share(activity, track, payload) == true"));
         assertTrue(trackShareLauncher.contains("activityStarter.startActivity(Intent.createChooser(send, \"分享到\"))"));
         assertTrue(trackShareLauncher.contains("Log.w(TAG, \"Unable to share track\", error)"));
         assertTrue(mainActivity.contains("private TrackShareLauncher trackShareLauncher;"));
         assertTrue(mainActivity.contains("new TrackShareLauncher("));
         assertTrue(mainActivity.contains("new TrackShareManagerOperations(trackShareManager, nativeMusicShareManager)"));
-        assertTrue(mainActivity.contains("public void shareTrack(NowPlayingEffect.ShareTrack effect)"));
-        assertTrue(mainActivity.contains("trackShareLauncher.share(effect.getTrack())"));
+        assertTrue(mainActivity.contains("trackShareLauncher.share(shareTrack.getTrack())"));
         assertFalse(mainActivity.contains("private void shareTrack(final Track track)"));
         assertFalse(mainActivity.contains("Intent.createChooser(send,"));
         assertFalse(mainActivity.contains("Unable to share track"));
-        assertTrue(mainActivity.contains("new NowPlayingEffectController(new NowPlayingEffectController.Listener()"));
-        assertTrue(mainActivity.contains("nowPlayingEffectController.handle(nowPlayingViewModel.drainEffects())"));
+        assertTrue(mainActivity.contains("downloadRequestController.downloadTrack(downloadTrack.getTrack())"));
+        assertTrue(mainActivity.contains("switchNowPlayingSource(switchSource)"));
         assertFalse(exists("app/src/main/java/app/yukine/NowPlayingStateController.java"));
         assertFalse(exists("app/src/main/java/app/yukine/NowPlayingStateBindings.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/NowPlayingStateBindings.java"));
@@ -522,17 +557,17 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("public PlaybackStateSnapshot playbackSnapshot()"));
         assertTrue(mainActivity.contains("public List<Track> fallbackTracks()"));
         assertTrue(mainActivity.contains("public void applyPlaybackActionResult(PlaybackActionResultUi result)"));
-        assertTrue(mainActivity.contains("new PlaybackStartController(new PlaybackStartController.Listener()"));
+        assertTrue(mainActivity.contains("playbackStartController = new PlaybackStartController("));
         assertFalse(mainActivity.contains("new PlaybackStartBindings("));
-        assertTrue(mainActivity.contains("new PlaybackStartControllerAdapter("));
+        assertFalse(mainActivity.contains("new PlaybackStartControllerAdapter("));
         assertTrue(mainActivity.contains("streamingPlaybackController::resolveAndPlayStreamingTrack"));
         assertTrue(mainActivity.contains("nowPlayingViewModel::playTrackList"));
         assertTrue(mainActivity.contains("this::applyPlaybackActionResult"));
         assertFalse(mainActivity.contains("streamingViewModel::stopHeartbeatRecommendationMode"));
         assertTrue(mainActivity.contains("streamingRecommendationViewModel.stopHeartbeatRecommendationMode();"));
         assertFalse(mainActivity.contains("viewModel::stopHeartbeatRecommendationMode"));
-        assertTrue(mainActivity.contains("PlaybackController playbackStartPlaybackController = new PlaybackStartControllerAdapter("));
-        assertTrue(mainActivity.contains("return playbackStartPlaybackController;"));
+        assertFalse(mainActivity.contains("PlaybackController playbackStartPlaybackController"));
+        assertFalse(mainActivity.contains("return playbackStartPlaybackController;"));
         assertTrue(mainActivity.contains("private void playTrackListFromHost(List<Track> tracks, int index)"));
         assertTrue(mainActivity.contains("pendingPlaybackTracks = tracks == null ? Collections.emptyList() : new ArrayList<>(tracks);"));
         assertTrue(mainActivity.contains("playbackStartController.playTrackList(tracks, index)"));
@@ -552,25 +587,26 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackStartController.contains("listener.openQueue()"));
         assertTrue(playbackStartController.contains("fun playPendingTracksIfNeeded()"));
         assertTrue(playbackStartController.contains("listener.savePendingPlayback(tracks ?: emptyList(), index)"));
-        assertTrue(playbackStartController.contains("fun playbackController(): PlaybackController"));
-        assertTrue(playbackStartController.contains("listener.playbackController().playTrackList(tracks, index)"));
+        assertTrue(playbackStartController.contains("private val streamingTrackListResolver: StreamingTrackListResolver"));
+        assertTrue(playbackStartController.contains("private val playbackTrackListPlayer: PlaybackTrackListPlayer"));
+        assertTrue(playbackStartController.contains("private val playbackActionResultApplier: QueuePlaybackActionResultApplier"));
+        assertFalse(playbackStartController.contains("fun playbackController(): PlaybackController"));
+        assertFalse(playbackStartController.contains("playbackController.playTrackList(tracks, index)"));
+        assertTrue(playbackStartController.contains("streamingTrackListResolver.resolve(tracks, index)"));
+        assertTrue(playbackStartController.contains("val result = playbackTrackListPlayer.play(tracks, index)"));
+        assertTrue(playbackStartController.contains("playbackActionResultApplier.apply(result)"));
+        assertFalse(playbackStartController.contains("listener.playbackController().playTrackList(tracks, index)"));
         assertFalse(playbackStartController.contains("listener.resolveAndPlayStreamingTrack(tracks, index)"));
         assertFalse(playbackStartController.contains("listener.applyPlaybackActionResult(listener.playTrackList(tracks, index))"));
-        assertTrue(playbackController.contains("fun interface PlaybackController"));
-        assertTrue(playbackController.contains("fun playTrackList(tracks: List<Track>?, index: Int): PlaybackActionResultUi?"));
-        assertTrue(playbackController.contains("internal fun interface StreamingTrackListResolver"));
-        assertTrue(playbackController.contains("internal fun interface PlaybackTrackListPlayer"));
-        assertTrue(playbackController.contains("internal class PlaybackStartControllerAdapter("));
-        assertTrue(playbackController.contains("streamingTrackListResolver.resolve(tracks, index)"));
-        assertTrue(playbackController.contains("playbackActionResultApplier.apply(result)"));
         assertFalse(mainActivity.contains("PlaybackStartServiceStarter"));
         assertFalse(mainActivity.contains("PendingPlaybackSaver"));
         assertTrue(mainActivity.contains("private StreamingRecommendationViewModel streamingRecommendationViewModel;"));
-        assertTrue(mainActivity.contains("private RecommendationActionController recommendationActionController;"));
+        assertTrue(mainActivity.contains("private RecommendationActionCallbacks recommendationActionCallbacks;"));
         assertTrue(mainActivity.contains("streamingRecommendationViewModel = new ViewModelProvider(this).get(StreamingRecommendationViewModel.class);"));
         assertTrue(mainActivity.contains("streamingRecommendationViewModel.updateProviders(streamingViewModel.getState().getProviders())"));
-        assertTrue(mainActivity.contains("recommendationActionController = new RecommendationActionController("));
-        assertTrue(mainActivity.contains("streamingRecommendationViewModel,"));
+        assertFalse(mainActivity.contains("private RecommendationActionController recommendationActionController;"));
+        assertFalse(mainActivity.contains("recommendationActionController = new RecommendationActionController("));
+        assertTrue(mainActivity.contains("recommendationActionCallbacks = new RecommendationActionCallbacks() {"));
         assertTrue(mainActivity.contains("new RecommendationActionCallbacks() {"));
         assertTrue(mainActivity.contains("public void setStatus(String status)"));
         assertTrue(mainActivity.contains("public void playDailyRecommendation(StreamingRecommendationPresentation presentation)"));
@@ -578,35 +614,41 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("public void playHeartbeatRecommendation(StreamingRecommendationPresentation presentation)"));
         assertTrue(mainActivity.contains("public void logSeedMiss(HeartbeatRecommendationSeedRequest request)"));
         assertFalse(mainActivity.contains("action -> recommendationActionController.run(action)"));
+        assertTrue(mainActivity.contains("private void runRecommendationAction(RecommendationAction action)"));
+        assertTrue(mainActivity.contains("streamingRecommendationViewModel.onAction("));
         assertTrue(mainActivity.contains("new HomeDashboardRenderController(homeDashboardViewModel, new HomeDashboardRenderController.Listener()"));
         assertFalse(mainActivity.contains("private void playStreamingDailyRecommendations("));
         assertFalse(mainActivity.contains("private void playStreamingHeartbeatRecommendations("));
         assertFalse(mainActivity.contains("this::playStreamingDailyRecommendations"));
         assertFalse(mainActivity.contains("this::playStreamingHeartbeatRecommendations"));
-        assertTrue(recommendationActionController.contains("sealed interface RecommendationAction"));
-        assertTrue(recommendationActionController.contains("data class PlayDaily("));
-        assertTrue(recommendationActionController.contains("data class PlayHeartbeat("));
-        assertTrue(recommendationActionController.contains("internal class RecommendationActionController("));
-        assertTrue(recommendationActionController.contains("fun interface RecommendationActionHandler"));
-        assertTrue(recommendationActionController.contains("recommendationActionHandler.onAction(action, languageProvider.languageMode(), callbacks)"));
+        assertFalse(exists("app/src/main/java/app/yukine/RecommendationActionController.kt"));
+        assertTrue(recommendationActionContracts.contains("sealed interface RecommendationAction"));
+        assertTrue(recommendationActionContracts.contains("data class PlayDaily("));
+        assertTrue(recommendationActionContracts.contains("data class PlayHeartbeat("));
+        assertTrue(recommendationActionContracts.contains("interface RecommendationActionCallbacks"));
+        assertFalse(recommendationActionContracts.contains("RecommendationActionHandler"));
+        assertFalse(recommendationActionContracts.contains("internal class RecommendationActionController("));
+        assertFalse(recommendationActionContracts.contains("fun interface RecommendationActionRunner"));
+        assertFalse(recommendationActionContracts.contains("fun interface RecommendationLanguageProvider"));
+        assertFalse(recommendationActionContracts.contains("recommendationActionHandler.onAction(action, languageProvider.languageMode(), callbacks)"));
         assertFalse(exists("app/src/main/java/app/yukine/RecommendationActionBindings.kt"));
         assertFalse(exists("app/src/test/java/app/yukine/RecommendationActionControllerTest.kt"));
-        assertFalse(recommendationActionController.contains("dailyController()?.playStreamingDailyRecommendations(action.provider)"));
-        assertFalse(recommendationActionController.contains("heartbeatController()?.playStreamingHeartbeatRecommendations(action.provider)"));
+        assertFalse(recommendationActionContracts.contains("dailyController()?.playStreamingDailyRecommendations(action.provider)"));
+        assertFalse(recommendationActionContracts.contains("heartbeatController()?.playStreamingHeartbeatRecommendations(action.provider)"));
         assertFalse(mainActivity.contains("private DailyRecommendationController dailyRecommendationController;"));
         assertFalse(mainActivity.contains("new DailyRecommendationController(streamingRecommendationViewModel"));
         assertFalse(mainActivity.contains("dailyRecommendationController.playStreamingDailyRecommendations(provider)"));
-        assertTrue(streamingRecommendationViewModel.contains("internal interface DailyRecommendationPlayer"));
-        assertFalse(recommendationActionController.contains("internal fun interface DailyRecommendationTrackListPlayer"));
+        assertFalse(streamingRecommendationViewModel.contains("DailyRecommendationPlayer"));
+        assertFalse(recommendationActionContracts.contains("internal fun interface DailyRecommendationTrackListPlayer"));
         assertTrue(streamingRecommendationViewModel.contains("class StreamingRecommendationViewModel @Inject constructor("));
-        assertTrue(streamingRecommendationViewModel.contains(": ViewModel(), DailyRecommendationPlayer, HeartbeatRecommendationPlayer, RecommendationActionHandler"));
-        assertTrue(streamingRecommendationViewModel.contains("override fun onAction("));
+        assertTrue(streamingRecommendationViewModel.contains(": ViewModel(), HeartbeatRecommendationPlayer"));
+        assertTrue(streamingRecommendationViewModel.contains("fun onAction("));
         assertTrue(streamingRecommendationViewModel.contains("RecommendationAction.PlayDaily"));
         assertTrue(streamingRecommendationViewModel.contains("RecommendationAction.PlayHeartbeat"));
         assertTrue(streamingRecommendationViewModel.contains("private val dailyRecommendationUseCase = StreamingDailyRecommendationUseCase(streamingRepositorySource)"));
         assertTrue(streamingRecommendationViewModel.contains("private val heartbeatRecommendationUseCase = StreamingHeartbeatRecommendationUseCase()"));
         assertTrue(streamingRecommendationViewModel.contains("internal interface HeartbeatRecommendationPlayer"));
-        assertTrue(streamingRecommendationViewModel.contains("override fun playDailyRecommendations("));
+        assertTrue(streamingRecommendationViewModel.contains("fun playDailyRecommendations("));
         assertTrue(streamingRecommendationViewModel.contains("override fun prepareStreamingHeartbeatRecommendationRequest("));
         assertTrue(streamingRecommendationViewModel.contains("override fun fetchHeartbeatRecommendations("));
         assertTrue(streamingRecommendationViewModel.contains("override fun resolveHeartbeatRecommendationSeed("));
@@ -687,6 +729,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("private final class ActivityNowPlayingGateway implements NowPlayingGateway"));
         assertTrue(nowPlayingPlaybackGatewayAdapter.contains("internal class NowPlayingPlaybackGatewayAdapter("));
         assertTrue(nowPlayingPlaybackGatewayAdapter.contains(") : NowPlayingPlaybackGateway"));
+        assertFalse(nowPlayingPlaybackGatewayAdapter.contains("internal fun interface PlaybackServiceProvider"));
+        assertFalse(nowPlayingPlaybackGatewayAdapter.contains("internal fun interface PlaybackServiceStarter"));
+        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("private val serviceProvider: () -> EchoPlaybackService?"));
+        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("private val serviceStarter: (String?) -> Unit"));
+        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("private fun service(): EchoPlaybackService? = serviceProvider()"));
+        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("serviceStarter(action)"));
         assertTrue(nowPlayingPlaybackGatewayAdapter.contains("service()?.playQueue(ArrayList(tracks), index)"));
         assertTrue(mainActivity.contains("nowPlayingViewModel.bindPlaybackGateway(new NowPlayingPlaybackGatewayAdapter("));
         assertFalse(mainActivity.contains("nowPlayingViewModel.bindPlaybackGateway(new ActivityNowPlayingPlaybackGateway())"));
@@ -716,9 +764,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("private PlaybackActionsController playbackActionsController"));
         assertFalse(mainActivity.contains("playbackActionsController."));
         assertTrue(mainActivity.contains("private void handleNowPlayingEvent(NowPlayingEvent event)"));
-        assertFalse(mainActivity.contains("effect instanceof NowPlayingEffect.OpenQueue"));
-        assertFalse(mainActivity.contains("effect instanceof NowPlayingEffect.OpenAddToPlaylist"));
-        assertFalse(mainActivity.contains("effect instanceof NowPlayingEffect.ShowMessage"));
+        assertTrue(mainActivity.contains("effect == NowPlayingEffect.OpenQueue.INSTANCE"));
+        assertTrue(mainActivity.contains("effect instanceof NowPlayingEffect.OpenAddToPlaylist openAddToPlaylist"));
+        assertTrue(mainActivity.contains("effect instanceof NowPlayingEffect.ShowMessage showMessage"));
         assertFalse(mainActivity.contains("showAddToPlaylistDialog(((NowPlayingEffect.OpenAddToPlaylist) effect).getTrack());"));
         assertFalse(mainActivity.contains("private Track currentTrackForEffect("));
         assertFalse(exists("app/src/main/java/app/yukine/ui/NowPlayingOverlayController.kt"));
@@ -751,14 +799,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(nowPlayingStateFactory.contains("): NowPlayingUiState?"));
         assertTrue(nowPlayingStateFactory.contains("val track = playbackState.currentTrack ?: return null"));
         assertTrue(nowPlayingStateFactory.contains("LyricUiLine(line.text, index == activeIndex, line.timeMs)"));
+        assertFalse(exists("app/src/main/java/app/yukine/NowPlayingRenderController.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/NowPlayingRenderController.java"));
-        assertTrue(nowPlayingRenderController.contains("internal class NowPlayingRenderController"));
-        assertFalse(nowPlayingRenderController.contains("interface Listener"));
-        assertFalse(nowPlayingRenderController.contains("NowPlayingController"));
-        assertTrue(nowPlayingRenderController.contains("playbackStore: MainPlaybackStore,\n        lyricsState: LyricsState?,\n        languageMode: String = AppLanguage.MODE_ENGLISH")
-                || nowPlayingRenderController.contains("playbackStore: MainPlaybackStore,\r\n        lyricsState: LyricsState?,\r\n        languageMode: String = AppLanguage.MODE_ENGLISH"));
-        assertTrue(nowPlayingRenderController.contains("LyricsStatusText.status(languageMode, state.statusKind, state.loadedLineCount)"));
-        assertTrue(nowPlayingRenderController.contains("NowPlayingStateFactory.create("));
+        assertTrue(mainActivity.contains("private boolean updateNowPlayingContent()"));
+        assertTrue(mainActivity.contains("return playbackStore.snapshot().currentTrack != null;"));
+        assertFalse(mainActivity.contains("private void renderNowPlaying()"));
+        assertFalse(mainActivity.contains("NowPlayingRenderController"));
+        assertFalse(mainActivity.contains("nowPlayingRenderController"));
         assertFalse(exists("app/src/main/java/app/yukine/QueueRenderController.java"));
         assertFalse(exists("app/src/main/java/app/yukine/QueueRenderBindings.java"));
         assertFalse(exists("app/src/main/java/app/yukine/QueueRenderBindings.kt"));
@@ -766,7 +813,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueRenderController.contains("MainActivityViewModel"));
         assertTrue(queueRenderController.contains("interface Listener"));
         assertTrue(queueRenderController.contains("internal fun interface TrackListPlaybackAction"));
-        assertTrue(queueRenderController.contains("internal fun interface QueueTrackAction"));
+        assertFalse(queueRenderController.contains("internal fun interface QueueTrackAction"));
         assertTrue(queueRenderController.contains("fun render(queue: List<Track>?"));
         assertFalse(queueRenderController.contains("TrackRowStateFactory.queueRow("));
         assertFalse(queueRenderController.contains("listener.publishQueue(rows)"));
@@ -781,24 +828,21 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("queueActionController.confirmClearQueue();"));
         assertFalse(mainActivity.contains("publishQueueUiState"));
         assertFalse(queueRenderController.contains("QueueScreenFactory.create("));
-        String queueIntentController = read("app/src/main/java/app/yukine/QueueIntentController.kt");
         assertFalse(exists("app/src/main/java/app/yukine/QueueIntentController.java"));
+        assertFalse(exists("app/src/main/java/app/yukine/QueueIntentController.kt"));
+        assertFalse(exists("app/src/test/java/app/yukine/QueueIntentControllerTest.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/QueueIntentBindings.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/QueueIntentBindings.java"));
-        assertTrue(queueIntentController.contains("internal class QueueIntentController("));
-        assertTrue(queueIntentController.contains("interface Listener"));
-        assertTrue(queueIntentController.contains("fun handle(intent: QueueIntent)"));
-        assertTrue(queueIntentController.contains("is QueueIntent.PlayAt -> listener.playTrackList(intent.tracks, intent.index)"));
-        assertTrue(queueIntentController.contains("is QueueIntent.ToggleFavorite -> listener.toggleFavorite(intent.track)"));
-        assertTrue(queueIntentController.contains("QueueIntent.ClearQueue -> listener.confirmClearQueue()"));
-        assertTrue(mainActivity.contains("new QueueIntentController(new QueueIntentController.Listener()"));
-        assertTrue(mainActivity.contains("libraryViewModel.onEvent(new LibraryEvent.PlayTrackList(tracks, index))"));
-        assertTrue(mainActivity.contains("libraryViewModel.onEvent(new LibraryEvent.ToggleFavorite(track))"));
-        assertTrue(mainActivity.contains("queueViewModel.bindIntentListener(intent -> queueIntentController.handle(intent))"));
+        assertFalse(mainActivity.contains("private QueueIntentController queueIntentController;"));
+        assertFalse(mainActivity.contains("new QueueIntentController(new QueueIntentController.Listener()"));
+        assertFalse(mainActivity.contains("queueIntentController.handle(intent)"));
+        assertTrue(mainActivity.contains("queueViewModel.bindIntentListener(intent -> {"));
+        assertTrue(mainActivity.contains("intent instanceof QueueIntent.PlayAt playAt"));
+        assertTrue(mainActivity.contains("libraryViewModel.onEvent(new LibraryEvent.PlayTrackList(playAt.getTracks(), playAt.getIndex()))"));
+        assertTrue(mainActivity.contains("intent instanceof QueueIntent.ToggleFavorite toggleFavorite"));
+        assertTrue(mainActivity.contains("libraryViewModel.onEvent(new LibraryEvent.ToggleFavorite(toggleFavorite.getTrack()))"));
+        assertTrue(mainActivity.contains("intent instanceof QueueIntent.ClearQueue"));
         assertFalse(mainActivity.contains("private void handleQueueIntent("));
-        assertFalse(mainActivity.contains("QueueIntent.PlayAt"));
-        assertFalse(mainActivity.contains("QueueIntent.ToggleFavorite"));
-        assertFalse(mainActivity.contains("QueueIntent.ClearQueue"));
         String queueActionController = read("app/src/main/java/app/yukine/QueueActionController.kt");
         assertFalse(exists("app/src/main/java/app/yukine/QueueActionController.java"));
         assertFalse(exists("app/src/main/java/app/yukine/QueueActionBindings.kt"));
@@ -822,7 +866,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("queueActionController.removeQueueTrack(track)"));
         assertTrue(mainActivity.contains("queueActionController.confirmClearQueue()"));
         assertTrue(mainActivity.contains("queueActionController.clearQueue();"));
-        assertTrue(mainActivity.contains("queueActionController.moveQueueTrack(fromIndex, toIndex)"));
+        assertTrue(mainActivity.contains("queueActionController.moveQueueTrack(move.getFromIndex(), move.getToIndex())"));
+        assertFalse(mainActivity.contains("private void removeQueueTrack(Track track)"));
+        assertFalse(mainActivity.contains("private void moveQueueTrack(int fromIndex, int toIndex)"));
         assertFalse(mainActivity.contains("private void confirmClearQueue()"));
         assertFalse(mainActivity.contains("private void clearQueue()"));
         assertFalse(mainActivity.contains("applyPlaybackActionResult(nowPlayingViewModel.removeQueueTrack(track))"));
@@ -998,35 +1044,39 @@ public final class MainActivityArchitectureContractTest {
         String mainActivity = read("app/src/main/java/app/yukine/MainActivity.java");
         String requestController = read("app/src/main/java/app/yukine/DownloadRequestController.kt");
         String qualityDialogController = read("app/src/main/java/app/yukine/DownloadQualityDialogController.kt");
-        String directoryPickerController = read("app/src/main/java/app/yukine/DownloadDirectoryPickerController.kt");
         String downloadManager = read("app/src/main/java/app/yukine/TrackDownloadManager.kt");
         String downloadsViewModel = read("app/src/main/java/app/yukine/DownloadsViewModel.kt");
         String downloadsDestination = read("app/src/main/java/app/yukine/downloads/DownloadsDestination.kt");
+        String documentPickerController = read("app/src/main/java/app/yukine/DocumentPickerController.kt");
 
         assertTrue(requestController.contains("internal class DownloadRequestController("));
+        assertFalse(requestController.contains("internal fun interface DownloadManagerProvider"));
+        assertFalse(requestController.contains("internal fun interface DownloadStatusSink"));
+        assertTrue(requestController.contains("private val downloadManagerProvider: () -> TrackDownloadRequestQueue?"));
         assertTrue(requestController.contains("private val resolveStreamingPlaybackUseCase: StreamingPlaybackResolvePlanner"));
         assertTrue(requestController.contains("private val qualityChooser: DownloadQualityChooser"));
         assertTrue(requestController.contains("private val streamingResolver: StreamingDownloadResolver"));
+        assertTrue(requestController.contains("private val statusSink: (String) -> Unit"));
         assertTrue(requestController.contains("fun downloadTrack(track: Track?)"));
         assertTrue(requestController.contains("fun downloadTracks(tracks: List<Track>?)"));
         assertTrue(requestController.contains("fun downloadTrackWithQuality(track: Track, quality: StreamingAudioQuality, silent: Boolean)"));
         assertTrue(requestController.contains("resolveStreamingPlaybackUseCase.prepareDownload(track)"));
         assertTrue(requestController.contains("downloadManager.enqueue(track, quality)"));
         assertTrue(requestController.contains("downloadsViewModel.refresh(downloadManager)"));
+        assertTrue(requestController.contains("statusSink(\"未选择歌曲\")"));
         assertTrue(qualityDialogController.contains("internal class DownloadQualityDialogController("));
         assertTrue(qualityDialogController.contains(": DownloadQualityChooser"));
+        assertFalse(qualityDialogController.contains("DownloadQualitySelectedCallback"));
+        assertTrue(qualityDialogController.contains("onQualitySelected: (StreamingAudioQuality) -> Unit"));
         assertTrue(qualityDialogController.contains("StreamingQualityPlatformMapping.optionLabel"));
         assertTrue(qualityDialogController.contains("StreamingQualityPlatformMapping.downloadDialogMessage"));
-        assertTrue(directoryPickerController.contains("internal class DownloadDirectoryPickerController("));
-        assertTrue(directoryPickerController.contains("fun open()"));
-        assertTrue(directoryPickerController.contains("picker.openDownloadFolderPicker()"));
-        assertTrue(directoryPickerController.contains("feedbackSink.showFeedback("));
+        assertFalse(exists("app/src/main/java/app/yukine/DownloadDirectoryPickerController.kt"));
+        assertFalse(exists("app/src/test/java/app/yukine/DownloadDirectoryPickerControllerTest.kt"));
         assertTrue(mainActivity.contains("new DownloadRequestController("));
         assertFalse(mainActivity.contains("private void downloadTrack("));
         assertFalse(mainActivity.contains("private void chooseDirectory("));
-        assertTrue(mainActivity.contains("new DownloadDirectoryPickerController("));
-        assertTrue(directoryPickerController.contains("internal fun interface DownloadDirectoryPickerOpener"));
-        assertTrue(directoryPickerController.contains("internal fun interface DownloadDirectoryDocumentPickerProvider"));
+        assertFalse(mainActivity.contains("new DownloadDirectoryPickerController("));
+        assertTrue(documentPickerController.contains("fun openDownloadFolderPicker()"));
         assertTrue(downloadManager.contains("interface TrackDownloadRequestQueue : TrackDownloadDirectoryController"));
         assertTrue(downloadManager.contains(") : TrackDownloadRequestQueue"));
         assertTrue(downloadManager.contains("interface TrackDownloadDirectoryController : TrackDownloadController"));
@@ -1050,15 +1100,16 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(downloadsDestination.contains("directoryLabel = downloadManager?.downloadDirectoryLabel()"));
         assertTrue(mainActivity.contains("DownloadRequestController downloadRequestController"));
         assertTrue(mainActivity.contains("downloadRequestController = new DownloadRequestController("));
-        assertTrue(mainActivity.contains("DownloadDirectoryPickerController downloadDirectoryPickerController"));
-        assertTrue(mainActivity.contains("downloadDirectoryPickerController = new DownloadDirectoryPickerController("));
-        assertTrue(mainActivity.contains("() -> downloadDirectoryPickerController.open()"));
+        assertFalse(mainActivity.contains("DownloadDirectoryPickerController downloadDirectoryPickerController"));
+        assertFalse(mainActivity.contains("downloadDirectoryPickerController = new DownloadDirectoryPickerController("));
+        assertTrue(mainActivity.contains("documentPickerController.openDownloadFolderPicker();"));
+        assertTrue(mainActivity.contains("statusMessageController.showFeedback(\"目录选择暂不可用\");"));
         assertFalse(mainActivity.contains("navHostState.setOpenDownloadDirectoryPickerAction("));
         assertFalse(mainActivity.contains("private void openDownloadFolderPicker()"));
         assertTrue(mainActivity.contains("new DownloadQualityDialogController("));
         assertTrue(mainActivity.contains("downloadRequestController.downloadTracks(tracks);"));
-        assertTrue(mainActivity.contains("public void downloadTrack(NowPlayingEffect.DownloadTrack effect)"));
-        assertTrue(mainActivity.contains("downloadRequestController.downloadTrack(effect.getTrack())"));
+        assertTrue(mainActivity.contains("effect instanceof NowPlayingEffect.DownloadTrack downloadTrack"));
+        assertTrue(mainActivity.contains("downloadRequestController.downloadTrack(downloadTrack.getTrack())"));
         assertFalse(mainActivity.contains("private void downloadTrack(final Track track)"));
         assertFalse(mainActivity.contains("private void downloadTrackWithQuality"));
         assertFalse(mainActivity.contains("private void downloadTracks(final List<Track> tracks)"));
@@ -1232,6 +1283,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("homeDashboardViewModel.updateHomeDashboardActions(actions);"));
         assertTrue(mainActivity.contains("collectionsViewModel.updateActions(actions);"));
         assertTrue(mainActivity.contains("searchViewModel.updateActions(searchActions);"));
+        assertTrue(mainActivity.contains("streamingSearchActionHandler.loadNextPage();"));
+        assertFalse(mainActivity.contains("private void loadMoreUnifiedStreamingResults()"));
         assertFalse(mainActivity.contains("navTrackListActions = state.getActions();"));
         assertFalse(mainActivity.contains("navLibraryGroupModeActions = Collections.emptyList();"));
         assertFalse(mainActivity.contains("navHomeActions = actions,"));
@@ -1302,8 +1355,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("homeDashboardViewModel = new ViewModelProvider(this).get(HomeDashboardViewModel.class)"));
         assertTrue(mainActivity.contains("new HomeDashboardRenderController(homeDashboardViewModel, new HomeDashboardRenderController.Listener()"));
         assertTrue(mainActivity.contains("homeDashboardViewModel.updateHomeDashboardActions(actions);"));
-        assertTrue(mainActivity.contains("recommendationActionController.run(new RecommendationAction.PlayDaily(StreamingProviderName.NETEASE));"));
-        assertTrue(mainActivity.contains("recommendationActionController.run(new RecommendationAction.PlayHeartbeat(StreamingProviderName.NETEASE));"));
+        assertTrue(mainActivity.contains("runRecommendationAction(new RecommendationAction.PlayDaily(StreamingProviderName.NETEASE));"));
+        assertTrue(mainActivity.contains("runRecommendationAction(new RecommendationAction.PlayHeartbeat(StreamingProviderName.NETEASE));"));
         assertTrue(mainActivity.contains("playTrackListFromHost(Collections.singletonList(track), 0);"));
         assertTrue(mainActivity.contains("Collections.shuffle(shuffled);"));
         assertFalse(mainActivity.contains("navHostState.setHomeActions(actions);"));
@@ -1391,6 +1444,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(controller.contains("viewModel.updateCollections("));
         assertTrue(controller.contains("viewModel.updateScreen(state)"));
         assertTrue(controller.contains("viewModel.updateActions(actions)"));
+        assertFalse(controller.contains("CollectionsActionsSink"));
+        assertFalse(controller.contains("PlaylistIdAction"));
+        assertFalse(controller.contains("SelectedPlaylistExportOpener"));
+        assertFalse(controller.contains("SelectedPlaylistTrackMover"));
+        assertFalse(controller.contains("SelectedPlaylistTrackRemover"));
+        assertFalse(controller.contains("TrackListDownloadAction"));
         assertFalse(controller.contains("listener.publishCollectionsActions(actions)"));
         assertTrue(mainActivity.contains("new CollectionsRenderController(collectionsViewModel, new CollectionsRenderController.Listener()"));
         assertFalse(mainActivity.contains("new CollectionsRenderBindings("));
@@ -1398,8 +1457,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("playlistDialogController.showCreatePlaylist();"));
         assertTrue(mainActivity.contains("public void openPlaylistM3uFilePicker()"));
         assertTrue(mainActivity.contains("documentPickerController.openPlaylistM3uFilePicker();"));
-        assertTrue(mainActivity.contains("public void publishCollectionsActions(CollectionsActions actions)"));
-        assertTrue(mainActivity.contains("collectionsViewModel.updateActions(actions);"));
+        assertFalse(mainActivity.contains("public void publishCollectionsActions(CollectionsActions actions)"));
+        assertFalse(mainActivity.contains("collectionsViewModel.updateActions(actions);"));
         assertFalse(mainActivity.contains("private void selectPlaylistFromCollections(long playlistId)"));
         assertFalse(mainActivity.contains("private void openSelectedPlaylistExportDocument()"));
         assertFalse(controller.contains("CollectionsScreenFactory.create("));
@@ -1412,12 +1471,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(controller.contains("private fun buildSelectedPlaylistRows("));
         assertTrue(controller.contains("private fun recordDetails("));
         assertTrue(documentPickerController.contains("internal class DocumentPickerController"));
-        assertTrue(documentPickerController.contains(": DownloadDirectoryPickerOpener"));
+        assertFalse(documentPickerController.contains(": DownloadDirectoryPickerOpener"));
         assertTrue(documentPickerController.contains("interface Listener"));
         assertTrue(documentPickerController.contains("internal fun interface DocumentActivityResultLauncher"));
         assertTrue(documentPickerController.contains("fun openAudioFilePicker()"));
         assertTrue(documentPickerController.contains("fun openM3uFilePicker()"));
-        assertTrue(documentPickerController.contains("override fun openDownloadFolderPicker()"));
+        assertTrue(documentPickerController.contains("fun openDownloadFolderPicker()"));
         assertTrue(documentPickerController.contains("registerForActivityResult(ActivityResultContracts.StartActivityForResult())"));
         assertTrue(documentPickerController.contains("private fun handleResult(action: DocumentAction, result: ActivityResult)"));
         assertTrue(documentPickerController.contains("activityResultLauncher.launch(intent)"));
@@ -1470,9 +1529,14 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("private void deleteTracks("));
         assertFalse(mainActivity.contains("private void deleteRemoteSource("));
         assertTrue(playHistoryActionController.contains("internal class PlayHistoryActionController("));
+        assertFalse(playHistoryActionController.contains("internal fun interface PlayHistoryLanguageModeProvider"));
+        assertFalse(playHistoryActionController.contains("internal fun interface PlayHistoryStatusSink"));
+        assertTrue(playHistoryActionController.contains("private val languageModeProvider: () -> String"));
+        assertTrue(playHistoryActionController.contains("private val statusSink: (String) -> Unit"));
         assertTrue(playHistoryActionController.contains("fun clearPlayHistory()"));
         assertTrue(playHistoryActionController.contains("viewModel.clearPlayHistory"));
         assertTrue(playHistoryActionController.contains("libraryStateStore.clearPlayHistory()"));
+        assertTrue(playHistoryActionController.contains("statusSink(text(\"clearing.play.history\"))"));
         assertTrue(playHistoryActionController.contains("collectionsReloadAction.run()"));
         assertFalse(exists("app/src/main/java/app/yukine/CollectionsReloader.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/CollectionsReloader.java"));
@@ -1516,13 +1580,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("playlistDialogController = createPlaylistDialogController();"));
         assertTrue(mainActivity.contains("private PlaylistDialogController createPlaylistDialogController()"));
         assertTrue(mainActivity.contains("() -> libraryStore.playlists()"));
-        assertTrue(mainActivity.contains("private void addToDefaultPlaylist(Track track)"));
-        assertTrue(mainActivity.contains("private void createPlaylist(String name)"));
-        assertTrue(mainActivity.contains("private void renamePlaylist(long playlistId, String name)"));
-        assertTrue(mainActivity.contains("private void deletePlaylist(long playlistId, String name)"));
-        assertTrue(mainActivity.contains("private void removeSelectedPlaylistTrack(long playlistId, Track track)"));
-        assertTrue(mainActivity.contains("private void moveSelectedPlaylistTrack(long playlistId, Track track, int trackIndex, int direction)"));
-        assertTrue(mainActivity.contains("private void addTrackToPlaylist(long playlistId, long trackId)"));
+        assertFalse(mainActivity.contains("private void addToDefaultPlaylist(Track track)"));
+        assertFalse(mainActivity.contains("private void createPlaylist(String name)"));
+        assertFalse(mainActivity.contains("private void renamePlaylist(long playlistId, String name)"));
+        assertFalse(mainActivity.contains("private void deletePlaylist(long playlistId, String name)"));
+        assertFalse(mainActivity.contains("private void removeSelectedPlaylistTrack(long playlistId, Track track)"));
+        assertFalse(mainActivity.contains("private void moveSelectedPlaylistTrack(long playlistId, Track track, int trackIndex, int direction)"));
+        assertFalse(mainActivity.contains("private void addTrackToPlaylist(long playlistId, long trackId)"));
         assertTrue(mainActivity.contains("private void onDefaultPlaylistTrackAdded(long playlistId, boolean added)"));
         assertTrue(mainActivity.contains("private void onPlaylistCreated(long playlistId)"));
         assertTrue(mainActivity.contains("private void onPlaylistRenamed(long playlistId, boolean renamed)"));
@@ -1545,7 +1609,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("playlistActionResultController.moveSelectedPlaylistTrack(playlistId, track, trackIndex, direction);"));
         assertFalse(mainActivity.contains("playlistActionResultController.addTrackToPlaylist(playlistId, trackId);"));
         assertTrue(mainActivity.contains("playlistDialogController.confirmDeletePlaylist(playlist);"));
-        assertTrue(mainActivity.contains("playlistDialogController.showAddToPlaylist(effect.getTrack())"));
+        assertTrue(mainActivity.contains("playlistDialogController.showAddToPlaylist(openAddToPlaylist.getTrack())"));
         assertFalse(mainActivity.contains("private void showCreatePlaylistDialog()"));
         assertFalse(mainActivity.contains("private void showRenamePlaylistDialog(final Playlist playlist)"));
         assertFalse(mainActivity.contains("private void showAddToPlaylistDialog(final Track track)"));
@@ -1598,7 +1662,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(networkDestination.contains("StreamingSearchScreen("));
         assertFalse(networkDestination.contains("This network page is not available yet."));
         assertTrue(menuEvents.contains("internal class NetworkMenuEventController"));
-        assertTrue(menuEvents.contains("internal fun interface NetworkMenuContentSink"));
+        assertFalse(menuEvents.contains("NetworkMenuContentSink"));
+        assertTrue(menuEvents.contains("private val networkMenuViewModel: NetworkMenuViewModel"));
         assertTrue(menuEvents.contains(": NetworkMenuRenderController.Listener"));
         assertTrue(menuEvents.contains("fun interface StreamTracksProvider"));
         assertTrue(menuEvents.contains("fun interface StreamTrackCountProvider"));
@@ -1609,6 +1674,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(menuEvents.contains("deleteConfirmation.confirmDeleteAllStreams()"));
         assertTrue(menuEvents.contains("requests.syncAllWebDavSources(sourceIds)"));
         assertTrue(menuEvents.contains("documentPicker.openM3uFilePicker()"));
+        assertTrue(menuEvents.contains("networkMenuViewModel.updateMenu(title, metrics, actions)"));
         assertFalse(exists("app/src/main/java/app/yukine/NetworkMenuActionBindings.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/NetworkMenuActionBindings.java"));
         assertFalse(exists("app/src/main/java/app/yukine/NetworkLibrarySourceBindings.kt"));
@@ -1627,11 +1693,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("libraryStore::webDavTracks"));
         assertTrue(mainActivity.contains("libraryStore::remoteSources"));
         assertTrue(mainActivity.contains("(tracks, index) -> playTrackListFromHost(tracks, index)"));
-        assertTrue(mainActivity.contains("(title, metrics, actions) -> networkMenuViewModel.updateMenu(title, metrics, actions)"));
+        assertFalse(mainActivity.contains("(title, metrics, actions) -> networkMenuViewModel.updateMenu(title, metrics, actions)"));
         assertFalse(mainActivity.contains("new NetworkMenuPlayerBindings("));
         assertFalse(mainActivity.contains("new NetworkMenuEventController.Player()"));
         assertTrue(mainActivity.contains("new NetworkMenuRenderController(networkMenuEventController)"));
         assertFalse(mainActivity.contains("new NetworkMenuRenderController(this, new NetworkMenuRenderController.Listener()"));
+        assertFalse(mainActivity.contains("new NetworkMenuContentSink("));
         assertFalse(mainActivity.contains("new NetworkMenuEventController.ContentSink()"));
         assertFalse(mainActivity.contains("new NetworkMenuEventController.Dialogs()"));
         assertFalse(mainActivity.contains("new NetworkMenuEventController.Player()"));
@@ -1648,10 +1715,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(trackListRenderer.contains("MainRoutes.NETWORK_STREAMING"));
         assertTrue(trackListRenderer.contains("private fun trackListLabels("));
         assertTrue(trackListRenderer.contains("internal data class NetworkTrackListRequest("));
-        assertTrue(trackListRenderer.contains("internal fun interface NetworkPageAction"));
+        assertFalse(trackListRenderer.contains("NetworkPageAction"));
         assertTrue(mainActivity.contains("new NetworkTrackListRenderController(new NetworkTrackListRenderController.Listener()"));
         assertFalse(mainActivity.contains("new NetworkTrackListRenderBindings("));
-        assertTrue(mainActivity.contains("networkRequestController.syncRemoteSource(sourceId, remoteSourceName(sourceId));"));
+        assertTrue(mainActivity.contains("networkRequestController.syncRemoteSource(sourceId, libraryStore.remoteSourceName(sourceId));"));
+        assertFalse(mainActivity.contains("private String remoteSourceName(long sourceId)"));
+        assertTrue(mainActivity.contains("final NetworkSourcesEventController[] networkSourcesEventControllerRef = new NetworkSourcesEventController[1];"));
+        assertTrue(mainActivity.contains("networkSourcesEventControllerRef[0].playRemoteSourceTracks(source);"));
+        assertTrue(mainActivity.contains("networkSourcesEventControllerRef[0] = networkSourcesEventController;"));
+        assertFalse(mainActivity.contains("private ArrayList<Track> webDavTracksForSource(long sourceId)"));
+        assertFalse(mainActivity.contains("private void playRemoteSourceTracks(RemoteSource source)"));
         assertTrue(mainActivity.contains("private void renderNetworkTrackList(NetworkTrackListRequest request)"));
         assertTrue(mainActivity.contains("new NetworkTrackListRequest("));
         assertTrue(sourcesRenderer.contains("internal class NetworkSourcesRenderController"));
@@ -1725,7 +1798,7 @@ public final class MainActivityArchitectureContractTest {
     public void settingsContextProviderIsKotlinAndSettingsViewModelOwnsPageDispatch() throws Exception {
         String mainActivity = read("app/src/main/java/app/yukine/MainActivity.java");
         String contextProvider = read("app/src/main/java/app/yukine/SettingsContextProvider.kt");
-        String pageRenderer = read("app/src/main/java/app/yukine/SettingsPageRenderController.kt");
+        String labelFormatter = read("app/src/main/java/app/yukine/SettingsLabelFormatter.kt");
         String settingsViewModel = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String pageStateBuilder = read("app/src/main/java/app/yukine/SettingsPageStateBuilder.kt");
         String settingsPage = read("app/src/main/java/app/yukine/SettingsPage.kt");
@@ -1737,6 +1810,7 @@ public final class MainActivityArchitectureContractTest {
 
         assertFalse(exists("app/src/main/java/app/yukine/SettingsRenderCoordinator.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/SettingsRenderCoordinator.java"));
+        assertFalse(exists("app/src/main/java/app/yukine/SettingsPageRenderController.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/SettingsPageRenderController.java"));
         assertFalse(exists("app/src/main/java/app/yukine/SettingsPageEventController.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/SettingsPageEventController.java"));
@@ -1776,21 +1850,18 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(settingsBackStack.contains("SettingsPage.fromRoute(settingsPage)"));
         assertTrue(backPolicy.contains("SettingsPage.Home != settingsPage"));
         assertTrue(backPolicy.contains("SettingsBackStack.parent(settingsPage).route"));
-        assertTrue(pageRenderer.contains("internal class SettingsPageRenderController"));
-        assertFalse(pageRenderer.contains("interface Listener"));
-        assertTrue(pageRenderer.contains("private val viewModel: SettingsViewModel"));
-        assertFalse(pageRenderer.contains("val scrollState = SettingsListScrollState()"));
+        assertTrue(labelFormatter.contains("internal object SettingsLabelFormatter"));
+        assertFalse(labelFormatter.contains("SettingsViewModel"));
+        assertFalse(labelFormatter.contains("interface Listener"));
+        assertFalse(labelFormatter.contains("val scrollState = SettingsListScrollState()"));
         assertTrue(settingsViewModel.contains("val scrollState = SettingsListScrollState()"));
-        assertFalse(pageRenderer.contains("SettingsScrollStateSink"));
-        assertFalse(pageRenderer.contains("fun updateSettingsContext("));
-        assertFalse(pageRenderer.contains("fun renderPage("));
-        assertFalse(pageRenderer.contains("fun publishScrollState()"));
-        assertFalse(pageRenderer.contains("scrollStateSink.publishSettingsScrollState(scrollState)"));
-        assertFalse(pageRenderer.contains("private fun renderSettingsScreen("));
-        assertFalse(pageRenderer.contains("viewModel.onEvent(SettingsEvent.NavigateSettingsPage(page))"));
-        assertFalse(pageRenderer.contains("fun renderStreamingGateway("));
-        assertFalse(pageRenderer.contains("fun renderHome("));
-        assertFalse(pageRenderer.contains("SettingsPageStateBuilder."));
+        assertFalse(labelFormatter.contains("SettingsScrollStateSink"));
+        assertFalse(labelFormatter.contains("fun updateSettingsContext("));
+        assertFalse(labelFormatter.contains("fun renderPage("));
+        assertFalse(labelFormatter.contains("fun publishScrollState()"));
+        assertFalse(labelFormatter.contains("scrollStateSink.publishSettingsScrollState(scrollState)"));
+        assertFalse(labelFormatter.contains("private fun renderSettingsScreen("));
+        assertFalse(labelFormatter.contains("SettingsPageStateBuilder."));
         assertTrue(pageStateBuilder.contains("fun streamingGateway("));
         assertTrue(pageStateBuilder.contains("fun library("));
         assertTrue(pageStateBuilder.contains("fun lyricsGroup("));
@@ -1926,15 +1997,18 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(settingsViewModel.contains("gateway?.applyAudioEffectSettings"));
         assertFalse(settingsViewModel.contains("gateway?.setStatusBarLyricsEnabled"));
         assertFalse(settingsViewModel.contains("gateway?.setFloatingLyricsEnabled"));
-        assertTrue(pageRenderer.contains("@JvmStatic"));
-        assertTrue(pageRenderer.contains("fun playbackSpeedLabel(speed: Float): String"));
-        assertTrue(pageRenderer.contains("fun appVolumeLabel(volume: Float): String"));
-        assertTrue(pageRenderer.contains("fun lyricsOffsetLabel(offsetMs: Long): String"));
+        assertTrue(labelFormatter.contains("@JvmStatic"));
+        assertTrue(labelFormatter.contains("fun playbackSpeedLabel(speed: Float): String"));
+        assertTrue(labelFormatter.contains("fun appVolumeLabel(volume: Float): String"));
+        assertTrue(labelFormatter.contains("fun lyricsOffsetLabel(offsetMs: Long): String"));
         assertFalse(mainActivity.contains("SettingsPageEventController settingsPageEventController"));
         assertFalse(mainActivity.contains("new SettingsPageChromeBindings("));
         assertFalse(mainActivity.contains("navSettingsActions"));
         assertFalse(mainActivity.contains("setSettingsActions("));
-        assertTrue(mainActivity.contains("settingsPageRenderController = new SettingsPageRenderController(settingsViewModel);"));
+        assertFalse(mainActivity.contains("settingsPageRenderController = new SettingsPageRenderController(settingsViewModel);"));
+        assertFalse(mainActivity.contains("SettingsPageRenderController"));
+        assertFalse(mainActivity.contains("settingsPageRenderController"));
+        assertTrue(mainActivity.contains("settingsViewModel.scrollToTopOnNextRender();"));
         assertFalse(mainActivity.contains("settingsPageRenderController.getScrollState()"));
         assertFalse(mainActivity.contains("navSettingsScrollState"));
         assertFalse(mainActivity.contains("setSettingsScrollState("));
@@ -1981,6 +2055,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("new MainPermissionController.Listener()"));
         assertTrue(mainActivity.contains("if (permissionController.hasAudioPermission())"));
         assertTrue(mainActivity.contains("loadLibrary(false);"));
+        assertFalse(mainActivity.contains("private void loadLibraryOnStartup()"));
         assertTrue(appPermissions.contains("internal object AppPermissions"));
         assertTrue(appPermissions.contains("@JvmStatic"));
         assertTrue(appPermissions.contains("fun neededPermissions("));
@@ -1998,12 +2073,18 @@ public final class MainActivityArchitectureContractTest {
         String mainActivity = read("app/src/main/java/app/yukine/MainActivity.java");
         String controller = read("app/src/main/java/app/yukine/BackgroundImagePickerController.kt");
         assertTrue(controller.contains("internal class BackgroundImagePickerController"));
+        assertFalse(controller.contains("internal fun interface BackgroundLanguageModeProvider"));
+        assertFalse(controller.contains("internal fun interface BackgroundTransformProvider"));
+        assertTrue(controller.contains("private val languageModeProvider: () -> String"));
+        assertTrue(controller.contains("private val transformProvider: (String) -> BackgroundTransform"));
         assertTrue(controller.contains("interface Listener"));
         assertTrue(controller.contains("fun open(page: String)"));
         assertTrue(controller.contains("registerForActivityResult(ActivityResultContracts.StartActivityForResult())"));
         assertTrue(controller.contains("registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->"));
         assertTrue(controller.contains("documentPickerLauncher.launch(intent)"));
         assertTrue(controller.contains("previewResultLauncher.launch("));
+        assertTrue(controller.contains("languageModeProvider()"));
+        assertTrue(controller.contains("transformProvider(page)"));
         assertTrue(controller.contains("takePersistableUriPermission"));
         assertFalse(exists("app/src/main/java/app/yukine/BackgroundImagePickerBindings.kt"));
         assertTrue(mainActivity.contains("new BackgroundImagePickerController("));
@@ -2027,7 +2108,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(exists("app/src/main/java/app/yukine/BackupRestoreBindings.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/BackupRestoreBindings.java"));
         assertTrue(launcher.contains("internal class BackupRestoreLauncher"));
-        assertTrue(launcher.contains("internal fun interface BackupStatusSink"));
+        assertFalse(launcher.contains("internal fun interface BackupStatusSink"));
+        assertTrue(launcher.contains("private val statusSink: (String) -> Unit"));
         assertTrue(launcher.contains("fun exportBackup()"));
         assertTrue(launcher.contains("fun importBackup()"));
         assertTrue(launcher.contains("registerForActivityResult(ActivityResultContracts.StartActivityForResult())"));
@@ -2037,9 +2119,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(launcher.contains("intent.type = \"application/zip\""));
         assertTrue(launcher.contains("BackupManager.export(context, uri)"));
         assertTrue(launcher.contains("BackupManager.restore(context, uri)"));
-        assertTrue(launcher.contains("statusSink.setStatusKey(statusKey)"));
+        assertTrue(launcher.contains("statusSink(statusKey)"));
         assertTrue(mainActivity.contains("new BackupRestoreLauncher("));
-        assertTrue(mainActivity.contains("statusKey -> statusMessageController.setStatusKey(statusKey)"));
+        assertTrue(mainActivity.contains("statusKey -> {"));
+        assertTrue(mainActivity.contains("statusMessageController.setStatusKey(statusKey);"));
+        assertTrue(mainActivity.contains("return kotlin.Unit.INSTANCE;"));
         assertFalse(mainActivity.contains("new BackupRestoreBindings("));
         assertFalse(mainActivity.contains("backupRestoreLauncher.handleActivityResult(requestCode, resultCode, data)"));
         assertTrue(mainActivity.contains("backupRestoreLauncher.exportBackup();"));
@@ -2066,10 +2150,10 @@ public final class MainActivityArchitectureContractTest {
         String settingsViewModel = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String playlistUseCases = read("app/src/main/java/app/yukine/PlaylistActionUseCases.kt");
         String libraryViewModel = read("app/src/main/java/app/yukine/LibraryViewModel.kt");
-        String documentGatewayBindings = read("app/src/main/java/app/yukine/LibraryDocumentGatewayBindings.kt");
+        String documentGateway = read("app/src/main/java/app/yukine/ContentResolverLibraryDocumentGateway.kt");
         String collectionUseCases = read("app/src/main/java/app/yukine/LibraryCollectionUseCases.kt");
         String importUseCases = read("app/src/main/java/app/yukine/LibraryImportUseCases.kt");
-        String playlistExportController = read("app/src/main/java/app/yukine/PlaylistExportController.kt");
+        String documentPickerController = read("app/src/main/java/app/yukine/DocumentPickerController.kt");
         String settingsControls = read("app/src/main/java/app/yukine/SettingsControls.kt");
         String settingsRuntimeApplier = read("app/src/main/java/app/yukine/SettingsRuntimeApplier.kt");
         String playHistoryActionController = read("app/src/main/java/app/yukine/PlayHistoryActionController.kt");
@@ -2085,6 +2169,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(exists("app/src/main/java/app/yukine/SettingsActionBindings.java"));
         assertFalse(exists("app/src/main/java/app/yukine/SettingsRuntimeApplier.java"));
         assertFalse(exists("app/src/main/java/app/yukine/PlaylistActionsController.java"));
+        assertFalse(exists("app/src/main/java/app/yukine/PlaylistExportController.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/PlaylistExportController.java"));
         assertFalse(exists("app/src/main/java/app/yukine/PlaylistExportBindings.java"));
         assertFalse(exists("app/src/main/java/app/yukine/LibraryActionsController.java"));
@@ -2094,7 +2179,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(exists("app/src/main/java/app/yukine/LibraryCollectionGatewayBindings.java"));
         assertFalse(exists("app/src/main/java/app/yukine/LibraryImportGatewayBindings.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/LibraryImportGatewayBindings.java"));
+        assertFalse(exists("app/src/main/java/app/yukine/LibraryDocumentGatewayBindings.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/LibraryDocumentGatewayBindings.java"));
+        assertFalse(exists("app/src/test/java/app/yukine/LibraryDocumentGatewayBindingsTest.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/LibraryPlaylistActionGatewayBindings.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/LibraryPlaylistActionGatewayBindings.java"));
         assertFalse(exists("app/src/main/java/app/yukine/SettingsAppliedListenerBindings.java"));
@@ -2155,7 +2242,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("new SettingsAppliedListener()"));
         assertFalse(mainActivity.contains("new SettingsAppliedListenerBindings("));
         assertTrue(mainActivity.contains("settingsViewModel.bindEffectListener(effect -> {"));
-        assertTrue(mainActivity.contains("streamingGatewayController.applyEndpoint(((SettingsEffect.ApplyStreamingGatewayEndpoint) effect).getEndpoint())"));
+        assertTrue(mainActivity.contains("applyStreamingGatewayEndpoint(((SettingsEffect.ApplyStreamingGatewayEndpoint) effect).getEndpoint())"));
         assertFalse(mainActivity.contains("new SettingsActionController("));
         assertFalse(mainActivity.contains("settingsActionController::startSleepTimer"));
         assertFalse(mainActivity.contains("settingsActionController::reloadCurrentLyrics"));
@@ -2170,7 +2257,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode())"));
         assertTrue(mainActivity.contains("applyPlaybackActionResult(nowPlayingViewModel.startSleepTimer(((SettingsEffect.StartSleepTimer) effect).getMinutes()))"));
         assertTrue(mainActivity.contains("applyPlaybackActionResult(nowPlayingViewModel.cancelSleepTimer())"));
-        assertTrue(mainActivity.contains("streamingGatewayController.applyEndpoint(((SettingsEffect.ApplyStreamingGatewayEndpoint) effect).getEndpoint())"));
+        assertTrue(mainActivity.contains("applyStreamingGatewayEndpoint(((SettingsEffect.ApplyStreamingGatewayEndpoint) effect).getEndpoint())"));
         assertFalse(mainActivity.contains("private void startSleepTimer(int minutes)"));
         assertFalse(mainActivity.contains("private void applyThemeMode(String nextMode)"));
         assertFalse(mainActivity.contains("settingsViewModel.applyThemeMode(nextMode);"));
@@ -2187,6 +2274,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(settingsControls.contains("internal interface SettingsPlaybackServiceControls"));
         assertTrue(settingsControls.contains("internal interface SettingsLyricsControls"));
         assertTrue(settingsControls.contains("internal interface SettingsFloatingLyricsControls"));
+        assertFalse(settingsControls.contains("SettingsStatusSink"));
         assertFalse(settingsViewModel.contains("appliedListener"));
         assertFalse(settingsViewModel.contains("SettingsAppliedListener"));
         assertFalse(mainActivity.contains("this::renderSelectedTab,\n                this::renderNowBar,"));
@@ -2203,6 +2291,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(settingsViewModel.contains("applyRuntimeEffect(SettingsRuntimeEffect.ApplyThemeSurface)"));
         assertTrue(settingsViewModel.contains("applyRuntimeEffect(SettingsRuntimeEffect.ApplyPlaybackSpeed(normalizedSpeed))"));
         assertTrue(settingsViewModel.contains("applyRuntimeEffect(SettingsRuntimeEffect.ApplyFloatingLyrics(enabled))"));
+        assertFalse(settingsRuntimeApplier.contains("UpdateLanguage"));
+        assertFalse(settingsRuntimeApplier.contains("updateLanguage("));
+        assertFalse(mainActivity.contains("updateLanguage(languageMode)"));
+        assertFalse(mainActivity.contains("SettingsRuntimeLanguageUpdater"));
         assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"theme.applied\")"));
         assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"accent.applied\")"));
         assertFalse(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"language.applied\")"));
@@ -2232,6 +2324,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("routeController.setSelectedPlaylistId(playlistId);"));
         assertTrue(mainActivity.contains("documentPickerController.openAudioFilePicker();"));
         assertFalse(mainActivity.contains("new LibraryGatewayBindings("));
+        assertFalse(libraryViewModel.contains("LibraryEventSink"));
         assertTrue(libraryViewModel.contains("interface LibraryPlaylistActionGateway"));
         assertTrue(libraryViewModel.contains("fun addToDefaultPlaylist("));
         assertTrue(libraryViewModel.contains("fun createPlaylist("));
@@ -2261,13 +2354,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(exists("app/src/test/java/app/yukine/PlaylistActionResultControllerTest.kt"));
         assertFalse(mainActivity.contains("new PlaylistActionResultController("));
         assertFalse(mainActivity.contains("playlistActionResultController."));
-        assertTrue(mainActivity.contains("private void addToDefaultPlaylist(Track track)"));
-        assertTrue(mainActivity.contains("private void createPlaylist(String name)"));
-        assertTrue(mainActivity.contains("private void renamePlaylist(long playlistId, String name)"));
-        assertTrue(mainActivity.contains("private void deletePlaylist(long playlistId, String name)"));
-        assertTrue(mainActivity.contains("private void removeSelectedPlaylistTrack(long playlistId, Track track)"));
-        assertTrue(mainActivity.contains("private void moveSelectedPlaylistTrack(long playlistId, Track track, int trackIndex, int direction)"));
-        assertTrue(mainActivity.contains("private void addTrackToPlaylist(long playlistId, long trackId)"));
+        assertFalse(mainActivity.contains("private void addToDefaultPlaylist(Track track)"));
+        assertFalse(mainActivity.contains("private void createPlaylist(String name)"));
+        assertFalse(mainActivity.contains("private void renamePlaylist(long playlistId, String name)"));
+        assertFalse(mainActivity.contains("private void deletePlaylist(long playlistId, String name)"));
+        assertFalse(mainActivity.contains("private void removeSelectedPlaylistTrack(long playlistId, Track track)"));
+        assertFalse(mainActivity.contains("private void moveSelectedPlaylistTrack(long playlistId, Track track, int trackIndex, int direction)"));
+        assertFalse(mainActivity.contains("private void addTrackToPlaylist(long playlistId, long trackId)"));
         assertTrue(mainActivity.contains("private void onDefaultPlaylistTrackAdded(long playlistId, boolean added)"));
         assertTrue(mainActivity.contains("private void onPlaylistCreated(long playlistId)"));
         assertTrue(mainActivity.contains("private void onPlaylistRenamed(long playlistId, boolean renamed)"));
@@ -2311,12 +2404,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(libraryViewModel.contains("interface LibraryCollectionGateway"));
         assertTrue(libraryViewModel.contains("fun loadCollections("));
         assertTrue(libraryViewModel.contains("fun clearPlayHistory("));
-        assertTrue(libraryViewModel.contains("fun saveLibraryFavorite("));
+        assertFalse(libraryViewModel.contains("fun saveLibraryFavorite("));
         assertTrue(mainActivity.contains("libraryViewModel.bindCollectionGateway(new LibraryCollectionGateway() {"));
         assertTrue(mainActivity.contains("LibraryCollectionsSnapshot loaded = new LoadLibraryCollectionsUseCase(libraryCollectionOperations).execute(selectedPlaylistId);"));
         assertTrue(mainActivity.contains("new LibraryCollectionsResult("));
         assertTrue(mainActivity.contains("return new ClearPlayHistoryUseCase(libraryCollectionOperations).execute();"));
-        assertTrue(mainActivity.contains("new SetLibraryFavoriteUseCase(libraryCollectionOperations).execute(trackId, favorite);"));
+        assertFalse(mainActivity.contains("new SetLibraryFavoriteUseCase(libraryCollectionOperations).execute(trackId, favorite);"));
+        assertFalse(mainActivity.contains("public void setFavorite(long trackId, boolean favorite)"));
         assertFalse(mainActivity.contains("new LibraryCollectionGatewayBindings("));
         assertTrue(mainActivity.contains("libraryViewModel.loadCollectionsJava(selectedPlaylistId()"));
         assertFalse(mainActivity.contains("libraryViewModel.clearPlayHistoryJava"));
@@ -2328,7 +2422,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(collectionUseCases.contains("operations.ensureDefaultPlaylist()"));
         assertTrue(collectionUseCases.contains("operations.loadRecentlyPlayed(PLAY_HISTORY_RECAP_LIMIT)"));
         assertTrue(collectionUseCases.contains("internal class ClearPlayHistoryUseCase"));
-        assertTrue(collectionUseCases.contains("internal class SetLibraryFavoriteUseCase"));
+        assertFalse(collectionUseCases.contains("internal class SetLibraryFavoriteUseCase"));
+        assertFalse(collectionUseCases.contains("fun setFavorite(trackId: Long, favorite: Boolean)"));
+        assertFalse(libraryViewModel.contains("LibraryPlayHistoryClearedCallback"));
+        assertFalse(libraryViewModel.contains("fun clearPlayHistoryJava("));
         assertTrue(libraryViewModel.contains("interface LibraryImportGateway"));
         assertTrue(libraryViewModel.contains("interface LibraryDocumentGateway"));
         assertTrue(libraryViewModel.contains("fun loadLibrary("));
@@ -2338,6 +2435,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(libraryViewModel.contains("fun importStreamM3u("));
         assertTrue(libraryViewModel.contains("fun importPlaylistM3u("));
         assertTrue(libraryViewModel.contains("fun exportPlaylist("));
+        assertFalse(libraryViewModel.contains("LibraryPlaylistExportCallback"));
         assertTrue(mainActivity.contains("libraryViewModel.bindImportGateway(new LibraryImportGateway() {"));
         assertTrue(mainActivity.contains("return toLibraryLoadResultUi(new LoadLibraryUseCase(libraryImportOperations).cached());"));
         assertTrue(mainActivity.contains("return toLibraryLoadResultUi(new LoadLibraryUseCase(libraryImportOperations).refresh());"));
@@ -2346,14 +2444,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("AudioSpecsParseResult result = new ParseMissingAudioSpecsUseCase(libraryImportOperations).execute();"));
         assertTrue(mainActivity.contains("new LibraryAudioSpecsResultUi("));
         assertFalse(mainActivity.contains("new LibraryImportGatewayBindings("));
-        assertTrue(documentGatewayBindings.contains("internal class LibraryDocumentGatewayBindings("));
-        assertTrue(documentGatewayBindings.contains(") : LibraryDocumentGateway"));
-        assertTrue(documentGatewayBindings.contains("LoadLibraryUseCase(operations)"));
-        assertTrue(documentGatewayBindings.contains("ImportStreamM3uTextUseCase(operations)"));
-        assertTrue(documentGatewayBindings.contains("ImportPlaylistM3uTextUseCase(operations)"));
-        assertTrue(documentGatewayBindings.contains("LoadPlaylistExportTracksUseCase(operations)"));
-        assertTrue(documentGatewayBindings.contains("M3uDocumentHelper.readText(contentResolver, playlistUri)"));
-        assertTrue(documentGatewayBindings.contains("M3uDocumentHelper.writeText("));
+        assertTrue(documentGateway.contains("internal class ContentResolverLibraryDocumentGateway("));
+        assertTrue(documentGateway.contains(") : LibraryDocumentGateway"));
+        assertTrue(documentGateway.contains("LoadLibraryUseCase(operations)"));
+        assertTrue(documentGateway.contains("ImportStreamM3uTextUseCase(operations)"));
+        assertTrue(documentGateway.contains("ImportPlaylistM3uTextUseCase(operations)"));
+        assertTrue(documentGateway.contains("LoadPlaylistExportTracksUseCase(operations)"));
+        assertTrue(documentGateway.contains("M3uDocumentHelper.readText(contentResolver, playlistUri)"));
+        assertTrue(documentGateway.contains("M3uDocumentHelper.writeText("));
         assertTrue(mainActivity.contains("libraryViewModel.bindPlaylistActionGateway(new LibraryPlaylistActionGateway() {"));
         assertTrue(mainActivity.contains("DefaultPlaylistAddResult result = new AddToDefaultPlaylistUseCase(playlistActionOperations).execute(track);"));
         assertTrue(mainActivity.contains("new LibraryDefaultPlaylistAddResultUi(result.playlistId, result.added)"));
@@ -2363,7 +2461,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("return new RemoveTrackFromPlaylistUseCase(playlistActionOperations).execute(playlistId, track);"));
         assertTrue(mainActivity.contains("return new MovePlaylistTrackUseCase(playlistActionOperations).execute(playlistId, track, trackIndex, direction);"));
         assertTrue(mainActivity.contains("return new AddTrackToPlaylistUseCase(playlistActionOperations).execute(playlistId, trackId);"));
-        assertTrue(mainActivity.contains("libraryViewModel.bindDocumentGateway(new LibraryDocumentGatewayBindings(getContentResolver(), libraryImportOperations))"));
+        assertTrue(mainActivity.contains("libraryViewModel.bindDocumentGateway(new ContentResolverLibraryDocumentGateway(getContentResolver(), libraryImportOperations))"));
         assertFalse(mainActivity.contains("new LibraryPlaylistActionGatewayBindings("));
         assertTrue(mainActivity.contains("libraryViewModel.loadLibraryJava("));
         assertTrue(mainActivity.contains("libraryViewModel.importAudioUrisJava("));
@@ -2372,8 +2470,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("libraryViewModel.importStreamM3uJava("));
         assertTrue(mainActivity.contains("libraryViewModel.importPlaylistM3uJava("));
         assertTrue(mainActivity.contains("libraryViewModel.exportPlaylistJava("));
-        assertTrue(documentGatewayBindings.contains("importStreamM3uTextUseCase.execute(playlistRead.text)"));
-        assertTrue(documentGatewayBindings.contains("loadPlaylistExportTracksUseCase.execute(playlistId)"));
+        assertTrue(mainActivity.contains("libraryViewModel.exportPlaylistJava(exportUri, playlistId, playlistName);"));
+        assertFalse(mainActivity.contains("libraryViewModel.exportPlaylistJava(exportUri, playlistId, playlistName,"));
+        assertTrue(documentGateway.contains("importStreamM3uTextUseCase.execute(playlistRead.text)"));
+        assertTrue(documentGateway.contains("loadPlaylistExportTracksUseCase.execute(playlistId)"));
         assertFalse(mainActivity.contains("new LoadLibraryUseCase(libraryImportOperations);"));
         assertFalse(mainActivity.contains("new ImportAudioUrisUseCase(libraryImportOperations);"));
         assertFalse(mainActivity.contains("new ImportAudioTreeUseCase(libraryImportOperations);"));
@@ -2404,15 +2504,14 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("void onCollectionsLoaded(LibraryActionsController.CollectionsSnapshot snapshot)"));
         assertFalse(mainActivity.contains("void onPlayHistoryCleared(int removed)"));
         assertFalse(mainActivity.contains("void onFavoriteSaved()"));
-        assertTrue(playlistExportController.contains("internal class PlaylistExportController"));
-        assertTrue(playlistExportController.contains("interface Listener"));
-        assertTrue(playlistExportController.contains("private var pendingPlaylistId: Long = -1L"));
-        assertTrue(playlistExportController.contains("fun openSelectedPlaylistExportDocument("));
-        assertTrue(playlistExportController.contains("fun exportSelectedPlaylistToUri(exportUri: Uri)"));
+        assertTrue(documentPickerController.contains("private var pendingPlaylistExportId: Long = -1L"));
+        assertTrue(documentPickerController.contains("private var pendingPlaylistExportName: String = \"\""));
+        assertTrue(documentPickerController.contains("fun openPlaylistExportDocument(playlistId: Long, playlistName: String)"));
+        assertTrue(documentPickerController.contains("listener.exportPlaylist(exportUri, playlistId, playlistName)"));
         assertFalse(exists("app/src/main/java/app/yukine/PlaylistExportBindings.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/PlaylistExportBindings.java"));
-        assertTrue(mainActivity.contains("new PlaylistExportController(new PlaylistExportController.Listener()"));
-        assertTrue(mainActivity.contains("openPlaylistExportDocument(String playlistName)"));
+        assertFalse(mainActivity.contains("new PlaylistExportController("));
+        assertTrue(mainActivity.contains("documentPickerController.openPlaylistExportDocument(selectedPlaylistId(), selectedPlaylistName())"));
         assertTrue(mainActivity.contains("exportPlaylist(Uri exportUri, long playlistId, String playlistName)"));
         assertFalse(mainActivity.contains("new PlaylistExportBindings("));
     }
@@ -2475,7 +2574,7 @@ public final class MainActivityArchitectureContractTest {
         String streamingManualCookieDialogController = read("app/src/main/java/app/yukine/StreamingManualCookieDialogController.java");
         String luoxueSourceImportController = read("app/src/main/java/app/yukine/LuoxueSourceImportController.kt");
         String luoxueSourceImportDialogController = read("app/src/main/java/app/yukine/LuoxueSourceImportDialogController.java");
-        String streamingSearchActionHandlerBindings = read("app/src/main/java/app/yukine/StreamingSearchActionHandlerBindings.kt");
+        String defaultStreamingSearchActionHandler = read("app/src/main/java/app/yukine/DefaultStreamingSearchActionHandler.kt");
         String streamingViewModel = read("app/src/main/java/app/yukine/StreamingViewModel.kt");
         String streamingRecommendationViewModel = read("app/src/main/java/app/yukine/StreamingRecommendationViewModel.kt");
         String heartbeatRecommendationController = read("app/src/main/java/app/yukine/HeartbeatRecommendationController.kt");
@@ -2499,7 +2598,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(exists("app/src/main/java/app/yukine/StreamingManualCookieDialogController.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/LuoxueSourceImportController.java"));
         assertFalse(exists("app/src/main/java/app/yukine/LuoxueSourceImportDialogController.kt"));
+        assertFalse(exists("app/src/main/java/app/yukine/StreamingSearchActionHandlerBindings.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/StreamingSearchActionHandlerBindings.java"));
+        assertFalse(exists("app/src/test/java/app/yukine/StreamingSearchActionHandlerBindingsTest.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/StreamingAuthCallbackBindings.java"));
         assertFalse(exists("app/src/main/java/app/yukine/StreamingAuthCallbackBindings.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/StreamingActionGatewayBindings.kt"));
@@ -2513,13 +2614,15 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("StreamingAuthLauncher.INSTANCE.launch(MainActivity.this, launch)"));
         assertTrue(mainActivity.contains("playTrackListFromHost(java.util.Collections.singletonList(track), 0);"));
         assertTrue(mainActivity.contains("streamingPlaylistController.onStreamingLoginSuccess(provider);"));
-        assertTrue(mainActivity.contains("openManualStreamingCookieImport(provider);"));
-        assertTrue(streamingSearchActionHandlerBindings.contains("internal class StreamingSearchActionHandlerBindings("));
-        assertTrue(streamingSearchActionHandlerBindings.contains(") : StreamingSearchActionHandler"));
-        assertTrue(streamingSearchActionHandlerBindings.contains("private val streamingViewModel: StreamingViewModel"));
-        assertTrue(streamingSearchActionHandlerBindings.contains("private val actionGateway: MainActivityStreamingActionGateway"));
-        assertFalse(streamingSearchActionHandlerBindings.contains("MainActivityViewModel"));
-        assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.selectStreamingProvider(provider)"));
+        assertTrue(mainActivity.contains("streamingViewModel.selectStreamingProvider(provider);"));
+        assertTrue(mainActivity.contains("streamingManualCookieController.showStreamingCookieDialog();"));
+        assertFalse(mainActivity.contains("private void openManualStreamingCookieImport("));
+        assertTrue(defaultStreamingSearchActionHandler.contains("internal class DefaultStreamingSearchActionHandler("));
+        assertTrue(defaultStreamingSearchActionHandler.contains(") : StreamingSearchActionHandler"));
+        assertTrue(defaultStreamingSearchActionHandler.contains("private val streamingViewModel: StreamingViewModel"));
+        assertTrue(defaultStreamingSearchActionHandler.contains("private val actionGateway: MainActivityStreamingActionGateway"));
+        assertFalse(defaultStreamingSearchActionHandler.contains("MainActivityViewModel"));
+        assertTrue(defaultStreamingSearchActionHandler.contains("streamingViewModel.selectStreamingProvider(provider)"));
         assertTrue(streamingViewModel.contains("@HiltViewModel"));
         assertTrue(streamingViewModel.contains("private val streamingRepositorySource: StreamingRepositorySource"));
         assertTrue(streamingViewModel.contains("fun bindStreamingRepository(repository: StreamingRepository)"));
@@ -2553,26 +2656,26 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivityViewModel.contains("streamingRepository.userPlaylists(provider)"));
         assertFalse(mainActivityViewModel.contains("streamingRepository.dailyRecommendations(provider)"));
         assertFalse(mainActivityViewModel.contains("streamingRepository.heartbeatRecommendations("));
-        assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.searchAllStreaming("));
-        assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.signOutStreaming(provider)"));
-        assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.resolveStreamingPlaybackTrack("));
-        assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.searchNextStreamingPage()"));
-        assertTrue(streamingSearchActionHandlerBindings.contains("StreamingCapabilityResolver.canAuth"));
-        assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.failStreamingRequest("));
-        assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.startStreamingAuth("));
-        assertFalse(streamingSearchActionHandlerBindings.contains("viewModel.login(provider)"));
-        assertTrue(streamingSearchActionHandlerBindings.contains("actionGateway.openAuthLaunch(streamingViewModel.state.pendingAuthLaunch)"));
-        assertTrue(streamingSearchActionHandlerBindings.contains("streamingViewModel.clearStreamingAuthLaunch()"));
-        assertFalse(streamingSearchActionHandlerBindings.contains("viewModel.search(query)"));
-        assertFalse(streamingSearchActionHandlerBindings.contains("viewModel.signOut(provider)"));
-        assertFalse(streamingSearchActionHandlerBindings.contains("viewModel.playStreamingTrack(track)"));
-        assertFalse(streamingSearchActionHandlerBindings.contains("viewModel.loadNextPage()"));
-        assertFalse(streamingSearchActionHandlerBindings.contains("viewModel.searchStreaming("));
-        assertFalse(streamingSearchActionHandlerBindings.contains("viewModel.searchNextStreamingPage()"));
-        assertFalse(streamingSearchActionHandlerBindings.contains("viewModel.startStreamingAuth("));
-        assertFalse(streamingSearchActionHandlerBindings.contains("viewModel.signOutStreaming(provider)"));
-        assertFalse(streamingSearchActionHandlerBindings.contains("viewModel.resolveStreamingPlaybackTrack("));
-        assertTrue(streamingSearchActionHandlerBindings.contains("actionGateway.playResolvedTrack(track)"));
+        assertTrue(defaultStreamingSearchActionHandler.contains("streamingViewModel.searchAllStreaming("));
+        assertTrue(defaultStreamingSearchActionHandler.contains("streamingViewModel.signOutStreaming(provider)"));
+        assertTrue(defaultStreamingSearchActionHandler.contains("streamingViewModel.resolveStreamingPlaybackTrack("));
+        assertTrue(defaultStreamingSearchActionHandler.contains("streamingViewModel.searchNextStreamingPage()"));
+        assertTrue(defaultStreamingSearchActionHandler.contains("StreamingCapabilityResolver.canAuth"));
+        assertTrue(defaultStreamingSearchActionHandler.contains("streamingViewModel.failStreamingRequest("));
+        assertTrue(defaultStreamingSearchActionHandler.contains("streamingViewModel.startStreamingAuth("));
+        assertFalse(defaultStreamingSearchActionHandler.contains("viewModel.login(provider)"));
+        assertTrue(defaultStreamingSearchActionHandler.contains("actionGateway.openAuthLaunch(streamingViewModel.state.pendingAuthLaunch)"));
+        assertTrue(defaultStreamingSearchActionHandler.contains("streamingViewModel.clearStreamingAuthLaunch()"));
+        assertFalse(defaultStreamingSearchActionHandler.contains("viewModel.search(query)"));
+        assertFalse(defaultStreamingSearchActionHandler.contains("viewModel.signOut(provider)"));
+        assertFalse(defaultStreamingSearchActionHandler.contains("viewModel.playStreamingTrack(track)"));
+        assertFalse(defaultStreamingSearchActionHandler.contains("viewModel.loadNextPage()"));
+        assertFalse(defaultStreamingSearchActionHandler.contains("viewModel.searchStreaming("));
+        assertFalse(defaultStreamingSearchActionHandler.contains("viewModel.searchNextStreamingPage()"));
+        assertFalse(defaultStreamingSearchActionHandler.contains("viewModel.startStreamingAuth("));
+        assertFalse(defaultStreamingSearchActionHandler.contains("viewModel.signOutStreaming(provider)"));
+        assertFalse(defaultStreamingSearchActionHandler.contains("viewModel.resolveStreamingPlaybackTrack("));
+        assertTrue(defaultStreamingSearchActionHandler.contains("actionGateway.playResolvedTrack(track)"));
         assertTrue(streamingAuthCallbackController.contains("internal class StreamingAuthCallbackController"));
         assertTrue(streamingAuthCallbackController.contains("private val streamingViewModel: StreamingViewModel"));
         assertTrue(streamingAuthCallbackController.contains("private val actionGateway: MainActivityStreamingActionGateway"));
@@ -2581,8 +2684,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(streamingAuthCallbackController.contains("streamingViewModel.completeStreamingAuth(provider, uri.toString(), cookieHeader)"));
         assertTrue(streamingAuthCallbackController.contains("actionGateway.onStreamingLoginSuccess(loggedInProvider)"));
         assertTrue(streamingAuthCallbackController.contains("streamingViewModel.clearStreamingAuthLaunch()"));
-        assertTrue(mainActivity.contains("new StreamingSearchActionHandlerBindings(streamingViewModel, streamingActionGateway)"));
+        assertTrue(mainActivity.contains("streamingSearchActionHandler = new DefaultStreamingSearchActionHandler(streamingViewModel, streamingActionGateway);"));
         assertFalse(mainActivity.contains("new StreamingSearchActionHandlerBindings(viewModel, streamingViewModel"));
+        assertFalse(exists("app/src/main/java/app/yukine/StreamingSearchEventController.kt"));
         assertTrue(mainActivity.contains("new StreamingAuthCallbackController(\r\n                streamingViewModel,\r\n                streamingActionGateway\r\n        )")
                 || mainActivity.contains("new StreamingAuthCallbackController(\n                streamingViewModel,\n                streamingActionGateway\n        )"));
         assertFalse(mainActivity.contains("new StreamingAuthCallbackBindings(viewModel, streamingViewModel"));
@@ -2614,7 +2718,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivityViewModel.contains("sourceMessage(descriptor, \"streaming.search.unavailable\")"));
         assertFalse(mainActivityViewModel.contains("sourceMessage(descriptor, \"streaming.auth.unsupported\")"));
         assertFalse(mainActivityViewModel.contains("sourceMessage(descriptor, \"streaming.playback.unsupported\")"));
-        assertTrue(streamingSearchActionHandlerBindings.contains("text(\"streaming.track.unavailable\")"));
+        assertTrue(defaultStreamingSearchActionHandler.contains("text(\"streaming.track.unavailable\")"));
         assertFalse(mainActivityViewModel.contains("text(\"streaming.track.unavailable\")"));
         assertTrue(mainActivityViewModel.contains("data class StreamingManualCookieDialogState"));
         assertTrue(mainActivityViewModel.contains("data class StreamingManualCookieAuthRequest"));
@@ -2915,9 +3019,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivityViewModel.contains("planner.clearRecovery(request.key)"));
         assertFalse(mainActivity.contains("viewModel.bindStreamingPlaybackCoordinator("));
         assertTrue(mainActivity.contains("streamingViewModel.bindStreamingPlaybackCoordinator("));
-        assertTrue(mainActivity.contains("new StreamingPlaybackTaskQueueAdapter(streamingPlaybackTaskScheduler)"));
+        assertTrue(mainActivity.contains("streamingPlaybackTaskScheduler"));
+        assertFalse(mainActivity.contains("StreamingPlaybackTaskQueueAdapter("));
         assertFalse(mainActivity.contains("private final class ActivityStreamingPlaybackTaskQueue implements StreamingPlaybackTaskQueue"));
         assertTrue(mainActivity.contains("streamingPlaybackController.preResolveNextStreamingTrack(snapshot)"));
+        assertFalse(mainActivity.contains("private void preResolveNextStreamingTrack("));
         assertTrue(mainActivity.contains("new StreamingPlaybackController(streamingViewModel, nowPlayingViewModel, new StreamingPlaybackController.Listener()"));
         assertTrue(mainActivity.contains("streamingPlaybackController::resolveAndPlayStreamingTrack"));
         assertTrue(mainActivity.contains("streamingPlaybackController.recoverStreamingBuffering(snapshot)"));
@@ -2958,7 +3064,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("viewModel.prepareStreamingDailyRecommendationRequest(provider)"));
         assertFalse(exists("app/src/main/java/app/yukine/DailyRecommendationController.kt"));
         assertFalse(streamingRecommendationViewModel.contains("streamingViewModel.prepareStreamingDailyRecommendationRequest(provider, languageMode)"));
-        assertTrue(streamingRecommendationViewModel.contains("override fun playDailyRecommendations("));
+        assertTrue(streamingRecommendationViewModel.contains("fun playDailyRecommendations("));
         assertFalse(mainActivity.contains("viewModel.prepareStreamingHeartbeatRecommendationRequest(provider)"));
         assertFalse(heartbeatRecommendationController.contains("streamingViewModel.prepareStreamingHeartbeatRecommendationRequest(provider, languageMode)"));
         assertTrue(heartbeatRecommendationController.contains("recommendationPlayer.prepareStreamingHeartbeatRecommendationRequest(provider, languageMode)"));
@@ -2971,7 +3077,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("streamingViewModel::prepareStreamingRecommendationPresentation"));
         assertFalse(mainActivity.contains("new DailyRecommendationController(streamingRecommendationViewModel"));
         assertTrue(mainActivity.contains("new RecommendationActionCallbacks() {"));
-        assertTrue(streamingRecommendationViewModel.contains("override fun onAction("));
+        assertTrue(streamingRecommendationViewModel.contains("fun onAction("));
         assertFalse(mainActivity.contains("streamingViewModel.prepareHeartbeatRecommendationPresentation(streamingTracks, emptyStatus, playingStatus)"));
         assertTrue(heartbeatRecommendationController.contains("recommendationPlayer.prepareHeartbeatRecommendationPresentation("));
         assertFalse(mainActivity.contains("viewModel.prepareHeartbeatRecommendationAppendPresentation(streamingTracks)"));
@@ -3021,7 +3127,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivityViewModel.contains("operations.syncStreamingPlaylist(link, tracks)"));
         assertTrue(mainActivity.contains("new StreamingPlaylistController(streamingViewModel"));
         assertTrue(mainActivity.contains("streamingPlaylistController.syncSelectedPlaylistFromStreaming()"));
-        assertTrue(mainActivity.contains("streamingPlaylistController.syncStreamingPlaylists(links)"));
+        assertFalse(mainActivity.contains("private void syncSelectedPlaylistFromStreaming()"));
+        assertFalse(mainActivity.contains("private void syncStreamingPlaylists("));
+        assertFalse(mainActivity.contains("streamingPlaylistController.syncStreamingPlaylists(links)"));
         assertTrue(streamingPlaylistController.contains("internal class StreamingPlaylistController("));
         assertTrue(streamingPlaylistController.contains("private val streamingViewModel: StreamingViewModel"));
         assertTrue(streamingPlaylistController.contains("fun interface LanguageProvider"));
@@ -3035,6 +3143,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("new StreamingPlaylistController(streamingViewModel, () -> settingsStore.languageMode(), new StreamingPlaylistController.Listener() {"));
         assertTrue(mainActivity.contains("routeController.selectedPlaylistId()"));
         assertTrue(mainActivity.contains("routeController.setSelectedPlaylistId(playlistId);"));
+        assertTrue(mainActivity.contains("public void refreshLibraryAfterStreamingImport()"));
+        assertTrue(mainActivity.contains("loadLibrary(true);"));
+        assertFalse(mainActivity.contains("private void refreshLibraryAfterStreamingImport()"));
+        assertFalse(mainActivity.contains("MainActivity.this.refreshLibraryAfterStreamingImport();"));
         assertTrue(mainActivity.contains("streamingPlaylistDialogController.showStreamingProviderPicker(playlistName, tracks);"));
         assertTrue(mainActivity.contains("streamingPlaylistDialogController.showAccountPlaylistImportPicker(provider, playlists);"));
         assertFalse(mainActivity.contains("viewModel.prepareStreamingPlaylistSyncStartRequest("));
@@ -3168,6 +3280,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("viewModel.loadStreamingProviderTrackId(track, provider"));
         assertFalse(mainActivity.contains("viewModel.resolveStreamingTrackMatch(provider, track"));
         assertFalse(mainActivity.contains("viewModel.saveStreamingProviderTrackId(track, provider, resolvedTrackId)"));
+        assertFalse(mainActivity.contains("private String streamingProviderTrackId(Track track"));
         assertFalse(mainActivity.contains("private List<Track> heartbeatSeedCandidates()"));
         assertFalse(mainActivity.contains("private String streamingProviderTrackIdFromCandidates("));
         assertFalse(mainActivity.contains("private String currentStreamingProviderTrackId("));
@@ -3248,7 +3361,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("this::setStatus"));
         assertFalse(mainActivity.contains("settingsActionController::reloadCurrentLyrics"));
         assertTrue(mainActivity.contains("lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode())"));
-        assertTrue(mainActivity.contains("lyricsState()"));
+        assertTrue(mainActivity.contains("return lyricsViewModel == null ? new LyricsState() : lyricsViewModel.stateSnapshot();"));
+        assertFalse(mainActivity.contains("private LyricsState lyricsState()"));
+        assertFalse(mainActivity.contains("private void ensureLyricsLoaded("));
         assertFalse(mainActivity.contains("new LyricsStateListener()"));
         assertFalse(mainActivity.contains("private void onLyricsStateChanged()"));
         assertFalse(mainActivity.contains("private LyricsController lyricsController"));
@@ -3290,11 +3405,11 @@ public final class MainActivityArchitectureContractTest {
     public void streamingSearchRenderControllerIsKotlin() throws Exception {
         String mainActivity = read("app/src/main/java/app/yukine/MainActivity.java");
         String controller = read("app/src/main/java/app/yukine/StreamingSearchRenderController.kt");
-        String eventController = read("app/src/main/java/app/yukine/StreamingSearchEventController.kt");
         String authCallbackController = read("app/src/main/java/app/yukine/StreamingAuthCallbackController.kt");
         String screen = read("app/src/main/java/app/yukine/ui/StreamingSearchScreen.kt");
 
         assertFalse(exists("app/src/main/java/app/yukine/StreamingSearchRenderController.java"));
+        assertFalse(exists("app/src/main/java/app/yukine/StreamingSearchEventController.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/StreamingSearchEventController.java"));
         assertFalse(exists("app/src/main/java/app/yukine/StreamingSearchChromeBindings.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/StreamingSearchChromeBindings.java"));
@@ -3321,18 +3436,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(screen.contains("\"杩斿洖\""));
         assertFalse(screen.contains("\"鍔犺浇鏇村\""));
         assertFalse(screen.contains("\"????????\""));
-        assertTrue(eventController.contains("internal class StreamingSearchEventController"));
-        assertTrue(eventController.contains(": StreamingSearchRenderController.Listener"));
-        assertTrue(eventController.contains("private val actionsController: StreamingSearchActionHandler"));
-        assertTrue(eventController.contains("override fun selectProvider("));
-        assertTrue(eventController.contains("actionsController.search(query)"));
-        assertTrue(eventController.contains("actionsController.login(provider)"));
-        assertTrue(eventController.contains("actionsController.playStreamingTrack(track)"));
-        assertTrue(eventController.contains("actionsController.loadNextPage()"));
-        assertTrue(eventController.contains("internal fun interface StreamingSearchContentSink"));
-        assertTrue(eventController.contains("private val contentSink: StreamingSearchContentSink"));
-        assertTrue(eventController.contains("contentSink.publishStreamingSearchChrome(labels, actions)"));
-        assertTrue(mainActivity.contains("streamingSearchEventController.search(searchQuery())"));
+        assertTrue(mainActivity.contains("new StreamingSearchRenderController.Listener()"));
+        assertTrue(mainActivity.contains("streamingSearchActionHandler.selectProvider(provider);"));
+        assertTrue(mainActivity.contains("streamingSearchActionHandler.search(query);"));
+        assertTrue(mainActivity.contains("streamingSearchActionHandler.login(provider);"));
+        assertTrue(mainActivity.contains("streamingSearchActionHandler.playStreamingTrack(track);"));
+        assertTrue(mainActivity.contains("streamingSearchActionHandler.loadNextPage();"));
+        assertTrue(mainActivity.contains("streamingSearchActionHandler.search(searchQuery())"));
         assertFalse(mainActivity.contains("viewModel.search(searchQuery())"));
         assertTrue(mainActivity.contains("NETWORK_STREAMING.equals(networkPage())"));
         assertTrue(mainActivity.contains("MainRoutes.NETWORK_STREAMING_HUB.equals(networkPage())"));
@@ -3347,9 +3457,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(authCallbackController.contains("actionGateway.onStreamingLoginSuccess(loggedInProvider)"));
         assertTrue(authCallbackController.contains("streamingViewModel.clearStreamingAuthLaunch()"));
         assertTrue(authCallbackController.contains("StreamingWebAuthActivity.EXTRA_COOKIE_HEADER"));
-        assertTrue(mainActivity.contains("StreamingSearchEventController"));
         assertFalse(mainActivity.contains("new StreamingSearchNavigatorBindings("));
-        assertTrue(mainActivity.contains("new StreamingSearchEventController.Navigator()"));
         assertTrue(mainActivity.contains("navigateNetworkPage(MainRoutes.NETWORK_HOME);"));
         assertTrue(mainActivity.contains("streamingPlaylistController.importStreamingPlaylistFromProviderRef("));
         assertTrue(mainActivity.contains("playlist.getProvider(),"));
@@ -3360,7 +3468,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("new RecommendationAction.PlayHeartbeat(streamingViewModel.getStreaming().getValue().getSelectedProvider())"));
         assertTrue(mainActivity.contains("streamingPlaylistImportDialogController.showImportDialog();"));
         assertTrue(mainActivity.contains("streamingManualCookieController.showStreamingCookieDialog();"));
-        assertTrue(mainActivity.contains("(labels, actions) -> streamingViewModel.updateStreamingSearchChrome(labels, actions)"));
+        assertTrue(mainActivity.contains("streamingViewModel.updateStreamingSearchChrome(labels, actions);"));
         assertFalse(mainActivity.contains("new StreamingSearchChromeBindings("));
         assertTrue(mainActivity.contains("StreamingAuthCallbackController"));
         assertTrue(mainActivity.contains("streamingAuthCallbackController.handleInitialIntent(getIntent())"));
@@ -3369,12 +3477,12 @@ public final class MainActivityArchitectureContractTest {
                 < mainActivity.indexOf("streamingAuthCallbackController.handleInitialIntent(getIntent())"));
         assertTrue(mainActivity.indexOf("streamingManualCookieController = new StreamingManualCookieController(")
                 < mainActivity.indexOf("streamingAuthCallbackController.handleInitialIntent(getIntent())"));
-        assertFalse(mainActivity.contains("new StreamingSearchRenderController.Listener()"));
-        assertTrue(mainActivity.contains("new StreamingSearchEventController.Navigator()"));
+        assertFalse(mainActivity.contains("streamingSearchEventController"));
+        assertFalse(mainActivity.contains("StreamingSearchEventController"));
         assertFalse(mainActivity.contains("new StreamingSearchEventController.ContentSink()"));
         assertFalse(mainActivity.contains("streamingActionsController.handleAuthCallback("));
-        assertFalse(mainActivity.contains("public void selectProvider(StreamingProviderName provider)"));
-        assertFalse(mainActivity.contains("public void playStreamingTrack(StreamingTrack track)"));
+        assertTrue(mainActivity.contains("public void selectProvider(StreamingProviderName provider)"));
+        assertTrue(mainActivity.contains("public void playStreamingTrack(StreamingTrack track)"));
     }
 
     @Test
@@ -3537,10 +3645,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("private void clearQueueState()"));
         assertTrue(owner.contains("fun reuseMirroredQueueIfAvailable(playWhenReady: Boolean, startPositionMs: Long): Boolean"));
         assertTrue(owner.contains("fun mirroredQueueTracksForPreparation(): List<Track>?"));
+        assertFalse(owner.contains("\n        fun currentTrack(): Track?"));
+        assertTrue(owner.contains("private fun currentTrack(): Track?"));
         assertTrue(owner.contains("queueProvider.mirroredQueueMatchesCurrentPlayer()"));
         assertTrue(owner.contains("queueProvider.seekMirroredQueueTo(targetIndex, startAtMs, playWhenReady)"));
-        assertTrue(owner.contains("queueProvider.canPrepareMirroredQueueTrack(track)"));
         assertTrue(owner.contains("queueProvider.restoreForDataPath(track.dataPath)"));
+        assertFalse(owner.contains("queueProvider.canPrepareMirroredQueueTrack(track)"));
         assertFalse(service.contains("boolean wasEmpty = queue.isEmpty()"));
         assertFalse(service.contains("int removedBeforeCurrent = 0"));
         assertFalse(service.contains("boolean targetAlreadyQueued = false"));
@@ -3748,6 +3858,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun preparing(): Boolean"));
         assertTrue(owner.contains("fun setErrorMessage(message: String?)"));
         assertTrue(owner.contains("fun errorMessage(): String"));
+        assertFalse(owner.contains("fun queueIsEmpty(): Boolean"));
     }
 
     @Test
@@ -3808,6 +3919,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private MediaLibrarySession mediaSession"));
         assertFalse(service.contains("releaseMediaSession()"));
         assertFalse(service.contains("bindMediaSessionPlayer()"));
+        assertFalse(exists("app/src/main/java/app/yukine/playback/PlaybackSessionGateway.kt"));
+        assertFalse(service.contains("PlaybackSessionGateway"));
+        assertFalse(service.contains("playbackSessionGateway"));
         assertTrue(service.contains("playbackSessionManager.bind()"));
         assertTrue(service.contains("playbackSessionManager.release()"));
         assertTrue(service.contains("playbackSessionManager.refreshPlayer()"));
@@ -3846,36 +3960,29 @@ public final class MainActivityArchitectureContractTest {
     public void streamingGatewaySettingsBoundaryIsKotlin() throws Exception {
         String mainActivity = read("app/src/main/java/app/yukine/MainActivity.java");
         String settingsStore = read("app/src/main/java/app/yukine/StreamingGatewaySettingsStore.kt");
-        String controller = read("app/src/main/java/app/yukine/StreamingGatewayController.kt");
-        String eventController = read("app/src/main/java/app/yukine/StreamingGatewayEventController.kt");
 
         assertFalse(exists("app/src/main/java/app/yukine/StreamingGatewaySettingsStore.java"));
+        assertFalse(exists("app/src/main/java/app/yukine/StreamingGatewayController.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/StreamingGatewayController.java"));
+        assertFalse(exists("app/src/test/java/app/yukine/StreamingGatewayControllerTest.kt"));
+        assertFalse(exists("app/src/main/java/app/yukine/StreamingGatewayEventController.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/StreamingGatewayEventController.java"));
         assertFalse(exists("app/src/main/java/app/yukine/StreamingGatewayHostBindings.kt"));
         assertTrue(settingsStore.contains("class StreamingGatewaySettingsStore"));
         assertTrue(settingsStore.contains("interface StreamingGatewayEndpointStore"));
         assertTrue(settingsStore.contains("@JvmStatic"));
         assertTrue(settingsStore.contains("fun normalize(value: String?)"));
-        assertTrue(controller.contains("internal class StreamingGatewayController"));
-        assertTrue(controller.contains("settingsStore.setEndpoint(endpoint)"));
-        assertTrue(controller.contains("viewModelBridge.configureStreamingRepository()"));
-        assertTrue(controller.contains("viewModelBridge.refreshStreamingProviders()"));
-        assertTrue(eventController.contains("internal class StreamingGatewayEventController"));
-        assertTrue(eventController.contains("private val streamingViewModel: StreamingViewModel"));
-        assertTrue(eventController.contains("private val languageModeProvider: StatusLanguageModeProvider"));
-        assertTrue(eventController.contains("private val renderSelectedTabAction: Runnable"));
-        assertTrue(eventController.contains("private val statusSink: SettingsStatusSink"));
-        assertTrue(eventController.contains(": StreamingGatewayController.ViewModelBridge, StreamingGatewayController.Listener"));
-        assertTrue(eventController.contains("override fun configureStreamingRepository()"));
-        assertTrue(eventController.contains("override fun refreshStreamingProviders()"));
-        assertTrue(eventController.contains("streamingViewModel.configureStreamingRepository()"));
-        assertTrue(eventController.contains("streamingViewModel.refreshStreamingProviders()"));
-        assertFalse(eventController.contains("MainActivityViewModel"));
-        assertTrue(eventController.contains("override fun onStreamingGatewayApplied(endpoint: String)"));
-        assertTrue(eventController.contains("AppLanguage.text(languageModeProvider.languageMode(), \"streaming.gateway.applied\")"));
-        assertTrue(mainActivity.contains("new StreamingGatewayEventController(\r\n                streamingViewModel,")
-                || mainActivity.contains("new StreamingGatewayEventController(\n                streamingViewModel,"));
+        assertFalse(mainActivity.contains("StreamingGatewayEventController"));
+        assertFalse(mainActivity.contains("StreamingGatewayController streamingGatewayController"));
+        assertFalse(mainActivity.contains("new StreamingGatewayController("));
+        assertTrue(mainActivity.contains("private kotlinx.coroutines.Job refreshStreamingProviders()"));
+        assertTrue(mainActivity.contains("kotlinx.coroutines.Job job = streamingViewModel.refreshStreamingProviders();"));
+        assertTrue(mainActivity.contains("private kotlinx.coroutines.Job applyStreamingGatewayEndpoint(String endpoint)"));
+        assertTrue(mainActivity.contains("streamingGatewaySettingsStore.setEndpoint(endpoint);"));
+        assertTrue(mainActivity.contains("streamingViewModel.configureStreamingRepository();"));
+        assertTrue(mainActivity.contains("AppLanguage.text(settingsStore.languageMode(), \"streaming.gateway.applied\")"));
+        assertTrue(mainActivity.contains("syncStreamingProvidersAndRender();"));
+        assertTrue(mainActivity.contains("streamingRecommendationViewModel.updateProviders(streamingViewModel.getState().getProviders());"));
         assertFalse(mainActivity.contains("new StreamingGatewayHostBindings("));
         assertFalse(mainActivity.contains("new StreamingGatewayController.ViewModelBridge()"));
         assertFalse(mainActivity.contains("new StreamingGatewayController.Listener()"));
@@ -3887,7 +3994,7 @@ public final class MainActivityArchitectureContractTest {
         String nowPlayingViewModel = read("app/src/main/java/app/yukine/NowPlayingViewModel.kt");
         String nowPlaying = read("app/src/main/java/app/yukine/ui/NowPlayingScreen.kt");
         String shellController = read("app/src/main/java/app/yukine/MainUiShellController.java");
-        String settingsPage = read("app/src/main/java/app/yukine/SettingsPageRenderController.kt");
+        String labelFormatter = read("app/src/main/java/app/yukine/SettingsLabelFormatter.kt");
         String settingsViewModel = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsScreen = read("app/src/main/java/app/yukine/ui/SettingsScreen.kt");
         String trackListScreen = read("app/src/main/java/app/yukine/ui/TrackListScreen.kt");
@@ -3898,27 +4005,34 @@ public final class MainActivityArchitectureContractTest {
 
         assertTrue(mainActivity.contains("private boolean scrollContentToTopOnNextRender"));
         assertFalse(mainActivity.contains("renderAndPersistSelectedTab(true)"));
-        assertFalse(mainActivity.contains("if (uiShellController.navigateContentRoute(selectedTab()))"));
-        assertTrue(mainActivity.contains("uiShellController.navigateContentRoute(selectedTab());\r\n        renderSelectedTabContent();")
-                || mainActivity.contains("uiShellController.navigateContentRoute(selectedTab());\n        renderSelectedTabContent();"));
+        assertFalse(mainActivity.contains("uiShellController.navigateContentRoute(selectedTab())"));
+        assertTrue(mainActivity.contains("renderSelectedTabForNavHostState();"));
         assertTrue(mainActivity.contains("public void onTabChanged(app.yukine.navigation.TabRoute tab)"));
         assertTrue(mainActivity.contains("navigateToTab(tab.getRoute(), true, true);"));
         assertTrue(mainActivity.contains("userInitiated && sameTab && previousDirectory.equals(currentDirectoryKey())"));
         assertTrue(mainActivity.contains("private void requestCurrentDirectoryScrollToTop()"));
         assertEquals(2, countOccurrences(mainActivity, "requestCurrentDirectoryScrollToTop()"));
         assertEquals(1, countOccurrences(mainActivity, "scrollContentToTopOnNextRender = true;"));
-        assertEquals(1, countOccurrences(mainActivity, "scrollView.scrollTo(0, 0);"));
-        assertTrue(mainActivity.contains("settingsPageRenderController.scrollToTopOnNextRender();"));
+        assertTrue(mainActivity.contains("settingsViewModel.scrollToTopOnNextRender();"));
+        assertFalse(mainActivity.contains("settingsPageRenderController.scrollToTopOnNextRender();"));
+        assertFalse(mainActivity.contains("uiShellController.useScrollingContentContainer();"));
+        assertFalse(mainActivity.contains("uiShellController.updateTabBar(selectedTab());"));
+        assertFalse(mainActivity.contains("uiShellController.hasContentHost()"));
+        assertFalse(mainActivity.contains("uiShellController.hasTabBar()"));
+        assertFalse(mainActivity.contains("uiShellController.prepareHorizontalContentTransition("));
+        assertFalse(mainActivity.contains("uiShellController.hasHeader()"));
+        assertFalse(mainActivity.contains("private void clearRemoteSourceAndNavigateNetworkPage("));
+        assertTrue(mainActivity.contains("routeController.clearSelectedRemoteSource();"));
         assertFalse(mainActivity.contains("TAB_NETWORK.equals(selectedTab()) || TAB_SETTINGS.equals(selectedTab())"));
         assertFalse(mainActivity.contains("private void navigateSettingsPage(String page)"));
         assertFalse(mainActivity.contains("routeController.setSettingsPage(page);\r\n        renderAndPersistSelectedTab();")
                 || mainActivity.contains("routeController.setSettingsPage(page);\n        renderAndPersistSelectedTab();"));
-        assertFalse(settingsPage.contains("val scrollState = SettingsListScrollState()"));
+        assertFalse(labelFormatter.contains("val scrollState = SettingsListScrollState()"));
         assertTrue(settingsViewModel.contains("val scrollState = SettingsListScrollState()"));
-        assertTrue(settingsPage.contains("fun scrollToTopOnNextRender()"));
-        assertFalse(settingsPage.contains("viewModel.renderCurrentPage(page, preferences, runtime)"));
+        assertTrue(settingsViewModel.contains("fun scrollToTopOnNextRender()"));
+        assertFalse(labelFormatter.contains("viewModel.renderCurrentPage(page, preferences, runtime)"));
         assertTrue(mainActivity.contains("settingsViewModel.renderPageFromHost("));
-        assertFalse(settingsPage.contains("scrollStateSink.publishSettingsScrollState(scrollState)"));
+        assertFalse(labelFormatter.contains("scrollStateSink.publishSettingsScrollState(scrollState)"));
         assertFalse(mainActivity.contains("settingsPageRenderController.getScrollState()"));
         assertTrue(settingsScreen.contains("rememberLazyListState("));
         assertTrue(settingsScreen.contains("scrollState.save(listState)"));
@@ -4092,6 +4206,17 @@ public final class MainActivityArchitectureContractTest {
         return count;
     }
 
+    private static int countFiles(String directory, String glob) throws Exception {
+        Path root = directory(directory);
+        int count = 0;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(root, glob)) {
+            for (Path ignored : stream) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private static boolean exists(String path) {
         Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
         while (current != null) {
@@ -4104,6 +4229,22 @@ public final class MainActivityArchitectureContractTest {
             current = current.getParent();
         }
         return false;
+    }
+
+    private static Path directory(String path) throws Exception {
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
+        while (current != null) {
+            Path candidate = current.resolve(path);
+            if (Files.isDirectory(candidate)) {
+                return candidate;
+            }
+            Path appCandidate = current.resolve("echo-android").resolve(path);
+            if (Files.isDirectory(appCandidate)) {
+                return appCandidate;
+            }
+            current = current.getParent();
+        }
+        throw new java.io.FileNotFoundException(path);
     }
 
     private static String utf8ReadAsGbk(String value) {

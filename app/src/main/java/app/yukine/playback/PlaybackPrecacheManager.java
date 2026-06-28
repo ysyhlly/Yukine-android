@@ -50,7 +50,6 @@ final class PlaybackPrecacheManager {
         int currentIndex();
         int repeatMode();
         Track currentTrack();
-        boolean samePlaybackUri(Track first, Track second);
         boolean isHttpUri(Uri uri);
         String cacheKeyForTrack(Track track);
         Map<String, String> headersForTrack(Track track);
@@ -102,7 +101,7 @@ final class PlaybackPrecacheManager {
             return;
         }
         Track current = stateProvider.currentTrack();
-        if (current != null && stateProvider.samePlaybackUri(track, current)) {
+        if (current != null && current.contentUri != null && current.contentUri.equals(track.contentUri)) {
             scheduleCurrentTrackPrecache(track);
             return;
         }
@@ -151,7 +150,8 @@ final class PlaybackPrecacheManager {
         Runnable task = () -> {
             Track current = stateProvider.currentTrack();
             if (current == null
-                    || !stateProvider.samePlaybackUri(precacheTrack, current)
+                    || current.contentUri == null
+                    || !current.contentUri.equals(precacheTrack.contentUri)
                     || !isCurrentPrecacheGeneration(generation, cacheKey)) {
                 return;
             }
@@ -285,7 +285,8 @@ final class PlaybackPrecacheManager {
         stateProvider.mainHandler().postDelayed(() -> {
             Track current = stateProvider.currentTrack();
             if (current == null
-                    || !stateProvider.samePlaybackUri(track, current)
+                    || current.contentUri == null
+                    || !current.contentUri.equals(track.contentUri)
                     || !isCurrentPrecacheGeneration(generation, cacheKey)) {
                 return;
             }

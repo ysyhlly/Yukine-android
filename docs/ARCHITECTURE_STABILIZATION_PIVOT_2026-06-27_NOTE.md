@@ -1,0 +1,26 @@
+# 2026-06-27 Slice Note
+
+- `EchoPlaybackService` no longer depends on `MainActivity` for the launch intent.
+- `samePlaybackUri` is no longer forwarded through the service boundary.
+- `PlaybackQueueManagerTest` now runs under Robolectric with `sdk = [34]`.
+- `StreamingPlaybackTaskScheduler` now directly implements `StreamingPlaybackTaskQueue`, and `StreamingPlaybackTaskQueueAdapter` was removed.
+- `PlaybackStartController` no longer uses the temporary `PlaybackController` facade. It receives the streaming resolver, local track-list player, and playback-result applier directly, removing the `PlaybackStartControllerAdapter` hop.
+- The old `app.yukine.playback.PlaybackController` / `PlaybackServiceController` facade was deleted along with the test-only fake, because it had no production callers left.
+- The migration ledger now treats the old 7.3.1 playback facade plan as retired history, not active work.
+- `NetworkRequestController` now implements `NetworkDialogController.Listener` directly, so the forwarding-only `NetworkDialogEventController` was removed.
+- `StreamingGatewayEventController` was removed first, then the remaining thin `StreamingGatewayController` was folded back into direct `MainActivity` helper methods for provider refresh and endpoint application.
+- `NowPlayingRenderController` was removed because the active Now screen is already driven by `NowPlayingViewModel.uiState` through `NowPlayingDestination`; the old controller only built an unpublished state and returned a non-null check.
+- More `MainActivity` one-hop helpers were collapsed: queue remove/move now call `QueueActionController` directly from listeners, network action results call `NowPlayingViewModel` directly for queue sync/retention, playlist sync calls `StreamingPlaylistController` directly, WebDAV source sync reads `libraryStore.remoteSourceName(...)` inline, and WebDAV source playback reads `libraryStore.webDavTracksForSource(...)` inline.
+- Unused `MainActivity` host helpers for streaming provider track IDs and streaming playlist batch sync were removed instead of preserved as migration shims.
+- Playlist dialog and collections row actions now call `LibraryViewModel.*Java(...)` directly; the private playlist CRUD/move/add host helpers were removed while result handlers remain in the shell.
+- Unified search load-more now calls `StreamingSearchActionHandler.loadNextPage()` directly from the search action lambda, removing another one-hop host helper.
+- `StreamingSearchEventController` was removed as a pure forwarding layer; `MainActivity` now wires `StreamingSearchRenderController.Listener` inline to the existing action handler, playlist/recommendation/dialog owners, and `StreamingViewModel.updateStreamingSearchChrome(...)`.
+- WebDAV remote-source playback is now owned by `NetworkSourcesEventController.playRemoteSourceTracks(...)` for both source rows and source track-list actions, removing the duplicate host helper.
+- Onboarding actions now call `OnboardingController` directly from `OnboardingActions`; the private onboarding action wrappers were removed from the host.
+- Streaming playlist import refresh now calls `loadLibrary(true)` directly from the controller listener; the private `refreshLibraryAfterStreamingImport()` host wrapper was removed.
+- More host-only wrappers were inlined for manual streaming cookie import, streaming playback pre-resolve, remote-source clear-and-navigate, and UiShell scrolling/tab updates.
+- Startup library loading now branches on permission inline instead of routing through `loadLibraryOnStartup()`.
+- Lyrics state refresh now reads `LyricsViewModel.stateSnapshot()` directly in the listener; the unused `ensureLyricsLoaded(...)` host method was removed.
+- `QueueIntentController` was removed; queue screen intents now bind directly from `QueueViewModel` to the existing library, playlist, queue, and back-action owners.
+- The no-op runtime language update bridge was removed: `SettingsRuntimeEffect.UpdateLanguage`, `SettingsRuntimeApplier.updateLanguage(...)`, and `MainUiShellController.updateLanguage(...)` are gone.
+- Verified with serial `:app:compileDebugKotlin :app:compileDebugJavaWithJavac` and focused unit tests.

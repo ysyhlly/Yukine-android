@@ -33,9 +33,9 @@ class PlayHistoryActionControllerTest {
         viewModel.bindCollectionGateway(FakeCollectionGateway(removed = 4))
         val controller = PlayHistoryActionController(
             viewModel = viewModel,
-            languageModeProvider = PlayHistoryLanguageModeProvider { AppLanguage.MODE_ENGLISH },
+            languageModeProvider = { AppLanguage.MODE_ENGLISH },
             libraryStateStore = PlayHistoryStateStore { activityViewModel.clearPlayHistory() },
-            statusSink = PlayHistoryStatusSink { statuses += it },
+            statusSink = { statuses += it },
             collectionsReloadAction = Runnable { reloads += 1 }
         )
 
@@ -70,6 +70,5 @@ class PlayHistoryActionControllerTest {
 
         override fun clearPlayHistory(): Int = removed
 
-        override fun setFavorite(trackId: Long, favorite: Boolean) = Unit
     }
 }

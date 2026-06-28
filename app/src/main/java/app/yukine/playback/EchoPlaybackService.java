@@ -34,7 +34,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import app.yukine.MainActivity;
 import app.yukine.R;
 import app.yukine.data.EmbeddedArtwork;
 import app.yukine.data.MusicLibraryRepository;
@@ -182,7 +181,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
             });
     private final PlaybackAudioEffectManager audioEffectManager =
             new PlaybackAudioEffectManager(TAG);
-    private PlaybackSessionGateway playbackSessionGateway;
+    private PlaybackSessionManager playbackSessionManager;
     private app.yukine.playback.manager.LyricsPublisher playbackLyricsManager;
     private PlaybackMediaLibraryCallback playbackMediaLibraryCallback;
     private PlaybackStatePublisher playbackStatePublisher;
@@ -514,7 +513,8 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
                     @Override
                     public android.media.session.MediaSession.Token playbackSessionPlatformToken() {
-                        return playbackSessionGateway == null ? null : playbackSessionGateway.platformToken();
+                        MediaLibrarySession session = playbackSessionManager == null ? null : playbackSessionManager.session();
+                        return session == null ? null : session.getPlatformToken();
                     }
                 },
                 new PlaybackNotificationManager.LyricsTextProvider() {
@@ -561,11 +561,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
                     @Override
                     public int currentIndex() {
                         return currentIndex();
-                    }
-
-                    @Override
-                    public Track currentTrack() {
-                        return EchoPlaybackService.this.currentTrack();
                     }
 
                     @Override
@@ -648,11 +643,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
                     }
 
                     @Override
-                    public boolean canPrepareMirroredQueueTrack(Track track) {
-                        return track != null && !Uri.EMPTY.equals(track.contentUri);
-                    }
-
-                    @Override
                     public void setRestoredPosition(long trackId, long positionMs, boolean explicit) {
                         if (playbackPositionManager != null) {
                             playbackPositionManager.setRestoredPosition(trackId, positionMs, explicit);
@@ -677,16 +667,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
                     @Override
                     public void setLastMarkedTrack(Track track) {
                         playbackTransitionStateManager.setLastMarkedTrack(track);
-                    }
-
-                    @Override
-                    public boolean queueIsEmpty() {
-                        return queue.isEmpty();
-                    }
-
-                    @Override
-                    public boolean samePlaybackUri(Track first, Track second) {
-                        return EchoPlaybackService.this.samePlaybackUri(first, second);
                     }
 
                     @Override
@@ -803,12 +783,12 @@ public final class EchoPlaybackService extends MediaLibraryService {
                     }
                 }
         );
-        playbackSessionGateway = new PlaybackSessionGateway(new PlaybackSessionManager(
+        playbackSessionManager = new PlaybackSessionManager(
                 this,
                 this::createSessionPlayer,
                 playbackMediaLibraryCallback,
                 this::activityPendingIntent
-        ));
+        );
         playbackVisualizationAnalyzer = new PlaybackVisualizationAnalyzer(
                 this,
                 visualizationTaskScheduler,
@@ -895,11 +875,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
                     public Track currentTrack() {
                         return EchoPlaybackService.this.currentTrack();
                     }
-
-                    @Override
-                    public boolean samePlaybackUri(Track first, Track second) {
-                        return EchoPlaybackService.this.samePlaybackUri(first, second);
-                    }
                 }
         );
         playbackWarmupCoordinator = new PlaybackWarmupCoordinator(
@@ -979,9 +954,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
                     @Override
                     public void refreshPlaybackSession() {
-                        if (playbackSessionGateway != null) {
-                            playbackSessionGateway.refresh();
-                        }
+                        refreshPlaybackSession();
                     }
 
                     @Override
@@ -1017,11 +990,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
             @Override
             public Track currentTrack() {
                 return EchoPlaybackService.this.currentTrack();
-            }
-
-            @Override
-            public boolean samePlaybackUri(Track first, Track second) {
-                return EchoPlaybackService.this.samePlaybackUri(first, second);
             }
 
             @Override
@@ -1311,7 +1279,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     @Override
     public MediaLibrarySession onGetSession(MediaSession.ControllerInfo controllerInfo) {
-        return playbackSessionGateway == null ? null : playbackSessionGateway.session();
+        return playbackSessionManager == null ? null : playbackSessionManager.session();
     }
 
     @Override
@@ -1634,13 +1602,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
         if (playbackQueueManager != null) {
             playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs);
         }
-    }
-
-    private boolean samePlaybackUri(Track first, Track second) {
-        if (first == null || second == null || first.contentUri == null || second.contentUri == null) {
-            return false;
-        }
-        return first.contentUri.equals(second.contentUri);
     }
 
     public void removeTracksById(Set<Long> trackIds) {
@@ -2165,14 +2126,14 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private void refreshPlaybackSession() {
-        if (playbackSessionGateway != null) {
-            playbackSessionGateway.refresh();
+        if (playbackSessionManager != null) {
+            playbackSessionManager.refreshPlayer();
         }
     }
 
     private void releasePlaybackSession() {
-        if (playbackSessionGateway != null) {
-            playbackSessionGateway.release();
+        if (playbackSessionManager != null) {
+            playbackSessionManager.release();
         }
     }
 
@@ -2279,8 +2240,8 @@ public final class EchoPlaybackService extends MediaLibraryService {
         applyPlaybackParametersToPlayer();
         applyPlaybackModeToPlayer();
         audioEffectManager.bind(player, audioEffectSettings);
-        if (playbackSessionGateway != null) {
-            playbackSessionGateway.bind();
+        if (playbackSessionManager != null) {
+            playbackSessionManager.bind();
         }
     }
 
@@ -2769,8 +2730,12 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private PendingIntent activityPendingIntent() {
-        Intent intent = new Intent(this, MainActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        Intent intent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        if (intent == null) {
+            intent = new Intent(Intent.ACTION_MAIN);
+            intent.setPackage(getPackageName());
+        }
+        intent.setFlags(intent.getFlags() | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         return PendingIntent.getActivity(this, 0, intent, pendingIntentFlags());
     }
 

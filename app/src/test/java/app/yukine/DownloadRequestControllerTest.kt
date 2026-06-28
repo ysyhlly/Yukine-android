@@ -97,26 +97,26 @@ class DownloadRequestControllerTest {
         val downloadsViewModel = DownloadsViewModel()
         val resolver = FakeStreamingResolver(resolvedTrack)
         val controller = DownloadRequestController(
-            downloadManagerProvider = DownloadManagerProvider { queue },
+            downloadManagerProvider = { queue },
             downloadsViewModel = downloadsViewModel,
             resolveStreamingPlaybackUseCase = ResolveStreamingPlaybackUseCase(),
             qualityChooser = chooser,
             streamingResolver = resolver,
-            statusSink = DownloadStatusSink { statuses += it }
+            statusSink = { statuses += it }
         )
     }
 
     private class FakeQualityChooser : DownloadQualityChooser {
-        data class Request(val title: String, val callback: DownloadQualitySelectedCallback)
+        data class Request(val title: String, val callback: (StreamingAudioQuality) -> Unit)
 
         val requests = mutableListOf<Request>()
 
-        override fun choose(title: String, onQualitySelected: DownloadQualitySelectedCallback) {
+        override fun choose(title: String, onQualitySelected: (StreamingAudioQuality) -> Unit) {
             requests += Request(title, onQualitySelected)
         }
 
         fun select(quality: StreamingAudioQuality) {
-            requests.last().callback.onQualitySelected(quality)
+            requests.last().callback(quality)
         }
     }
 

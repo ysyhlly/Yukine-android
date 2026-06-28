@@ -294,3 +294,20 @@ gradlew.bat --no-daemon --max-workers=1 :app:testDebugUnitTest --tests app.yukin
 - Guard: PlaybackQueueManagerTest covers validated snapshot/header restore and unplayable-track rejection; MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster rejects the old queueTrack Uri/header loop returning to EchoPlaybackService.
 - Verification: serial `gradlew.bat --no-daemon --max-workers=1 :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster --console=plain` and `gradlew.bat --no-daemon --max-workers=1 :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain` passed.
 - Follow-up: EchoPlaybackService still owns MediaSource creation and prepareSingleTrack/prepareMirroredQueue ExoPlayer calls; next fast slice can extract a preparation state owner without moving the player itself.
+## 2026-06-27 DIRECTION PIVOT: stabilization before more extraction
+
+- New controlling doc: `docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md`.
+- This pivot supersedes the previous default of continuing fast owner/manager extraction when the two conflict.
+- Freeze broad architecture expansion first: do not add new `Manager`, `Coordinator`, `Controller`, `Bindings`, or `Gateway` layers by default.
+- Stabilize the dirty migration surface, record current counts, and prefer reviewable commits/checkpoints before more migration.
+- Reduce existing over-abstraction: merge/delete forwarding-only owners, shrink oversized provider/listener interfaces, and shorten UI -> service/data call chains.
+- Do not expand `PlaybackQueueManager.QueueProvider` or similar large interfaces without a prior split/merge/inline plan.
+- String-based architecture contracts are not enough for fragile flows; pair them with behavior tests, dependency-direction checks, integration smoke, or device evidence.
+- Continue P1/P2 only after a slice demonstrably reduces net files, methods, state sources, dependencies, or call-chain length.
+## 2026-06-27 ????
+
+- ???????????/????????????? owner ????
+- `EchoPlaybackService` ???? `MainActivity` ???????????/???????? launcher intent?
+- `PlaybackQueueManager.QueueProvider` ??????????????????????????????
+- ?????????????????????????????
+- ???????? `docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md`???? P1/P2 ????????????????
