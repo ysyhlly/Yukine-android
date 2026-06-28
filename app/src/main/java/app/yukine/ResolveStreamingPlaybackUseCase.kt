@@ -91,7 +91,7 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
         if (!StreamingPlaybackAdapter.isUnresolvedStreamingTrack(selected)) {
             return null
         }
-        val provider = StreamingPlaybackAdapter.providerName(selected.dataPath) ?: return null
+        val provider = StreamingPlaybackAdapter.streamingProviderName(selected.dataPath) ?: return null
         val providerTrackId = StreamingPlaybackAdapter.providerTrackId(selected.dataPath)
             .takeIf { it.isNotBlank() }
             ?: return null
@@ -140,7 +140,7 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
         if (!unresolvedStreamingTrack(next)) {
             return null
         }
-        val provider = StreamingPlaybackAdapter.providerName(next.dataPath) ?: return null
+        val provider = StreamingPlaybackAdapter.streamingProviderName(next.dataPath) ?: return null
         val providerTrackId = StreamingPlaybackAdapter.providerTrackId(next.dataPath)
             .takeIf { it.isNotBlank() }
             ?: return null
@@ -183,7 +183,7 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
         if (snapshot.positionMs < recoveryWarmupMs) {
             return null
         }
-        val provider = StreamingPlaybackAdapter.providerName(current.dataPath) ?: return null
+        val provider = StreamingPlaybackAdapter.streamingProviderName(current.dataPath) ?: return null
         val providerTrackId = StreamingPlaybackAdapter.providerTrackId(current.dataPath)
             .takeIf { it.isNotBlank() }
             ?: return null
@@ -236,7 +236,7 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
             return null
         }
         val selected = track ?: return null
-        val provider = StreamingPlaybackAdapter.providerName(selected.dataPath) ?: return null
+        val provider = StreamingPlaybackAdapter.streamingProviderName(selected.dataPath) ?: return null
         val providerTrackId = StreamingPlaybackAdapter.providerTrackId(selected.dataPath)
             .takeIf { it.isNotBlank() }
             ?: return null

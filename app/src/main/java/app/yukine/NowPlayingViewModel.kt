@@ -6,31 +6,19 @@ import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingProviderName
-import app.yukine.ui.LyricUiLine
 import app.yukine.ui.NowBarState
 import app.yukine.ui.nowBarEmptyState
 import java.util.ArrayDeque
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-
-sealed interface NowPlayingEvent {
-    data object PlayPause : NowPlayingEvent
-    data object Next : NowPlayingEvent
-    data object Previous : NowPlayingEvent
-    data class SeekTo(val positionMs: Long) : NowPlayingEvent
-    data object ToggleLyrics : NowPlayingEvent
-    data object OpenQueue : NowPlayingEvent
-    data object ToggleFavorite : NowPlayingEvent
-    data object AddToPlaylist : NowPlayingEvent
-    data object ShareCurrentTrack : NowPlayingEvent
-    data object DownloadCurrentTrack : NowPlayingEvent
-    data object ToggleShuffle : NowPlayingEvent
-    data object CycleRepeatMode : NowPlayingEvent
-}
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 
 sealed interface NowPlayingEffect {
     data object OpenQueue : NowPlayingEffect
@@ -45,38 +33,6 @@ sealed interface NowPlayingEffect {
     ) : NowPlayingEffect
     data class ShowMessage(val message: String) : NowPlayingEffect
 }
-
-enum class RepeatModeUi {
-    Off,
-    All,
-    One
-}
-
-data class LyricsUiState(
-    val title: String = "",
-    val status: String = "",
-    val lines: List<LyricUiLine> = emptyList()
-)
-
-data class NowPlayingUiState @JvmOverloads constructor(
-    val trackTitle: String = "",
-    val artist: String = "",
-    val album: String? = null,
-    val coverUri: String? = null,
-    val isPlaying: Boolean = false,
-    val positionMs: Long = 0L,
-    val durationMs: Long = 0L,
-    val isFavorite: Boolean = false,
-    val lyricsVisible: Boolean = false,
-    val lyrics: LyricsUiState = LyricsUiState(),
-    val shuffleEnabled: Boolean = false,
-    val repeatMode: RepeatModeUi = RepeatModeUi.All,
-    val errorMessage: String? = null,
-    val trackId: Long = -1L,
-    val currentTrack: Track? = null,
-    val overlayState: NowBarState = nowBarEmptyState(),
-    val appVolume: Float = 1.0f
-)
 
 interface NowPlayingGateway {
     fun playPause()
@@ -125,9 +81,12 @@ interface NowPlayingPlaybackGateway {
     fun setRepeatMode(repeatMode: Int)
 }
 
-class NowPlayingViewModel : ViewModel() {
+class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
     private val _uiState = MutableStateFlow(NowPlayingUiState())
-    val uiState: StateFlow<NowPlayingUiState> = _uiState.asStateFlow()
+    override val uiState: StateFlow<NowPlayingUiState> = _uiState.asStateFlow()
+    override val nowBarState: StateFlow<NowBarState> = _uiState
+        .map { it.overlayState }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, nowBarEmptyState())
 
     private val _effects = MutableSharedFlow<NowPlayingEffect>(extraBufferCapacity = 8)
     val effects: SharedFlow<NowPlayingEffect> = _effects.asSharedFlow()
@@ -237,7 +196,7 @@ class NowPlayingViewModel : ViewModel() {
         return drained
     }
 
-    fun switchSource(
+    override fun switchSource(
         track: Track?,
         provider: StreamingProviderName?,
         providerTrackId: String?,

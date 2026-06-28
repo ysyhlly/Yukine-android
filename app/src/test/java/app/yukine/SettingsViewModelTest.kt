@@ -3,6 +3,7 @@ package app.yukine
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.SettingsMetric
+import app.yukine.streaming.StreamingQualityPreference
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle

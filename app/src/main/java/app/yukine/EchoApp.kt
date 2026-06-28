@@ -11,6 +11,7 @@ import app.yukine.queue.QueueViewModel
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.OnboardingActions
 import app.yukine.ui.OnboardingScreen
+import app.yukine.ui.StreamingUsageNoticeLabels
 
 /**
  * Java-implementable wiring for the single-Activity Compose shell.
@@ -25,7 +26,7 @@ interface EchoNavHostMount {
     fun searchViewModel(): SearchViewModel = SearchViewModel()
     fun openDownloadDirectoryPickerAction(): Runnable = Runnable { }
     fun closeNowPlayingAction(): Runnable = Runnable { }
-    fun nowPlayingEventHandler(): (NowPlayingEvent) -> Unit = { event -> hostState().nowPlayingViewModel.onEvent(event) }
+    fun nowPlayingEventHandler(): (NowPlayingEvent) -> Unit = {}
     fun showOnboarding(): Boolean = false
     fun audioPermissionGranted(): Boolean = true
     fun notificationPermissionGranted(): Boolean = true
@@ -52,7 +53,10 @@ object EchoAppHost {
                         notificationPermissionGranted = mount.notificationPermissionGranted(),
                         libraryScanCompleted = mount.libraryScanCompleted(),
                         libraryScanInProgress = mount.libraryScanInProgress(),
-                        languageMode = mount.languageMode(),
+                        noticeLabels = StreamingUsageNoticeLabels(
+                            title = AppLanguage.text(mount.languageMode(), "streaming.usage.notice.title"),
+                            body = AppLanguage.text(mount.languageMode(), "streaming.usage.notice.body")
+                        ),
                         actions = mount.onboardingActions()
                     )
                 } else {

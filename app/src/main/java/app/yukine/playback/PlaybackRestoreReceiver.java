@@ -7,6 +7,7 @@ import android.os.Build;
 
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.model.PlaybackQueueState;
+import app.yukine.streaming.StreamingPlaybackAdapter;
 
 public final class PlaybackRestoreReceiver extends BroadcastReceiver {
     @Override
@@ -14,7 +15,7 @@ public final class PlaybackRestoreReceiver extends BroadcastReceiver {
         if (context == null || intent == null || !Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
             return;
         }
-        MusicLibraryRepository repository = new MusicLibraryRepository(context.getApplicationContext());
+        MusicLibraryRepository repository = new MusicLibraryRepository(context.getApplicationContext(), StreamingPlaybackAdapter.INSTANCE);
         if (!repository.loadPlaybackRestoreEnabled()) {
             return;
         }

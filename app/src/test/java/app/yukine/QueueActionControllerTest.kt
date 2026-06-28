@@ -4,9 +4,13 @@ import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
 
 class QueueActionControllerTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     @Test
     fun removeAndClearQueueApplyViewModelResults() {
         val player = FakePlaybackGateway()

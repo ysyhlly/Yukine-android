@@ -78,7 +78,7 @@ class EchoNavHostBridgeTest {
             mainViewModel = MainActivityViewModel(SavedStateHandle()),
             navigationViewModel = NavigationViewModel(SavedStateHandle()),
             homeDashboardViewModel = homeDashboard,
-            nowPlayingViewModel = NowPlayingViewModel(),
+            nowPlayingStateProvider = NowPlayingViewModel(),
             libraryViewModel = LibraryViewModel(),
             collectionsViewModel = collections,
             settingsViewModel = SettingsViewModel(),

@@ -2,7 +2,8 @@ package app.yukine.queue
 
 import androidx.lifecycle.ViewModel
 import app.yukine.AppLanguage
-import app.yukine.MainActivityQueueUiState
+import app.yukine.QueueDestinationState
+import app.yukine.QueueDestinationStateProvider
 import app.yukine.TrackRowKeyPolicy
 import app.yukine.TrackRowStateFactory
 import app.yukine.model.Track
@@ -41,13 +42,13 @@ sealed interface QueueIntent {
  * This is the template the remaining tabs follow: state in via flows, intents out via a
  * SharedFlow, zero direct coupling to the playback service or the Java shell.
  */
-class QueueViewModel : ViewModel() {
+class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
 
-    private val _uiState = MutableStateFlow(MainActivityQueueUiState())
-    val uiState: StateFlow<MainActivityQueueUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(QueueDestinationState())
+    override val uiState: StateFlow<QueueDestinationState> = _uiState.asStateFlow()
 
     private val _labels = MutableStateFlow(QueueScreenLabels())
-    val labels: StateFlow<QueueScreenLabels> = _labels.asStateFlow()
+    override val labels: StateFlow<QueueScreenLabels> = _labels.asStateFlow()
 
     private val _intents = MutableSharedFlow<QueueIntent>(extraBufferCapacity = 16)
     val intents: SharedFlow<QueueIntent> = _intents.asSharedFlow()
@@ -94,7 +95,7 @@ class QueueViewModel : ViewModel() {
                 favoriteIds
             )
         }
-        _uiState.value = MainActivityQueueUiState(rows)
+        _uiState.value = QueueDestinationState(rows)
         _labels.value = QueueScreenLabels(
             title = AppLanguage.text(languageMode, "tab.queue"),
             back = AppLanguage.text(languageMode, "back"),
@@ -112,35 +113,35 @@ class QueueViewModel : ViewModel() {
     /** The tracks backing the current rows; used by the screen to build positional intents. */
     fun tracks(): List<Track> = boundTracks
 
-    fun onPlayAt(index: Int) {
+    override fun onPlayAt(index: Int) {
         val tracks = boundTracks
         if (index in tracks.indices) {
             emit(QueueIntent.PlayAt(tracks, index))
         }
     }
 
-    fun onToggleFavorite(index: Int) {
+    override fun onToggleFavorite(index: Int) {
         boundTracks.getOrNull(index)?.let { emit(QueueIntent.ToggleFavorite(it)) }
     }
 
-    fun onAddToPlaylist(index: Int) {
+    override fun onAddToPlaylist(index: Int) {
         boundTracks.getOrNull(index)?.let { emit(QueueIntent.AddToPlaylist(it)) }
     }
 
-    fun onRemove(index: Int) {
+    override fun onRemove(index: Int) {
         boundTracks.getOrNull(index)?.let { emit(QueueIntent.Remove(it)) }
     }
 
-    fun onMove(fromIndex: Int, toIndex: Int) {
+    override fun onMove(fromIndex: Int, toIndex: Int) {
         val tracks = boundTracks
         if (fromIndex in tracks.indices && toIndex in tracks.indices && fromIndex != toIndex) {
             emit(QueueIntent.Move(fromIndex, toIndex))
         }
     }
 
-    fun onClearQueue() = emit(QueueIntent.ClearQueue)
+    override fun onClearQueue() = emit(QueueIntent.ClearQueue)
 
-    fun onBack() = emit(QueueIntent.Back)
+    override fun onBack() = emit(QueueIntent.Back)
 
     private fun emit(intent: QueueIntent) {
         intentListener?.onIntent(intent)

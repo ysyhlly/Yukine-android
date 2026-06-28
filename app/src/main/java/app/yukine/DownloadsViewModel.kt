@@ -8,13 +8,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-data class DownloadsUiState(
-    val active: List<TrackDownloadItem> = emptyList(),
-    val finished: List<TrackDownloadItem> = emptyList(),
-    val directoryLabel: String = "",
-    val message: String = ""
-)
-
 sealed interface DownloadsEffect {
     data object OpenDirectoryPicker : DownloadsEffect
 }

@@ -35,10 +35,14 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import app.yukine.R;
-import app.yukine.data.EmbeddedArtwork;
+import app.yukine.common.StreamingDataPathMetadata;
+import app.yukine.common.EmbeddedArtwork;
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.playback.manager.PlaybackAudioEffectManager;
 import app.yukine.playback.manager.PlaybackErrorRecoveryManager;
+import app.yukine.playback.manager.PlaybackMediaSourceProvider;
+import app.yukine.playback.manager.PlaybackPlayerFactory;
+import app.yukine.playback.manager.PlaybackSessionPlayer;
 import app.yukine.playback.manager.PlaybackLyricsManager;
 import app.yukine.playback.manager.PlaybackMediaLibraryCallback;
 import app.yukine.playback.manager.PlaybackNoisyReceiverManager;
@@ -68,17 +72,9 @@ import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
-import androidx.media3.datasource.DefaultDataSource;
-import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.datasource.cache.CacheDataSource;
-import androidx.media3.datasource.cache.ContentMetadata;
-import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor;
 import androidx.media3.datasource.cache.SimpleCache;
-import androidx.media3.exoplayer.DefaultLoadControl;
-import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
-import androidx.media3.exoplayer.audio.AudioSink;
-import androidx.media3.exoplayer.audio.DefaultAudioSink;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.session.MediaSession;
@@ -106,9 +102,9 @@ public final class EchoPlaybackService extends MediaLibraryService {
     public static final String ACTION_RESTORE = "app.yukine.action.RESTORE";
     public static final String ACTION_RESTORE_AND_PLAY = "app.yukine.action.RESTORE_AND_PLAY";
 
-    public static final int REPEAT_ALL = 0;
-    public static final int REPEAT_ONE = 1;
-    public static final int REPEAT_OFF = 2;
+    public static final int REPEAT_ALL = PlaybackRepeatMode.REPEAT_ALL;
+    public static final int REPEAT_ONE = PlaybackRepeatMode.REPEAT_ONE;
+    public static final int REPEAT_OFF = PlaybackRepeatMode.REPEAT_OFF;
 
     private static final String CHANNEL_ID = "echo_next_playback";
     private static final int NOTIFICATION_ID = 1001;
@@ -119,17 +115,6 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private static final int NOTIFICATION_ACCENT = 0xFFEBC9A6;
     private static final long CROSSFADE_FADE_OUT_MS = 700L;
     private static final long CROSSFADE_FADE_STEP_MS = 70L;
-    private static final long VISUALIZATION_CACHE_BYTES = 64L * 1024L * 1024L;
-    // Buffering policy tuned for music streaming. Keep a generous read-ahead window (so a brief
-    // network dip doesn't stall mid-song) but start and recover quickly so the user feels little
-    // latency. Start playback after ~2.5s of buffer instead of 5s, and resume after a stall once
-    // ~5s is buffered instead of 15s; the previous values made every hiccup feel like a long hang.
-    private static final int STREAMING_MIN_BUFFER_MS = 90000;
-    private static final int STREAMING_MAX_BUFFER_MS = 600000;
-    private static final int STREAMING_BUFFER_FOR_PLAYBACK_MS = 2500;
-    private static final int STREAMING_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 3500;
-    private static final int STREAMING_BACK_BUFFER_MS = 60000;
-    private static final long AUDIO_CACHE_MAX_BYTES = 1024L * 1024L * 1024L;
     private static final long PLAYBACK_VISUALIZATION_CACHE_DELAY_MS = 1800L;
     private static final float[] EMPTY_REALTIME_BANDS = new float[0];
     private static final int NOTIFICATION_ARTWORK_TARGET_PX = 512;
@@ -200,12 +185,13 @@ public final class EchoPlaybackService extends MediaLibraryService {
     private PlaybackWifiLockManager playbackWifiLockManager;
     private PlaybackNoisyReceiverManager playbackNoisyReceiverManager;
     private PlaybackProgressUpdateManager playbackProgressUpdateManager;
-    private SimpleCache audioCache;
     @Inject
     MusicLibraryRepository repository;
     @Inject
     StreamingPlaybackHeaderStore streamingPlaybackHeaderStore;
     private AudioEffectSettings audioEffectSettings = AudioEffectSettings.DEFAULT;
+    private PlaybackMediaSourceProvider mediaSourceProvider;
+    private PlaybackPlayerFactory playerFactory;
     private final PlaybackTransitionStateManager playbackTransitionStateManager = new PlaybackTransitionStateManager();
     private volatile boolean appVisible;
 
@@ -311,6 +297,8 @@ public final class EchoPlaybackService extends MediaLibraryService {
     @UnstableApi
     public void onCreate() {
         super.onCreate();
+        mediaSourceProvider = new PlaybackMediaSourceProvider(this, repository, streamingPlaybackHeaderStore);
+        playerFactory = new PlaybackPlayerFactory(this, realtimeBassAudioProcessor);
         audioEffectSettings = repository.loadAudioEffectSettings();
         new PlaybackNotificationChannelOwner(this).createNotificationChannel();
         queueStore = new PlaybackQueueStoreImpl(repository);
@@ -678,7 +666,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
                     @Override
                     public void recordStreamingRecovery(Track track, long restoredPositionMs) {
-                        streamingDiagnostics.recordRecovery(track, restoredPositionMs, qualityFromDataPath(track.dataPath));
+                        streamingDiagnostics.recordRecovery(track, restoredPositionMs, StreamingDataPathMetadata.quality(track.dataPath));
                     }
 
                     @Override
@@ -1121,150 +1109,24 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     @UnstableApi
     private Player createSessionPlayer() {
-        return new ForwardingPlayer(player) {
+        return new PlaybackSessionPlayer(player, new PlaybackSessionPlayer.Delegate() {
+            @Override public void play() { EchoPlaybackService.this.play(); }
+            @Override public void pause() { EchoPlaybackService.this.pause(); }
+            @Override public void seekTo(long positionMs) { EchoPlaybackService.this.seekTo(positionMs); }
+            @Override public void skipToPrevious() { EchoPlaybackService.this.skipToPrevious(); }
+            @Override public void skipToNext() { EchoPlaybackService.this.skipToNext(); }
+            @Override public void setRepeatMode(int appRepeatMode) { EchoPlaybackService.this.setRepeatMode(appRepeatMode); }
+            @Override public void stopAndClear() { EchoPlaybackService.this.stopAndClear(); }
             @Override
-            public void play() {
-                EchoPlaybackService.this.play();
+            public boolean setControllerMediaItems(List<MediaItem> mediaItems, int startIndex, long startPositionMs) {
+                return EchoPlaybackService.this.setControllerMediaItems(mediaItems, startIndex, startPositionMs);
             }
-
+            @Override public Track currentTrack() { return EchoPlaybackService.this.currentTrack(); }
             @Override
-            public void pause() {
-                EchoPlaybackService.this.pause();
+            public MediaMetadata mediaMetadataForTrack(Track track) {
+                return playbackNotificationManager == null ? null : playbackNotificationManager.mediaMetadataForTrack(track);
             }
-
-            @Override
-            public void seekTo(long positionMs) {
-                EchoPlaybackService.this.seekTo(positionMs);
-            }
-
-            @Override
-            public boolean isCommandAvailable(int command) {
-                if (isAppQueueNavigationCommand(command) || command == Player.COMMAND_SET_REPEAT_MODE) {
-                    return true;
-                }
-                return super.isCommandAvailable(command);
-            }
-
-            @Override
-            public Player.Commands getAvailableCommands() {
-                return new Player.Commands.Builder()
-                        .addAll(super.getAvailableCommands())
-                        .addAll(
-                                Player.COMMAND_SEEK_TO_PREVIOUS,
-                                Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
-                                Player.COMMAND_SEEK_TO_NEXT,
-                                Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
-                                Player.COMMAND_SET_REPEAT_MODE
-                        )
-                        .build();
-            }
-
-            @Override
-            public void seekTo(int mediaItemIndex, long positionMs) {
-                EchoPlaybackService.this.seekTo(positionMs);
-            }
-
-            @Override
-            public void seekToPrevious() {
-                skipToPrevious();
-            }
-
-            @Override
-            public void seekToPreviousMediaItem() {
-                skipToPrevious();
-            }
-
-            @Override
-            public void previous() {
-                skipToPrevious();
-            }
-
-            @Override
-            public void seekToNext() {
-                skipToNext();
-            }
-
-            @Override
-            public void seekToNextMediaItem() {
-                skipToNext();
-            }
-
-            @Override
-            public void next() {
-                skipToNext();
-            }
-
-            @Override
-            public void setRepeatMode(int repeatMode) {
-                EchoPlaybackService.this.setRepeatMode(appRepeatModeForMedia3RepeatMode(repeatMode));
-            }
-
-            @Override
-            public void stop() {
-                stopAndClear();
-            }
-
-            @Override
-            public void setPlayWhenReady(boolean playWhenReady) {
-                if (playWhenReady) {
-                    EchoPlaybackService.this.play();
-                } else {
-                    EchoPlaybackService.this.pause();
-                }
-            }
-
-            @Override
-            public MediaMetadata getMediaMetadata() {
-                Track track = currentTrack();
-                return track == null || playbackNotificationManager == null
-                        ? super.getMediaMetadata()
-                        : playbackNotificationManager.mediaMetadataForTrack(track);
-            }
-
-            @Override
-            public void setMediaItem(MediaItem mediaItem) {
-                if (!setControllerMediaItems(Collections.singletonList(mediaItem), 0, C.TIME_UNSET)) {
-                    super.setMediaItem(mediaItem);
-                }
-            }
-
-            @Override
-            public void setMediaItem(MediaItem mediaItem, long startPositionMs) {
-                if (!setControllerMediaItems(Collections.singletonList(mediaItem), 0, startPositionMs)) {
-                    super.setMediaItem(mediaItem, startPositionMs);
-                }
-            }
-
-            @Override
-            public void setMediaItem(MediaItem mediaItem, boolean resetPosition) {
-                long startPositionMs = resetPosition ? 0L : C.TIME_UNSET;
-                if (!setControllerMediaItems(Collections.singletonList(mediaItem), 0, startPositionMs)) {
-                    super.setMediaItem(mediaItem, resetPosition);
-                }
-            }
-
-            @Override
-            public void setMediaItems(List<MediaItem> mediaItems) {
-                if (!setControllerMediaItems(mediaItems, 0, C.TIME_UNSET)) {
-                    super.setMediaItems(mediaItems);
-                }
-            }
-
-            @Override
-            public void setMediaItems(List<MediaItem> mediaItems, boolean resetPosition) {
-                long startPositionMs = resetPosition ? 0L : C.TIME_UNSET;
-                if (!setControllerMediaItems(mediaItems, 0, startPositionMs)) {
-                    super.setMediaItems(mediaItems, resetPosition);
-                }
-            }
-
-            @Override
-            public void setMediaItems(List<MediaItem> mediaItems, int startIndex, long startPositionMs) {
-                if (!setControllerMediaItems(mediaItems, startIndex, startPositionMs)) {
-                    super.setMediaItems(mediaItems, startIndex, startPositionMs);
-                }
-            }
-        };
+        });
     }
 
     @Override
@@ -1973,37 +1835,18 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private void releasePlayer() {
-        if (player == null) {
-            releasePlaybackSession();
-            audioEffectManager.release();
-            releaseAudioCache();
-            return;
-        }
-        releasePlaybackSession();
-        audioEffectManager.release();
-        try {
-            player.removeListener(playerListener);
-            player.stop();
-        } catch (IllegalStateException ignored) {
-            // Player is already unusable.
-        }
-        player.release();
+        playerFactory.releasePlayer(
+                player, playerListener, audioEffectManager,
+                this::releasePlaybackSession,
+                this::releaseAudioCache
+        );
         player = null;
         playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false);
         playbackRuntimeStateManager.setPreparing(false);
-        releaseAudioCache();
     }
 
     private void releaseAudioCache() {
-        if (audioCache == null) {
-            return;
-        }
-        try {
-            audioCache.release();
-        } catch (RuntimeException error) {
-            Log.w(TAG, "Unable to release audio cache", error);
-        }
-        audioCache = null;
+        mediaSourceProvider.releaseAudioCache();
     }
 
     private void stopAndClear() {
@@ -2205,34 +2048,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
         if (player != null) {
             return;
         }
-        DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this) {
-            @Override
-            protected AudioSink buildAudioSink(
-                    Context context,
-                    boolean enableFloatOutput,
-                    boolean enableAudioTrackPlaybackParams
-            ) {
-                return new DefaultAudioSink.Builder(context)
-                        .setAudioProcessors(new androidx.media3.common.audio.AudioProcessor[]{realtimeBassAudioProcessor})
-                        .setEnableFloatOutput(enableFloatOutput)
-                        .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                        .build();
-            }
-        };
-        player = new ExoPlayer.Builder(this, renderersFactory)
-                .setLoadControl(new DefaultLoadControl.Builder()
-                        .setBufferDurationsMs(
-                                STREAMING_MIN_BUFFER_MS,
-                                STREAMING_MAX_BUFFER_MS,
-                                STREAMING_BUFFER_FOR_PLAYBACK_MS,
-                                STREAMING_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
-                        )
-                        .setPrioritizeTimeOverSizeThresholds(true)
-                        .setBackBuffer(STREAMING_BACK_BUFFER_MS, true)
-                        .build())
-                .setWakeMode(androidx.media3.common.C.WAKE_MODE_LOCAL)
-                .setHandleAudioBecomingNoisy(true)
-                .build();
+        player = playerFactory.createPlayer();
         if (playbackRuntimeStateManager != null) {
             playbackRuntimeStateManager.applyAudioFocusHandling();
         }
@@ -2455,36 +2271,11 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     @OptIn(markerClass = UnstableApi.class)
     private DefaultMediaSourceFactory mediaSourceFactory(Track track) {
-        Map<String, String> headers = headersForTrack(track);
-        DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory()
-                .setAllowCrossProtocolRedirects(true);
-        if (!headers.isEmpty()) {
-            httpFactory.setDefaultRequestProperties(headers);
-        }
-        DefaultDataSource.Factory upstreamFactory = new DefaultDataSource.Factory(this, httpFactory);
-        if (!isHttpUri(track.contentUri)) {
-            return new DefaultMediaSourceFactory(upstreamFactory);
-        }
-        CacheDataSource.Factory cacheFactory = new CacheDataSource.Factory()
-                .setCache(audioCache())
-                .setUpstreamDataSourceFactory(upstreamFactory)
-                .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
-        return new DefaultMediaSourceFactory(cacheFactory);
+        return mediaSourceProvider.mediaSourceFactory(track);
     }
 
     private CacheDataSource cacheDataSourceForTrack(Track track) {
-        Map<String, String> headers = headersForTrack(track);
-        DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory()
-                .setAllowCrossProtocolRedirects(true);
-        if (!headers.isEmpty()) {
-            httpFactory.setDefaultRequestProperties(headers);
-        }
-        DefaultDataSource upstream = new DefaultDataSource(this, httpFactory.createDataSource());
-        return new CacheDataSource(
-                audioCache(),
-                upstream,
-                CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR
-        );
+        return mediaSourceProvider.cacheDataSourceForTrack(track);
     }
 
     private PlaybackWaveformSnapshot waveformSnapshotFor(Track track, long durationMs, boolean deferGeneration) {
@@ -2529,14 +2320,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private long continuousCachedBytes(String cacheKey) {
-        try {
-            long length = audioCache().getCachedLength(cacheKey, 0L, Long.MAX_VALUE);
-            if (length > 0L) {
-                return length;
-            }
-        } catch (RuntimeException ignored) {
-        }
-        return 0L;
+        return mediaSourceProvider.continuousCachedBytes(cacheKey);
     }
 
     private float bufferedProgress(long durationMs) {
@@ -2565,14 +2349,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private long contentLengthForCacheKey(String cacheKey) {
-        if (cacheKey == null || cacheKey.isEmpty()) {
-            return -1L;
-        }
-        try {
-            return ContentMetadata.getContentLength(audioCache().getContentMetadata(cacheKey));
-        } catch (RuntimeException ignored) {
-            return -1L;
-        }
+        return mediaSourceProvider.contentLengthForCacheKey(cacheKey);
     }
 
     private String waveformKey(Track track) {
@@ -2583,129 +2360,31 @@ public final class EchoPlaybackService extends MediaLibraryService {
     }
 
     private String mediaCacheKeyForTrack(Track track) {
-        String cacheKey = cacheKeyForTrack(track);
-        if (cacheKey != null && !cacheKey.isEmpty()) {
-            return cacheKey;
-        }
-        return track == null || track.contentUri == null ? "" : track.contentUri.toString();
+        return mediaSourceProvider.mediaCacheKeyForTrack(track);
     }
 
     private SimpleCache audioCache() {
-        if (audioCache == null) {
-            File cacheDir = new File(getCacheDir(), "streaming-audio-cache");
-            try {
-                audioCache = new SimpleCache(
-                        cacheDir,
-                        new LeastRecentlyUsedCacheEvictor(AUDIO_CACHE_MAX_BYTES)
-                );
-            } catch (RuntimeException error) {
-                // If SimpleCache is left in a bad state after process death, clear and rebuild it.
-                Log.w(TAG, "Audio cache corrupted; clearing and rebuilding", error);
-                deleteRecursively(cacheDir);
-                audioCache = new SimpleCache(
-                        cacheDir,
-                        new LeastRecentlyUsedCacheEvictor(AUDIO_CACHE_MAX_BYTES)
-                );
-            }
-        }
-        return audioCache;
-    }
-
-    private static void deleteRecursively(File file) {
-        if (file == null || !file.exists()) {
-            return;
-        }
-        File[] children = file.listFiles();
-        if (children != null) {
-            for (File child : children) {
-                deleteRecursively(child);
-            }
-        }
-        file.delete();
+        return mediaSourceProvider.audioCache();
     }
 
     private boolean isHttpUri(Uri uri) {
-        if (uri == null) {
-            return false;
-        }
-        String scheme = uri.getScheme();
-        return "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
+        return mediaSourceProvider.isHttpUri(uri);
     }
 
     private String cacheKeyForTrack(Track track) {
-        return mediaCacheKey(track);
+        return mediaSourceProvider.cacheKeyForTrack(track);
     }
 
     static String mediaCacheKey(Track track) {
-        if (track == null || track.dataPath == null || track.dataPath.isEmpty()) {
-            return null;
-        }
-        String uri = track.contentUri == null ? "" : track.contentUri.toString();
-        return mediaCacheKey(track.dataPath, uri);
+        return PlaybackMediaSourceProvider.mediaCacheKey(track);
     }
 
     static String mediaCacheKey(String dataPath, String uri) {
-        if (dataPath == null || dataPath.isEmpty()) {
-            return null;
-        }
-        if (dataPath.startsWith("streaming:")) {
-            return uri == null || uri.isEmpty() ? dataPath : dataPath + "|url=" + uri;
-        }
-        if (dataPath.startsWith("webdav:")) {
-            return dataPath;
-        }
-        return null;
+        return PlaybackMediaSourceProvider.mediaCacheKey(dataPath, uri);
     }
 
     private Map<String, String> headersForTrack(Track track) {
-        HashMap<String, String> headers = new HashMap<>();
-        headers.putAll(streamingPlaybackHeaderStore.forDataPath(track.dataPath));
-        if (!track.dataPath.startsWith("webdav:")) {
-            return headers;
-        }
-        long sourceId = webDavSourceId(track.dataPath);
-        if (sourceId <= 0L) {
-            return headers;
-        }
-        RemoteSource source = repository.loadRemoteSource(sourceId);
-        if (source == null || !source.hasAuth()) {
-            return headers;
-        }
-        String auth = source.username + ":" + source.password;
-        String encoded = Base64.encodeToString(auth.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
-        headers.put("Authorization", "Basic " + encoded);
-        return headers;
-    }
-
-    private long webDavSourceId(String dataPath) {
-        String[] parts = dataPath.split(":", 3);
-        if (parts.length < 3) {
-            return -1L;
-        }
-        try {
-            return Long.parseLong(parts[1]);
-        } catch (NumberFormatException ignored) {
-            return -1L;
-        }
-    }
-
-    private String qualityFromDataPath(String dataPath) {
-        if (dataPath == null || dataPath.isEmpty()) {
-            return "";
-        }
-        int start = dataPath.indexOf("quality=");
-        if (start < 0) {
-            return "";
-        }
-        start += "quality=".length();
-        int end = dataPath.indexOf(':', start);
-        if (end < 0) {
-            end = dataPath.indexOf('|', start);
-        }
-        if (end < 0) {
-            end = dataPath.length();
-        }
-        return dataPath.substring(start, end);
+        return mediaSourceProvider.headersForTrack(track);
     }
 
     private boolean hasNotificationWorthyState() {

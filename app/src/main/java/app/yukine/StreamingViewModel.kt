@@ -1,4 +1,5 @@
 package app.yukine
+import app.yukine.streaming.StreamingQualityPreference
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -988,7 +989,7 @@ class StreamingViewModel @Inject constructor(
             .filter { StreamingPlaybackAdapter.isUnresolvedStreamingTrack(it) }
             .distinctBy { it.dataPath }
             .mapNotNull { track ->
-                val provider = StreamingPlaybackAdapter.providerName(track.dataPath) ?: return@mapNotNull null
+                val provider = StreamingPlaybackAdapter.streamingProviderName(track.dataPath) ?: return@mapNotNull null
                 val providerTrackId = StreamingPlaybackAdapter.providerTrackId(track.dataPath)
                     .takeIf { it.isNotBlank() }
                     ?: return@mapNotNull null

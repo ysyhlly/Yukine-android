@@ -5,9 +5,13 @@ import app.yukine.model.Track
 import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.PlaybackStateSnapshot
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
 
 class PlaybackActionControllerTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     @Test
     fun forwardsPlaybackButtonsThroughNowPlayingViewModel() {
         val playbackGateway = FakePlaybackGateway()

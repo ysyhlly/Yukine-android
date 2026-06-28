@@ -92,6 +92,15 @@ ksp {
 }
 
 dependencies {
+    // Project modules
+    implementation project(":core:model")
+    implementation project(":core:common")
+    implementation project(":feature:streaming")
+    implementation project(":feature:data")
+    implementation project(":feature:playback")
+    implementation project(":feature:ui-common")
+    implementation project(":feature:navigation")
+
     // Compose BOM
     implementation platform(libs.androidx.compose.bom)
     testImplementation platform(libs.androidx.compose.bom)

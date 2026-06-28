@@ -25,7 +25,6 @@ import app.yukine.streaming.StreamingPlaylistSyncStore
 import app.yukine.streaming.StreamingTrack
 import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.LibraryGroupUiState
-import app.yukine.ui.QueueTrackUiState
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListAlbumCardUiState
@@ -87,10 +86,6 @@ data class MainActivityLibraryGroupsUiState(
     val actions: List<LibraryGroupActions> = emptyList(),
     val emptyText: String = "",
     val modeActions: List<TrackListModeAction> = emptyList()
-)
-
-data class MainActivityQueueUiState(
-    val rows: List<QueueTrackUiState> = emptyList()
 )
 
 data class StreamingManualCookieDialogState(

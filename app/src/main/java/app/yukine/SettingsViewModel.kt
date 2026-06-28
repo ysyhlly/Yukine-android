@@ -1,4 +1,5 @@
 package app.yukine
+import app.yukine.streaming.StreamingQualityPreference
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -66,7 +67,14 @@ data class SettingsState(
     val runtime: RuntimeSettingsStatus = RuntimeSettingsStatus(),
     val actions: List<SettingsAction> = emptyList(),
     val ui: SettingsUiState = SettingsUiState()
-)
+) : SettingsDestinationState {
+    override val destinationTitle: String
+        get() = ui.title
+    override val destinationMetrics: List<SettingsMetric>
+        get() = ui.metrics
+    override val destinationActions: List<SettingsAction>
+        get() = actions
+}
 
 data class SettingsAppliedStatusText(
     val themeApplied: String = "",

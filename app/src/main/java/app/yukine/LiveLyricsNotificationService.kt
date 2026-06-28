@@ -13,7 +13,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
-import app.yukine.data.EmbeddedArtwork
+import app.yukine.common.EmbeddedArtwork
 import app.yukine.playback.EchoPlaybackService
 import java.io.InputStream
 import kotlinx.coroutines.CoroutineScope

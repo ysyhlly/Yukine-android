@@ -10,7 +10,7 @@ import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import app.yukine.model.Track
-import app.yukine.data.EmbeddedArtwork
+import app.yukine.common.EmbeddedArtwork
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingPlaybackHeaderStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -39,28 +39,6 @@ data class TrackDownloadResult(
 data class TrackDownloadActionResult(
     val changed: Boolean,
     val message: String
-)
-
-enum class TrackDownloadStatus {
-    Pending,
-    Running,
-    Paused,
-    Finished,
-    Failed,
-    Unknown
-}
-
-data class TrackDownloadItem(
-    val downloadId: Long,
-    val title: String,
-    val artist: String,
-    val status: TrackDownloadStatus,
-    val progressPercent: Int,
-    val bytesDownloaded: Long,
-    val totalBytes: Long,
-    val localUri: String,
-    val reason: Int,
-    val quality: String = "high"
 )
 
 interface TrackDownloadController {

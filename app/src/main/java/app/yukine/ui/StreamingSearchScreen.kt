@@ -79,6 +79,7 @@ data class StreamingSearchActions(
 
 data class StreamingSearchLabels(
     val languageMode: String,
+    val usageNotice: StreamingUsageNoticeLabels,
     val title: String,
     val back: String,
     val searchPrefix: String,
@@ -142,6 +143,7 @@ data class StreamingSearchLabels(
         @JvmStatic
         fun empty(): StreamingSearchLabels = StreamingSearchLabels(
             languageMode = "system",
+            usageNotice = StreamingUsageNoticeLabels.defaults(),
             title = "\u97f3\u6e90\u4e0e\u7f51\u7edc",
             back = "\u8fd4\u56de",
             searchPrefix = "\u641c\u7d22 ",
@@ -254,7 +256,7 @@ fun StreamingSearchScreen(
             )
         }
         item(key = "streaming-usage-notice") {
-            StreamingUsageNotice(labels.languageMode)
+            StreamingUsageNotice(labels.usageNotice)
         }
         if (hasLocalPendingProviders) {
             item(key = "local-first-hint") {

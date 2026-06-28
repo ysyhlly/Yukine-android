@@ -1,4 +1,5 @@
 package app.yukine
+import app.yukine.streaming.StreamingQualityPreference
 
 import app.yukine.playback.AudioEffectSettings
 import java.util.Locale

@@ -7,9 +7,13 @@ import app.yukine.playback.PlaybackStateSnapshot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 
 class NowPlayingViewModelTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     @Test
     fun transportEventsCallGateway() {
         val gateway = FakeGateway()

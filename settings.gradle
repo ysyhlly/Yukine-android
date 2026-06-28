@@ -16,3 +16,10 @@ dependencyResolutionManagement {
 
 rootProject.name = "YukineAndroid"
 include ":app"
+include ":core:model"
+include ":core:common"
+include ":feature:streaming"
+include ":feature:data"
+include ":feature:playback"
+include ":feature:ui-common"
+include ":feature:navigation"

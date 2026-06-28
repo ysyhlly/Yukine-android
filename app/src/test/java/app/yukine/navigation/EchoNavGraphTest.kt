@@ -60,7 +60,8 @@ class EchoNavGraphTest {
     private fun hostState(
         visualMotionEnabled: Boolean = false,
         realtimeBeatProvider: () -> Float = { 0f },
-        realtimeBandsProvider: () -> FloatArray = { emptyRealtimeBands }
+        realtimeBandsProvider: () -> FloatArray = { emptyRealtimeBands },
+        nowPlayingStateProvider: NowPlayingViewModel = NowPlayingViewModel()
     ): EchoNavHostState {
         val homeDashboard = HomeDashboardViewModel(null).also {
             it.updateHomeDashboard(
@@ -99,7 +100,7 @@ class EchoNavGraphTest {
             mainViewModel = MainActivityViewModel(SavedStateHandle()),
             navigationViewModel = NavigationViewModel(SavedStateHandle()),
             homeDashboardViewModel = homeDashboard,
-            nowPlayingViewModel = NowPlayingViewModel(),
+            nowPlayingStateProvider = nowPlayingStateProvider,
             libraryViewModel = LibraryViewModel(),
             collectionsViewModel = collections,
             settingsViewModel = settings,
@@ -185,8 +186,9 @@ class EchoNavGraphTest {
 
     @Test
     fun clickingNowBarTrack_opensImmersiveNowPlayingRoute() {
-        val state = hostState()
-        state.nowPlayingViewModel.updateState(nowPlayingSnapshot(), emptySet(), null)
+        val nowPlayingViewModel = NowPlayingViewModel()
+        val state = hostState(nowPlayingStateProvider = nowPlayingViewModel)
+        nowPlayingViewModel.updateState(nowPlayingSnapshot(), emptySet(), null)
         composeRule.setContent {
             EchoTheme.EchoTheme {
                 EchoNavGraph(

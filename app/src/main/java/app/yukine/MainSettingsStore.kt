@@ -1,4 +1,5 @@
 package app.yukine
+import app.yukine.streaming.StreamingQualityPreference
 
 import app.yukine.ui.EchoTheme
 import app.yukine.playback.AudioEffectSettings

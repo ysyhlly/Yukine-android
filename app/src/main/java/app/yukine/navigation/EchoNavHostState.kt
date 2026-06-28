@@ -11,11 +11,12 @@ import app.yukine.MainActivityViewModel
 import app.yukine.NavigationViewModel
 import app.yukine.NetworkMenuViewModel
 import app.yukine.NetworkSourcesViewModel
-import app.yukine.NowPlayingViewModel
+import app.yukine.NowPlayingScreenStateProvider
 import app.yukine.PlaybackViewModel
 import app.yukine.SettingsViewModel
 import app.yukine.StreamingViewModel
 import app.yukine.TrackDownloadManager
+import kotlinx.coroutines.flow.StateFlow
 
 private val EmptyRealtimeBands = FloatArray(0)
 
@@ -23,7 +24,7 @@ class EchoNavHostState @JvmOverloads constructor(
     val mainViewModel: MainActivityViewModel,
     val navigationViewModel: NavigationViewModel,
     val homeDashboardViewModel: HomeDashboardViewModel,
-    val nowPlayingViewModel: NowPlayingViewModel,
+    val nowPlayingStateProvider: NowPlayingScreenStateProvider,
     val libraryViewModel: LibraryViewModel,
     val collectionsViewModel: CollectionsViewModel,
     val settingsViewModel: SettingsViewModel,
@@ -38,5 +39,9 @@ class EchoNavHostState @JvmOverloads constructor(
     val realtimeBandsProvider: () -> FloatArray = { EmptyRealtimeBands },
     val visualMotionEnabled: Boolean = true
 ) {
+    val nowBarStateProvider: NowPlayingScreenStateProvider = nowPlayingStateProvider
+    val playbackSnapshotProvider: PlaybackSnapshotProvider = playbackViewModel
+    val nowPlayingUiState: StateFlow<app.yukine.NowPlayingUiState> = nowPlayingStateProvider.uiState
+
     var selectedTabRoute by mutableStateOf(selectedTabRoute)
 }

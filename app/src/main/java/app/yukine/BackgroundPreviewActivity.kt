@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import app.yukine.ui.BackgroundPreviewLabels
 import app.yukine.ui.BackgroundPreviewScreen
 import app.yukine.ui.EchoTheme
 
@@ -35,7 +36,7 @@ class BackgroundPreviewActivity : ComponentActivity() {
             EchoTheme.EchoTheme {
                 BackgroundPreviewScreen(
                     uri = uri,
-                    languageMode = languageMode,
+                    labels = backgroundPreviewLabels(languageMode),
                     initialTransform = initial,
                     onCancel = {
                         setResult(Activity.RESULT_CANCELED)
@@ -56,6 +57,17 @@ class BackgroundPreviewActivity : ComponentActivity() {
             .putExtra(EXTRA_SCALE, safe.scale)
             .putExtra(EXTRA_OFFSET_X, safe.offsetX)
             .putExtra(EXTRA_OFFSET_Y, safe.offsetY)
+    }
+
+    private fun backgroundPreviewLabels(languageMode: String): BackgroundPreviewLabels {
+        return BackgroundPreviewLabels(
+            title = AppLanguage.text(languageMode, "page.background.preview.title"),
+            hint = AppLanguage.text(languageMode, "page.background.preview.hint"),
+            reset = AppLanguage.text(languageMode, "page.background.preview.reset"),
+            cancel = AppLanguage.text(languageMode, "page.background.preview.cancel"),
+            apply = AppLanguage.text(languageMode, "page.background.preview.apply"),
+            sample = AppLanguage.text(languageMode, "page.background.preview.sample")
+        )
     }
 
     companion object {

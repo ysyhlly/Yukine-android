@@ -21,6 +21,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.Modifier
+import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.collections.CollectionsDestination
 import app.yukine.downloads.DownloadsDestination
 import app.yukine.home.HomeDestination
@@ -51,19 +52,19 @@ fun EchoNavGraph(
     searchViewModel: SearchViewModel = SearchViewModel(),
     openDownloadDirectoryPickerAction: Runnable = Runnable { },
     closeNowPlayingAction: Runnable = Runnable { },
-    nowPlayingEventHandler: (NowPlayingEvent) -> Unit = { hostState.nowPlayingViewModel.onEvent(it) },
+    nowPlayingEventHandler: (NowPlayingEvent) -> Unit = {},
     nowBar: (@Composable () -> Unit)? = null,
     topBar: @Composable () -> Unit = {}
 ) {
-    val playbackState by hostState.playbackViewModel.playback.collectAsState()
-    val playbackQuality = qualityFromDataPath(playbackState.snapshot.currentTrack?.dataPath.orEmpty())
+    val playbackState by hostState.playbackSnapshotProvider.playbackSnapshot.collectAsState()
+    val playbackQuality = StreamingDataPathMetadata.quality(playbackState.currentTrack?.dataPath)
     var realtimeBeat by remember(hostState) {
         mutableStateOf(0f)
     }
     var realtimeBands by remember(hostState) {
         mutableStateOf(EmptyRealtimeBands)
     }
-    val realtimeVisualsActive = hostState.visualMotionEnabled && playbackState.snapshot.playing
+    val realtimeVisualsActive = hostState.visualMotionEnabled && playbackState.playing
     LaunchedEffect(hostState, realtimeVisualsActive) {
         if (!realtimeVisualsActive) {
             if (realtimeBeat != 0f) {
@@ -88,18 +89,19 @@ fun EchoNavGraph(
         }
     }
     val audioMotion = YukineOrbAudioMotion(
-        spectrumBands = playbackState.snapshot.spectrum.bands,
-        generatedFrames = playbackState.snapshot.spectrum.generatedFrames,
-        bandCount = playbackState.snapshot.spectrum.bandCount,
-        waveformBars = playbackState.snapshot.waveform.bars,
-        waveformGeneratedBars = playbackState.snapshot.waveform.generatedBars,
-        positionMs = playbackState.snapshot.positionMs,
-        durationMs = playbackState.snapshot.durationMs,
-        playing = playbackState.snapshot.playing,
-        realtimeBeat = max(playbackState.snapshot.realtimeBeat, realtimeBeat),
+        spectrumBands = playbackState.spectrum.bands,
+        generatedFrames = playbackState.spectrum.generatedFrames,
+        bandCount = playbackState.spectrum.bandCount,
+        waveformBars = playbackState.waveform.bars,
+        waveformGeneratedBars = playbackState.waveform.generatedBars,
+        positionMs = playbackState.positionMs,
+        durationMs = playbackState.durationMs,
+        playing = playbackState.playing,
+        realtimeBeat = max(playbackState.realtimeBeat, realtimeBeat),
         realtimeBands = realtimeBands,
         visualMotionEnabled = hostState.visualMotionEnabled
     )
+    val nowBarState by hostState.nowBarStateProvider.nowBarState.collectAsState()
     val settingsState by hostState.settingsViewModel.state.collectAsState()
     var activeDownload by remember(hostState.trackDownloadManager) {
         mutableStateOf<TrackDownloadItem?>(null)
@@ -148,14 +150,21 @@ fun EchoNavGraph(
     }
 
     val persistentNowBar: @Composable () -> Unit = nowBar ?: {
-            EchoNowBar(
-            viewModel = hostState.nowPlayingViewModel,
+        EchoNowBar(
+            state = nowBarState,
+            onPrevious = Runnable { nowPlayingEventHandler(NowPlayingEvent.Previous) },
+            onPlayPause = Runnable { nowPlayingEventHandler(NowPlayingEvent.PlayPause) },
+            onNext = Runnable { nowPlayingEventHandler(NowPlayingEvent.Next) },
+            onFavorite = Runnable { nowPlayingEventHandler(NowPlayingEvent.ToggleFavorite) },
+            onShuffle = Runnable { nowPlayingEventHandler(NowPlayingEvent.ToggleShuffle) },
+            onRepeat = Runnable { nowPlayingEventHandler(NowPlayingEvent.CycleRepeatMode) },
             onOpenNowPlaying = {
                 openNowPlayingImmersive = true
                 hostState.selectedTabRoute = QueueTab.route
                 onTabChanged(QueueTab)
             },
-            onOpenQueue = { showQueueSheet = true }
+            onOpenQueue = { showQueueSheet = true },
+            onSeek = { positionMs -> nowPlayingEventHandler(NowPlayingEvent.SeekTo(positionMs)) }
         )
     }
 
@@ -192,12 +201,15 @@ fun EchoNavGraph(
                         audioMotion
                     )
                     NowTab -> NowPlayingDestination(
-                        hostState.nowPlayingViewModel,
+                        state = hostState.nowPlayingUiState,
                         defaultImmersive = openNowPlayingImmersive,
                         onDefaultImmersiveConsumed = { openNowPlayingImmersive = false },
                         gesturesEnabled = settingsState.preferences.nowPlayingGesturesEnabled,
                         onClose = closeNowPlayingAction,
                         onEvent = nowPlayingEventHandler,
+                        onSwitchSource = { track, provider, providerTrackId, quality ->
+                            hostState.nowPlayingStateProvider.switchSource(track, provider, providerTrackId, quality)
+                        },
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion
@@ -216,12 +228,15 @@ fun EchoNavGraph(
                     HomeTab -> HomeDestination(hostState.homeDashboardViewModel.uiState, activeDownload, playbackQuality, audioMotion)
                     LibraryTab -> LibraryDestination(hostState, openSearchAction, activeDownload, playbackQuality, audioMotion)
                     QueueTab -> NowPlayingDestination(
-                        hostState.nowPlayingViewModel,
+                        state = hostState.nowPlayingUiState,
                         defaultImmersive = openNowPlayingImmersive,
                         onDefaultImmersiveConsumed = { openNowPlayingImmersive = false },
                         gesturesEnabled = settingsState.preferences.nowPlayingGesturesEnabled,
                         onClose = closeNowPlayingAction,
                         onEvent = nowPlayingEventHandler,
+                        onSwitchSource = { track, provider, providerTrackId, quality ->
+                            hostState.nowPlayingStateProvider.switchSource(track, provider, providerTrackId, quality)
+                        },
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion
@@ -282,25 +297,6 @@ private fun LibraryDestination(
         playbackQuality = playbackQuality,
         audioMotion = audioMotion
     )
-}
-
-private fun qualityFromDataPath(dataPath: String): String {
-    if (dataPath.isBlank()) {
-        return ""
-    }
-    val marker = "quality="
-    val start = dataPath.indexOf(marker)
-    if (start < 0) {
-        return ""
-    }
-    val valueStart = start + marker.length
-    val valueEnd = listOf(
-        dataPath.indexOf(':', valueStart),
-        dataPath.indexOf('|', valueStart),
-        dataPath.indexOf('&', valueStart),
-        dataPath.indexOf('#', valueStart)
-    ).filter { it >= 0 }.minOrNull() ?: dataPath.length
-    return dataPath.substring(valueStart, valueEnd).trim().lowercase()
 }
 
 private fun backgroundPageForTab(tab: TabRoute): String = when (tab) {

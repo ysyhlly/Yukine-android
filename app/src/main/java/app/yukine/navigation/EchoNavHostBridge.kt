@@ -13,7 +13,7 @@ fun EchoNavHostBridge(
     searchViewModel: SearchViewModel = SearchViewModel(),
     openDownloadDirectoryPickerAction: Runnable = Runnable { },
     closeNowPlayingAction: Runnable = Runnable { },
-    nowPlayingEventHandler: (NowPlayingEvent) -> Unit = { hostState.nowPlayingViewModel.onEvent(it) },
+    nowPlayingEventHandler: (NowPlayingEvent) -> Unit = {},
     onTabChanged: (TabRoute) -> Unit = {}
 ) {
     EchoNavGraph(

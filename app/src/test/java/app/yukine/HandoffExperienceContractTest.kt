@@ -85,16 +85,32 @@ class HandoffExperienceContractTest {
     private fun read(path: String): String {
         var current: Path? = Path.of(System.getProperty("user.dir")).toAbsolutePath()
         while (current != null) {
-            val candidate = current.resolve(path)
-            if (Files.isRegularFile(candidate)) {
-                return String(Files.readAllBytes(candidate), StandardCharsets.UTF_8)
-            }
-            val appCandidate = current.resolve("echo-android").resolve(path)
-            if (Files.isRegularFile(appCandidate)) {
-                return String(Files.readAllBytes(appCandidate), StandardCharsets.UTF_8)
+            for (candidatePath in candidatePaths(path)) {
+                val candidate = current.resolve(candidatePath)
+                if (Files.isRegularFile(candidate)) {
+                    return String(Files.readAllBytes(candidate), StandardCharsets.UTF_8)
+                }
+                val appCandidate = current.resolve("echo-android").resolve(candidatePath)
+                if (Files.isRegularFile(appCandidate)) {
+                    return String(Files.readAllBytes(appCandidate), StandardCharsets.UTF_8)
+                }
             }
             current = current.parent
         }
         throw java.io.FileNotFoundException(path)
+    }
+
+    private fun candidatePaths(path: String): List<String> {
+        val candidates = mutableListOf(path)
+        if (path.startsWith("app/src/main/java/app/yukine/ui/")) {
+            candidates += path.replace(
+                "app/src/main/java/app/yukine/ui/",
+                "feature/ui-common/src/main/java/app/yukine/ui/"
+            )
+        }
+        if (path == "app/src/main/java/app/yukine/TrackDownloadFileNamePolicy.kt") {
+            candidates += "core/common/src/main/java/app/yukine/TrackDownloadFileNamePolicy.kt"
+        }
+        return candidates
     }
 }
