@@ -145,6 +145,7 @@
 
 - 这是后续一切拆分的前提：先确保当前大 diff 可审查、行为测试不丢、三个 god-class 根因有明确下降路径。
 - 如果不先收宿主、服务和数据库护栏，继续删桥接层只会把复杂度换位置。
+- `P1-6` follows the playback target shape in `docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md`: `EchoPlaybackService` keeps only Android/Media3 system boundaries, while queue/cache/resolve/lyrics/notification policy moves into small real owners without adding a universal `PlaybackServiceFacade`.
 
 ### 第二批：收稳定边界
 

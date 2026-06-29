@@ -5,6 +5,7 @@ internal class PlaybackShutdownCoordinator(
     private val playbackNotificationArtworkRelease: Runnable,
     private val playbackPrecacheRelease: Runnable,
     private val unregisterNoisyReceiver: Runnable,
+    private val clearMainCallbacks: Runnable,
     private val shutdownTaskSchedulers: Runnable,
     private val releaseWifiLock: Runnable,
     private val releasePlayer: Runnable
@@ -19,6 +20,7 @@ internal class PlaybackShutdownCoordinator(
         playbackLyricsRelease.run()
         unregisterNoisyReceiver.run()
         shutdownTaskSchedulers.run()
+        clearMainCallbacks.run()
         playbackNotificationArtworkRelease.run()
         playbackPrecacheRelease.run()
         releaseWifiLock.run()

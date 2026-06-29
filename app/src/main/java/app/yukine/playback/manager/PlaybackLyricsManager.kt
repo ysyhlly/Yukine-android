@@ -18,6 +18,7 @@ internal class PlaybackLyricsManager(
         fun isPlaying(): Boolean
         fun isPreparing(): Boolean
         fun notifyMediaNotification(force: Boolean)
+        fun refreshPlaybackSession()
     }
 
     private var statusBarLyricsEnabled = true
@@ -57,6 +58,8 @@ internal class PlaybackLyricsManager(
         statusBarLyricsEnabled = enabled
         lastNotificationLyric = ""
         updateLiveLyricsNotificationService(notificationLyricText(stateProvider.currentTrack()))
+        stateProvider.refreshPlaybackSession()
+        stateProvider.notifyMediaNotification(true)
     }
 
     override fun syncFloatingLyricsPlaybackState(snapshot: PlaybackStateSnapshot) {

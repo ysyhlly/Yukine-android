@@ -2,7 +2,8 @@ package app.yukine
 
 import androidx.lifecycle.ViewModel
 import app.yukine.model.Track
-import app.yukine.playback.EchoPlaybackService
+import app.yukine.playback.PlaybackRepeatMode
+import app.yukine.playback.PlaybackServiceActions
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingProviderName
@@ -217,7 +218,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         if (player.serviceConnected()) {
             player.skipToPrevious()
         } else {
-            player.startPlaybackService(EchoPlaybackService.ACTION_PREVIOUS)
+            player.startPlaybackService(PlaybackServiceActions.PREVIOUS)
         }
     }
 
@@ -226,7 +227,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         if (player.serviceConnected()) {
             player.skipToNext()
         } else {
-            player.startPlaybackService(EchoPlaybackService.ACTION_NEXT)
+            player.startPlaybackService(PlaybackServiceActions.NEXT)
         }
     }
 
@@ -392,23 +393,23 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             return statusOnly("Playback service is not connected")
         }
         val shuffleEnabled = playbackState?.shuffleEnabled == true
-        val repeatMode = playbackState?.repeatMode ?: EchoPlaybackService.REPEAT_ALL
+        val repeatMode = playbackState?.repeatMode ?: PlaybackRepeatMode.REPEAT_ALL
         when {
             shuffleEnabled -> {
                 player.setShuffleEnabled(false)
-                player.setRepeatMode(EchoPlaybackService.REPEAT_ALL)
+                player.setRepeatMode(PlaybackRepeatMode.REPEAT_ALL)
             }
-            repeatMode == EchoPlaybackService.REPEAT_ALL -> {
-                player.setRepeatMode(EchoPlaybackService.REPEAT_ONE)
+            repeatMode == PlaybackRepeatMode.REPEAT_ALL -> {
+                player.setRepeatMode(PlaybackRepeatMode.REPEAT_ONE)
             }
-            repeatMode == EchoPlaybackService.REPEAT_ONE -> {
-                player.setRepeatMode(EchoPlaybackService.REPEAT_OFF)
+            repeatMode == PlaybackRepeatMode.REPEAT_ONE -> {
+                player.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF)
             }
-            repeatMode == EchoPlaybackService.REPEAT_OFF -> {
-                player.setRepeatMode(EchoPlaybackService.REPEAT_ALL)
+            repeatMode == PlaybackRepeatMode.REPEAT_OFF -> {
+                player.setRepeatMode(PlaybackRepeatMode.REPEAT_ALL)
             }
             else -> {
-                player.setRepeatMode(EchoPlaybackService.REPEAT_ALL)
+                player.setRepeatMode(PlaybackRepeatMode.REPEAT_ALL)
             }
         }
         return PlaybackActionResultUi(player.snapshot(), null, false, false, true, false)
@@ -433,8 +434,8 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     private fun repeatModeUi(repeatMode: Int): RepeatModeUi {
         return when (repeatMode) {
-            EchoPlaybackService.REPEAT_ONE -> RepeatModeUi.One
-            EchoPlaybackService.REPEAT_OFF -> RepeatModeUi.Off
+            PlaybackRepeatMode.REPEAT_ONE -> RepeatModeUi.One
+            PlaybackRepeatMode.REPEAT_OFF -> RepeatModeUi.Off
             else -> RepeatModeUi.All
         }
     }

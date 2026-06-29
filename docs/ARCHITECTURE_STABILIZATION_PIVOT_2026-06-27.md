@@ -22,6 +22,37 @@
 
 换句话说：先让当前迁移变得可审查、可回滚、可证明，再谈下一轮拆分。
 
+## Playback Target Shape
+
+For an Android music player like Yukine, the target architecture is not "more layers." It is a stable playback core, one-way UI state flow, a clear Service boundary, and testable data/policy owners. The target path is:
+
+```text
+UI / Compose
+  -> ViewModel / UI State
+  -> Playback command owner
+  -> PlaybackService boundary
+  -> Playback engine managers
+  -> ExoPlayer / MediaSession / Notification
+```
+
+`EchoPlaybackService` should converge toward the Android/Media3 system boundary: Media3/ExoPlayer lifecycle, MediaSession, foreground service and notification lifecycle, service binding, external intents, and media buttons. Queue strategy, cache policy, URI/media item decisions, lyrics sync, download policy, and notification action mapping should not remain long-term Service responsibilities.
+
+Playback policy should move into small real owners:
+
+- `PlaybackQueueManager`: queue, current index, restore, skip/replace rules, and preferably the authority for queue/current track state.
+- `PlaybackItemResolver`: local/streaming track to playable URI or MediaItem resolution.
+- `PlaybackCachePolicy`: cache keys, precache, failure cleanup, and partial cache handling.
+- `PlaybackNotificationController`: notification display state and action mapping.
+- `LyricsPlaybackBridge`: playback state to lyrics state synchronization.
+
+UI/ViewModel should not directly depend on the concrete `EchoPlaybackService` implementation. UI emits semantic commands such as play tracks, pause, seek, toggle favorite, and restore queue; a narrow playback command owner or gateway receives them. Do not add or expand a universal `PlaybackServiceFacade`.
+
+Queue, current index, and current track should have one authority. The default target is `PlaybackQueueManager` as that authority, with Service and UI consuming or mapping its snapshot instead of spreading the same mutable state across Service fields, ViewModel mirrors, QueueManager state, and MediaSession queue.
+
+Large interfaces default to reduction. For `PlaybackQueueManager.QueueProvider`, prefer deleting derivable methods, splitting by responsibility, or letting the manager hold a clear state-owner dependency directly. Do not add methods merely to make migration convenient.
+
+Playback tests outrank UI snapshots for this area: queue restore, skip next/previous, replace current track, local/streaming URI resolution, notification action, background playback, service restart recovery, and cache partial failure cleanup. Each playback service slimming slice should move one policy cluster, run the matching playback unit tests, and record a reproducible smoke result when runtime behavior is affected.
+
 ## 2026-06-28 根因审查修正
 
 新的代码审查把方向再往前推了一层：继续删除薄包装是必要的，但不是充分条件。当前最大风险仍是三个根因级热点：

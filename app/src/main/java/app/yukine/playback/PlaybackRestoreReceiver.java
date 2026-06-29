@@ -25,8 +25,8 @@ public final class PlaybackRestoreReceiver extends BroadcastReceiver {
         }
         Intent serviceIntent = new Intent(context, EchoPlaybackService.class);
         serviceIntent.setAction(repository.loadPlaybackResumeRequested()
-                ? EchoPlaybackService.ACTION_RESTORE_AND_PLAY
-                : EchoPlaybackService.ACTION_RESTORE);
+                ? PlaybackServiceActions.RESTORE_AND_PLAY
+                : PlaybackServiceActions.RESTORE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(serviceIntent);
         } else {

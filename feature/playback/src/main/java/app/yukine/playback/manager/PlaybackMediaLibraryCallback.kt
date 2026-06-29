@@ -26,7 +26,7 @@ internal class PlaybackMediaLibraryCallback(
         fun loadRecentlyPlayed(limit: Int): List<TrackPlayRecord>
         fun loadPlaylistTracks(playlistId: Long): List<Track>
         fun mediaMetadataForTrack(track: Track): MediaMetadata
-        fun cacheKeyForTrack(track: Track): String?
+        fun mediaItemForTrack(track: Track): MediaItem
     }
 
     override fun onGetLibraryRoot(
@@ -306,16 +306,7 @@ internal class PlaybackMediaLibraryCallback(
     }
 
     private fun mediaItemForTrack(track: Track): MediaItem {
-        return MediaItem.Builder()
-            .setUri(track.contentUri)
-            .setMediaId(track.id.toString())
-            .setCustomCacheKey(dataSource.cacheKeyForTrack(track))
-            .setMediaMetadata(dataSource.mediaMetadataForTrack(track))
-            .build()
-    }
-
-    fun mediaItemForPlaybackTrack(track: Track): MediaItem {
-        return mediaItemForTrack(track)
+        return dataSource.mediaItemForTrack(track)
     }
 
     companion object {

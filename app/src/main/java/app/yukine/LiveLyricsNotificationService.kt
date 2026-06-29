@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.os.IBinder
 import app.yukine.common.EmbeddedArtwork
 import app.yukine.playback.EchoPlaybackService
+import app.yukine.playback.PlaybackServiceActions
 import java.io.InputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -274,20 +275,20 @@ class LiveLyricsNotificationService : Service() {
             .addAction(
                 R.drawable.ic_notif_previous,
                 "\u4e0a\u4e00\u9996",
-                playbackPendingIntent(EchoPlaybackService.ACTION_PREVIOUS, 11)
+                playbackPendingIntent(PlaybackServiceActions.PREVIOUS, 11)
             )
             .addAction(
                 if (state.playing) R.drawable.ic_notif_pause else R.drawable.ic_notif_play,
                 if (state.playing) "\u6682\u505c" else "\u64ad\u653e",
                 playbackPendingIntent(
-                    if (state.playing) EchoPlaybackService.ACTION_PAUSE else EchoPlaybackService.ACTION_RESTORE_AND_PLAY,
+                    if (state.playing) PlaybackServiceActions.PAUSE else PlaybackServiceActions.RESTORE_AND_PLAY,
                     12
                 )
             )
             .addAction(
                 R.drawable.ic_notif_next,
                 "\u4e0b\u4e00\u9996",
-                playbackPendingIntent(EchoPlaybackService.ACTION_NEXT, 13)
+                playbackPendingIntent(PlaybackServiceActions.NEXT, 13)
             )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)

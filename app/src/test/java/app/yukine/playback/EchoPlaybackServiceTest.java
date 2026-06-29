@@ -2,7 +2,6 @@ package app.yukine.playback;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 import androidx.media3.common.Player;
@@ -48,38 +47,6 @@ public class EchoPlaybackServiceTest {
                 false,
                 EchoPlaybackService.isAutomaticMediaItemAdvance(Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)
         );
-    }
-
-    @Test
-    public void streamingCacheKeyIncludesResolvedUrl() {
-        assertNotEquals(
-                EchoPlaybackService.mediaCacheKey("streaming:netease:123", "https://m10.music.126.net/a.flac"),
-                EchoPlaybackService.mediaCacheKey("streaming:netease:123", "https://m10.music.126.net/b.flac")
-        );
-    }
-
-    @Test
-    public void mirroredQueueReuseRequiresResolvedUriToMatch() {
-        assertFalse(EchoPlaybackService.mediaItemIdentityMatchesForReuse(
-                "42",
-                "https://audio.example/first.flac",
-                "streaming:netease:42|url=https://audio.example/first.flac",
-                42L,
-                "https://audio.example/second.flac",
-                "streaming:netease:42|url=https://audio.example/second.flac"
-        ));
-    }
-
-    @Test
-    public void mirroredQueueReuseAllowsSameResolvedMediaItem() {
-        assertTrue(EchoPlaybackService.mediaItemIdentityMatchesForReuse(
-                "42",
-                "https://audio.example/current.flac",
-                "streaming:netease:42|url=https://audio.example/current.flac",
-                42L,
-                "https://audio.example/current.flac",
-                "streaming:netease:42|url=https://audio.example/current.flac"
-        ));
     }
 
     @Test

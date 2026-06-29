@@ -62,13 +62,7 @@ internal class PlaybackMediaSourceProvider(
     }
 
     fun mediaItemForTrack(track: Track, metadataProvider: ((Track) -> MediaMetadata)?): MediaItem {
-        val metadata = metadataProvider?.invoke(track) ?: MediaMetadata.Builder().build()
-        return MediaItem.Builder()
-            .setUri(track.contentUri)
-            .setMediaId(track.id.toString())
-            .setCustomCacheKey(cacheKeyForTrack(track))
-            .setMediaMetadata(metadata)
-            .build()
+        return playbackMediaItemForTrack(track, metadataProvider?.invoke(track))
     }
 
     fun audioCache(): SimpleCache {
@@ -182,6 +176,56 @@ internal class PlaybackMediaSourceProvider(
             }
             if (dataPath.startsWith("webdav:")) return dataPath
             return null
+        }
+
+        @JvmStatic
+        fun playbackMediaItemForTrack(track: Track, metadata: MediaMetadata?): MediaItem {
+            return MediaItem.Builder()
+                .setUri(track.contentUri)
+                .setMediaId(track.id.toString())
+                .setCustomCacheKey(mediaCacheKey(track))
+                .setMediaMetadata(metadata ?: MediaMetadata.Builder().build())
+                .build()
+        }
+
+        @JvmStatic
+        fun mediaItemMatchesTrackForReuse(
+            mediaItem: MediaItem?,
+            trackId: Long,
+            contentUri: Uri?,
+            cacheKey: String?
+        ): Boolean {
+            val localConfiguration = mediaItem?.localConfiguration ?: return false
+            return mediaItemIdentityMatchesForReuse(
+                mediaItem.mediaId,
+                localConfiguration.uri?.toString(),
+                localConfiguration.customCacheKey,
+                trackId,
+                contentUri?.toString(),
+                cacheKey
+            )
+        }
+
+        @JvmStatic
+        fun mediaItemIdentityMatchesForReuse(
+            mediaId: String?,
+            mediaUri: String?,
+            mediaCacheKey: String?,
+            trackId: Long,
+            trackUri: String?,
+            trackCacheKey: String?
+        ): Boolean {
+            if (trackId.toString() != mediaId) {
+                return false
+            }
+            return mediaUri == trackUri && cacheKeyMatchesForReuse(mediaCacheKey, trackCacheKey)
+        }
+
+        private fun cacheKeyMatchesForReuse(left: String?, right: String?): Boolean {
+            if (left == null || right == null) {
+                return true
+            }
+            return left == right
         }
     }
 }

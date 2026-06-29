@@ -62,6 +62,14 @@ class PlaybackPositionManagerTest {
         assertEquals(listOf(10L to 1000L, 10L to 1200L), store.savedPositions)
     }
 
+    @Test
+    fun positionMsReadsCurrentPlaybackPositionFromStateProvider() {
+        val state = FakeStateProvider(track = track(11L), positionMs = 2400L)
+        val manager = PlaybackPositionManager(FakeQueueStore(), state, MutableClock())
+
+        assertEquals(2400L, manager.positionMs())
+    }
+
     private fun manager(): PlaybackPositionManager {
         return PlaybackPositionManager(FakeQueueStore(), FakeStateProvider(), MutableClock())
     }

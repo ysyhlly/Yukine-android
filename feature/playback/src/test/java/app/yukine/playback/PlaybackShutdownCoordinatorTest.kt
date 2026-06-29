@@ -22,7 +22,7 @@ class PlaybackShutdownCoordinatorTest {
         coordinator.releaseServiceResources()
 
         assertEquals(
-            listOf("lyrics", "noisy", "schedulers", "artwork", "precache", "wifi", "player"),
+            listOf("lyrics", "noisy", "schedulers", "callbacks", "artwork", "precache", "wifi", "player"),
             calls
         )
     }
@@ -33,6 +33,7 @@ class PlaybackShutdownCoordinatorTest {
             playbackNotificationArtworkRelease = Runnable { calls.add("artwork") },
             playbackPrecacheRelease = Runnable { calls.add("precache") },
             unregisterNoisyReceiver = Runnable { calls.add("noisy") },
+            clearMainCallbacks = Runnable { calls.add("callbacks") },
             shutdownTaskSchedulers = Runnable { calls.add("schedulers") },
             releaseWifiLock = Runnable { calls.add("wifi") },
             releasePlayer = Runnable { calls.add("player") }

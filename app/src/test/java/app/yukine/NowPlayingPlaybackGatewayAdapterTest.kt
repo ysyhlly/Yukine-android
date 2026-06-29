@@ -1,6 +1,6 @@
 package app.yukine
 
-import app.yukine.playback.EchoPlaybackService
+import app.yukine.playback.PlaybackServiceActions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -15,9 +15,9 @@ class NowPlayingPlaybackGatewayAdapterTest {
         val gateway = factory.create { null }
 
         assertFalse(gateway.serviceConnected())
-        gateway.startPlaybackService(EchoPlaybackService.ACTION_NEXT)
+        gateway.startPlaybackService(PlaybackServiceActions.NEXT)
         gateway.startPlaybackService(null)
 
-        assertEquals(listOf(EchoPlaybackService.ACTION_NEXT, null), startedActions)
+        assertEquals(listOf(PlaybackServiceActions.NEXT, null), startedActions)
     }
 }

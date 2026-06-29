@@ -1,7 +1,6 @@
 package app.yukine.playback;
 
 import android.net.Uri;
-import android.os.Handler;
 import android.os.Process;
 
 import androidx.annotation.OptIn;
@@ -9,9 +8,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DataSpec;
-import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.datasource.cache.CacheWriter;
-import androidx.media3.datasource.cache.SimpleCache;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -31,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
 final class PlaybackPrecacheManager {
     static final int PRECACHE_BYTES = 512 * 1024;
@@ -52,16 +50,18 @@ final class PlaybackPrecacheManager {
         Track currentTrack();
         boolean isHttpUri(Uri uri);
         String cacheKeyForTrack(Track track);
-        Map<String, String> headersForTrack(Track track);
-        SimpleCache audioCache();
-        CacheDataSource cacheDataSourceForTrack(Track track);
         boolean currentPlayerLoadsCacheKey(Track track, String cacheKey);
-        long contentLengthForCacheKey(String cacheKey);
         PlaybackStreamingDiagnostics streamingDiagnostics();
-        Handler mainHandler();
+    }
+
+    interface CallbackScheduler {
+        void postDelayed(Runnable runnable, long delayMs);
+        void removeCallbacks(Runnable runnable);
     }
 
     private final StateProvider stateProvider;
+    private final PlaybackMediaSourceProvider mediaSourceProvider;
+    private final CallbackScheduler callbackScheduler;
     private final ThreadPoolExecutor playbackCacheExecutor =
             new ThreadPoolExecutor(
                     SEGMENTED_PRECACHE_CONCURRENCY,
@@ -75,15 +75,24 @@ final class PlaybackPrecacheManager {
             Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<CacheWriter> activePrecacheWriters =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final List<Runnable> pendingPrecacheCallbacks =
+            Collections.synchronizedList(new ArrayList<>());
     private final AtomicInteger precacheGeneration = new AtomicInteger();
     private volatile String lastPrecacheKey = "";
 
-    PlaybackPrecacheManager(StateProvider stateProvider) {
+    PlaybackPrecacheManager(
+            StateProvider stateProvider,
+            PlaybackMediaSourceProvider mediaSourceProvider,
+            CallbackScheduler callbackScheduler
+    ) {
         this.stateProvider = stateProvider;
+        this.mediaSourceProvider = mediaSourceProvider;
+        this.callbackScheduler = callbackScheduler;
     }
 
     void release() {
         precacheGeneration.incrementAndGet();
+        cancelPendingPrecacheCallbacks();
         activePrecacheRanges.clear();
         cancelActivePrecacheWriters();
         playbackCacheExecutor.shutdownNow();
@@ -118,6 +127,7 @@ final class PlaybackPrecacheManager {
         lastPrecacheKey = precacheKey;
         int generation = precacheGeneration.incrementAndGet();
         activePrecacheRanges.clear();
+        cancelPendingPrecacheCallbacks();
         cancelActivePrecacheWriters();
         playbackCacheExecutor.getQueue().clear();
         playbackCacheExecutor.purge();
@@ -137,6 +147,7 @@ final class PlaybackPrecacheManager {
         lastPrecacheKey = precacheKey;
         int generation = precacheGeneration.incrementAndGet();
         activePrecacheRanges.clear();
+        cancelPendingPrecacheCallbacks();
         cancelActivePrecacheWriters();
         playbackCacheExecutor.getQueue().clear();
         playbackCacheExecutor.purge();
@@ -172,7 +183,7 @@ final class PlaybackPrecacheManager {
         if (CURRENT_TRACK_LEADING_PRECACHE_DELAY_MS <= 0L) {
             task.run();
         } else {
-            stateProvider.mainHandler().postDelayed(task, CURRENT_TRACK_LEADING_PRECACHE_DELAY_MS);
+            postDelayedPrecacheCallback(task, CURRENT_TRACK_LEADING_PRECACHE_DELAY_MS);
         }
     }
 
@@ -185,7 +196,7 @@ final class PlaybackPrecacheManager {
         if (cacheKey == null || cacheKey.isEmpty()) {
             return false;
         }
-        long contentLength = stateProvider.contentLengthForCacheKey(cacheKey);
+        long contentLength = mediaSourceProvider.contentLengthForCacheKey(cacheKey);
         long targetBytes = contentLength > 0L
                 ? Math.min(contentLength, SEGMENTED_PRECACHE_BYTES)
                 : SEGMENTED_PRECACHE_BYTES;
@@ -273,7 +284,7 @@ final class PlaybackPrecacheManager {
     }
 
     private void scheduleUpcomingTrackPrecache(int generation) {
-        stateProvider.mainHandler().postDelayed(() -> {
+        postDelayedPrecacheCallback(() -> {
             if (generation != precacheGeneration.get()) {
                 return;
             }
@@ -282,7 +293,7 @@ final class PlaybackPrecacheManager {
     }
 
     private void scheduleCurrentSegmentedPrecache(Track track, String cacheKey, int generation) {
-        stateProvider.mainHandler().postDelayed(() -> {
+        postDelayedPrecacheCallback(() -> {
             Track current = stateProvider.currentTrack();
             if (current == null
                     || current.contentUri == null
@@ -306,6 +317,32 @@ final class PlaybackPrecacheManager {
         }, CURRENT_TRACK_SEGMENTED_PRECACHE_DELAY_MS);
     }
 
+    private void postDelayedPrecacheCallback(Runnable task, long delayMs) {
+        if (task == null || playbackCacheExecutor.isShutdown()) {
+            return;
+        }
+        Runnable callback = new Runnable() {
+            @Override
+            public void run() {
+                pendingPrecacheCallbacks.remove(this);
+                task.run();
+            }
+        };
+        pendingPrecacheCallbacks.add(callback);
+        callbackScheduler.postDelayed(callback, delayMs);
+    }
+
+    private void cancelPendingPrecacheCallbacks() {
+        List<Runnable> callbacks;
+        synchronized (pendingPrecacheCallbacks) {
+            callbacks = new ArrayList<>(pendingPrecacheCallbacks);
+            pendingPrecacheCallbacks.clear();
+        }
+        for (Runnable callback : callbacks) {
+            callbackScheduler.removeCallbacks(callback);
+        }
+    }
+
     private SegmentedPrecacheProbe probeSegmentedPrecache(Track track, String cacheKey, int generation) {
         if (track == null || track.contentUri == null || cacheKey == null || cacheKey.isEmpty()) {
             return SegmentedPrecacheProbe.unsupported();
@@ -319,7 +356,7 @@ final class PlaybackPrecacheManager {
                 connection.setInstanceFollowRedirects(true);
                 connection.setConnectTimeout(4000);
                 connection.setReadTimeout(4000);
-                for (Map.Entry<String, String> entry : stateProvider.headersForTrack(track).entrySet()) {
+                for (Map.Entry<String, String> entry : mediaSourceProvider.headersForTrack(track).entrySet()) {
                     if (entry.getKey() != null && !entry.getKey().isEmpty() && entry.getValue() != null) {
                         connection.setRequestProperty(entry.getKey(), entry.getValue());
                     }
@@ -366,7 +403,7 @@ final class PlaybackPrecacheManager {
             long probedContentLength,
             long startBytes
     ) {
-        long contentLength = stateProvider.contentLengthForCacheKey(cacheKey);
+        long contentLength = mediaSourceProvider.contentLengthForCacheKey(cacheKey);
         long effectiveContentLength = contentLength > 0L ? contentLength : probedContentLength;
         for (PrecacheSegment segment : planPrecacheSegments(
                 Math.max(PRECACHE_BYTES, startBytes),
@@ -466,7 +503,7 @@ final class PlaybackPrecacheManager {
             return 0L;
         }
         try {
-            long cached = stateProvider.audioCache().getCachedLength(cacheKey, Math.max(0L, position), length);
+            long cached = mediaSourceProvider.audioCache().getCachedLength(cacheKey, Math.max(0L, position), length);
             return cached > 0L ? Math.min(cached, length) : 0L;
         } catch (RuntimeException ignored) {
             return 0L;
@@ -478,7 +515,7 @@ final class PlaybackPrecacheManager {
             return 0L;
         }
         try {
-            long cached = stateProvider.audioCache().getCachedLength(cacheKey, 0L, Long.MAX_VALUE);
+            long cached = mediaSourceProvider.audioCache().getCachedLength(cacheKey, 0L, Long.MAX_VALUE);
             return Math.max(0L, cached);
         } catch (RuntimeException ignored) {
             return 0L;
@@ -517,7 +554,7 @@ final class PlaybackPrecacheManager {
                     .setFlags(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION)
                     .build();
             writer = new CacheWriter(
-                    stateProvider.cacheDataSourceForTrack(track),
+                    mediaSourceProvider.cacheDataSourceForTrack(track),
                     dataSpec,
                     new byte[16 * 1024],
                     (requestLength, bytesCachedTotal, newBytesCached) -> {

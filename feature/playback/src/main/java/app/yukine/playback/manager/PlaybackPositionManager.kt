@@ -61,6 +61,10 @@ internal class PlaybackPositionManager @JvmOverloads constructor(
         lastPositionSaveAtMs = 0L
     }
 
+    fun positionMs(): Long {
+        return stateProvider.positionMs()
+    }
+
     fun persistCurrentPosition(force: Boolean) {
         val track = stateProvider.currentTrack() ?: return
         val position = stateProvider.positionMs()

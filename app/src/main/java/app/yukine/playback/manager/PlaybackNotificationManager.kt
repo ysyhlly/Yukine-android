@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.media.session.MediaSession
 import app.yukine.R
 import app.yukine.model.Track
+import app.yukine.playback.PlaybackServiceActions
 import androidx.media3.common.MediaMetadata
 
 internal class PlaybackNotificationManager(
@@ -75,11 +76,11 @@ internal class PlaybackNotificationManager(
             .setOnlyAlertOnce(true)
             .setPriority(Notification.PRIORITY_LOW)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
-            .addAction(R.drawable.ic_notif_previous, "Previous", foregroundPresenter.serviceActionPendingIntent("app.yukine.action.PREVIOUS", 1))
-            .addAction(if (playing) R.drawable.ic_notif_pause else R.drawable.ic_notif_play, if (playing) "Pause" else "Play", foregroundPresenter.serviceActionPendingIntent(if (playing) "app.yukine.action.PAUSE" else "app.yukine.action.RESTORE_AND_PLAY", 2))
-            .addAction(R.drawable.ic_notif_next, "Next", foregroundPresenter.serviceActionPendingIntent("app.yukine.action.NEXT", 3))
-            .addAction(favoriteIcon, favoriteTitle, foregroundPresenter.serviceActionPendingIntent("app.yukine.action.TOGGLE_FAVORITE", 4))
-            .addAction(R.drawable.ic_notif_stop, "Stop", foregroundPresenter.serviceActionPendingIntent("app.yukine.action.STOP", 5))
+            .addAction(R.drawable.ic_notif_previous, "Previous", foregroundPresenter.serviceActionPendingIntent(PlaybackServiceActions.PREVIOUS, 1))
+            .addAction(if (playing) R.drawable.ic_notif_pause else R.drawable.ic_notif_play, if (playing) "Pause" else "Play", foregroundPresenter.serviceActionPendingIntent(if (playing) PlaybackServiceActions.PAUSE else PlaybackServiceActions.RESTORE_AND_PLAY, 2))
+            .addAction(R.drawable.ic_notif_next, "Next", foregroundPresenter.serviceActionPendingIntent(PlaybackServiceActions.NEXT, 3))
+            .addAction(favoriteIcon, favoriteTitle, foregroundPresenter.serviceActionPendingIntent(PlaybackServiceActions.TOGGLE_FAVORITE, 4))
+            .addAction(R.drawable.ic_notif_stop, "Stop", foregroundPresenter.serviceActionPendingIntent(PlaybackServiceActions.STOP, 5))
         if (hasTrack) {
             val extras = Bundle()
             extras.putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)

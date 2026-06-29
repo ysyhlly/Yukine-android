@@ -437,7 +437,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         playbackStateEventController = new PlaybackStateEventController(
                 mainHandler,
                 playbackStore,
-                () -> playbackService,
+                this::playbackQueueSnapshot,
                 playbackStateEventListenerFactory.create(
                         this::selectedTab,
                         () -> lyricsViewModel == null ? -1L : lyricsViewModel.trackId(),
@@ -1871,7 +1871,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                     }
                     nowPlayingViewModel.replaceCurrentTrackAndResume(resolved, positionMs);
                     statusMessageController.showFeedback("\u5df2\u5207\u6362\u97f3\u6e90\uff1a" + resolved.title);
-                    playbackStore.publish(playbackService);
+                    publishPlaybackStore();
                     nowPlayingStateController.renderNowBar();
                     renderSelectedTabForNavHostState();
                 }
@@ -2500,7 +2500,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             statusMessageController.setStatus(status);
         }
         if (result.publishPlaybackState) {
-            playbackStore.publish(playbackService);
+            publishPlaybackStore();
         }
         if (result.renderNowBar) {
             nowPlayingStateController.renderNowBar();
@@ -2512,6 +2512,16 @@ public abstract class MainActivityBase extends ComponentActivity {
             routeController.setSelectedTab(TAB_NOW);
             renderSelectedTab();
         }
+    }
+
+    private void publishPlaybackStore() {
+        if (playbackStore != null) {
+            playbackStore.publish(playbackQueueSnapshot());
+        }
+    }
+
+    private List<Track> playbackQueueSnapshot() {
+        return playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot();
     }
 
 }
