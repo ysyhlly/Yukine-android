@@ -295,6 +295,26 @@
   `SettingsRuntimeApplierTest`, `SettingsViewModelTest`, and
   `MainActivityArchitectureContractTest`, then
   `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Collections render action policy moved out of the Java anonymous
+  `CollectionsRenderController.Listener` block into `MainCollectionsRenderListener`,
+  created by `MainCollectionsRenderListenerFactory` from `LibraryModule`.
+  Activity still supplies true host/platform capabilities, but the listener now
+  owns collections action routing and the selected-playlist export guard.
+  `MainActivityBase.java` is now 2562 lines; root-package files are now 176,
+  root `*Bindings*` remains 0, and root `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `MainCollectionsRenderListenerTest` and `MainActivityArchitectureContractTest`,
+  then `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Library-groups render action policy moved out of the Java anonymous
+  `LibraryGroupsRenderController.Listener` block into `MainLibraryGroupsRenderListener`,
+  created by `MainLibraryGroupsRenderListenerFactory` from `LibraryModule`.
+  `ArtistInfoRepository` is now provided by `LibraryModule`, so Activity no
+  longer directly constructs it for the groups renderer. `MainActivityBase.java`
+  is now 2517 lines; root-package files are now 177, root `*Bindings*` remains
+  0, and root `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `MainLibraryGroupsRenderListenerTest` and `MainActivityArchitectureContractTest`,
+  then `compileDebugKotlin + compileDebugJavaWithJavac`.
 
 ## 对既有计划的覆盖
 

@@ -30,6 +30,10 @@ internal object LibraryModule {
 
     @Provides
     @ActivityScoped
+    fun provideArtistInfoRepository(): ArtistInfoRepository = ArtistInfoRepository()
+
+    @Provides
+    @ActivityScoped
     fun provideNetworkActionUseCases(repository: MusicLibraryRepository): NetworkActionUseCases {
         val webDavSourceOperations = MusicLibraryWebDavSourceOperations(repository)
         val networkLibraryOperations = MusicLibraryNetworkLibraryOperations(repository)
@@ -171,6 +175,84 @@ internal object LibraryModule {
                 streamEditor,
                 trackDeleteConfirmer,
                 chromePublisher
+            )
+        }
+
+    @Provides
+    @ActivityScoped
+    fun provideMainLibraryGroupsRenderListenerFactory(): MainLibraryGroupsRenderListenerFactory =
+        MainLibraryGroupsRenderListenerFactory {
+                groupOpener,
+                groupSelectionClearer,
+                groupCloser,
+                languageModeProvider,
+                trackListPlayer,
+                groupDeleteConfirmer,
+                chromePublisher,
+                trackListRenderer ->
+            MainLibraryGroupsRenderListener(
+                groupOpener,
+                groupSelectionClearer,
+                groupCloser,
+                languageModeProvider,
+                trackListPlayer,
+                groupDeleteConfirmer,
+                chromePublisher,
+                trackListRenderer
+            )
+        }
+
+    @Provides
+    @ActivityScoped
+    fun provideMainCollectionsRenderListenerFactory(): MainCollectionsRenderListenerFactory =
+        MainCollectionsRenderListenerFactory {
+                playlistCreator,
+                playlistM3uPicker,
+                playHistoryClearConfirmer,
+                backRequester,
+                trackListPlayer,
+                favoriteToggler,
+                playlistAdder,
+                trackDownloader,
+                tracksDownloader,
+                playlistSelector,
+                playlistRenamer,
+                playlistDeleteConfirmer,
+                selectedPlaylistIdSource,
+                selectedPlaylistTracksSource,
+                selectedPlaylistNameSource,
+                statusKeySink,
+                playlistExportDocumentOpener,
+                selectedPlaylistStreamingImporter,
+                favoritesStreamingImporter,
+                streamingFavoritesImporter,
+                selectedPlaylistStreamingSyncer,
+                selectedPlaylistTrackMover,
+                selectedPlaylistTrackRemover ->
+            MainCollectionsRenderListener(
+                playlistCreator,
+                playlistM3uPicker,
+                playHistoryClearConfirmer,
+                backRequester,
+                trackListPlayer,
+                favoriteToggler,
+                playlistAdder,
+                trackDownloader,
+                tracksDownloader,
+                playlistSelector,
+                playlistRenamer,
+                playlistDeleteConfirmer,
+                selectedPlaylistIdSource,
+                selectedPlaylistTracksSource,
+                selectedPlaylistNameSource,
+                statusKeySink,
+                playlistExportDocumentOpener,
+                selectedPlaylistStreamingImporter,
+                favoritesStreamingImporter,
+                streamingFavoritesImporter,
+                selectedPlaylistStreamingSyncer,
+                selectedPlaylistTrackMover,
+                selectedPlaylistTrackRemover
             )
         }
 }

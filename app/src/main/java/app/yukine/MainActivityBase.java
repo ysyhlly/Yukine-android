@@ -143,6 +143,9 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject MainPlayHistoryActionControllerFactory playHistoryActionControllerFactory;
     @Inject MainNetworkActionsListenerFactory networkActionsListenerFactory;
     @Inject MainLibraryGatewayFactory libraryGatewayFactory;
+    @Inject ArtistInfoRepository artistInfoRepository;
+    @Inject MainLibraryGroupsRenderListenerFactory libraryGroupsRenderListenerFactory;
+    @Inject MainCollectionsRenderListenerFactory collectionsRenderListenerFactory;
     private StatusMessageController statusMessageController;
     @Inject MainSettingsRuntimeApplierFactory settingsRuntimeApplierFactory;
     private MainPermissionController permissionController;
@@ -807,68 +810,21 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void initializeRenderOwners(StreamingSearchRenderController streamingSearchRenderController) {
-        libraryGroupsRenderController = new LibraryGroupsRenderController(libraryViewModel, new LibraryGroupsRenderController.Listener() {
-            @Override
-            public void selectLibraryGroup(String key, String title) {
-                libraryViewModel.onEvent(new LibraryEvent.OpenGroup(key, title));
-            }
-
-            @Override
-            public void clearLibraryGroupSelection() {
-                routeController.clearLibraryGroup();
-            }
-
-            @Override
-            public void closeLibraryGroup() {
-                libraryViewModel.onEvent(LibraryEvent.BackFromGroup.INSTANCE);
-            }
-
-            @Override
-            public void openFavoritesCollection() {
-                String title = AppLanguage.text(settingsStore.languageMode(), "favorite.playlist");
-                libraryViewModel.onEvent(new LibraryEvent.OpenGroup("virtual:favorites", title));
-            }
-
-            @Override
-            public void playTrackList(List<Track> tracks, int index) {
-                libraryViewModel.onEvent(new LibraryEvent.PlayTrackList(tracks, index));
-            }
-
-            @Override
-            public void confirmDeleteGroup(String title, List<Track> tracks) {
-                confirmationDialogController.confirmDeleteTracks(title, tracks);
-            }
-
-            @Override
-            public void publishLibraryGroupsChrome(
-                    List<LibraryGroupActions> actions,
-                    String emptyText,
-                    List<TrackListModeAction> modeActions
-            ) {
-                publishLibraryGroupsChromeState(new LibraryGroupsChromeState(
-                        new ArrayList<>(actions),
-                        emptyText,
-                        new ArrayList<>(modeActions)
-                ));
-            }
-
-            @Override
-            public void renderTrackList(
-                    String title,
-                    ArrayList<Track> tracks,
-                    ArrayList<TrackListHeaderMetric> headerMetrics,
-                    ArrayList<TrackListHeaderAction> headerActions,
-                    ArrayList<TrackListAlbumCardUiState> footerAlbums
-            ) {
-                renderLibraryGroupTrackList(new LibraryGroupTrackListRequest(
-                        title,
-                        tracks,
-                        headerMetrics,
-                        headerActions,
-                        footerAlbums
-                ));
-            }
-        }, new ArtistInfoRepository(), action -> mainHandler.post(action));
+        libraryGroupsRenderController = new LibraryGroupsRenderController(
+                libraryViewModel,
+                libraryGroupsRenderListenerFactory.create(
+                        (key, title) -> libraryViewModel.onEvent(new LibraryEvent.OpenGroup(key, title)),
+                        () -> routeController.clearLibraryGroup(),
+                        () -> libraryViewModel.onEvent(LibraryEvent.BackFromGroup.INSTANCE),
+                        () -> settingsStore.languageMode(),
+                        (tracks, index) -> libraryViewModel.onEvent(new LibraryEvent.PlayTrackList(tracks, index)),
+                        (title, tracks) -> confirmationDialogController.confirmDeleteTracks(title, tracks),
+                        this::publishLibraryGroupsChromeState,
+                        this::renderLibraryGroupTrackList
+                ),
+                artistInfoRepository,
+                action -> mainHandler.post(action)
+        );
         libraryPlaylistsRenderController = new LibraryPlaylistsRenderController(libraryViewModel, new LibraryPlaylistsRenderController.Listener() {
             @Override
             public void openFavoritePlaylist(String title) {
@@ -915,107 +871,36 @@ public abstract class MainActivityBase extends ComponentActivity {
                 renderLibraryPlaylistTrackList(request);
             }
         });
-        collectionsRenderController = new CollectionsRenderController(collectionsViewModel, new CollectionsRenderController.Listener() {
-            @Override
-            public void showCreatePlaylist() {
-                playlistDialogController.showCreatePlaylist();
-            }
-
-            @Override
-            public void openPlaylistM3uFilePicker() {
-                documentPickerController.openPlaylistM3uFilePicker();
-            }
-
-            @Override
-            public void confirmClearPlayHistory() {
-                confirmationDialogController.confirmClearPlayHistory();
-            }
-
-            @Override
-            public void requestBack() {
-                handleAppBack();
-            }
-
-            @Override
-            public void playTrackList(List<Track> tracks, int index) {
-                playTrackListFromHost(tracks, index);
-            }
-
-            @Override
-            public void toggleFavorite(Track track) {
-                libraryViewModel.onEvent(new LibraryEvent.ToggleFavorite(track));
-            }
-
-            @Override
-            public void showAddToPlaylist(Track track) {
-                playlistDialogController.showAddToPlaylist(track);
-            }
-
-            @Override
-            public void downloadTrack(Track track) {
-                downloadRequestController.downloadTrack(track);
-            }
-
-            @Override
-            public void downloadTracks(List<Track> tracks) {
-                downloadRequestController.downloadTracks(tracks);
-            }
-
-            @Override
-            public void selectPlaylist(long playlistId) {
-                routeController.setSelectedPlaylistId(playlistId);
-                loadCollections();
-            }
-
-            @Override
-            public void showRenamePlaylist(Playlist playlist) {
-                playlistDialogController.showRenamePlaylist(playlist);
-            }
-
-            @Override
-            public void confirmDeletePlaylist(Playlist playlist) {
-                playlistDialogController.confirmDeletePlaylist(playlist);
-            }
-
-            @Override
-            public void openSelectedPlaylistExportDocument() {
-                if (selectedPlaylistId() < 0L || libraryStore.selectedPlaylistTracks().isEmpty()) {
-                    statusMessageController.setStatusKey("no.tracks.in.playlist");
-                    return;
-                }
-                documentPickerController.openPlaylistExportDocument(selectedPlaylistId(), selectedPlaylistName());
-            }
-
-            @Override
-            public void importSelectedPlaylistToStreaming() {
-                streamingPlaylistController.importSelectedPlaylistToStreaming();
-            }
-
-            @Override
-            public void importFavoritesToStreaming() {
-                streamingPlaylistController.importFavoritesToStreaming();
-            }
-
-            @Override
-            public void importStreamingFavorites() {
-                streamingPlaylistDialogController.showImportStreamingFavoritesProviderPicker();
-            }
-
-            @Override
-            public void syncSelectedPlaylistFromStreaming() {
-                streamingPlaylistController.syncSelectedPlaylistFromStreaming();
-            }
-
-            @Override
-            public void moveSelectedPlaylistTrack(long playlistId, Track track, int trackIndex, int direction) {
-                libraryViewModel.moveSelectedPlaylistTrackJava(playlistId, track, trackIndex, direction, MainActivityBase.this::onSelectedPlaylistTrackMoved);
-            }
-
-            @Override
-            public void removeSelectedPlaylistTrack(long playlistId, Track track) {
-                libraryViewModel.removeSelectedPlaylistTrackJava(playlistId, track, MainActivityBase.this::onSelectedPlaylistTrackRemoved);
-            }
-        });
+        collectionsRenderController = new CollectionsRenderController(collectionsViewModel, collectionsRenderListenerFactory.create(
+                () -> playlistDialogController.showCreatePlaylist(),
+                () -> documentPickerController.openPlaylistM3uFilePicker(),
+                () -> confirmationDialogController.confirmClearPlayHistory(),
+                this::handleAppBack,
+                (tracks, index) -> MainActivityBase.this.playTrackListFromHost(tracks, index),
+                track -> libraryViewModel.onEvent(new LibraryEvent.ToggleFavorite(track)),
+                track -> playlistDialogController.showAddToPlaylist(track),
+                track -> downloadRequestController.downloadTrack(track),
+                tracks -> downloadRequestController.downloadTracks(tracks),
+                playlistId -> {
+                    routeController.setSelectedPlaylistId(playlistId);
+                    loadCollections();
+                },
+                playlist -> playlistDialogController.showRenamePlaylist(playlist),
+                playlist -> playlistDialogController.confirmDeletePlaylist(playlist),
+                this::selectedPlaylistId,
+                () -> libraryStore.selectedPlaylistTracks(),
+                this::selectedPlaylistName,
+                key -> statusMessageController.setStatusKey(key),
+                (playlistId, playlistName) -> documentPickerController.openPlaylistExportDocument(playlistId, playlistName),
+                () -> streamingPlaylistController.importSelectedPlaylistToStreaming(),
+                () -> streamingPlaylistController.importFavoritesToStreaming(),
+                () -> streamingPlaylistDialogController.showImportStreamingFavoritesProviderPicker(),
+                () -> streamingPlaylistController.syncSelectedPlaylistFromStreaming(),
+                (playlistId, track, trackIndex, direction) ->
+                        libraryViewModel.moveSelectedPlaylistTrackJava(playlistId, track, trackIndex, direction, MainActivityBase.this::onSelectedPlaylistTrackMoved),
+                (playlistId, track) ->
+                        libraryViewModel.removeSelectedPlaylistTrackJava(playlistId, track, MainActivityBase.this::onSelectedPlaylistTrackRemoved)
+        ));
         streamingViewModel.bindStreamingLocalPlaylistOperations(streamingLocalPlaylistOperations);
         streamingViewModel.bindStreamingTrackMatchStore(streamingTrackMatchUseCase);
         streamingRecommendationViewModel.bindStreamingTrackMatchStore(streamingTrackMatchUseCase);
