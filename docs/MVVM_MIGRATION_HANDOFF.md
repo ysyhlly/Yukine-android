@@ -1865,6 +1865,11 @@ architecture contract in the same slice.
 - Deleted controller tests must be mapped to replacement behavior tests under the new owner; string-based architecture contracts remain useful alarms but are not behavior coverage.
 - Database work now starts with migration/transaction tests before Room or repository split work, and concurrency work starts with an inventory of raw Thread/ExecutorService/scheduler ownership and shutdown.
 - Reflected in `docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md`, `docs/ARCHITECTURE_REMEDIATION_PLAN_2026-06-26.md`, and the `yukine-android-maintenance` skill.
+## NOTE 77 - Settings runtime controls moved behind factory (2026-06-29)
+- `SettingsModule` now provides `MainSettingsRuntimeApplierFactory`, and the concrete runtime controls live beside `SettingsRuntimeApplier` as `MainSettingsPlaybackServiceControls`, `MainSettingsLyricsControls`, and `MainSettingsFloatingLyricsControls`.
+- `MainActivityBase` now only passes the existing theme, playback service, lyrics ViewModel, and permission-controller providers to `settingsRuntimeApplierFactory.create(...)`; it no longer constructs anonymous settings control implementations or calls `FloatingLyricsService` directly from settings runtime setup.
+- The Settings path remains `SettingsViewModel -> preference/runtime applier`; no settings gateway, coordinator, controller, event bus, or root `*Bindings*` file was added. Current recheck: `MainActivityBase.java` 2632 lines, `EchoPlaybackService.java` 2469 lines, `feature:data` `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0, root-package `*Controller*` 44, root-package files 175, and root-package Java files 15.
+- Guarded by `SettingsRuntimeApplierTest`, `SettingsViewModelTest`, and `MainActivityArchitectureContractTest`; compile passed with `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
 ## 2026-06-27 DIRECTION PIVOT: stabilization before more extraction
 
 - New controlling doc: `docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md`.

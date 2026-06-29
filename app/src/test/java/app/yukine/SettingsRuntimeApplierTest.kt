@@ -1,11 +1,18 @@
 package app.yukine
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import app.yukine.playback.AudioEffectSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
 class SettingsRuntimeApplierTest {
     @Test
     fun appliesRuntimeSettingsThroughDedicatedControls() {
@@ -99,5 +106,25 @@ class SettingsRuntimeApplierTest {
             ),
             calls
         )
+    }
+
+    @Test
+    fun factoryCreatesApplierWithOptionalRuntimeOwners() {
+        val calls = mutableListOf<String>()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val applier = MainSettingsRuntimeApplierFactory(context).create(
+            applyThemeSurfaceAction = SettingsThemeSurfaceApplier { calls += "theme" },
+            playbackServiceProvider = { null },
+            lyricsViewModelProvider = { null },
+            permissionControllerProvider = { null }
+        )
+
+        assertTrue(applier.apply(SettingsRuntimeEffect.ApplyThemeSurface))
+        assertTrue(applier.apply(SettingsRuntimeEffect.ApplyPlaybackSpeed(1.1f)))
+        assertTrue(applier.apply(SettingsRuntimeEffect.SetOnlineLyricsEnabled(true)))
+        assertFalse(applier.apply(SettingsRuntimeEffect.ApplyFloatingLyrics(true)))
+        assertTrue(applier.apply(SettingsRuntimeEffect.OpenFloatingLyricsPermissionSettings))
+
+        assertEquals(listOf("theme"), calls)
     }
 }

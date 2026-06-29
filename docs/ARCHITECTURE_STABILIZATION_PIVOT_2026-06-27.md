@@ -282,6 +282,19 @@
   `MainNetworkActionsListenerTest`, `NetworkActionsViewModelTest`, and
   `MainActivityArchitectureContractTest`, then
   `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Settings runtime controls moved out of `MainActivityBase` anonymous
+  implementations into `MainSettingsRuntimeApplierFactory` plus concrete
+  controls beside `SettingsRuntimeApplier`, provided by `SettingsModule`.
+  Activity now only passes existing playback service, lyrics ViewModel, and
+  permission-controller providers into `settingsRuntimeApplierFactory.create(...)`;
+  it no longer directly constructs settings runtime controls or calls
+  `FloatingLyricsService` from the settings runtime setup. `MainActivityBase.java`
+  is now 2632 lines; root-package files remain 175, root `*Bindings*` remains
+  0, and root `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `SettingsRuntimeApplierTest`, `SettingsViewModelTest`, and
+  `MainActivityArchitectureContractTest`, then
+  `compileDebugKotlin + compileDebugJavaWithJavac`.
 
 ## 对既有计划的覆盖
 
