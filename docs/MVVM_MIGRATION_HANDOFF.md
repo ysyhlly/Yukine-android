@@ -15,9 +15,12 @@
   ViewModel acquisition moved to Kotlin `by viewModels()` delegates and
   `MainActivityViewModels`, so the Java base no longer calls
   `ViewModelProvider`.
-- `ShellViewModel`, `ShellState`, `ShellAction`, `NavigationAction`, and
-  `ShellEffect` were introduced as the first shell state owner, with focused
-  `ShellViewModelTest` coverage.
+- The provisional `ShellViewModel` / `ShellState` / `ShellAction` line was
+  removed after review because it was not consumed by `MainActivityBase`,
+  `NavigationViewModel`, `MainRouteController`, or `EchoNavHostState`. The
+  active shell path remains Kotlin `MainActivity.kt` delegating into the
+  existing route/nav owners until a future slice can make `ShellState` the
+  single runtime state source instead of a parallel model.
 - Hilt Activity-scoped modules now own several stable Activity dependencies:
   `ShellModule` provides `MainExecutors`, `PlatformModule` provides the main
   `Handler`, `StreamingModule` provides streaming playback scheduling,
@@ -90,6 +93,19 @@
   call chain, split a large interface, or add real behavior coverage. Listener
   delegation tests can remain, but every 2-3 listener slices need a behavior
   test for a real streaming/playback/data flow.
+- Hilt construction migration has started for
+  `initializeStoresAndDataGateways()`: `StreamingPlaylistSyncStore`,
+  `ImportStreamingPlaylistUseCase`, `SyncStreamingPlaylistUseCase`,
+  `EnsureStreamingLoginPlaylistUseCase`, `GetStreamingPlaylistLinkUseCase`,
+  and `StreamingLocalPlaylistOperations` are now provided by
+  `StreamingModule`. `MainActivityBase` only binds the injected
+  `StreamingLocalPlaylistOperations` into `StreamingViewModel`; the previous
+  Java anonymous `StreamingLocalPlaylistOperations` block and four manual
+  use case constructors were removed. `MainStreamingLocalPlaylistOperations`
+  covers the owner behavior with `MainStreamingLocalPlaylistOperationsTest`.
+- The download directory picker unavailable message now uses
+  `AppLanguage.text(..., "download.directory.picker.unavailable")` instead of
+  a hard-coded Chinese string, preserving English parity.
 - Streaming playback listener policy moved out of the Java base anonymous
   `StreamingPlaybackController.Listener` block into
   `MainStreamingPlaybackListener`, which is created through `PlaybackUiModule`

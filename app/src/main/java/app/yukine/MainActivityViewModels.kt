@@ -21,6 +21,5 @@ data class MainActivityViewModels(
     val networkMenuViewModel: NetworkMenuViewModel,
     val networkActionsViewModel: ViewModel,
     val statusMessageViewModel: ViewModel,
-    val networkSourcesViewModel: NetworkSourcesViewModel,
-    val shellViewModel: ShellViewModel
+    val networkSourcesViewModel: NetworkSourcesViewModel
 )

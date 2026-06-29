@@ -38,14 +38,16 @@ public final class MainActivityArchitectureContractTest {
         String libraryModule = read("app/src/main/java/app/yukine/LibraryModule.kt");
         String playbackUiModule = read("app/src/main/java/app/yukine/PlaybackUiModule.kt");
         String streamingModule = read("app/src/main/java/app/yukine/StreamingModule.kt");
-        String shellViewModel = read("app/src/main/java/app/yukine/ShellViewModel.kt");
 
         assertFalse(exists("app/src/main/java/app/yukine/MainActivity.java"));
+        assertFalse(exists("app/src/main/java/app/yukine/ShellViewModel.kt"));
+        assertFalse(exists("app/src/test/java/app/yukine/ShellViewModelTest.kt"));
         assertTrue(shell.contains("@AndroidEntryPoint"));
         assertTrue(shell.contains("class MainActivity : MainActivityBase()"));
         assertTrue(shell.contains("private val mainActivityViewModel: MainActivityViewModel by viewModels()"));
         assertTrue(shell.contains("private val networkActionsViewModel: NetworkActionsViewModel by viewModels()"));
-        assertTrue(shell.contains("private val shellViewModel: ShellViewModel by viewModels()"));
+        assertFalse(shell.contains("ShellViewModel"));
+        assertFalse(shell.contains("shellViewModel"));
         assertTrue(shell.contains("override fun createActivityViewModels(): MainActivityViewModels"));
         assertTrue(legacyBase.contains("public abstract class MainActivityBase extends ComponentActivity"));
         assertTrue(legacyBase.contains("protected abstract MainActivityViewModels createActivityViewModels();"));
@@ -92,6 +94,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(holder.contains("data class MainActivityViewModels("));
         assertTrue(holder.contains("val networkActionsViewModel: ViewModel"));
         assertTrue(holder.contains("val statusMessageViewModel: ViewModel"));
+        assertFalse(holder.contains("ShellViewModel"));
+        assertFalse(holder.contains("shellViewModel"));
         assertTrue(shellModule.contains("@InstallIn(ActivityComponent::class)"));
         assertTrue(shellModule.contains("internal object ShellModule"));
         assertTrue(shellModule.contains("@ActivityScoped"));
@@ -132,12 +136,6 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(streamingModule.contains("fun provideMainStreamingPlaylistImportDialogListenerFactory(): MainStreamingPlaylistImportDialogListenerFactory"));
         assertTrue(streamingModule.contains("fun provideMainStreamingManualCookieListenerFactory(): MainStreamingManualCookieListenerFactory"));
         assertTrue(streamingModule.contains("fun provideMainStreamingSearchRenderListenerFactory(): MainStreamingSearchRenderListenerFactory"));
-        assertTrue(shellViewModel.contains("data class ShellState("));
-        assertTrue(shellViewModel.contains("sealed interface ShellAction"));
-        assertTrue(shellViewModel.contains("sealed interface NavigationAction"));
-        assertTrue(shellViewModel.contains("sealed interface ShellEffect"));
-        assertTrue(shellViewModel.contains("@HiltViewModel"));
-        assertTrue(shellViewModel.contains("val state: StateFlow<ShellState>"));
     }
 
     @Test
@@ -1434,6 +1432,7 @@ public final class MainActivityArchitectureContractTest {
         String downloadsDestination = read("feature/navigation/src/main/java/app/yukine/downloads/DownloadsDestination.kt");
         String navGraph = read("feature/navigation/src/main/java/app/yukine/navigation/EchoNavGraph.kt");
         String documentPickerController = read("app/src/main/java/app/yukine/DocumentPickerController.kt");
+        String appLanguage = read("app/src/main/java/app/yukine/AppLanguage.java");
 
         assertFalse(exists("app/src/main/java/app/yukine/DownloadsCoordinator.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/FileIOCoordinator.kt"));
@@ -1530,6 +1529,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("downloadDirectoryPickerController = new DownloadDirectoryPickerController("));
         assertTrue(mainActivity.contains("documentPickerController.openDownloadFolderPicker();"));
         assertTrue(mainActivity.contains("if (documentPickerController == null)"));
+        assertTrue(appLanguage.contains("put(\"download.directory.picker.unavailable\""));
+        assertTrue(mainActivity.contains("AppLanguage.text("));
+        assertTrue(mainActivity.contains("\"download.directory.picker.unavailable\""));
+        assertFalse(mainActivity.contains("\"目录选择暂不可用\""));
         assertTrue(mainActivity.contains("documentPickerController.openDownloadFolderPicker();"));
         assertFalse(mainActivity.contains("navHostState.setOpenDownloadDirectoryPickerAction("));
         assertFalse(mainActivity.contains("private void openDownloadFolderPicker()"));
@@ -3237,6 +3240,8 @@ public final class MainActivityArchitectureContractTest {
         String mainActivity = read("app/src/main/java/app/yukine/MainActivity.java");
         String handlers = read("app/src/main/java/app/yukine/StreamingActionHandlers.kt");
         String importUseCase = read("app/src/main/java/app/yukine/ImportStreamingPlaylistUseCase.kt");
+        String streamingModule = read("app/src/main/java/app/yukine/StreamingModule.kt");
+        String mainStreamingLocalPlaylistOperations = read("app/src/main/java/app/yukine/MainStreamingLocalPlaylistOperations.kt");
         String resolveUseCase = read("app/src/main/java/app/yukine/ResolveStreamingPlaybackUseCase.kt");
         String syncUseCase = read("app/src/main/java/app/yukine/SyncStreamingPlaylistUseCase.kt");
         String linkUseCase = read("app/src/main/java/app/yukine/GetStreamingPlaylistLinkUseCase.kt");
@@ -3570,12 +3575,20 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(importUseCase.contains("StreamingPlaybackAdapter.placeholderTrack"));
         assertTrue(importUseCase.contains("operations.importStreamingPlaylist(playlistName, placeholders)"));
         assertTrue(importUseCase.contains("operations.linkPlaylist(result.playlistId, provider, cleanProviderPlaylistId)"));
-        assertTrue(mainActivity.contains("ImportStreamingPlaylistUseCase"));
-        assertTrue(mainActivity.contains("streamingViewModel.bindStreamingLocalPlaylistOperations(new StreamingLocalPlaylistOperations() {"));
-        assertTrue(mainActivity.contains("syncStreamingPlaylistUseCase.execute(link, streamingTracks)"));
-        assertTrue(mainActivity.contains("ensureStreamingLoginPlaylistUseCase.execute(playlistName, provider)"));
-        assertTrue(mainActivity.contains("streamingPlaylistLinkUseCase.execute(localPlaylistId)"));
-        assertTrue(mainActivity.contains("streamingPlaylistLinkUseCase.execute(provider, providerPlaylistId)"));
+        assertTrue(streamingModule.contains("fun provideImportStreamingPlaylistUseCase("));
+        assertTrue(streamingModule.contains("fun provideStreamingPlaylistSyncStore(@ApplicationContext context: Context): StreamingPlaylistSyncStore"));
+        assertTrue(streamingModule.contains("ImportStreamingPlaylistUseCase(MusicLibraryStreamingPlaylistImportOperations(repository, syncStore))"));
+        assertTrue(streamingModule.contains("fun provideStreamingLocalPlaylistOperations("));
+        assertTrue(streamingModule.contains("MainStreamingLocalPlaylistOperations("));
+        assertTrue(mainStreamingLocalPlaylistOperations.contains("internal class MainStreamingLocalPlaylistOperations("));
+        assertTrue(mainStreamingLocalPlaylistOperations.contains(": StreamingLocalPlaylistOperations"));
+        assertTrue(mainStreamingLocalPlaylistOperations.contains("importStreamingPlaylistUseCase.execute("));
+        assertTrue(mainActivity.contains("@Inject StreamingLocalPlaylistOperations streamingLocalPlaylistOperations;"));
+        assertTrue(mainActivity.contains("@Inject StreamingPlaylistSyncStore streamingPlaylistSyncStore;"));
+        assertTrue(mainActivity.contains("streamingViewModel.bindStreamingLocalPlaylistOperations(streamingLocalPlaylistOperations);"));
+        assertFalse(mainActivity.contains("streamingViewModel.bindStreamingLocalPlaylistOperations(new StreamingLocalPlaylistOperations() {"));
+        assertFalse(mainActivity.contains("new app.yukine.streaming.StreamingPlaylistSyncStore(this)"));
+        assertFalse(mainActivity.contains("new ImportStreamingPlaylistUseCase("));
         assertTrue(mainActivityViewModel.contains("interface StreamingLocalPlaylistOperations"));
         assertTrue(mainActivityViewModel.contains("data class StreamingProviderPickerState"));
         assertTrue(mainActivityViewModel.contains("data class StreamingProviderPickerRequest("));
@@ -3845,8 +3858,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(syncUseCase.contains("StreamingPlaybackAdapter.placeholderTrack"));
         assertTrue(syncUseCase.contains("operations.syncStreamingPlaylist(link.localPlaylistId, placeholders)"));
         assertTrue(syncUseCase.contains("operations.markSynced(link.localPlaylistId)"));
-        assertTrue(mainActivity.contains("SyncStreamingPlaylistUseCase"));
-        assertTrue(mainActivity.contains("syncStreamingPlaylistUseCase.execute(link, streamingTracks)"));
+        assertTrue(streamingModule.contains("fun provideSyncStreamingPlaylistUseCase("));
+        assertTrue(streamingModule.contains("SyncStreamingPlaylistUseCase(MusicLibraryStreamingPlaylistSyncOperations(repository, syncStore))"));
+        assertTrue(mainStreamingLocalPlaylistOperations.contains("syncStreamingPlaylistUseCase.execute(link, streamingTracks)"));
+        assertFalse(mainActivity.contains("new SyncStreamingPlaylistUseCase("));
+        assertFalse(mainActivity.contains("syncStreamingPlaylistUseCase.execute(link, streamingTracks)"));
         assertTrue(mainActivityViewModel.contains("data class StreamingPlaylistSyncTarget"));
         assertTrue(mainActivityViewModel.contains("data class StreamingPlaylistSyncStartRequest("));
         assertFalse(mainActivityViewModel.contains("fun prepareStreamingPlaylistSyncTarget("));
@@ -3894,7 +3910,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("repository.syncStreamingPlaylist(playlistId, placeholders)"));
         assertTrue(linkUseCase.contains("internal class GetStreamingPlaylistLinkUseCase"));
         assertTrue(linkUseCase.contains("operations.getLink(localPlaylistId)"));
-        assertTrue(mainActivity.contains("GetStreamingPlaylistLinkUseCase"));
+        assertTrue(streamingModule.contains("fun provideGetStreamingPlaylistLinkUseCase("));
+        assertTrue(streamingModule.contains("GetStreamingPlaylistLinkUseCase(StreamingPlaylistSyncStoreLinkOperations(syncStore))"));
+        assertTrue(mainStreamingLocalPlaylistOperations.contains("streamingPlaylistLinkUseCase.execute(localPlaylistId)"));
+        assertTrue(mainStreamingLocalPlaylistOperations.contains("streamingPlaylistLinkUseCase.execute(provider, providerPlaylistId)"));
         assertFalse(exists("app/src/main/java/app/yukine/StreamingLocalPlaylistOperationsBindings.kt"));
         assertFalse(exists("app/src/test/java/app/yukine/StreamingLocalPlaylistOperationsBindingsTest.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/StreamingTrackMatchStoreBindings.kt"));
@@ -3906,7 +3925,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(loginPlaylistUseCase.contains("operations.createPlaylist(playlistName)"));
         assertTrue(loginPlaylistUseCase.contains("operations.loadPlaylists()"));
         assertTrue(loginPlaylistUseCase.contains("operations.linkPlaylist(playlistId, provider, \"\")"));
-        assertTrue(mainActivity.contains("EnsureStreamingLoginPlaylistUseCase"));
+        assertTrue(streamingModule.contains("fun provideEnsureStreamingLoginPlaylistUseCase("));
+        assertTrue(streamingModule.contains("EnsureStreamingLoginPlaylistUseCase(MusicLibraryStreamingLoginPlaylistOperations(repository, syncStore))"));
+        assertTrue(mainStreamingLocalPlaylistOperations.contains("ensureStreamingLoginPlaylistUseCase.execute(playlistName, provider)"));
+        assertFalse(mainActivity.contains("new EnsureStreamingLoginPlaylistUseCase("));
         assertTrue(mainActivityViewModel.contains("data class StreamingLoginPlaylistRequest"));
         assertTrue(mainActivityViewModel.contains("data class StreamingLocalPlaylistImportPresentation("));
         assertTrue(mainActivityViewModel.contains("data class StreamingLocalPlaylistSyncPresentation("));
@@ -3934,7 +3956,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivityViewModel.contains("return streamingViewModel.prepareStreamingLoginPlaylistPresentation("));
         assertFalse(mainActivityViewModel.contains("return streamingViewModel.ensureStreamingLoginPlaylist(playlistName, provider, onEnsured)"));
         assertFalse(mainActivityViewModel.contains("operations.ensureStreamingLoginPlaylist(playlistName, provider)"));
-        assertTrue(mainActivity.contains("ensureStreamingLoginPlaylistUseCase.execute(playlistName, provider)"));
+        assertTrue(mainStreamingLocalPlaylistOperations.contains("ensureStreamingLoginPlaylistUseCase.execute(playlistName, provider)"));
         assertTrue(streamingPlaylistController.contains("fun onStreamingLoginSuccess(provider: StreamingProviderName)"));
         assertTrue(streamingPlaylistController.contains("streamingViewModel.prepareStreamingLoginPlaylistRequest(provider, languageMode)"));
         assertTrue(streamingPlaylistController.contains("streamingViewModel.ensureStreamingLoginPlaylist(request.playlistName, request.provider)"));

@@ -324,6 +324,7 @@ public final class AppLanguage {
         put("download.current.list", "Download current list", "\u4e0b\u8f7d\u5f53\u524d\u5217\u8868");
         put("download.manager", "Download manager", "\u4e0b\u8f7d\u7ba1\u7406");
         put("download.manager.hint", "View pending, progress, and downloaded songs", "\u67e5\u770b\u5f85\u4e0b\u8f7d\u3001\u8fdb\u5ea6\u548c\u5df2\u4e0b\u8f7d\u6b4c\u66f2");
+        put("download.directory.picker.unavailable", "Directory picker is unavailable", "\u76ee\u5f55\u9009\u62e9\u6682\u4e0d\u53ef\u7528");
         put("back.to.playlists", "Back to playlists", "\u8fd4\u56de\u6b4c\u5355");
         put("export.playlist", "Export playlist", "\u5bfc\u51fa\u64ad\u653e\u5217\u8868");
         put("no.playlists", "No playlists", "\u6682\u65e0\u64ad\u653e\u5217\u8868");

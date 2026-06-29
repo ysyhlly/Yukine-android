@@ -17,7 +17,6 @@ import javax.inject.Inject;
 
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.model.Playlist;
-import app.yukine.model.PlaylistImportResult;
 import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
 import app.yukine.playback.AudioEffectSettings;
@@ -74,6 +73,8 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject StreamingTrackMatchUseCase streamingTrackMatchUseCase;
     @Inject ToggleFavoriteUseCase toggleFavoriteUseCase;
     @Inject LoadPlaylistTracksUseCase loadPlaylistTracksUseCase;
+    @Inject StreamingPlaylistSyncStore streamingPlaylistSyncStore;
+    @Inject StreamingLocalPlaylistOperations streamingLocalPlaylistOperations;
     @Inject MainHomeDashboardRenderListenerFactory homeDashboardRenderListenerFactory;
     @Inject MainHeartbeatRecommendationListenerFactory heartbeatRecommendationListenerFactory;
     @Inject MainRecommendationActionCallbacksFactory recommendationActionCallbacksFactory;
@@ -149,7 +150,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     private NetworkRenderCoordinator networkRenderCoordinator;
     private SettingsContextProvider settingsContextProvider;
     private TrackListRenderController trackListRenderController;
-    private app.yukine.streaming.StreamingPlaylistSyncStore streamingPlaylistSyncStore;
     private QueueRenderController queueRenderController;
     private QueueActionController queueActionController;
     private PlaybackActionController playbackActionController;
@@ -857,7 +857,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                         new MusicLibrarySettingsPreferenceLoadOperations(repository)
                 ).execute()
         );
-        streamingPlaylistSyncStore = new app.yukine.streaming.StreamingPlaylistSyncStore(this);
         PlaylistActionOperations playlistActionOperations =
                 new MusicLibraryPlaylistActionOperations(repository, streamingPlaylistSyncStore);
         libraryViewModel.bindPlaylistActionGateway(new LibraryPlaylistActionGateway() {
@@ -1139,65 +1138,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 libraryViewModel.removeSelectedPlaylistTrackJava(playlistId, track, MainActivityBase.this::onSelectedPlaylistTrackRemoved);
             }
         });
-        final ImportStreamingPlaylistUseCase importStreamingPlaylistUseCase = new ImportStreamingPlaylistUseCase(
-                new MusicLibraryStreamingPlaylistImportOperations(repository, streamingPlaylistSyncStore)
-        );
-        final SyncStreamingPlaylistUseCase syncStreamingPlaylistUseCase = new SyncStreamingPlaylistUseCase(
-                new MusicLibraryStreamingPlaylistSyncOperations(repository, streamingPlaylistSyncStore)
-        );
-        final EnsureStreamingLoginPlaylistUseCase ensureStreamingLoginPlaylistUseCase = new EnsureStreamingLoginPlaylistUseCase(
-                new MusicLibraryStreamingLoginPlaylistOperations(repository, streamingPlaylistSyncStore)
-        );
-        final GetStreamingPlaylistLinkUseCase streamingPlaylistLinkUseCase =
-                new GetStreamingPlaylistLinkUseCase(
-                        new StreamingPlaylistSyncStoreLinkOperations(streamingPlaylistSyncStore)
-                );
-        streamingViewModel.bindStreamingLocalPlaylistOperations(new StreamingLocalPlaylistOperations() {
-            @Override
-            public boolean playlistExists(long localPlaylistId) {
-                return syncStreamingPlaylistUseCase.playlistExists(localPlaylistId);
-            }
-
-            @Override
-            public PlaylistImportResult importStreamingPlaylist(String playlistName, StreamingProviderName provider, String providerPlaylistId, List<StreamingTrack> streamingTracks, boolean linkWhenProviderPlaylistIdBlank) {
-                return importStreamingPlaylistUseCase.execute(
-                        playlistName,
-                        provider,
-                        providerPlaylistId,
-                        streamingTracks,
-                        linkWhenProviderPlaylistIdBlank
-                );
-            }
-
-            @Override
-            public StreamingLocalPlaylistSyncResult syncStreamingPlaylist(StreamingPlaylistSyncStore.LinkedPlaylist link, List<StreamingTrack> streamingTracks) {
-                SyncStreamingPlaylistResult result = syncStreamingPlaylistUseCase.execute(link, streamingTracks);
-                return new StreamingLocalPlaylistSyncResult(
-                        result.getPlaylistId(),
-                        result.getSyncedCount(),
-                        result.getEmpty()
-                );
-            }
-
-            @Override
-            public StreamingLoginPlaylistResult ensureStreamingLoginPlaylist(String playlistName, StreamingProviderName provider) {
-                EnsureStreamingLoginPlaylistResult result = ensureStreamingLoginPlaylistUseCase.execute(playlistName, provider);
-                return new StreamingLoginPlaylistResult(
-                        result.getPlaylistId(),
-                        result.getPlaylistName()
-                );
-            }
-
-            @Override
-            public StreamingPlaylistSyncStore.LinkedPlaylist linkedPlaylist(long localPlaylistId) {
-                return streamingPlaylistLinkUseCase.execute(localPlaylistId);
-            }
-
-            @Override
-            public StreamingPlaylistSyncStore.LinkedPlaylist linkedPlaylist(StreamingProviderName provider, String providerPlaylistId) {
-                return streamingPlaylistLinkUseCase.execute(provider, providerPlaylistId);
-            }
-        });
+        streamingViewModel.bindStreamingLocalPlaylistOperations(streamingLocalPlaylistOperations);
         streamingViewModel.bindStreamingTrackMatchStore(streamingTrackMatchUseCase);
         streamingRecommendationViewModel.bindStreamingTrackMatchStore(streamingTrackMatchUseCase);
         if (heartbeatSeedBinder != null) {
@@ -1994,7 +1935,10 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private void openDownloadDirectoryPickerFromNav() {
         if (documentPickerController == null) {
-            statusMessageController.showFeedback("目录选择暂不可用");
+            statusMessageController.showFeedback(AppLanguage.text(
+                    settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                    "download.directory.picker.unavailable"
+            ));
             return;
         }
         documentPickerController.openDownloadFolderPicker();

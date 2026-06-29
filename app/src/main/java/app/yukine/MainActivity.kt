@@ -30,7 +30,6 @@ class MainActivity : MainActivityBase() {
     private val networkActionsViewModel: NetworkActionsViewModel by viewModels()
     private val statusMessageViewModel: StatusMessageViewModel by viewModels()
     private val networkSourcesViewModel: NetworkSourcesViewModel by viewModels()
-    private val shellViewModel: ShellViewModel by viewModels()
 
     override fun createActivityViewModels(): MainActivityViewModels =
         MainActivityViewModels(
@@ -51,8 +50,7 @@ class MainActivity : MainActivityBase() {
             networkMenuViewModel = networkMenuViewModel,
             networkActionsViewModel = networkActionsViewModel,
             statusMessageViewModel = statusMessageViewModel,
-            networkSourcesViewModel = networkSourcesViewModel,
-            shellViewModel = shellViewModel
+            networkSourcesViewModel = networkSourcesViewModel
         )
 
     override fun onCreate(savedInstanceState: Bundle?) {
