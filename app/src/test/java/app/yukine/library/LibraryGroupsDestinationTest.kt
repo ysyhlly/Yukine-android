@@ -3,7 +3,7 @@ package app.yukine.library
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import app.yukine.MainActivityLibraryGroupsUiState
+import app.yukine.LibraryGroupsDestinationState
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.LibraryGroupUiState
@@ -26,7 +26,7 @@ class LibraryGroupsDestinationTest {
     @Test
     fun rendersTitleAndGroupRows() {
         val state = MutableStateFlow(
-            MainActivityLibraryGroupsUiState(
+            LibraryGroupsDestinationState(
                 title = "Artists",
                 rows = listOf(
                     LibraryGroupUiState("a1", "Artist One", "10 songs"),

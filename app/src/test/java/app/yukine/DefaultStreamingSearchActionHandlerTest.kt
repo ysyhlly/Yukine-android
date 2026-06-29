@@ -211,7 +211,7 @@ class DefaultStreamingSearchActionHandlerTest {
 
         override fun languageMode(): String = AppLanguage.MODE_ENGLISH
 
-        override fun openAuthLaunch(launch: MainActivityStreamingAuthLaunch?): Boolean {
+        override fun openAuthLaunch(launch: StreamingSearchAuthLaunch?): Boolean {
             launch?.launchUrl?.let { launchedUrls += it }
             return openAuthResult
         }

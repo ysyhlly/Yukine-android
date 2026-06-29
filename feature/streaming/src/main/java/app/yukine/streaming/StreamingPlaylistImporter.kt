@@ -19,18 +19,6 @@ class StreamingPlaylistImporter(
     private val repository: StreamingRepository
 ) {
 
-    data class StreamingPlaylistImportSummary(
-        val provider: StreamingProviderName,
-        val playlistName: String,
-        val matchedTracks: List<StreamingTrack>,
-        val unresolvedTracks: List<Track>,
-        val errors: List<String>
-    ) {
-        val totalRequested: Int = matchedTracks.size + unresolvedTracks.size
-        val matchRatePercent: Int =
-            if (totalRequested == 0) 0 else matchedTracks.size * 100 / totalRequested
-    }
-
     suspend fun importToStreaming(
         provider: StreamingProviderName,
         playlistName: String,

@@ -9,7 +9,7 @@ import androidx.browser.customtabs.CustomTabsIntent
 import app.yukine.streaming.StreamingAuthKind
 
 internal object StreamingAuthLauncher {
-    fun launch(context: Context?, launch: MainActivityStreamingAuthLaunch?): Boolean {
+    fun launch(context: Context?, launch: StreamingSearchAuthLaunch?): Boolean {
         if (context == null || launch == null || launch.launchUrl.isBlank()) {
             return false
         }
@@ -22,7 +22,7 @@ internal object StreamingAuthLauncher {
 
     private fun launchIsolatedWebView(
         context: Context,
-        launch: MainActivityStreamingAuthLaunch,
+        launch: StreamingSearchAuthLaunch,
         uri: Uri
     ): Boolean {
         val intent = Intent(context, StreamingWebAuthActivity::class.java)

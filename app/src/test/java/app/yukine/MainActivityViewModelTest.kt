@@ -13,7 +13,7 @@ class MainActivityViewModelTest {
         val first = track(1L)
         val second = track(2L)
         viewModel.updateLibrary(
-            MainActivityLibraryState(
+            LibraryStoreState(
                 allTracks = listOf(first, second),
                 visibleTracks = listOf(first, second)
             )
@@ -32,7 +32,7 @@ class MainActivityViewModelTest {
         val first = track(1L)
         val second = track(2L)
         viewModel.updateLibrary(
-            MainActivityLibraryState(
+            LibraryStoreState(
                 allTracks = listOf(first, second),
                 visibleTracks = listOf(first, second),
                 favoriteTrackIds = setOf(1L, 2L),

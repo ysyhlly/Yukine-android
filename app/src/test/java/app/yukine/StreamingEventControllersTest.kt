@@ -41,7 +41,7 @@ class StreamingEventControllersTest {
 
         override fun languageMode(): String = AppLanguage.MODE_ENGLISH
 
-        override fun openAuthLaunch(launch: MainActivityStreamingAuthLaunch?): Boolean = false
+        override fun openAuthLaunch(launch: StreamingSearchAuthLaunch?): Boolean = false
 
         override fun playResolvedTrack(track: Track) = Unit
 

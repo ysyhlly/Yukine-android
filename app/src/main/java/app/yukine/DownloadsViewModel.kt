@@ -3,10 +3,12 @@ package app.yukine
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.transform
 
 sealed interface DownloadsEffect {
     data object OpenDirectoryPicker : DownloadsEffect
@@ -71,6 +73,13 @@ class DownloadsViewModel : ViewModel() {
     fun clearMessage() {
         mutableUiState.value = mutableUiState.value.copy(message = "")
     }
+
+    fun openDirectoryRequests(): Flow<Unit> =
+        effects.transform { effect ->
+            when (effect) {
+                DownloadsEffect.OpenDirectoryPicker -> emit(Unit)
+            }
+        }
 
     private fun setDirectory(
         downloadManager: TrackDownloadDirectoryController?,

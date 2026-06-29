@@ -67,7 +67,7 @@ class LibraryViewModelTest {
                 labels: app.yukine.ui.TrackListLabels
             ) {
                 viewModel.updateTrackListChrome(
-                    MainActivityTrackListUiState(
+                    LibraryTrackListDestinationState(
                         "",
                         emptyList(),
                         emptyList(),

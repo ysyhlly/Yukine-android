@@ -3,7 +3,7 @@ package app.yukine.home
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import app.yukine.MainActivityHomeDashboardUiState
+import app.yukine.HomeDashboardDestinationState
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.HomeDashboardUiState
 import app.yukine.ui.YukineOrbAudioMotion
@@ -26,7 +26,7 @@ class HomeDestinationTest {
     @Test
     fun rendersHeroTitleFromState() {
         val state = MutableStateFlow(
-            MainActivityHomeDashboardUiState(
+            HomeDashboardDestinationState(
                 content = HomeDashboardUiState(heroTitle = "晚上好，听点什么？")
             )
         )
@@ -43,7 +43,7 @@ class HomeDestinationTest {
     @Test
     fun reflectsStateUpdate() {
         val state = MutableStateFlow(
-            MainActivityHomeDashboardUiState(content = HomeDashboardUiState(heroTitle = "初始问题"))
+            HomeDashboardDestinationState(content = HomeDashboardUiState(heroTitle = "初始问题"))
         )
 
         composeRule.setContent {
@@ -54,7 +54,7 @@ class HomeDestinationTest {
 
         composeRule.onNodeWithText("初始问题").assertIsDisplayed()
 
-        state.value = MainActivityHomeDashboardUiState(
+        state.value = HomeDashboardDestinationState(
             content = HomeDashboardUiState(heroTitle = "更新问题")
         )
         composeRule.waitForIdle()

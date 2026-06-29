@@ -177,6 +177,8 @@ class SettingsViewModel @JvmOverloads constructor(
     val scrollState = SettingsListScrollState()
     private val _state = MutableStateFlow(SettingsState())
     val state: StateFlow<SettingsState> = _state.asStateFlow()
+    private val _chromeState = MutableStateFlow(SettingsChromeState())
+    val chromeState: StateFlow<SettingsChromeState> = _chromeState.asStateFlow()
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
     private val pendingEffects = java.util.ArrayDeque<SettingsEffect>()
@@ -214,6 +216,7 @@ class SettingsViewModel @JvmOverloads constructor(
             preferences = preferences,
             runtime = runtime
         )
+        syncChromeState(preferences)
     }
 
     internal fun renderCurrentPage(
@@ -229,6 +232,7 @@ class SettingsViewModel @JvmOverloads constructor(
             actions = content.actions,
             ui = content.uiState
         )
+        syncChromeState(preferences)
         _uiState.value = content.uiState
         return content
     }
@@ -592,6 +596,13 @@ class SettingsViewModel @JvmOverloads constructor(
         val nextPreferences = transform(current.preferences)
         storeMirror?.sync(nextPreferences)
         renderCurrentPage(current.page, nextPreferences, current.runtime)
+    }
+
+    private fun syncChromeState(preferences: SettingsPreferencesSnapshot) {
+        _chromeState.value = SettingsChromeState(
+            pageBackgrounds = preferences.pageBackgrounds,
+            nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled
+        )
     }
 
     private fun updateRuntime(transform: (RuntimeSettingsStatus) -> RuntimeSettingsStatus) {

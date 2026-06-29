@@ -12,16 +12,16 @@ import kotlinx.coroutines.flow.stateIn
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.SharingStarted
 
-data class MainActivityPlaybackState(
+data class PlaybackViewState(
     val snapshot: PlaybackStateSnapshot = PlaybackStateSnapshot.empty(),
     val queue: List<Track> = emptyList()
 )
 
 class PlaybackViewModel : ViewModel(), PlaybackSnapshotProvider {
-    private val playbackState = MutableStateFlow(MainActivityPlaybackState())
+    private val playbackState = MutableStateFlow(PlaybackViewState())
     private var lastHistoryRefreshTrackId = -1L
 
-    val playback: StateFlow<MainActivityPlaybackState> = playbackState.asStateFlow()
+    val playback: StateFlow<PlaybackViewState> = playbackState.asStateFlow()
 
     override val playbackSnapshot: StateFlow<PlaybackStateSnapshot> = playbackState
         .map { it.snapshot }
@@ -36,12 +36,12 @@ class PlaybackViewModel : ViewModel(), PlaybackSnapshotProvider {
     }
 
     fun resetPlayback() {
-        playbackState.value = MainActivityPlaybackState()
+        playbackState.value = PlaybackViewState()
         lastHistoryRefreshTrackId = -1L
     }
 
     fun updatePlayback(snapshot: PlaybackStateSnapshot?, queue: List<Track>) {
-        playbackState.value = MainActivityPlaybackState(
+        playbackState.value = PlaybackViewState(
             snapshot = snapshot ?: PlaybackStateSnapshot.empty(),
             queue = queue.toList()
         )

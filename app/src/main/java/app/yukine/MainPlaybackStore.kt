@@ -4,6 +4,10 @@ import app.yukine.model.Track
 import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.PlaybackStateSnapshot
 
+internal fun interface MainPlaybackStoreFactory {
+    fun create(viewModel: PlaybackViewModel): MainPlaybackStore
+}
+
 internal class MainPlaybackStore(
     private val viewModel: PlaybackViewModel
 ) {

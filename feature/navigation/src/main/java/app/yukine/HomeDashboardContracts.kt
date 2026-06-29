@@ -3,7 +3,7 @@ package app.yukine
 import app.yukine.ui.HomeDashboardActions
 import app.yukine.ui.HomeDashboardUiState
 
-data class MainActivityHomeDashboardUiState(
+data class HomeDashboardDestinationState(
     val content: HomeDashboardUiState = HomeDashboardUiState(),
     val actions: HomeDashboardActions = emptyHomeDashboardActions()
 )

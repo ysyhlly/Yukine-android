@@ -25,12 +25,12 @@ data class CollectionsViewState(
     val mostPlayed: List<TrackPlayRecord> = emptyList()
 )
 
-class CollectionsViewModel : ViewModel() {
+class CollectionsViewModel : ViewModel(), CollectionsDestinationStateProvider {
     private val _uiState = MutableStateFlow(CollectionsViewState())
     val uiState: StateFlow<CollectionsViewState> = _uiState.asStateFlow()
 
     private val screenState = MutableStateFlow(emptyScreenState())
-    val screen: StateFlow<CollectionsUiState> = screenState.asStateFlow()
+    override val screen: StateFlow<CollectionsUiState> = screenState.asStateFlow()
 
     fun updateCollections(
         favoriteTracks: List<Track>,

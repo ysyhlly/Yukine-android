@@ -36,20 +36,6 @@ data class TrackDownloadResult(
     val message: String
 )
 
-data class TrackDownloadActionResult(
-    val changed: Boolean,
-    val message: String
-)
-
-interface TrackDownloadController {
-    fun snapshot(): List<TrackDownloadItem>
-    fun pause(downloadId: Long): TrackDownloadActionResult
-    fun resume(downloadId: Long): TrackDownloadActionResult
-    fun remove(downloadId: Long): TrackDownloadActionResult
-    fun pauseAll(): TrackDownloadActionResult
-    fun resumeAll(): TrackDownloadActionResult
-}
-
 interface TrackDownloadDirectoryController : TrackDownloadController {
     fun downloadDirectoryLabel(): String
     fun setDownloadDirectory(directory: String)

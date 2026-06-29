@@ -196,11 +196,11 @@ fun interface LibraryTrackAddedToPlaylistCallback {
 class LibraryViewModel @JvmOverloads constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
-    private val trackListState = MutableStateFlow(MainActivityTrackListUiState())
-    val trackList: StateFlow<MainActivityTrackListUiState> = trackListState.asStateFlow()
+    private val trackListState = MutableStateFlow(LibraryTrackListDestinationState())
+    val trackList: StateFlow<LibraryTrackListDestinationState> = trackListState.asStateFlow()
 
-    private val libraryGroupsState = MutableStateFlow(MainActivityLibraryGroupsUiState())
-    val libraryGroups: StateFlow<MainActivityLibraryGroupsUiState> = libraryGroupsState.asStateFlow()
+    private val libraryGroupsState = MutableStateFlow(LibraryGroupsDestinationState())
+    val libraryGroups: StateFlow<LibraryGroupsDestinationState> = libraryGroupsState.asStateFlow()
 
     private var gateway: LibraryGateway? = null
     private var playlistTrackLoader: LibraryPlaylistTrackLoader? = null
@@ -703,7 +703,7 @@ class LibraryViewModel @JvmOverloads constructor(
     }
 
     fun clearTrackList() {
-        trackListState.value = MainActivityTrackListUiState()
+        trackListState.value = LibraryTrackListDestinationState()
     }
 
     fun updateLibraryGroups(title: String, rows: List<LibraryGroupUiState>) {
@@ -714,7 +714,7 @@ class LibraryViewModel @JvmOverloads constructor(
     }
 
     fun clearLibraryGroups() {
-        libraryGroupsState.value = MainActivityLibraryGroupsUiState()
+        libraryGroupsState.value = LibraryGroupsDestinationState()
     }
 
     fun updateTrackListChrome(
@@ -735,7 +735,7 @@ class LibraryViewModel @JvmOverloads constructor(
         )
     }
 
-    fun updateTrackListChrome(state: MainActivityTrackListUiState) {
+    fun updateTrackListChrome(state: LibraryTrackListDestinationState) {
         // Chrome publish carries only chrome fields; the title/rows/footerAlbums are placeholders
         // (built empty by the host). Preserve the content set by updateTrackList(...) instead of
         // letting the blank placeholders wipe it, which would render an empty track list.
@@ -761,7 +761,7 @@ class LibraryViewModel @JvmOverloads constructor(
         )
     }
 
-    fun updateLibraryGroupsChrome(state: MainActivityLibraryGroupsUiState) {
+    fun updateLibraryGroupsChrome(state: LibraryGroupsDestinationState) {
         // Chrome publish carries only chrome fields; title/rows are blank placeholders. Preserve
         // the content set by updateLibraryGroups(...) so the group list does not get wiped.
         libraryGroupsState.value = libraryGroupsState.value.copy(

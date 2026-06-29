@@ -57,7 +57,7 @@ class HandoffExperienceContractTest {
     @Test
     fun streamingSearchFiltersOutNonSongResults() {
         val viewModel = read("app/src/main/java/app/yukine/StreamingViewModel.kt")
-        val screen = read("app/src/main/java/app/yukine/ui/StreamingSearchScreen.kt")
+        val screen = read("feature/ui-common/src/main/java/app/yukine/ui/StreamingSearchScreen.kt")
 
         assertTrue(viewModel.contains("trackOnlySearchResult()"))
         assertTrue(viewModel.contains("albums = emptyList()"))

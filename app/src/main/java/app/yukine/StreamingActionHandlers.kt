@@ -28,7 +28,7 @@ interface MainActivityStreamingActionGateway {
 
     fun languageMode(): String
 
-    fun openAuthLaunch(launch: MainActivityStreamingAuthLaunch?): Boolean
+    fun openAuthLaunch(launch: StreamingSearchAuthLaunch?): Boolean
 
     fun playResolvedTrack(track: Track)
 

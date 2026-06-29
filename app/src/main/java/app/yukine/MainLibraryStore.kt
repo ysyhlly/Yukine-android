@@ -133,7 +133,7 @@ internal class MainLibraryStore(
         return NetworkLibrary.remoteSourceName(remoteSources(), sourceId, languageMode)
     }
 
-    private fun state(): MainActivityLibraryState {
+    private fun state(): LibraryStoreState {
         return viewModel.library.value
     }
 }

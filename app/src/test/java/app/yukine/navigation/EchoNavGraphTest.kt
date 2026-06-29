@@ -13,7 +13,6 @@ import androidx.lifecycle.SavedStateHandle
 import app.yukine.CollectionsViewModel
 import app.yukine.HomeDashboardViewModel
 import app.yukine.LibraryViewModel
-import app.yukine.MainActivityViewModel
 import app.yukine.model.Track
 import app.yukine.NavigationViewModel
 import app.yukine.NetworkMenuViewModel
@@ -24,7 +23,6 @@ import app.yukine.SettingsViewModel
 import app.yukine.StreamingViewModel
 import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.PlaybackStateSnapshot
-import app.yukine.queue.QueueViewModel
 import app.yukine.ui.CollectionsActions
 import app.yukine.ui.CollectionsUiState
 import app.yukine.ui.emptyCollectionsActions
@@ -53,9 +51,6 @@ class EchoNavGraphTest {
         EchoTabItem(SettingsTab, "Settings")
     )
     private val emptyRealtimeBands = FloatArray(0)
-
-    private fun emptyQueueViewModel(): QueueViewModel =
-        QueueViewModel().also { it.bind(emptyList(), null, emptySet(), "en") }
 
     private fun hostState(
         visualMotionEnabled: Boolean = false,
@@ -89,6 +84,10 @@ class EchoNavGraphTest {
                 )
             )
         }
+        val library = LibraryViewModel()
+        val networkMenu = NetworkMenuViewModel()
+        val networkSources = NetworkSourcesViewModel()
+        val streaming = StreamingViewModel()
         val settings = SettingsViewModel().also {
             it.renderPageFromHost(
                 app.yukine.SettingsPage.Home,
@@ -97,17 +96,19 @@ class EchoNavGraphTest {
             )
         }
         return EchoNavHostState(
-            mainViewModel = MainActivityViewModel(SavedStateHandle()),
-            navigationViewModel = NavigationViewModel(SavedStateHandle()),
-            homeDashboardViewModel = homeDashboard,
+            routeState = NavigationViewModel(SavedStateHandle()).state,
+            homeDashboardState = homeDashboard.uiState,
             nowPlayingStateProvider = nowPlayingStateProvider,
-            libraryViewModel = LibraryViewModel(),
-            collectionsViewModel = collections,
-            settingsViewModel = settings,
-            networkMenuViewModel = NetworkMenuViewModel(),
-            networkSourcesViewModel = NetworkSourcesViewModel(),
-            streamingViewModel = StreamingViewModel(),
-            playbackViewModel = app.yukine.PlaybackViewModel(),
+            libraryGroupsState = library.libraryGroups,
+            libraryTrackListState = library.trackList,
+            collectionsStateProvider = collections,
+            settingsState = settings.state,
+            settingsChromeState = settings.chromeState,
+            settingsScrollState = settings.scrollState,
+            networkMenuState = networkMenu.uiState,
+            networkSourcesState = networkSources.uiState,
+            streamingState = streaming.streaming,
+            playbackSnapshotProvider = app.yukine.PlaybackViewModel(),
             realtimeBeatProvider = realtimeBeatProvider,
             realtimeBandsProvider = realtimeBandsProvider,
             visualMotionEnabled = visualMotionEnabled
@@ -120,7 +121,6 @@ class EchoNavGraphTest {
             EchoTheme.EchoTheme {
                 EchoNavGraph(
                     tabs = tabs,
-                    queueViewModel = emptyQueueViewModel(),
                     hostState = hostState()
                 )
             }
@@ -150,7 +150,6 @@ class EchoNavGraphTest {
                 EchoTheme.EchoTheme {
                     EchoNavGraph(
                         tabs = tabs,
-                        queueViewModel = emptyQueueViewModel(),
                         hostState = state
                     )
                 }
@@ -172,7 +171,6 @@ class EchoNavGraphTest {
             EchoTheme.EchoTheme {
                 EchoNavGraph(
                     tabs = tabs,
-                    queueViewModel = emptyQueueViewModel(),
                     hostState = state
                 )
             }
@@ -193,7 +191,6 @@ class EchoNavGraphTest {
             EchoTheme.EchoTheme {
                 EchoNavGraph(
                     tabs = tabs,
-                    queueViewModel = emptyQueueViewModel(),
                     hostState = state
                 )
             }
@@ -212,7 +209,6 @@ class EchoNavGraphTest {
             EchoTheme.EchoTheme {
                 EchoNavGraph(
                     tabs = tabs,
-                    queueViewModel = emptyQueueViewModel(),
                     hostState = hostState()
                 )
             }
@@ -231,7 +227,6 @@ class EchoNavGraphTest {
             EchoTheme.EchoTheme {
                 EchoNavGraph(
                     tabs = tabs,
-                    queueViewModel = emptyQueueViewModel(),
                     onTabChanged = { changed.add(it) },
                     hostState = hostState()
                 )
@@ -251,7 +246,6 @@ class EchoNavGraphTest {
             EchoTheme.EchoTheme {
                 EchoNavGraph(
                     tabs = tabs,
-                    queueViewModel = emptyQueueViewModel(),
                     nowBar = { Text("persistent-now-bar") },
                     hostState = hostState()
                 )

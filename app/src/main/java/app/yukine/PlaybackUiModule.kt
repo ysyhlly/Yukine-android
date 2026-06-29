@@ -1,0 +1,204 @@
+package app.yukine
+
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.components.ActivityComponent
+import dagger.hilt.android.scopes.ActivityScoped
+
+@Module
+@InstallIn(ActivityComponent::class)
+internal object PlaybackUiModule {
+    @Provides
+    @ActivityScoped
+    fun provideMainPlaybackStoreFactory(): MainPlaybackStoreFactory =
+        MainPlaybackStoreFactory { viewModel -> MainPlaybackStore(viewModel) }
+
+    @Provides
+    @ActivityScoped
+    fun provideMainNowPlayingGatewayFactory(): MainNowPlayingGatewayFactory =
+        MainNowPlayingGatewayFactory { playbackActions, playbackStore, favoriteToggler, seekHandler, statusText ->
+            MainNowPlayingGateway(playbackActions, playbackStore, favoriteToggler, seekHandler, statusText)
+        }
+
+    @Provides
+    @ActivityScoped
+    fun provideMainNowPlayingStateListenerFactory(): MainNowPlayingStateListenerFactory =
+        MainNowPlayingStateListenerFactory {
+                storesReadySource,
+                playbackSnapshotSource,
+                favoriteIdsSource,
+                lyricsStateSource,
+                languageModeSource,
+                floatingLyricsSink,
+                queueInputsSyncer ->
+            MainNowPlayingStateListener(
+                storesReadySource,
+                playbackSnapshotSource,
+                favoriteIdsSource,
+                lyricsStateSource,
+                languageModeSource,
+                floatingLyricsSink,
+                queueInputsSyncer
+            )
+        }
+
+    @Provides
+    @ActivityScoped
+    fun provideMainPlaybackActionListenerFactory(): MainPlaybackActionListenerFactory =
+        MainPlaybackActionListenerFactory { streamingResolver, snapshotSource, fallbackTracksSource, resultSink ->
+            MainPlaybackActionListener(streamingResolver, snapshotSource, fallbackTracksSource, resultSink)
+        }
+
+    @Provides
+    @ActivityScoped
+    fun provideMainQueueActionListenerFactory(): MainQueueActionListenerFactory =
+        MainQueueActionListenerFactory {
+                resultApplier,
+                serviceAvailability,
+                trackMoveSink,
+                nowBarRenderer,
+                selectedTabRenderer,
+                clearQueueConfirmer,
+                emptyStatusProvider,
+                statusSink ->
+            MainQueueActionListener(
+                resultApplier,
+                serviceAvailability,
+                trackMoveSink,
+                nowBarRenderer,
+                selectedTabRenderer,
+                clearQueueConfirmer,
+                emptyStatusProvider,
+                statusSink
+            )
+        }
+
+    @Provides
+    @ActivityScoped
+    fun provideMainQueueRenderListenerFactory(): MainQueueRenderListenerFactory =
+        MainQueueRenderListenerFactory {
+                trackListPlayer,
+                favoriteToggler,
+                playlistAdder,
+                queueTrackRemover,
+                clearQueueConfirmer,
+                backRequester ->
+            MainQueueRenderListener(
+                trackListPlayer,
+                favoriteToggler,
+                playlistAdder,
+                queueTrackRemover,
+                clearQueueConfirmer,
+                backRequester
+            )
+        }
+
+    @Provides
+    @ActivityScoped
+    fun provideMainStreamingPlaybackListenerFactory(): MainStreamingPlaybackListenerFactory =
+        MainStreamingPlaybackListenerFactory {
+                languageProvider,
+                adaptiveQualityProvider,
+                selectedQualityProvider,
+                queueSnapshotSource,
+                heartbeatAppendHandler,
+                resultSink,
+                statusSink ->
+            MainStreamingPlaybackListener(
+                languageProvider,
+                adaptiveQualityProvider,
+                selectedQualityProvider,
+                queueSnapshotSource,
+                heartbeatAppendHandler,
+                resultSink,
+                statusSink
+            )
+        }
+
+    @Provides
+    @ActivityScoped
+    fun provideMainPlaybackStartListenerFactory(): MainPlaybackStartListenerFactory =
+        MainPlaybackStartListenerFactory {
+                heartbeatStopper,
+                serviceStarter,
+                serviceAvailability,
+                resolvingStatusProvider,
+                statusSink,
+                queueOpener ->
+            MainPlaybackStartListener(
+                heartbeatStopper,
+                serviceStarter,
+                serviceAvailability,
+                resolvingStatusProvider,
+                statusSink,
+                queueOpener
+            )
+        }
+
+    @Provides
+    @ActivityScoped
+    fun provideMainPlaybackStateEventListenerFactory(): MainPlaybackStateEventListenerFactory =
+        MainPlaybackStateEventListenerFactory {
+                selectedTabSource,
+                currentLyricsTrackIdSource,
+                playbackSettingsSaver,
+                lyricsLoader,
+                collectionsLoader,
+                nowBarRenderer,
+                homeDashboardPlaybackUpdater,
+                selectedTabRenderer,
+                nowPlayingContentUpdater,
+                nextStreamingTrackPreResolver,
+                streamingBufferingRecoveryHandler,
+                currentStreamingTrackResolver,
+                statusSink ->
+            MainPlaybackStateEventListener(
+                selectedTabSource,
+                currentLyricsTrackIdSource,
+                playbackSettingsSaver,
+                lyricsLoader,
+                collectionsLoader,
+                nowBarRenderer,
+                homeDashboardPlaybackUpdater,
+                selectedTabRenderer,
+                nowPlayingContentUpdater,
+                nextStreamingTrackPreResolver,
+                streamingBufferingRecoveryHandler,
+                currentStreamingTrackResolver,
+                statusSink
+            )
+        }
+
+    @Provides
+    @ActivityScoped
+    fun provideMainPlaybackServiceHostFactory(): MainPlaybackServiceHostFactory =
+        MainPlaybackServiceHostFactory {
+                playbackSpeedSource,
+                appVolumeSource,
+                concurrentPlaybackSource,
+                statusBarLyricsSource,
+                playbackRestoreSource,
+                replayGainSource,
+                playbackServiceAttacher,
+                playbackServiceClearer,
+                playbackStoreResetter,
+                pendingTracksPlayer,
+                selectedTabRenderer,
+                nowBarRenderer ->
+            MainPlaybackServiceHost(
+                playbackSpeedSource,
+                appVolumeSource,
+                concurrentPlaybackSource,
+                statusBarLyricsSource,
+                playbackRestoreSource,
+                replayGainSource,
+                playbackServiceAttacher,
+                playbackServiceClearer,
+                playbackStoreResetter,
+                pendingTracksPlayer,
+                selectedTabRenderer,
+                nowBarRenderer
+            )
+        }
+}

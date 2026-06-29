@@ -4,21 +4,25 @@
 
 ## 已完成
 
-9 个 Coordinator 类已创建并通过编译 (`compileDebugKotlin` + `compileDebugJavaWithJavac`):
+当前仍保留 1 个 Coordinator 类；Phase 6 稳定化已删除不再有行为收益的装配层：
 
 | Coordinator | 文件 | 职责 |
 |---|---|---|
-| DownloadsCoordinator | `DownloadsCoordinator.kt` | 下载请求、自定义下载目录 |
-| FileIOCoordinator | `FileIOCoordinator.kt` | 文件选择器（文档/背景图/备份恢复） |
-| SettingsCoordinator | `SettingsCoordinator.kt` | 设置渲染、运行时样式应用 |
-| NowPlayingQueueCoordinator | `NowPlayingQueueCoordinator.kt` | 正在播放事件、队列操作 |
-| NetworkCoordinator | `NetworkCoordinator.kt` | 网络/WebDAV/串流源管理 |
-| LibraryCoordinator | `LibraryCoordinator.kt` | 本地曲库加载/渲染/分组 |
-| PlaybackCoordinator | `PlaybackCoordinator.kt` | 6 个播放控制器编排 |
-| StreamingCoordinator | `StreamingCoordinator.kt` | 在线音源解析/切换/搜索 |
-| NavigationCoordinator | `NavigationCoordinator.kt` | 路由状态、Tab/页面导航、搜索 |
+| NetworkRenderCoordinator | `NetworkRenderCoordinator.kt` | 网络页分发渲染 |
 
-所有 Coordinator 遵循 `NetworkRenderCoordinator` 模式：构造函数接收预构建的 Controller，通过 `Listener` 接口回调 Activity。
+已删除：
+
+- `DownloadsCoordinator`: 只转发到 `DownloadRequestController`。
+- `FileIOCoordinator`: 只持有 document/background/backup launcher 字段。
+- `NetworkCoordinator`: 只剩未调用的旧装配层；实际网络路径已由 `MainActivityBase` 直接构造 `NetworkRequestController`、`NetworkMenuEventController`、`NetworkSourcesEventController` 和 `NetworkRenderCoordinator`。
+- `LibraryCoordinator`: 只被构造，实际曲库加载/渲染/collections 路径没有经过它。
+- `NavigationCoordinator`: 只被构造，实际路由/返回/搜索/滑动路径没有经过它。
+- `SettingsCoordinator`: 重复 `MainActivityBase` 已有的 `SettingsRuntimeApplier` 绑定，且渲染方法没有活跃调用方。
+- `StreamingCoordinator`: 只剩 auth intent 转发，`MainActivityBase` 已直接调用 `StreamingAuthCallbackController`。
+- `PlaybackCoordinator`: 只剩播放启动、service bind/release 和 app visible 转发；`MainActivityBase` 已直接调用 `PlaybackStartController`、`PlaybackServiceConnectionController` 和 `EchoPlaybackService`。
+- `NowPlayingQueueCoordinator`: 先被收窄为 queue intent listener，随后确认会被 `mountNavHostShell()` 的实际 `queueViewModel.bindIntentListener(...)` 覆盖，已删除死绑定。
+
+剩余 Coordinator 不应被当作统一模板；只保留仍有真实运行时职责的窄 owner。
 
 ## 未完成：MainActivity 重写 (Task #2)
 
@@ -32,42 +36,33 @@
 
 ### 实施步骤
 
-1. **在 onCreate 中实例化 9 个 Coordinator**
-   - 每个 Coordinator 的构造函数参数已在各 `.kt` 文件中定义
-   - 跨 Coordinator 通信通过 Listener 回调到 MainActivity，再转发到目标 Coordinator
-   - 示例：
-     ```java
-     libraryCoordinator = new LibraryCoordinator(
-         libraryViewModel, collectionsViewModel, libraryStore, settingsStore,
-         playbackStore, repository, permissionController, statusMessageController,
-         trackListRenderController, libraryGroupsRenderController,
-         libraryPlaylistsRenderController, collectionsRenderController,
-         playHistoryActionController,
-         new LibraryCoordinator.Listener() { ... }
-     );
-     ```
+1. **继续收敛剩余 Coordinator**
+   - 先确认 Coordinator 有真实运行时调用；不要为“将来接入”保留死装配层
+   - 跨 Coordinator 通信仍通过 Listener 回调到 MainActivity，再转发到目标 Coordinator
+   - 已删除的 coordinator 不应作为新模板
 
-2. **替换 MainActivity 中的直接调用**
-   - `downloadRequestController.downloadTrack(track)` → `downloadsCoordinator.downloadTrack(track)`
-   - `playbackStartController.playTrackList(...)` → `playbackCoordinator.playTrackListFromHost(...)`
+2. **只替换有净收益的直接调用**
+   - 下载请求已保留为直接调用 `downloadRequestController`，不要恢复 `DownloadsCoordinator`
+   - 播放启动已保留为直接调用 `playbackStartController.playTrackList(...)`；不要恢复 `PlaybackCoordinator` 或 coordinator-local pending playback 状态
    - 等等，逐个 Coordinator 替换
 
 3. **删除已迁移到 Coordinator 的 field 和 private 方法**
 
-4. **NetworkCoordinator 特殊处理**
-   - 它有 `initialize()` 方法需要在 onCreate 中额外参数才能完成初始化
-   - 调用顺序：先构造 NetworkCoordinator，再调 `initialize(activity, routeController, ...)`
+4. **不要恢复 NetworkCoordinator**
+   - 旧的 `initialize()` 路径已经废弃
+   - 网络请求、菜单、来源和渲染的实际装配点保留在现有 live controller/render coordinator 路径
 
-### Listener 桥接模板
+5. **不要恢复 LibraryCoordinator / NavigationCoordinator**
+   - 旧文件没有活跃调用路径
+   - 后续若迁移曲库或路由行为，必须把行为移动到真实 owner 并加行为/合同证据
+
+### 播放服务生命周期
 
 ```java
-// PlaybackCoordinator.Listener 示例
-new PlaybackCoordinator.Listener() {
-    @Override public EchoPlaybackService currentPlaybackService() {
-        return playbackServiceConnectionController.getService();
-    }
-    @Override public void renderSelectedTab() { renderTab(); }
-    @Override public void renderNowBar() { nowBarRenderController.render(); }
+playbackServiceConnectionController.bind();
+playbackServiceConnectionController.release();
+if (playbackService != null) {
+    playbackService.setAppVisible(true);
 }
 ```
 
@@ -94,8 +89,8 @@ new PlaybackCoordinator.Listener() {
    - 分步迁移：先建 Room entity/DAO，再逐表切换
 
 5. **Controller 合并**
-   - 多个 Controller 只有 1-2 个方法，可合并进 Coordinator
-   - 例：`PlaybackStateUpdateController` 无构造参数，只有一个 `update()` 方法
+   - 多个 Controller 只有 1-2 个方法时，优先评估是否能变成无状态 policy/object 或并入真实 owner
+   - `PlaybackStateUpdateController` 已改为无状态 `object`，不要恢复 `MainActivityBase` 字段或手动构造
 
 ### P2 - 可以做
 
@@ -109,7 +104,7 @@ new PlaybackCoordinator.Listener() {
 
 8. **单元测试**
    - 每个 Coordinator 的 Listener 可 mock，方便验证事件路由
-   - PlaybackCoordinator 的 pending playback 逻辑需要测试
+   - `PlaybackCoordinator` 已删除；pending playback 归 `PlaybackStartController`，service bind/release 归 `PlaybackServiceConnectionController`
 
 ## 编译验证命令
 
@@ -119,7 +114,9 @@ new PlaybackCoordinator.Listener() {
 
 ## 注意事项
 
-- 所有 Coordinator 均为 `internal class`，包级可见性
-- `NavigationCoordinator` 管理 `MainRouteController` 的状态读写
-- `NetworkCoordinator.initialize()` 是唯一需要延迟初始化的 Coordinator（因为它内部构造了多个子 Controller）
-- `SettingsCoordinator` 直接接收 `activity: ComponentActivity`（因为 `MainPermissionController.activity` 是 private 的）
+- 剩余 Coordinator 均为 `internal class`，包级可见性
+- 不要恢复 `NetworkCoordinator.initialize()`；它已经随未使用的 `NetworkCoordinator` 删除
+- 不要恢复 `LibraryCoordinator` / `NavigationCoordinator`；它们已经随未使用构造路径删除
+- 不要恢复 `SettingsCoordinator`；保留直接 `SettingsRuntimeApplier` 绑定，后续要减少的是宿主装配而不是增加重复 coordinator
+- 不要恢复 `StreamingCoordinator`；auth intent 直接进入 `StreamingAuthCallbackController`
+- 不要恢复 `PlaybackCoordinator`；播放启动、service 连接和 app visible 已分别由现有 owner 直接承担

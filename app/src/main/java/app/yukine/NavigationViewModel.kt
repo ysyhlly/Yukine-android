@@ -12,11 +12,11 @@ import kotlinx.coroutines.flow.asStateFlow
 class NavigationViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
-    private val routeState = MutableStateFlow(MainActivityRouteStateStore.restore(savedStateHandle))
-    val state: StateFlow<MainActivityRouteState> = routeState.asStateFlow()
+    private val routeState = MutableStateFlow(NavigationRouteStateStore.restore(savedStateHandle))
+    val state: StateFlow<NavigationRouteState> = routeState.asStateFlow()
 
-    fun updateRoute(snapshot: MainActivityRouteState) {
+    fun updateRoute(snapshot: NavigationRouteState) {
         routeState.value = snapshot
-        MainActivityRouteStateStore.save(savedStateHandle, snapshot)
+        NavigationRouteStateStore.save(savedStateHandle, snapshot)
     }
 }

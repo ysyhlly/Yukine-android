@@ -205,6 +205,8 @@ class SettingsViewModelTest {
 
         assertEquals(preferences, viewModel.state.value.preferences)
         assertEquals(runtime, viewModel.state.value.runtime)
+        assertEquals(preferences.pageBackgrounds, viewModel.chromeState.value.pageBackgrounds)
+        assertEquals(false, viewModel.chromeState.value.nowPlayingGesturesEnabled)
         assertEquals(SettingsUiState(), viewModel.uiState.value)
     }
 

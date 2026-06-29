@@ -3,13 +3,13 @@ package app.yukine
 internal class MainRouteController(
     private val viewModel: NavigationViewModel
 ) {
-    private var state: MainActivityRouteState = MainActivityRouteState()
+    private var state: NavigationRouteState = NavigationRouteState()
 
     init {
         restoreFromViewModel()
     }
 
-    fun current(): MainActivityRouteState {
+    fun current(): NavigationRouteState {
         return state
     }
 
@@ -27,8 +27,8 @@ internal class MainRouteController(
         networkPage: String,
         settingsPage: String,
         selectedRemoteSourceId: Long
-    ): MainActivityRouteState {
-        return MainActivityRouteState(
+    ): NavigationRouteState {
+        return NavigationRouteState(
             selectedTab,
             libraryMode,
             selectedLibraryGroupKey,
@@ -41,7 +41,7 @@ internal class MainRouteController(
         )
     }
 
-    fun persist(state: MainActivityRouteState) {
+    fun persist(state: NavigationRouteState) {
         this.state = state
         viewModel.updateRoute(state)
     }

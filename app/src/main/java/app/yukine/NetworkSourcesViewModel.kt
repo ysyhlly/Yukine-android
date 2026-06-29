@@ -10,20 +10,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-data class NetworkSourcesUiState(
-    val title: String = "",
-    val sources: List<RemoteSource> = emptyList(),
-    val rows: List<NetworkSourceUiState> = emptyList(),
-    val actions: List<NetworkSourceActions> = emptyList(),
-    val headerActions: List<TrackListHeaderAction> = emptyList(),
-    val emptyText: String = "",
-    val labels: NetworkSourceLabels = NetworkSourceLabels(),
-    val selectedSourceId: Long = -1L,
-    val loading: Boolean = false,
-    val statusMessage: String = "",
-    val error: String? = null
-)
-
 class NetworkSourcesViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(NetworkSourcesUiState())
     val uiState: StateFlow<NetworkSourcesUiState> = _uiState.asStateFlow()

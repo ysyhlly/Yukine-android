@@ -10,7 +10,6 @@ import app.yukine.streaming.StreamingPlaybackAdapter
 internal class PlaybackStateEventController(
     private val mainHandler: Handler,
     private val playbackStore: MainPlaybackStore,
-    private val updateController: PlaybackStateUpdateController,
     private val serviceQueueSource: ServiceQueueSource,
     private val listener: Listener
 ) : PlaybackStateListener {
@@ -68,7 +67,7 @@ internal class PlaybackStateEventController(
     private fun handlePlaybackState(snapshot: PlaybackStateSnapshot) {
         val previous = playbackStore.replaceSnapshot(snapshot)
         listener.savePlaybackSettings(snapshot.playbackSpeed, snapshot.appVolume)
-        val result = updateController.resolve(
+        val result = PlaybackStateUpdateController.resolve(
             listener.selectedTab(),
             previous,
             snapshot,
