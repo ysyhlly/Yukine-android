@@ -1,9 +1,11 @@
 package app.yukine
 
+import android.content.Context
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.components.ActivityComponent
+import dagger.hilt.android.qualifiers.ActivityContext
 import dagger.hilt.android.scopes.ActivityScoped
 
 @Module
@@ -20,6 +22,15 @@ internal object PlaybackUiModule {
         MainNowPlayingGatewayFactory { playbackActions, playbackStore, favoriteToggler, seekHandler, statusText ->
             MainNowPlayingGateway(playbackActions, playbackStore, favoriteToggler, seekHandler, statusText)
         }
+
+    @Provides
+    @ActivityScoped
+    fun provideMainNowPlayingPlaybackGatewayFactory(
+        @ActivityContext context: Context
+    ): MainNowPlayingPlaybackGatewayFactory {
+        val serviceStarter = NowPlayingPlaybackServiceStarter(context)
+        return MainNowPlayingPlaybackGatewayFactory(serviceStarter::startPlaybackService)
+    }
 
     @Provides
     @ActivityScoped

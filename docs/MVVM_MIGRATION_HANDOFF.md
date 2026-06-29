@@ -106,6 +106,309 @@
 - The download directory picker unavailable message now uses
   `AppLanguage.text(..., "download.directory.picker.unavailable")` instead of
   a hard-coded Chinese string, preserving English parity.
+- P0 baseline freeze recheck (2026-06-29): `git status --short` currently
+  reports four modified entries:
+  `M docs/ARCHITECTURE_REMEDIATION_PLAN_2026-06-26.md`,
+  `M docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md`,
+  `M docs/MVVM_MIGRATION_HANDOFF.md`, and `M gradle.properties`; there are no
+  current deleted test files under `app/src/test` or `app/src/androidTest`,
+  so the deleted-test replacement map is empty for this checkpoint. Current
+  counts are `MainActivityBase.java` 2968 lines,
+  `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 170, and root-package Java files 15.
+  `ShellViewModel` / `ShellState` / `ShellAction` source files are absent;
+  remaining mentions are historical correction notes or contract-test guards.
+  Serial verification passed with default Gradle settings:
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`
+  and
+  `.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain`.
+  Do not default to `--no-daemon` or `--max-workers=1`; use them only after a
+  reproducible daemon, KSP, or lock issue.
+- P1 `initializeStoresAndDataGateways()` playlist action gateway slice
+  (2026-06-29): `LibraryModule` now provides `LibraryPlaylistActionGateway`
+  as `MainLibraryPlaylistActionGateway`, backed by
+  `MusicLibraryPlaylistActionOperations(repository, syncStore)`. The playlist
+  action contracts moved from the large `LibraryViewModel.kt` file into
+  `LibraryPlaylistActionContracts.kt`, while `LibraryViewModel` remains the UI
+  state/action owner. `MainActivityBase` now only calls
+  `libraryViewModel.bindPlaylistActionGateway(libraryPlaylistActionGateway)`;
+  the previous anonymous `new LibraryPlaylistActionGateway() { ... }`, the
+  local `MusicLibraryPlaylistActionOperations`, seven playlist action use case
+  constructors, and the Activity-owned `StreamingPlaylistSyncStore` field were
+  removed from the host. This lowers `MainActivityBase.java` to 2927 lines and
+  keeps root-package `*Bindings*` at 0 and root-package `*Controller*` at 44;
+  root-package files are now 172 after adding the focused gateway and contract
+  files. Guarded by `MainLibraryPlaylistActionGatewayTest` and
+  `MainActivityArchitectureContractTest`. Focused tests passed with
+  `.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainLibraryPlaylistActionGatewayTest --tests app.yukine.MainActivityArchitectureContractTest --rerun-tasks --console=plain`
+  after a default cached run exposed stale transformed class output; compile
+  passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 library collection/import gateway slice (2026-06-29):
+  `LibraryModule` now provides `LibraryCollectionGateway` through
+  `MainLibraryCollectionGateway` and `LibraryImportGateway` through
+  `MainLibraryImportGateway`. The concrete owners live beside the existing
+  library collection/import use cases, so no new root-package files or root
+  `*Bindings*` / `*Controller*` files were added. `MainActivityBase` now binds
+  the injected collection/import gateways directly; the previous anonymous
+  `new LibraryCollectionGateway() { ... }` and
+  `new LibraryImportGateway() { ... }` blocks, the host-owned
+  `MusicLibraryCollectionOperations`, the repeated import use case
+  constructors, and the private `toLibraryLoadResultUi(...)` helper were
+  removed.
+  Current recheck: `MainActivityBase.java` 2873 lines,
+  `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 172, and root-package Java files 15. Guarded by
+  `LibraryCollectionUseCasesTest`,
+  `LibraryImportUseCasesTest`, and `MainActivityArchitectureContractTest`.
+  Verification passed with
+  `.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.LibraryCollectionUseCasesTest --tests app.yukine.LibraryImportUseCasesTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain`
+  and
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 library document gateway provider slice (2026-06-29):
+  `LibraryModule` now provides `LibraryDocumentGateway` through
+  `ContentResolverLibraryDocumentGateway` with an application `ContentResolver`
+  and `MusicLibraryImportOperations(repository)`. `MainActivityBase` now binds
+  the injected `libraryDocumentGateway` and no longer constructs
+  `MusicLibraryImportOperations` or
+  `ContentResolverLibraryDocumentGateway(getContentResolver(), ...)` locally.
+  This finishes the current library import/document assembly path in Hilt
+  without adding root `*Bindings*` or `*Controller*` files. Current recheck:
+  `MainActivityBase.java` 2872 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 172, and root-package
+  Java files 15. This slice reduces Activity manual construction and call-chain
+  length; Activity field count is not claimed as a P1 exit win because the
+  injected document gateway replaces local assembly. Guarded by
+  `ContentResolverLibraryDocumentGatewayTest` and
+  `MainActivityArchitectureContractTest`. Verification passed with
+  `.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.ContentResolverLibraryDocumentGatewayTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain`
+  and
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 settings preference provider slice (2026-06-29):
+  `SettingsModule` now provides `LoadSettingsPreferencesUseCase` and
+  `ApplySettingsPreferenceUseCase` from the existing settings preference
+  operations. `MainActivityBase` now loads settings through the injected
+  `loadSettingsPreferencesUseCase` and binds persistence through
+  `applySettingsPreferenceUseCase::execute`; the host no longer constructs
+  `MusicLibrarySettingsPreferenceLoadOperations`,
+  `LoadSettingsPreferencesUseCase`, `MusicLibrarySettingsPreferenceOperations`,
+  or `ApplySettingsPreferenceUseCase`. This keeps the Settings path as
+  `SettingsViewModel -> preference/runtime applier` and does not add a settings
+  gateway, coordinator, controller, or bindings layer. Current recheck:
+  `MainActivityBase.java` 2866 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 173, and root-package
+  Java files 15. The root file count increases by one for the feature-specific
+  Hilt module; the Activity manual-construction count and call-chain length
+  decrease. Guarded by `LoadSettingsPreferencesUseCaseTest`,
+  `ApplySettingsPreferenceUseCaseTest`, and
+  `MainActivityArchitectureContractTest`. Verification passed with
+  `.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.LoadSettingsPreferencesUseCaseTest --tests app.yukine.ApplySettingsPreferenceUseCaseTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain`
+  and
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 library store factory slice (2026-06-29):
+  `MainLibraryStore` now has `MainLibraryStoreFactory`, mirroring the existing
+  `MainPlaybackStoreFactory` pattern for ViewModel-bound stores. `LibraryModule`
+  now provides `LibrarySearchUseCase` and `MainLibraryStoreFactory`, so
+  `MainActivityBase` only calls `libraryStoreFactory.create(viewModel)`.
+  The host no longer constructs `MainLibraryStore`, `LibrarySearchUseCase`, or
+  `MusicLibrarySearchOperations` directly. Current recheck:
+  `MainActivityBase.java` 2864 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 173, and root-package
+  Java files 15. This slice reduces Activity store/search manual construction;
+  Activity field count is not claimed as a win because the injected factory
+  replaces local assembly. Guarded by `LibrarySearchUseCaseTest`,
+  `NetworkLibraryStoreDirectAccessTest`, `PlayHistoryActionControllerTest`,
+  and `MainActivityArchitectureContractTest`. The first focused-test attempt
+  hit the tool timeout at 120s; a process check showed only Gradle/Kotlin
+  daemons, then the same command passed with a longer timeout:
+  `.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.LibrarySearchUseCaseTest --tests app.yukine.NetworkLibraryStoreDirectAccessTest --tests app.yukine.PlayHistoryActionControllerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain`.
+  Compile passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 streaming search action handler factory slice (2026-06-29):
+  `DefaultStreamingSearchActionHandler` now exposes
+  `MainStreamingSearchActionHandlerFactory`, provided by `StreamingModule`.
+  `MainActivityBase` now calls
+  `streamingSearchActionHandlerFactory.create(streamingViewModel, streamingActionGateway)`
+  and no longer directly constructs `DefaultStreamingSearchActionHandler` in
+  production code. Current recheck: `MainActivityBase.java` 2865 lines,
+  `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 173, and root-package Java files 15. This slice reduces
+  one Activity streaming search manual-construction point; line count and field
+  count are not claimed as wins because the injected factory replaces local
+  construction. Guarded by `DefaultStreamingSearchActionHandlerTest` and
+  `MainActivityArchitectureContractTest`; compile passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 track share operations provider slice (2026-06-29):
+  `ShellModule` now provides `TrackShareOperations` through the existing
+  `TrackShareManagerOperations(trackShareManager, nativeMusicShareManager)`.
+  `MainActivityBase` injects `TrackShareOperations` and no longer holds
+  `TrackShareManager` / `NativeMusicShareManager` fields or constructs
+  `TrackShareManagerOperations` locally when creating `TrackShareLauncher`.
+  Current recheck: `MainActivityBase.java` 2862 lines,
+  `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 173, and root-package Java files 15. This slice reduces
+  Activity fields and share operations manual construction without adding root
+  files, bindings, or controllers. Guarded by `TrackShareLauncherTest` and
+  `MainActivityArchitectureContractTest`; compile passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 settings store provider slice (2026-06-29):
+  `SettingsModule` now provides the Activity-scoped `MainSettingsStore`.
+  `MainActivityBase` injects `settingsStore` directly and no longer constructs
+  `new MainSettingsStore()` inside `initializeStoresAndDataGateways()`.
+  Current recheck: `MainActivityBase.java` 2861 lines,
+  `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 173, and root-package Java files 15. This slice reduces
+  Activity manual construction without adding root files, bindings, or
+  controllers. Guarded by `LoadSettingsPreferencesUseCaseTest`,
+  `ApplySettingsPreferenceUseCaseTest`, and `MainActivityArchitectureContractTest`;
+  compile passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 lyrics settings use-case provider slice (2026-06-29):
+  `SettingsModule` now provides `LoadLyricsSettingsUseCase` through the
+  existing `MusicLibraryLyricsSettingsOperations(repository)`. `MainActivityBase`
+  injects `loadLyricsSettingsUseCase` and no longer constructs
+  `LoadLyricsSettingsUseCase` or `MusicLibraryLyricsSettingsOperations` locally
+  while configuring `LyricsViewModel`. Current recheck:
+  `MainActivityBase.java` 2858 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 173, and root-package
+  Java files 15. This slice reduces Activity manual construction without adding
+  root files, bindings, or controllers. Guarded by
+  `LoadLyricsSettingsUseCaseTest` and `MainActivityArchitectureContractTest`;
+  compile passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 lyrics loader provider slice (2026-06-29):
+  `SettingsModule` now provides the `LyricsLoader` used by `LyricsViewModel`
+  through the existing `LoadTrackLyricsUseCaseLyricsLoader`,
+  `LoadTrackLyricsUseCase`, and `LyricsRepositoryLoadOperations` chain.
+  `MainActivityBase` injects `lyricsLoader` and no longer constructs
+  `LoadTrackLyricsUseCaseLyricsLoader`,
+  `LoadTrackLyricsUseCase`, or `LyricsRepositoryLoadOperations` while
+  configuring `LyricsViewModel`. Current recheck:
+  `MainActivityBase.java` 2857 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 173, and root-package
+  Java files 15. This slice reduces Activity manual construction without
+  adding root files, bindings, controllers, or a new lyrics manager. Guarded by
+  `LoadTrackLyricsUseCaseTest`, `LyricsViewModelTest`, and
+  `MainActivityArchitectureContractTest`; compile passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 network action use-case provider slice (2026-06-29):
+  `LibraryModule` now provides `NetworkActionUseCases` from the existing
+  `MusicLibraryWebDavSourceOperations(repository)` and
+  `MusicLibraryNetworkLibraryOperations(repository)` owners. `MainActivityBase`
+  injects `networkActionUseCases` and no longer constructs
+  `NetworkActionUseCases`, `MusicLibraryWebDavSourceOperations`,
+  `MusicLibraryNetworkLibraryOperations`, or the 11 WebDAV/network library use
+  cases in `initializeNetworkOwners()`. Current recheck:
+  `MainActivityBase.java` 2840 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 173, and root-package
+  Java files 15. This slice reduces Activity manual construction without
+  adding root files, bindings, controllers, or a network gateway. Guarded by
+  `NetworkActionsViewModelTest`, `NetworkLibraryUseCasesTest`,
+  `WebDavSourceUseCasesTest`, and `MainActivityArchitectureContractTest`;
+  compile passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 library gateway policy owner slice (2026-06-29):
+  `LibraryModule` now provides `MainLibraryGatewayFactory`, and
+  `MainLibraryGateway` owns the former `LibraryGateway` host policy for
+  track-list play, status key resolution, favorite refresh, playlist add,
+  library group routing, search, import, and scan commands. `MainRouteController`
+  implements the narrow `LibraryRouteActions` interface so Activity does not
+  need a replacement anonymous routing block. `MainActivityBase` now only wires
+  existing host/platform capabilities into the factory and no longer contains
+  `libraryViewModel.bindGateway(new LibraryGateway() { ... })`. Current recheck:
+  `MainActivityBase.java` 2789 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 174, and root-package
+  Java files 15. Root files increase by one for a behavior owner, while the
+  Activity anonymous policy block and call-chain policy move into focused
+  coverage. Guarded by `MainLibraryGatewayTest`, `LibraryViewModelTest`,
+  `MainRouteControllerTest`, and `MainActivityArchitectureContractTest`;
+  focused tests and compile passed with default daemon/workers.
+- P1 streaming action gateway policy owner slice (2026-06-29):
+  `StreamingModule` now provides `MainStreamingActionGatewayFactory`, and
+  `MainStreamingActionGateway` owns the former Java anonymous
+  `MainActivityStreamingActionGateway` policy for selected quality, language,
+  auth launch delegation, resolved-track playback, login-success playlist
+  handling, and manual cookie import ordering. `MainActivityBase` now wires
+  existing host/platform capabilities into the factory and no longer contains
+  `new MainActivityStreamingActionGateway()`. Current recheck:
+  `MainActivityBase.java` 2769 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 175, and root-package
+  Java files 15. Root files increase by one for a behavior owner, while the
+  Activity anonymous streaming policy block moves into focused coverage.
+  Guarded by `MainStreamingActionGatewayTest`,
+  `DefaultStreamingSearchActionHandlerTest`, and
+  `MainActivityArchitectureContractTest`; focused tests and compile passed
+  with default daemon/workers.
+- P1 now-playing playback gateway service-start slice (2026-06-29):
+  `PlaybackUiModule` now provides `MainNowPlayingPlaybackGatewayFactory`, and
+  `NowPlayingPlaybackServiceStarter` owns the Android
+  `Intent(context, EchoPlaybackService::class.java)` start path. `MainActivityBase`
+  now only binds `nowPlayingPlaybackGatewayFactory.create(() -> playbackService)`
+  and no longer constructs `NowPlayingPlaybackGatewayAdapter` or the playback
+  service start `Intent` locally. Current recheck: `MainActivityBase.java` 2762
+  lines, `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 175, and root-package Java files 15. Guarded by
+  `NowPlayingPlaybackGatewayAdapterTest`, `MainNowPlayingGatewayTest`,
+  `NowPlayingViewModelTest`, and `MainActivityArchitectureContractTest`;
+  focused tests and compile passed with default daemon/workers.
+- P1 play-history action controller factory slice (2026-06-29):
+  `LibraryModule` now provides `MainPlayHistoryActionControllerFactory`, and
+  `MainActivityBase.initializeStoresAndDataGateways()` creates the existing
+  `PlayHistoryActionController` through that injected factory instead of
+  `new PlayHistoryActionController(...)`. The real owner and behavior stay in
+  `PlayHistoryActionController`: it still clears through `LibraryViewModel`,
+  updates `PlayHistoryStateStore`, publishes localized status, and reloads
+  collections. Current recheck: `MainActivityBase.java` 2760 lines,
+  `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 175, and root-package Java files 15. Guarded by
+  `PlayHistoryActionControllerTest` and `MainActivityArchitectureContractTest`;
+  focused tests and compile passed with default daemon/workers.
+- P1 network actions listener policy slice (2026-06-29):
+  The long `NetworkActionsViewModel.Listener` anonymous block moved out of
+  `MainActivityBase.initializeNetworkOwners()` into `MainNetworkActionsListener`,
+  provided by `LibraryModule` through `MainNetworkActionsListenerFactory`.
+  `NetworkActionsViewModel` still owns use-case execution; the new listener
+  only maps action results to library replacement, now-playing queue retain or
+  replace, network navigation, collections reload, and status publication.
+  `MainActivityBase` now only binds the injected listener factory with existing
+  host callbacks. Current recheck: `MainActivityBase.java` 2697 lines,
+  `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 175, and root-package Java files 15. Guarded by
+  `MainNetworkActionsListenerTest`, `NetworkActionsViewModelTest`, and
+  `MainActivityArchitectureContractTest`; focused tests and compile passed
+  with default daemon/workers.
 - Streaming playback listener policy moved out of the Java base anonymous
   `StreamingPlaybackController.Listener` block into
   `MainStreamingPlaybackListener`, which is created through `PlaybackUiModule`
@@ -673,7 +976,15 @@ data class EchoNavHostState(
 
 ### 6.3 具体任务
 
-#### 6.3.1 建立 AppShellViewModel
+#### 6.3.1 Shell typed state 暂缓（不要恢复 AppShellViewModel）
+
+2026-06-29 correction: the provisional `ShellViewModel` / `ShellState` /
+`ShellAction` line has been deleted and is guarded by
+`MainActivityArchitectureContractTest`. The old sketch below is historical
+context only, not an active migration step. Do not reintroduce an
+`AppShellViewModel` unless it replaces the current `NavigationViewModel` /
+`MainRouteController` / `EchoNavHostState` path as the single shell state
+source.
 
 职责�?
 - 当前 tab�?- 是否显示 onboarding�?- bottom nav labels�?- NowBar 是否显示�?- 页面背景选择�?- 全局状态消息�?
@@ -1125,23 +1436,23 @@ interface LibraryRepository { ... }
 
 轻量编译�?
 ```powershell
-.\gradlew.bat --no-daemon :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
 
 单测�?
 ```powershell
-.\gradlew.bat --no-daemon :app:testDebugUnitTest --console=plain
+.\gradlew.bat :app:testDebugUnitTest --console=plain
 ```
 
 打包�?
 ```powershell
-.\gradlew.bat --no-daemon :app:assembleDebug --console=plain
+.\gradlew.bat :app:assembleDebug --console=plain
 ```
 
 完整检查：
 
 ```powershell
-.\gradlew.bat --no-daemon :app:check --console=plain
+.\gradlew.bat :app:check --console=plain
 ```
 
 ### 14.4 关键手动回归
@@ -1176,6 +1487,12 @@ interface LibraryRepository { ... }
 预期结果�?
 - `StreamingViewModel` 不再是第二个上帝 ViewModel�?
 ### 15.6 第六批：导航独立
+
+2026-06-29 correction: this old navigation batch is not the current next
+step. `AppShellViewModel` was removed after review because it would create a
+parallel shell model. Keep the current route/nav owners until a future slice
+can make typed shell state the single runtime source and update the
+architecture contract in the same slice.
 
 1. `AppShellViewModel`�?2. typed `AppRoute`�?3. 删除 `MainRouteController` 或降级为兼容 adapter�?4. 删除 `EchoNavHostState` 大状态包�?
 预期结果�?
@@ -1432,7 +1749,7 @@ interface LibraryRepository { ... }
 ## NOTE 53 - Library document gateway renamed away from Bindings (2026-06-28)
 - `LibraryDocumentGatewayBindings` was renamed to `ContentResolverLibraryDocumentGateway` because it owns document I/O strategy, M3U import fallback, playlist import result mapping, and playlist export text writing.
 - `ContentResolverLibraryDocumentGatewayTest` keeps the previous import/export fallback coverage under the new owner name.
-- `MainActivity` now binds `LibraryViewModel` to `ContentResolverLibraryDocumentGateway(getContentResolver(), libraryImportOperations)`.
+- Current P1 follow-up moved that document gateway assembly into `LibraryModule`; `MainActivityBase` now binds the injected `LibraryDocumentGateway`.
 - Root-package `*Bindings` count is now zero; the remaining library document behavior is a real gateway owner, not a temporary binding shell.
 - WebDAV remote-source playback now reuses `NetworkSourcesEventController.playRemoteSourceTracks(...)` from both sources rows and source track-list actions; the duplicate `MainActivity.playRemoteSourceTracks(...)` helper was removed.
 - Onboarding actions now call `OnboardingController` directly from `OnboardingActions`; the private `finish/openStreaming/scanLibrary/importPlaylistFromOnboarding` host wrappers were removed.
@@ -1557,7 +1874,7 @@ interface LibraryRepository { ... }
 - Reduce existing over-abstraction: merge/delete forwarding-only owners, shrink oversized provider/listener interfaces, and shorten UI -> service/data call chains.
 - Do not expand `PlaybackQueueManager.QueueProvider` or similar large interfaces without a prior split/merge/inline plan.
 - String-based architecture contracts are not enough for fragile flows; pair them with behavior tests, dependency-direction checks, integration smoke, or device evidence.
-- For Windows/KSP verification, run one Gradle task at a time with `--max-workers=1`; do not start a second Gradle command until the current one finishes.
+- For Windows/KSP verification, run Gradle invocations serially with project defaults first; use `--no-daemon` or `--max-workers=1` only after a reproducible daemon, KSP, or lock issue.
 - Continue P1/P2 only after a slice demonstrably reduces net files, methods, state sources, dependencies, or call-chain length.
 ## 2026-06-27 ????
 

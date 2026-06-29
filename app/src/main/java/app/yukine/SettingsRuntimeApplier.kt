@@ -1,6 +1,8 @@
 package app.yukine
 
+import android.content.Context
 import app.yukine.playback.AudioEffectSettings
+import app.yukine.playback.EchoPlaybackService
 
 internal fun interface SettingsThemeSurfaceApplier {
     fun apply()
@@ -19,6 +21,97 @@ sealed interface SettingsRuntimeEffect {
     data class SetReplayGainEnabled(val enabled: Boolean) : SettingsRuntimeEffect
     data class SetOnlineLyricsEnabled(val enabled: Boolean) : SettingsRuntimeEffect
     data class SetLyricsOffsetMs(val offsetMs: Long) : SettingsRuntimeEffect
+}
+
+internal class MainSettingsRuntimeApplierFactory(
+    private val context: Context
+) {
+    fun create(
+        applyThemeSurfaceAction: SettingsThemeSurfaceApplier,
+        playbackServiceProvider: () -> EchoPlaybackService?,
+        lyricsViewModelProvider: () -> LyricsViewModel?,
+        permissionControllerProvider: () -> MainPermissionController?
+    ): SettingsRuntimeApplier =
+        SettingsRuntimeApplier(
+            applyThemeSurfaceAction,
+            SettingsPlaybackServiceControlsProvider {
+                playbackServiceProvider()?.let(::MainSettingsPlaybackServiceControls)
+            },
+            SettingsLyricsControlsProvider {
+                lyricsViewModelProvider()?.let(::MainSettingsLyricsControls)
+            },
+            SettingsFloatingLyricsControlsProvider {
+                MainSettingsFloatingLyricsControls(context, permissionControllerProvider)
+            }
+        )
+}
+
+internal class MainSettingsPlaybackServiceControls(
+    private val service: EchoPlaybackService
+) : SettingsPlaybackServiceControls {
+    override fun setPlaybackSpeed(speed: Float) {
+        service.setPlaybackSpeed(speed)
+    }
+
+    override fun setAppVolume(volume: Float) {
+        service.setAppVolume(volume)
+    }
+
+    override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
+        service.setConcurrentPlaybackEnabled(enabled)
+    }
+
+    override fun applyAudioEffectSettings(settings: AudioEffectSettings) {
+        service.applyAudioEffectSettings(settings)
+    }
+
+    override fun setStatusBarLyricsEnabled(enabled: Boolean) {
+        service.setStatusBarLyricsEnabled(enabled)
+    }
+
+    override fun setPlaybackRestoreEnabled(enabled: Boolean) {
+        service.setPlaybackRestoreEnabled(enabled)
+    }
+
+    override fun setReplayGainEnabled(enabled: Boolean) {
+        service.setReplayGainEnabled(enabled)
+    }
+}
+
+internal class MainSettingsLyricsControls(
+    private val viewModel: LyricsViewModel
+) : SettingsLyricsControls {
+    override fun setOnlineEnabled(enabled: Boolean) {
+        viewModel.setOnlineEnabled(enabled)
+    }
+
+    override fun setOffsetMs(offsetMs: Long) {
+        viewModel.setOffsetMs(offsetMs)
+    }
+}
+
+internal class MainSettingsFloatingLyricsControls(
+    private val context: Context,
+    private val permissionControllerProvider: () -> MainPermissionController?
+) : SettingsFloatingLyricsControls {
+    override fun apply(enabled: Boolean): Boolean {
+        if (!enabled) {
+            FloatingLyricsService.stop(context)
+            return true
+        }
+        val permissionController = permissionControllerProvider() ?: return false
+        if (!permissionController.hasOverlayPermission()) {
+            FloatingLyricsService.stop(context)
+            permissionController.openOverlayPermissionSettings()
+            return false
+        }
+        FloatingLyricsService.start(context)
+        return true
+    }
+
+    override fun openPermissionSettings() {
+        permissionControllerProvider()?.openOverlayPermissionSettings()
+    }
 }
 
 internal class SettingsRuntimeApplier(

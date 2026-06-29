@@ -1,6 +1,7 @@
 package app.yukine
 
 import android.net.Uri
+import android.net.FakeUri
 import app.yukine.model.PlaylistImportResult
 import app.yukine.model.StreamImportResult
 import app.yukine.model.Track
@@ -105,6 +106,50 @@ class LibraryImportUseCasesTest {
 
         assertEquals(listOf(9L), result.map { it.id })
         assertEquals(listOf("playlistTracks:3"), operations.events)
+    }
+
+    @Test
+    fun mainLibraryImportGatewayMapsUseCaseResultsToViewModelUiModels() {
+        val operations = FakeLibraryImportOperations()
+        operations.cached = listOf(track(1L))
+        operations.refreshed = listOf(track(2L))
+        operations.favorites = setOf(2L)
+        operations.updatedSpecs = 2
+        val gateway = MainLibraryImportGateway(operations)
+
+        val cached = gateway.loadCached()
+        val refreshed = gateway.refresh()
+        val importedUris = gateway.importAudioUris(listOf(FakeUri("content://tracks/1")))
+        val importedTree = gateway.importAudioTree(FakeUri("content://tree/library"))
+        val parsedSpecs = gateway.parseMissingAudioSpecs()
+
+        assertEquals(listOf(1L), cached.tracks.map { it.id })
+        assertEquals("Library updated", cached.status)
+        assertEquals(listOf(2L), refreshed.tracks.map { it.id })
+        assertEquals(setOf(2L), refreshed.favorites)
+        assertEquals(listOf(1L), importedUris.tracks.map { it.id })
+        assertEquals(listOf(1L), importedTree.tracks.map { it.id })
+        assertEquals(2, parsedSpecs.updatedCount)
+        assertEquals(listOf(1L), parsedSpecs.tracks.map { it.id })
+        assertEquals(setOf(2L), parsedSpecs.favorites)
+        assertEquals(
+            listOf(
+                "cached",
+                "favorites",
+                "refresh",
+                "favorites",
+                "importUris:1",
+                "cached",
+                "favorites",
+                "importTree:content://tree/library",
+                "cached",
+                "favorites",
+                "parseSpecs",
+                "cached",
+                "favorites"
+            ),
+            operations.events
+        )
     }
 
     private class FakeLibraryImportOperations : LibraryImportOperations {

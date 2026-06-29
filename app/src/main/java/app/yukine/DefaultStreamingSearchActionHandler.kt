@@ -7,6 +7,13 @@ import app.yukine.streaming.StreamingMediaType
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
 
+internal fun interface MainStreamingSearchActionHandlerFactory {
+    fun create(
+        streamingViewModel: StreamingViewModel,
+        actionGateway: MainActivityStreamingActionGateway
+    ): StreamingSearchActionHandler
+}
+
 internal class DefaultStreamingSearchActionHandler(
     private val streamingViewModel: StreamingViewModel,
     private val actionGateway: MainActivityStreamingActionGateway

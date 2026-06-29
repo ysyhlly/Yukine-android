@@ -58,6 +58,32 @@ class LibraryCollectionUseCasesTest {
         assertEquals(listOf("clearHistory"), operations.events)
     }
 
+    @Test
+    fun mainLibraryCollectionGatewayMapsUseCaseSnapshotToViewModelResult() {
+        val operations = FakeLibraryCollectionOperations(removedHistory = 3)
+        operations.playlists = listOf(playlist(4L))
+        operations.playlistTracks[4L] = listOf(track(40L))
+        operations.favoriteIds = setOf(40L)
+        operations.favoriteTracks = listOf(track(40L))
+        operations.recentlyPlayed = listOf(playRecord(40L))
+        operations.mostPlayed = listOf(playRecord(41L))
+        operations.remoteSources = listOf(remoteSource(9L))
+        val gateway = MainLibraryCollectionGateway(operations)
+
+        val loaded = gateway.loadCollections(4L)
+        val removed = gateway.clearPlayHistory()
+
+        assertEquals(4L, loaded.selectedPlaylistId)
+        assertEquals(setOf(40L), loaded.favoriteIds)
+        assertEquals(listOf(40L), loaded.favoriteTracks.map { it.id })
+        assertEquals(listOf(40L), loaded.recentRecords.map { it.track.id })
+        assertEquals(listOf(41L), loaded.mostPlayedRecords.map { it.track.id })
+        assertEquals(listOf(4L), loaded.playlists.map { it.id })
+        assertEquals(listOf(9L), loaded.remoteSources.map { it.id })
+        assertEquals(listOf(40L), loaded.selectedPlaylistTracks.map { it.id })
+        assertEquals(3, removed)
+    }
+
     private class FakeLibraryCollectionOperations(
         private val defaultPlaylistId: Long = -1L,
         private val removedHistory: Int = 0

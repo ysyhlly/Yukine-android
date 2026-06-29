@@ -31,12 +31,12 @@ class PlayHistoryActionControllerTest {
         val statuses = mutableListOf<String>()
         var reloads = 0
         viewModel.bindCollectionGateway(FakeCollectionGateway(removed = 4))
-        val controller = PlayHistoryActionController(
-            viewModel = viewModel,
-            languageModeProvider = { AppLanguage.MODE_ENGLISH },
-            libraryStateStore = PlayHistoryStateStore { activityViewModel.clearPlayHistory() },
-            statusSink = { statuses += it },
-            collectionsReloadAction = Runnable { reloads += 1 }
+        val controller = LibraryModule.provideMainPlayHistoryActionControllerFactory().create(
+            viewModel,
+            { AppLanguage.MODE_ENGLISH },
+            PlayHistoryStateStore { activityViewModel.clearPlayHistory() },
+            { statuses += it },
+            Runnable { reloads += 1 }
         )
 
         activityViewModel.applyCollections(

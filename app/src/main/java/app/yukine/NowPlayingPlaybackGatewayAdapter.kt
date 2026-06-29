@@ -1,9 +1,31 @@
 package app.yukine
 
+import android.content.Context
+import android.content.Intent
 import app.yukine.model.Track
 import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.PlaybackStateSnapshot
 import java.util.ArrayList
+
+internal class MainNowPlayingPlaybackGatewayFactory(
+    private val serviceStarter: (String?) -> Unit
+) {
+    fun create(serviceProvider: () -> EchoPlaybackService?): NowPlayingPlaybackGateway {
+        return NowPlayingPlaybackGatewayAdapter(serviceProvider, serviceStarter)
+    }
+}
+
+internal class NowPlayingPlaybackServiceStarter(
+    private val context: Context
+) {
+    fun startPlaybackService(action: String?) {
+        val intent = Intent(context, EchoPlaybackService::class.java)
+        if (action != null) {
+            intent.action = action
+        }
+        context.startService(intent)
+    }
+}
 
 internal class NowPlayingPlaybackGatewayAdapter(
     private val serviceProvider: () -> EchoPlaybackService?,

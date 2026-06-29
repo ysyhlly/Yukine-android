@@ -108,3 +108,23 @@ internal class ClearPlayHistoryUseCase(
 ) {
     fun execute(): Int = operations.clearPlayHistory()
 }
+
+internal class MainLibraryCollectionGateway(
+    private val operations: LibraryCollectionOperations
+) : LibraryCollectionGateway {
+    override fun loadCollections(selectedPlaylistId: Long): LibraryCollectionsResult {
+        val loaded = LoadLibraryCollectionsUseCase(operations).execute(selectedPlaylistId)
+        return LibraryCollectionsResult(
+            selectedPlaylistId = loaded.selectedPlaylistId,
+            favoriteIds = loaded.favoriteIds,
+            favoriteTracks = loaded.favoriteTracks,
+            recentRecords = loaded.recentRecords,
+            mostPlayedRecords = loaded.mostPlayedRecords,
+            playlists = loaded.playlists,
+            remoteSources = loaded.remoteSources,
+            selectedPlaylistTracks = loaded.selectedPlaylistTracks
+        )
+    }
+
+    override fun clearPlayHistory(): Int = ClearPlayHistoryUseCase(operations).execute()
+}

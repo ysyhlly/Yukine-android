@@ -2,7 +2,7 @@ package app.yukine
 
 internal class MainRouteController(
     private val viewModel: NavigationViewModel
-) {
+) : LibraryRouteActions {
     private var state: NavigationRouteState = NavigationRouteState()
 
     init {
@@ -155,7 +155,7 @@ internal class MainRouteController(
         return sameTab
     }
 
-    fun setLibraryMode(libraryMode: String) {
+    override fun setLibraryMode(libraryMode: String) {
         update(
             selectedTab(),
             normalizeLibraryMode(libraryMode),
@@ -169,7 +169,7 @@ internal class MainRouteController(
         )
     }
 
-    fun selectLibraryGroup(key: String, title: String) {
+    override fun selectLibraryGroup(key: String, title: String) {
         update(
             selectedTab(),
             libraryMode(),
@@ -183,11 +183,11 @@ internal class MainRouteController(
         )
     }
 
-    fun clearLibraryGroup() {
+    override fun clearLibraryGroup() {
         selectLibraryGroup("", "")
     }
 
-    fun setSelectedPlaylistId(selectedPlaylistId: Long) {
+    override fun setSelectedPlaylistId(selectedPlaylistId: Long) {
         update(
             selectedTab(),
             libraryMode(),
@@ -201,7 +201,7 @@ internal class MainRouteController(
         )
     }
 
-    fun setSearchQuery(searchQuery: String) {
+    override fun setSearchQuery(searchQuery: String) {
         update(
             selectedTab(),
             libraryMode(),

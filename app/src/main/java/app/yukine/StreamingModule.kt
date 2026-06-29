@@ -203,6 +203,35 @@ internal object StreamingModule {
 
     @Provides
     @ActivityScoped
+    fun provideMainStreamingSearchActionHandlerFactory(): MainStreamingSearchActionHandlerFactory =
+        MainStreamingSearchActionHandlerFactory { streamingViewModel, actionGateway ->
+            DefaultStreamingSearchActionHandler(streamingViewModel, actionGateway)
+        }
+
+    @Provides
+    @ActivityScoped
+    fun provideMainStreamingActionGatewayFactory(): MainStreamingActionGatewayFactory =
+        MainStreamingActionGatewayFactory {
+                qualityProvider,
+                languageModeProvider,
+                authLauncher,
+                trackPlayer,
+                loginSuccessHandler,
+                providerSelector,
+                manualCookiePresenter ->
+            MainStreamingActionGateway(
+                qualityProvider,
+                languageModeProvider,
+                authLauncher,
+                trackPlayer,
+                loginSuccessHandler,
+                providerSelector,
+                manualCookiePresenter
+            )
+        }
+
+    @Provides
+    @ActivityScoped
     fun provideMainStreamingSearchRenderListenerFactory(): MainStreamingSearchRenderListenerFactory =
         MainStreamingSearchRenderListenerFactory {
                 networkNavigator,

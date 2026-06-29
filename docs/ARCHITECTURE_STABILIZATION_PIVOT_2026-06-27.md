@@ -43,7 +43,7 @@
 - 不新增裸 `Thread`、无 shutdown 证据的 `ExecutorService` 或分散 scheduler；并发模型要收敛到现有协程/调度器或明确生命周期 owner。
 - 不把 Room 迁移当成顺手清理；触碰 `EchoDatabaseHelper` schema/migration 前先补 migration/事务测试。
 - 字符串契约测试不能作为唯一护栏；关键路径需要补充行为单测、依赖方向检查、集成 smoke 或设备证据。
-- 对 Windows/KSP 验证，必须一次只跑一个 Gradle 任务，并配合 `--max-workers=1`；当前任务结束前不要启动第二个 Gradle 命令。
+- 对 Windows/KSP 验证，一次只跑一个 Gradle 命令，先使用项目默认 daemon/workers；只有复现 daemon、KSP 或锁冲突后，才降级使用 `--no-daemon` 或 `--max-workers=1`。
 - 每个架构切片必须记录当前 dirty worktree 风险、验证命令、失败/通过结果，以及是否需要提交或拆分审查。
 
 ## 新执行顺序
@@ -114,6 +114,174 @@
 - 当前只在确有净收益时继续做收敛型切片，例如删除重复转发、合并薄包装、缩短服务到应用入口的依赖。
 
 这意味着“完成架构迁移”不应理解为“继续拆到没有类”，而应理解为“主要迁移目标已经落地，接下来进入收口/稳定阶段”。
+
+## 2026-06-29 P1 Evidence
+
+- Library collection/import gateway assembly moved out of `MainActivityBase`
+  anonymous blocks into existing library use-case owners and `LibraryModule`
+  providers. `MainActivityBase.java` is now 2873 lines; root-package files
+  remain 172, root `*Bindings*` remains 0, and root `*Controller*` remains
+  44.
+- Verification used default Gradle daemon/workers: focused
+  `LibraryCollectionUseCasesTest`, `LibraryImportUseCasesTest`, and
+  `MainActivityArchitectureContractTest`, then
+  `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Library document gateway assembly also moved into `LibraryModule`; Activity
+  now binds an injected `LibraryDocumentGateway` and no longer constructs
+  `MusicLibraryImportOperations` or `ContentResolverLibraryDocumentGateway`
+  locally. `MainActivityBase.java` is now 2872 lines; root-package files remain
+  172, root `*Bindings*` remains 0, and root `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `ContentResolverLibraryDocumentGatewayTest` and
+  `MainActivityArchitectureContractTest`, then
+  `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Settings preference load/apply use-case assembly moved out of
+  `MainActivityBase` into `SettingsModule`. Activity now injects
+  `LoadSettingsPreferencesUseCase` and `ApplySettingsPreferenceUseCase`, while
+  Settings still flows through `SettingsViewModel -> preference/runtime
+  applier`; no settings gateway, coordinator, controller, or bindings layer was
+  added. `MainActivityBase.java` is now 2866 lines; root-package files are now
+  173, root `*Bindings*` remains 0, and root `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `LoadSettingsPreferencesUseCaseTest`, `ApplySettingsPreferenceUseCaseTest`,
+  and `MainActivityArchitectureContractTest`, then
+  `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Library store/search assembly now mirrors the existing playback store factory
+  shape: `MainLibraryStoreFactory` creates the ViewModel-bound store, while
+  `LibraryModule` owns `LibrarySearchUseCase` construction. Activity now calls
+  `libraryStoreFactory.create(viewModel)` and no longer constructs
+  `MainLibraryStore`, `LibrarySearchUseCase`, or `MusicLibrarySearchOperations`
+  directly. `MainActivityBase.java` is now 2864 lines; root-package files
+  remain 173, root `*Bindings*` remains 0, and root `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `LibrarySearchUseCaseTest`, `NetworkLibraryStoreDirectAccessTest`,
+  `PlayHistoryActionControllerTest`, and
+  `MainActivityArchitectureContractTest`, then
+  `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Streaming search action-handler assembly now mirrors the existing streaming
+  listener factory shape: `MainStreamingSearchActionHandlerFactory` creates the
+  `DefaultStreamingSearchActionHandler`, while `StreamingModule` owns that
+  construction. Activity still supplies its ViewModel and streaming action
+  gateway, but no longer directly constructs the handler. `MainActivityBase.java`
+  is now 2865 lines; root-package files remain 173, root `*Bindings*` remains
+  0, and root `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `DefaultStreamingSearchActionHandlerTest` and
+  `MainActivityArchitectureContractTest`, then
+  `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Track share operations assembly moved out of `MainActivityBase`: `ShellModule`
+  now owns `TrackShareManagerOperations(trackShareManager, nativeMusicShareManager)`
+  and Activity injects `TrackShareOperations` for `TrackShareLauncher`. Activity
+  no longer holds `TrackShareManager` or `NativeMusicShareManager` fields.
+  `MainActivityBase.java` is now 2862 lines; root-package files remain 173,
+  root `*Bindings*` remains 0, and root `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `TrackShareLauncherTest` and `MainActivityArchitectureContractTest`, then
+  `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Settings store assembly moved out of `MainActivityBase`:
+  `SettingsModule` now provides the Activity-scoped `MainSettingsStore`, and
+  Activity injects it before loading persisted preferences. Activity no longer
+  calls `new MainSettingsStore()` in `initializeStoresAndDataGateways()`.
+  `MainActivityBase.java` is now 2861 lines; root-package files remain 173,
+  root `*Bindings*` remains 0, and root `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `LoadSettingsPreferencesUseCaseTest`, `ApplySettingsPreferenceUseCaseTest`,
+  and `MainActivityArchitectureContractTest`, then
+  `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Lyrics settings use-case assembly moved out of `MainActivityBase`:
+  `SettingsModule` now owns
+  `LoadLyricsSettingsUseCase(MusicLibraryLyricsSettingsOperations(repository))`,
+  and Activity injects the use case while configuring `LyricsViewModel`.
+  `MainActivityBase.java` is now 2858 lines; root-package files remain 173,
+  root `*Bindings*` remains 0, and root `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `LoadLyricsSettingsUseCaseTest` and
+  `MainActivityArchitectureContractTest`, then
+  `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Lyrics loader assembly moved out of `MainActivityBase`:
+  `SettingsModule` now owns
+  `LoadTrackLyricsUseCaseLyricsLoader(LoadTrackLyricsUseCase(LyricsRepositoryLoadOperations()))`,
+  and Activity injects `LyricsLoader` while configuring `LyricsViewModel`.
+  `MainActivityBase.java` is now 2857 lines; root-package files remain 173,
+  root `*Bindings*` remains 0, and root `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `LoadTrackLyricsUseCaseTest`, `LyricsViewModelTest`, and
+  `MainActivityArchitectureContractTest`, then
+  `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Network action use-case assembly moved out of `MainActivityBase`:
+  `LibraryModule` now owns `NetworkActionUseCases` construction from the
+  existing WebDAV and network-library operations. Activity injects the
+  aggregate and only binds it into `NetworkActionsViewModel`, instead of
+  constructing two operations and 11 use cases in `initializeNetworkOwners()`.
+  `MainActivityBase.java` is now 2840 lines; root-package files remain 173,
+  root `*Bindings*` remains 0, and root `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `NetworkActionsViewModelTest`, `NetworkLibraryUseCasesTest`,
+  `WebDavSourceUseCasesTest`, and `MainActivityArchitectureContractTest`, then
+  `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Library gateway host policy moved out of the Java anonymous
+  `LibraryGateway` block into `MainLibraryGateway`, created by
+  `MainLibraryGatewayFactory` from `LibraryModule`. Activity still supplies true
+  host/platform capabilities, but `MainLibraryGateway` now owns status key
+  resolution, favorite refresh ordering, library routing, search, import, scan,
+  playlist-add, and track-list play delegation. `MainRouteController`
+  implements the narrow `LibraryRouteActions` boundary, avoiding a replacement
+  anonymous route adapter. `MainActivityBase.java` is now 2789 lines;
+  root-package files are now 174, root `*Bindings*` remains 0, and root
+  `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `MainLibraryGatewayTest`, `LibraryViewModelTest`, `MainRouteControllerTest`,
+  and `MainActivityArchitectureContractTest`, then
+  `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Streaming action gateway host policy moved out of the Java anonymous
+  `MainActivityStreamingActionGateway` block into `MainStreamingActionGateway`,
+  created by `MainStreamingActionGatewayFactory` from `StreamingModule`.
+  Activity still supplies true host/platform capabilities, but
+  `MainStreamingActionGateway` now owns selected quality, language, auth launch,
+  resolved-track playback, login-success, and manual-cookie import ordering.
+  `MainActivityBase.java` is now 2769 lines; root-package files are now 175,
+  root `*Bindings*` remains 0, and root `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `MainStreamingActionGatewayTest`, `DefaultStreamingSearchActionHandlerTest`,
+  and `MainActivityArchitectureContractTest`, then
+  `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Now-playing playback gateway service-start construction moved out of
+  `MainActivityBase.initializeNowPlayingGateways()` into
+  `MainNowPlayingPlaybackGatewayFactory` from `PlaybackUiModule` plus
+  `NowPlayingPlaybackServiceStarter`. Activity only supplies the real
+  `playbackService` lookup and no longer constructs
+  `NowPlayingPlaybackGatewayAdapter` or the playback service start `Intent`
+  locally. `MainActivityBase.java` is now 2762 lines; root-package files remain
+  175, root `*Bindings*` remains 0, and root `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `NowPlayingPlaybackGatewayAdapterTest`, `MainNowPlayingGatewayTest`,
+  `NowPlayingViewModelTest`, and `MainActivityArchitectureContractTest`, then
+  `compileDebugKotlin + compileDebugJavaWithJavac`.
+
+- Play-history action controller construction moved out of
+  `MainActivityBase.initializeStoresAndDataGateways()` into
+  `MainPlayHistoryActionControllerFactory` from `LibraryModule`. The existing
+  `PlayHistoryActionController` remains the behavior owner for clearing
+  history, publishing status, updating `PlayHistoryStateStore`, and reloading
+  collections; Activity no longer directly calls
+  `new PlayHistoryActionController(...)`. `MainActivityBase.java` is now 2760
+  lines; root-package files remain 175, root `*Bindings*` remains 0, and root
+  `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `PlayHistoryActionControllerTest` and `MainActivityArchitectureContractTest`,
+  then `compileDebugKotlin + compileDebugJavaWithJavac`.
+- Network action result policy moved out of the Java anonymous
+  `NetworkActionsViewModel.Listener` block into `MainNetworkActionsListener`,
+  created by `MainNetworkActionsListenerFactory` from `LibraryModule`.
+  `NetworkActionsViewModel` still owns use-case execution; the listener owns
+  result routing to library replacement, now-playing queue retain/replace,
+  network navigation, collections reload, and status publication.
+  `MainActivityBase.java` is now 2697 lines; root-package files remain 175,
+  root `*Bindings*` remains 0, and root `*Controller*` remains 44.
+- Verification used default Gradle daemon/workers: focused
+  `MainNetworkActionsListenerTest`, `NetworkActionsViewModelTest`, and
+  `MainActivityArchitectureContractTest`, then
+  `compileDebugKotlin + compileDebugJavaWithJavac`.
 
 ## 对既有计划的覆盖
 

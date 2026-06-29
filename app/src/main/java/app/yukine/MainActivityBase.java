@@ -26,7 +26,6 @@ import app.yukine.queue.QueueIntent;
 import app.yukine.streaming.LuoxueSourceStore;
 import app.yukine.streaming.StreamingAudioQuality;
 import app.yukine.streaming.StreamingPlaylist;
-import app.yukine.streaming.StreamingPlaylistSyncStore;
 import app.yukine.streaming.StreamingProviderName;
 import app.yukine.streaming.StreamingTrack;
 import app.yukine.ui.LibraryGroupActions;
@@ -73,7 +72,12 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject StreamingTrackMatchUseCase streamingTrackMatchUseCase;
     @Inject ToggleFavoriteUseCase toggleFavoriteUseCase;
     @Inject LoadPlaylistTracksUseCase loadPlaylistTracksUseCase;
-    @Inject StreamingPlaylistSyncStore streamingPlaylistSyncStore;
+    @Inject LibraryCollectionGateway libraryCollectionGateway;
+    @Inject LibraryImportGateway libraryImportGateway;
+    @Inject LibraryDocumentGateway libraryDocumentGateway;
+    @Inject LibraryPlaylistActionGateway libraryPlaylistActionGateway;
+    @Inject LoadSettingsPreferencesUseCase loadSettingsPreferencesUseCase;
+    @Inject ApplySettingsPreferenceUseCase applySettingsPreferenceUseCase;
     @Inject StreamingLocalPlaylistOperations streamingLocalPlaylistOperations;
     @Inject MainHomeDashboardRenderListenerFactory homeDashboardRenderListenerFactory;
     @Inject MainHeartbeatRecommendationListenerFactory heartbeatRecommendationListenerFactory;
@@ -82,13 +86,17 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject MainStreamingPlaylistListenerFactory streamingPlaylistListenerFactory;
     @Inject MainStreamingPlaylistImportDialogListenerFactory streamingPlaylistImportDialogListenerFactory;
     @Inject MainStreamingManualCookieListenerFactory streamingManualCookieListenerFactory;
+    @Inject MainStreamingActionGatewayFactory streamingActionGatewayFactory;
+    @Inject MainStreamingSearchActionHandlerFactory streamingSearchActionHandlerFactory;
     @Inject MainStreamingSearchRenderListenerFactory streamingSearchRenderListenerFactory;
     @Inject MainDocumentPickerListenerFactory documentPickerListenerFactory;
     @Inject MainBackgroundImagePickerListenerFactory backgroundImagePickerListenerFactory;
     @Inject MainPermissionListenerFactory permissionListenerFactory;
     @Inject MainTrackListRenderListenerFactory trackListRenderListenerFactory;
     @Inject MainQueueRenderListenerFactory queueRenderListenerFactory;
-    private LoadLyricsSettingsUseCase loadLyricsSettingsUseCase;
+    @Inject LoadLyricsSettingsUseCase loadLyricsSettingsUseCase;
+    @Inject LyricsLoader lyricsLoader;
+    @Inject NetworkActionUseCases networkActionUseCases;
 
     @Inject
     StreamingGatewaySettingsStore streamingGatewaySettingsStore;
@@ -100,10 +108,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     TrackDownloadManager trackDownloadManager;
 
     @Inject
-    TrackShareManager trackShareManager;
-
-    @Inject
-    NativeMusicShareManager nativeMusicShareManager;
+    TrackShareOperations trackShareOperations;
 
     private MainActivityViewModel viewModel;
     private NavigationViewModel navigationViewModel;
@@ -123,10 +128,11 @@ public abstract class MainActivityBase extends ComponentActivity {
     private StreamingRecommendationViewModel streamingRecommendationViewModel;
     private MainRouteController routeController;
     private MainLibraryStore libraryStore;
-    private MainSettingsStore settingsStore;
+    @Inject MainSettingsStore settingsStore;
     private MainPlaybackStore playbackStore;
     @Inject MainPlaybackStoreFactory playbackStoreFactory;
     @Inject MainNowPlayingGatewayFactory nowPlayingGatewayFactory;
+    @Inject MainNowPlayingPlaybackGatewayFactory nowPlayingPlaybackGatewayFactory;
     @Inject MainNowPlayingStateListenerFactory nowPlayingStateListenerFactory;
     @Inject MainPlaybackActionListenerFactory playbackActionListenerFactory;
     @Inject MainQueueActionListenerFactory queueActionListenerFactory;
@@ -134,7 +140,12 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject MainPlaybackStartListenerFactory playbackStartListenerFactory;
     @Inject MainPlaybackStateEventListenerFactory playbackStateEventListenerFactory;
     @Inject MainPlaybackServiceHostFactory playbackServiceHostFactory;
+    @Inject MainLibraryStoreFactory libraryStoreFactory;
+    @Inject MainPlayHistoryActionControllerFactory playHistoryActionControllerFactory;
+    @Inject MainNetworkActionsListenerFactory networkActionsListenerFactory;
+    @Inject MainLibraryGatewayFactory libraryGatewayFactory;
     private StatusMessageController statusMessageController;
+    @Inject MainSettingsRuntimeApplierFactory settingsRuntimeApplierFactory;
     private MainPermissionController permissionController;
     private MainUiShellController uiShellController;
     private TrackShareLauncher trackShareLauncher;
@@ -231,40 +242,19 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private MainActivityStreamingActionGateway createStreamingActionGateway() {
-        return new MainActivityStreamingActionGateway() {
-            @Override
-            public StreamingAudioQuality streamingPlaybackQuality() {
-                return adaptiveStreamingQuality();
-            }
-
-            @Override
-            public String languageMode() {
-                return settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode();
-            }
-
-            @Override
-            public boolean openAuthLaunch(StreamingSearchAuthLaunch launch) {
-                return StreamingAuthLauncher.INSTANCE.launch(MainActivityBase.this, launch);
-            }
-
-            @Override
-            public void playResolvedTrack(Track track) {
-                playTrackListFromHost(java.util.Collections.singletonList(track), 0);
-            }
-
-            @Override
-            public void onStreamingLoginSuccess(StreamingProviderName provider) {
-                streamingPlaylistController.onStreamingLoginSuccess(provider);
-            }
-
-            @Override
-            public void openManualCookieImport(StreamingProviderName provider) {
-                streamingViewModel.selectStreamingProvider(provider);
-                if (streamingManualCookieController != null) {
-                    streamingManualCookieController.showStreamingCookieDialog();
+        return streamingActionGatewayFactory.create(
+                this::adaptiveStreamingQuality,
+                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                launch -> StreamingAuthLauncher.INSTANCE.launch(MainActivityBase.this, launch),
+                (tracks, index) -> playTrackListFromHost(tracks, index),
+                provider -> streamingPlaylistController.onStreamingLoginSuccess(provider),
+                provider -> streamingViewModel.selectStreamingProvider(provider),
+                () -> {
+                    if (streamingManualCookieController != null) {
+                        streamingManualCookieController.showStreamingCookieDialog();
+                    }
                 }
-            }
-        };
+        );
     }
 
     private void initializeStreamingPlaybackCoordinator() {
@@ -285,16 +275,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                         key
                 )
         ));
-        nowPlayingViewModel.bindPlaybackGateway(new NowPlayingPlaybackGatewayAdapter(
-                () -> playbackService,
-                action -> {
-                    Intent intent = new Intent(MainActivityBase.this, EchoPlaybackService.class);
-                    if (action != null) {
-                        intent.setAction(action);
-                    }
-                    MainActivityBase.this.startService(intent);
-                    return kotlin.Unit.INSTANCE;
-                }
+        nowPlayingViewModel.bindPlaybackGateway(nowPlayingPlaybackGatewayFactory.create(
+                () -> playbackService
         ));
     }
 
@@ -325,72 +307,20 @@ public abstract class MainActivityBase extends ComponentActivity {
         libraryViewModel.bindFavoriteIdsProvider(
                 () -> libraryStore == null ? Collections.emptySet() : libraryStore.favoriteIds()
         );
-        libraryViewModel.bindGateway(new LibraryGateway() {
-            @Override
-            public void playTrackList(List<Track> tracks, int index) {
-                MainActivityBase.this.playTrackListFromHost(tracks, index);
-            }
-
-            @Override
-            public void showStatusKey(String key) {
-                statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), key));
-            }
-
-            @Override
-            public void applyFavorite(long trackId, boolean favorite) {
-                viewModel.setFavorite(trackId, favorite);
-                nowPlayingStateController.renderNowBar();
-                renderSelectedTab();
-                loadCollections();
-            }
-
-            @Override
-            public void addToPlaylist(Track track) {
-                MainActivityBase.this.playlistDialogController.showAddToPlaylist(track);
-            }
-
-            @Override
-            public void changeGroupMode(String mode) {
-                routeController.setLibraryMode(mode);
-                renderSelectedTab();
-            }
-
-            @Override
-            public void openGroup(String key, String title) {
-                routeController.selectLibraryGroup(key, title);
-                renderSelectedTab();
-            }
-
-            @Override
-            public void openPlaylist(long playlistId, String title) {
-                routeController.selectLibraryGroup("playlist:" + playlistId, title);
-                routeController.setSelectedPlaylistId(playlistId);
-                loadCollections();
-            }
-
-            @Override
-            public void backFromGroup() {
-                routeController.clearLibraryGroup();
-                routeController.setSelectedPlaylistId(-1L);
-                renderSelectedTab();
-            }
-
-            @Override
-            public void search(String query) {
-                routeController.setSearchQuery(query);
-                applySearch();
-            }
-
-            @Override
-            public void importFiles() {
-                documentPickerController.openAudioFilePicker();
-            }
-
-            @Override
-            public void scanLibrary() {
-                loadLibrary(false);
-            }
-        });
+        libraryViewModel.bindGateway(libraryGatewayFactory.create(
+                (tracks, index) -> MainActivityBase.this.playTrackListFromHost(tracks, index),
+                () -> settingsStore.languageMode(),
+                status -> statusMessageController.setStatus(status),
+                (trackId, favorite) -> viewModel.setFavorite(trackId, favorite),
+                () -> nowPlayingStateController.renderNowBar(),
+                this::renderSelectedTab,
+                this::loadCollections,
+                track -> MainActivityBase.this.playlistDialogController.showAddToPlaylist(track),
+                routeController,
+                this::applySearch,
+                () -> documentPickerController.openAudioFilePicker(),
+                allowCachedFirst -> loadLibrary(allowCachedFirst)
+        ));
     }
 
     private void initializeStreamingStartup(MainActivityStreamingActionGateway streamingActionGateway) {
@@ -413,7 +343,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         trackShareLauncher = new TrackShareLauncher(
                 this,
-                new TrackShareManagerOperations(trackShareManager, nativeMusicShareManager),
+                trackShareOperations,
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 () -> settingsStore == null ? TrackShareStyle.defaultValue() : settingsStore.shareStyle(),
                 new TrackShareStatusSink() {
@@ -847,68 +777,17 @@ public abstract class MainActivityBase extends ComponentActivity {
     private StreamingSearchRenderController initializeStoresAndDataGateways(
             MainActivityStreamingActionGateway streamingActionGateway
     ) {
-        libraryStore = new MainLibraryStore(
-                new LibrarySearchUseCase(new MusicLibrarySearchOperations(repository)),
-                viewModel
-        );
-        settingsStore = new MainSettingsStore();
-        settingsStore.load(
-                new LoadSettingsPreferencesUseCase(
-                        new MusicLibrarySettingsPreferenceLoadOperations(repository)
-                ).execute()
-        );
-        PlaylistActionOperations playlistActionOperations =
-                new MusicLibraryPlaylistActionOperations(repository, streamingPlaylistSyncStore);
-        libraryViewModel.bindPlaylistActionGateway(new LibraryPlaylistActionGateway() {
-            @Override
-            public LibraryDefaultPlaylistAddResultUi addToDefaultPlaylist(Track track) {
-                DefaultPlaylistAddResult result = new AddToDefaultPlaylistUseCase(playlistActionOperations).execute(track);
-                return result == null
-                        ? null
-                        : new LibraryDefaultPlaylistAddResultUi(result.playlistId, result.added);
-            }
-
-            @Override
-            public long createPlaylist(String name) {
-                return new CreatePlaylistUseCase(playlistActionOperations).execute(name);
-            }
-
-            @Override
-            public boolean renamePlaylist(long playlistId, String name) {
-                return new RenamePlaylistUseCase(playlistActionOperations).execute(playlistId, name);
-            }
-
-            @Override
-            public boolean deletePlaylist(long playlistId) {
-                return new DeletePlaylistUseCase(playlistActionOperations).execute(playlistId);
-            }
-
-            @Override
-            public boolean removeTrackFromPlaylist(long playlistId, Track track) {
-                return new RemoveTrackFromPlaylistUseCase(playlistActionOperations).execute(playlistId, track);
-            }
-
-            @Override
-            public boolean movePlaylistTrack(long playlistId, Track track, int trackIndex, int direction) {
-                return new MovePlaylistTrackUseCase(playlistActionOperations).execute(playlistId, track, trackIndex, direction);
-            }
-
-            @Override
-            public boolean addTrackToPlaylist(long playlistId, long trackId) {
-                return new AddTrackToPlaylistUseCase(playlistActionOperations).execute(playlistId, trackId);
-            }
-        });
-        playHistoryActionController = new PlayHistoryActionController(
+        libraryStore = libraryStoreFactory.create(viewModel);
+        settingsStore.load(loadSettingsPreferencesUseCase.execute());
+        libraryViewModel.bindPlaylistActionGateway(libraryPlaylistActionGateway);
+        playHistoryActionController = playHistoryActionControllerFactory.create(
                 libraryViewModel,
                 () -> settingsStore.languageMode(),
                 viewModel::clearPlayHistory,
-                status -> {
-                    statusMessageController.setStatus(status);
-                    return kotlin.Unit.INSTANCE;
-                },
+                status -> { statusMessageController.setStatus(status); return kotlin.Unit.INSTANCE; },
                 () -> loadCollections()
         );
-        streamingSearchActionHandler = new DefaultStreamingSearchActionHandler(streamingViewModel, streamingActionGateway);
+        streamingSearchActionHandler = streamingSearchActionHandlerFactory.create(streamingViewModel, streamingActionGateway);
         StreamingSearchRenderController streamingSearchRenderController = new StreamingSearchRenderController(
                 () -> settingsStore.languageMode(),
                 streamingSearchRenderListenerFactory.create(
@@ -1147,246 +1026,36 @@ public abstract class MainActivityBase extends ComponentActivity {
         libraryViewModel.bindFavoriteWriter((track, favorite) -> toggleFavoriteUseCase.execute(track, favorite));
 
         libraryViewModel.bindPlaylistTrackLoader(playlistId -> loadPlaylistTracksUseCase.execute(playlistId));
-        loadLyricsSettingsUseCase = new LoadLyricsSettingsUseCase(
-                new MusicLibraryLyricsSettingsOperations(repository)
-        );
         LoadedLyricsSettings loadedLyricsSettings = loadLyricsSettingsUseCase.execute();
         lyricsViewModel.configure(
-                new LoadTrackLyricsUseCaseLyricsLoader(
-                        new LoadTrackLyricsUseCase(new LyricsRepositoryLoadOperations())
-                ),
+                lyricsLoader,
                 loadedLyricsSettings.onlineLyricsEnabled,
                 loadedLyricsSettings.lyricsOffsetMs
         );
-        LibraryCollectionOperations libraryCollectionOperations =
-                new MusicLibraryCollectionOperations(repository);
-        LibraryImportOperations libraryImportOperations =
-                new MusicLibraryImportOperations(repository);
-        libraryViewModel.bindCollectionGateway(new LibraryCollectionGateway() {
-            @Override
-            public LibraryCollectionsResult loadCollections(long selectedPlaylistId) {
-                LibraryCollectionsSnapshot loaded = new LoadLibraryCollectionsUseCase(libraryCollectionOperations).execute(selectedPlaylistId);
-                return new LibraryCollectionsResult(
-                        loaded.selectedPlaylistId,
-                        loaded.favoriteIds,
-                        loaded.favoriteTracks,
-                        loaded.recentRecords,
-                        loaded.mostPlayedRecords,
-                        loaded.playlists,
-                        loaded.remoteSources,
-                        loaded.selectedPlaylistTracks
-                );
-            }
-
-            @Override
-            public int clearPlayHistory() {
-                return new ClearPlayHistoryUseCase(libraryCollectionOperations).execute();
-            }
-        });
-        libraryViewModel.bindImportGateway(new LibraryImportGateway() {
-            @Override
-            public LibraryLoadResultUi loadCached() {
-                return toLibraryLoadResultUi(new LoadLibraryUseCase(libraryImportOperations).cached());
-            }
-
-            @Override
-            public LibraryLoadResultUi refresh() {
-                return toLibraryLoadResultUi(new LoadLibraryUseCase(libraryImportOperations).refresh());
-            }
-
-            @Override
-            public LibraryLoadResultUi importAudioUris(List<Uri> uris) {
-                return toLibraryLoadResultUi(new ImportAudioUrisUseCase(libraryImportOperations).execute(uris));
-            }
-
-            @Override
-            public LibraryLoadResultUi importAudioTree(Uri treeUri) {
-                return toLibraryLoadResultUi(new ImportAudioTreeUseCase(libraryImportOperations).execute(treeUri));
-            }
-
-            @Override
-            public LibraryAudioSpecsResultUi parseMissingAudioSpecs() {
-                AudioSpecsParseResult result = new ParseMissingAudioSpecsUseCase(libraryImportOperations).execute();
-                return new LibraryAudioSpecsResultUi(
-                        result.getUpdatedCount(),
-                        result.getTracks(),
-                        result.getFavorites()
-                );
-            }
-        });
-        libraryViewModel.bindDocumentGateway(new ContentResolverLibraryDocumentGateway(getContentResolver(), libraryImportOperations));
-        settingsViewModel.bindPreferenceGateway(update ->
-                new ApplySettingsPreferenceUseCase(
-                        new MusicLibrarySettingsPreferenceOperations(repository)
-                ).execute(update)
-        );
+        libraryViewModel.bindCollectionGateway(libraryCollectionGateway);
+        libraryViewModel.bindImportGateway(libraryImportGateway);
+        libraryViewModel.bindDocumentGateway(libraryDocumentGateway);
+        settingsViewModel.bindPreferenceGateway(applySettingsPreferenceUseCase::execute);
         settingsViewModel.bindStoreMirror(settingsStore::sync);
-        SettingsRuntimeApplier settingsRuntimeApplier = new SettingsRuntimeApplier(
+        SettingsRuntimeApplier settingsRuntimeApplier = settingsRuntimeApplierFactory.create(
                 () -> uiShellController.applyThemeSurface(),
-                () -> playbackService == null ? null : new SettingsPlaybackServiceControls() {
-                    @Override
-                    public void setPlaybackSpeed(float speed) {
-                        playbackService.setPlaybackSpeed(speed);
-                    }
-
-                    @Override
-                    public void setAppVolume(float volume) {
-                        playbackService.setAppVolume(volume);
-                    }
-
-                    @Override
-                    public void setConcurrentPlaybackEnabled(boolean enabled) {
-                        playbackService.setConcurrentPlaybackEnabled(enabled);
-                    }
-
-                    @Override
-                    public void applyAudioEffectSettings(AudioEffectSettings settings) {
-                        playbackService.applyAudioEffectSettings(settings);
-                    }
-
-                    @Override
-                    public void setStatusBarLyricsEnabled(boolean enabled) {
-                        playbackService.setStatusBarLyricsEnabled(enabled);
-                    }
-
-                    @Override
-                    public void setPlaybackRestoreEnabled(boolean enabled) {
-                        playbackService.setPlaybackRestoreEnabled(enabled);
-                    }
-
-                    @Override
-                    public void setReplayGainEnabled(boolean enabled) {
-                        playbackService.setReplayGainEnabled(enabled);
-                    }
-                },
-                () -> lyricsViewModel == null ? null : new SettingsLyricsControls() {
-                    @Override
-                    public void setOnlineEnabled(boolean enabled) {
-                        lyricsViewModel.setOnlineEnabled(enabled);
-                    }
-
-                    @Override
-                    public void setOffsetMs(long offsetMs) {
-                        lyricsViewModel.setOffsetMs(offsetMs);
-                    }
-                },
-                () -> new SettingsFloatingLyricsControls() {
-                    @Override
-                    public boolean apply(boolean enabled) {
-                        if (!enabled) {
-                            FloatingLyricsService.stop(MainActivityBase.this);
-                            return true;
-                        }
-                        if (!permissionController.hasOverlayPermission()) {
-                            FloatingLyricsService.stop(MainActivityBase.this);
-                            permissionController.openOverlayPermissionSettings();
-                            return false;
-                        }
-                        FloatingLyricsService.start(MainActivityBase.this);
-                        return true;
-                    }
-
-                    @Override
-                    public void openPermissionSettings() {
-                        permissionController.openOverlayPermissionSettings();
-                    }
-                }
+                () -> playbackService,
+                () -> lyricsViewModel,
+                () -> permissionController
         );
         settingsViewModel.bindRuntimeEffectListener(settingsRuntimeApplier::apply);
         playlistDialogController = createPlaylistDialogController();
     }
 
     private void initializeNetworkOwners(StreamingSearchRenderController streamingSearchRenderController) {
-        WebDavSourceOperations webDavSourceOperations =
-                new MusicLibraryWebDavSourceOperations(repository);
-        NetworkLibraryOperations networkLibraryOperations =
-                new MusicLibraryNetworkLibraryOperations(repository);
-        networkActionsViewModel.bindUseCases(
-                new NetworkActionUseCases(
-                        new TestWebDavSourceUseCase(webDavSourceOperations),
-                        new SyncWebDavSourceUseCase(webDavSourceOperations),
-                        new SyncAllWebDavSourcesUseCase(webDavSourceOperations),
-                        new AddStreamUrlUseCase(networkLibraryOperations),
-                        new UpdateStreamUrlUseCase(networkLibraryOperations),
-                        new ImportStreamPlaylistUseCase(networkLibraryOperations),
-                        new DeleteAllStreamsUseCase(networkLibraryOperations),
-                        new DeleteNetworkTrackUseCase(networkLibraryOperations),
-                        new DeleteNetworkTracksUseCase(networkLibraryOperations),
-                        new DeleteRemoteSourceUseCase(networkLibraryOperations),
-                        new SaveWebDavSourceUseCase(networkLibraryOperations)
-                )
-        );
-        networkActionsViewModel.bindListener(
-                new NetworkActionsViewModel.Listener() {
-                    @Override
-                    public void onStreamAdded(List<Track> cached, Set<Long> favorites, String status) {
-                        replaceLibrary(cached, favorites, status);
-                    }
-
-                    @Override
-                    public void onStreamUpdated(long oldTrackId, Track updated, List<Track> cached, Set<Long> favorites, String status) {
-                        if (updated != null) {
-                            nowPlayingViewModel.replaceQueuedTrack(oldTrackId, updated);
-                        }
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(MainRoutes.NETWORK_STREAM_LIST);
-                    }
-
-                    @Override
-                    public void onStreamPlaylistImported(List<Track> cached, Set<Long> favorites, String status) {
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING);
-                    }
-
-                    @Override
-                    public void onAllStreamsDeleted(List<Track> cached, Set<Long> favorites, String status) {
-                        nowPlayingViewModel.retainTracks(cached);
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING);
-                    }
-
-                    @Override
-                    public void onTrackDeleted(List<Track> cached, Set<Long> favorites, String status) {
-                        nowPlayingViewModel.retainTracks(cached);
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(MainRoutes.NETWORK_STREAM_LIST);
-                    }
-
-                    @Override
-                    public void onRemoteSourceDeleted(List<Track> cached, Set<Long> favorites, String status) {
-                        nowPlayingViewModel.retainTracks(cached);
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(MainRoutes.NETWORK_SOURCES);
-                        loadCollections();
-                    }
-
-                    @Override
-                    public void onWebDavSourceSaved(long sourceId, List<Track> cached, Set<Long> favorites, String status) {
-                        nowPlayingViewModel.retainTracks(cached);
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(sourceId > 0L ? MainRoutes.NETWORK_SOURCES : MainRoutes.NETWORK_WEBDAV);
-                        loadCollections();
-                    }
-
-                    @Override
-                    public void onRemoteSourceTested(String status) {
-                        statusMessageController.setStatus(status);
-                        loadCollections();
-                    }
-
-                    @Override
-                    public void onRemoteSourceSynced(List<Track> cached, Set<Long> favorites, String status) {
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(MainRoutes.NETWORK_SOURCES);
-                    }
-
-                    @Override
-                    public void onAllWebDavSourcesSynced(List<Track> cached, Set<Long> favorites, String status) {
-                        replaceLibrary(cached, favorites, status);
-                        navigateToNetworkTabPage(MainRoutes.NETWORK_WEBDAV);
-                    }
-                }
-        );
+        networkActionsViewModel.bindUseCases(networkActionUseCases);
+        networkActionsViewModel.bindListener(networkActionsListenerFactory.create(
+                nowPlayingViewModel,
+                this::replaceLibrary,
+                this::navigateToNetworkTabPage,
+                this::loadCollections,
+                status -> statusMessageController.setStatus(status)
+        ));
         networkRequestController = new NetworkRequestController(
                 networkActionsViewModel,
                 key -> AppLanguage.text(settingsStore.languageMode(), key),
@@ -2959,10 +2628,6 @@ public abstract class MainActivityBase extends ComponentActivity {
             routeController.setSelectedTab(TAB_NOW);
             renderSelectedTab();
         }
-    }
-
-    private LibraryLoadResultUi toLibraryLoadResultUi(LibraryLoadResult result) {
-        return new LibraryLoadResultUi(result.getTracks(), result.getFavorites(), "Library updated");
     }
 
 }

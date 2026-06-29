@@ -7,6 +7,10 @@ import app.yukine.model.TrackPlayRecord
 import java.util.ArrayList
 import java.util.HashSet
 
+internal fun interface MainLibraryStoreFactory {
+    fun create(viewModel: MainActivityViewModel): MainLibraryStore
+}
+
 internal class MainLibraryStore(
     private val searchUseCase: LibrarySearchUseCase,
     private val viewModel: MainActivityViewModel
