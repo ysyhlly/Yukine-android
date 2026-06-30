@@ -112,6 +112,11 @@ internal class PlaybackRuntimeStateManager(
         )
     }
 
+    fun applyPlaybackModeAndParametersToPlayer() {
+        applyPlaybackParametersToPlayer()
+        applyPlaybackModeToPlayer()
+    }
+
     fun normalizePlaybackSpeed(speed: Float): Float = when {
         speed < 0.5f -> 0.5f
         speed > 2.0f -> 2.0f
@@ -129,16 +134,27 @@ internal class PlaybackRuntimeStateManager(
         player.setPlaybackParameters(PlaybackParameters(playbackSpeed))
     }
 
-    fun applyAppVolume() {
-        val player = stateProvider.player() ?: return
-        player.setVolume(
-            normalizeAppVolume(
-                appVolume * replayGainMultiplierForTrack(
-                    replayGainEnabled,
-                    stateProvider.currentTrack()
-                )
+    fun applyPlaybackParametersToPlayer() {
+        applyPlaybackSpeed()
+        applyAppVolume()
+    }
+
+    fun currentTrackVolume(): Float {
+        return normalizeAppVolume(
+            appVolume * replayGainMultiplierForTrack(
+                replayGainEnabled,
+                stateProvider.currentTrack()
             )
         )
+    }
+
+    fun applyCurrentTrackVolumeToPlayer() {
+        val player = stateProvider.player() ?: return
+        player.setVolume(currentTrackVolume())
+    }
+
+    fun applyAppVolume() {
+        applyCurrentTrackVolumeToPlayer()
     }
 
     fun applyAudioFocusHandling() {

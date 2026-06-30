@@ -1,6 +1,5 @@
 package app.yukine.playback;
 
-import android.net.Uri;
 import android.os.Handler;
 
 import androidx.annotation.OptIn;
@@ -8,60 +7,96 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.cache.CacheWriter;
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackMediaSourceProvider;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 final class PlaybackVisualizationCacheManager {
     private static final long VISUALIZATION_CACHE_BYTES = 64L * 1024L * 1024L;
 
     interface StateProvider {
-        boolean isHttpUri(Uri uri);
-        String cacheKeyForTrack(Track track);
-        long continuousCachedBytes(String cacheKey);
-        PlaybackTaskScheduler visualizationTaskScheduler();
-        PlaybackCacheDependencies cacheDependencies();
         Handler mainHandler();
         Track currentTrack();
+        void scheduleVisualizationCacheTask(Runnable task);
     }
 
-    interface PlaybackCacheDependencies {
-        androidx.media3.datasource.cache.CacheDataSource cacheDataSourceForTrack(Track track);
+    interface VisualizationCacheWriter {
+        void cache() throws Exception;
+        void cancel();
+    }
+
+    interface VisualizationCacheWriterFactory {
+        VisualizationCacheWriter create(Track track, DataSpec dataSpec);
     }
 
     private final StateProvider stateProvider;
+    private final PlaybackMediaSourceProvider mediaSourceProvider;
+    private final VisualizationCacheWriterFactory cacheWriterFactory;
+    private final Set<VisualizationCacheWriter> activeCacheWriters = Collections.synchronizedSet(new HashSet<>());
+    private final AtomicInteger cacheGeneration = new AtomicInteger();
+    private volatile boolean released;
 
-    PlaybackVisualizationCacheManager(StateProvider stateProvider) {
+    PlaybackVisualizationCacheManager(
+            StateProvider stateProvider,
+            PlaybackMediaSourceProvider mediaSourceProvider
+    ) {
+        this(stateProvider, mediaSourceProvider, null);
+    }
+
+    PlaybackVisualizationCacheManager(
+            StateProvider stateProvider,
+            PlaybackMediaSourceProvider mediaSourceProvider,
+            VisualizationCacheWriterFactory cacheWriterFactory
+    ) {
         this.stateProvider = stateProvider;
+        this.mediaSourceProvider = mediaSourceProvider;
+        this.cacheWriterFactory = cacheWriterFactory == null ? this::createCacheWriter : cacheWriterFactory;
+    }
+
+    void release() {
+        released = true;
+        cacheGeneration.incrementAndGet();
+        synchronized (activeCacheWriters) {
+            for (VisualizationCacheWriter writer : activeCacheWriters) {
+                if (writer != null) {
+                    writer.cancel();
+                }
+            }
+            activeCacheWriters.clear();
+        }
     }
 
     void scheduleVisualizationCache(Track track) {
-        if (track == null || !stateProvider.isHttpUri(track.contentUri)) {
+        if (released || !mediaSourceProvider.isHttpTrack(track)) {
             return;
         }
+        int generation = cacheGeneration.get();
         final Track visualTrack = track;
         stateProvider.mainHandler().post(() -> {
-            Track active = stateProvider.currentTrack();
-            if (active == null
-                    || visualTrack.id != active.id
-                    || active.contentUri == null
-                    || !active.contentUri.equals(visualTrack.contentUri)) {
+            if (!isCurrentCacheGeneration(generation)) {
                 return;
             }
-            stateProvider.visualizationTaskScheduler().schedule(
-                    PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE,
-                    () -> cacheVisualizationWindow(visualTrack)
-            );
+            Track active = stateProvider.currentTrack();
+            if (!mediaSourceProvider.tracksShareMediaIdentityForReuse(active, visualTrack)) {
+                return;
+            }
+            stateProvider.scheduleVisualizationCacheTask(() -> cacheVisualizationWindow(visualTrack, generation));
         });
     }
 
     @OptIn(markerClass = UnstableApi.class)
-    private void cacheVisualizationWindow(Track track) {
-        if (track == null || !stateProvider.isHttpUri(track.contentUri)) {
+    private void cacheVisualizationWindow(Track track, int generation) {
+        if (!isCurrentCacheGeneration(generation) || !mediaSourceProvider.isHttpTrack(track)) {
             return;
         }
-        String cacheKey = stateProvider.cacheKeyForTrack(track);
+        String cacheKey = mediaSourceProvider.cacheKeyForTrack(track);
         if (cacheKey == null || cacheKey.isEmpty()) {
             return;
         }
-        long cached = stateProvider.continuousCachedBytes(cacheKey);
+        long cached = mediaSourceProvider.continuousCachedBytes(cacheKey);
         if (cached >= VISUALIZATION_CACHE_BYTES) {
             return;
         }
@@ -73,14 +108,43 @@ final class PlaybackVisualizationCacheManager {
                     .setKey(cacheKey)
                     .setFlags(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION)
                     .build();
-            CacheWriter writer = new CacheWriter(
-                    stateProvider.cacheDependencies().cacheDataSourceForTrack(track),
-                    dataSpec,
-                    new byte[16 * 1024],
-                    null
-            );
-            writer.cache();
+            VisualizationCacheWriter writer = cacheWriterFactory.create(track, dataSpec);
+            if (writer == null || !isCurrentCacheGeneration(generation)) {
+                return;
+            }
+            activeCacheWriters.add(writer);
+            try {
+                if (isCurrentCacheGeneration(generation)) {
+                    writer.cache();
+                }
+            } finally {
+                activeCacheWriters.remove(writer);
+            }
         } catch (Exception ignored) {
         }
+    }
+
+    private boolean isCurrentCacheGeneration(int generation) {
+        return !released && cacheGeneration.get() == generation;
+    }
+
+    private VisualizationCacheWriter createCacheWriter(Track track, DataSpec dataSpec) {
+        CacheWriter writer = new CacheWriter(
+                mediaSourceProvider.cacheDataSourceForTrack(track),
+                dataSpec,
+                new byte[16 * 1024],
+                null
+        );
+        return new VisualizationCacheWriter() {
+            @Override
+            public void cache() throws Exception {
+                writer.cache();
+            }
+
+            @Override
+            public void cancel() {
+                writer.cancel();
+            }
+        };
     }
 }

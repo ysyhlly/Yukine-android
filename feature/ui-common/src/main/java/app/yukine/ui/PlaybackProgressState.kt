@@ -12,7 +12,7 @@ import kotlin.math.abs
 
 /**
  * Produces a locally-advancing playback position so the progress UI moves smoothly between the
- * (roughly once-per-second) authoritative updates pushed by [app.yukine.playback.EchoPlaybackService].
+ * (roughly once-per-second) authoritative updates pushed by the playback service boundary.
  *
  * The service remains the single source of truth: every time [positionMs], [durationMs] or [playing]
  * changes, the local clock is re-seeded from the authoritative value (this is the calibration that

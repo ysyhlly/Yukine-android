@@ -1,21 +1,21 @@
 package app.yukine.playback.manager
 
-import android.net.Uri
 import app.yukine.model.Track
 
 internal class PlaybackErrorRecoveryManager(
     private val scheduler: RetryScheduler,
     private val actions: Actions,
+    private val mediaSourceProvider: PlaybackMediaSourceProvider,
     private val retryDelayMs: Long = DEFAULT_RETRY_DELAY_MS
 ) {
     interface RetryScheduler {
         fun postDelayed(runnable: Runnable, delayMs: Long)
+        fun removeCallbacks(runnable: Runnable)
     }
 
     interface Actions {
         fun currentTrack(): Track?
-        fun isHttpUri(uri: Uri?): Boolean
-        fun queueSize(): Int
+        fun canSkipFailedTrack(failed: Track?): Boolean
         fun debugTrack(track: Track?): String
         fun prepareCurrent(playWhenReady: Boolean)
         fun skipToNext()
@@ -25,31 +25,50 @@ internal class PlaybackErrorRecoveryManager(
     }
 
     private var lastErrorTrackId = -1L
+    private var retryGeneration = 0
+    private var pendingRetry: Runnable? = null
+    private var released = false
 
     fun onPlaybackReady() {
+        if (released) {
+            return
+        }
+        cancelPendingRetry()
         lastErrorTrackId = -1L
     }
 
+    fun release() {
+        released = true
+        cancelPendingRetry()
+    }
+
     fun onPlayerError(error: Exception) {
+        if (released) {
+            return
+        }
         val failed = actions.currentTrack()
         val failedId = failed?.id ?: -1L
-        val isStreaming = failed != null && actions.isHttpUri(failed.contentUri)
+        val isStreaming = mediaSourceProvider.isHttpTrack(failed)
         actions.logWarning("Playback failed for ${actions.debugTrack(failed)}", error)
         if (isStreaming && failedId != -1L && failedId != lastErrorTrackId) {
             lastErrorTrackId = failedId
             actions.logWarning("Retrying streaming track after error: ${actions.debugTrack(failed)}", error)
-            scheduler.postDelayed(
-                Runnable {
-                    val current = actions.currentTrack()
-                    if (current != null && current.id == failedId) {
-                        actions.prepareCurrent(true)
-                    }
-                },
-                retryDelayMs
-            )
+            val generation = ++retryGeneration
+            val retry = Runnable {
+                if (released || generation != retryGeneration) {
+                    return@Runnable
+                }
+                pendingRetry = null
+                val current = actions.currentTrack()
+                if (current != null && current.id == failedId) {
+                    actions.prepareCurrent(true)
+                }
+            }
+            pendingRetry = retry
+            scheduler.postDelayed(retry, retryDelayMs)
             return
         }
-        if (failedId != -1L && actions.queueSize() > 1) {
+        if (actions.canSkipFailedTrack(failed)) {
             lastErrorTrackId = -1L
             actions.logWarning("Skipping unplayable track: ${actions.debugTrack(failed)}", error)
             actions.setErrorMessage("")
@@ -58,6 +77,12 @@ internal class PlaybackErrorRecoveryManager(
         }
         actions.setErrorMessage("Unable to play this track.")
         actions.publishState()
+    }
+
+    private fun cancelPendingRetry() {
+        retryGeneration++
+        pendingRetry?.let { scheduler.removeCallbacks(it) }
+        pendingRetry = null
     }
 
     private companion object {

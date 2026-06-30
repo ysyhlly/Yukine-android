@@ -134,7 +134,7 @@ class NowPlayingViewModelTest {
         viewModel.skipToNext()
         viewModel.replaceQueuedTrack(8L, track)
         viewModel.retainTracks(listOf(track))
-        viewModel.precacheTrack(track)
+        viewModel.warmPlaybackTrack(track)
         viewModel.appendToQueue(listOf(track))
         viewModel.replaceCurrentTrackAndResume(track, 7_000L)
 
@@ -165,19 +165,30 @@ class NowPlayingViewModelTest {
     }
 
     @Test
-    fun playbackActionsStartServiceWhenTransportServiceIsMissing() {
+    fun playbackTransportActionsRemainSemanticWhenServiceIsMissing() {
         val player = FakePlaybackGateway(connected = false)
         val viewModel = NowPlayingViewModel()
         viewModel.bindPlaybackGateway(player)
 
         viewModel.skipToPrevious()
         viewModel.skipToNext()
+        val track = Track(9L, "Queued", "Artist", "Album", 120_000L, Uri.EMPTY, "file:queued.mp3")
+        viewModel.replaceQueuedTrack(8L, track)
+        viewModel.retainTracks(listOf(track))
+        viewModel.warmPlaybackTrack(track)
+        viewModel.appendToQueue(listOf(track))
+        viewModel.replaceCurrentTrackAndResume(track, 7_000L)
         val result = viewModel.playTrackList(emptyList(), 0)
 
         assertEquals(
             listOf(
-                "start:app.yukine.action.PREVIOUS",
-                "start:app.yukine.action.NEXT"
+                "previous",
+                "next",
+                "replaceById:8:9",
+                "retain:9",
+                "precache:9",
+                "append:1",
+                "replaceCurrent:9:7000"
             ),
             player.calls
         )
@@ -215,7 +226,6 @@ class NowPlayingViewModelTest {
         assertEquals(
             listOf(
                 "pause",
-                "start:null",
                 "play",
                 "shuffle:true",
                 "cycleRepeat",
@@ -292,10 +302,6 @@ class NowPlayingViewModelTest {
 
         override fun serviceConnected(): Boolean = connected
 
-        override fun startPlaybackService(action: String?) {
-            calls.add("start:$action")
-        }
-
         override fun snapshot(): PlaybackStateSnapshot? = snapshot
 
         override fun queueSnapshot(): List<Track> = queue
@@ -332,7 +338,7 @@ class NowPlayingViewModelTest {
             calls.add("retain:${trackIds.joinToString(",")}")
         }
 
-        override fun precacheTrack(track: Track) {
+        override fun warmPlaybackTrack(track: Track) {
             calls.add("precache:${track.id}")
         }
 

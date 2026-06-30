@@ -7,11 +7,17 @@ internal class PlaybackWarmupCoordinator(
     private val precacheTrack: Consumer<Track>,
     private val scheduleVisualizationCache: Consumer<Track>
 ) {
+    private var released = false
+
     fun warmup(track: Track?) {
-        if (track == null) {
+        if (released || track == null) {
             return
         }
         precacheTrack.accept(track)
         scheduleVisualizationCache.accept(track)
+    }
+
+    fun release() {
+        released = true
     }
 }

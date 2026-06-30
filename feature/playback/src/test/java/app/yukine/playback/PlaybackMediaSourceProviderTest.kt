@@ -2,15 +2,23 @@ package app.yukine.playback
 
 import android.net.Uri
 import androidx.media3.common.MediaMetadata
+import app.yukine.common.StreamingDataPathParser
+import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackMediaSourceProvider
+import app.yukine.streaming.StreamingPlaybackHeaderStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class PlaybackMediaSourceProviderTest {
     @Test
     fun playbackMediaItemForLocalTrackPreservesUriAndMetadataWithoutCacheKey() {
@@ -77,5 +85,285 @@ class PlaybackMediaSourceProviderTest {
                 "streaming:netease:42|url=https://audio.example/current.flac"
             )
         )
+    }
+
+    @Test
+    fun providerMatchesMediaItemForTrackUsingOwnedCacheKeyRule() {
+        val uri = Uri.parse("https://audio.example/current.flac")
+        val track = Track(42L, "Stream", "Artist", "Album", 180_000L, uri, "streaming:netease:42")
+        val mediaItem = PlaybackMediaSourceProvider.playbackMediaItemForTrack(track, null)
+
+        assertTrue(provider(FakeStreamingPlaybackHeaderStore()).mediaItemMatchesTrackForReuse(mediaItem, track))
+    }
+
+    @Test
+    fun providerMatchesTracksForReuseUsingResolvedUriRule() {
+        val uri = Uri.parse("https://audio.example/current.flac")
+        val current = Track(1L, "Current", "Artist", "Album", 180_000L, uri, "streaming:netease:1")
+        val candidate = Track(2L, "Candidate", "Artist", "Album", 180_000L, uri, "streaming:netease:2")
+        val different = Track(
+            3L,
+            "Different",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://audio.example/different.flac"),
+            "streaming:netease:3"
+        )
+        val provider = provider(FakeStreamingPlaybackHeaderStore())
+
+        assertTrue(provider.tracksShareResolvedUriForReuse(current, candidate))
+        assertFalse(provider.tracksShareResolvedUriForReuse(current, different))
+        assertFalse(provider.tracksShareResolvedUriForReuse(null, candidate))
+    }
+
+    @Test
+    fun providerOwnsStreamingQualityForDiagnostics() {
+        val provider = provider(FakeStreamingPlaybackHeaderStore())
+        val track = Track(
+            42L,
+            "Stream",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://audio.example/current.flac"),
+            "streaming:netease:42?quality=LOSSLESS&sourceOptions=[]"
+        )
+
+        assertEquals("lossless", provider.streamingQualityForTrack(track))
+        assertEquals("", provider.streamingQualityForTrack(null))
+    }
+
+    @Test
+    fun providerMatchesTrackMediaIdentityUsingIdAndResolvedUri() {
+        val uri = Uri.parse("https://audio.example/current.flac")
+        val current = Track(1L, "Current", "Artist", "Album", 180_000L, uri, "streaming:netease:1")
+        val sameIdentity = Track(1L, "Candidate", "Artist", "Album", 180_000L, uri, "streaming:netease:1")
+        val sameUriDifferentId = Track(2L, "Candidate", "Artist", "Album", 180_000L, uri, "streaming:netease:2")
+        val sameIdDifferentUri = Track(
+            1L,
+            "Different",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://audio.example/different.flac"),
+            "streaming:netease:1"
+        )
+        val provider = provider(FakeStreamingPlaybackHeaderStore())
+
+        assertTrue(provider.tracksShareMediaIdentityForReuse(current, sameIdentity))
+        assertFalse(provider.tracksShareMediaIdentityForReuse(current, sameUriDifferentId))
+        assertFalse(provider.tracksShareMediaIdentityForReuse(current, sameIdDifferentUri))
+    }
+
+    @Test
+    fun providerBuildsPlayableMediaSourceWithCallerMetadata() {
+        val track = Track(
+            7L,
+            "Local",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("file:///storage/emulated/0/Music/local.flac"),
+            "/storage/emulated/0/Music/local.flac"
+        )
+        var metadataTrack: Track? = null
+        val headerStore = FakeStreamingPlaybackHeaderStore()
+
+        val mediaSource = provider(headerStore).mediaSourceForTrack(track) {
+            metadataTrack = it
+            MediaMetadata.Builder().setTitle(it.title).build()
+        }
+
+        assertSame(track, metadataTrack)
+        assertEquals("/storage/emulated/0/Music/local.flac", headerStore.restoredDataPath)
+        assertEquals(PlaybackMediaSourceProvider.playbackMediaItemForTrack(track, MediaMetadata.Builder().setTitle("Local").build()), mediaSource.mediaItem)
+    }
+
+    @Test
+    fun providerBuildsMirroredQueueMediaSourcesWithCallerMetadata() {
+        val first = Track(
+            7L,
+            "First",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("file:///storage/emulated/0/Music/first.flac"),
+            "/storage/emulated/0/Music/first.flac"
+        )
+        val second = Track(
+            8L,
+            "Second",
+            "Artist",
+            "Album",
+            181_000L,
+            Uri.parse("file:///storage/emulated/0/Music/second.flac"),
+            "/storage/emulated/0/Music/second.flac"
+        )
+        val metadataTracks = mutableListOf<Track>()
+
+        val mediaSources = provider(FakeStreamingPlaybackHeaderStore()).mediaSourcesForTracks(
+            listOf(first, second)
+        ) {
+            metadataTracks.add(it)
+            MediaMetadata.Builder().setTitle(it.title).build()
+        }
+
+        assertEquals(listOf(first, second), metadataTracks)
+        assertEquals("7", mediaSources[0].mediaItem.mediaId)
+        assertEquals("8", mediaSources[1].mediaItem.mediaId)
+        assertEquals("First", mediaSources[0].mediaItem.mediaMetadata.title.toString())
+        assertEquals("Second", mediaSources[1].mediaItem.mediaMetadata.title.toString())
+    }
+
+    @Test
+    fun providerClassifiesHttpTracksByResolvedUri() {
+        val provider = provider(FakeStreamingPlaybackHeaderStore())
+
+        assertTrue(provider.isHttpTrack(Track(1L, "Http", "Artist", "Album", 180_000L, Uri.parse("http://audio.example/a.mp3"), "streaming:1")))
+        assertTrue(provider.isHttpTrack(Track(2L, "Https", "Artist", "Album", 180_000L, Uri.parse("https://audio.example/a.mp3"), "streaming:2")))
+        assertFalse(provider.isHttpTrack(Track(3L, "Local", "Artist", "Album", 180_000L, Uri.parse("content://media/audio/3"), "local")))
+        assertFalse(provider.isHttpTrack(null))
+    }
+
+    @Test
+    fun resolvedTrackIsPlayable() {
+        val track = Track(7L, "Local", "Artist", "Album", 180_000L, Uri.parse("file:///music/local.flac"), "local")
+
+        assertTrue(PlaybackMediaSourceProvider.hasPlayableMediaUri(track))
+        assertNull(PlaybackMediaSourceProvider.unplayableMessageForTrack(track))
+    }
+
+    @Test
+    fun emptyLocalUriReturnsGenericOpenError() {
+        val track = Track(7L, "Local", "Artist", "Album", 180_000L, Uri.EMPTY, "local")
+
+        assertFalse(PlaybackMediaSourceProvider.hasPlayableMediaUri(track))
+        assertEquals("Unable to open this track.", PlaybackMediaSourceProvider.unplayableMessageForTrack(track))
+    }
+
+    @Test
+    fun emptyStreamingPlaceholderReturnsResolutionError() {
+        val track = Track(42L, "Stream", "Artist", "Album", 180_000L, Uri.EMPTY, "streaming:netease:42")
+
+        assertEquals(
+            "Streaming track is not resolved yet. Tap the track again to play.",
+            PlaybackMediaSourceProvider.unplayableMessageForTrack(track)
+        )
+    }
+
+    @Test
+    fun restoredTrackForPreparationDelegatesToHeaderStore() {
+        val unresolved = Track(42L, "Stream", "Artist", "Album", 180_000L, Uri.EMPTY, "streaming:netease:42")
+        val resolved = Track(
+            42L,
+            "Stream",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://audio.example/current.flac"),
+            "streaming:netease:42"
+        )
+        val headerStore = FakeStreamingPlaybackHeaderStore(restoredTrack = resolved)
+
+        val result = provider(headerStore).restoredTrackForPreparation(unresolved)
+
+        assertSame(unresolved, headerStore.restoredTrackInput)
+        assertSame(resolved, result)
+    }
+
+    @Test
+    fun prepareTrackForPlaybackUsesRestoredTrackAndOwnedUnplayablePolicy() {
+        val unresolved = Track(42L, "Stream", "Artist", "Album", 180_000L, Uri.EMPTY, "streaming:netease:42")
+        val resolved = Track(
+            42L,
+            "Stream",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://audio.example/current.flac"),
+            "streaming:netease:42"
+        )
+        val headerStore = FakeStreamingPlaybackHeaderStore(restoredTrack = resolved)
+
+        val preparation = provider(headerStore).prepareTrackForPlayback(unresolved)
+
+        assertSame(unresolved, headerStore.restoredTrackInput)
+        assertSame(resolved, preparation.restoredTrack)
+        assertSame(resolved, preparation.track)
+        assertTrue(preparation.playable)
+        assertNull(preparation.unplayableMessage)
+    }
+
+    @Test
+    fun prepareTrackForPlaybackReturnsUnplayableMessageForUnresolvedTrack() {
+        val unresolved = Track(42L, "Stream", "Artist", "Album", 180_000L, Uri.EMPTY, "streaming:netease:42")
+
+        val preparation = provider(FakeStreamingPlaybackHeaderStore()).prepareTrackForPlayback(unresolved)
+
+        assertNull(preparation.restoredTrack)
+        assertSame(unresolved, preparation.track)
+        assertFalse(preparation.playable)
+        assertEquals(
+            "Streaming track is not resolved yet. Tap the track again to play.",
+            preparation.unplayableMessage
+        )
+    }
+
+    @Test
+    fun restoreHeadersForTrackDelegatesDataPathToHeaderStore() {
+        val track = Track(42L, "Stream", "Artist", "Album", 180_000L, Uri.EMPTY, "streaming:netease:42")
+        val headerStore = FakeStreamingPlaybackHeaderStore()
+
+        assertTrue(provider(headerStore).restoreHeadersForTrack(track))
+
+        assertEquals("streaming:netease:42", headerStore.restoredDataPath)
+    }
+
+    @Test
+    fun restoreHeadersForDataPathDelegatesToHeaderStore() {
+        val headerStore = FakeStreamingPlaybackHeaderStore()
+
+        assertTrue(provider(headerStore).restoreHeadersForDataPath("streaming:netease:99"))
+
+        assertEquals("streaming:netease:99", headerStore.restoredDataPath)
+    }
+
+    private fun provider(headerStore: StreamingPlaybackHeaderStore): PlaybackMediaSourceProvider {
+        val context = RuntimeEnvironment.getApplication()
+        return PlaybackMediaSourceProvider(
+            context,
+            MusicLibraryRepository(context, FakeStreamingDataPathParser),
+            headerStore
+        )
+    }
+
+    private object FakeStreamingDataPathParser : StreamingDataPathParser {
+        override fun isStreamingTrack(dataPath: String): Boolean = dataPath.startsWith("streaming:")
+        override fun providerName(dataPath: String): String? = dataPath.substringAfter("streaming:", "").substringBefore(":")
+        override fun providerTrackId(dataPath: String): String = dataPath.substringAfterLast(":")
+    }
+
+    private class FakeStreamingPlaybackHeaderStore(
+        private val restoredTrack: Track? = null
+    ) : StreamingPlaybackHeaderStore {
+        var restoredTrackInput: Track? = null
+            private set
+        var restoredDataPath: String? = null
+            private set
+
+        override fun register(dataPath: String, headers: Map<String, String>) = Unit
+
+        override fun forDataPath(dataPath: String?): Map<String, String> = emptyMap()
+
+        override fun restoreForDataPath(dataPath: String?): Boolean {
+            restoredDataPath = dataPath
+            return true
+        }
+
+        override fun restoredTrackFor(track: Track?): Track? {
+            restoredTrackInput = track
+            return restoredTrack
+        }
     }
 }

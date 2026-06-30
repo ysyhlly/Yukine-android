@@ -114,7 +114,7 @@ class SettingsRuntimeApplierTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val applier = MainSettingsRuntimeApplierFactory(context).create(
             applyThemeSurfaceAction = SettingsThemeSurfaceApplier { calls += "theme" },
-            playbackServiceProvider = { null },
+            playbackServiceControlsProvider = SettingsPlaybackServiceControlsProvider { null },
             lyricsViewModelProvider = { null },
             permissionControllerProvider = { null }
         )

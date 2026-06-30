@@ -15,28 +15,182 @@ class PlaybackShutdownCoordinatorTest {
     }
 
     @Test
-    fun releaseServiceResourcesRunsFullServiceTeardown() {
+    fun releasePlaybackResourcesRunsOnce() {
         val calls = mutableListOf<String>()
         val coordinator = coordinator(calls)
 
-        coordinator.releaseServiceResources()
+        coordinator.releasePlaybackResources()
+        coordinator.releasePlaybackResources()
+
+        assertEquals(listOf("lyrics", "wifi", "player"), calls)
+    }
+
+    @Test
+    fun handleServiceDestroyedRunsFullServiceTeardown() {
+        val calls = mutableListOf<String>()
+        val coordinator = coordinator(calls)
+
+        coordinator.handleServiceDestroyed()
 
         assertEquals(
-            listOf("lyrics", "noisy", "schedulers", "callbacks", "artwork", "precache", "wifi", "player"),
+            listOf("position", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "schedulers", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "precache", "state", "wifi", "player"),
             calls
         )
     }
 
-    private fun coordinator(calls: MutableList<String>): PlaybackShutdownCoordinator {
+    @Test
+    fun handleTaskRemovedPersistsResumeRequestFromPlaybackState() {
+        val calls = mutableListOf<String>()
+        val coordinator = coordinator(calls, playing = false, preparing = true, notificationWorthy = false)
+
+        coordinator.handleTaskRemoved()
+
+        assertEquals(listOf("position", "queue", "resume:true"), calls)
+    }
+
+    @Test
+    fun handleTaskRemovedPublishesNotificationOnlyWhenWorthy() {
+        val calls = mutableListOf<String>()
+        val coordinator = coordinator(calls, playing = true, preparing = false, notificationWorthy = true)
+
+        coordinator.handleTaskRemoved()
+
+        assertEquals(listOf("position", "queue", "resume:true", "notification"), calls)
+    }
+
+    @Test
+    fun handleServiceDestroyedPersistsPositionBeforeFullServiceTeardown() {
+        val calls = mutableListOf<String>()
+        val coordinator = coordinator(calls)
+
+        coordinator.handleServiceDestroyed()
+
+        assertEquals(
+            listOf("position", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "schedulers", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "precache", "state", "wifi", "player"),
+            calls
+        )
+    }
+
+    @Test
+    fun handleServiceDestroyedRunsTeardownOnce() {
+        val calls = mutableListOf<String>()
+        val coordinator = coordinator(calls)
+
+        coordinator.handleServiceDestroyed()
+        coordinator.handleServiceDestroyed()
+
+        assertEquals(
+            listOf("position", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "schedulers", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "precache", "state", "wifi", "player"),
+            calls
+        )
+    }
+
+    private fun coordinator(
+        calls: MutableList<String>,
+        playing: Boolean = false,
+        preparing: Boolean = false,
+        notificationWorthy: Boolean = false
+    ): PlaybackShutdownCoordinator {
         return PlaybackShutdownCoordinator(
-            playbackLyricsRelease = Runnable { calls.add("lyrics") },
-            playbackNotificationArtworkRelease = Runnable { calls.add("artwork") },
-            playbackPrecacheRelease = Runnable { calls.add("precache") },
-            unregisterNoisyReceiver = Runnable { calls.add("noisy") },
-            clearMainCallbacks = Runnable { calls.add("callbacks") },
-            shutdownTaskSchedulers = Runnable { calls.add("schedulers") },
-            releaseWifiLock = Runnable { calls.add("wifi") },
-            releasePlayer = Runnable { calls.add("player") }
+            playbackResources = object : PlaybackShutdownCoordinator.PlaybackResources {
+                override fun releaseLyrics() {
+                    calls.add("lyrics")
+                }
+
+                override fun releaseWifiLock() {
+                    calls.add("wifi")
+                }
+
+                override fun releasePlayer() {
+                    calls.add("player")
+                }
+            },
+            serviceResources = object : PlaybackShutdownCoordinator.ServiceResources {
+                override fun unregisterNoisyReceiver() {
+                    calls.add("noisy")
+                }
+
+                override fun releaseWarmup() {
+                    calls.add("warmup")
+                }
+
+                override fun releaseVisualizationAnalyzer() {
+                    calls.add("analyzer")
+                }
+
+                override fun releaseRecoveryScheduler() {
+                    calls.add("recovery-scheduler")
+                }
+
+                override fun shutdownTaskSchedulers() {
+                    calls.add("schedulers")
+                }
+
+                override fun releaseErrorRecovery() {
+                    calls.add("recovery")
+                }
+
+                override fun releaseProgressUpdates() {
+                    calls.add("progress")
+                }
+
+                override fun releaseSleepTimer() {
+                    calls.add("sleep")
+                }
+
+                override fun releaseCrossfade() {
+                    calls.add("crossfade")
+                }
+
+                override fun clearMainCallbacks() {
+                    calls.add("callbacks")
+                }
+
+                override fun releaseVisualizationCache() {
+                    calls.add("visualization")
+                }
+
+                override fun releaseNotificationArtwork() {
+                    calls.add("artwork")
+                }
+
+                override fun releasePrecache() {
+                    calls.add("precache")
+                }
+
+                override fun releaseStatePublisher() {
+                    calls.add("state")
+                }
+            },
+            lifecycleResources = object : PlaybackShutdownCoordinator.LifecycleResources {
+                override fun persistPlaybackPosition() {
+                    calls.add("position")
+                }
+
+                override fun persistPlaybackQueue() {
+                    calls.add("queue")
+                }
+
+                override fun savePlaybackResumeRequested(requested: Boolean) {
+                    calls.add("resume:$requested")
+                }
+
+                override fun isPlaying(): Boolean {
+                    return playing
+                }
+
+                override fun isPreparing(): Boolean {
+                    return preparing
+                }
+
+                override fun hasNotificationWorthyState(): Boolean {
+                    return notificationWorthy
+                }
+
+                override fun publishPlaybackNotification() {
+                    calls.add("notification")
+                }
+            }
         )
     }
 }

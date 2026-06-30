@@ -19,13 +19,18 @@ import java.util.ArrayList
 internal class PlaybackMediaLibraryCallback(
     private val dataSource: DataSource
 ) : MediaLibrarySession.Callback {
+    data class ControllerQueue(
+        val tracks: List<Track>,
+        val startIndex: Int,
+        val startPositionMs: Long
+    )
+
     interface DataSource {
         fun appName(): String
         fun loadCachedTracks(): List<Track>
         fun loadPlaylists(): List<Playlist>
         fun loadRecentlyPlayed(limit: Int): List<TrackPlayRecord>
         fun loadPlaylistTracks(playlistId: Long): List<Track>
-        fun mediaMetadataForTrack(track: Track): MediaMetadata
         fun mediaItemForTrack(track: Track): MediaItem
     }
 
@@ -211,7 +216,7 @@ internal class PlaybackMediaLibraryCallback(
             return items
         }
         for (track in tracks) {
-            if (track != null && track.contentUri != null && track.contentUri != android.net.Uri.EMPTY) {
+            if (PlaybackMediaSourceProvider.hasPlayableMediaUri(track)) {
                 items.add(autoMediaItemForTrack(track))
             }
         }
@@ -230,8 +235,16 @@ internal class PlaybackMediaLibraryCallback(
         return tracks
     }
 
-    fun resolveTracksForMediaItems(mediaItems: List<MediaItem>?): List<Track> {
-        return tracksForMediaItems(mediaItems)
+    fun controllerQueueForMediaItems(
+        mediaItems: List<MediaItem>?,
+        startIndex: Int,
+        startPositionMs: Long
+    ): ControllerQueue? {
+        val tracks = tracksForMediaItems(mediaItems)
+        if (tracks.isEmpty()) {
+            return null
+        }
+        return ControllerQueue(tracks, startIndex, startPositionMs)
     }
 
     private fun trackForMediaItem(mediaItem: MediaItem?, tracksById: Map<Long, Track>): Track? {
@@ -264,12 +277,13 @@ internal class PlaybackMediaLibraryCallback(
     }
 
     private fun autoMediaItemForTrack(track: Track): MediaItem {
+        val playableItem = mediaItemForTrack(track)
         val metadata = MediaMetadata.Builder()
-            .populate(dataSource.mediaMetadataForTrack(track))
+            .populate(playableItem.mediaMetadata)
             .setIsBrowsable(false)
             .setIsPlayable(true)
             .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
-        return mediaItemForTrack(track)
+        return playableItem
             .buildUpon()
             .setMediaId(AUTO_TRACK_PREFIX + track.id)
             .setMediaMetadata(metadata.build())

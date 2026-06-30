@@ -90,7 +90,6 @@ class MainNetworkActionsListenerTest {
         val calls = mutableListOf<String>()
 
         override fun serviceConnected(): Boolean = true
-        override fun startPlaybackService(action: String?) = Unit
         override fun snapshot(): PlaybackStateSnapshot? = null
         override fun queueSnapshot(): List<Track> = emptyList()
         override fun skipToPrevious() = Unit
@@ -109,7 +108,7 @@ class MainNetworkActionsListenerTest {
             calls += "retain:${trackIds.sorted().joinToString(",")}"
         }
 
-        override fun precacheTrack(track: Track) = Unit
+        override fun warmPlaybackTrack(track: Track) = Unit
         override fun appendToQueue(tracks: List<Track>) = Unit
         override fun replaceCurrentTrackAndResume(track: Track, positionMs: Long) = Unit
         override fun startSleepTimerMinutes(minutes: Int) = Unit

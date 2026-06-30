@@ -13,8 +13,12 @@ internal class PlaybackStatePublisher(
     private val widgetUpdater: WidgetUpdater
 ) {
     private val listeners = CopyOnWriteArraySet<PlaybackStateListener>()
+    private var released = false
 
     fun publishState() {
+        if (released) {
+            return
+        }
         val snapshot = snapshotProvider()
         lyricsPublisher?.syncFloatingLyricsPlaybackState(snapshot)
         notificationUpdater?.updateMediaNotification(false)
@@ -26,11 +30,14 @@ internal class PlaybackStatePublisher(
     }
 
     fun publishNotification(force: Boolean) {
+        if (released) {
+            return
+        }
         notificationUpdater?.updateMediaNotification(force)
     }
 
     fun registerListener(listener: PlaybackStateListener?) {
-        if (listener == null) {
+        if (released || listener == null) {
             return
         }
         listeners.add(listener)
@@ -44,11 +51,19 @@ internal class PlaybackStatePublisher(
     }
 
     fun publishBufferingState(recordBuffering: BufferingRecorder?) {
+        if (released) {
+            return
+        }
         val snapshot = snapshotProvider()
         recordBuffering?.record(snapshot)
         listeners.forEach { listener ->
             listener.onPlaybackBuffering(snapshot)
         }
+    }
+
+    fun release() {
+        released = true
+        listeners.clear()
     }
 
     internal fun interface BufferingRecorder {

@@ -4,12 +4,17 @@ import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
 
 internal interface FavoriteOperations {
+    fun isFavorite(trackId: Long): Boolean
     fun setFavorite(track: Track, favorite: Boolean)
 }
 
 internal class MusicLibraryFavoriteOperations(
     private val repository: MusicLibraryRepository
 ) : FavoriteOperations {
+    override fun isFavorite(trackId: Long): Boolean {
+        return repository.isFavorite(trackId)
+    }
+
     override fun setFavorite(track: Track, favorite: Boolean) {
         repository.setFavorite(track, favorite)
     }
@@ -24,5 +29,17 @@ internal class ToggleFavoriteUseCase(
         }
         operations.setFavorite(track, favorite)
         return true
+    }
+
+    fun toggle(track: Track?): Boolean {
+        if (track == null) {
+            return false
+        }
+        operations.setFavorite(track, !operations.isFavorite(track.id))
+        return true
+    }
+
+    fun isFavorite(track: Track?): Boolean {
+        return track != null && operations.isFavorite(track.id)
     }
 }

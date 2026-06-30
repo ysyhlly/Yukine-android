@@ -19,6 +19,7 @@ final class PlaybackTaskScheduler implements Executor {
     private final AtomicLong sequence = new AtomicLong();
     private final Thread worker;
     private final int threadPriority;
+    private final Runnable beforeTaskRun;
     private volatile boolean running = true;
 
     PlaybackTaskScheduler(String threadName) {
@@ -26,7 +27,14 @@ final class PlaybackTaskScheduler implements Executor {
     }
 
     PlaybackTaskScheduler(String threadName, int priority) {
+        this(threadName, priority, () -> {
+        });
+    }
+
+    PlaybackTaskScheduler(String threadName, int priority, Runnable beforeTaskRun) {
         threadPriority = priority;
+        this.beforeTaskRun = beforeTaskRun == null ? () -> {
+        } : beforeTaskRun;
         worker = new Thread(this::runLoop, threadName);
         worker.setDaemon(true);
         worker.setPriority(javaPriority(priority));
@@ -59,7 +67,16 @@ final class PlaybackTaskScheduler implements Executor {
         }
         while (running) {
             try {
-                queue.take().runnable.run();
+                Runnable runnable = queue.take().runnable;
+                beforeTaskRun.run();
+                if (!running) {
+                    return;
+                }
+                try {
+                    runnable.run();
+                } catch (RuntimeException ignored) {
+                    // Keep later playback tasks alive when one cache/resolve task fails.
+                }
             } catch (InterruptedException ignored) {
                 if (!running) {
                     return;

@@ -3,7 +3,6 @@ package app.yukine
 import androidx.lifecycle.ViewModel
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackRepeatMode
-import app.yukine.playback.PlaybackServiceActions
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingProviderName
@@ -57,7 +56,6 @@ data class PlaybackActionResultUi(
 
 interface NowPlayingPlaybackGateway {
     fun serviceConnected(): Boolean
-    fun startPlaybackService(action: String?)
     fun snapshot(): PlaybackStateSnapshot?
     fun queueSnapshot(): List<Track>
     fun skipToPrevious()
@@ -69,7 +67,7 @@ interface NowPlayingPlaybackGateway {
     fun replaceQueuedTrack(updated: Track)
     fun replaceQueuedTrackById(oldTrackId: Long, updated: Track)
     fun retainTracksById(trackIds: Set<Long>)
-    fun precacheTrack(track: Track)
+    fun warmPlaybackTrack(track: Track)
     fun appendToQueue(tracks: List<Track>)
     fun replaceCurrentTrackAndResume(track: Track, positionMs: Long)
     fun startSleepTimerMinutes(minutes: Int)
@@ -214,21 +212,11 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
     }
 
     fun skipToPrevious() {
-        val player = playbackGateway ?: return
-        if (player.serviceConnected()) {
-            player.skipToPrevious()
-        } else {
-            player.startPlaybackService(PlaybackServiceActions.PREVIOUS)
-        }
+        playbackGateway?.skipToPrevious()
     }
 
     fun skipToNext() {
-        val player = playbackGateway ?: return
-        if (player.serviceConnected()) {
-            player.skipToNext()
-        } else {
-            player.startPlaybackService(PlaybackServiceActions.NEXT)
-        }
+        playbackGateway?.skipToNext()
     }
 
     fun seekTo(positionMs: Long) {
@@ -263,7 +251,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun replaceQueuedTrack(oldTrackId: Long, updated: Track?) {
         val player = playbackGateway ?: return
-        if (!player.serviceConnected() || updated == null) {
+        if (updated == null) {
             return
         }
         if (oldTrackId == updated.id) {
@@ -273,17 +261,17 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         }
     }
 
-    fun precacheTrack(track: Track?) {
+    fun warmPlaybackTrack(track: Track?) {
         val player = playbackGateway ?: return
-        if (!player.serviceConnected() || track == null) {
+        if (track == null) {
             return
         }
-        player.precacheTrack(track)
+        player.warmPlaybackTrack(track)
     }
 
     fun appendToQueue(tracks: List<Track>?) {
         val player = playbackGateway ?: return
-        if (!player.serviceConnected() || tracks.isNullOrEmpty()) {
+        if (tracks.isNullOrEmpty()) {
             return
         }
         player.appendToQueue(tracks)
@@ -291,7 +279,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun replaceCurrentTrackAndResume(track: Track?, positionMs: Long) {
         val player = playbackGateway ?: return
-        if (!player.serviceConnected() || track == null) {
+        if (track == null) {
             return
         }
         player.replaceCurrentTrackAndResume(track, positionMs)
@@ -299,7 +287,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun retainTracks(tracksToKeep: List<Track>?) {
         val player = playbackGateway ?: return
-        if (!player.serviceConnected() || tracksToKeep == null) {
+        if (tracksToKeep == null) {
             return
         }
         player.retainTracksById(tracksToKeep.map { track -> track.id }.toSet())
@@ -360,10 +348,8 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         if (playbackState != null && playbackState.playing) {
             player.pause()
         } else if (playbackState != null && playbackState.currentTrack != null) {
-            player.startPlaybackService(null)
             player.play()
         } else if (!fallbackTracks.isNullOrEmpty()) {
-            player.startPlaybackService(null)
             player.playQueue(fallbackTracks, 0)
         }
         return PlaybackActionResultUi(player.snapshot(), null, false, false, true, false)

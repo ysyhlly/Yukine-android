@@ -15,11 +15,6 @@ import dagger.hilt.android.scopes.ActivityScoped
 internal object LibraryModule {
     @Provides
     @ActivityScoped
-    fun provideToggleFavoriteUseCase(repository: MusicLibraryRepository): ToggleFavoriteUseCase =
-        ToggleFavoriteUseCase(MusicLibraryFavoriteOperations(repository))
-
-    @Provides
-    @ActivityScoped
     fun provideLoadPlaylistTracksUseCase(repository: MusicLibraryRepository): LoadPlaylistTracksUseCase =
         LoadPlaylistTracksUseCase(MusicLibraryPlaylistTrackOperations(repository))
 

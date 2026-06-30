@@ -22,8 +22,12 @@ internal class PlaybackProgressUpdateManager @JvmOverloads constructor(
     }
 
     private val progressRunnable = Runnable { onProgressTick() }
+    private var released = false
 
     fun startIfNeeded() {
+        if (released) {
+            return
+        }
         scheduler.removeCallbacks(progressRunnable)
         if (shouldRun()) {
             scheduler.postDelayed(progressRunnable, tickMs)
@@ -34,10 +38,18 @@ internal class PlaybackProgressUpdateManager @JvmOverloads constructor(
         scheduler.removeCallbacks(progressRunnable)
     }
 
+    fun release() {
+        released = true
+        stop()
+    }
+
     private fun onProgressTick() {
+        if (released) {
+            return
+        }
         actions.publishState()
         actions.persistPlaybackPosition()
-        if (shouldRun()) {
+        if (!released && shouldRun()) {
             scheduler.postDelayed(progressRunnable, tickMs)
         }
     }

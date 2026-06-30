@@ -70,6 +70,26 @@ class PlaybackProgressUpdateManagerTest {
         assertEquals(null, scheduler.pendingRunnable)
     }
 
+    @Test
+    fun releasePreventsAlreadyDequeuedTickFromPublishingOrRescheduling() {
+        val scheduler = FakeScheduler()
+        val actions = FakeActions()
+        val manager = PlaybackProgressUpdateManager(
+            scheduler,
+            FakeStateProvider(playing = true),
+            actions
+        )
+
+        manager.startIfNeeded()
+        val dequeuedTick = scheduler.takePending()
+        manager.release()
+        dequeuedTick?.run()
+        manager.startIfNeeded()
+
+        assertEquals(emptyList<String>(), actions.calls)
+        assertEquals(null, scheduler.pendingRunnable)
+    }
+
     private class FakeScheduler : PlaybackProgressUpdateManager.CallbackScheduler {
         var pendingRunnable: Runnable? = null
         var lastDelayMs: Long = -1L
@@ -91,6 +111,12 @@ class PlaybackProgressUpdateManagerTest {
             val runnable = pendingRunnable
             pendingRunnable = null
             runnable?.run()
+        }
+
+        fun takePending(): Runnable? {
+            val runnable = pendingRunnable
+            pendingRunnable = null
+            return runnable
         }
     }
 

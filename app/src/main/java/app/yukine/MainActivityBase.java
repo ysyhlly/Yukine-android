@@ -923,7 +923,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         settingsViewModel.bindStoreMirror(settingsStore::sync);
         SettingsRuntimeApplier settingsRuntimeApplier = settingsRuntimeApplierFactory.create(
                 () -> uiShellController.applyThemeSurface(),
-                () -> playbackService,
+                () -> playbackService == null ? null : new MainSettingsPlaybackServiceControls(playbackService),
                 () -> lyricsViewModel,
                 () -> permissionController
         );

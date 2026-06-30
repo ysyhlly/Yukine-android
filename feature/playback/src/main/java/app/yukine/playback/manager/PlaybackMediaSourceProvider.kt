@@ -14,6 +14,8 @@ import androidx.media3.datasource.cache.ContentMetadata
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.MediaSource
+import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingPlaybackHeaderStore
@@ -36,7 +38,7 @@ internal class PlaybackMediaSourceProvider(
             httpFactory.setDefaultRequestProperties(headers)
         }
         val upstreamFactory = DefaultDataSource.Factory(context, httpFactory)
-        if (!isHttpUri(track.contentUri)) {
+        if (!isHttpTrack(track)) {
             return DefaultMediaSourceFactory(upstreamFactory)
         }
         val cacheFactory = CacheDataSource.Factory()
@@ -63,6 +65,78 @@ internal class PlaybackMediaSourceProvider(
 
     fun mediaItemForTrack(track: Track, metadataProvider: ((Track) -> MediaMetadata)?): MediaItem {
         return playbackMediaItemForTrack(track, metadataProvider?.invoke(track))
+    }
+
+    fun mediaSourceForTrack(track: Track, metadataProvider: ((Track) -> MediaMetadata)?): MediaSource {
+        restoreHeadersForTrack(track)
+        return mediaSourceFactory(track).createMediaSource(mediaItemForTrack(track, metadataProvider))
+    }
+
+    fun mediaSourcesForTracks(
+        tracks: List<Track>,
+        metadataProvider: ((Track) -> MediaMetadata)?
+    ): List<MediaSource> {
+        return tracks.map { track -> mediaSourceForTrack(track, metadataProvider) }
+    }
+
+    fun mediaItemMatchesTrackForReuse(mediaItem: MediaItem?, track: Track?): Boolean {
+        if (track == null) {
+            return false
+        }
+        return mediaItemMatchesTrackForReuse(
+            mediaItem,
+            track.id,
+            track.contentUri,
+            cacheKeyForTrack(track)
+        )
+    }
+
+    fun tracksShareResolvedUriForReuse(current: Track?, candidate: Track?): Boolean {
+        val currentUri = current?.contentUri ?: return false
+        val candidateUri = candidate?.contentUri ?: return false
+        return currentUri == candidateUri
+    }
+
+    fun tracksShareMediaIdentityForReuse(current: Track?, candidate: Track?): Boolean {
+        if (current == null || candidate == null || current.id != candidate.id) {
+            return false
+        }
+        return tracksShareResolvedUriForReuse(current, candidate)
+    }
+
+    fun streamingQualityForTrack(track: Track?): String {
+        return StreamingDataPathMetadata.quality(track?.dataPath)
+    }
+
+    data class PlaybackPreparation(
+        val track: Track,
+        val restoredTrack: Track?,
+        val playable: Boolean,
+        val unplayableMessage: String?
+    )
+
+    fun prepareTrackForPlayback(track: Track): PlaybackPreparation {
+        val restoredTrack = restoredTrackForPreparation(track)
+        val preparedTrack = restoredTrack ?: track
+        val unplayableMessage = unplayableMessageForTrack(preparedTrack)
+        return PlaybackPreparation(
+            track = preparedTrack,
+            restoredTrack = restoredTrack,
+            playable = unplayableMessage == null,
+            unplayableMessage = unplayableMessage
+        )
+    }
+
+    fun restoredTrackForPreparation(track: Track?): Track? {
+        return streamingPlaybackHeaderStore.restoredTrackFor(track)
+    }
+
+    fun restoreHeadersForTrack(track: Track?): Boolean {
+        return restoreHeadersForDataPath(track?.dataPath)
+    }
+
+    fun restoreHeadersForDataPath(dataPath: String?): Boolean {
+        return streamingPlaybackHeaderStore.restoreForDataPath(dataPath)
     }
 
     fun audioCache(): SimpleCache {
@@ -134,8 +208,8 @@ internal class PlaybackMediaSourceProvider(
         }
     }
 
-    fun isHttpUri(uri: Uri?): Boolean {
-        if (uri == null) return false
+    fun isHttpTrack(track: Track?): Boolean {
+        val uri = track?.contentUri ?: return false
         val scheme = uri.scheme
         return "http".equals(scheme, ignoreCase = true) || "https".equals(scheme, ignoreCase = true)
     }
@@ -160,6 +234,24 @@ internal class PlaybackMediaSourceProvider(
     companion object {
         private const val TAG = "PlaybackMediaSource"
         private const val AUDIO_CACHE_MAX_BYTES = 1024L * 1024L * 1024L
+
+        @JvmStatic
+        fun hasPlayableMediaUri(track: Track?): Boolean {
+            val uri = track?.contentUri ?: return false
+            return uri != Uri.EMPTY
+        }
+
+        @JvmStatic
+        fun unplayableMessageForTrack(track: Track?): String? {
+            if (track == null || hasPlayableMediaUri(track)) {
+                return null
+            }
+            return if (StreamingDataPathMetadata.isStreamingTrack(track.dataPath)) {
+                "Streaming track is not resolved yet. Tap the track again to play."
+            } else {
+                "Unable to open this track."
+            }
+        }
 
         @JvmStatic
         fun mediaCacheKey(track: Track?): String? {

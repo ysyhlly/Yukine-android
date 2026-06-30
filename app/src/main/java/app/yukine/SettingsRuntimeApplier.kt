@@ -2,7 +2,6 @@ package app.yukine
 
 import android.content.Context
 import app.yukine.playback.AudioEffectSettings
-import app.yukine.playback.EchoPlaybackService
 
 internal fun interface SettingsThemeSurfaceApplier {
     fun apply()
@@ -28,15 +27,13 @@ internal class MainSettingsRuntimeApplierFactory(
 ) {
     fun create(
         applyThemeSurfaceAction: SettingsThemeSurfaceApplier,
-        playbackServiceProvider: () -> EchoPlaybackService?,
+        playbackServiceControlsProvider: SettingsPlaybackServiceControlsProvider,
         lyricsViewModelProvider: () -> LyricsViewModel?,
         permissionControllerProvider: () -> MainPermissionController?
     ): SettingsRuntimeApplier =
         SettingsRuntimeApplier(
             applyThemeSurfaceAction,
-            SettingsPlaybackServiceControlsProvider {
-                playbackServiceProvider()?.let(::MainSettingsPlaybackServiceControls)
-            },
+            playbackServiceControlsProvider,
             SettingsLyricsControlsProvider {
                 lyricsViewModelProvider()?.let(::MainSettingsLyricsControls)
             },
@@ -44,38 +41,6 @@ internal class MainSettingsRuntimeApplierFactory(
                 MainSettingsFloatingLyricsControls(context, permissionControllerProvider)
             }
         )
-}
-
-internal class MainSettingsPlaybackServiceControls(
-    private val service: EchoPlaybackService
-) : SettingsPlaybackServiceControls {
-    override fun setPlaybackSpeed(speed: Float) {
-        service.setPlaybackSpeed(speed)
-    }
-
-    override fun setAppVolume(volume: Float) {
-        service.setAppVolume(volume)
-    }
-
-    override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
-        service.setConcurrentPlaybackEnabled(enabled)
-    }
-
-    override fun applyAudioEffectSettings(settings: AudioEffectSettings) {
-        service.applyAudioEffectSettings(settings)
-    }
-
-    override fun setStatusBarLyricsEnabled(enabled: Boolean) {
-        service.setStatusBarLyricsEnabled(enabled)
-    }
-
-    override fun setPlaybackRestoreEnabled(enabled: Boolean) {
-        service.setPlaybackRestoreEnabled(enabled)
-    }
-
-    override fun setReplayGainEnabled(enabled: Boolean) {
-        service.setReplayGainEnabled(enabled)
-    }
 }
 
 internal class MainSettingsLyricsControls(

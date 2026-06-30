@@ -32,6 +32,20 @@ class PlaybackWarmupCoordinatorTest {
         assertEquals(emptyList<String>(), calls)
     }
 
+    @Test
+    fun releaseStopsFutureWarmupFanout() {
+        val calls = mutableListOf<String>()
+        val coordinator = PlaybackWarmupCoordinator(
+            precacheTrack = { calls.add("precache:${it.id}") },
+            scheduleVisualizationCache = { calls.add("visual:${it.id}") }
+        )
+
+        coordinator.release()
+        coordinator.warmup(track(42L))
+
+        assertEquals(emptyList<String>(), calls)
+    }
+
     private fun track(id: Long): Track {
         return Track(id, "Track $id", "Artist", "Album", 180000L, Uri.EMPTY, "track-$id")
     }

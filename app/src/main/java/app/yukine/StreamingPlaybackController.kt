@@ -40,7 +40,7 @@ internal class StreamingPlaybackController(
             listener.applyPlaybackActionResult(
                 nowPlayingViewModel.playTrackList(resolved.tracks, resolved.index)
             )
-            resolved.tracks.getOrNull(resolved.index)?.let(nowPlayingViewModel::precacheTrack)
+            resolved.tracks.getOrNull(resolved.index)?.let(nowPlayingViewModel::warmPlaybackTrack)
         }
         if (scheduled) {
             listener.setStatus(
@@ -64,7 +64,7 @@ internal class StreamingPlaybackController(
                 return@preResolveNextStreamingTrack
             }
             nowPlayingViewModel.replaceQueuedTrack(oldTrackId, resolved)
-            nowPlayingViewModel.precacheTrack(resolved)
+            nowPlayingViewModel.warmPlaybackTrack(resolved)
         }
         streamingViewModel.preResolveStreamingQueueWindow(
             snapshot,
@@ -75,7 +75,7 @@ internal class StreamingPlaybackController(
                 return@preResolveStreamingQueueWindow
             }
             nowPlayingViewModel.replaceQueuedTrack(oldTrackId, resolved)
-            nowPlayingViewModel.precacheTrack(resolved)
+            nowPlayingViewModel.warmPlaybackTrack(resolved)
         }
     }
 

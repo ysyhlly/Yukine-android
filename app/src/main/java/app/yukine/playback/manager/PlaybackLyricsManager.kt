@@ -9,14 +9,18 @@ import app.yukine.playback.PlaybackStateSnapshot
 
 internal class PlaybackLyricsManager(
     private val context: Context,
-    private val stateProvider: StateProvider
+    private val stateProvider: StateProvider,
+    private val notificationBridge: NotificationBridge
 ) : LyricsPublisher {
     interface StateProvider {
-        fun hasNotificationWorthyState(): Boolean
         fun isAppVisible(): Boolean
         fun currentTrack(): Track?
         fun isPlaying(): Boolean
         fun isPreparing(): Boolean
+    }
+
+    interface NotificationBridge {
+        fun hasNotificationWorthyState(): Boolean
         fun notifyMediaNotification(force: Boolean)
         fun refreshPlaybackSession()
     }
@@ -24,51 +28,65 @@ internal class PlaybackLyricsManager(
     private var statusBarLyricsEnabled = true
     private var lastNotificationLyric = ""
     private var lastLyricNotificationUpdateAtMs = 0L
+    private var released = false
 
     private val floatingLyricsListener = FloatingLyricsPublisher.Listener { state ->
+        if (released) {
+            return@Listener
+        }
         val nextLyric = state?.let { sanitizeNotificationLyric(it.activeLine) } ?: ""
         if (nextLyric == lastNotificationLyric) {
             return@Listener
         }
         lastNotificationLyric = nextLyric
-        if (stateProvider.hasNotificationWorthyState()) {
+        if (notificationBridge.hasNotificationWorthyState()) {
             val now = System.currentTimeMillis()
             if (!stateProvider.isAppVisible() && now - lastLyricNotificationUpdateAtMs < BACKGROUND_LYRIC_NOTIFICATION_MIN_INTERVAL_MS) {
                 return@Listener
             }
             lastLyricNotificationUpdateAtMs = now
-            stateProvider.notifyMediaNotification(false)
+            notificationBridge.notifyMediaNotification(false)
             updateLiveLyricsNotificationService(nextLyric)
         }
     }
 
     override fun bind() {
+        if (released) {
+            return
+        }
         FloatingLyricsPublisher.addListener(floatingLyricsListener)
     }
 
     override fun release() {
+        released = true
         FloatingLyricsPublisher.removeListener(floatingLyricsListener)
         LiveLyricsNotificationService.stop(context)
     }
 
     override fun setStatusBarLyricsEnabled(enabled: Boolean) {
+        if (released) {
+            return
+        }
         if (statusBarLyricsEnabled == enabled) {
             return
         }
         statusBarLyricsEnabled = enabled
         lastNotificationLyric = ""
         updateLiveLyricsNotificationService(notificationLyricText(stateProvider.currentTrack()))
-        stateProvider.refreshPlaybackSession()
-        stateProvider.notifyMediaNotification(true)
+        notificationBridge.refreshPlaybackSession()
+        notificationBridge.notifyMediaNotification(true)
     }
 
     override fun syncFloatingLyricsPlaybackState(snapshot: PlaybackStateSnapshot) {
+        if (released) {
+            return
+        }
         if (snapshot.currentTrack == null) {
             return
         }
         val state = FloatingLyricsPublisher.snapshot()
         val track = snapshot.currentTrack
-        val activeLine = if (state != null && floatingLyricsTrackMatches(state, track)) {
+        val activeLine = if (floatingLyricsTrackMatches(state, track)) {
             state.activeLine
         } else {
             ""
@@ -83,11 +101,14 @@ internal class PlaybackLyricsManager(
     }
 
     override fun notificationLyricText(track: Track?): String {
+        if (released) {
+            return ""
+        }
         if (!statusBarLyricsEnabled || track == null) {
             return ""
         }
         val state = FloatingLyricsPublisher.snapshot()
-        if (state == null || track.title != state.trackTitle) {
+        if (track.title != state.trackTitle) {
             return ""
         }
         val activeLine = state.activeLine

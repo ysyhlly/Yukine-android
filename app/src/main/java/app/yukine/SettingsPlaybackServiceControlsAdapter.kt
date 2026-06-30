@@ -1,0 +1,45 @@
+package app.yukine
+
+import app.yukine.playback.AudioEffectSettings
+
+interface SettingsPlaybackServicePort {
+    fun setPlaybackSpeed(speed: Float)
+    fun setAppVolume(volume: Float)
+    fun setConcurrentPlaybackEnabled(enabled: Boolean)
+    fun applyAudioEffectSettings(settings: AudioEffectSettings)
+    fun setStatusBarLyricsEnabled(enabled: Boolean)
+    fun setPlaybackRestoreEnabled(enabled: Boolean)
+    fun setReplayGainEnabled(enabled: Boolean)
+}
+
+internal class MainSettingsPlaybackServiceControls(
+    private val service: SettingsPlaybackServicePort
+) : SettingsPlaybackServiceControls {
+    override fun setPlaybackSpeed(speed: Float) {
+        service.setPlaybackSpeed(speed)
+    }
+
+    override fun setAppVolume(volume: Float) {
+        service.setAppVolume(volume)
+    }
+
+    override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
+        service.setConcurrentPlaybackEnabled(enabled)
+    }
+
+    override fun applyAudioEffectSettings(settings: AudioEffectSettings) {
+        service.applyAudioEffectSettings(settings)
+    }
+
+    override fun setStatusBarLyricsEnabled(enabled: Boolean) {
+        service.setStatusBarLyricsEnabled(enabled)
+    }
+
+    override fun setPlaybackRestoreEnabled(enabled: Boolean) {
+        service.setPlaybackRestoreEnabled(enabled)
+    }
+
+    override fun setReplayGainEnabled(enabled: Boolean) {
+        service.setReplayGainEnabled(enabled)
+    }
+}

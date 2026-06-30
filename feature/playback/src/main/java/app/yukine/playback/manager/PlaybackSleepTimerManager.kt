@@ -21,8 +21,12 @@ internal class PlaybackSleepTimerManager @JvmOverloads constructor(
 
     private var endsAtMs = 0L
     private val timerRunnable = Runnable { onTimerTick() }
+    private var released = false
 
     fun startMinutes(minutes: Int) {
+        if (released) {
+            return
+        }
         if (minutes <= 0) {
             cancel(publish = true)
             return
@@ -35,9 +39,14 @@ internal class PlaybackSleepTimerManager @JvmOverloads constructor(
     fun cancel(publish: Boolean) {
         endsAtMs = 0L
         scheduler.removeCallbacks(timerRunnable)
-        if (publish) {
+        if (publish && !released) {
             actions.publishState()
         }
+    }
+
+    fun release() {
+        released = true
+        cancel(publish = false)
     }
 
     fun remainingMs(): Long {
@@ -48,7 +57,7 @@ internal class PlaybackSleepTimerManager @JvmOverloads constructor(
     }
 
     private fun onTimerTick() {
-        if (endsAtMs <= 0L) {
+        if (released || endsAtMs <= 0L) {
             return
         }
         val remainingMs = remainingMs()
@@ -62,6 +71,9 @@ internal class PlaybackSleepTimerManager @JvmOverloads constructor(
     }
 
     private fun scheduleNextTick() {
+        if (released) {
+            return
+        }
         scheduler.removeCallbacks(timerRunnable)
         val remainingMs = remainingMs()
         if (remainingMs > 0L) {

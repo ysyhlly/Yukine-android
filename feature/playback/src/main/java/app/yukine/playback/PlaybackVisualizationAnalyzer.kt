@@ -1,24 +1,35 @@
 package app.yukine.playback
 
 import android.content.Context
-import android.net.Uri
 import androidx.media3.datasource.DataSpec
-import androidx.media3.datasource.cache.CacheDataSource
 import app.yukine.model.Track
+import app.yukine.playback.manager.PlaybackMediaSourceProvider
 
-internal class PlaybackVisualizationAnalyzer(
+internal class PlaybackVisualizationAnalyzer internal constructor(
     private val context: Context,
-    private val taskScheduler: PlaybackTaskScheduler,
-    private val stateProvider: StateProvider
+    private val taskScheduler: VisualizationTaskScheduler,
+    private val stateProvider: StateProvider,
+    private val mediaSourceProvider: PlaybackMediaSourceProvider
 ) {
+    constructor(
+        context: Context,
+        taskScheduler: PlaybackTaskScheduler,
+        stateProvider: StateProvider,
+        mediaSourceProvider: PlaybackMediaSourceProvider
+    ) : this(
+        context,
+        VisualizationTaskScheduler { priority, task -> taskScheduler.schedule(priority, task) },
+        stateProvider,
+        mediaSourceProvider
+    )
+
+    fun interface VisualizationTaskScheduler {
+        fun schedule(priority: PlaybackTaskScheduler.Priority, task: Runnable)
+    }
+
     interface StateProvider {
         fun isAppVisible(): Boolean
-        fun isHttpUri(uri: Uri?): Boolean
-        fun cacheDataSourceForTrack(track: Track): CacheDataSource
-        fun mediaCacheKeyForTrack(track: Track): String
-        fun continuousCachedBytes(cacheKey: String): Long
         fun bufferedProgress(durationMs: Long): Float
-        fun contentLengthForCacheKey(cacheKey: String): Long
         fun publishState()
     }
 
@@ -31,9 +42,10 @@ internal class PlaybackVisualizationAnalyzer(
     private var spectrumGeneratedProgress = 0.0f
     private var spectrumSnapshot = PlaybackSpectrumSnapshot.empty()
     private var visualizationWarmupUntilMs = 0L
+    private var released = false
 
     fun waveformSnapshot(track: Track?, durationMs: Long, deferGeneration: Boolean): PlaybackWaveformSnapshot {
-        if (track == null || durationMs <= 0L || !stateProvider.isHttpUri(track.contentUri)) {
+        if (released || track == null || durationMs <= 0L || !mediaSourceProvider.isHttpTrack(track)) {
             return PlaybackWaveformSnapshot.empty()
         }
         resetWaveformIfTrackChanged(track)
@@ -51,14 +63,14 @@ internal class PlaybackVisualizationAnalyzer(
     }
 
     fun spectrumSnapshot(track: Track?, durationMs: Long, deferGeneration: Boolean): PlaybackSpectrumSnapshot {
-        if (track == null || durationMs <= 0L || track.contentUri == null || Uri.EMPTY == track.contentUri) {
+        if (released || track == null || durationMs <= 0L || !PlaybackMediaSourceProvider.hasPlayableMediaUri(track)) {
             return PlaybackSpectrumSnapshot.empty()
         }
         resetWaveformIfTrackChanged(track)
         if (!stateProvider.isAppVisible() || deferGeneration) {
             return spectrumSnapshot
         }
-        val cachedProgress = if (stateProvider.isHttpUri(track.contentUri)) {
+        val cachedProgress = if (mediaSourceProvider.isHttpTrack(track)) {
             visualizationCachedProgress(track, durationMs)
         } else {
             1.0f
@@ -73,6 +85,9 @@ internal class PlaybackVisualizationAnalyzer(
     }
 
     fun resetWaveformIfTrackChanged(track: Track?) {
+        if (released) {
+            return
+        }
         val key = waveformKey(track)
         if (key == waveformTrackKey) {
             return
@@ -88,15 +103,25 @@ internal class PlaybackVisualizationAnalyzer(
     }
 
     fun postponePlaybackVisualizationWarmup() {
+        if (released) {
+            return
+        }
         visualizationWarmupUntilMs = System.currentTimeMillis() + PLAYBACK_VISUALIZATION_WARMUP_MS
     }
 
     fun shouldDeferPlaybackVisualization(): Boolean {
-        return System.currentTimeMillis() < visualizationWarmupUntilMs
+        return !released && System.currentTimeMillis() < visualizationWarmupUntilMs
+    }
+
+    fun release() {
+        released = true
+        waveformGeneratingKey = ""
+        spectrumGeneratingKey = ""
+        visualizationWarmupUntilMs = 0L
     }
 
     private fun maybeGenerateSpectrum(track: Track, durationMs: Long, cachedProgress: Float, allowQuickStart: Boolean) {
-        if (track.contentUri == null || Uri.EMPTY == track.contentUri || cachedProgress <= 0.005f) {
+        if (released || !PlaybackMediaSourceProvider.hasPlayableMediaUri(track) || cachedProgress <= 0.005f) {
             return
         }
         var targetProgress = cachedProgress
@@ -129,14 +154,17 @@ internal class PlaybackVisualizationAnalyzer(
         val spectrumCachedProgress = targetProgress
         val requestedCachedProgress = cachedProgress
         val spectrumQuickStart = quickStart
-        val spectrumIsHttp = stateProvider.isHttpUri(track.contentUri)
-        val spectrumCacheKey = if (spectrumIsHttp) stateProvider.mediaCacheKeyForTrack(track) else ""
-        val spectrumCachedBytes = if (spectrumIsHttp) stateProvider.continuousCachedBytes(spectrumCacheKey) else 0L
+        val spectrumIsHttp = mediaSourceProvider.isHttpTrack(track)
+        val spectrumCacheKey = if (spectrumIsHttp) mediaSourceProvider.mediaCacheKeyForTrack(track) else ""
+        val spectrumCachedBytes = if (spectrumIsHttp) mediaSourceProvider.continuousCachedBytes(spectrumCacheKey) else 0L
         if (spectrumIsHttp && (spectrumCacheKey.isEmpty() || spectrumCachedBytes <= 0L)) {
             spectrumGeneratingKey = ""
             return
         }
-        taskScheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_WAVEFORM) {
+        taskScheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_WAVEFORM, Runnable {
+            if (released) {
+                return@Runnable
+            }
             val generated = if (spectrumIsHttp) {
                 val dataSpec = DataSpec.Builder()
                     .setUri(spectrumTrack.contentUri)
@@ -146,7 +174,7 @@ internal class PlaybackVisualizationAnalyzer(
                     .setFlags(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION)
                     .build()
                 PlaybackSpectrumGenerator.extract(
-                    stateProvider.cacheDataSourceForTrack(spectrumTrack),
+                    mediaSourceProvider.cacheDataSourceForTrack(spectrumTrack),
                     dataSpec,
                     spectrumDurationMs,
                     spectrumCachedProgress
@@ -168,7 +196,7 @@ internal class PlaybackVisualizationAnalyzer(
                 spectrumQuickStart,
                 spectrumDurationMs
             )
-        }
+        })
     }
 
     private fun applySpectrumResult(
@@ -180,7 +208,7 @@ internal class PlaybackVisualizationAnalyzer(
         spectrumQuickStart: Boolean,
         spectrumDurationMs: Long
     ) {
-        if (!waveformKey(spectrumTrack).equals(waveformTrackKey) || taskKey != spectrumGeneratingKey) {
+        if (released || !waveformKey(spectrumTrack).equals(waveformTrackKey) || taskKey != spectrumGeneratingKey) {
             return
         }
         spectrumGeneratingKey = ""
@@ -204,7 +232,10 @@ internal class PlaybackVisualizationAnalyzer(
     }
 
     private fun maybeGenerateStreamingWaveform(track: Track, durationMs: Long, cachedProgress: Float) {
-        val cacheKey = stateProvider.mediaCacheKeyForTrack(track)
+        if (released) {
+            return
+        }
+        val cacheKey = mediaSourceProvider.mediaCacheKeyForTrack(track)
         if (cacheKey.isEmpty() || cachedProgress <= 0.005f) {
             return
         }
@@ -225,7 +256,7 @@ internal class PlaybackVisualizationAnalyzer(
         ) {
             return
         }
-        val cachedBytes = stateProvider.continuousCachedBytes(cacheKey)
+        val cachedBytes = mediaSourceProvider.continuousCachedBytes(cacheKey)
         if (cachedBytes <= 0L) {
             return
         }
@@ -238,10 +269,13 @@ internal class PlaybackVisualizationAnalyzer(
         val waveformDurationMs = durationMs
         val waveformCachedProgress = cachedProgress
         val waveformCachedBytes = cachedBytes
-        taskScheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_WAVEFORM) {
+        taskScheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_WAVEFORM, Runnable {
+            if (released) {
+                return@Runnable
+            }
             val generated = StreamingWaveformGenerator.extract(
                 context,
-                stateProvider.cacheDataSourceForTrack(waveformTrack),
+                mediaSourceProvider.cacheDataSourceForTrack(waveformTrack),
                 DataSpec.Builder()
                     .setUri(waveformTrack.contentUri)
                     .setPosition(0L)
@@ -260,7 +294,7 @@ internal class PlaybackVisualizationAnalyzer(
                 waveformCachedProgress,
                 targetGeneratedBars
             )
-        }
+        })
     }
 
     private fun applyWaveformResult(
@@ -270,7 +304,7 @@ internal class PlaybackVisualizationAnalyzer(
         waveformCachedProgress: Float,
         targetGeneratedBars: Int
     ) {
-        if (!waveformKey(waveformTrack).equals(waveformTrackKey) || taskKey != waveformGeneratingKey) {
+        if (released || !waveformKey(waveformTrack).equals(waveformTrackKey) || taskKey != waveformGeneratingKey) {
             return
         }
         waveformGeneratingKey = ""
@@ -288,8 +322,8 @@ internal class PlaybackVisualizationAnalyzer(
         if (durationMs <= 0L) {
             return 0.0f
         }
-        val cacheKey = stateProvider.mediaCacheKeyForTrack(track)
-        val cachedBytes = stateProvider.continuousCachedBytes(cacheKey)
+        val cacheKey = mediaSourceProvider.mediaCacheKeyForTrack(track)
+        val cachedBytes = mediaSourceProvider.continuousCachedBytes(cacheKey)
         val contentLength = contentLengthForCacheKey(cacheKey)
         val byteProgress = if (contentLength > 0L && cachedBytes > 0L) {
             maxOf(0.0f, minOf(1.0f, cachedBytes / contentLength.toFloat()))
@@ -303,7 +337,7 @@ internal class PlaybackVisualizationAnalyzer(
         if (cacheKey.isEmpty()) {
             return -1L
         }
-        return stateProvider.contentLengthForCacheKey(cacheKey)
+        return mediaSourceProvider.contentLengthForCacheKey(cacheKey)
     }
 
     private fun waveformKey(track: Track?): String {

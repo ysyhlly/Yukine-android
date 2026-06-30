@@ -18,6 +18,7 @@ public final class MainActivityArchitectureContractTest {
 
         assertFalse(service.contains("import app.yukine.MainActivity"));
         assertFalse(service.contains("MainActivity.class"));
+        assertFalse(service.contains("MainActivityBase"));
         assertTrue(service.contains("getPackageManager().getLaunchIntentForPackage(getPackageName())"));
         assertTrue(service.contains("intent = new Intent(Intent.ACTION_MAIN)"));
     }
@@ -29,6 +30,99 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void rootPackageDoesNotAddPlaybackFacadeOrBroadCoordinatorFiles() throws Exception {
+        assertEquals(0, countFiles("app/src/main/java/app/yukine", "*Facade*"));
+        assertEquals(0, countFiles("app/src/test/java/app/yukine", "*Facade*"));
+        assertEquals(1, countFiles("app/src/main/java/app/yukine", "*Coordinator*"));
+        assertTrue(exists("app/src/main/java/app/yukine/NetworkRenderCoordinator.kt"));
+        assertFalse(exists("app/src/main/java/app/yukine/PlaybackServiceFacade.kt"));
+        assertFalse(exists("app/src/main/java/app/yukine/PlaybackServiceFacade.java"));
+        assertFalse(exists("app/src/main/java/app/yukine/PlaybackFacade.kt"));
+        assertFalse(exists("app/src/main/java/app/yukine/PlaybackFacade.java"));
+        assertFalse(exists("app/src/main/java/app/yukine/PlaybackCoordinator.kt"));
+        assertFalse(exists("app/src/main/java/app/yukine/PlaybackCoordinator.java"));
+        assertFalse(exists("app/src/main/java/app/yukine/SettingsCoordinator.kt"));
+        assertFalse(exists("app/src/main/java/app/yukine/StreamingCoordinator.kt"));
+    }
+
+    @Test
+    public void playbackServiceAndOwnersDoNotDependOnActivityClasses() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        assertFalse(service.contains("import app.yukine.MainActivity"));
+        assertFalse(service.contains("MainActivity.class"));
+        assertFalse(service.contains("MainActivityBase"));
+
+        for (Path source : sourceFiles("feature/playback/src/main/java")) {
+            assertSourceDoesNotContain(source, "MainActivity");
+            assertSourceDoesNotContain(source, "MainActivityBase");
+        }
+    }
+
+    @Test
+    public void uiAndViewModelsDoNotDependOnConcretePlaybackService() throws Exception {
+        for (Path source : sourceFiles("app/src/main/java/app/yukine")) {
+            String normalized = source.toString().replace('\\', '/');
+            String fileName = source.getFileName().toString();
+            if (fileName.contains("ViewModel")
+                    || normalized.contains("/app/src/main/java/app/yukine/ui/")
+                    || normalized.contains("/app/src/main/java/app/yukine/navigation/")) {
+                assertSourceDoesNotContain(source, "EchoPlaybackService");
+            }
+        }
+        for (Path source : sourceFiles("feature/ui-common/src/main/java/app/yukine/ui")) {
+            assertSourceDoesNotContain(source, "EchoPlaybackService");
+        }
+        for (Path source : sourceFiles("feature/navigation/src/main/java")) {
+            assertSourceDoesNotContain(source, "EchoPlaybackService");
+        }
+
+        String nowPlayingPlaybackGatewayAdapter = read("app/src/main/java/app/yukine/NowPlayingPlaybackGatewayAdapter.kt");
+        String nowPlayingPlaybackServiceStarter = read("app/src/main/java/app/yukine/NowPlayingPlaybackServiceStarter.kt");
+        String settingsPlaybackServiceControlsAdapter = read("app/src/main/java/app/yukine/SettingsPlaybackServiceControlsAdapter.kt");
+        assertFalse(nowPlayingPlaybackGatewayAdapter.contains("EchoPlaybackService"));
+        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("NowPlayingPlaybackServicePort"));
+        assertTrue(nowPlayingPlaybackServiceStarter.contains("EchoPlaybackService::class.java"));
+        assertFalse(settingsPlaybackServiceControlsAdapter.contains("EchoPlaybackService"));
+        assertTrue(settingsPlaybackServiceControlsAdapter.contains("SettingsPlaybackServicePort"));
+    }
+
+    @Test
+    public void concretePlaybackServiceReferencesStayAtAndroidBoundaries() throws Exception {
+        for (Path source : sourceFiles("app/src/main/java/app/yukine")) {
+            String normalized = source.toString().replace('\\', '/');
+            if (normalized.contains("/app/src/main/java/app/yukine/playback/")) {
+                continue;
+            }
+            String content = new String(Files.readAllBytes(source), StandardCharsets.UTF_8);
+            if (content.contains("EchoPlaybackService")) {
+                assertTrue(
+                        source + " must keep concrete EchoPlaybackService usage at Android service boundaries",
+                        isAllowedConcretePlaybackServiceBoundary(normalized)
+                );
+            }
+        }
+
+        for (Path source : sourceFiles("feature/playback/src/main/java")) {
+            assertSourceDoesNotContain(source, "EchoPlaybackService");
+        }
+        for (Path source : sourceFiles("feature/ui-common/src/main/java")) {
+            assertSourceDoesNotContain(source, "EchoPlaybackService");
+        }
+        for (Path source : sourceFiles("feature/navigation/src/main/java")) {
+            assertSourceDoesNotContain(source, "EchoPlaybackService");
+        }
+
+        String nowPlayingPlaybackGatewayAdapter = read("app/src/main/java/app/yukine/NowPlayingPlaybackGatewayAdapter.kt");
+        String settingsPlaybackServiceControlsAdapter = read("app/src/main/java/app/yukine/SettingsPlaybackServiceControlsAdapter.kt");
+        String playbackServiceConnectionController = read("app/src/main/java/app/yukine/PlaybackServiceConnectionController.kt");
+        String nowPlayingPlaybackServiceStarter = read("app/src/main/java/app/yukine/NowPlayingPlaybackServiceStarter.kt");
+        assertTrue(playbackServiceConnectionController.contains("Intent(context, EchoPlaybackService::class.java)"));
+        assertTrue(nowPlayingPlaybackServiceStarter.contains("Intent(context, EchoPlaybackService::class.java)"));
+        assertFalse(nowPlayingPlaybackGatewayAdapter.contains("EchoPlaybackService"));
+        assertFalse(settingsPlaybackServiceControlsAdapter.contains("EchoPlaybackService"));
+    }
+
+    @Test
     public void mainActivityShellIsKotlinManifestEntryPoint() throws Exception {
         String shell = read("app/src/main/java/app/yukine/MainActivity.kt");
         String legacyBase = read("app/src/main/java/app/yukine/MainActivityBase.java");
@@ -36,6 +130,7 @@ public final class MainActivityArchitectureContractTest {
         String shellModule = read("app/src/main/java/app/yukine/di/ShellModule.kt");
         String platformModule = read("app/src/main/java/app/yukine/di/PlatformModule.kt");
         String libraryModule = read("app/src/main/java/app/yukine/LibraryModule.kt");
+        String toggleFavoriteModule = read("app/src/main/java/app/yukine/ToggleFavoriteModule.kt");
         String playbackUiModule = read("app/src/main/java/app/yukine/PlaybackUiModule.kt");
         String streamingModule = read("app/src/main/java/app/yukine/StreamingModule.kt");
         String settingsModule = read("app/src/main/java/app/yukine/SettingsModule.kt");
@@ -143,7 +238,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(platformModule.contains("fun provideMainPermissionListenerFactory(): MainPermissionListenerFactory"));
         assertTrue(libraryModule.contains("@InstallIn(ActivityComponent::class)"));
         assertTrue(libraryModule.contains("internal object LibraryModule"));
-        assertTrue(libraryModule.contains("fun provideToggleFavoriteUseCase(repository: MusicLibraryRepository): ToggleFavoriteUseCase"));
+        assertFalse(libraryModule.contains("fun provideToggleFavoriteUseCase(repository: MusicLibraryRepository): ToggleFavoriteUseCase"));
+        assertTrue(toggleFavoriteModule.contains("@InstallIn(ActivityComponent::class, ServiceComponent::class)"));
+        assertTrue(toggleFavoriteModule.contains("internal object ToggleFavoriteModule"));
+        assertTrue(toggleFavoriteModule.contains("fun provideToggleFavoriteUseCase(repository: MusicLibraryRepository): ToggleFavoriteUseCase"));
         assertTrue(libraryModule.contains("fun provideLoadPlaylistTracksUseCase(repository: MusicLibraryRepository): LoadPlaylistTracksUseCase"));
         assertTrue(libraryModule.contains("fun provideLibrarySearchUseCase(repository: MusicLibraryRepository): LibrarySearchUseCase"));
         assertTrue(libraryModule.contains("LibrarySearchUseCase(MusicLibrarySearchOperations(repository))"));
@@ -525,6 +623,7 @@ public final class MainActivityArchitectureContractTest {
         String mainPlaybackActionListener = read("app/src/main/java/app/yukine/MainPlaybackActionListener.kt");
         String playbackUiModule = read("app/src/main/java/app/yukine/PlaybackUiModule.kt");
         String nowPlayingPlaybackGatewayAdapter = read("app/src/main/java/app/yukine/NowPlayingPlaybackGatewayAdapter.kt");
+        String nowPlayingPlaybackServiceStarter = read("app/src/main/java/app/yukine/NowPlayingPlaybackServiceStarter.kt");
         String trackShareLauncher = read("app/src/main/java/app/yukine/TrackShareLauncher.kt");
         String trackShareManager = read("app/src/main/java/app/yukine/TrackShareManager.kt");
         String nowPlayingStateController = read("app/src/main/java/app/yukine/NowPlayingStateController.kt");
@@ -803,19 +902,24 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(nowPlayingViewModel.contains("fun onEvent(event: NowPlayingEvent)"));
         assertTrue(nowPlayingViewModel.contains("fun playTrackList(tracks: List<Track>?, index: Int): PlaybackActionResultUi"));
         assertTrue(nowPlayingViewModel.contains("player.playQueue(tracks, index)"));
-        assertTrue(nowPlayingViewModel.contains("fun precacheTrack(track: Track?)"));
-        assertTrue(nowPlayingViewModel.contains("player.precacheTrack(track)"));
+        assertTrue(nowPlayingViewModel.contains("fun warmPlaybackTrack(track: Track?)"));
+        assertTrue(nowPlayingViewModel.contains("player.warmPlaybackTrack(track)"));
+        assertFalse(nowPlayingViewModel.contains("fun precacheTrack(track: Track?)"));
+        assertFalse(nowPlayingViewModel.contains("player.precacheTrack(track)"));
         assertTrue(nowPlayingViewModel.contains("fun appendToQueue(tracks: List<Track>?)"));
         assertTrue(nowPlayingViewModel.contains("player.appendToQueue(tracks)"));
         assertTrue(nowPlayingViewModel.contains("fun replaceCurrentTrackAndResume(track: Track?, positionMs: Long)"));
         assertTrue(nowPlayingViewModel.contains("player.replaceCurrentTrackAndResume(track, positionMs)"));
+        assertFalse(nowPlayingViewModel.contains("!player.serviceConnected() || updated == null"));
+        assertFalse(nowPlayingViewModel.contains("!player.serviceConnected() || track == null"));
+        assertFalse(nowPlayingViewModel.contains("!player.serviceConnected() || tracks.isNullOrEmpty()"));
+        assertFalse(nowPlayingViewModel.contains("!player.serviceConnected() || tracksToKeep == null"));
         assertFalse(nowPlayingViewModel.contains("import app.yukine.playback.EchoPlaybackService"));
         assertFalse(nowPlayingViewModel.contains("EchoPlaybackService.ACTION_PREVIOUS"));
         assertFalse(nowPlayingViewModel.contains("EchoPlaybackService.REPEAT_ALL"));
-        assertTrue(nowPlayingViewModel.contains("import app.yukine.playback.PlaybackServiceActions"));
+        assertFalse(nowPlayingViewModel.contains("import app.yukine.playback.PlaybackServiceActions"));
         assertTrue(nowPlayingViewModel.contains("import app.yukine.playback.PlaybackRepeatMode"));
-        assertTrue(nowPlayingViewModel.contains("player.startPlaybackService(PlaybackServiceActions.PREVIOUS)"));
-        assertTrue(nowPlayingViewModel.contains("player.startPlaybackService(PlaybackServiceActions.NEXT)"));
+        assertFalse(nowPlayingViewModel.contains("startPlaybackService(PlaybackServiceActions"));
         assertTrue(nowPlayingViewModel.contains("player.setRepeatMode(PlaybackRepeatMode.REPEAT_ALL)"));
         assertTrue(nowPlayingViewModel.contains("data class OpenAddToPlaylist(val track: Track)"));
         assertTrue(nowPlayingViewModel.contains("emitEffect(NowPlayingEffect.OpenAddToPlaylist(track))"));
@@ -1174,19 +1278,26 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("nowPlayingViewModel.bindGateway(new ActivityNowPlayingGateway())"));
         assertFalse(mainActivity.contains("private final class ActivityNowPlayingGateway implements NowPlayingGateway"));
         assertTrue(nowPlayingPlaybackGatewayAdapter.contains("internal class MainNowPlayingPlaybackGatewayFactory("));
-        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("fun create(serviceProvider: () -> EchoPlaybackService?): NowPlayingPlaybackGateway"));
-        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("internal class NowPlayingPlaybackServiceStarter("));
-        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("Intent(context, EchoPlaybackService::class.java)"));
-        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("context.startService(intent)"));
+        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("fun create(serviceProvider: () -> NowPlayingPlaybackServicePort?): NowPlayingPlaybackGateway"));
+        assertTrue(nowPlayingPlaybackServiceStarter.contains("internal class NowPlayingPlaybackServiceStarter("));
+        assertTrue(nowPlayingPlaybackServiceStarter.contains("Intent(context, EchoPlaybackService::class.java)"));
+        assertTrue(nowPlayingPlaybackServiceStarter.contains("context.startService(intent)"));
         assertTrue(nowPlayingPlaybackGatewayAdapter.contains("internal class NowPlayingPlaybackGatewayAdapter("));
         assertTrue(nowPlayingPlaybackGatewayAdapter.contains(") : NowPlayingPlaybackGateway"));
         assertFalse(nowPlayingPlaybackGatewayAdapter.contains("fun interface ServiceProvider"));
         assertFalse(nowPlayingPlaybackGatewayAdapter.contains("fun interface ServiceStarter"));
-        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("private val serviceProvider: () -> EchoPlaybackService?"));
+        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("private val serviceProvider: () -> NowPlayingPlaybackServicePort?"));
         assertTrue(nowPlayingPlaybackGatewayAdapter.contains("private val serviceStarter: (String?) -> Unit"));
-        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("private fun service(): EchoPlaybackService? = serviceProvider()"));
-        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("serviceStarter(action)"));
-        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("service()?.playQueue(ArrayList(tracks), index)"));
+        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("private fun service(): NowPlayingPlaybackServicePort? = serviceProvider()"));
+        assertFalse(nowPlayingPlaybackGatewayAdapter.contains("override fun startPlaybackService(action: String?)"));
+        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("serviceStarter(PlaybackServiceActions.PREVIOUS)"));
+        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("serviceStarter(PlaybackServiceActions.NEXT)"));
+        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("serviceStarter(null)"));
+        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("service()?.playQueue(tracks, index)"));
+        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("fun warmPlaybackTrack(track: Track)"));
+        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("service()?.warmPlaybackTrack(track)"));
+        assertFalse(nowPlayingPlaybackGatewayAdapter.contains("fun precacheTrack(track: Track)"));
+        assertFalse(nowPlayingPlaybackGatewayAdapter.contains("service()?.precacheTrack(track)"));
         assertTrue(mainActivity.contains("nowPlayingViewModel.bindPlaybackGateway(nowPlayingPlaybackGatewayFactory.create("));
         assertFalse(mainActivity.contains("nowPlayingViewModel.bindPlaybackGateway(new NowPlayingPlaybackGatewayAdapter("));
         assertFalse(mainActivity.contains("Intent intent = new Intent(MainActivityBase.this, EchoPlaybackService.class);"));
@@ -1417,6 +1528,7 @@ public final class MainActivityArchitectureContractTest {
         String visualizationAnalyzer = read("app/src/main/java/app/yukine/playback/PlaybackVisualizationAnalyzer.kt");
         String visualizationCacheManager = read("app/src/main/java/app/yukine/playback/PlaybackVisualizationCacheManager.java");
         String notificationArtworkManager = read("app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkManager.java");
+        String normalizedNotificationArtworkManager = notificationArtworkManager.replace("\r\n", "\n");
 
         assertTrue(playbackService.contains("PLAYBACK_VISUALIZATION_CACHE_DELAY_MS"));
         assertTrue(playbackService.contains("private static final float[] EMPTY_REALTIME_BANDS = new float[0];"));
@@ -1433,19 +1545,50 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(visualizationAnalyzer.contains("fun spectrumSnapshot(track: Track?, durationMs: Long, deferGeneration: Boolean)"));
         assertTrue(visualizationAnalyzer.contains("fun postponePlaybackVisualizationWarmup()"));
         assertTrue(visualizationAnalyzer.contains("fun shouldDeferPlaybackVisualization(): Boolean"));
-        assertTrue(visualizationAnalyzer.contains("taskScheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_WAVEFORM)"));
+        assertTrue(visualizationAnalyzer.contains("fun release()"));
+        assertTrue(visualizationAnalyzer.contains("private var released = false"));
+        assertTrue(visualizationAnalyzer.contains("fun interface VisualizationTaskScheduler"));
+        assertTrue(visualizationAnalyzer.contains("taskScheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_WAVEFORM, Runnable {"));
+        assertTrue(visualizationAnalyzer.contains("return@Runnable"));
         assertTrue(visualizationAnalyzer.contains("PlaybackWaveformMergePolicy.merge("));
         assertTrue(visualizationAnalyzer.contains("private fun maybeGenerateSpectrum("));
         assertTrue(visualizationAnalyzer.contains("private fun maybeGenerateStreamingWaveform("));
         assertTrue(visualizationAnalyzer.contains("private fun visualizationCachedProgress("));
         assertTrue(visualizationAnalyzer.contains("contentLengthForCacheKey(cacheKey)"));
+        assertTrue(visualizationAnalyzer.contains("private val mediaSourceProvider: PlaybackMediaSourceProvider"));
+        assertTrue(visualizationAnalyzer.contains("mediaSourceProvider.isHttpTrack(track)"));
+        assertTrue(visualizationAnalyzer.contains("mediaSourceProvider.cacheDataSourceForTrack("));
+        assertTrue(visualizationAnalyzer.contains("mediaSourceProvider.mediaCacheKeyForTrack(track)"));
+        assertTrue(visualizationAnalyzer.contains("mediaSourceProvider.continuousCachedBytes(cacheKey)"));
+        assertTrue(visualizationAnalyzer.contains("mediaSourceProvider.contentLengthForCacheKey(cacheKey)"));
+        assertFalse(visualizationAnalyzer.contains("fun isHttpUri(uri: Uri?): Boolean"));
+        assertFalse(visualizationAnalyzer.contains("fun cacheDataSourceForTrack(track: Track): CacheDataSource"));
+        assertFalse(visualizationAnalyzer.contains("fun mediaCacheKeyForTrack(track: Track): String"));
+        assertFalse(visualizationAnalyzer.contains("fun continuousCachedBytes(cacheKey: String): Long"));
+        assertFalse(visualizationAnalyzer.contains("        fun contentLengthForCacheKey(cacheKey: String): Long"));
         assertTrue(visualizationCacheManager.contains("final class PlaybackVisualizationCacheManager"));
         assertTrue(visualizationCacheManager.contains("void scheduleVisualizationCache(Track track)"));
-        assertTrue(visualizationCacheManager.contains("cacheVisualizationWindow(visualTrack)"));
+        assertTrue(visualizationCacheManager.contains("void scheduleVisualizationCacheTask(Runnable task);"));
+        assertTrue(visualizationCacheManager.contains("stateProvider.scheduleVisualizationCacheTask(() -> cacheVisualizationWindow(visualTrack, generation))"));
+        assertTrue(visualizationCacheManager.contains("void release()"));
+        assertTrue(visualizationCacheManager.contains("cacheGeneration.incrementAndGet();"));
+        assertTrue(visualizationCacheManager.contains("activeCacheWriters"));
+        assertTrue(visualizationCacheManager.contains("writer.cancel();"));
+        assertTrue(visualizationCacheManager.contains("private boolean isCurrentCacheGeneration(int generation)"));
         assertTrue(visualizationCacheManager.contains("VISUALIZATION_CACHE_BYTES"));
-        assertTrue(playbackService.contains("return mediaSourceProvider.cacheDataSourceForTrack(track);"));
-        assertTrue(playbackService.contains("return mediaSourceProvider.continuousCachedBytes(cacheKey);"));
-        assertTrue(playbackService.contains("return mediaSourceProvider.contentLengthForCacheKey(cacheKey);"));
+        assertTrue(visualizationCacheManager.contains("private final PlaybackMediaSourceProvider mediaSourceProvider;"));
+        assertTrue(visualizationCacheManager.contains("mediaSourceProvider.isHttpTrack(track)"));
+        assertTrue(visualizationCacheManager.contains("mediaSourceProvider.cacheKeyForTrack(track)"));
+        assertTrue(visualizationCacheManager.contains("mediaSourceProvider.continuousCachedBytes(cacheKey)"));
+        assertTrue(visualizationCacheManager.contains("mediaSourceProvider.cacheDataSourceForTrack(track)"));
+        assertFalse(visualizationCacheManager.contains("boolean isHttpUri(Uri uri);"));
+        assertFalse(visualizationCacheManager.contains("String cacheKeyForTrack(Track track);"));
+        assertFalse(visualizationCacheManager.contains("long continuousCachedBytes(String cacheKey);"));
+        assertFalse(visualizationCacheManager.contains("PlaybackTaskScheduler visualizationTaskScheduler();"));
+        assertFalse(visualizationCacheManager.contains("PlaybackCacheDependencies cacheDependencies();"));
+        assertFalse(visualizationCacheManager.contains("interface PlaybackCacheDependencies"));
+        assertFalse(playbackService.contains("public long contentLengthForCacheKey(String cacheKey)"));
+        assertFalse(playbackService.contains("public PlaybackVisualizationCacheManager.PlaybackCacheDependencies cacheDependencies()"));
         assertFalse(playbackService.contains("private void maybeGenerateSpectrum("));
         assertFalse(playbackService.contains("private void maybeGenerateStreamingWaveform("));
         assertFalse(playbackService.contains("private float visualizationCachedProgress("));
@@ -1457,12 +1600,25 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("private SimpleCache audioCache("));
         assertFalse(playbackService.contains("cacheVisualizationWindow(Track track)"));
         assertTrue(notificationArtworkManager.contains("final class PlaybackNotificationArtworkManager"));
+        assertTrue(notificationArtworkManager.contains("interface NotificationBridge"));
+        assertTrue(notificationArtworkManager.contains("interface ArtworkLoader"));
+        assertTrue(notificationArtworkManager.contains("interface ArtworkEncoder"));
+        assertTrue(notificationArtworkManager.contains("private final NotificationBridge notificationBridge;"));
+        assertTrue(notificationArtworkManager.contains("private final AtomicInteger artworkGeneration"));
+        assertTrue(notificationArtworkManager.contains("artworkGeneration.incrementAndGet();"));
+        assertTrue(notificationArtworkManager.contains("notificationBridge.refreshPlaybackSession();"));
+        assertTrue(notificationArtworkManager.contains("notificationBridge.updateMediaNotification();"));
+        assertFalse(normalizedNotificationArtworkManager.contains("interface StateProvider {\n        Track currentTrack();\n        void refreshPlaybackSession();"));
+        assertFalse(normalizedNotificationArtworkManager.contains("interface StateProvider {\n        Track currentTrack();\n        void updateMediaNotification();"));
         assertTrue(notificationArtworkManager.contains("Bitmap notificationArtworkFor(Track track)"));
         assertTrue(notificationArtworkManager.contains("byte[] notificationArtworkDataFor(Track track)"));
         assertTrue(notificationArtworkManager.contains("void loadNotificationArtworkAsync(Track track, String key)"));
         assertTrue(notificationArtworkManager.contains("decodeNotificationArtwork(Uri uri)"));
         assertTrue(notificationArtworkManager.contains("openNotificationArtworkStream(Uri uri)"));
         assertTrue(notificationArtworkManager.contains("artworkSampleSize(int width, int height, int targetPx)"));
+        assertTrue(notificationArtworkManager.contains("int generation = artworkGeneration.get();"));
+        assertTrue(notificationArtworkManager.contains("if (!isCurrentArtworkGeneration(generation))"));
+        assertTrue(notificationArtworkManager.contains("private boolean isCurrentArtworkGeneration(int generation)"));
         assertTrue(notificationArtworkManager.contains("artworkCache.put(key, bitmap)"));
         assertTrue(notificationArtworkManager.contains("void release()"));
         assertFalse(playbackService.contains("notificationArtworkCache"));
@@ -1471,13 +1627,15 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void streamingPlaybackCacheUsesSegmentedConcurrentPrecache() throws Exception {
         String playbackService = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String normalizedPlaybackService = playbackService.replace("\r\n", "\n");
         String playbackPrecacheManager = read("app/src/main/java/app/yukine/playback/PlaybackPrecacheManager.java");
         String diagnostics = read("app/src/main/java/app/yukine/playback/PlaybackStreamingDiagnostics.java");
 
         assertTrue(playbackService.contains("playbackPrecacheManager = new PlaybackPrecacheManager("));
-        assertTrue(playbackService.contains("}, mediaSourceProvider, new PlaybackPrecacheManager.CallbackScheduler()"));
-        assertTrue(playbackService.contains("public void precacheTrack(Track track)"));
-        assertTrue(playbackService.contains("playbackPrecacheManager.precacheTrack(track);"));
+        assertTrue(playbackService.contains("}, playbackQueueManager, mediaSourceProvider, new PlaybackPrecacheManager.CallbackScheduler()"));
+        assertTrue(playbackService.contains("public void warmPlaybackTrack(Track track)"));
+        assertTrue(normalizedPlaybackService.contains("public void warmPlaybackTrack(Track track) {\n        if (playbackWarmupCoordinator != null) {\n            playbackWarmupCoordinator.warmup(track);\n        }\n    }"));
+        assertFalse(normalizedPlaybackService.contains("public void warmPlaybackTrack(Track track) {\n        if (playbackPrecacheManager != null) {\n            playbackPrecacheManager.precacheTrack(track);\n        }\n    }"));
         assertTrue(playbackService.contains("playbackPrecacheManager.release();"));
         assertFalse(playbackService.contains("private void precacheUpcomingTracks("));
         assertFalse(playbackService.contains("private void precacheWithMediaCache("));
@@ -1536,6 +1694,19 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("private static final class PrecacheSupersededException extends RuntimeException"));
         assertTrue(playbackPrecacheManager.contains("private enum PrecachePriority"));
         assertTrue(playbackPrecacheManager.contains("private enum PrecacheMode"));
+        assertTrue(playbackPrecacheManager.contains("private final PlaybackMediaSourceProvider mediaSourceProvider;"));
+        assertTrue(playbackPrecacheManager.contains("private String cacheKeyForPrecache(Track track)"));
+        assertTrue(playbackPrecacheManager.contains("cacheKeyForPrecache(upcomingTrack)"));
+        assertTrue(playbackPrecacheManager.contains("String cacheKey = cacheKeyForPrecache(track);"));
+        assertTrue(playbackPrecacheManager.contains("mediaSourceProvider.isHttpTrack(track)"));
+        assertTrue(playbackPrecacheManager.contains("mediaSourceProvider.cacheKeyForTrack(track)"));
+        assertFalse(playbackPrecacheManager.contains("boolean isHttpUri(Uri uri);"));
+        assertFalse(playbackPrecacheManager.contains("String cacheKeyForTrack(Track track);"));
+        assertFalse(playbackService.contains("private boolean isHttpUri(Uri uri)"));
+        assertFalse(playbackService.contains("private String cacheKeyForTrack(Track track)"));
+        assertFalse(playbackService.contains("private Map<String, String> headersForTrack(Track track)"));
+        assertFalse(playbackService.contains("EchoPlaybackService.this.isHttpUri(uri)"));
+        assertFalse(playbackService.contains("mediaSourceProvider.cacheKeyForTrack(track)"));
         assertTrue(playbackPrecacheManager.contains("SEGMENTED_PRECACHE_BYTES"));
         assertTrue(playbackPrecacheManager.contains("SEGMENTED_PRECACHE_CHUNK_BYTES"));
         assertTrue(playbackPrecacheManager.contains("SEGMENTED_PRECACHE_CONCURRENCY"));
@@ -1545,7 +1716,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("CURRENT_TRACK_LEADING_PRECACHE_DELAY_MS"));
         assertTrue(playbackPrecacheManager.contains("CURRENT_TRACK_SEGMENTED_PRECACHE_DELAY_MS"));
         assertTrue(playbackPrecacheManager.contains("PRECACHE_RANGE_PROBE_BYTES"));
-        assertTrue(playbackPrecacheManager.contains("currentPlayerLoadsCacheKey(precacheTrack, cacheKey)"));
+        assertTrue(playbackPrecacheManager.contains("currentPlayerLoadsTrack(precacheTrack)"));
         assertTrue(playbackPrecacheManager.contains("cacheMediaRange(track, cacheKey, segment.start, segment.length, generation)"));
         assertTrue(playbackPrecacheManager.contains("recordPrecacheSegmentComplete(track, segment.start, cached)"));
         assertTrue(playbackPrecacheManager.contains("recordPrecacheSegmentFailed(track, segment.start, error)"));
@@ -3018,6 +3189,7 @@ public final class MainActivityArchitectureContractTest {
         String documentPickerController = read("app/src/main/java/app/yukine/DocumentPickerController.kt");
         String settingsControls = read("app/src/main/java/app/yukine/SettingsControls.kt");
         String settingsRuntimeApplier = read("app/src/main/java/app/yukine/SettingsRuntimeApplier.kt");
+        String settingsPlaybackServiceControlsAdapter = read("app/src/main/java/app/yukine/SettingsPlaybackServiceControlsAdapter.kt");
         String playHistoryActionController = read("app/src/main/java/app/yukine/PlayHistoryActionController.kt");
         String mainActivity = read("app/src/main/java/app/yukine/MainActivity.java");
 
@@ -3109,7 +3281,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("settingsViewModel.bindStoreMirror(settingsStore::sync);"));
         assertFalse(mainActivity.contains("settingsViewModel.bindAppliedListener"));
         assertTrue(mainActivity.contains("settingsRuntimeApplierFactory.create("));
-        assertTrue(mainActivity.contains("() -> playbackService"));
+        assertTrue(mainActivity.contains("() -> playbackService == null ? null : new MainSettingsPlaybackServiceControls(playbackService)"));
         assertTrue(mainActivity.contains("() -> lyricsViewModel"));
         assertTrue(mainActivity.contains("() -> permissionController"));
         assertTrue(mainActivity.contains("settingsViewModel.bindRuntimeEffectListener(settingsRuntimeApplier::apply);"));
@@ -3162,8 +3334,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(settingsRuntimeApplier.contains("data class ApplyPlaybackSpeed(val speed: Float) : SettingsRuntimeEffect"));
         assertTrue(settingsRuntimeApplier.contains("data class ApplyFloatingLyrics(val enabled: Boolean) : SettingsRuntimeEffect"));
         assertTrue(settingsRuntimeApplier.contains("internal class MainSettingsRuntimeApplierFactory("));
-        assertTrue(settingsRuntimeApplier.contains("internal class MainSettingsPlaybackServiceControls("));
-        assertTrue(settingsRuntimeApplier.contains("service.setPlaybackSpeed(speed)"));
+        assertTrue(settingsRuntimeApplier.contains("playbackServiceControlsProvider: SettingsPlaybackServiceControlsProvider"));
+        assertFalse(settingsRuntimeApplier.contains("EchoPlaybackService"));
+        assertFalse(settingsRuntimeApplier.contains("internal class MainSettingsPlaybackServiceControls("));
+        assertTrue(settingsPlaybackServiceControlsAdapter.contains("internal class MainSettingsPlaybackServiceControls("));
+        assertTrue(settingsPlaybackServiceControlsAdapter.contains("private val service: SettingsPlaybackServicePort"));
+        assertTrue(settingsPlaybackServiceControlsAdapter.contains("service.setPlaybackSpeed(speed)"));
         assertTrue(settingsRuntimeApplier.contains("internal class MainSettingsLyricsControls("));
         assertTrue(settingsRuntimeApplier.contains("viewModel.setOnlineEnabled(enabled)"));
         assertTrue(settingsRuntimeApplier.contains("internal class MainSettingsFloatingLyricsControls("));
@@ -3487,11 +3663,20 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void playbackServiceUsesInjectableStreamingHeaderStore() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String owner = read("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackMediaSourceProvider.kt");
         String module = read("app/src/main/java/app/yukine/di/StreamingDataModule.kt");
         String cacheRepository = read("app/src/main/java/app/yukine/streaming/cache/StreamingCacheRepository.kt");
 
         assertTrue(service.contains("StreamingPlaybackHeaderStore"));
-        assertTrue(service.contains("streamingPlaybackHeaderStore.restoreForDataPath(track.dataPath)"));
+        assertTrue(service.contains("new PlaybackMediaSourceProvider(this, repository, streamingPlaybackHeaderStore)"));
+        assertTrue(owner.contains("fun restoredTrackForPreparation(track: Track?): Track?"));
+        assertTrue(owner.contains("fun restoreHeadersForTrack(track: Track?): Boolean"));
+        assertTrue(owner.contains("fun restoreHeadersForDataPath(dataPath: String?): Boolean"));
+        assertTrue(owner.contains("streamingPlaybackHeaderStore.restoredTrackFor(track)"));
+        assertTrue(owner.contains("streamingPlaybackHeaderStore.restoreForDataPath(dataPath)"));
+        assertTrue(service.contains("mediaSourceProvider.restoreHeadersForTrack(track)"));
+        assertFalse(service.contains("streamingPlaybackHeaderStore.restoreForDataPath(track.dataPath)"));
+        assertFalse(service.contains("streamingPlaybackHeaderStore.restoredTrackFor(track)"));
         assertFalse(service.contains("StreamingPlaybackHeaders.INSTANCE"));
         assertTrue(module.contains("provideStreamingPlaybackHeaderStore"));
         assertTrue(cacheRepository.contains("fun cachedPlaybackBlocking(provider: StreamingProviderName, providerTrackId: String): String?"));
@@ -4058,8 +4243,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(streamingPlaybackController.contains("listener.queueSnapshot()"));
         assertTrue(streamingPlaybackController.contains("streamingViewModel.preResolveNextStreamingTrack("));
         assertTrue(streamingPlaybackController.contains("nowPlayingViewModel.replaceQueuedTrack(oldTrackId, resolved)"));
-        assertTrue(streamingPlaybackController.contains("nowPlayingViewModel.precacheTrack(resolved)"));
-        assertTrue(streamingPlaybackController.contains("resolved.tracks.getOrNull(resolved.index)?.let(nowPlayingViewModel::precacheTrack)"));
+        assertTrue(streamingPlaybackController.contains("nowPlayingViewModel.warmPlaybackTrack(resolved)"));
+        assertTrue(streamingPlaybackController.contains("resolved.tracks.getOrNull(resolved.index)?.let(nowPlayingViewModel::warmPlaybackTrack)"));
+        assertFalse(streamingPlaybackController.contains("nowPlayingViewModel.precacheTrack(resolved)"));
+        assertFalse(streamingPlaybackController.contains("nowPlayingViewModel::precacheTrack"));
         assertTrue(streamingPlaybackController.contains("fun resolveAndPlayStreamingTrack(tracks: List<Track>?, index: Int): Boolean"));
         assertTrue(streamingPlaybackController.contains("streamingViewModel.resolveStreamingTrackListForPlayback("));
         assertTrue(streamingPlaybackController.contains("listener.applyPlaybackActionResult("));
@@ -4633,15 +4820,48 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("LiveLyricsNotificationService.stop(this)"));
         assertFalse(playbackService.contains("EXTRA_CURRENT_LYRIC = \"app.yukine.extra.CURRENT_LYRIC\""));
         assertFalse(playbackService.contains("EXTRA_LYRIC_TRACK_TITLE = \"app.yukine.extra.LYRIC_TRACK_TITLE\""));
+        assertTrue(lyricsOwner.contains("interface NotificationBridge"));
+        assertTrue(lyricsOwner.contains("fun hasNotificationWorthyState(): Boolean"));
+        assertTrue(lyricsOwner.contains("fun notifyMediaNotification(force: Boolean)"));
         assertTrue(lyricsOwner.contains("fun refreshPlaybackSession()"));
         assertTrue(lyricsOwner.contains("override fun setStatusBarLyricsEnabled(enabled: Boolean)"));
-        assertTrue(lyricsOwner.contains("stateProvider.refreshPlaybackSession()"));
-        assertTrue(lyricsOwner.contains("stateProvider.notifyMediaNotification(true)"));
+        assertTrue(lyricsOwner.contains("private var released = false"));
+        assertTrue(lyricsOwner.contains("if (released)"));
+        assertTrue(lyricsOwner.contains("notificationBridge.refreshPlaybackSession()"));
+        assertTrue(lyricsOwner.contains("notificationBridge.notifyMediaNotification(true)"));
+        assertTrue(lyricsOwner.contains("notificationBridge.hasNotificationWorthyState()"));
+        assertFalse(lyricsOwner.contains("fun hasNotificationWorthyState(): Boolean {\n        return stateProvider.currentTrack()"));
+        assertFalse(lyricsOwner.contains("fun isQueueEmpty(): Boolean"));
+        assertFalse(lyricsOwner.contains("fun isPreparing(): Boolean\n        fun notifyMediaNotification(force: Boolean)"));
+        assertFalse(lyricsOwner.contains("fun isPreparing(): Boolean\n        fun refreshPlaybackSession()"));
         assertTrue(normalizedPlaybackService.contains("public void setStatusBarLyricsEnabled(boolean enabled) {\n        if (playbackLyricsManager != null) {\n            playbackLyricsManager.setStatusBarLyricsEnabled(enabled);\n        }\n    }"));
         assertFalse(normalizedPlaybackService.contains("public void setStatusBarLyricsEnabled(boolean enabled) {\n        if (playbackLyricsManager != null) {\n            playbackLyricsManager.setStatusBarLyricsEnabled(enabled);\n        }\n        refreshPlaybackSession();"));
         assertFalse(normalizedPlaybackService.contains("public void setStatusBarLyricsEnabled(boolean enabled) {\n        if (playbackLyricsManager != null) {\n            playbackLyricsManager.setStatusBarLyricsEnabled(enabled);\n        }\n        publishPlaybackNotification(true);"));
+        assertFalse(normalizedPlaybackService.contains("\n    private boolean hasNotificationWorthyState() {"));
+        assertTrue(playbackService.contains("playbackNotificationManager.hasNotificationWorthyState()"));
+        assertTrue(playbackService.contains("PlaybackNotificationManager.isNotificationWorthy("));
+        assertTrue(playbackService.contains("playbackNotificationManager.lyricsNotificationBridge(EchoPlaybackService.this::refreshPlaybackSession)"));
+        assertFalse(playbackService.contains("new PlaybackLyricsManager.NotificationBridge()"));
+        assertFalse(playbackService.contains("return currentTrack() != null || !isQueueEmpty() || playbackRuntimeStateManager.preparing() || isPlaying();"));
+        assertTrue(playbackService.contains("private boolean notificationWorthyState()"));
         assertTrue(owner.contains("class PlaybackNotificationManager"));
+        assertTrue(owner.contains("interface ForegroundController"));
+        assertTrue(owner.contains("interface StateProvider"));
+        assertFalse(owner.contains("interface ForegroundPresenter"));
+        assertTrue(owner.contains("private val foregroundController: ForegroundController"));
+        assertTrue(owner.contains("private val stateProvider: StateProvider"));
+        assertTrue(owner.contains("foregroundController.activityPendingIntent()"));
+        assertTrue(owner.contains("foregroundController.serviceActionPendingIntent(PlaybackServiceActions.PREVIOUS, 1)"));
+        assertTrue(owner.contains("foregroundController.startPlaybackForeground(notification)"));
+        assertTrue(owner.contains("stateProvider.currentTrack()"));
+        assertTrue(owner.contains("fun hasNotificationWorthyState(): Boolean"));
+        assertTrue(owner.contains("fun isNotificationWorthy("));
+        assertTrue(owner.contains("stateProvider.isQueueEmpty()"));
+        assertTrue(owner.contains("stateProvider.playbackSessionPlatformToken()"));
         assertTrue(owner.contains("fun updateMediaNotification(force: Boolean)"));
+        assertTrue(owner.contains("fun interface SessionRefresher"));
+        assertTrue(owner.contains("fun lyricsNotificationBridge(sessionRefresher: SessionRefresher): PlaybackLyricsManager.NotificationBridge"));
+        assertTrue(owner.contains("callbacks.publishPlaybackNotification(force)"));
         assertTrue(owner.contains("fun playbackNotification(track: Track?)"));
         assertTrue(owner.contains("fun mediaMetadataForTrack(track: Track): MediaMetadata"));
         assertTrue(owner.contains("fun shortCriticalText(value: String)"));
@@ -4654,7 +4874,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("\"app.yukine.action.RESTORE_AND_PLAY\""));
         assertFalse(owner.contains("\"app.yukine.action.NEXT\""));
         assertTrue(playbackService.contains("public static final String ACTION_PREVIOUS = PlaybackServiceActions.PREVIOUS;"));
-        assertTrue(playbackService.contains("return PlaybackServiceActions.isPlaybackServiceAction(action);"));
+        assertTrue(playbackService.contains("playbackNotificationManager.handleServiceAction(action);"));
+        assertTrue(owner.contains("PlaybackServiceActions.isPlaybackServiceAction(action)"));
         assertTrue(actionOwner.contains("public final class PlaybackServiceActions"));
         assertTrue(actionOwner.contains("public static boolean isPlaybackServiceAction(String action)"));
     }
@@ -4700,6 +4921,7 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void playbackQueuePersistenceIsOwnedOutsideEchoPlaybackService() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String queueManagerOwner = read("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackQueueManager.kt");
         String queueStoreOwner = read("app/src/main/java/app/yukine/playback/manager/PlaybackQueueStore.kt");
         String positionOwner = read("app/src/main/java/app/yukine/playback/manager/PlaybackPositionManager.kt");
 
@@ -4710,7 +4932,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("repository.savePlaybackPosition("));
         assertFalse(service.contains("repository.savePlaybackResumeRequested("));
         assertTrue(service.contains("playbackQueueManager.restorePlaybackQueue()"));
-        assertTrue(service.contains("queueStore().save("));
+        assertFalse(service.contains("queueStore().save("));
+        assertTrue(service.contains("playbackQueueManager.persistQueueState();"));
+        assertFalse(service.contains("private void persistPlaybackQueue()"));
+        assertTrue(queueManagerOwner.contains("fun persistQueueState()"));
+        assertTrue(queueManagerOwner.contains("queueStore.save("));
         assertFalse(service.contains("queueStore().loadPlaybackPositionTrackId()"));
         assertFalse(service.contains("queueStore().loadPlaybackPositionMs()"));
         assertFalse(service.contains("queueStore().savePlaybackPosition("));
@@ -4733,16 +4959,19 @@ public final class MainActivityArchitectureContractTest {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackQueueManager.kt");
         String positionOwner = read("app/src/main/java/app/yukine/playback/manager/PlaybackPositionManager.kt");
-        String queueProvider = owner.substring(
-                owner.indexOf("interface QueueProvider"),
-                owner.indexOf("interface QueuePlaybackActions"));
         String queuePlaybackActions = owner.substring(
                 owner.indexOf("interface QueuePlaybackActions"),
                 owner.indexOf("interface StreamingRestoreProvider"));
 
         assertTrue(service.contains("private PlaybackQueueManager playbackQueueManager"));
+        assertTrue(owner.contains("private val queue: MutableList<Track>"));
+        assertFalse(owner.contains("interface QueueProvider"));
+        assertFalse(owner.contains("queueProvider"));
+        assertFalse(service.contains("new PlaybackQueueManager.QueueProvider()"));
         assertTrue(service.contains("playbackQueueManager.playQueue(tracks, startIndex, startPositionMs)"));
-        assertTrue(service.contains("playbackQueueManager.advanceQueueIndexToNext()"));
+        assertFalse(service.contains("playbackQueueManager.advanceQueueIndexToNext()"));
+        assertFalse(service.contains("private void advanceQueueIndexToNext()"));
+        assertFalse(service.contains("private int clampedCurrentIndex()"));
         assertTrue(service.contains("playbackQueueManager.appendToQueue(tracks)"));
         assertTrue(service.contains("playbackQueueManager.removeTracksById(trackIds)"));
         assertTrue(service.contains("playbackQueueManager.replaceQueuedTrack(replacement)"));
@@ -4751,18 +4980,19 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackQueueManager.skipToPrevious()"));
         assertTrue(service.contains("playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs)"));
         assertTrue(service.contains("playbackQueueManager.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs)"));
-        assertTrue(service.contains("playbackQueueManager.mirroredQueueTracksForPreparation()"));
         assertTrue(service.contains("playbackQueueManager.clearQueue()"));
         assertTrue(service.contains("playbackWifiLockManager.acquireIfStreaming()"));
         assertTrue(service.contains("private void onMirroredQueueReused(boolean playWhenReady)"));
         assertTrue(service.contains("startProgressUpdates();"));
-        assertTrue(service.contains("private void clearQueueState()"));
+        assertFalse(service.contains("private void clearQueueState()"));
         assertTrue(owner.contains("fun skipToNextImmediately(): Boolean"));
         assertTrue(owner.contains("fun skipToPrevious(): Boolean"));
         assertTrue(owner.contains("fun reuseMirroredQueueIfAvailable(playWhenReady: Boolean, startPositionMs: Long): Boolean"));
         assertTrue(owner.contains("fun reuseMirroredQueueAtCurrentIndex(playWhenReady: Boolean): Boolean"));
         assertTrue(owner.contains("if (reuseMirroredQueueAtCurrentIndex(true))"));
         assertTrue(owner.contains("fun mirroredQueueTracksForPreparation(): List<Track>?"));
+        assertTrue(owner.contains("data class QueuePreparation"));
+        assertTrue(owner.contains("fun queuePreparationForNewPlayer(): QueuePreparation"));
         assertFalse(owner.contains("fun acquireWifiLockIfStreaming()"));
         assertFalse(owner.contains("fun startProgressUpdates()"));
         assertFalse(owner.contains("fun resetWaveformIfTrackChanged(track: Track)"));
@@ -4775,9 +5005,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("private void onMirroredQueueReused(boolean playWhenReady)"));
         assertTrue(service.contains("streamingDiagnostics.recordRecovery("));
         assertTrue(service.contains("PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY"));
+        assertTrue(service.contains("playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(recovery.getPlayWhenReady())"));
+        assertFalse(service.contains("() -> mainHandler.post(() -> prepareCurrent(recovery.getPlayWhenReady()))"));
         assertTrue(service.contains("EchoPlaybackService.this.resetWaveformIfTrackChanged(track);"));
-        assertTrue(service.contains("EchoPlaybackService.this.applyPlaybackParametersToPlayer();"));
-        assertTrue(service.contains("EchoPlaybackService.this.applyPlaybackModeToPlayer();"));
+        assertTrue(service.contains("EchoPlaybackService.this.applyPlaybackModeAndParametersToPlayer();"));
         assertTrue(service.contains("playbackRuntimeStateManager.setPreparing(false);"));
         assertTrue(service.contains("playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false);"));
         assertFalse(owner.contains("\n        fun currentTrack(): Track?"));
@@ -4786,7 +5017,67 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("\n        fun savePlaybackResumeRequested(requested: Boolean)"));
         assertFalse(owner.contains("\n        fun seekMirroredQueueToCurrentIndex(playWhenReady: Boolean): Boolean"));
         assertFalse(owner.contains("\n        fun playbackPositionMs(): Long"));
-        assertTrue(owner.contains("private fun currentTrack(): Track?"));
+        assertTrue(owner.contains("fun currentTrack(): Track?"));
+        assertTrue(service.contains("return playbackQueueManager == null ? null : playbackQueueManager.currentTrack();"));
+        assertFalse(service.contains("return queue.get(currentIndex());"));
+        assertTrue(owner.contains("fun queueSnapshot(): List<Track>"));
+        assertTrue(owner.contains("Collections.unmodifiableList(ArrayList(queue))"));
+        assertTrue(service.contains("return playbackQueueManager == null ? Collections.emptyList() : playbackQueueManager.queueSnapshot();"));
+        assertFalse(service.contains("Collections.unmodifiableList(new ArrayList<>(queue))"));
+        assertFalse(service.contains("return new ArrayList<>(queue);"));
+        assertTrue(owner.contains("fun queueStateSnapshot(): QueueStateSnapshot"));
+        assertTrue(owner.contains("fun empty(): QueueStateSnapshot = QueueStateSnapshot("));
+        assertTrue(owner.contains("isQueueEmpty = queue.isEmpty()"));
+        assertTrue(owner.contains("hasMultipleTracks = queue.size >= 2"));
+        assertTrue(owner.contains("fun canCrossfadeAdvance(repeatMode: Int): Boolean"));
+        assertTrue(owner.contains("fun safeCurrentIndex(): Int"));
+        assertTrue(owner.contains("fun replaceCurrentQueueTrack(replacement: Track?): Boolean"));
+        assertTrue(owner.contains("interface QueueTrackMatcher"));
+        assertTrue(owner.contains("fun matchesMirroredQueue(itemCount: Int, matcher: QueueTrackMatcher): Boolean"));
+        assertTrue(owner.contains("fun clearQueueState()"));
+        assertTrue(owner.contains("fun persistQueueState()"));
+        assertTrue(owner.contains("private fun isAtEndOfQueue(): Boolean"));
+        assertTrue(owner.contains("data class MirroredTransitionResult"));
+        assertTrue(owner.contains("fun applyMirroredTransitionIndex(nextIndex: Int, automaticAdvance: Boolean): MirroredTransitionResult?"));
+        assertTrue(service.contains("private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
+        assertTrue(service.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
+        assertFalse(service.contains("new PlaybackQueueManager.QueueStateSnapshot(null, -1, 0, true, false, false, true)"));
+        assertFalse(service.contains("private boolean isQueueEmpty()"));
+        assertTrue(service.contains("queueStateSnapshot().isQueueEmpty()"));
+        assertFalse(service.contains("return queueStateSnapshot().getHasMultipleTracks();"));
+        assertTrue(owner.contains("val startIndex: Int"));
+        assertTrue(owner.contains("startIndex = safeCurrentIndex()"));
+        assertTrue(service.contains("queuePreparation.getStartIndex()"));
+        assertFalse(service.contains("return playbackQueueManager == null ? 0 : playbackQueueManager.safeCurrentIndex();"));
+        assertFalse(service.contains("private boolean isAtEndOfQueue()"));
+        assertTrue(service.contains("playbackQueueManager.canCrossfadeAdvance(repeatMode)"));
+        assertTrue(service.contains("playbackQueueManager.applyMirroredTransitionIndex(nextIndex, isAutomaticMediaItemAdvance(reason))"));
+        assertTrue(service.contains("playbackQueueManager.replaceCurrentQueueTrack(restoredTrack);"));
+        assertFalse(service.contains("private void replaceCurrentQueueTrack(Track track)"));
+        assertTrue(service.contains("playbackQueueManager.queuePreparationForNewPlayer()"));
+        assertFalse(service.contains("playbackQueueManager.mirroredQueueTracksForPreparation()"));
+        assertTrue(service.contains("return playbackQueueManager.matchesMirroredQueue("));
+        assertTrue(service.contains("new PlaybackQueueManager.QueueTrackMatcher()"));
+        assertTrue(service.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
+        assertFalse(service.contains("playbackQueueManager.clearQueueState();"));
+        assertTrue(service.contains("playbackQueueManager.persistQueueState();"));
+        assertFalse(service.contains("queue.isEmpty()"));
+        assertFalse(service.contains("queueSize() < 2"));
+        assertFalse(service.contains("queue.size() < 2"));
+        assertFalse(service.contains("nextIndex < 0 || nextIndex >= queueSize() || nextIndex == currentIndex()"));
+        assertFalse(service.contains("setCurrentIndex(nextIndex);"));
+        assertFalse(service.contains("currentIndex() >= queueSize() - 1"));
+        assertFalse(service.contains("currentIndex() >= queue.size() - 1"));
+        assertFalse(service.contains("return Math.max(0, Math.min(currentIndex(), queue.size() - 1));"));
+        assertFalse(service.contains("queue.set(currentIndex(), track);"));
+        assertFalse(service.contains("player.getMediaItemCount() != queue.size()"));
+        assertFalse(service.contains("for (int i = 0; i < queue.size(); i++)"));
+        assertFalse(service.contains("Track track = queue.get(i);"));
+        assertFalse(service.contains("queue.clear();"));
+        assertFalse(service.contains("queueStore().save(new ArrayList<>(queue), currentIndex());"));
+        assertFalse(owner.contains("\n    fun isQueueEmpty(): Boolean"));
+        assertFalse(owner.contains("\n    fun queueSize(): Int"));
+        assertFalse(owner.contains("\n    fun hasMultipleTracks(): Boolean"));
         assertTrue(owner.contains("private fun savePlaybackResumeRequested(requested: Boolean)"));
         assertTrue(owner.contains("private fun playbackPositionMs(): Long"));
         assertTrue(owner.contains("return playbackPositionManager?.positionMs() ?: 0L"));
@@ -4801,32 +5092,19 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("File(path).exists()"));
         assertTrue(owner.contains("mirroredQueuePlayer.matchesCurrentQueue()"));
         assertTrue(owner.contains("mirroredQueuePlayer.seekTo(targetIndex, startAtMs, playWhenReady)"));
-        assertFalse(queueProvider.contains("fun mirroredQueueMatchesCurrentPlayer(): Boolean"));
-        assertFalse(queueProvider.contains("fun seekMirroredQueueTo(index: Int, positionMs: Long, playWhenReady: Boolean): Boolean"));
         assertTrue(service.contains("new PlaybackQueueManager.MirroredQueuePlayer()"));
         assertTrue(owner.contains("streamingRestoreProvider.restoreForDataPath(track.dataPath)"));
-        assertFalse(queueProvider.contains("fun restoredTrackFor(track: Track): Track?"));
-        assertFalse(queueProvider.contains("fun restoreForDataPath(dataPath: String?)"));
         assertTrue(service.contains("new PlaybackQueueManager.StreamingRestoreProvider()"));
-        assertFalse(queueProvider.contains("fun setErrorMessage(message: String)"));
-        assertFalse(queueProvider.contains("fun setLastMarkedTrack(track: Track?)"));
         assertTrue(owner.contains("private fun clearErrorMessage()"));
         assertTrue(owner.contains("playbackRuntimeStateManager?.setErrorMessage(\"\")"));
         assertTrue(owner.contains("private fun clearLastMarkedTrack()"));
         assertTrue(owner.contains("playbackTransitionStateManager?.setLastMarkedTrack(null)"));
-        assertFalse(queueProvider.contains("fun repeatMode(): Int"));
-        assertFalse(queueProvider.contains("fun shuffleEnabled(): Boolean"));
         assertTrue(owner.contains("private fun shuffleEnabled(): Boolean"));
         assertTrue(owner.contains("return playbackRuntimeStateManager?.shuffleEnabled() ?: false"));
         assertTrue(owner.contains("private fun repeatMode(): Int"));
         assertTrue(owner.contains("return playbackRuntimeStateManager?.repeatMode() ?: REPEAT_ALL"));
-        assertFalse(queueProvider.contains("fun preparing(): Boolean"));
         assertTrue(owner.contains("private fun preparing(): Boolean"));
         assertTrue(owner.contains("return playbackRuntimeStateManager?.preparing() ?: false"));
-        assertFalse(queueProvider.contains("fun isPlaying(): Boolean"));
-        assertFalse(queueProvider.contains("fun prepareCurrent(playWhenReady: Boolean)"));
-        assertFalse(queueProvider.contains("fun publishState()"));
-        assertFalse(queueProvider.contains("fun stopAndClear()"));
         assertTrue(queuePlaybackActions.contains("fun isPlaying(): Boolean"));
         assertTrue(queuePlaybackActions.contains("fun prepareCurrent(playWhenReady: Boolean)"));
         assertTrue(queuePlaybackActions.contains("fun publishState()"));
@@ -4866,12 +5144,40 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun mediaItemMatchesTrackForReuse("));
         assertTrue(owner.contains("fun mediaItemIdentityMatchesForReuse("));
         assertTrue(owner.contains("fun playbackMediaItemForTrack(track: Track, metadata: MediaMetadata?): MediaItem"));
+        assertTrue(owner.contains("fun unplayableMessageForTrack(track: Track?): String?"));
+        assertTrue(owner.contains("fun restoredTrackForPreparation(track: Track?): Track?"));
+        assertTrue(owner.contains("data class PlaybackPreparation"));
+        assertTrue(owner.contains("fun prepareTrackForPlayback(track: Track): PlaybackPreparation"));
+        assertTrue(owner.contains("val playable: Boolean"));
+        assertTrue(owner.contains("playable = unplayableMessage == null"));
+        assertTrue(owner.contains("fun restoreHeadersForTrack(track: Track?): Boolean"));
+        assertTrue(owner.contains("fun mediaSourceForTrack(track: Track, metadataProvider: ((Track) -> MediaMetadata)?): MediaSource"));
+        assertTrue(owner.contains("fun mediaSourcesForTracks("));
+        assertTrue(owner.contains("StreamingDataPathMetadata.isStreamingTrack(track.dataPath)"));
+        assertTrue(owner.contains("fun streamingQualityForTrack(track: Track?): String"));
         assertTrue(owner.contains("fun mediaCacheKey(track: Track?): String?"));
         assertTrue(owner.contains("fun mediaCacheKey(dataPath: String?, uri: String?): String?"));
-        assertTrue(service.contains("return mediaSourceProvider.mediaItemForTrack(track, this::mediaMetadataForPlaybackTrack);"));
-        assertTrue(service.contains("PlaybackMediaSourceProvider.mediaItemMatchesTrackForReuse("));
+        assertFalse(owner.contains("fun isHttpUri(uri: Uri?): Boolean"));
+        assertFalse(service.contains("import app.yukine.common.StreamingDataPathMetadata;"));
+        assertFalse(service.contains("StreamingDataPathMetadata.quality("));
+        assertTrue(service.contains("mediaSourceProvider.streamingQualityForTrack(track)"));
+        assertTrue(service.contains("mediaSourceProvider.prepareTrackForPlayback(track)"));
+        assertTrue(service.contains("if (!preparation.getPlayable())"));
+        assertFalse(service.contains("if (unplayableMessage != null)"));
+        assertFalse(service.contains("Track restoredTrack = mediaSourceProvider.restoredTrackForPreparation(track);"));
+        assertFalse(service.contains("String unplayableMessage = PlaybackMediaSourceProvider.unplayableMessageForTrack(track);"));
+        assertTrue(service.contains("mediaSourceProvider.mediaItemForTrack(track,"));
+        assertTrue(service.contains("player.setMediaSource(mediaSourceProvider.mediaSourceForTrack(track, this::mediaMetadataForPlaybackTrack));"));
+        assertTrue(service.contains("mediaSourceProvider.mediaSourcesForTracks("));
+        assertTrue(service.contains("mediaSourceProvider.mediaItemMatchesTrackForReuse("));
+        assertFalse(service.contains("private boolean isStreamingPlaceholder"));
+        assertFalse(service.contains("track.dataPath.startsWith(\"streaming:\")"));
+        assertFalse(service.contains("Uri.EMPTY.equals(track.contentUri)"));
+        assertFalse(service.contains("new ArrayList<MediaSource>()"));
+        assertFalse(service.contains("for (Track queueTrack : mirroredQueueTracks)"));
         assertFalse(service.contains("new MediaItem.Builder()"));
         assertFalse(service.contains("playbackMediaLibraryCallback.mediaItemForPlaybackTrack(track)"));
+        assertFalse(service.contains("private MediaSource mediaSourceForTrack(Track track)"));
         assertFalse(service.contains("static String mediaCacheKey("));
         assertFalse(service.contains("static boolean mediaItemMatchesTrackForReuse("));
         assertFalse(service.contains("static boolean mediaItemIdentityMatchesForReuse("));
@@ -4911,6 +5217,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("class PlaybackWifiLockManager"));
         assertTrue(owner.contains("interface Lock"));
         assertTrue(owner.contains("interface StreamingTrackProvider"));
+        assertTrue(owner.contains("private val mediaSourceProvider: PlaybackMediaSourceProvider"));
+        assertTrue(owner.contains("mediaSourceProvider.isHttpTrack(track)"));
+        assertFalse(owner.contains("fun isHttpUri(uri: Uri?): Boolean"));
         assertTrue(owner.contains("fun acquireIfStreaming()"));
         assertTrue(owner.contains("fun release()"));
     }
@@ -4970,19 +5279,35 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun registerListener(listener: PlaybackStateListener?)"));
         assertTrue(owner.contains("fun unregisterListener(listener: PlaybackStateListener?)"));
         assertTrue(owner.contains("fun publishBufferingState("));
+        assertTrue(owner.contains("fun release()"));
+        assertTrue(owner.contains("listeners.clear()"));
     }
 
     @Test
     public void playbackErrorRecoveryIsOwnedOutsideEchoPlaybackService() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackErrorRecoveryManager.kt");
+        String queueOwner = read("app/src/main/java/app/yukine/playback/manager/PlaybackQueueManager.kt");
 
         assertFalse(service.contains("Retrying streaming track after error"));
         assertFalse(service.contains("Skipping unplayable track"));
         assertTrue(service.contains("playbackErrorRecoveryManager.onPlaybackReady()"));
         assertTrue(service.contains("playbackErrorRecoveryManager.onPlayerError(error)"));
+        assertFalse(service.contains("public boolean hasMultipleQueueTracks()"));
+        assertFalse(service.contains("return EchoPlaybackService.this.hasMultipleQueueTracks();"));
+        assertTrue(service.contains("playbackQueueManager.canSkipFailedTrack(failed)"));
         assertTrue(owner.contains("class PlaybackErrorRecoveryManager"));
+        assertTrue(owner.contains("private val mediaSourceProvider: PlaybackMediaSourceProvider"));
         assertTrue(owner.contains("private var lastErrorTrackId"));
+        assertTrue(owner.contains("mediaSourceProvider.isHttpTrack(failed)"));
+        assertFalse(owner.contains("fun isHttpUri(uri: Uri?): Boolean"));
+        assertTrue(owner.contains("fun canSkipFailedTrack(failed: Track?): Boolean"));
+        assertTrue(owner.contains("actions.canSkipFailedTrack(failed)"));
+        assertFalse(owner.contains("fun hasMultipleQueueTracks(): Boolean"));
+        assertFalse(owner.contains("actions.hasMultipleQueueTracks()"));
+        assertTrue(queueOwner.contains("fun canSkipFailedTrack(failed: Track?): Boolean"));
+        assertFalse(owner.contains("fun queueSize(): Int"));
+        assertFalse(owner.contains("actions.queueSize() > 1"));
         assertTrue(owner.contains("fun onPlaybackReady()"));
         assertTrue(owner.contains("fun onPlayerError(error: Exception)"));
     }
@@ -5078,17 +5403,124 @@ public final class MainActivityArchitectureContractTest {
     public void playbackServiceShutdownIsOwnedOutsideEchoPlaybackService() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String owner = read("app/src/main/java/app/yukine/playback/PlaybackShutdownCoordinator.kt");
+        String taskScheduler = read("app/src/main/java/app/yukine/playback/PlaybackTaskScheduler.java");
+        String errorRecovery = read("app/src/main/java/app/yukine/playback/manager/PlaybackErrorRecoveryManager.kt");
+        String progressUpdates = read("app/src/main/java/app/yukine/playback/manager/PlaybackProgressUpdateManager.kt");
+        String sleepTimer = read("app/src/main/java/app/yukine/playback/manager/PlaybackSleepTimerManager.kt");
+        String precacheManager = read("app/src/main/java/app/yukine/playback/PlaybackPrecacheManager.java");
+        String statePublisher = read("app/src/main/java/app/yukine/playback/PlaybackStatePublisher.kt");
+        String warmupCoordinator = read("app/src/main/java/app/yukine/playback/PlaybackWarmupCoordinator.kt");
+        String visualizationAnalyzer = read("app/src/main/java/app/yukine/playback/PlaybackVisualizationAnalyzer.kt");
+        String visualizationCacheManager = read("app/src/main/java/app/yukine/playback/PlaybackVisualizationCacheManager.java");
+        String notificationArtworkManager = read("app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkManager.java");
+        String lyricsManager = read("app/src/main/java/app/yukine/playback/manager/PlaybackLyricsManager.kt");
+        String crossfadeManager = read("app/src/main/java/app/yukine/playback/manager/PlaybackCrossfadeAdvanceManager.kt");
+        String recoveryScheduler = read("app/src/main/java/app/yukine/playback/manager/PlaybackRecoveryScheduler.kt");
         String normalizedService = service.replace("\r\n", "\n");
         String normalizedOwner = owner.replace("\r\n", "\n");
+        String normalizedTaskScheduler = taskScheduler.replace("\r\n", "\n");
 
         assertTrue(owner.contains("internal class PlaybackShutdownCoordinator"));
-        assertTrue(owner.contains("private val clearMainCallbacks: Runnable"));
-        assertTrue(owner.contains("fun releaseServiceResources()"));
-        assertTrue(owner.contains("clearMainCallbacks.run()"));
-        assertTrue(normalizedOwner.contains("fun releaseServiceResources() {\n        playbackLyricsRelease.run()\n        unregisterNoisyReceiver.run()\n        shutdownTaskSchedulers.run()\n        clearMainCallbacks.run()"));
+        assertTrue(owner.contains("interface PlaybackResources"));
+        assertTrue(owner.contains("interface ServiceResources"));
+        assertTrue(owner.contains("fun releaseLyrics()"));
+        assertTrue(owner.contains("fun shutdownTaskSchedulers()"));
+        assertTrue(owner.contains("fun releaseWarmup()"));
+        assertTrue(owner.contains("fun releaseVisualizationAnalyzer()"));
+        assertTrue(owner.contains("fun releaseRecoveryScheduler()"));
+        assertTrue(owner.contains("fun releaseErrorRecovery()"));
+        assertTrue(owner.contains("fun releaseProgressUpdates()"));
+        assertTrue(owner.contains("fun releaseSleepTimer()"));
+        assertTrue(owner.contains("fun releaseCrossfade()"));
+        assertTrue(owner.contains("fun clearMainCallbacks()"));
+        assertTrue(owner.contains("fun releaseVisualizationCache()"));
+        assertTrue(owner.contains("fun releasePrecache()"));
+        assertTrue(owner.contains("fun releaseStatePublisher()"));
+        assertTrue(owner.contains("private var lyricsReleased = false"));
+        assertTrue(owner.contains("private var transportResourcesReleased = false"));
+        assertTrue(owner.contains("private var serviceResourcesReleased = false"));
+        assertTrue(owner.contains("private fun releaseServiceResources()"));
+        assertFalse(normalizedOwner.contains("\n    fun releaseServiceResources()"));
+        assertTrue(normalizedOwner.contains("fun handleServiceDestroyed() {\n        if (serviceResourcesReleased) {\n            return\n        }\n        serviceResourcesReleased = true\n        lifecycleResources.persistPlaybackPosition()\n        releaseServiceResources()\n    }"));
+        assertTrue(normalizedOwner.contains("private fun releaseServiceResources() {\n        releaseLyricsOnce()\n        serviceResources.unregisterNoisyReceiver()\n        serviceResources.releaseWarmup()\n        serviceResources.releaseVisualizationAnalyzer()\n        serviceResources.releaseRecoveryScheduler()\n        serviceResources.shutdownTaskSchedulers()\n        serviceResources.releaseErrorRecovery()\n        serviceResources.releaseProgressUpdates()\n        serviceResources.releaseSleepTimer()\n        serviceResources.releaseCrossfade()\n        serviceResources.clearMainCallbacks()"));
+        assertTrue(normalizedOwner.contains("serviceResources.releaseWarmup()\n        serviceResources.releaseVisualizationAnalyzer()\n        serviceResources.releaseRecoveryScheduler()\n        serviceResources.shutdownTaskSchedulers()"));
+        assertTrue(normalizedOwner.contains("serviceResources.releaseErrorRecovery()\n        serviceResources.releaseProgressUpdates()\n        serviceResources.releaseSleepTimer()\n        serviceResources.releaseCrossfade()\n        serviceResources.clearMainCallbacks()"));
+        assertTrue(normalizedOwner.contains("serviceResources.releaseVisualizationCache()\n        serviceResources.releaseNotificationArtwork()"));
+        assertTrue(normalizedOwner.contains("serviceResources.releasePrecache()\n        serviceResources.releaseStatePublisher()\n        releaseTransportResourcesOnce()"));
         assertTrue(service.contains("new PlaybackShutdownCoordinator("));
+        assertTrue(service.contains("new PlaybackShutdownCoordinator.PlaybackResources()"));
+        assertTrue(service.contains("new PlaybackShutdownCoordinator.ServiceResources()"));
+        assertTrue(service.contains("playbackLyricsManager.release();"));
+        assertTrue(service.contains("playbackWarmupCoordinator.release();"));
+        assertTrue(service.contains("playbackVisualizationAnalyzer.release();"));
+        assertTrue(service.contains("playbackRecoveryScheduler.release();"));
+        assertTrue(service.contains("playbackErrorRecoveryManager.release();"));
+        assertTrue(service.contains("playbackProgressUpdateManager.release();"));
+        assertTrue(service.contains("playbackSleepTimerManager.release();"));
+        assertTrue(service.contains("playbackCrossfadeAdvanceManager.release();"));
+        assertTrue(service.contains("mainHandler.removeCallbacks(runnable);"));
+        assertTrue(service.contains("playbackVisualizationCacheManager.release();"));
+        assertTrue(service.contains("playbackStatePublisher.release();"));
         assertTrue(service.contains("mainHandler.removeCallbacksAndMessages(null);"));
-        assertTrue(normalizedService.contains("public void onDestroy() {\n        persistPlaybackPositionThrottled(true);\n        if (playbackShutdownCoordinator != null) {\n            playbackShutdownCoordinator.releaseServiceResources();\n        }\n        super.onDestroy();\n    }"));
+        assertTrue(errorRecovery.contains("fun removeCallbacks(runnable: Runnable)"));
+        assertTrue(errorRecovery.contains("fun release()"));
+        assertTrue(errorRecovery.contains("private var released = false"));
+        assertTrue(errorRecovery.contains("if (released)"));
+        assertTrue(errorRecovery.contains("private fun cancelPendingRetry()"));
+        assertTrue(errorRecovery.contains("pendingRetry?.let { scheduler.removeCallbacks(it) }"));
+        assertTrue(progressUpdates.contains("fun stop()"));
+        assertTrue(progressUpdates.contains("fun release()"));
+        assertTrue(progressUpdates.contains("private var released = false"));
+        assertTrue(progressUpdates.contains("if (released)"));
+        assertTrue(progressUpdates.contains("scheduler.removeCallbacks(progressRunnable)"));
+        assertTrue(sleepTimer.contains("fun cancel(publish: Boolean)"));
+        assertTrue(sleepTimer.contains("fun release()"));
+        assertTrue(sleepTimer.contains("private var released = false"));
+        assertTrue(sleepTimer.contains("if (released)"));
+        assertTrue(sleepTimer.contains("scheduler.removeCallbacks(timerRunnable)"));
+        assertTrue(precacheManager.contains("private volatile boolean released;"));
+        assertTrue(precacheManager.contains("released = true;"));
+        assertTrue(precacheManager.contains("if (released || cacheKey == null)"));
+        assertTrue(precacheManager.contains("if (released || task == null || playbackCacheExecutor.isShutdown())"));
+        assertTrue(precacheManager.contains("if (released || playbackCacheExecutor.isShutdown())"));
+        assertTrue(precacheManager.contains("&& !released"));
+        assertTrue(statePublisher.contains("fun release()"));
+        assertTrue(statePublisher.contains("listeners.clear()"));
+        assertTrue(statePublisher.contains("if (released)"));
+        assertTrue(warmupCoordinator.contains("fun release()"));
+        assertTrue(warmupCoordinator.contains("if (released || track == null)"));
+        assertTrue(visualizationAnalyzer.contains("fun release()"));
+        assertTrue(visualizationAnalyzer.contains("private var released = false"));
+        assertTrue(visualizationAnalyzer.contains("if (released || track == null"));
+        assertTrue(visualizationAnalyzer.contains("return@Runnable"));
+        assertTrue(visualizationCacheManager.contains("private volatile boolean released;"));
+        assertTrue(visualizationCacheManager.contains("released = true;"));
+        assertTrue(visualizationCacheManager.contains("if (released || !mediaSourceProvider.isHttpTrack(track))"));
+        assertTrue(visualizationCacheManager.contains("return !released && cacheGeneration.get() == generation;"));
+        assertTrue(notificationArtworkManager.contains("private volatile boolean released;"));
+        assertTrue(notificationArtworkManager.contains("released = true;"));
+        assertTrue(notificationArtworkManager.contains("if (released || track == null || track.albumArtUri == null)"));
+        assertTrue(notificationArtworkManager.contains("return !released && artworkGeneration.get() == generation;"));
+        assertTrue(lyricsManager.contains("private var released = false"));
+        assertTrue(lyricsManager.contains("if (released)"));
+        assertTrue(lyricsManager.contains("LiveLyricsNotificationService.stop(context)"));
+        assertTrue(crossfadeManager.contains("private var released = false"));
+        assertTrue(crossfadeManager.contains("fun release()"));
+        assertTrue(crossfadeManager.contains("scheduler.removeCallbacks(it)"));
+        assertTrue(crossfadeManager.contains("activeFadeRunnable !== this"));
+        assertTrue(recoveryScheduler.contains("internal class PlaybackRecoveryScheduler"));
+        assertTrue(recoveryScheduler.contains("fun scheduleCurrentPlaybackRecovery(playWhenReady: Boolean)"));
+        assertTrue(recoveryScheduler.contains("private var released = false"));
+        assertTrue(recoveryScheduler.contains("mainScheduler.removeCallbacks(it)"));
+        assertTrue(taskScheduler.contains("queue.clear();"));
+        assertTrue(taskScheduler.contains("worker.interrupt();"));
+        assertTrue(taskScheduler.contains("private final Runnable beforeTaskRun;"));
+        assertTrue(taskScheduler.contains("beforeTaskRun.run();"));
+        assertTrue(normalizedTaskScheduler.contains("if (!running) {\n                    return;\n                }"));
+        assertTrue(taskScheduler.contains("catch (RuntimeException ignored)"));
+        assertTrue(taskScheduler.contains("Keep later playback tasks alive"));
+        assertTrue(normalizedService.contains("public void onDestroy() {\n        if (playbackShutdownCoordinator != null) {\n            playbackShutdownCoordinator.handleServiceDestroyed();"));
+        assertTrue(normalizedService.contains("        super.onDestroy();\n    }"));
         assertFalse(normalizedService.contains("public void onDestroy() {\n        persistPlaybackPositionThrottled(true);\n        mainHandler.removeCallbacksAndMessages(null);"));
     }
 
@@ -5096,15 +5528,22 @@ public final class MainActivityArchitectureContractTest {
     public void playbackTransitionStateIsOwnedOutsideEchoPlaybackService() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackTransitionStateManager.kt");
+        String crossfadeOwner = read("app/src/main/java/app/yukine/playback/manager/PlaybackCrossfadeAdvanceManager.kt");
 
         assertFalse(service.contains("private Track lastMarkedTrack"));
         assertFalse(service.contains("private boolean fadeOutAdvancing"));
+        assertFalse(service.contains("CROSSFADE_FADE_OUT_MS"));
+        assertFalse(service.contains("CROSSFADE_FADE_STEP_MS"));
+        assertFalse(service.contains("mainHandler.post(new Runnable()"));
         assertFalse(service.contains("lastMarkedTrack = null"));
         assertFalse(service.contains("fadeOutAdvancing = false"));
         assertFalse(service.contains("fadeOutAdvancing = true"));
         assertTrue(service.contains("playbackTransitionStateManager.setLastMarkedTrack(track)"));
-        assertTrue(service.contains("playbackTransitionStateManager.setFadeOutAdvancing(true)"));
-        assertTrue(service.contains("playbackTransitionStateManager.setFadeOutAdvancing(false)"));
+        assertFalse(service.contains("playbackTransitionStateManager.setFadeOutAdvancing(true)"));
+        assertFalse(service.contains("playbackTransitionStateManager.setFadeOutAdvancing(false)"));
+        assertTrue(service.contains("playbackTransitionStateManager.setFadeOutAdvancing(enabled)"));
+        assertTrue(service.contains("playbackCrossfadeAdvanceManager.startFadeOutThenNext()"));
+        assertTrue(service.contains("playbackCrossfadeAdvanceManager.cancel();"));
         assertTrue(service.contains("playbackTransitionStateManager.clear()"));
         assertTrue(owner.contains("private var lastMarkedTrack"));
         assertTrue(owner.contains("private var fadeOutAdvancing"));
@@ -5113,6 +5552,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun setFadeOutAdvancing(enabled: Boolean)"));
         assertTrue(owner.contains("fun fadeOutAdvancing(): Boolean"));
         assertTrue(owner.contains("fun clear()"));
+        assertTrue(crossfadeOwner.contains("internal class PlaybackCrossfadeAdvanceManager"));
+        assertTrue(crossfadeOwner.contains("fun startFadeOutThenNext(): Boolean"));
+        assertTrue(crossfadeOwner.contains("actions.setFadeOutAdvancing(true)"));
+        assertTrue(crossfadeOwner.contains("actions.setFadeOutAdvancing(false)"));
+        assertTrue(crossfadeOwner.contains("fun cancel()"));
+        assertTrue(crossfadeOwner.contains("fun release()"));
     }
 
     @Test
@@ -5132,9 +5577,17 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueRuntimeStateManager.currentIndex()"));
         assertFalse(service.contains("playbackQueueRuntimeStateManager.setCurrentIndex(index)"));
         assertFalse(service.contains("playbackQueueRuntimeStateManager.setClampedCurrentIndex(index, queue.size())"));
-        assertTrue(service.contains("return playbackQueueManager == null ? -1 : playbackQueueManager.currentIndex();"));
-        assertTrue(service.contains("playbackQueueManager.setCurrentIndex(index);"));
-        assertTrue(service.contains("playbackQueueManager.setClampedCurrentIndex(index, queue.size());"));
+        assertFalse(service.contains("return playbackQueueManager == null ? -1 : playbackQueueManager.currentIndex();"));
+        assertFalse(service.contains("private int currentIndex()"));
+        assertFalse(service.contains("playbackQueueManager.setCurrentIndex(index);"));
+        assertFalse(service.contains("private void setCurrentIndex(int index)"));
+        assertFalse(service.contains("private void setClampedCurrentIndex(int index)"));
+        assertFalse(service.contains("playbackQueueManager.setClampedCurrentIndex(index);"));
+        assertTrue(service.contains("playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex);"));
+        assertFalse(service.contains("saveTrackPlaybackPosition(completed, 0L);"));
+        assertFalse(service.contains("private void saveTrackPlaybackPosition(Track track, long positionMs)"));
+        assertFalse(service.contains("playbackQueueManager.setClampedCurrentIndex(index, queueSize());"));
+        assertFalse(service.contains("playbackQueueManager.clampCurrentIndex(queueSize())"));
         assertTrue(owner.contains("private var playerMirrorsQueue"));
         assertTrue(owner.contains("fun playerMirrorsQueue(): Boolean"));
         assertTrue(owner.contains("fun setPlayerMirrorsQueue(enabled: Boolean)"));
@@ -5146,8 +5599,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueOwner.contains("private var currentIndex = -1"));
         assertTrue(queueOwner.contains("fun currentIndex(): Int"));
         assertTrue(queueOwner.contains("fun setCurrentIndex(index: Int)"));
-        assertTrue(queueOwner.contains("fun clampCurrentIndex(queueSize: Int): Int"));
-        assertTrue(queueOwner.contains("fun setClampedCurrentIndex(index: Int, queueSize: Int)"));
+        assertTrue(queueOwner.contains("fun clampCurrentIndex(): Int"));
+        assertTrue(queueOwner.contains("fun setClampedCurrentIndex(index: Int)"));
+        assertFalse(queueOwner.contains("fun clampCurrentIndex(queueSize: Int): Int"));
+        assertFalse(queueOwner.contains("fun setClampedCurrentIndex(index: Int, queueSize: Int)"));
     }
 
     @Test
@@ -5197,6 +5652,36 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun onAddMediaItems("));
         assertTrue(owner.contains("AUTO_ROOT"));
         assertTrue(owner.contains("AUTO_TRACK_PREFIX"));
+    }
+
+    @Test
+    public void playbackServiceActionMappingIsOwnedOutsideEchoPlaybackService() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String normalizedService = service.replace("\r\n", "\n");
+        String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackNotificationManager.kt");
+        String toggleFavoriteUseCase = read("app/src/main/java/app/yukine/ToggleFavoriteUseCase.kt");
+
+        assertFalse(exists("app/src/main/java/app/yukine/playback/PlaybackServiceActionHandler.java"));
+        assertTrue(service.contains("playbackNotificationManager.handleServiceAction(action);"));
+        assertTrue(normalizedService.contains("@Inject\n    ToggleFavoriteUseCase toggleFavoriteUseCase;"));
+        assertTrue(service.contains("toggleFavoriteUseCase.toggle(track)"));
+        assertTrue(service.contains("toggleFavoriteUseCase.isFavorite(track)"));
+        assertFalse(service.contains("new ToggleFavoriteUseCase("));
+        assertFalse(service.contains("repository.setFavorite(track, !repository.isFavorite(track.id));"));
+        assertFalse(service.contains("private boolean isPlaybackServiceAction(String action)"));
+        assertFalse(service.contains("if (ACTION_PLAY.equals(action))"));
+        assertFalse(service.contains("} else if (ACTION_PAUSE.equals(action))"));
+        assertTrue(owner.contains("interface ActionCallbacks"));
+        assertTrue(owner.contains("fun handleServiceAction(action: String?): Boolean"));
+        assertTrue(owner.contains("PlaybackServiceActions.PLAY -> callbacks.play()"));
+        assertTrue(owner.contains("PlaybackServiceActions.RESTORE_AND_PLAY -> callbacks.restoreLastPlayback(true)"));
+        assertTrue(owner.contains("callbacks.stopForegroundAndSelf()"));
+        assertTrue(owner.contains("fun isFavorite(track: Track?): Boolean"));
+        assertTrue(owner.contains("val isFavorite = stateProvider.isFavorite(track)"));
+        assertFalse(owner.contains("val isFavorite = false"));
+        assertTrue(toggleFavoriteUseCase.contains("fun toggle(track: Track?): Boolean"));
+        assertTrue(toggleFavoriteUseCase.contains("fun isFavorite(track: Track?): Boolean"));
+        assertTrue(toggleFavoriteUseCase.contains("operations.setFavorite(track, !operations.isFavorite(track.id))"));
     }
 
     @Test
@@ -5520,6 +6005,35 @@ public final class MainActivityArchitectureContractTest {
             }
         }
         return count;
+    }
+
+    private static java.util.List<Path> sourceFiles(String directory) throws Exception {
+        Path root = directory(directory);
+        java.util.List<Path> files = new java.util.ArrayList<>();
+        try (java.util.stream.Stream<Path> stream = Files.walk(root)) {
+            stream.filter(Files::isRegularFile)
+                    .filter(path -> {
+                        String name = path.getFileName().toString();
+                        return name.endsWith(".kt") || name.endsWith(".java");
+                    })
+                    .forEach(files::add);
+        }
+        files.sort(java.util.Comparator.comparing(Path::toString));
+        return files;
+    }
+
+    private static void assertSourceDoesNotContain(Path source, String forbidden) throws Exception {
+        String content = new String(Files.readAllBytes(source), StandardCharsets.UTF_8);
+        assertFalse(source + " must not depend on " + forbidden, content.contains(forbidden));
+    }
+
+    private static boolean isAllowedConcretePlaybackServiceBoundary(String normalizedPath) {
+        return normalizedPath.endsWith("/app/src/main/java/app/yukine/LiveLyricsNotificationService.kt")
+                || normalizedPath.endsWith("/app/src/main/java/app/yukine/MainActivityBase.java")
+                || normalizedPath.endsWith("/app/src/main/java/app/yukine/MainPlaybackServiceHost.kt")
+                || normalizedPath.endsWith("/app/src/main/java/app/yukine/NowPlayingPlaybackServiceStarter.kt")
+                || normalizedPath.endsWith("/app/src/main/java/app/yukine/PlaybackServiceConnectionController.kt")
+                || normalizedPath.endsWith("/app/src/main/java/app/yukine/PlaybackServiceHostController.kt");
     }
 
     private static boolean exists(String path) {

@@ -69,6 +69,41 @@ class PlaybackSleepTimerManagerTest {
         assertEquals(listOf("publish"), actions.calls)
     }
 
+    @Test
+    fun cancelWithoutPublishClearsTimerSilently() {
+        val scheduler = FakeScheduler()
+        val actions = FakeActions()
+        val manager = PlaybackSleepTimerManager(scheduler, actions, MutableClock())
+
+        manager.startMinutes(15)
+        actions.calls.clear()
+        manager.cancel(publish = false)
+
+        assertEquals(0L, manager.remainingMs())
+        assertEquals(null, scheduler.pendingRunnable)
+        assertEquals(emptyList<String>(), actions.calls)
+    }
+
+    @Test
+    fun releasePreventsAlreadyDequeuedTickAndFutureStarts() {
+        val scheduler = FakeScheduler()
+        val actions = FakeActions()
+        val clock = MutableClock(0L)
+        val manager = PlaybackSleepTimerManager(scheduler, actions, clock)
+
+        manager.startMinutes(1)
+        val dequeuedTick = scheduler.takePending()
+        actions.calls.clear()
+        clock.now = 60000L
+        manager.release()
+        dequeuedTick?.run()
+        manager.startMinutes(10)
+
+        assertEquals(0L, manager.remainingMs())
+        assertEquals(null, scheduler.pendingRunnable)
+        assertEquals(emptyList<String>(), actions.calls)
+    }
+
     private class MutableClock(var now: Long = 0L) : LongSupplier {
         override fun getAsLong(): Long = now
     }
@@ -92,6 +127,12 @@ class PlaybackSleepTimerManagerTest {
             val runnable = pendingRunnable
             pendingRunnable = null
             runnable?.run()
+        }
+
+        fun takePending(): Runnable? {
+            val runnable = pendingRunnable
+            pendingRunnable = null
+            return runnable
         }
     }
 
