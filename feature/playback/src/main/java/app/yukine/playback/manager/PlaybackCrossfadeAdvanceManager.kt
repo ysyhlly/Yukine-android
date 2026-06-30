@@ -86,6 +86,9 @@ internal class PlaybackCrossfadeAdvanceManager @JvmOverloads constructor(
     }
 
     fun release() {
+        if (released) {
+            return
+        }
         released = true
         cancel()
     }

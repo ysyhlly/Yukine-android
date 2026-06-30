@@ -57,6 +57,9 @@ final class PlaybackVisualizationCacheManager {
     }
 
     void release() {
+        if (released) {
+            return;
+        }
         released = true;
         cacheGeneration.incrementAndGet();
         synchronized (activeCacheWriters) {

@@ -72,6 +72,27 @@ class PlaybackErrorRecoveryManagerTest {
     }
 
     @Test
+    fun releaseIsIdempotentAfterPendingRetryIsCancelled() {
+        val scheduler = FakeScheduler()
+        val actions = FakeActions(
+            track = track(1L, "https://example.com/song.mp3"),
+            canSkipFailedTrack = true
+        )
+        val manager = PlaybackErrorRecoveryManager(scheduler, actions, provider())
+
+        manager.onPlayerError(Exception("boom"))
+        manager.release()
+        val removedAfterFirstRelease = scheduler.removedCallbacks
+        manager.release()
+        scheduler.runPending()
+
+        assertEquals(1, removedAfterFirstRelease)
+        assertEquals(removedAfterFirstRelease, scheduler.removedCallbacks)
+        assertEquals(null, scheduler.pending)
+        assertEquals(0, actions.calls.count { it == "prepare" })
+    }
+
+    @Test
     fun releasePreventsFutureErrorRecoveryActions() {
         val scheduler = FakeScheduler()
         val actions = FakeActions(

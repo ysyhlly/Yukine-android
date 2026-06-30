@@ -12,6 +12,7 @@ import java.util.Collections
 import java.util.HashSet
 import java.util.LinkedList
 import java.util.Random
+import java.util.concurrent.CopyOnWriteArrayList
 
 internal class PlaybackQueueManager(
     private val queueStore: PlaybackQueueStore,
@@ -24,7 +25,7 @@ internal class PlaybackQueueManager(
     private val playbackTransitionStateManager: PlaybackTransitionStateManager? = null,
     private val random: Random = Random()
 ) {
-    private var playbackRestoreEnabled = true
+    private var playbackRestoreEnabled = queueStore.loadPlaybackRestoreEnabled()
     private var currentIndex = -1
 
     interface QueuePlaybackActions {
@@ -97,6 +98,21 @@ internal class PlaybackQueueManager(
         }
     }
 
+    data class RestorePlaybackResult(
+        val shouldCreatePlayer: Boolean,
+        val shouldPrepare: Boolean,
+        val playWhenReady: Boolean
+    ) {
+        companion object {
+            @JvmStatic
+            fun empty(): RestorePlaybackResult = RestorePlaybackResult(
+                shouldCreatePlayer = false,
+                shouldPrepare = false,
+                playWhenReady = false
+            )
+        }
+    }
+
     enum class PlaybackCompletionAction {
         STOP_AND_CLEAR,
         REPEAT_CURRENT,
@@ -113,6 +129,26 @@ internal class PlaybackQueueManager(
         NoopMirroredQueuePlayer,
         null,
         null,
+        Random()
+    )
+
+    constructor(
+        queueStore: PlaybackQueueStore,
+        queuePlaybackActions: QueuePlaybackActions,
+        playbackPositionManager: PlaybackPositionManager?,
+        streamingRestoreProvider: StreamingRestoreProvider,
+        mirroredQueuePlayer: MirroredQueuePlayer,
+        playbackRuntimeStateManager: PlaybackRuntimeStateManager?,
+        playbackTransitionStateManager: PlaybackTransitionStateManager?
+    ) : this(
+        queueStore,
+        CopyOnWriteArrayList(),
+        queuePlaybackActions,
+        playbackPositionManager,
+        streamingRestoreProvider,
+        mirroredQueuePlayer,
+        playbackRuntimeStateManager,
+        playbackTransitionStateManager,
         Random()
     )
 
@@ -191,6 +227,7 @@ internal class PlaybackQueueManager(
 
     fun setPlaybackRestoreEnabled(enabled: Boolean) {
         playbackRestoreEnabled = enabled
+        queueStore.savePlaybackRestoreEnabled(enabled)
     }
 
     fun loadRestoredQueue(): PlaybackQueueState {
@@ -826,6 +863,25 @@ internal class PlaybackQueueManager(
         return queueStateSnapshot()
     }
 
+    fun restoreLastPlayback(playWhenRestored: Boolean): RestorePlaybackResult {
+        val snapshot = restorePlaybackQueue()
+        if (snapshot.isQueueEmpty) {
+            return RestorePlaybackResult.empty()
+        }
+        if (!snapshot.hasCurrentTrack) {
+            return RestorePlaybackResult(
+                shouldCreatePlayer = true,
+                shouldPrepare = false,
+                playWhenReady = false
+            )
+        }
+        return RestorePlaybackResult(
+            shouldCreatePlayer = true,
+            shouldPrepare = true,
+            playWhenReady = playWhenRestored || queueStore.loadResumeRequested()
+        )
+    }
+
     private fun persistQueue() {
         queueStore.save(queue.toList(), currentIndex())
     }
@@ -838,7 +894,7 @@ internal class PlaybackQueueManager(
         playbackPositionManager?.saveTrackPosition(currentTrack(), positionMs)
     }
 
-    private fun savePlaybackResumeRequested(requested: Boolean) {
+    fun savePlaybackResumeRequested(requested: Boolean) {
         queueStore.saveResumeRequested(requested)
     }
 

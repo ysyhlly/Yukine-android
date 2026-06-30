@@ -9,6 +9,8 @@ internal interface PlaybackQueueStore {
     fun save(tracks: List<Track>, currentIndex: Int)
     fun loadResumeRequested(): Boolean
     fun saveResumeRequested(requested: Boolean)
+    fun loadPlaybackRestoreEnabled(): Boolean
+    fun savePlaybackRestoreEnabled(enabled: Boolean)
     fun loadPlaybackPositionTrackId(): Long
     fun loadPlaybackPositionMs(): Long
     fun savePlaybackPosition(trackId: Long, positionMs: Long)
@@ -29,6 +31,12 @@ internal class PlaybackQueueStoreImpl(
 
     override fun saveResumeRequested(requested: Boolean) {
         repository.savePlaybackResumeRequested(requested)
+    }
+
+    override fun loadPlaybackRestoreEnabled(): Boolean = repository.loadPlaybackRestoreEnabled()
+
+    override fun savePlaybackRestoreEnabled(enabled: Boolean) {
+        repository.savePlaybackRestoreEnabled(enabled)
     }
 
     override fun loadPlaybackPositionTrackId(): Long = repository.loadPlaybackPositionTrackId()

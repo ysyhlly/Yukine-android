@@ -187,7 +187,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private CollectionsRenderController collectionsRenderController;
     private PlayHistoryActionController playHistoryActionController;
     private LyricsViewModel lyricsViewModel;
-    private EchoPlaybackService playbackService;
+    private PlaybackServiceHostPort playbackService;
     private MainPlaybackStartListener playbackStartListener;
     private int unifiedStreamingPlaybackRequestId = 0;
     private boolean scrollContentToTopOnNextRender;

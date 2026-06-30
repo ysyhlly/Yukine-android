@@ -18,10 +18,12 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.streaming.StreamingPlaybackHeaderStore;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -99,6 +101,27 @@ public final class PlaybackVisualizationCacheManagerTest {
     }
 
     @Test
+    public void releaseIsIdempotentAfterQueuedCacheInvalidation() throws Exception {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        Track track = track(9L);
+        stateProvider.currentTrack = track;
+        FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
+        PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
+
+        manager.scheduleVisualizationCache(track);
+        int generationBeforeRelease = cacheGeneration(manager);
+        manager.release();
+        int generationAfterFirstRelease = cacheGeneration(manager);
+        manager.release();
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(generationBeforeRelease + 1, generationAfterFirstRelease);
+        assertEquals(generationAfterFirstRelease, cacheGeneration(manager));
+        assertEquals(0, stateProvider.scheduledTasks.size());
+        assertEquals(0, writerFactory.createCalls);
+    }
+
+    @Test
     public void currentTrackSchedulesAndCachesVisualizationWindow() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         Track track = track(4L);
@@ -159,6 +182,12 @@ public final class PlaybackVisualizationCacheManagerTest {
                 mediaSourceProvider(),
                 writerFactory
         );
+    }
+
+    private static int cacheGeneration(PlaybackVisualizationCacheManager manager) throws Exception {
+        Field field = PlaybackVisualizationCacheManager.class.getDeclaredField("cacheGeneration");
+        field.setAccessible(true);
+        return ((AtomicInteger) field.get(manager)).get();
     }
 
     private static PlaybackMediaSourceProvider mediaSourceProvider() {

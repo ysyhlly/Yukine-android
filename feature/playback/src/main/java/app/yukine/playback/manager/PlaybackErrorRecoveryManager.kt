@@ -38,6 +38,9 @@ internal class PlaybackErrorRecoveryManager(
     }
 
     fun release() {
+        if (released) {
+            return
+        }
         released = true
         cancelPendingRetry()
     }

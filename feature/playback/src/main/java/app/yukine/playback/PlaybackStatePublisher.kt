@@ -62,6 +62,9 @@ internal class PlaybackStatePublisher(
     }
 
     fun release() {
+        if (released) {
+            return
+        }
         released = true
         listeners.clear()
     }

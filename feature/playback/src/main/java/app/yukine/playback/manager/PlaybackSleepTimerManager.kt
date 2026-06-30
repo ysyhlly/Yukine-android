@@ -45,6 +45,9 @@ internal class PlaybackSleepTimerManager @JvmOverloads constructor(
     }
 
     fun release() {
+        if (released) {
+            return
+        }
         released = true
         cancel(publish = false)
     }

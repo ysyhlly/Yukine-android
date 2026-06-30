@@ -101,6 +101,8 @@ class PlaybackPositionManagerTest {
         override fun save(tracks: List<Track>, currentIndex: Int) {}
         override fun loadResumeRequested(): Boolean = false
         override fun saveResumeRequested(requested: Boolean) {}
+        override fun loadPlaybackRestoreEnabled(): Boolean = true
+        override fun savePlaybackRestoreEnabled(enabled: Boolean) {}
         override fun loadPlaybackPositionTrackId(): Long = -1L
         override fun loadPlaybackPositionMs(): Long = 0L
         override fun savePlaybackPosition(trackId: Long, positionMs: Long) {

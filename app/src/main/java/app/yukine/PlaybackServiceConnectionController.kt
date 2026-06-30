@@ -14,7 +14,7 @@ internal class PlaybackServiceConnectionController(
     private val listener: Listener
 ) {
     interface Listener {
-        fun onPlaybackServiceConnected(service: EchoPlaybackService)
+        fun onPlaybackServiceConnected(service: PlaybackServiceHostPort)
 
         fun onPlaybackServiceDisconnected()
     }

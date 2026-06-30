@@ -9,6 +9,7 @@ import android.media.session.MediaSession
 import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackNotificationManager
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -140,6 +141,30 @@ class PlaybackNotificationManagerTest {
     }
 
     @Test
+    fun mediaMetadataForTrackIncludesTrackLyricsAndArtworkState() {
+        val artworkData = byteArrayOf(1, 2, 3)
+        val manager = manager(
+            FakeStateProvider(),
+            FakeForegroundController(),
+            lyricsTextProvider = FakeLyricsTextProvider("current lyric"),
+            artworkProvider = FakeArtworkProvider(artworkData)
+        )
+        val track = track(9L)
+
+        val metadata = manager.mediaMetadataForTrack(track)
+
+        assertEquals("Track 9", metadata.title.toString())
+        assertEquals("Artist", metadata.artist.toString())
+        assertEquals("Album", metadata.albumTitle.toString())
+        assertEquals(180_000L, metadata.durationMs)
+        assertEquals(androidx.media3.common.MediaMetadata.MEDIA_TYPE_MUSIC, metadata.mediaType)
+        assertEquals("current lyric", metadata.subtitle.toString())
+        assertEquals("current lyric", metadata.description.toString())
+        assertEquals(track.albumArtUri, metadata.artworkUri)
+        assertArrayEquals(artworkData, metadata.artworkData)
+    }
+
+    @Test
     fun nonStopActionWithoutNotificationWorthyStateStopsForegroundAndSelf() {
         val actions = FakeActionCallbacks()
         val manager = manager(FakeStateProvider(), FakeForegroundController(), actions)
@@ -172,14 +197,16 @@ class PlaybackNotificationManagerTest {
     private fun manager(
         stateProvider: FakeStateProvider,
         foregroundController: FakeForegroundController,
-        actionCallbacks: PlaybackNotificationManager.ActionCallbacks? = null
+        actionCallbacks: PlaybackNotificationManager.ActionCallbacks? = null,
+        lyricsTextProvider: PlaybackNotificationManager.LyricsTextProvider? = null,
+        artworkProvider: PlaybackNotificationManager.ArtworkProvider = FakeArtworkProvider()
     ): PlaybackNotificationManager {
         return PlaybackNotificationManager(
             RuntimeEnvironment.getApplication(),
             foregroundController,
             stateProvider,
-            null,
-            FakeArtworkProvider(),
+            lyricsTextProvider,
+            artworkProvider,
             actionCallbacks
         )
     }
@@ -246,10 +273,20 @@ class PlaybackNotificationManagerTest {
         }
     }
 
-    private class FakeArtworkProvider : PlaybackNotificationManager.ArtworkProvider {
+    private class FakeLyricsTextProvider(
+        private val lyric: String
+    ) : PlaybackNotificationManager.LyricsTextProvider {
+        override fun currentNotificationLyric(track: Track?): String = lyric
+
+        override fun sanitizeNotificationLyric(value: String?): String = value.orEmpty()
+    }
+
+    private class FakeArtworkProvider(
+        private val artworkData: ByteArray? = null
+    ) : PlaybackNotificationManager.ArtworkProvider {
         override fun notificationArtworkFor(track: Track?): Bitmap? = null
 
-        override fun notificationArtworkDataFor(track: Track?): ByteArray? = null
+        override fun notificationArtworkDataFor(track: Track?): ByteArray? = artworkData
     }
 
     private class FakeSessionRefresher : PlaybackNotificationManager.SessionRefresher {

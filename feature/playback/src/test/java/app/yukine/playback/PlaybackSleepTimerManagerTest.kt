@@ -104,6 +104,24 @@ class PlaybackSleepTimerManagerTest {
         assertEquals(emptyList<String>(), actions.calls)
     }
 
+    @Test
+    fun releaseIsIdempotentAfterPendingTickIsCancelled() {
+        val scheduler = FakeScheduler()
+        val actions = FakeActions()
+        val manager = PlaybackSleepTimerManager(scheduler, actions, MutableClock())
+
+        manager.startMinutes(1)
+        actions.calls.clear()
+        manager.release()
+        val removeCountAfterFirstRelease = scheduler.removeCount
+        manager.release()
+
+        assertEquals(0L, manager.remainingMs())
+        assertEquals(null, scheduler.pendingRunnable)
+        assertEquals(removeCountAfterFirstRelease, scheduler.removeCount)
+        assertEquals(emptyList<String>(), actions.calls)
+    }
+
     private class MutableClock(var now: Long = 0L) : LongSupplier {
         override fun getAsLong(): Long = now
     }
@@ -111,6 +129,7 @@ class PlaybackSleepTimerManagerTest {
     private class FakeScheduler : PlaybackSleepTimerManager.CallbackScheduler {
         var pendingRunnable: Runnable? = null
         var lastDelayMs: Long = -1L
+        var removeCount = 0
 
         override fun postDelayed(runnable: Runnable, delayMs: Long) {
             pendingRunnable = runnable
@@ -118,6 +137,7 @@ class PlaybackSleepTimerManagerTest {
         }
 
         override fun removeCallbacks(runnable: Runnable) {
+            removeCount++
             if (pendingRunnable === runnable) {
                 pendingRunnable = null
             }

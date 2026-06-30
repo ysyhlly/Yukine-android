@@ -58,6 +58,34 @@ class PlaybackCrossfadeAdvanceManagerTest {
     }
 
     @Test
+    fun releaseIsIdempotentAfterPendingFadeIsCancelled() {
+        val scheduler = FakeScheduler()
+        val state = FakeState()
+        val actions = FakeActions(state)
+        val manager = PlaybackCrossfadeAdvanceManager(
+            scheduler,
+            state,
+            actions,
+            LongSupplier { 0L }
+        )
+
+        assertTrue(manager.startFadeOutThenNext())
+        val pending = scheduler.posted.single()
+        manager.release()
+        val removedAfterFirstRelease = scheduler.removed.toList()
+        val fadeStateCallsAfterFirstRelease = actions.fadeOutAdvancingCalls
+        manager.release()
+        pending.run()
+
+        assertEquals(listOf(pending), removedAfterFirstRelease)
+        assertEquals(removedAfterFirstRelease, scheduler.removed)
+        assertEquals(fadeStateCallsAfterFirstRelease, actions.fadeOutAdvancingCalls)
+        assertEquals(emptyList<Float>(), actions.volumes)
+        assertEquals(0, actions.skipNextCalls)
+        assertFalse(state.fadeOutAdvancing)
+    }
+
+    @Test
     fun repeatOffAtQueueEndSkipsFadeOutAdvance() {
         val scheduler = FakeScheduler()
         val state = FakeState().apply {
@@ -140,8 +168,10 @@ class PlaybackCrossfadeAdvanceManagerTest {
         val volumes = mutableListOf<Float>()
         var skipNextCalls = 0
         var applyVolumeCalls = 0
+        var fadeOutAdvancingCalls = 0
 
         override fun setFadeOutAdvancing(enabled: Boolean) {
+            fadeOutAdvancingCalls++
             state.fadeOutAdvancing = enabled
         }
 

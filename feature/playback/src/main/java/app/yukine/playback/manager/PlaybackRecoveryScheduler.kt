@@ -50,6 +50,9 @@ internal class PlaybackRecoveryScheduler(
     }
 
     fun release() {
+        if (released) {
+            return
+        }
         released = true
         cancel()
     }

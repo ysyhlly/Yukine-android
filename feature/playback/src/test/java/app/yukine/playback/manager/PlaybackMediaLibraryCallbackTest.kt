@@ -7,13 +7,49 @@ import app.yukine.model.Playlist
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class PlaybackMediaLibraryCallbackTest {
+    @Test
+    fun rootChildrenExposeBrowsableLibrarySections() {
+        val callback = PlaybackMediaLibraryCallback(FakeDataSource())
+
+        val children = childrenForAutoParent(callback, "echo:auto:root")
+
+        assertEquals(
+            listOf(
+                "echo:auto:all",
+                "echo:auto:recent",
+                "echo:auto:playlists",
+                "echo:auto:artists",
+                "echo:auto:albums"
+            ),
+            children?.map { it.mediaId }
+        )
+        assertTrue(children.orEmpty().all { it.mediaMetadata.isBrowsable == true })
+    }
+
+    @Test
+    fun autoTrackMediaIdRestoresPlayableMediaItem() {
+        val callback = PlaybackMediaLibraryCallback(
+            FakeDataSource(listOf(track(7L, Uri.parse("file:///music/seven.flac"))))
+        )
+
+        val item = itemForAutoMediaId(callback, "echo:auto:track:7")
+
+        assertNotNull(item)
+        assertEquals("echo:auto:track:7", item?.mediaId)
+        assertEquals("Track 7", item?.mediaMetadata?.title.toString())
+        assertTrue(item?.mediaMetadata?.isPlayable == true)
+        assertEquals(MediaMetadata.MEDIA_TYPE_MUSIC, item?.mediaMetadata?.mediaType)
+    }
+
     @Test
     fun autoItemsForTracksUsesMediaSourcePlayableUriRule() {
         val callback = PlaybackMediaLibraryCallback(FakeDataSource())
@@ -67,6 +103,27 @@ class PlaybackMediaLibraryCallbackTest {
         )
 
         assertNull(queue)
+    }
+
+    private fun itemForAutoMediaId(
+        callback: PlaybackMediaLibraryCallback,
+        mediaId: String
+    ): MediaItem? {
+        val method = PlaybackMediaLibraryCallback::class.java
+            .getDeclaredMethod("itemForAutoMediaId", String::class.java)
+        method.isAccessible = true
+        return method.invoke(callback, mediaId) as MediaItem?
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun childrenForAutoParent(
+        callback: PlaybackMediaLibraryCallback,
+        parentId: String
+    ): List<MediaItem>? {
+        val method = PlaybackMediaLibraryCallback::class.java
+            .getDeclaredMethod("childrenForAutoParent", String::class.java)
+        method.isAccessible = true
+        return method.invoke(callback, parentId) as List<MediaItem>?
     }
 
     @Suppress("UNCHECKED_CAST")

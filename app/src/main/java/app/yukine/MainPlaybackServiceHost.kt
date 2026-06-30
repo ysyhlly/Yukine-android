@@ -1,7 +1,5 @@
 package app.yukine
 
-import app.yukine.playback.EchoPlaybackService
-
 internal fun interface MainPlaybackServiceHostFactory {
     fun create(
         playbackSpeedSource: MainPlaybackServiceHost.PlaybackSpeedSource,
@@ -58,7 +56,7 @@ internal class MainPlaybackServiceHost(
     }
 
     fun interface PlaybackServiceAttacher {
-        fun attachPlaybackService(service: EchoPlaybackService)
+        fun attachPlaybackService(service: PlaybackServiceHostPort)
     }
 
     fun interface PlaybackServiceClearer {
@@ -93,7 +91,7 @@ internal class MainPlaybackServiceHost(
 
     override fun replayGainEnabled(): Boolean = replayGainSource.replayGainEnabled()
 
-    override fun attachPlaybackService(service: EchoPlaybackService) {
+    override fun attachPlaybackService(service: PlaybackServiceHostPort) {
         playbackServiceAttacher.attachPlaybackService(service)
         service.setAppVisible(true)
     }

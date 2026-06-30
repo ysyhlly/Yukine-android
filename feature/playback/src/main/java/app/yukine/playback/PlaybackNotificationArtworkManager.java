@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import app.yukine.common.EmbeddedArtwork;
 import app.yukine.model.Track;
 
-final class PlaybackNotificationArtworkManager {
+final class PlaybackNotificationArtworkManager implements PlaybackNotificationArtworkSource {
     interface StateProvider {
         Track currentTrack();
     }
@@ -85,6 +85,9 @@ final class PlaybackNotificationArtworkManager {
     }
 
     void release() {
+        if (released) {
+            return;
+        }
         released = true;
         artworkGeneration.incrementAndGet();
         artworkCache.evictAll();
@@ -92,7 +95,8 @@ final class PlaybackNotificationArtworkManager {
         artworkMisses.clear();
     }
 
-    Bitmap notificationArtworkFor(Track track) {
+    @Override
+    public Bitmap notificationArtworkFor(Track track) {
         if (released || track == null || track.albumArtUri == null) {
             return null;
         }
@@ -108,7 +112,8 @@ final class PlaybackNotificationArtworkManager {
         return null;
     }
 
-    byte[] notificationArtworkDataFor(Track track) {
+    @Override
+    public byte[] notificationArtworkDataFor(Track track) {
         if (released || track == null) {
             return null;
         }

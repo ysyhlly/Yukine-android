@@ -97,6 +97,9 @@ final class PlaybackPrecacheManager {
     }
 
     void release() {
+        if (released) {
+            return;
+        }
         released = true;
         precacheGeneration.incrementAndGet();
         cancelPendingPrecacheCallbacks();

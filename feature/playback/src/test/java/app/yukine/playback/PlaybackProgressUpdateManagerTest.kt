@@ -90,6 +90,23 @@ class PlaybackProgressUpdateManagerTest {
         assertEquals(null, scheduler.pendingRunnable)
     }
 
+    @Test
+    fun releaseIsIdempotentAfterPendingTickIsCancelled() {
+        val scheduler = FakeScheduler()
+        val manager = PlaybackProgressUpdateManager(
+            scheduler,
+            FakeStateProvider(playing = true),
+            FakeActions()
+        )
+
+        manager.startIfNeeded()
+        manager.release()
+        manager.release()
+
+        assertEquals(2, scheduler.removeCalls)
+        assertEquals(null, scheduler.pendingRunnable)
+    }
+
     private class FakeScheduler : PlaybackProgressUpdateManager.CallbackScheduler {
         var pendingRunnable: Runnable? = null
         var lastDelayMs: Long = -1L

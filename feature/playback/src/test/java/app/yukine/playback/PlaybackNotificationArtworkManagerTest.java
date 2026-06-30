@@ -10,8 +10,10 @@ import android.net.Uri;
 
 import app.yukine.model.Track;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -107,6 +109,38 @@ public final class PlaybackNotificationArtworkManagerTest {
     }
 
     @Test
+    public void releaseIsIdempotentAfterQueuedArtworkInvalidation() throws Exception {
+        List<Runnable> pending = new ArrayList<>();
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeNotificationBridge notificationBridge = new FakeNotificationBridge();
+        Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+        Track track = track(5L);
+        stateProvider.currentTrack = track;
+        FakeArtworkLoader artworkLoader = new FakeArtworkLoader(bitmap);
+        PlaybackNotificationArtworkManager manager = manager(
+                stateProvider,
+                notificationBridge,
+                pending,
+                artworkLoader,
+                ignored -> new byte[] {10, 11, 12}
+        );
+
+        assertNull(manager.notificationArtworkFor(track));
+        int generationBeforeRelease = artworkGeneration(manager);
+        manager.release();
+        int generationAfterFirstRelease = artworkGeneration(manager);
+        manager.release();
+        pending.get(0).run();
+
+        assertEquals(generationBeforeRelease + 1, generationAfterFirstRelease);
+        assertEquals(generationAfterFirstRelease, artworkGeneration(manager));
+        assertEquals(0, artworkLoader.decodeCalls);
+        assertNull(manager.notificationArtworkDataFor(track));
+        assertEquals(0, notificationBridge.refreshCalls);
+        assertEquals(0, notificationBridge.updateCalls);
+    }
+
+    @Test
     public void queuedArtworkResultCachesAndRefreshesForCurrentTrack() {
         List<Runnable> pending = new ArrayList<>();
         FakeStateProvider stateProvider = new FakeStateProvider();
@@ -147,6 +181,12 @@ public final class PlaybackNotificationArtworkManagerTest {
                 artworkLoader,
                 artworkEncoder
         );
+    }
+
+    private static int artworkGeneration(PlaybackNotificationArtworkManager manager) throws Exception {
+        Field field = PlaybackNotificationArtworkManager.class.getDeclaredField("artworkGeneration");
+        field.setAccessible(true);
+        return ((AtomicInteger) field.get(manager)).get();
     }
 
     private static Track track(long id) {

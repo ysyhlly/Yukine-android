@@ -41,6 +41,21 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
+    public void releaseIsIdempotentAfterCallbacksAreCancelled() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(stateProvider, mediaSourceProvider(), scheduler);
+        stateProvider.currentTrack = track(1L, "https://example.test/one.mp3");
+
+        manager.precacheTrack(stateProvider.currentTrack);
+        manager.release();
+        manager.release();
+
+        assertEquals(2, scheduler.removedCallbacks);
+        assertEquals(0, scheduler.pendingCallbacks.size());
+    }
+
+    @Test
     public void replacingCurrentPrecacheCancelsPreviousDelayedCallbacks() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();

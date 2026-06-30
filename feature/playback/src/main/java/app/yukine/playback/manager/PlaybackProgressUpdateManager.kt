@@ -39,6 +39,9 @@ internal class PlaybackProgressUpdateManager @JvmOverloads constructor(
     }
 
     fun release() {
+        if (released) {
+            return
+        }
         released = true
         stop()
     }

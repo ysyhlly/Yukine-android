@@ -124,4 +124,47 @@ class PlaybackStatePublisherTest {
 
         assertEquals(emptyList<String>(), calls)
     }
+
+    @Test
+    fun releaseIsIdempotentAfterListenersAreCleared() {
+        val snapshot = PlaybackStateSnapshot.empty()
+        var snapshotReads = 0
+        val calls = mutableListOf<String>()
+        val publisher = PlaybackStatePublisher(
+            snapshotProvider = {
+                snapshotReads++
+                snapshot
+            },
+            lyricsPublisher = null,
+            notificationUpdater = PlaybackStatePublisher.NotificationUpdater {
+                calls.add("notify")
+            },
+            artworkProvider = null,
+            widgetUpdater = PlaybackStatePublisher.WidgetUpdater { _, _ ->
+                calls.add("widget")
+            }
+        )
+        val listener = object : PlaybackStateListener {
+            override fun onPlaybackStateChanged(snapshot: PlaybackStateSnapshot) {
+                calls.add("state")
+            }
+
+            override fun onPlaybackBuffering(snapshot: PlaybackStateSnapshot) {
+                calls.add("buffering")
+            }
+        }
+
+        publisher.registerListener(listener)
+        calls.clear()
+        val readsAfterRegistration = snapshotReads
+        publisher.release()
+        publisher.release()
+        publisher.publishState()
+        publisher.publishNotification(true)
+        publisher.publishBufferingState { calls.add("record") }
+        publisher.registerListener(listener)
+
+        assertEquals(readsAfterRegistration, snapshotReads)
+        assertEquals(emptyList<String>(), calls)
+    }
 }
