@@ -700,7 +700,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 () -> EchoPlaybackService.this.persistPlaybackPositionThrottled(true),
                 playbackQueuePersistenceOwner,
                 new PlaybackShutdownPlaybackStateOwner(
-                        playbackPlayerStateOwner,
+                        playbackPlayerStateOwner::isPlaying,
                         playbackCurrentTrackPreparationRuntimeOwner::preparing
                 ),
                 playbackNotificationCommandOwner::hasNotificationWorthyState,

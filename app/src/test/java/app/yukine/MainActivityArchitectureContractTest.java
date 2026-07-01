@@ -1598,7 +1598,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playerStateOwner.contains("PlaybackRealtimeVisualizationOwner.PlaybackStateProvider"));
         assertTrue(playerStateOwner.contains("PlaybackPositionStateOwner.PlaybackPositionProvider"));
         assertTrue(playerStateOwner.contains("PlaybackNoisyReceiverActionsOwner.PlaybackStateProvider"));
-        assertTrue(playerStateOwner.contains("PlaybackShutdownPlaybackStateOwner.PlaybackStateProvider"));
+        assertFalse(playerStateOwner.contains("PlaybackShutdownPlaybackStateOwner.PlaybackStateProvider"));
         assertTrue(playerStateOwner.contains("return playerStateOperations.isPlaying();"));
         assertTrue(playerStateOwner.contains("return Math.max(0L, playerStateOperations.currentPositionMs());"));
         assertTrue(playerStateOwner.contains("durationMs == C.TIME_UNSET ? 0L : Math.max(0L, durationMs)"));
@@ -6787,10 +6787,13 @@ public final class MainActivityArchitectureContractTest {
                 "final class PlaybackShutdownPlaybackStateOwner"));
         assertTrue(shutdownPlaybackStateOwner.contains(
                 "implements PlaybackShutdownLifecycleResourcesOwner.PlaybackStateProvider"));
-        assertTrue(shutdownPlaybackStateOwner.contains("interface PlaybackStateProvider"));
-        assertTrue(shutdownPlaybackStateOwner.contains("interface PreparingStateProvider"));
-        assertTrue(shutdownPlaybackStateOwner.contains("return playbackStateProvider != null && playbackStateProvider.isPlaying();"));
-        assertTrue(shutdownPlaybackStateOwner.contains("return preparingStateProvider != null && preparingStateProvider.isPreparing();"));
+        assertFalse(shutdownPlaybackStateOwner.contains("interface PlaybackStateProvider"));
+        assertFalse(shutdownPlaybackStateOwner.contains("interface PreparingStateProvider"));
+        assertTrue(shutdownPlaybackStateOwner.contains("import java.util.function.BooleanSupplier;"));
+        assertTrue(shutdownPlaybackStateOwner.contains("private final BooleanSupplier playbackStateProvider;"));
+        assertTrue(shutdownPlaybackStateOwner.contains("private final BooleanSupplier preparingStateProvider;"));
+        assertTrue(shutdownPlaybackStateOwner.contains("return playbackStateProvider != null && playbackStateProvider.getAsBoolean();"));
+        assertTrue(shutdownPlaybackStateOwner.contains("return preparingStateProvider != null && preparingStateProvider.getAsBoolean();"));
         assertTrue(mainHandlerSchedulerOwner.contains("final class PlaybackMainHandlerSchedulerOwner implements"));
         assertTrue(mainHandlerSchedulerOwner.contains("PlaybackSleepTimerManager.CallbackScheduler"));
         assertTrue(mainHandlerSchedulerOwner.contains("PlaybackErrorRecoveryManager.RetryScheduler"));

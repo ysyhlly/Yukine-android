@@ -1,21 +1,15 @@
 package app.yukine.playback;
 
+import java.util.function.BooleanSupplier;
+
 final class PlaybackShutdownPlaybackStateOwner
         implements PlaybackShutdownLifecycleResourcesOwner.PlaybackStateProvider {
-    interface PlaybackStateProvider {
-        boolean isPlaying();
-    }
-
-    interface PreparingStateProvider {
-        boolean isPreparing();
-    }
-
-    private final PlaybackStateProvider playbackStateProvider;
-    private final PreparingStateProvider preparingStateProvider;
+    private final BooleanSupplier playbackStateProvider;
+    private final BooleanSupplier preparingStateProvider;
 
     PlaybackShutdownPlaybackStateOwner(
-            PlaybackStateProvider playbackStateProvider,
-            PreparingStateProvider preparingStateProvider
+            BooleanSupplier playbackStateProvider,
+            BooleanSupplier preparingStateProvider
     ) {
         this.playbackStateProvider = playbackStateProvider;
         this.preparingStateProvider = preparingStateProvider;
@@ -23,11 +17,11 @@ final class PlaybackShutdownPlaybackStateOwner
 
     @Override
     public boolean isPlaying() {
-        return playbackStateProvider != null && playbackStateProvider.isPlaying();
+        return playbackStateProvider != null && playbackStateProvider.getAsBoolean();
     }
 
     @Override
     public boolean isPreparing() {
-        return preparingStateProvider != null && preparingStateProvider.isPreparing();
+        return preparingStateProvider != null && preparingStateProvider.getAsBoolean();
     }
 }

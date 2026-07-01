@@ -9,8 +9,7 @@ final class PlaybackPlayerStateOwner implements
         PlaybackPositionStateOwner.PlaybackPositionProvider,
         PlaybackStateSnapshotOwner.PlaybackPositionProvider,
         PlaybackBufferedProgressOwner.PlaybackPositionProvider,
-        PlaybackNoisyReceiverActionsOwner.PlaybackStateProvider,
-        PlaybackShutdownPlaybackStateOwner.PlaybackStateProvider {
+        PlaybackNoisyReceiverActionsOwner.PlaybackStateProvider {
     interface PlayerProvider {
         Player player();
     }
