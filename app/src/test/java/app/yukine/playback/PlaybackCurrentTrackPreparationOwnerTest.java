@@ -13,6 +13,7 @@ import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -26,6 +27,10 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
                 track -> {
                     events.add("prepare:" + track.id);
                     return new PlaybackMediaSourceProvider.PlaybackPreparation(restored, restored, true, null);
+                },
+                track -> {
+                    events.add("source:" + track.id);
+                    return null;
                 },
                 new FakeQueuePreparationController(events, 4500L),
                 new FakeRuntimeStateController(events),
@@ -46,6 +51,16 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
                 ),
                 events
         );
+        assertNull(prepared.mediaSource());
+        assertEquals(
+                Arrays.asList(
+                        "prepare:1",
+                        "replace:1",
+                        "position:1",
+                        "source:1"
+                ),
+                events
+        );
     }
 
     @Test
@@ -59,6 +74,10 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
                         false,
                         "Streaming track is not resolved yet. Tap the track again to play."
                 ),
+                track -> {
+                    events.add("source:" + track.id);
+                    return null;
+                },
                 new FakeQueuePreparationController(events, 4500L),
                 new FakeRuntimeStateController(events),
                 () -> events.add("publish"),
@@ -70,6 +89,7 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
         assertFalse(prepared.playable());
         assertSame(unresolved, prepared.track());
         assertEquals(0L, prepared.startPositionMs());
+        assertNull(prepared.mediaSource());
         assertEquals(
                 Arrays.asList(
                         "preparing:false",
@@ -86,6 +106,7 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
         Track track = track(3L, Uri.parse("file:///music/local.flac"));
         PlaybackCurrentTrackPreparationOwner owner = new PlaybackCurrentTrackPreparationOwner(
                 requested -> new PlaybackMediaSourceProvider.PlaybackPreparation(track, null, true, null),
+                requested -> null,
                 new FakeQueuePreparationController(new ArrayList<>(), -1L),
                 new FakeRuntimeStateController(new ArrayList<>()),
                 () -> {

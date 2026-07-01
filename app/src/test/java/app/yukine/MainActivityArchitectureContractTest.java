@@ -6162,7 +6162,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackMediaSourceResolutionOwner.java")));
         assertFalse(service.contains("PlaybackMediaSourceResolutionOwner"));
         assertFalse(service.contains("playbackMediaSourceResolutionOwner"));
-        assertTrue(service.contains("mediaSourceProvider.mediaSourceForTrack("));
+        assertFalse(service.contains("player.setMediaSource(mediaSourceProvider.mediaSourceForTrack("));
+        assertTrue(service.contains("track -> mediaSourceProvider.mediaSourceForTrack("));
+        assertTrue(service.contains("prepareSingleTrack(preparedTrack.track(), preparedTrack.mediaSource()"));
         assertTrue(service.contains("mediaSourceProvider.mediaSourcesForTracks("));
         assertTrue(service.contains("playbackNotificationManager::mediaMetadataForTrack"));
         assertFalse(service.contains("playbackPrecacheManager.releaseAudioCache();"));

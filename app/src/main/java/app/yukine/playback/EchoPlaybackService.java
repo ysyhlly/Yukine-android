@@ -558,6 +558,10 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackCurrentTrackPreparationOwner = new PlaybackCurrentTrackPreparationOwner(
                 mediaSourceProvider::prepareTrackForPlayback,
+                track -> mediaSourceProvider.mediaSourceForTrack(
+                        track,
+                        playbackNotificationManager::mediaMetadataForTrack
+                ),
                 playbackCurrentTrackPreparationQueueOwner,
                 playbackCurrentTrackPreparationRuntimeOwner,
                 EchoPlaybackService.this::publishState,
@@ -1152,12 +1156,16 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (!preparedTrack.playable()) {
             return;
         }
-        prepareMirroredQueue(playWhenReady, preparedTrack.startPositionMs());
+        prepareMirroredQueue(playWhenReady, preparedTrack);
         return;
     }
 
     @OptIn(markerClass = UnstableApi.class)
-    private void prepareMirroredQueue(final boolean playWhenReady, final long startPositionMs) {
+    private void prepareMirroredQueue(
+            final boolean playWhenReady,
+            PlaybackCurrentTrackPreparationOwner.PreparedTrack preparedTrack
+    ) {
+        final long startPositionMs = preparedTrack.startPositionMs();
         if (seekExistingMirroredQueue(playWhenReady, startPositionMs)) {
             return;
         }
@@ -1169,7 +1177,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
         List<Track> mirroredQueueTracks = queuePreparation.getMirroredQueueTracks();
         if (mirroredQueueTracks == null || mirroredQueueTracks.isEmpty()) {
-            prepareSingleTrack(track, playWhenReady, startPositionMs);
+            prepareSingleTrack(preparedTrack.track(), preparedTrack.mediaSource(), playWhenReady, startPositionMs);
             return;
         }
         List<MediaSource> mediaSources = mediaSourceProvider.mediaSourcesForTracks(
@@ -1204,7 +1212,12 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     @OptIn(markerClass = UnstableApi.class)
-    private void prepareSingleTrack(Track track, final boolean playWhenReady, final long startPositionMs) {
+    private void prepareSingleTrack(
+            Track track,
+            MediaSource mediaSource,
+            final boolean playWhenReady,
+            final long startPositionMs
+    ) {
         playbackCurrentTrackPreparationRuntimeOwner.beginPreparing();
         createPlayerIfNeeded();
         playbackTransitionStateManager.setLastMarkedTrack(null);
@@ -1214,10 +1227,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         player.clearMediaItems();
         playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(false);
         applyPlaybackParametersToPlayer();
-        player.setMediaSource(mediaSourceProvider.mediaSourceForTrack(
-                track,
-                playbackNotificationManager::mediaMetadataForTrack
-        ));
+        player.setMediaSource(mediaSource);
         player.setPlayWhenReady(playWhenReady);
         try {
             player.prepare();

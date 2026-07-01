@@ -1,11 +1,17 @@
 package app.yukine.playback;
 
+import androidx.media3.exoplayer.source.MediaSource;
+
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
 final class PlaybackCurrentTrackPreparationOwner {
     interface PreparationProvider {
         PlaybackMediaSourceProvider.PlaybackPreparation prepareTrackForPlayback(Track track);
+    }
+
+    interface MediaSourceResolver {
+        MediaSource mediaSourceForTrack(Track track);
     }
 
     interface QueuePreparationController {
@@ -30,19 +36,30 @@ final class PlaybackCurrentTrackPreparationOwner {
         private final Track track;
         private final long startPositionMs;
         private final boolean playable;
+        private final MediaSourceResolver mediaSourceResolver;
 
-        private PreparedTrack(Track track, long startPositionMs, boolean playable) {
+        private PreparedTrack(
+                Track track,
+                long startPositionMs,
+                boolean playable,
+                MediaSourceResolver mediaSourceResolver
+        ) {
             this.track = track;
             this.startPositionMs = startPositionMs;
             this.playable = playable;
+            this.mediaSourceResolver = mediaSourceResolver;
         }
 
-        static PreparedTrack playable(Track track, long startPositionMs) {
-            return new PreparedTrack(track, Math.max(0L, startPositionMs), true);
+        static PreparedTrack playable(
+                Track track,
+                long startPositionMs,
+                MediaSourceResolver mediaSourceResolver
+        ) {
+            return new PreparedTrack(track, Math.max(0L, startPositionMs), true, mediaSourceResolver);
         }
 
         static PreparedTrack unplayable(Track track) {
-            return new PreparedTrack(track, 0L, false);
+            return new PreparedTrack(track, 0L, false, null);
         }
 
         Track track() {
@@ -56,9 +73,17 @@ final class PlaybackCurrentTrackPreparationOwner {
         boolean playable() {
             return playable;
         }
+
+        MediaSource mediaSource() {
+            if (mediaSourceResolver == null) {
+                return null;
+            }
+            return mediaSourceResolver.mediaSourceForTrack(track);
+        }
     }
 
     private final PreparationProvider preparationProvider;
+    private final MediaSourceResolver mediaSourceResolver;
     private final QueuePreparationController queuePreparationController;
     private final RuntimeStateController runtimeStateController;
     private final StatePublisher statePublisher;
@@ -66,12 +91,14 @@ final class PlaybackCurrentTrackPreparationOwner {
 
     PlaybackCurrentTrackPreparationOwner(
             PreparationProvider preparationProvider,
+            MediaSourceResolver mediaSourceResolver,
             QueuePreparationController queuePreparationController,
             RuntimeStateController runtimeStateController,
             StatePublisher statePublisher,
             RefusalLogger refusalLogger
     ) {
         this.preparationProvider = preparationProvider;
+        this.mediaSourceResolver = mediaSourceResolver;
         this.queuePreparationController = queuePreparationController;
         this.runtimeStateController = runtimeStateController;
         this.statePublisher = statePublisher;
@@ -95,7 +122,8 @@ final class PlaybackCurrentTrackPreparationOwner {
         }
         return PreparedTrack.playable(
                 preparedTrack,
-                queuePreparationController.restoredPositionFor(preparedTrack)
+                queuePreparationController.restoredPositionFor(preparedTrack),
+                mediaSourceResolver
         );
     }
 }
