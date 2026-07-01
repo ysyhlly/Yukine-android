@@ -259,7 +259,7 @@ class PlaybackNotificationManagerTest {
         foregroundController: FakeForegroundController,
         actionCallbacks: PlaybackNotificationManager.ActionCallbacks? = null,
         lyricsPublisherSupplier: java.util.function.Supplier<out LyricsPublisher?>? = null,
-        artworkProvider: PlaybackNotificationManager.ArtworkProvider = FakeArtworkProvider()
+        artworkProvider: PlaybackNotificationArtworkSource = FakeArtworkProvider()
     ): PlaybackNotificationManager {
         return PlaybackNotificationManager(
             RuntimeEnvironment.getApplication(),
@@ -359,7 +359,7 @@ class PlaybackNotificationManagerTest {
 
     private class FakeArtworkProvider(
         private val artworkData: ByteArray? = null
-    ) : PlaybackNotificationManager.ArtworkProvider {
+    ) : PlaybackNotificationArtworkSource {
         override fun notificationArtworkFor(track: Track?): Bitmap? = null
 
         override fun notificationArtworkDataFor(track: Track?): ByteArray? = artworkData

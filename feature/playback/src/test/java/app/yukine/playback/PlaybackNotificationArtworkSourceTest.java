@@ -9,28 +9,28 @@ import app.yukine.model.Track;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 
-public class PlaybackNotificationArtworkProviderOwnerTest {
+public class PlaybackNotificationArtworkSourceTest {
     @Test
-    public void returnsNullUntilArtworkManagerIsAvailable() {
+    public void returnsNullUntilArtworkSourceIsAvailable() {
         MutableArtworkSourceProvider provider = new MutableArtworkSourceProvider();
-        PlaybackNotificationArtworkProviderOwner owner =
-                new PlaybackNotificationArtworkProviderOwner(provider::artworkSource);
+        PlaybackNotificationArtworkSource source =
+                PlaybackNotificationArtworkSource.fromSupplier(provider::artworkSource);
 
-        assertNull(owner.notificationArtworkFor(track()));
-        assertNull(owner.notificationArtworkDataFor(track()));
+        assertNull(source.notificationArtworkFor(track()));
+        assertNull(source.notificationArtworkDataFor(track()));
     }
 
     @Test
-    public void delegatesArtworkRequestsToCurrentManager() {
+    public void delegatesArtworkRequestsToCurrentSource() {
         MutableArtworkSourceProvider provider = new MutableArtworkSourceProvider();
-        PlaybackNotificationArtworkProviderOwner owner =
-                new PlaybackNotificationArtworkProviderOwner(provider::artworkSource);
+        PlaybackNotificationArtworkSource source =
+                PlaybackNotificationArtworkSource.fromSupplier(provider::artworkSource);
         byte[] artworkData = new byte[] {1, 2, 3};
         Track track = track();
         provider.source = new FakeArtworkSource(track, artworkData);
 
-        assertNull(owner.notificationArtworkFor(track));
-        assertSame(artworkData, owner.notificationArtworkDataFor(track));
+        assertNull(source.notificationArtworkFor(track));
+        assertSame(artworkData, source.notificationArtworkDataFor(track));
     }
 
     private static Track track() {

@@ -6485,7 +6485,7 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackNotificationCommandOwner.notificationUpdaterFromNotificationManagerSupplier("));
         assertTrue(service.contains("() -> playbackNotificationManager"));
         assertFalse(service.contains("playbackNotificationManager.updateMediaNotification(force);"));
-        assertTrue(service.contains("                playbackNotificationArtworkProviderOwner,"));
+        assertTrue(service.contains("                playbackNotificationArtworkSource,"));
         assertTrue(service.contains("PlaybackStatePublisherWidgetOwner.fromContextProvider(() -> this)"));
         assertTrue(service.contains("private PlaybackBufferingDiagnosticsRecorderOwner playbackBufferingDiagnosticsRecorderOwner;"));
         assertTrue(service.contains("PlaybackBufferingDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider("));
@@ -7527,7 +7527,6 @@ public final class MainActivityArchitectureContractTest {
         String foregroundOwner = read("app/src/main/java/app/yukine/playback/PlaybackNotificationForegroundOwner.java");
         String commandOwner = read("app/src/main/java/app/yukine/playback/PlaybackNotificationCommandOwner.java");
         String stateOwner = read("app/src/main/java/app/yukine/playback/PlaybackNotificationStateOwner.java");
-        String artworkProviderOwner = read("app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkProviderOwner.java");
         String artworkSource = read("feature/playback/src/main/java/app/yukine/playback/PlaybackNotificationArtworkSource.java");
         String toggleFavoriteUseCase = read("app/src/main/java/app/yukine/ToggleFavoriteUseCase.kt");
 
@@ -7564,9 +7563,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(exists("app/src/main/java/app/yukine/playback/PlaybackNotificationLyricsTextOwner.java"));
         assertTrue(service.contains("                () -> playbackLyricsManager,"));
         assertFalse(service.contains("new PlaybackNotificationManager.LyricsTextProvider()"));
-        assertTrue(service.contains("private PlaybackNotificationArtworkProviderOwner playbackNotificationArtworkProviderOwner;"));
-        assertTrue(service.contains("playbackNotificationArtworkProviderOwner = new PlaybackNotificationArtworkProviderOwner("));
-        assertTrue(service.contains("                playbackNotificationArtworkProviderOwner,"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkProviderOwner.java")));
+        assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackNotificationArtworkProviderOwnerTest.java")));
+        assertFalse(service.contains("PlaybackNotificationArtworkProviderOwner"));
+        assertTrue(service.contains("private PlaybackNotificationArtworkSource playbackNotificationArtworkSource;"));
+        assertTrue(service.contains("playbackNotificationArtworkSource = PlaybackNotificationArtworkSource.fromSupplier("));
+        assertTrue(service.contains("                playbackNotificationArtworkSource,"));
         assertFalse(service.contains("new PlaybackNotificationManager.ArtworkProvider()"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkStateOwner.java")));
         assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackNotificationArtworkStateOwnerTest.java")));
@@ -7657,15 +7659,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("lyricsPublisherSupplier?.get()?.sanitizeNotificationLyric(value).orEmpty()"));
         assertFalse(service.contains("playbackLyricsManager.notificationLyricText("));
         assertFalse(service.contains("playbackLyricsManager.sanitizeNotificationLyric("));
-        assertTrue(artworkProviderOwner.contains("final class PlaybackNotificationArtworkProviderOwner"));
-        assertTrue(artworkProviderOwner.contains(
-                "implements PlaybackNotificationManager.ArtworkProvider, PlaybackStatePublisher.ArtworkProvider"));
-        assertFalse(artworkProviderOwner.contains("interface ArtworkManagerProvider"));
-        assertTrue(artworkProviderOwner.contains("Supplier<PlaybackNotificationArtworkSource>"));
-        assertTrue(artworkProviderOwner.contains("PlaybackNotificationArtworkSource source = artworkSource();"));
-        assertTrue(artworkProviderOwner.contains("return source == null ? null : source.notificationArtworkFor(track);"));
-        assertTrue(artworkProviderOwner.contains("return source == null ? null : source.notificationArtworkDataFor(track);"));
-        assertTrue(artworkSource.contains("interface PlaybackNotificationArtworkSource"));
+        assertTrue(artworkSource.contains("public interface PlaybackNotificationArtworkSource extends PlaybackStatePublisher.ArtworkProvider"));
+        assertTrue(artworkSource.contains("static PlaybackNotificationArtworkSource fromSupplier("));
+        assertTrue(artworkSource.contains("Supplier<PlaybackNotificationArtworkSource> artworkSourceProvider"));
+        assertTrue(artworkSource.contains("PlaybackNotificationArtworkSource source = artworkSource();"));
+        assertTrue(artworkSource.contains("return source == null ? null : source.notificationArtworkFor(track);"));
+        assertTrue(artworkSource.contains("return source == null ? null : source.notificationArtworkDataFor(track);"));
         assertTrue(artworkSource.contains("Bitmap notificationArtworkFor(Track track);"));
         assertTrue(artworkSource.contains("byte[] notificationArtworkDataFor(Track track);"));
         assertTrue(owner.contains("fun isFavorite(track: Track?): Boolean"));

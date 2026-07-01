@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.media.session.MediaSession
 import app.yukine.R
 import app.yukine.model.Track
+import app.yukine.playback.PlaybackNotificationArtworkSource
 import app.yukine.playback.service.PlaybackServiceActions
 import androidx.media3.common.MediaMetadata
 import java.util.function.Supplier
@@ -17,7 +18,7 @@ internal class PlaybackNotificationManager(
     private val foregroundController: ForegroundController,
     private val stateProvider: StateProvider,
     private val lyricsPublisherSupplier: Supplier<out LyricsPublisher?>?,
-    private val artworkProvider: ArtworkProvider,
+    private val artworkProvider: PlaybackNotificationArtworkSource,
     private val actionCallbacks: ActionCallbacks? = null
 ) : NotificationManager {
     interface ForegroundController {
@@ -33,11 +34,6 @@ internal class PlaybackNotificationManager(
         fun currentTrack(): Track?
         fun isFavorite(track: Track?): Boolean
         fun playbackSessionPlatformToken(): MediaSession.Token?
-    }
-
-    interface ArtworkProvider {
-        fun notificationArtworkFor(track: Track?): Bitmap?
-        fun notificationArtworkDataFor(track: Track?): ByteArray?
     }
 
     interface ActionCallbacks {

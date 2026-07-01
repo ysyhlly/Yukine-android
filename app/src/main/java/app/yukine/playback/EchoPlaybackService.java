@@ -205,7 +205,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackNotificationForegroundOwner playbackNotificationForegroundOwner;
     private PlaybackNotificationCommandOwner playbackNotificationCommandOwner;
     private PlaybackNotificationStateOwner playbackNotificationStateOwner;
-    private PlaybackNotificationArtworkProviderOwner playbackNotificationArtworkProviderOwner;
+    private PlaybackNotificationArtworkSource playbackNotificationArtworkSource;
     private PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner;
     private PlaybackSessionCommandOwner playbackSessionCommandOwner;
     private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner;
@@ -486,7 +486,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                     return session == null ? null : session.getPlatformToken();
                 }
         );
-        playbackNotificationArtworkProviderOwner = new PlaybackNotificationArtworkProviderOwner(
+        playbackNotificationArtworkSource = PlaybackNotificationArtworkSource.fromSupplier(
                 () -> playbackNotificationArtworkManager
         );
         playbackNotificationManager = new PlaybackNotificationManager(
@@ -494,7 +494,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackNotificationForegroundOwner,
                 playbackNotificationStateOwner,
                 () -> playbackLyricsManager,
-                playbackNotificationArtworkProviderOwner,
+                playbackNotificationArtworkSource,
                 playbackNotificationCommandOwner
         );
         playbackSessionRefreshOwner = PlaybackSessionRefreshOwner.fromPlaybackSessionManager(
@@ -721,7 +721,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 PlaybackNotificationCommandOwner.notificationUpdaterFromNotificationManagerSupplier(
                         () -> playbackNotificationManager
                 ),
-                playbackNotificationArtworkProviderOwner,
+                playbackNotificationArtworkSource,
                 PlaybackStatePublisherWidgetOwner.fromContextProvider(() -> this)
         );
         playbackBufferingDiagnosticsRecorderOwner =
