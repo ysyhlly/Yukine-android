@@ -91,6 +91,7 @@ internal class PlaybackShutdownCoordinator(
         serviceResources.releaseVisualizationAnalyzer()
         serviceResources.releaseRecoveryScheduler()
         serviceResources.shutdownTaskSchedulers()
+        serviceResources.releasePrecache()
         serviceResources.releaseErrorRecovery()
         serviceResources.releaseProgressUpdates()
         serviceResources.releaseSleepTimer()
@@ -98,7 +99,6 @@ internal class PlaybackShutdownCoordinator(
         serviceResources.clearMainCallbacks()
         serviceResources.releaseVisualizationCache()
         serviceResources.releaseNotificationArtwork()
-        serviceResources.releasePrecache()
         serviceResources.releaseStatePublisher()
         releaseTransportResourcesOnce()
     }
