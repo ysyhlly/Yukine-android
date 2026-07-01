@@ -6,19 +6,9 @@ import androidx.media3.common.Player;
 import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 
+import java.util.function.Supplier;
+
 final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateProvider {
-    interface CurrentTrackProvider {
-        Track currentTrack();
-    }
-
-    interface PlayerMediaItemProvider {
-        MediaItem currentPlayerMediaItem();
-    }
-
-    interface PlayerProvider {
-        Player player();
-    }
-
     interface PlayerOperations {
         int playbackState();
 
@@ -27,42 +17,34 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
         MediaItem currentMediaItem();
     }
 
-    interface PlayerOperationsProvider {
-        PlayerOperations playerOperations();
-    }
-
-    interface StreamingDiagnosticsProvider {
-        PlaybackStreamingDiagnostics streamingDiagnostics();
-    }
-
-    private final CurrentTrackProvider currentTrackProvider;
-    private final PlayerMediaItemProvider playerMediaItemProvider;
-    private final StreamingDiagnosticsProvider streamingDiagnosticsProvider;
+    private final Supplier<Track> currentTrackSupplier;
+    private final Supplier<MediaItem> playerMediaItemSupplier;
+    private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsSupplier;
 
     PlaybackPrecacheStateOwner(
-            CurrentTrackProvider currentTrackProvider,
-            PlayerMediaItemProvider playerMediaItemProvider,
-            StreamingDiagnosticsProvider streamingDiagnosticsProvider
+            Supplier<Track> currentTrackSupplier,
+            Supplier<MediaItem> playerMediaItemSupplier,
+            Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsSupplier
     ) {
-        this.currentTrackProvider = currentTrackProvider;
-        this.playerMediaItemProvider = playerMediaItemProvider;
-        this.streamingDiagnosticsProvider = streamingDiagnosticsProvider;
+        this.currentTrackSupplier = currentTrackSupplier;
+        this.playerMediaItemSupplier = playerMediaItemSupplier;
+        this.streamingDiagnosticsSupplier = streamingDiagnosticsSupplier;
     }
 
-    static PlayerMediaItemProvider playerMediaItemProviderFromPlayerProvider(PlayerProvider playerProvider) {
-        return playerMediaItemProviderFromOperationsProvider(() -> {
-            Player player = playerProvider == null ? null : playerProvider.player();
+    static Supplier<MediaItem> playerMediaItemSupplierFromPlayerSupplier(Supplier<Player> playerSupplier) {
+        return playerMediaItemSupplierFromOperationsSupplier(() -> {
+            Player player = playerSupplier == null ? null : playerSupplier.get();
             return player == null ? null : new Media3PlayerOperations(player);
         });
     }
 
-    static PlayerMediaItemProvider playerMediaItemProviderFromOperationsProvider(
-            PlayerOperationsProvider playerOperationsProvider
+    static Supplier<MediaItem> playerMediaItemSupplierFromOperationsSupplier(
+            Supplier<PlayerOperations> playerOperationsSupplier
     ) {
         return () -> {
-            PlayerOperations playerOperations = playerOperationsProvider == null
+            PlayerOperations playerOperations = playerOperationsSupplier == null
                     ? null
-                    : playerOperationsProvider.playerOperations();
+                    : playerOperationsSupplier.get();
             if (playerOperations == null) {
                 return null;
             }
@@ -80,17 +62,17 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
 
     @Override
     public Track currentTrack() {
-        return currentTrackProvider.currentTrack();
+        return currentTrackSupplier.get();
     }
 
     @Override
     public MediaItem currentPlayerMediaItem() {
-        return playerMediaItemProvider.currentPlayerMediaItem();
+        return playerMediaItemSupplier.get();
     }
 
     @Override
     public PlaybackStreamingDiagnostics streamingDiagnostics() {
-        return streamingDiagnosticsProvider.streamingDiagnostics();
+        return streamingDiagnosticsSupplier.get();
     }
 
     private static final class Media3PlayerOperations implements PlayerOperations {
