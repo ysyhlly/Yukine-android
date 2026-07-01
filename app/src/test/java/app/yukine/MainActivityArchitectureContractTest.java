@@ -6565,6 +6565,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("repository.loadConcurrentPlaybackEnabled()"));
         assertFalse(service.contains("repository.loadPlaybackSpeed()"));
         assertFalse(service.contains("repository.loadAppVolume()"));
+        assertFalse(service.contains("static int media3RepeatModeForAppRepeatMode("));
+        assertFalse(service.contains("static int appRepeatModeForMedia3RepeatMode("));
+        assertTrue(owner.contains("fun media3RepeatModeForAppRepeatMode(appRepeatMode: Int, playerMirrorsQueue: Boolean): Int"));
         assertFalse(service.contains("concurrentPlaybackEnabled = enabled"));
         assertFalse(service.contains("return playbackSpeed;"));
         assertFalse(service.contains("return appVolume;"));
@@ -7790,6 +7793,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(sessionPlayer.contains("Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM"));
         assertTrue(sessionPlayer.contains("Player.COMMAND_SEEK_TO_PREVIOUS"));
         assertTrue(sessionPlayer.contains("Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM"));
+        assertFalse(playbackService.contains("static boolean isAppQueueNavigationCommand(int command)"));
         assertTrue(waveformMergePolicy.contains("generated.generatedBars >= safeCurrent.generatedBars"));
         assertTrue(waveformMergePolicy.contains("Math.max(safeCurrent.cachedProgress, cachedProgress)"));
         assertFalse(playbackService.contains("Uri.fromFile(span.file)"));

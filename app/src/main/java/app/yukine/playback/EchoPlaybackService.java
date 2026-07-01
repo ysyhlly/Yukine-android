@@ -1348,42 +1348,6 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
     }
 
-    static int media3RepeatModeForAppRepeatMode(int appRepeatMode) {
-        return media3RepeatModeForAppRepeatMode(appRepeatMode, false);
-    }
-
-    static int media3RepeatModeForAppRepeatMode(int appRepeatMode, boolean playerMirrorsQueue) {
-        if (appRepeatMode == REPEAT_ONE) {
-            return Player.REPEAT_MODE_ONE;
-        }
-        if (!playerMirrorsQueue) {
-            return Player.REPEAT_MODE_OFF;
-        }
-        if (appRepeatMode == REPEAT_OFF) {
-            return Player.REPEAT_MODE_OFF;
-        }
-        return Player.REPEAT_MODE_ALL;
-    }
-
-    static int appRepeatModeForMedia3RepeatMode(int media3RepeatMode) {
-        if (media3RepeatMode == Player.REPEAT_MODE_ONE) {
-            return REPEAT_ONE;
-        }
-        if (media3RepeatMode == Player.REPEAT_MODE_OFF) {
-            return REPEAT_OFF;
-        }
-        return REPEAT_ALL;
-    }
-
-    static boolean isAppQueueNavigationCommand(int command) {
-        return command == Player.COMMAND_SEEK_TO_PREVIOUS
-                || command == Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM
-                || command == Player.COMMAND_SEEK_TO_PREVIOUS_WINDOW
-                || command == Player.COMMAND_SEEK_TO_NEXT
-                || command == Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM
-                || command == Player.COMMAND_SEEK_TO_NEXT_WINDOW;
-    }
-
     private void stopAfterAutomaticAdvance(int completedIndex) {
         playbackQueueCompletionOwner.prepareStopAfterAutomaticAdvance(completedIndex);
         stopAtEndOfQueue();
