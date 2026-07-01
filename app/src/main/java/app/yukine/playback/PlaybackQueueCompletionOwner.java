@@ -25,26 +25,26 @@ final class PlaybackQueueCompletionOwner {
         void skipToNext();
     }
 
-    private final Supplier<QueueCompletionOperations> queueCompletionOperationsProvider;
+    private final Supplier<QueueCompletionOperations> queueCompletionOperationsSupplier;
     private final CompletionBoundary completionBoundary;
 
     PlaybackQueueCompletionOwner(
-            Supplier<QueueCompletionOperations> queueCompletionOperationsProvider,
+            Supplier<QueueCompletionOperations> queueCompletionOperationsSupplier,
             CompletionBoundary completionBoundary
     ) {
-        this.queueCompletionOperationsProvider = queueCompletionOperationsProvider;
+        this.queueCompletionOperationsSupplier = queueCompletionOperationsSupplier;
         this.completionBoundary = completionBoundary;
     }
 
-    static PlaybackQueueCompletionOwner fromPlaybackQueueManagerProvider(
-            Supplier<PlaybackQueueManager> playbackQueueManagerProvider,
+    static PlaybackQueueCompletionOwner fromPlaybackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             CompletionBoundary completionBoundary
     ) {
         return new PlaybackQueueCompletionOwner(
                 () -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerProvider == null
+                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
                             ? null
-                            : playbackQueueManagerProvider.get();
+                            : playbackQueueManagerSupplier.get();
                     return playbackQueueManager == null
                             ? null
                             : new PlaybackQueueManagerOperations(playbackQueueManager);
@@ -98,9 +98,9 @@ final class PlaybackQueueCompletionOwner {
     }
 
     private QueueCompletionOperations queueCompletionOperations() {
-        return queueCompletionOperationsProvider == null
+        return queueCompletionOperationsSupplier == null
                 ? null
-                : queueCompletionOperationsProvider.get();
+                : queueCompletionOperationsSupplier.get();
     }
 
     private void stopAndClear() {

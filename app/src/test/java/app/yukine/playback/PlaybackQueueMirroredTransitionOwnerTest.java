@@ -85,4 +85,18 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         owner.prepareMirroredTransitionPlaybackState();
         assertEquals(java.util.Collections.emptyList(), events);
     }
+
+    @Test
+    public void missingPlaybackQueueManagerSupplierReturnsNullAndIgnoresPrepare() {
+        List<String> events = new ArrayList<>();
+        PlaybackQueueMirroredTransitionOwner owner =
+                PlaybackQueueMirroredTransitionOwner.fromPlaybackQueueManager(
+                        null,
+                        () -> events.add("applyVolume")
+                );
+
+        assertNull(owner.applyMirroredTransitionIndex(4, true));
+        owner.prepareMirroredTransitionPlaybackState();
+        assertEquals(java.util.Collections.emptyList(), events);
+    }
 }

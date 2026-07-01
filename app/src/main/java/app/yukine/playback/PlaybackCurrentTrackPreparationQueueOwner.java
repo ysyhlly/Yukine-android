@@ -17,17 +17,17 @@ final class PlaybackCurrentTrackPreparationQueueOwner
         void consumeRestoredPositionAfterPrepare(long startPositionMs);
     }
 
-    private final Supplier<QueueOperations> queueOperationsProvider;
+    private final Supplier<QueueOperations> queueOperationsSupplier;
 
-    static PlaybackCurrentTrackPreparationQueueOwner fromPlaybackQueueManagerProvider(
-            Supplier<PlaybackQueueManager> playbackQueueManagerProvider
+    static PlaybackCurrentTrackPreparationQueueOwner fromPlaybackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
     ) {
         return new PlaybackCurrentTrackPreparationQueueOwner(
                 () -> {
                     PlaybackQueueManager playbackQueueManager =
-                            playbackQueueManagerProvider == null
+                            playbackQueueManagerSupplier == null
                                     ? null
-                                    : playbackQueueManagerProvider.get();
+                                    : playbackQueueManagerSupplier.get();
                     return playbackQueueManager == null
                             ? null
                             : new PlaybackQueueManagerOperations(playbackQueueManager);
@@ -35,8 +35,8 @@ final class PlaybackCurrentTrackPreparationQueueOwner
         );
     }
 
-    PlaybackCurrentTrackPreparationQueueOwner(Supplier<QueueOperations> queueOperationsProvider) {
-        this.queueOperationsProvider = queueOperationsProvider;
+    PlaybackCurrentTrackPreparationQueueOwner(Supplier<QueueOperations> queueOperationsSupplier) {
+        this.queueOperationsSupplier = queueOperationsSupplier;
     }
 
     @Override
@@ -68,7 +68,7 @@ final class PlaybackCurrentTrackPreparationQueueOwner
     }
 
     private QueueOperations queueOperations() {
-        return queueOperationsProvider == null ? null : queueOperationsProvider.get();
+        return queueOperationsSupplier == null ? null : queueOperationsSupplier.get();
     }
 
     private static final class PlaybackQueueManagerOperations implements QueueOperations {

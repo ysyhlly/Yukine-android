@@ -59,7 +59,7 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     }
 
     @Test
-    public void ignoresMissingQueueOperationsProvider() {
+    public void ignoresMissingQueueOperationsSupplier() {
         PlaybackCurrentTrackPreparationQueueOwner owner = new PlaybackCurrentTrackPreparationQueueOwner(
                 null
         );
@@ -69,6 +69,18 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
         assertEquals(0L, owner.restoredPositionFor(track(9L)));
         assertEquals(null, owner.queuePreparationForNewPlayer().getCurrentTrack());
         owner.consumeRestoredPositionAfterPrepare(6100L);
+    }
+
+    @Test
+    public void missingPlaybackQueueManagerSupplierSkipsQueueOperations() {
+        PlaybackCurrentTrackPreparationQueueOwner owner =
+                PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager(null);
+
+        owner.replaceCurrentQueueTrack(track(10L));
+
+        assertEquals(0L, owner.restoredPositionFor(track(10L)));
+        assertEquals(null, owner.queuePreparationForNewPlayer().getCurrentTrack());
+        owner.consumeRestoredPositionAfterPrepare(7100L);
     }
 
     private static Track track(long id) {

@@ -9,20 +9,20 @@ final class PlaybackQueueStopClearOwner {
         void prepareStopAndClearPlaybackState();
     }
 
-    private final Supplier<QueueStopClearOperations> queueStopClearOperationsProvider;
+    private final Supplier<QueueStopClearOperations> queueStopClearOperationsSupplier;
 
-    PlaybackQueueStopClearOwner(Supplier<QueueStopClearOperations> queueStopClearOperationsProvider) {
-        this.queueStopClearOperationsProvider = queueStopClearOperationsProvider;
+    PlaybackQueueStopClearOwner(Supplier<QueueStopClearOperations> queueStopClearOperationsSupplier) {
+        this.queueStopClearOperationsSupplier = queueStopClearOperationsSupplier;
     }
 
-    static PlaybackQueueStopClearOwner fromPlaybackQueueManagerProvider(
-            Supplier<PlaybackQueueManager> playbackQueueManagerProvider
+    static PlaybackQueueStopClearOwner fromPlaybackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
     ) {
         return new PlaybackQueueStopClearOwner(
                 () -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerProvider == null
+                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
                             ? null
-                            : playbackQueueManagerProvider.get();
+                            : playbackQueueManagerSupplier.get();
                     return playbackQueueManager == null
                             ? null
                             : playbackQueueManager::prepareStopAndClearPlaybackState;
@@ -40,8 +40,8 @@ final class PlaybackQueueStopClearOwner {
     }
 
     private QueueStopClearOperations queueStopClearOperations() {
-        return queueStopClearOperationsProvider == null
+        return queueStopClearOperationsSupplier == null
                 ? null
-                : queueStopClearOperationsProvider.get();
+                : queueStopClearOperationsSupplier.get();
     }
 }

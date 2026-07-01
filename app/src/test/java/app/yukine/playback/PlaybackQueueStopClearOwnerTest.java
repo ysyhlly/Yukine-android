@@ -18,11 +18,19 @@ public class PlaybackQueueStopClearOwnerTest {
 
     @Test
     public void reportsUnhandledWhenDependenciesAreMissing() {
-        PlaybackQueueStopClearOwner missingProvider = new PlaybackQueueStopClearOwner(null);
+        PlaybackQueueStopClearOwner missingSupplier = new PlaybackQueueStopClearOwner(null);
         PlaybackQueueStopClearOwner missingOperations = new PlaybackQueueStopClearOwner(() -> null);
 
-        assertFalse(missingProvider.prepareStopAndClearPlaybackState());
+        assertFalse(missingSupplier.prepareStopAndClearPlaybackState());
         assertFalse(missingOperations.prepareStopAndClearPlaybackState());
+    }
+
+    @Test
+    public void missingPlaybackQueueManagerSupplierReportsUnhandled() {
+        PlaybackQueueStopClearOwner owner =
+                PlaybackQueueStopClearOwner.fromPlaybackQueueManager(null);
+
+        assertFalse(owner.prepareStopAndClearPlaybackState());
     }
 
     private static final class FakeQueueStopClearOperations

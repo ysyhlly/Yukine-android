@@ -45,6 +45,12 @@ public final class PlaybackMediaLibraryDataSourceTest {
         assertEquals(cached, mediaItemFactory.lastTrack);
         assertEquals("media:1", item.mediaId);
         assertEquals("Meta 1", item.mediaMetadata.title.toString());
+
+        Track anotherTrack = track(3L);
+        assertEquals(
+                "Meta 3",
+                mediaItemFactory.lastMetadataProvider.apply(anotherTrack).title.toString()
+        );
     }
 
     private static Track track(long id) {
@@ -97,6 +103,7 @@ public final class PlaybackMediaLibraryDataSourceTest {
 
     private static final class FakeMediaItemFactory implements PlaybackMediaLibraryDataSource.MediaItemFactory {
         private Track lastTrack;
+        private Function<Track, MediaMetadata> lastMetadataProvider;
 
         @Override
         public MediaItem mediaItemForTrack(
@@ -104,6 +111,7 @@ public final class PlaybackMediaLibraryDataSourceTest {
                 Function<Track, MediaMetadata> metadataProvider
         ) {
             lastTrack = track;
+            lastMetadataProvider = metadataProvider;
             return new MediaItem.Builder()
                     .setMediaId("media:" + track.id)
                     .setMediaMetadata(metadataProvider.apply(track))

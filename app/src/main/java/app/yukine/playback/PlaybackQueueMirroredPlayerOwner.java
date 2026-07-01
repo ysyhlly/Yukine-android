@@ -74,11 +74,11 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     private final MirrorStateController mirrorStateController;
     private final FailureLogger failureLogger;
 
-    static MirroredQueueMatcher fromPlaybackQueueManagerProvider(
+    static MirroredQueueMatcher fromPlaybackQueueManager(
             MirrorStateProvider mirrorStateProvider,
             PlayerAvailability playerAvailability,
             PlayerMediaItemCountProvider playerMediaItemCountProvider,
-            Supplier<PlaybackQueueManager> playbackQueueManagerProvider,
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             PlaybackQueueManager.QueueTrackMatcher queueTrackMatcher
     ) {
         return mirroredQueueMatcher(
@@ -87,9 +87,9 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
                 playerMediaItemCountProvider,
                 () -> {
                     PlaybackQueueManager playbackQueueManager =
-                            playbackQueueManagerProvider == null
+                            playbackQueueManagerSupplier == null
                                     ? null
-                                    : playbackQueueManagerProvider.get();
+                                    : playbackQueueManagerSupplier.get();
                     return playbackQueueManager == null
                             ? null
                             : new PlaybackQueueManagerOperations(playbackQueueManager);

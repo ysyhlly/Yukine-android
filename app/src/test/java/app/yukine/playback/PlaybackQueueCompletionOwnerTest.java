@@ -106,7 +106,7 @@ public class PlaybackQueueCompletionOwnerTest {
     @Test
     public void missingQueueOperationsUseStopAndClearBoundaryAndReportUnhandledStopAtEnd() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueCompletionOwner missingProvider = new PlaybackQueueCompletionOwner(
+        PlaybackQueueCompletionOwner missingSupplier = new PlaybackQueueCompletionOwner(
                 null,
                 new FakeCompletionBoundary(events)
         );
@@ -115,14 +115,29 @@ public class PlaybackQueueCompletionOwnerTest {
                 new FakeCompletionBoundary(events)
         );
 
-        missingProvider.playAfterCompletion();
-        assertFalse(missingProvider.prepareStopAtEndOfQueue());
-        missingProvider.prepareStopAfterAutomaticAdvance(5);
+        missingSupplier.playAfterCompletion();
+        assertFalse(missingSupplier.prepareStopAtEndOfQueue());
+        missingSupplier.prepareStopAfterAutomaticAdvance(5);
         missingOperations.playAfterCompletion();
         assertFalse(missingOperations.prepareStopAtEndOfQueue());
         missingOperations.prepareStopAfterAutomaticAdvance(6);
 
         assertEquals(Arrays.asList("stopAndClear", "stopAndClear"), events);
+    }
+
+    @Test
+    public void missingPlaybackQueueManagerSupplierUsesStopAndClearBoundary() {
+        List<String> events = new ArrayList<>();
+        PlaybackQueueCompletionOwner owner = PlaybackQueueCompletionOwner.fromPlaybackQueueManager(
+                null,
+                new FakeCompletionBoundary(events)
+        );
+
+        owner.playAfterCompletion();
+
+        assertFalse(owner.prepareStopAtEndOfQueue());
+        owner.prepareStopAfterAutomaticAdvance(7);
+        assertEquals(Arrays.asList("stopAndClear"), events);
     }
 
     @Test

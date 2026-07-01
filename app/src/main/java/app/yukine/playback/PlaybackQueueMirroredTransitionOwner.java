@@ -18,25 +18,25 @@ final class PlaybackQueueMirroredTransitionOwner {
         void applyCurrentTrackVolume();
     }
 
-    private final Supplier<MirroredTransitionOperations> mirroredTransitionOperationsProvider;
+    private final Supplier<MirroredTransitionOperations> mirroredTransitionOperationsSupplier;
     private final CurrentTrackVolumeApplier currentTrackVolumeApplier;
 
-    static PlaybackQueueMirroredTransitionOwner fromPlaybackQueueManagerProvider(
-            Supplier<PlaybackQueueManager> playbackQueueManagerProvider
+    static PlaybackQueueMirroredTransitionOwner fromPlaybackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
     ) {
-        return fromPlaybackQueueManagerProvider(playbackQueueManagerProvider, null);
+        return fromPlaybackQueueManager(playbackQueueManagerSupplier, null);
     }
 
-    static PlaybackQueueMirroredTransitionOwner fromPlaybackQueueManagerProvider(
-            Supplier<PlaybackQueueManager> playbackQueueManagerProvider,
+    static PlaybackQueueMirroredTransitionOwner fromPlaybackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             CurrentTrackVolumeApplier currentTrackVolumeApplier
     ) {
         return new PlaybackQueueMirroredTransitionOwner(
                 () -> {
                     PlaybackQueueManager playbackQueueManager =
-                            playbackQueueManagerProvider == null
+                            playbackQueueManagerSupplier == null
                                     ? null
-                                    : playbackQueueManagerProvider.get();
+                                    : playbackQueueManagerSupplier.get();
                     return playbackQueueManager == null
                             ? null
                             : new PlaybackQueueManagerOperations(playbackQueueManager);
@@ -46,16 +46,16 @@ final class PlaybackQueueMirroredTransitionOwner {
     }
 
     PlaybackQueueMirroredTransitionOwner(
-            Supplier<MirroredTransitionOperations> mirroredTransitionOperationsProvider
+            Supplier<MirroredTransitionOperations> mirroredTransitionOperationsSupplier
     ) {
-        this(mirroredTransitionOperationsProvider, null);
+        this(mirroredTransitionOperationsSupplier, null);
     }
 
     PlaybackQueueMirroredTransitionOwner(
-            Supplier<MirroredTransitionOperations> mirroredTransitionOperationsProvider,
+            Supplier<MirroredTransitionOperations> mirroredTransitionOperationsSupplier,
             CurrentTrackVolumeApplier currentTrackVolumeApplier
     ) {
-        this.mirroredTransitionOperationsProvider = mirroredTransitionOperationsProvider;
+        this.mirroredTransitionOperationsSupplier = mirroredTransitionOperationsSupplier;
         this.currentTrackVolumeApplier = currentTrackVolumeApplier;
     }
 
@@ -80,9 +80,9 @@ final class PlaybackQueueMirroredTransitionOwner {
     }
 
     private MirroredTransitionOperations mirroredTransitionOperations() {
-        return mirroredTransitionOperationsProvider == null
+        return mirroredTransitionOperationsSupplier == null
                 ? null
-                : mirroredTransitionOperationsProvider.get();
+                : mirroredTransitionOperationsSupplier.get();
     }
 
     private static final class PlaybackQueueManagerOperations implements MirroredTransitionOperations {

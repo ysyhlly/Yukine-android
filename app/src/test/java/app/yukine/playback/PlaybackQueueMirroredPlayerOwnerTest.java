@@ -201,6 +201,34 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
         assertFalse(matcher.matchesCurrentQueue());
     }
 
+    @Test
+    public void matcherReturnsFalseWhenPlaybackQueueManagerSupplierIsMissing() {
+        List<String> events = new ArrayList<>();
+        PlaybackQueueMirroredPlayerOwner.MirroredQueueMatcher matcher =
+                PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManager(
+                        () -> {
+                            events.add("mirrors");
+                            return true;
+                        },
+                        () -> {
+                            events.add("hasPlayer");
+                            return true;
+                        },
+                        () -> {
+                            events.add("count");
+                            return 1;
+                        },
+                        null,
+                        (index, track) -> true
+                );
+
+        assertFalse(matcher.matchesCurrentQueue());
+        assertEquals(
+                java.util.Arrays.asList("mirrors", "hasPlayer"),
+                events
+        );
+    }
+
     private static Track track(long id) {
         return new Track(
                 id,

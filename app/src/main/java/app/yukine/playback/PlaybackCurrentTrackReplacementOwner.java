@@ -21,30 +21,30 @@ final class PlaybackCurrentTrackReplacementOwner {
         void scheduleCurrentPlaybackRecovery(boolean playWhenReady);
     }
 
-    private final Supplier<CurrentTrackReplacementOperations> currentTrackReplacementOperationsProvider;
+    private final Supplier<CurrentTrackReplacementOperations> currentTrackReplacementOperationsSupplier;
     private final RecoveryDiagnosticsRecorder recoveryDiagnosticsRecorder;
     private final RecoveryScheduler recoveryScheduler;
 
     PlaybackCurrentTrackReplacementOwner(
-            Supplier<CurrentTrackReplacementOperations> currentTrackReplacementOperationsProvider,
+            Supplier<CurrentTrackReplacementOperations> currentTrackReplacementOperationsSupplier,
             RecoveryDiagnosticsRecorder recoveryDiagnosticsRecorder,
             RecoveryScheduler recoveryScheduler
     ) {
-        this.currentTrackReplacementOperationsProvider = currentTrackReplacementOperationsProvider;
+        this.currentTrackReplacementOperationsSupplier = currentTrackReplacementOperationsSupplier;
         this.recoveryDiagnosticsRecorder = recoveryDiagnosticsRecorder;
         this.recoveryScheduler = recoveryScheduler;
     }
 
-    static PlaybackCurrentTrackReplacementOwner fromPlaybackQueueManagerProvider(
-            Supplier<PlaybackQueueManager> playbackQueueManagerProvider,
+    static PlaybackCurrentTrackReplacementOwner fromPlaybackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             RecoveryDiagnosticsRecorder recoveryDiagnosticsRecorder,
             RecoveryScheduler recoveryScheduler
     ) {
         return new PlaybackCurrentTrackReplacementOwner(
                 () -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerProvider == null
+                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
                             ? null
-                            : playbackQueueManagerProvider.get();
+                            : playbackQueueManagerSupplier.get();
                     return playbackQueueManager == null
                             ? null
                             : new PlaybackQueueManagerOperations(playbackQueueManager);
@@ -73,9 +73,9 @@ final class PlaybackCurrentTrackReplacementOwner {
     }
 
     private CurrentTrackReplacementOperations currentTrackReplacementOperations() {
-        return currentTrackReplacementOperationsProvider == null
+        return currentTrackReplacementOperationsSupplier == null
                 ? null
-                : currentTrackReplacementOperationsProvider.get();
+                : currentTrackReplacementOperationsSupplier.get();
     }
 
     private static final class PlaybackQueueManagerOperations implements CurrentTrackReplacementOperations {

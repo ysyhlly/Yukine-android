@@ -63,7 +63,7 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
         Track replacement = track(9L);
         PlaybackQueueManager.CurrentTrackReplacementRecovery recovery =
                 new PlaybackQueueManager.CurrentTrackReplacementRecovery(replacement, 3300L, false);
-        PlaybackCurrentTrackReplacementOwner missingProvider = new PlaybackCurrentTrackReplacementOwner(
+        PlaybackCurrentTrackReplacementOwner missingSupplier = new PlaybackCurrentTrackReplacementOwner(
                 null,
                 recorded -> events.add("record"),
                 playWhenReady -> events.add("schedule")
@@ -79,11 +79,26 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
                 null
         );
 
-        missingProvider.replaceCurrentTrackAndResume(replacement, 0L);
+        missingSupplier.replaceCurrentTrackAndResume(replacement, 0L);
         missingOperations.replaceCurrentTrackAndResume(replacement, 0L);
         missingRecoveryHandlers.replaceCurrentTrackAndResume(replacement, 0L);
 
         assertEquals(Collections.singletonList("replace:9@0"), events);
+    }
+
+    @Test
+    public void missingPlaybackQueueManagerSupplierSkipsReplacement() {
+        List<String> events = new ArrayList<>();
+        PlaybackCurrentTrackReplacementOwner owner =
+                PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager(
+                        null,
+                        recorded -> events.add("record"),
+                        playWhenReady -> events.add("schedule")
+                );
+
+        owner.replaceCurrentTrackAndResume(track(10L), 1200L);
+
+        assertEquals(Collections.emptyList(), events);
     }
 
     private static Track track(long id) {
