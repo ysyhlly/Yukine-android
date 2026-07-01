@@ -1599,8 +1599,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playerStateOwner.contains("PlaybackPositionStateOwner.PlaybackPositionProvider"));
         assertFalse(playerStateOwner.contains("PlaybackNoisyReceiverActionsOwner.PlaybackStateProvider"));
         assertFalse(playerStateOwner.contains("PlaybackShutdownPlaybackStateOwner.PlaybackStateProvider"));
-        assertTrue(playerStateOwner.contains("return playerStateOperations.isPlaying();"));
-        assertTrue(playerStateOwner.contains("return Math.max(0L, playerStateOperations.currentPositionMs());"));
+        assertFalse(playerStateOwner.contains("interface PlayerStateOperations"));
+        assertFalse(playerStateOwner.contains("PlayerStateOperationsProvider"));
+        assertFalse(playerStateOwner.contains("Media3PlayerStateOperations"));
+        assertTrue(playerStateOwner.contains("return player.isPlaying();"));
+        assertTrue(playerStateOwner.contains("return Math.max(0L, player.getCurrentPosition());"));
         assertTrue(playerStateOwner.contains("durationMs == C.TIME_UNSET ? 0L : Math.max(0L, durationMs)"));
         assertFalse(playbackService.contains("private static final float[] EMPTY_REALTIME_BANDS = new float[0];"));
         assertFalse(playbackService.contains("return isPlaying() ? realtimeBassDetector.bands() : EMPTY_REALTIME_BANDS;"));
