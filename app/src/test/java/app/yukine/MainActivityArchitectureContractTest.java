@@ -104,6 +104,30 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void viewModelsDoNotDependOnPlaybackServiceHostPorts() throws Exception {
+        for (Path source : sourceFiles("app/src/main/java/app/yukine")) {
+            if (source.getFileName().toString().contains("ViewModel")) {
+                assertViewModelDoesNotDependOnPlaybackServiceHost(source);
+            }
+        }
+        for (Path source : sourceFiles("feature")) {
+            if (source.getFileName().toString().contains("ViewModel")) {
+                assertViewModelDoesNotDependOnPlaybackServiceHost(source);
+            }
+        }
+
+        String nowPlayingViewModel = read("app/src/main/java/app/yukine/NowPlayingViewModel.kt");
+        String gatewayAdapter = read("app/src/main/java/app/yukine/NowPlayingPlaybackGatewayAdapter.kt");
+        String settingsRuntimeApplier = read("app/src/main/java/app/yukine/SettingsRuntimeApplier.kt");
+        assertTrue(nowPlayingViewModel.contains("interface NowPlayingPlaybackGateway"));
+        assertTrue(nowPlayingViewModel.contains("private var playbackGateway: NowPlayingPlaybackGateway?"));
+        assertFalse(nowPlayingViewModel.contains("NowPlayingPlaybackServicePort"));
+        assertTrue(gatewayAdapter.contains("interface NowPlayingPlaybackServicePort"));
+        assertTrue(settingsRuntimeApplier.contains("SettingsPlaybackServiceControlsProvider"));
+        assertFalse(settingsRuntimeApplier.contains("SettingsPlaybackServicePort"));
+    }
+
+    @Test
     public void concretePlaybackServiceReferencesStayAtAndroidBoundaries() throws Exception {
         for (Path source : sourceFiles("app/src/main/java/app/yukine")) {
             String normalized = source.toString().replace('\\', '/');
@@ -8051,6 +8075,15 @@ public final class MainActivityArchitectureContractTest {
         for (String forbidden : PLAYBACK_UI_BOUNDARY_FORBIDDEN_REFERENCES) {
             assertFalse(label + " must not depend on UI boundary " + forbidden, content.contains(forbidden));
         }
+    }
+
+    private static void assertViewModelDoesNotDependOnPlaybackServiceHost(Path source) throws Exception {
+        assertSourceDoesNotContain(source, "EchoPlaybackService");
+        assertSourceDoesNotContain(source, "PlaybackServiceHostPort");
+        assertSourceDoesNotContain(source, "NowPlayingPlaybackServicePort");
+        assertSourceDoesNotContain(source, "SettingsPlaybackServicePort");
+        assertSourceDoesNotContain(source, "PlaybackServiceConnectionController");
+        assertSourceDoesNotContain(source, "SettingsPlaybackServiceControls");
     }
 
     private static boolean isAllowedConcretePlaybackServiceBoundary(String normalizedPath) {
