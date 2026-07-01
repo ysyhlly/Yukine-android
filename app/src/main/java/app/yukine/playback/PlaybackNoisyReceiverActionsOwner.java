@@ -1,21 +1,19 @@
 package app.yukine.playback;
 
+import java.util.function.BooleanSupplier;
+
 import app.yukine.playback.manager.PlaybackNoisyReceiverManager;
 
 final class PlaybackNoisyReceiverActionsOwner implements PlaybackNoisyReceiverManager.Actions {
-    interface PlaybackStateProvider {
-        boolean isPlaying();
-    }
-
     interface PlaybackControls {
         void pause();
     }
 
-    private final PlaybackStateProvider playbackStateProvider;
+    private final BooleanSupplier playbackStateProvider;
     private final PlaybackControls playbackControls;
 
     PlaybackNoisyReceiverActionsOwner(
-            PlaybackStateProvider playbackStateProvider,
+            BooleanSupplier playbackStateProvider,
             PlaybackControls playbackControls
     ) {
         this.playbackStateProvider = playbackStateProvider;
@@ -24,7 +22,7 @@ final class PlaybackNoisyReceiverActionsOwner implements PlaybackNoisyReceiverMa
 
     @Override
     public void pauseIfPlaying() {
-        if (playbackStateProvider != null && playbackStateProvider.isPlaying()
+        if (playbackStateProvider != null && playbackStateProvider.getAsBoolean()
                 && playbackControls != null) {
             playbackControls.pause();
         }

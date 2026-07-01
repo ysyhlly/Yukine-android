@@ -775,7 +775,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackNoisyReceiverManager = new PlaybackNoisyReceiverManager(
                 new PlaybackNoisyReceiverRegistrarOwner(EchoPlaybackService.this),
                 new PlaybackNoisyReceiverActionsOwner(
-                        playbackPlayerStateOwner,
+                        playbackPlayerStateOwner::isPlaying,
                         EchoPlaybackService.this::pause
                 )
         );

@@ -1597,7 +1597,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playerStateOwner.contains("PlaybackCrossfadeStateOwner.PlaybackStateProvider"));
         assertTrue(playerStateOwner.contains("PlaybackRealtimeVisualizationOwner.PlaybackStateProvider"));
         assertTrue(playerStateOwner.contains("PlaybackPositionStateOwner.PlaybackPositionProvider"));
-        assertTrue(playerStateOwner.contains("PlaybackNoisyReceiverActionsOwner.PlaybackStateProvider"));
+        assertFalse(playerStateOwner.contains("PlaybackNoisyReceiverActionsOwner.PlaybackStateProvider"));
         assertFalse(playerStateOwner.contains("PlaybackShutdownPlaybackStateOwner.PlaybackStateProvider"));
         assertTrue(playerStateOwner.contains("return playerStateOperations.isPlaying();"));
         assertTrue(playerStateOwner.contains("return Math.max(0L, playerStateOperations.currentPositionMs());"));
@@ -6810,9 +6810,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(noisyReceiverRegistrarOwner.contains("receiverRegistry.unregisterReceiver(receiver);"));
         assertTrue(noisyReceiverActionsOwner.contains(
                 "final class PlaybackNoisyReceiverActionsOwner implements PlaybackNoisyReceiverManager.Actions"));
-        assertTrue(noisyReceiverActionsOwner.contains("interface PlaybackStateProvider"));
+        assertFalse(noisyReceiverActionsOwner.contains("interface PlaybackStateProvider"));
+        assertTrue(noisyReceiverActionsOwner.contains("import java.util.function.BooleanSupplier;"));
+        assertTrue(noisyReceiverActionsOwner.contains("private final BooleanSupplier playbackStateProvider;"));
         assertTrue(noisyReceiverActionsOwner.contains("interface PlaybackControls"));
-        assertTrue(noisyReceiverActionsOwner.contains("playbackStateProvider.isPlaying()"));
+        assertTrue(noisyReceiverActionsOwner.contains("playbackStateProvider.getAsBoolean()"));
         assertTrue(noisyReceiverActionsOwner.contains("playbackControls.pause();"));
         assertTrue(owner.contains("fun releaseLyrics()"));
         assertTrue(owner.contains("fun shutdownTaskSchedulers()"));
@@ -6881,7 +6883,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("new PlaybackNoisyReceiverManager.Registrar()"));
         assertFalse(service.contains("new PlaybackNoisyReceiverManager.Actions()"));
         assertTrue(service.contains("new PlaybackNoisyReceiverActionsOwner("));
-        assertTrue(service.contains("                        playbackPlayerStateOwner,"));
+        assertTrue(service.contains("                        playbackPlayerStateOwner::isPlaying,"));
         assertTrue(service.contains("                        EchoPlaybackService.this::pause"));
         assertTrue(service.contains("                playbackShutdownPlaybackResourcesOwner,"));
         assertTrue(service.contains("                playbackShutdownServiceResourcesOwner,"));
