@@ -22,17 +22,17 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
         Track replacement = track(7L);
         PlaybackQueueManager.CurrentTrackReplacementRecovery recovery =
                 new PlaybackQueueManager.CurrentTrackReplacementRecovery(replacement, 4200L, true);
-        FakeReplacementOperations operations = new FakeReplacementOperations(events, recovery);
+        FakeReplacementAction action = new FakeReplacementAction(events, recovery);
         PlaybackCurrentTrackReplacementOwner owner = new PlaybackCurrentTrackReplacementOwner(
-                () -> operations,
+                action::replaceCurrentTrackAndResume,
                 recorded -> events.add("record:" + recorded.getRestoredPositionMs()),
                 playWhenReady -> events.add("schedule:" + playWhenReady)
         );
 
         owner.replaceCurrentTrackAndResume(replacement, 1800L);
 
-        assertSame(replacement, operations.replacement);
-        assertEquals(1800L, operations.positionMs);
+        assertSame(replacement, action.replacement);
+        assertEquals(1800L, action.positionMs);
         assertEquals(
                 Arrays.asList(
                         "replace:7@1800",
@@ -46,8 +46,9 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
     @Test
     public void skipsRecoveryWorkWhenReplacementDoesNotNeedRecovery() {
         List<String> events = new ArrayList<>();
+        FakeReplacementAction action = new FakeReplacementAction(events, null);
         PlaybackCurrentTrackReplacementOwner owner = new PlaybackCurrentTrackReplacementOwner(
-                () -> new FakeReplacementOperations(events, null),
+                action::replaceCurrentTrackAndResume,
                 recorded -> events.add("record"),
                 playWhenReady -> events.add("schedule")
         );
@@ -63,24 +64,19 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
         Track replacement = track(9L);
         PlaybackQueueManager.CurrentTrackReplacementRecovery recovery =
                 new PlaybackQueueManager.CurrentTrackReplacementRecovery(replacement, 3300L, false);
-        PlaybackCurrentTrackReplacementOwner missingSupplier = new PlaybackCurrentTrackReplacementOwner(
+        PlaybackCurrentTrackReplacementOwner missingAction = new PlaybackCurrentTrackReplacementOwner(
                 null,
                 recorded -> events.add("record"),
                 playWhenReady -> events.add("schedule")
         );
-        PlaybackCurrentTrackReplacementOwner missingOperations = new PlaybackCurrentTrackReplacementOwner(
-                () -> null,
-                recorded -> events.add("record"),
-                playWhenReady -> events.add("schedule")
-        );
+        FakeReplacementAction action = new FakeReplacementAction(events, recovery);
         PlaybackCurrentTrackReplacementOwner missingRecoveryHandlers = new PlaybackCurrentTrackReplacementOwner(
-                () -> new FakeReplacementOperations(events, recovery),
+                action::replaceCurrentTrackAndResume,
                 null,
                 null
         );
 
-        missingSupplier.replaceCurrentTrackAndResume(replacement, 0L);
-        missingOperations.replaceCurrentTrackAndResume(replacement, 0L);
+        missingAction.replaceCurrentTrackAndResume(replacement, 0L);
         missingRecoveryHandlers.replaceCurrentTrackAndResume(replacement, 0L);
 
         assertEquals(Collections.singletonList("replace:9@0"), events);
@@ -105,14 +101,13 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "file:" + id);
     }
 
-    private static final class FakeReplacementOperations
-            implements PlaybackCurrentTrackReplacementOwner.CurrentTrackReplacementOperations {
+    private static final class FakeReplacementAction {
         private final List<String> events;
         private final PlaybackQueueManager.CurrentTrackReplacementRecovery recovery;
         private Track replacement;
         private long positionMs;
 
-        private FakeReplacementOperations(
+        private FakeReplacementAction(
                 List<String> events,
                 PlaybackQueueManager.CurrentTrackReplacementRecovery recovery
         ) {
@@ -120,7 +115,6 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
             this.recovery = recovery;
         }
 
-        @Override
         public PlaybackQueueManager.CurrentTrackReplacementRecovery replaceCurrentTrackAndResume(
                 Track replacement,
                 long positionMs

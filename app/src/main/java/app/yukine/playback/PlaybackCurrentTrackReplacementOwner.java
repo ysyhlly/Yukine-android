@@ -3,16 +3,10 @@ package app.yukine.playback;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 final class PlaybackCurrentTrackReplacementOwner {
-    interface CurrentTrackReplacementOperations {
-        PlaybackQueueManager.CurrentTrackReplacementRecovery replaceCurrentTrackAndResume(
-                Track replacement,
-                long positionMs
-        );
-    }
-
     interface RecoveryDiagnosticsRecorder {
         void record(PlaybackQueueManager.CurrentTrackReplacementRecovery recovery);
     }
@@ -21,16 +15,16 @@ final class PlaybackCurrentTrackReplacementOwner {
         void scheduleCurrentPlaybackRecovery(boolean playWhenReady);
     }
 
-    private final Supplier<CurrentTrackReplacementOperations> currentTrackReplacementOperationsSupplier;
+    private final BiFunction<Track, Long, PlaybackQueueManager.CurrentTrackReplacementRecovery> replaceCurrentTrackAndResume;
     private final RecoveryDiagnosticsRecorder recoveryDiagnosticsRecorder;
     private final RecoveryScheduler recoveryScheduler;
 
     PlaybackCurrentTrackReplacementOwner(
-            Supplier<CurrentTrackReplacementOperations> currentTrackReplacementOperationsSupplier,
+            BiFunction<Track, Long, PlaybackQueueManager.CurrentTrackReplacementRecovery> replaceCurrentTrackAndResume,
             RecoveryDiagnosticsRecorder recoveryDiagnosticsRecorder,
             RecoveryScheduler recoveryScheduler
     ) {
-        this.currentTrackReplacementOperationsSupplier = currentTrackReplacementOperationsSupplier;
+        this.replaceCurrentTrackAndResume = replaceCurrentTrackAndResume;
         this.recoveryDiagnosticsRecorder = recoveryDiagnosticsRecorder;
         this.recoveryScheduler = recoveryScheduler;
     }
@@ -41,13 +35,13 @@ final class PlaybackCurrentTrackReplacementOwner {
             RecoveryScheduler recoveryScheduler
     ) {
         return new PlaybackCurrentTrackReplacementOwner(
-                () -> {
+                (replacement, positionMs) -> {
                     PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
                             ? null
                             : playbackQueueManagerSupplier.get();
                     return playbackQueueManager == null
                             ? null
-                            : new PlaybackQueueManagerOperations(playbackQueueManager);
+                            : playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs);
                 },
                 recoveryDiagnosticsRecorder,
                 recoveryScheduler
@@ -55,12 +49,11 @@ final class PlaybackCurrentTrackReplacementOwner {
     }
 
     void replaceCurrentTrackAndResume(Track replacement, long positionMs) {
-        CurrentTrackReplacementOperations operations = currentTrackReplacementOperations();
-        if (operations == null) {
+        if (replaceCurrentTrackAndResume == null) {
             return;
         }
         PlaybackQueueManager.CurrentTrackReplacementRecovery recovery =
-                operations.replaceCurrentTrackAndResume(replacement, positionMs);
+                replaceCurrentTrackAndResume.apply(replacement, positionMs);
         if (recovery == null) {
             return;
         }
@@ -69,28 +62,6 @@ final class PlaybackCurrentTrackReplacementOwner {
         }
         if (recoveryScheduler != null) {
             recoveryScheduler.scheduleCurrentPlaybackRecovery(recovery.getPlayWhenReady());
-        }
-    }
-
-    private CurrentTrackReplacementOperations currentTrackReplacementOperations() {
-        return currentTrackReplacementOperationsSupplier == null
-                ? null
-                : currentTrackReplacementOperationsSupplier.get();
-    }
-
-    private static final class PlaybackQueueManagerOperations implements CurrentTrackReplacementOperations {
-        private final PlaybackQueueManager playbackQueueManager;
-
-        private PlaybackQueueManagerOperations(PlaybackQueueManager playbackQueueManager) {
-            this.playbackQueueManager = playbackQueueManager;
-        }
-
-        @Override
-        public PlaybackQueueManager.CurrentTrackReplacementRecovery replaceCurrentTrackAndResume(
-                Track replacement,
-                long positionMs
-        ) {
-            return playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs);
         }
     }
 }

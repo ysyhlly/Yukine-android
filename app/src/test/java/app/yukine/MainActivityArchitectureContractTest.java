@@ -5422,8 +5422,12 @@ public final class MainActivityArchitectureContractTest {
                 "Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertFalse(queueCompletionOwner.contains("queueCompletionOperationsProvider"));
         assertFalse(queueCompletionOwner.contains("playbackQueueManagerProvider"));
+        assertFalse(currentReplacementOwner.contains("interface CurrentTrackReplacementOperations"));
+        assertFalse(currentReplacementOwner.contains("CurrentTrackReplacementOperations"));
+        assertFalse(currentReplacementOwner.contains("PlaybackQueueManagerOperations"));
+        assertTrue(currentReplacementOwner.contains("import java.util.function.BiFunction;"));
         assertTrue(currentReplacementOwner.contains(
-                "Supplier<CurrentTrackReplacementOperations> currentTrackReplacementOperationsSupplier"));
+                "private final BiFunction<Track, Long, PlaybackQueueManager.CurrentTrackReplacementRecovery> replaceCurrentTrackAndResume;"));
         assertTrue(currentReplacementOwner.contains(
                 "Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertFalse(currentReplacementOwner.contains("currentTrackReplacementOperationsProvider"));
