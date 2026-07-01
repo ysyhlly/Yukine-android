@@ -412,7 +412,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 () -> playbackProgressUpdateManager
         );
         playbackProgressUpdateStateOwner = new PlaybackProgressUpdateStateOwner(
-                playbackPlayerStateOwner,
+                playbackPlayerStateOwner::isPlaying,
                 playbackCurrentTrackPreparationRuntimeOwner::preparing
         );
         playbackProgressUpdateManager = new PlaybackProgressUpdateManager(

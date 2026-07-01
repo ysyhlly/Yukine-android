@@ -1593,7 +1593,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playerStateOwner.contains("PlaybackStateSnapshotOwner.PlaybackPositionProvider"));
         assertTrue(playerStateOwner.contains("PlaybackBufferedProgressOwner.PlaybackPositionProvider"));
         assertFalse(playerStateOwner.contains("PlaybackActiveStateOwner.PlayingStateProvider"));
-        assertTrue(playerStateOwner.contains("PlaybackProgressUpdateStateOwner.PlaybackStateProvider"));
+        assertFalse(playerStateOwner.contains("PlaybackProgressUpdateStateOwner.PlaybackStateProvider"));
         assertTrue(playerStateOwner.contains("PlaybackCrossfadeStateOwner.PlaybackStateProvider"));
         assertTrue(playerStateOwner.contains("PlaybackRealtimeVisualizationOwner.PlaybackStateProvider"));
         assertTrue(playerStateOwner.contains("PlaybackPositionStateOwner.PlaybackPositionProvider"));
@@ -7237,10 +7237,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("manager.startIfNeeded();"));
         assertTrue(commandOwner.contains("manager.stop();"));
         assertTrue(stateOwner.contains("final class PlaybackProgressUpdateStateOwner implements PlaybackProgressUpdateManager.StateProvider"));
-        assertTrue(stateOwner.contains("interface PlaybackStateProvider"));
-        assertTrue(stateOwner.contains("interface PreparingStateProvider"));
-        assertTrue(stateOwner.contains("return playbackStateProvider.isPlaying();"));
-        assertTrue(stateOwner.contains("return preparingStateProvider.isPreparing();"));
+        assertFalse(stateOwner.contains("interface PlaybackStateProvider"));
+        assertFalse(stateOwner.contains("interface PreparingStateProvider"));
+        assertTrue(stateOwner.contains("import java.util.function.BooleanSupplier;"));
+        assertTrue(stateOwner.contains("private final BooleanSupplier playbackStateProvider;"));
+        assertTrue(stateOwner.contains("private final BooleanSupplier preparingStateProvider;"));
+        assertTrue(stateOwner.contains("return playbackStateProvider != null && playbackStateProvider.getAsBoolean();"));
+        assertTrue(stateOwner.contains("return preparingStateProvider != null && preparingStateProvider.getAsBoolean();"));
     }
 
     @Test

@@ -34,4 +34,12 @@ public class PlaybackProgressUpdateStateOwnerTest {
                 events
         );
     }
+
+    @Test
+    public void missingProvidersReturnInactiveState() {
+        PlaybackProgressUpdateStateOwner owner = new PlaybackProgressUpdateStateOwner(null, null);
+
+        assertFalse(owner.isPlaying());
+        assertFalse(owner.isPreparing());
+    }
 }
