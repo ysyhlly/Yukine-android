@@ -6,6 +6,7 @@ import android.content.Context;
 import android.net.Uri;
 
 import androidx.media3.common.MediaItem;
+import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.cache.CacheDataSource;
 
 import app.yukine.common.StreamingDataPathParser;
@@ -108,6 +109,33 @@ public final class PlaybackPrecacheManagerTest {
                 PlaybackPrecacheManager.audioCacheReleaseActionFromPrecacheManagerSupplier(() -> null);
 
         releaseAction.run();
+    }
+
+    @Test
+    public void cacheRangeDataSpecUsesTrackUriCacheKeyAndFragmentationFlag() {
+        Track track = track(42L, "https://example.test/audio.flac");
+
+        DataSpec dataSpec = PlaybackPrecacheManager.cacheRangeDataSpec(
+                track,
+                "streaming:provider:42|url=https://example.test/audio.flac",
+                -128L,
+                4096L
+        );
+
+        assertEquals(track.contentUri, dataSpec.uri);
+        assertEquals(0L, dataSpec.position);
+        assertEquals(4096L, dataSpec.length);
+        assertEquals("streaming:provider:42|url=https://example.test/audio.flac", dataSpec.key);
+        assertEquals(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION, dataSpec.flags);
+    }
+
+    @Test
+    public void cacheRangeDataSpecRejectsUncacheableInputs() {
+        Track track = track(43L, "https://example.test/audio.flac");
+
+        assertEquals(null, PlaybackPrecacheManager.cacheRangeDataSpec(null, "key", 0L, 1L));
+        assertEquals(null, PlaybackPrecacheManager.cacheRangeDataSpec(track, "", 0L, 1L));
+        assertEquals(null, PlaybackPrecacheManager.cacheRangeDataSpec(track, "key", 0L, 0L));
     }
 
     @Test

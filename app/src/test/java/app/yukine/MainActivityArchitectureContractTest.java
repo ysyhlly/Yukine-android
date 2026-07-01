@@ -1949,6 +1949,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("private long currentSegmentedPrecacheStart(String cacheKey)"));
         assertTrue(playbackPrecacheManager.contains("static long segmentedPrecacheStart(long leadingBytes, long continuousCachedBytes)"));
         assertTrue(playbackPrecacheManager.contains("static List<PrecacheSegment> planPrecacheSegments("));
+        assertTrue(playbackPrecacheManager.contains("static DataSpec cacheRangeDataSpec("));
         assertTrue(playbackPrecacheManager.contains("private void submitPlaybackCacheTask(PrecachePriority priority, Runnable task)"));
         assertTrue(playbackPrecacheManager.contains("private void trimPlaybackCacheQueueIfNeeded(PrecachePriority priority)"));
         assertTrue(playbackPrecacheManager.contains("private void postDelayedPrecacheCallback(Runnable task, long delayMs)"));

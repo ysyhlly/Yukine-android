@@ -627,13 +627,10 @@ final class PlaybackPrecacheManager {
         final long[] bytesCached = {0L};
         CacheWriter writer = null;
         try {
-            DataSpec dataSpec = new DataSpec.Builder()
-                    .setUri(track.contentUri)
-                    .setPosition(start)
-                    .setLength(length)
-                    .setKey(cacheKey)
-                    .setFlags(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION)
-                    .build();
+            DataSpec dataSpec = cacheRangeDataSpec(track, cacheKey, start, length);
+            if (dataSpec == null) {
+                return 0L;
+            }
             writer = new CacheWriter(
                     mediaCacheOperations.cacheDataSourceForTrack(track),
                     dataSpec,
@@ -670,6 +667,19 @@ final class PlaybackPrecacheManager {
         cancelActivePrecacheWriters();
         playbackCacheExecutor.getQueue().clear();
         playbackCacheExecutor.purge();
+    }
+
+    static DataSpec cacheRangeDataSpec(Track track, String cacheKey, long position, long length) {
+        if (track == null || track.contentUri == null || cacheKey == null || cacheKey.isEmpty() || length <= 0L) {
+            return null;
+        }
+        return new DataSpec.Builder()
+                .setUri(track.contentUri)
+                .setPosition(Math.max(0L, position))
+                .setLength(length)
+                .setKey(cacheKey)
+                .setFlags(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION)
+                .build();
     }
 
     private static final class PlaybackCacheThreadFactory implements ThreadFactory {
