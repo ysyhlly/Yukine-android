@@ -270,6 +270,24 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
+    public void providerBackedMediaCacheOperationsOwnCacheKeyAndHeaders() {
+        Map<String, String> headers = Collections.singletonMap("Cookie", "token=abc");
+        PlaybackPrecacheManager.MediaCacheOperations operations =
+                PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(
+                        mediaSourceProvider(new FakeStreamingPlaybackHeaderStore(headers))
+                );
+        Track streaming = track(42L, "https://example.test/audio.flac", "streaming:test:42");
+        Track local = track(7L, "content://media/audio/7", "/music/local.flac");
+
+        assertEquals(
+                "streaming:test:42|url=https://example.test/audio.flac",
+                operations.cacheKeyForPrecache(streaming)
+        );
+        assertEquals(headers, operations.headersForTrack(streaming));
+        assertEquals(null, operations.cacheKeyForPrecache(local));
+    }
+
+    @Test
     public void matchingCurrentPlayerMediaItemLetsPlayerFillLeadingRange() throws Exception {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
@@ -462,11 +480,17 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     private static PlaybackMediaSourceProvider mediaSourceProvider() {
+        return mediaSourceProvider(new FakeStreamingPlaybackHeaderStore());
+    }
+
+    private static PlaybackMediaSourceProvider mediaSourceProvider(
+            StreamingPlaybackHeaderStore headerStore
+    ) {
         Context context = RuntimeEnvironment.getApplication();
         return new PlaybackMediaSourceProvider(
                 context,
                 new MusicLibraryRepository(context, new FakeStreamingDataPathParser()),
-                new FakeStreamingPlaybackHeaderStore()
+                headerStore
         );
     }
 
@@ -516,13 +540,23 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     private static final class FakeStreamingPlaybackHeaderStore implements StreamingPlaybackHeaderStore {
+        private final Map<String, String> headers;
+
+        private FakeStreamingPlaybackHeaderStore() {
+            this(Collections.emptyMap());
+        }
+
+        private FakeStreamingPlaybackHeaderStore(Map<String, String> headers) {
+            this.headers = headers;
+        }
+
         @Override
         public void register(String dataPath, java.util.Map<String, String> headers) {
         }
 
         @Override
         public java.util.Map<String, String> forDataPath(String dataPath) {
-            return Collections.emptyMap();
+            return headers;
         }
 
         @Override
