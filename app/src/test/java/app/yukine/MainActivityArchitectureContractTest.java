@@ -5660,10 +5660,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(recoveryDiagnosticsOwner.contains("final class PlaybackRecoveryDiagnosticsRecorderOwner"));
         assertTrue(recoveryDiagnosticsOwner.contains("interface StreamingDiagnosticsProvider"));
         assertTrue(recoveryDiagnosticsOwner.contains("interface StreamingQualityProvider"));
-        assertTrue(recoveryDiagnosticsOwner.contains("interface StreamingDiagnosticsOperations"));
+        assertFalse(recoveryDiagnosticsOwner.contains("interface StreamingDiagnosticsOperations"));
+        assertFalse(recoveryDiagnosticsOwner.contains("StreamingDiagnosticsOperationsProvider"));
         assertTrue(recoveryDiagnosticsOwner.contains("streamingQualityProvider.streamingQualityForTrack(track)"));
         assertTrue(recoveryDiagnosticsOwner.contains(
-                "operations.recordRecovery(track, recovery.getRestoredPositionMs(), quality);"));
+                "diagnostics.recordRecovery(track, recovery.getRestoredPositionMs(), quality);"));
         assertTrue(mirroredPlayerOwner.contains("final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.MirroredQueuePlayer"));
         assertFalse(mirroredPlayerOwner.contains("interface MirroredQueueMatcher"));
         assertFalse(mirroredPlayerOwner.contains("interface MirrorStateProvider"));

@@ -1,11 +1,11 @@
 package app.yukine.playback;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
 
 import android.net.Uri;
 
 import app.yukine.model.Track;
+import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import app.yukine.playback.manager.PlaybackQueueManager;
 import org.junit.Test;
 
@@ -13,47 +13,48 @@ public class PlaybackRecoveryDiagnosticsRecorderOwnerTest {
     @Test
     public void recordsRecoveryWithStreamingQuality() {
         Track track = track();
-        FakeStreamingDiagnosticsOperations operations = new FakeStreamingDiagnosticsOperations();
+        PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
         PlaybackRecoveryDiagnosticsRecorderOwner owner = new PlaybackRecoveryDiagnosticsRecorderOwner(
-                () -> operations,
+                () -> diagnostics,
                 requestedTrack -> requestedTrack == track ? "lossless" : ""
         );
 
         owner.record(new PlaybackQueueManager.CurrentTrackReplacementRecovery(track, 1200L, true));
 
-        assertEquals(1, operations.recoveryCalls);
-        assertSame(track, operations.lastTrack);
-        assertEquals(1200L, operations.lastPositionMs);
-        assertEquals("lossless", operations.lastQuality);
+        PlaybackStreamingDiagnostics.Snapshot snapshot = diagnostics.snapshot();
+        assertEquals(1, snapshot.recoveryEvents);
+        assertEquals("streaming:test:11", snapshot.recentEvents.get(0).trackKey);
+        assertEquals(1200L, snapshot.recentEvents.get(0).positionMs);
+        assertEquals("lossless", snapshot.recentEvents.get(0).quality);
     }
 
     @Test
-    public void ignoresMissingDiagnosticsOperationsOrRecovery() {
-        FakeStreamingDiagnosticsOperations operations = new FakeStreamingDiagnosticsOperations();
+    public void ignoresMissingDiagnosticsOrRecovery() {
+        PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
         PlaybackRecoveryDiagnosticsRecorderOwner nullProviderOwner =
                 new PlaybackRecoveryDiagnosticsRecorderOwner(null, track -> "high");
-        PlaybackRecoveryDiagnosticsRecorderOwner missingOperationsOwner =
+        PlaybackRecoveryDiagnosticsRecorderOwner missingDiagnosticsOwner =
                 new PlaybackRecoveryDiagnosticsRecorderOwner(() -> null, track -> "high");
         PlaybackRecoveryDiagnosticsRecorderOwner owner =
-                new PlaybackRecoveryDiagnosticsRecorderOwner(() -> operations, track -> "high");
+                new PlaybackRecoveryDiagnosticsRecorderOwner(() -> diagnostics, track -> "high");
 
         nullProviderOwner.record(new PlaybackQueueManager.CurrentTrackReplacementRecovery(track(), 1L, true));
-        missingOperationsOwner.record(new PlaybackQueueManager.CurrentTrackReplacementRecovery(track(), 1L, true));
+        missingDiagnosticsOwner.record(new PlaybackQueueManager.CurrentTrackReplacementRecovery(track(), 1L, true));
         owner.record(null);
 
-        assertEquals(0, operations.recoveryCalls);
+        assertEquals(0, diagnostics.snapshot().recoveryEvents);
     }
 
     @Test
     public void recordsEmptyQualityWhenQualityProviderIsMissing() {
         Track track = track();
-        FakeStreamingDiagnosticsOperations operations = new FakeStreamingDiagnosticsOperations();
+        PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
         PlaybackRecoveryDiagnosticsRecorderOwner owner =
-                new PlaybackRecoveryDiagnosticsRecorderOwner(() -> operations, null);
+                new PlaybackRecoveryDiagnosticsRecorderOwner(() -> diagnostics, null);
 
         owner.record(new PlaybackQueueManager.CurrentTrackReplacementRecovery(track, 1200L, true));
 
-        assertEquals("", operations.lastQuality);
+        assertEquals("", diagnostics.snapshot().recentEvents.get(0).quality);
     }
 
     private static Track track() {
@@ -68,19 +69,4 @@ public class PlaybackRecoveryDiagnosticsRecorderOwnerTest {
         );
     }
 
-    private static final class FakeStreamingDiagnosticsOperations
-            implements PlaybackRecoveryDiagnosticsRecorderOwner.StreamingDiagnosticsOperations {
-        private int recoveryCalls;
-        private Track lastTrack;
-        private long lastPositionMs = -1L;
-        private String lastQuality = "<unset>";
-
-        @Override
-        public void recordRecovery(Track track, long positionMs, String quality) {
-            recoveryCalls++;
-            lastTrack = track;
-            lastPositionMs = positionMs;
-            lastQuality = quality;
-        }
-    }
 }

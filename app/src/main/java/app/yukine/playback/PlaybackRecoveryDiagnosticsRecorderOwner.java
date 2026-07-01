@@ -13,22 +13,14 @@ final class PlaybackRecoveryDiagnosticsRecorderOwner {
         String streamingQualityForTrack(Track track);
     }
 
-    interface StreamingDiagnosticsOperations {
-        void recordRecovery(Track track, long positionMs, String quality);
-    }
-
-    interface StreamingDiagnosticsOperationsProvider {
-        StreamingDiagnosticsOperations streamingDiagnosticsOperations();
-    }
-
-    private final StreamingDiagnosticsOperationsProvider streamingDiagnosticsOperationsProvider;
+    private final StreamingDiagnosticsProvider streamingDiagnosticsProvider;
     private final StreamingQualityProvider streamingQualityProvider;
 
     PlaybackRecoveryDiagnosticsRecorderOwner(
-            StreamingDiagnosticsOperationsProvider streamingDiagnosticsOperationsProvider,
+            StreamingDiagnosticsProvider streamingDiagnosticsProvider,
             StreamingQualityProvider streamingQualityProvider
     ) {
-        this.streamingDiagnosticsOperationsProvider = streamingDiagnosticsOperationsProvider;
+        this.streamingDiagnosticsProvider = streamingDiagnosticsProvider;
         this.streamingQualityProvider = streamingQualityProvider;
     }
 
@@ -36,56 +28,20 @@ final class PlaybackRecoveryDiagnosticsRecorderOwner {
             StreamingDiagnosticsProvider streamingDiagnosticsProvider,
             StreamingQualityProvider streamingQualityProvider
     ) {
-        return new PlaybackRecoveryDiagnosticsRecorderOwner(
-                new PlaybackStreamingDiagnosticsOperationsProvider(streamingDiagnosticsProvider),
-                streamingQualityProvider
-        );
+        return new PlaybackRecoveryDiagnosticsRecorderOwner(streamingDiagnosticsProvider, streamingQualityProvider);
     }
 
     void record(PlaybackQueueManager.CurrentTrackReplacementRecovery recovery) {
-        StreamingDiagnosticsOperations operations = streamingDiagnosticsOperationsProvider == null
+        PlaybackStreamingDiagnostics diagnostics = streamingDiagnosticsProvider == null
                 ? null
-                : streamingDiagnosticsOperationsProvider.streamingDiagnosticsOperations();
-        if (operations == null || recovery == null) {
+                : streamingDiagnosticsProvider.streamingDiagnostics();
+        if (diagnostics == null || recovery == null) {
             return;
         }
         Track track = recovery.getTrack();
         String quality = streamingQualityProvider == null
                 ? ""
                 : streamingQualityProvider.streamingQualityForTrack(track);
-        operations.recordRecovery(track, recovery.getRestoredPositionMs(), quality);
-    }
-
-    private static final class PlaybackStreamingDiagnosticsOperationsProvider
-            implements StreamingDiagnosticsOperationsProvider {
-        private final StreamingDiagnosticsProvider streamingDiagnosticsProvider;
-
-        private PlaybackStreamingDiagnosticsOperationsProvider(
-                StreamingDiagnosticsProvider streamingDiagnosticsProvider
-        ) {
-            this.streamingDiagnosticsProvider = streamingDiagnosticsProvider;
-        }
-
-        @Override
-        public StreamingDiagnosticsOperations streamingDiagnosticsOperations() {
-            PlaybackStreamingDiagnostics diagnostics = streamingDiagnosticsProvider == null
-                    ? null
-                    : streamingDiagnosticsProvider.streamingDiagnostics();
-            return diagnostics == null ? null : new PlaybackStreamingDiagnosticsOperations(diagnostics);
-        }
-    }
-
-    private static final class PlaybackStreamingDiagnosticsOperations
-            implements StreamingDiagnosticsOperations {
-        private final PlaybackStreamingDiagnostics diagnostics;
-
-        private PlaybackStreamingDiagnosticsOperations(PlaybackStreamingDiagnostics diagnostics) {
-            this.diagnostics = diagnostics;
-        }
-
-        @Override
-        public void recordRecovery(Track track, long positionMs, String quality) {
-            diagnostics.recordRecovery(track, positionMs, quality);
-        }
+        diagnostics.recordRecovery(track, recovery.getRestoredPositionMs(), quality);
     }
 }
