@@ -126,6 +126,41 @@ class PlaybackNotificationManagerTest {
     }
 
     @Test
+    fun serviceActionsRouteToCommandCallbacks() {
+        val cases = listOf(
+            PlaybackServiceActions.PLAY to "play",
+            PlaybackServiceActions.PAUSE to "pause",
+            PlaybackServiceActions.PREVIOUS to "previous",
+            PlaybackServiceActions.NEXT to "next",
+            PlaybackServiceActions.TOGGLE_FAVORITE to "favorite",
+            PlaybackServiceActions.RESTORE to "restore:false",
+            PlaybackServiceActions.RESTORE_AND_PLAY to "restore:true"
+        )
+
+        for ((action, expectedEvent) in cases) {
+            val state = FakeStateProvider()
+            state.queueEmpty = false
+            val actions = FakeActionCallbacks()
+            val manager = manager(state, FakeForegroundController(), actions)
+
+            assertTrue(manager.handleServiceAction(action))
+
+            assertEquals(
+                "Unexpected callback events for $action",
+                listOf("notify:true", expectedEvent, "notify:true"),
+                actions.events
+            )
+        }
+    }
+
+    @Test
+    fun validActionWithoutCallbacksIsIgnored() {
+        val manager = manager(FakeStateProvider(), FakeForegroundController())
+
+        assertFalse(manager.handleServiceAction(PlaybackServiceActions.NEXT))
+    }
+
+    @Test
     fun lyricsBridgeUsesNotificationManagerStateAndPublishCallback() {
         val state = FakeStateProvider()
         state.queueEmpty = false
