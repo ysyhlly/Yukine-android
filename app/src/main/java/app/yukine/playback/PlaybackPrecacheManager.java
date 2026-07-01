@@ -58,8 +58,6 @@ final class PlaybackPrecacheManager {
     }
 
     interface MediaCacheOperations {
-        String mediaCacheKeyForTrack(Track track);
-
         boolean tracksShareResolvedUriForReuse(Track current, Track candidate);
 
         long contentLengthForCacheKey(String cacheKey);
@@ -168,8 +166,7 @@ final class PlaybackPrecacheManager {
         if (released || cacheKey == null) {
             return;
         }
-        String precacheKey = mediaCacheOperations.mediaCacheKeyForTrack(track);
-        if (precacheKey.equals(lastPrecacheKey) && shouldKeepExistingPrecache(cacheKey)) {
+        if (cacheKey.equals(lastPrecacheKey) && shouldKeepExistingPrecache(cacheKey)) {
             return;
         }
         Track current = stateProvider.currentTrack();
@@ -187,7 +184,7 @@ final class PlaybackPrecacheManager {
             );
             return;
         }
-        lastPrecacheKey = precacheKey;
+        lastPrecacheKey = cacheKey;
         int generation = precacheGeneration.incrementAndGet();
         activePrecacheRanges.clear();
         cancelPendingPrecacheCallbacks();
@@ -204,11 +201,10 @@ final class PlaybackPrecacheManager {
         if (cacheKey == null) {
             return;
         }
-        String precacheKey = mediaCacheOperations.mediaCacheKeyForTrack(track);
-        if (precacheKey.equals(lastPrecacheKey) && shouldKeepExistingPrecache(cacheKey)) {
+        if (cacheKey.equals(lastPrecacheKey) && shouldKeepExistingPrecache(cacheKey)) {
             return;
         }
-        lastPrecacheKey = precacheKey;
+        lastPrecacheKey = cacheKey;
         int generation = precacheGeneration.incrementAndGet();
         activePrecacheRanges.clear();
         cancelPendingPrecacheCallbacks();
@@ -678,11 +674,6 @@ final class PlaybackPrecacheManager {
 
         PlaybackMediaSourceProviderCacheOperations(PlaybackMediaSourceProvider mediaSourceProvider) {
             this.mediaSourceProvider = mediaSourceProvider;
-        }
-
-        @Override
-        public String mediaCacheKeyForTrack(Track track) {
-            return mediaSourceProvider == null ? "" : mediaSourceProvider.mediaCacheKeyForTrack(track);
         }
 
         @Override

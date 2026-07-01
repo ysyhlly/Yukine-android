@@ -1923,6 +1923,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("private final AtomicInteger precacheGeneration = new AtomicInteger();"));
         assertTrue(playbackPrecacheManager.contains("private final AtomicBoolean audioCacheReleased = new AtomicBoolean();"));
         assertTrue(playbackPrecacheManager.contains("private volatile String lastPrecacheKey = \"\";"));
+        assertFalse(playbackPrecacheManager.contains("String mediaCacheKeyForTrack(Track track);"));
+        assertFalse(playbackPrecacheManager.contains("mediaCacheOperations.mediaCacheKeyForTrack(track)"));
         assertTrue(playbackPrecacheManager.contains("private void precacheUpcomingTracks(int generation)"));
         assertTrue(playbackPrecacheManager.contains("private void precacheWithMediaCache("));
         assertTrue(playbackPrecacheManager.contains("private void scheduleCurrentSegmentedPrecache(Track track, String cacheKey, int generation)"));

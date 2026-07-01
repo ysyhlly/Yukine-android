@@ -441,11 +441,6 @@ public final class PlaybackPrecacheManagerTest {
         private int cachedBytesInRangeCalls;
 
         @Override
-        public String mediaCacheKeyForTrack(Track track) {
-            return cacheKeyForTrack(track);
-        }
-
-        @Override
         public boolean tracksShareResolvedUriForReuse(Track current, Track candidate) {
             return current != null
                     && candidate != null
