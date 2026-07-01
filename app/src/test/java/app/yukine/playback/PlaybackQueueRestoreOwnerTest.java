@@ -15,11 +15,14 @@ public class PlaybackQueueRestoreOwnerTest {
     @Test
     public void restoresAndPreparesPlaybackWhenQueueIsRestorable() {
         List<String> events = new ArrayList<>();
+        FakeQueueRestoreActions actions = new FakeQueueRestoreActions(
+                events,
+                new PlaybackQueueManager.RestorePlaybackResult(true, true, true)
+        );
         PlaybackQueueRestoreOwner owner = new PlaybackQueueRestoreOwner(
-                () -> new FakeQueueRestoreOperations(
-                        events,
-                        new PlaybackQueueManager.RestorePlaybackResult(true, true, true)
-                ),
+                actions::restorePlaybackQueue,
+                actions::restoreLastPlayback,
+                actions::setPlaybackRestoreEnabled,
                 new FakeRestorePlaybackBoundary(events)
         );
 
@@ -38,11 +41,14 @@ public class PlaybackQueueRestoreOwnerTest {
     @Test
     public void publishesStateWhenRestoreDoesNotPreparePlayback() {
         List<String> events = new ArrayList<>();
+        FakeQueueRestoreActions actions = new FakeQueueRestoreActions(
+                events,
+                new PlaybackQueueManager.RestorePlaybackResult(true, false, false)
+        );
         PlaybackQueueRestoreOwner owner = new PlaybackQueueRestoreOwner(
-                () -> new FakeQueueRestoreOperations(
-                        events,
-                        new PlaybackQueueManager.RestorePlaybackResult(true, false, false)
-                ),
+                actions::restorePlaybackQueue,
+                actions::restoreLastPlayback,
+                actions::setPlaybackRestoreEnabled,
                 new FakeRestorePlaybackBoundary(events)
         );
 
@@ -59,21 +65,18 @@ public class PlaybackQueueRestoreOwnerTest {
     }
 
     @Test
-    public void missingQueueOperationsPublishesEmptyRestoreState() {
+    public void missingQueueActionsPublishesEmptyRestoreState() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueRestoreOwner missingSupplier = new PlaybackQueueRestoreOwner(
+        PlaybackQueueRestoreOwner missingActions = new PlaybackQueueRestoreOwner(
+                null,
+                null,
                 null,
                 new FakeRestorePlaybackBoundary(events)
         );
-        PlaybackQueueRestoreOwner missingOperations = new PlaybackQueueRestoreOwner(
-                () -> null,
-                new FakeRestorePlaybackBoundary(events)
-        );
 
-        missingSupplier.restoreLastPlayback(false);
-        missingOperations.restoreLastPlayback(false);
+        missingActions.restoreLastPlayback(false);
 
-        assertEquals(Arrays.asList("publish", "publish"), events);
+        assertEquals(Collections.singletonList("publish"), events);
     }
 
     @Test
@@ -92,11 +95,14 @@ public class PlaybackQueueRestoreOwnerTest {
     @Test
     public void ignoresMissingRestoreBoundary() {
         List<String> events = new ArrayList<>();
+        FakeQueueRestoreActions actions = new FakeQueueRestoreActions(
+                events,
+                new PlaybackQueueManager.RestorePlaybackResult(true, true, true)
+        );
         PlaybackQueueRestoreOwner owner = new PlaybackQueueRestoreOwner(
-                () -> new FakeQueueRestoreOperations(
-                        events,
-                        new PlaybackQueueManager.RestorePlaybackResult(true, true, true)
-                ),
+                actions::restorePlaybackQueue,
+                actions::restoreLastPlayback,
+                actions::setPlaybackRestoreEnabled,
                 null
         );
 
@@ -108,14 +114,17 @@ public class PlaybackQueueRestoreOwnerTest {
     @Test
     public void delegatesRestoreEnabledSetting() {
         List<String> events = new ArrayList<>();
+        FakeQueueRestoreActions actions = new FakeQueueRestoreActions(events, null);
         PlaybackQueueRestoreOwner owner = new PlaybackQueueRestoreOwner(
-                () -> new FakeQueueRestoreOperations(events, null),
+                actions::restorePlaybackQueue,
+                actions::restoreLastPlayback,
+                actions::setPlaybackRestoreEnabled,
                 null
         );
-        PlaybackQueueRestoreOwner missingOperations = new PlaybackQueueRestoreOwner(() -> null, null);
+        PlaybackQueueRestoreOwner missingActions = new PlaybackQueueRestoreOwner(null, null, null, null);
 
         owner.setPlaybackRestoreEnabled(true);
-        missingOperations.setPlaybackRestoreEnabled(false);
+        missingActions.setPlaybackRestoreEnabled(false);
 
         assertEquals(Collections.singletonList("enabled:true"), events);
     }
@@ -123,24 +132,26 @@ public class PlaybackQueueRestoreOwnerTest {
     @Test
     public void delegatesQueueRestoreSnapshot() {
         List<String> events = new ArrayList<>();
+        FakeQueueRestoreActions actions = new FakeQueueRestoreActions(events, null);
         PlaybackQueueRestoreOwner owner = new PlaybackQueueRestoreOwner(
-                () -> new FakeQueueRestoreOperations(events, null),
+                actions::restorePlaybackQueue,
+                actions::restoreLastPlayback,
+                actions::setPlaybackRestoreEnabled,
                 null
         );
-        PlaybackQueueRestoreOwner missingOperations = new PlaybackQueueRestoreOwner(() -> null, null);
+        PlaybackQueueRestoreOwner missingActions = new PlaybackQueueRestoreOwner(null, null, null, null);
 
         owner.restorePlaybackQueue();
-        missingOperations.restorePlaybackQueue();
+        missingActions.restorePlaybackQueue();
 
         assertEquals(Collections.singletonList("restoreQueue"), events);
     }
 
-    private static final class FakeQueueRestoreOperations
-            implements PlaybackQueueRestoreOwner.QueueRestoreOperations {
+    private static final class FakeQueueRestoreActions {
         private final List<String> events;
         private final PlaybackQueueManager.RestorePlaybackResult restoreResult;
 
-        private FakeQueueRestoreOperations(
+        private FakeQueueRestoreActions(
                 List<String> events,
                 PlaybackQueueManager.RestorePlaybackResult restoreResult
         ) {
@@ -148,19 +159,16 @@ public class PlaybackQueueRestoreOwnerTest {
             this.restoreResult = restoreResult;
         }
 
-        @Override
         public PlaybackQueueManager.QueueStateSnapshot restorePlaybackQueue() {
             events.add("restoreQueue");
             return PlaybackQueueManager.QueueStateSnapshot.empty();
         }
 
-        @Override
         public PlaybackQueueManager.RestorePlaybackResult restoreLastPlayback(boolean playWhenRestored) {
             events.add("restore:" + playWhenRestored);
             return restoreResult;
         }
 
-        @Override
         public void setPlaybackRestoreEnabled(boolean enabled) {
             events.add("enabled:" + enabled);
         }

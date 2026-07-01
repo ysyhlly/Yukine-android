@@ -2,17 +2,11 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 final class PlaybackQueueRestoreOwner {
-    interface QueueRestoreOperations {
-        PlaybackQueueManager.QueueStateSnapshot restorePlaybackQueue();
-
-        PlaybackQueueManager.RestorePlaybackResult restoreLastPlayback(boolean playWhenRestored);
-
-        void setPlaybackRestoreEnabled(boolean enabled);
-    }
-
     interface RestorePlaybackBoundary {
         void createPlayerIfNeeded();
 
@@ -21,14 +15,20 @@ final class PlaybackQueueRestoreOwner {
         void publishState();
     }
 
-    private final Supplier<QueueRestoreOperations> queueRestoreOperationsSupplier;
+    private final Runnable restorePlaybackQueue;
+    private final Function<Boolean, PlaybackQueueManager.RestorePlaybackResult> restoreLastPlayback;
+    private final Consumer<Boolean> setPlaybackRestoreEnabled;
     private final RestorePlaybackBoundary restorePlaybackBoundary;
 
     PlaybackQueueRestoreOwner(
-            Supplier<QueueRestoreOperations> queueRestoreOperationsSupplier,
+            Runnable restorePlaybackQueue,
+            Function<Boolean, PlaybackQueueManager.RestorePlaybackResult> restoreLastPlayback,
+            Consumer<Boolean> setPlaybackRestoreEnabled,
             RestorePlaybackBoundary restorePlaybackBoundary
     ) {
-        this.queueRestoreOperationsSupplier = queueRestoreOperationsSupplier;
+        this.restorePlaybackQueue = restorePlaybackQueue;
+        this.restoreLastPlayback = restoreLastPlayback;
+        this.setPlaybackRestoreEnabled = setPlaybackRestoreEnabled;
         this.restorePlaybackBoundary = restorePlaybackBoundary;
     }
 
@@ -41,19 +41,34 @@ final class PlaybackQueueRestoreOwner {
                     PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
                             ? null
                             : playbackQueueManagerSupplier.get();
+                    if (playbackQueueManager != null) {
+                        playbackQueueManager.restorePlaybackQueue();
+                    }
+                },
+                playWhenRestored -> {
+                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
+                            ? null
+                            : playbackQueueManagerSupplier.get();
                     return playbackQueueManager == null
                             ? null
-                            : new PlaybackQueueManagerOperations(playbackQueueManager);
+                            : playbackQueueManager.restoreLastPlayback(playWhenRestored);
+                },
+                enabled -> {
+                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
+                            ? null
+                            : playbackQueueManagerSupplier.get();
+                    if (playbackQueueManager != null) {
+                        playbackQueueManager.setPlaybackRestoreEnabled(enabled);
+                    }
                 },
                 restorePlaybackBoundary
         );
     }
 
     void restoreLastPlayback(boolean playWhenRestored) {
-        QueueRestoreOperations operations = queueRestoreOperations();
-        PlaybackQueueManager.RestorePlaybackResult restoreResult = operations == null
+        PlaybackQueueManager.RestorePlaybackResult restoreResult = restoreLastPlayback == null
                 ? PlaybackQueueManager.RestorePlaybackResult.empty()
-                : operations.restoreLastPlayback(playWhenRestored);
+                : restoreLastPlayback.apply(playWhenRestored);
         if (restoreResult == null) {
             restoreResult = PlaybackQueueManager.RestorePlaybackResult.empty();
         }
@@ -71,45 +86,14 @@ final class PlaybackQueueRestoreOwner {
     }
 
     void restorePlaybackQueue() {
-        QueueRestoreOperations operations = queueRestoreOperations();
-        if (operations != null) {
-            operations.restorePlaybackQueue();
+        if (restorePlaybackQueue != null) {
+            restorePlaybackQueue.run();
         }
     }
 
     void setPlaybackRestoreEnabled(boolean enabled) {
-        QueueRestoreOperations operations = queueRestoreOperations();
-        if (operations != null) {
-            operations.setPlaybackRestoreEnabled(enabled);
-        }
-    }
-
-    private QueueRestoreOperations queueRestoreOperations() {
-        return queueRestoreOperationsSupplier == null
-                ? null
-                : queueRestoreOperationsSupplier.get();
-    }
-
-    private static final class PlaybackQueueManagerOperations implements QueueRestoreOperations {
-        private final PlaybackQueueManager playbackQueueManager;
-
-        private PlaybackQueueManagerOperations(PlaybackQueueManager playbackQueueManager) {
-            this.playbackQueueManager = playbackQueueManager;
-        }
-
-        @Override
-        public PlaybackQueueManager.QueueStateSnapshot restorePlaybackQueue() {
-            return playbackQueueManager.restorePlaybackQueue();
-        }
-
-        @Override
-        public PlaybackQueueManager.RestorePlaybackResult restoreLastPlayback(boolean playWhenRestored) {
-            return playbackQueueManager.restoreLastPlayback(playWhenRestored);
-        }
-
-        @Override
-        public void setPlaybackRestoreEnabled(boolean enabled) {
-            playbackQueueManager.setPlaybackRestoreEnabled(enabled);
+        if (setPlaybackRestoreEnabled != null) {
+            setPlaybackRestoreEnabled.accept(enabled);
         }
     }
 }
