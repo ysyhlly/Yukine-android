@@ -7229,7 +7229,6 @@ public final class MainActivityArchitectureContractTest {
         String commandOwner = read("app/src/main/java/app/yukine/playback/PlaybackNotificationCommandOwner.java");
         String stateOwner = read("app/src/main/java/app/yukine/playback/PlaybackNotificationStateOwner.java");
         String activeStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackActiveStateOwner.java");
-        String lyricsTextOwner = read("app/src/main/java/app/yukine/playback/PlaybackNotificationLyricsTextOwner.java");
         String artworkProviderOwner = read("app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkProviderOwner.java");
         String artworkStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkStateOwner.java");
         String artworkSource = read("feature/playback/src/main/java/app/yukine/playback/PlaybackNotificationArtworkSource.java");
@@ -7260,9 +7259,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("                playbackActiveStateOwner,"));
         assertFalse(service.contains("new PlaybackNotificationManager.StateProvider()"));
         assertFalse(service.contains("new PlaybackNotificationStateOwner.PlaybackStateProvider()"));
-        assertTrue(service.contains("private PlaybackNotificationLyricsTextOwner playbackNotificationLyricsTextOwner;"));
-        assertTrue(service.contains("playbackNotificationLyricsTextOwner = new PlaybackNotificationLyricsTextOwner("));
-        assertTrue(service.contains("                playbackNotificationLyricsTextOwner,"));
+        assertFalse(exists("app/src/main/java/app/yukine/playback/PlaybackNotificationLyricsTextOwner.java"));
+        assertTrue(service.contains("                () -> playbackLyricsManager,"));
         assertFalse(service.contains("new PlaybackNotificationManager.LyricsTextProvider()"));
         assertTrue(service.contains("private PlaybackNotificationArtworkProviderOwner playbackNotificationArtworkProviderOwner;"));
         assertTrue(service.contains("playbackNotificationArtworkProviderOwner = new PlaybackNotificationArtworkProviderOwner("));
@@ -7330,12 +7328,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(stateOwner.contains("return playbackStateProvider.currentTrack();"));
         assertTrue(stateOwner.contains("return favoriteStateProvider.isFavorite(track);"));
         assertTrue(stateOwner.contains("return sessionTokenProvider.playbackSessionPlatformToken();"));
-        assertTrue(lyricsTextOwner.contains("final class PlaybackNotificationLyricsTextOwner implements PlaybackNotificationManager.LyricsTextProvider"));
-        assertFalse(lyricsTextOwner.contains("interface LyricsPublisherProvider"));
-        assertTrue(lyricsTextOwner.contains("Supplier<LyricsPublisher>"));
-        assertTrue(lyricsTextOwner.contains("LyricsPublisher publisher = lyricsPublisher();"));
-        assertTrue(lyricsTextOwner.contains("return publisher == null ? \"\" : publisher.notificationLyricText(track);"));
-        assertTrue(lyricsTextOwner.contains("return publisher == null ? \"\" : publisher.sanitizeNotificationLyric(value);"));
+        assertFalse(owner.contains("interface LyricsTextProvider"));
+        assertTrue(owner.contains("Supplier<out LyricsPublisher?>?"));
+        assertTrue(owner.contains("lyricsPublisherSupplier?.get()?.notificationLyricText(track).orEmpty()"));
+        assertTrue(owner.contains("lyricsPublisherSupplier?.get()?.sanitizeNotificationLyric(value).orEmpty()"));
         assertFalse(service.contains("playbackLyricsManager.notificationLyricText("));
         assertFalse(service.contains("playbackLyricsManager.sanitizeNotificationLyric("));
         assertTrue(artworkProviderOwner.contains("final class PlaybackNotificationArtworkProviderOwner"));

@@ -8,11 +8,13 @@ import android.graphics.Bitmap
 import android.media.session.MediaSession
 import android.net.Uri
 import app.yukine.model.Track
+import app.yukine.playback.manager.LyricsPublisher
 import app.yukine.playback.manager.PlaybackNotificationManager
 import app.yukine.playback.service.PlaybackServiceActions
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -147,7 +149,7 @@ class PlaybackNotificationManagerTest {
         val manager = manager(
             FakeStateProvider(),
             FakeForegroundController(),
-            lyricsTextProvider = FakeLyricsTextProvider("current lyric"),
+            lyricsPublisherSupplier = java.util.function.Supplier { FakeLyricsPublisher("current lyric") },
             artworkProvider = FakeArtworkProvider(artworkData)
         )
         val track = track(9L)
@@ -163,6 +165,28 @@ class PlaybackNotificationManagerTest {
         assertEquals("current lyric", metadata.description.toString())
         assertEquals(track.albumArtUri, metadata.artworkUri)
         assertArrayEquals(artworkData, metadata.artworkData)
+    }
+
+    @Test
+    fun notificationLyricsUseCurrentPublisherWhenAvailable() {
+        val state = FakeStateProvider()
+        state.track = track(9L)
+        val publisherSource = MutableLyricsPublisherSource()
+        val manager = manager(
+            state,
+            FakeForegroundController(),
+            lyricsPublisherSupplier = java.util.function.Supplier { publisherSource.publisher }
+        )
+
+        assertEquals("Yukine", manager.shortCriticalText("line"))
+        var metadata = manager.mediaMetadataForTrack(state.track!!)
+        assertNull(metadata.subtitle)
+
+        publisherSource.publisher = FakeLyricsPublisher("current lyric")
+
+        metadata = manager.mediaMetadataForTrack(state.track!!)
+        assertEquals("current lyric", metadata.subtitle.toString())
+        assertEquals("\u266A current", manager.shortCriticalText(" current   "))
     }
 
     @Test
@@ -199,14 +223,14 @@ class PlaybackNotificationManagerTest {
         stateProvider: FakeStateProvider,
         foregroundController: FakeForegroundController,
         actionCallbacks: PlaybackNotificationManager.ActionCallbacks? = null,
-        lyricsTextProvider: PlaybackNotificationManager.LyricsTextProvider? = null,
+        lyricsPublisherSupplier: java.util.function.Supplier<out LyricsPublisher?>? = null,
         artworkProvider: PlaybackNotificationManager.ArtworkProvider = FakeArtworkProvider()
     ): PlaybackNotificationManager {
         return PlaybackNotificationManager(
             RuntimeEnvironment.getApplication(),
             foregroundController,
             stateProvider,
-            lyricsTextProvider,
+            lyricsPublisherSupplier,
             artworkProvider,
             actionCallbacks
         )
@@ -274,12 +298,28 @@ class PlaybackNotificationManagerTest {
         }
     }
 
-    private class FakeLyricsTextProvider(
-        private val lyric: String
-    ) : PlaybackNotificationManager.LyricsTextProvider {
-        override fun currentNotificationLyric(track: Track?): String = lyric
+    private class MutableLyricsPublisherSource {
+        var publisher: LyricsPublisher? = null
+    }
 
-        override fun sanitizeNotificationLyric(value: String?): String = value.orEmpty()
+    private class FakeLyricsPublisher(
+        private val lyric: String
+    ) : LyricsPublisher {
+        override fun bind() {
+        }
+
+        override fun release() {
+        }
+
+        override fun setStatusBarLyricsEnabled(enabled: Boolean) {
+        }
+
+        override fun syncFloatingLyricsPlaybackState(snapshot: PlaybackStateSnapshot) {
+        }
+
+        override fun notificationLyricText(track: Track?): String = lyric
+
+        override fun sanitizeNotificationLyric(value: String?): String = value.orEmpty().trim().replace("   ", " ")
     }
 
     private class FakeArtworkProvider(

@@ -208,7 +208,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackNotificationForegroundOwner playbackNotificationForegroundOwner;
     private PlaybackNotificationCommandOwner playbackNotificationCommandOwner;
     private PlaybackNotificationStateOwner playbackNotificationStateOwner;
-    private PlaybackNotificationLyricsTextOwner playbackNotificationLyricsTextOwner;
     private PlaybackNotificationArtworkProviderOwner playbackNotificationArtworkProviderOwner;
     private PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner;
     private PlaybackSessionCommandOwner playbackSessionCommandOwner;
@@ -505,9 +504,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                     return session == null ? null : session.getPlatformToken();
                 }
         );
-        playbackNotificationLyricsTextOwner = new PlaybackNotificationLyricsTextOwner(
-                () -> playbackLyricsManager
-        );
         playbackNotificationArtworkProviderOwner = new PlaybackNotificationArtworkProviderOwner(
                 () -> playbackNotificationArtworkManager
         );
@@ -515,7 +511,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 this,
                 playbackNotificationForegroundOwner,
                 playbackNotificationStateOwner,
-                playbackNotificationLyricsTextOwner,
+                () -> playbackLyricsManager,
                 playbackNotificationArtworkProviderOwner,
                 playbackNotificationCommandOwner
         );

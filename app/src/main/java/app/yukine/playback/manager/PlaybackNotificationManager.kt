@@ -10,20 +10,16 @@ import app.yukine.R
 import app.yukine.model.Track
 import app.yukine.playback.service.PlaybackServiceActions
 import androidx.media3.common.MediaMetadata
+import java.util.function.Supplier
 
 internal class PlaybackNotificationManager(
     private val context: Context,
     private val foregroundController: ForegroundController,
     private val stateProvider: StateProvider,
-    private val lyricsTextProvider: LyricsTextProvider?,
+    private val lyricsPublisherSupplier: Supplier<out LyricsPublisher?>?,
     private val artworkProvider: ArtworkProvider,
     private val actionCallbacks: ActionCallbacks? = null
 ) : NotificationManager {
-    interface LyricsTextProvider {
-        fun currentNotificationLyric(track: Track?): String
-        fun sanitizeNotificationLyric(value: String?): String
-    }
-
     interface ForegroundController {
         fun activityPendingIntent(): android.app.PendingIntent
         fun serviceActionPendingIntent(action: String, requestCode: Int): android.app.PendingIntent
@@ -127,7 +123,7 @@ internal class PlaybackNotificationManager(
         val playing = stateProvider.isPlaying() || stateProvider.isPreparing()
         val hasTrack = track != null
         val isFavorite = stateProvider.isFavorite(track)
-        val lyricText = if (lyricsTextProvider == null) "" else lyricsTextProvider.currentNotificationLyric(track)
+        val lyricText = currentNotificationLyric(track)
         val contentText = if (lyricText.isNotEmpty()) lyricText else if (hasTrack) track!!.subtitle() else EMPTY_NOTIFICATION_TEXT
         val titleText = if (hasTrack) track!!.title else EMPTY_NOTIFICATION_TITLE
         val capsuleText = if (lyricText.isNotEmpty()) shortCriticalText(lyricText) else if (hasTrack) shortCriticalText(track!!.title) else "Yukine"
@@ -183,7 +179,7 @@ internal class PlaybackNotificationManager(
     }
 
     fun mediaMetadataForTrack(track: Track): MediaMetadata {
-        val lyricText = lyricsTextProvider?.currentNotificationLyric(track).orEmpty()
+        val lyricText = currentNotificationLyric(track)
         val metadata = MediaMetadata.Builder()
             .setTitle(track.title)
             .setArtist(track.artist)
@@ -209,11 +205,19 @@ internal class PlaybackNotificationManager(
     }
 
     fun shortCriticalText(value: String): String {
-        val compact = if (lyricsTextProvider == null) "" else lyricsTextProvider.sanitizeNotificationLyric(value).replace('\n', ' ')
+        val compact = sanitizeNotificationLyric(value).replace('\n', ' ')
         if (compact.isEmpty()) return "Yukine"
         if (compact.length <= 9) return "\u266A $compact"
         if (compact.length <= 14) return "\u266A ${compact.substring(0, 9)}"
         return "\u266A ${compact.substring(0, 8)}..."
+    }
+
+    private fun currentNotificationLyric(track: Track?): String {
+        return lyricsPublisherSupplier?.get()?.notificationLyricText(track).orEmpty()
+    }
+
+    private fun sanitizeNotificationLyric(value: String?): String {
+        return lyricsPublisherSupplier?.get()?.sanitizeNotificationLyric(value).orEmpty()
     }
 
     companion object {
