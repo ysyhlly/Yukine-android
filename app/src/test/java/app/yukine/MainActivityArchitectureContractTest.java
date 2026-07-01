@@ -6193,6 +6193,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun streamingQualityForTrack(track: Track?): String"));
         assertTrue(owner.contains("fun mediaCacheKey(track: Track?): String?"));
         assertTrue(owner.contains("fun mediaCacheKey(dataPath: String?, uri: String?): String?"));
+        assertTrue(owner.contains("if (dataPath.startsWith(\"streaming:\"))"));
+        assertTrue(owner.contains("if (dataPath.startsWith(\"webdav:\")) return dataPath"));
         assertTrue(owner.contains(".setUri(track.contentUri)"));
         assertTrue(owner.contains(".setMediaId(track.id.toString())"));
         assertTrue(owner.contains(".setCustomCacheKey(mediaCacheKey(track))"));
@@ -6302,6 +6304,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("track.dataPath.startsWith(\"streaming:\")"));
         assertFalse(service.contains("Uri.EMPTY.equals(track.contentUri)"));
         assertFalse(service.contains("track.contentUri.toString()"));
+        assertFalse(service.contains("dataPath.startsWith(\"streaming:\""));
+        assertFalse(service.contains("dataPath.startsWith(\"webdav:\""));
+        assertFalse(service.contains("|url="));
         assertFalse(service.contains(".setUri(track.contentUri)"));
         assertFalse(service.contains(".setMediaId(track.id.toString())"));
         assertFalse(service.contains(".setCustomCacheKey("));

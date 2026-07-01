@@ -99,7 +99,7 @@ class PlaybackMediaSourceProviderTest {
     }
 
     @Test
-    fun providerMediaCacheKeyForTrackUsesStreamingKeyOrLocalUriFallback() {
+    fun providerMediaCacheKeyForTrackUsesOwnedStreamingWebDavAndLocalRules() {
         val provider = provider(FakeStreamingPlaybackHeaderStore())
         val streaming = Track(
             42L,
@@ -119,12 +119,34 @@ class PlaybackMediaSourceProviderTest {
             Uri.parse("file:///storage/emulated/0/Music/local.flac"),
             "/storage/emulated/0/Music/local.flac"
         )
+        val webDav = Track(
+            9L,
+            "WebDav",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://dav.example/music/webdav.flac"),
+            "webdav:3:/music/webdav.flac"
+        )
+        val localMissingUri = Track(
+            8L,
+            "Missing",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.EMPTY,
+            "/storage/emulated/0/Music/missing.flac"
+        )
 
         assertEquals(
             "streaming:netease:42|url=https://audio.example/current.flac",
             provider.mediaCacheKeyForTrack(streaming)
         )
+        assertEquals("webdav:3:/music/webdav.flac", provider.mediaCacheKeyForTrack(webDav))
         assertEquals("file:///storage/emulated/0/Music/local.flac", provider.mediaCacheKeyForTrack(local))
+        assertEquals("", provider.mediaCacheKeyForTrack(localMissingUri))
+        assertNull(PlaybackMediaSourceProvider.mediaCacheKey("/storage/emulated/0/Music/local.flac", local.contentUri.toString()))
+        assertNull(PlaybackMediaSourceProvider.mediaCacheKey(null, local.contentUri.toString()))
     }
 
     @Test
