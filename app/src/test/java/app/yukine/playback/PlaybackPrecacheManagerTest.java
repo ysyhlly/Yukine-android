@@ -11,6 +11,7 @@ import androidx.media3.datasource.cache.CacheDataSource;
 import app.yukine.common.StreamingDataPathParser;
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.model.Track;
+import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.streaming.StreamingPlaybackHeaderStore;
 

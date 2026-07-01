@@ -1,6 +1,7 @@
 package app.yukine.playback;
 
 import app.yukine.model.Track;
+import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 
 final class PlaybackBufferingDiagnosticsRecorderOwner
         implements PlaybackStatePublisher.BufferingRecorder {

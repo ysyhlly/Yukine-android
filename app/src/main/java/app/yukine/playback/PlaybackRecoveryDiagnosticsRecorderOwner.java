@@ -1,6 +1,7 @@
 package app.yukine.playback;
 
 import app.yukine.model.Track;
+import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 final class PlaybackRecoveryDiagnosticsRecorderOwner {

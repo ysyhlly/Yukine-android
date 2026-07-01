@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import app.yukine.model.Track;
+import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
 final class PlaybackPrecacheManager {

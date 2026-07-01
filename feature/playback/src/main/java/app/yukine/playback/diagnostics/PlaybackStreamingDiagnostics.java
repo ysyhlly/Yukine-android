@@ -1,4 +1,4 @@
-package app.yukine.playback;
+package app.yukine.playback.diagnostics;
 
 import android.util.Log;
 

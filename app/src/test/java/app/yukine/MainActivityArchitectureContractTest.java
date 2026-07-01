@@ -1804,7 +1804,7 @@ public final class MainActivityArchitectureContractTest {
         String playbackWarmupActionsOwner = read(
                 "app/src/main/java/app/yukine/playback/PlaybackWarmupActionsOwner.java"
         );
-        String diagnostics = read("app/src/main/java/app/yukine/playback/PlaybackStreamingDiagnostics.java");
+        String diagnostics = read("feature/playback/src/main/java/app/yukine/playback/diagnostics/PlaybackStreamingDiagnostics.java");
 
         assertTrue(playbackService.contains("playbackPrecacheManager = new PlaybackPrecacheManager("));
         assertTrue(playbackService.contains("private PlaybackPrecacheStateOwner playbackPrecacheStateOwner;"));

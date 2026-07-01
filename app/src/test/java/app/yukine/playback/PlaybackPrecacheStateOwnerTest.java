@@ -5,6 +5,7 @@ import android.net.Uri;
 import androidx.media3.common.MediaItem;
 
 import app.yukine.model.Track;
+import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 
 import org.junit.Test;
 
