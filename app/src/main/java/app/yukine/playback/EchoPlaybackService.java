@@ -780,9 +780,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
         playbackWifiLockManager = new PlaybackWifiLockManager(
                 PlaybackWifiLockOwner.fromWifiLock(wifiLock),
-                new PlaybackWifiLockStreamingTrackOwner(
-                        () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()
-                ),
+                () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
                 mediaSourceProvider::isHttpTrack
         );
         publishState();

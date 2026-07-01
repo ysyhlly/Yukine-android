@@ -6269,9 +6269,6 @@ public final class MainActivityArchitectureContractTest {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackWifiLockManager.kt");
         String lockOwner = read("app/src/main/java/app/yukine/playback/PlaybackWifiLockOwner.java");
-        String streamingTrackOwner = read(
-                "app/src/main/java/app/yukine/playback/PlaybackWifiLockStreamingTrackOwner.java"
-        );
 
         assertFalse(service.contains("private android.net.wifi.WifiManager.WifiLock wifiLock"));
         assertFalse(service.contains("private void acquireWifiLockIfStreaming()"));
@@ -6279,7 +6276,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("new PlaybackWifiLockManager.Lock()"));
         assertFalse(service.contains("new PlaybackWifiLockManager.StreamingTrackProvider()"));
         assertTrue(service.contains("PlaybackWifiLockOwner.fromWifiLock(wifiLock)"));
-        assertTrue(service.contains("new PlaybackWifiLockStreamingTrackOwner("));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackWifiLockStreamingTrackOwner.java")));
+        assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackWifiLockStreamingTrackOwnerTest.java")));
+        assertFalse(service.contains("PlaybackWifiLockStreamingTrackOwner"));
         assertTrue(service.contains("() -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertTrue(service.contains("private PlaybackWifiLockManager playbackWifiLockManager"));
         assertTrue(service.contains("playbackWifiLockManager.acquireIfStreaming()"));
@@ -6298,12 +6297,6 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(lockOwner.contains("private static final class AndroidWifiLockOperations"));
         assertTrue(lockOwner.contains("wifiLock.acquire()"));
         assertTrue(lockOwner.contains("wifiLock.release()"));
-        assertTrue(streamingTrackOwner.contains(
-                "final class PlaybackWifiLockStreamingTrackOwner"));
-        assertTrue(streamingTrackOwner.contains(
-                "implements PlaybackWifiLockManager.StreamingTrackProvider"));
-        assertTrue(streamingTrackOwner.contains("interface CurrentTrackProvider"));
-        assertTrue(streamingTrackOwner.contains("currentTrackProvider.currentTrack()"));
     }
 
     @Test
