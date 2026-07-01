@@ -37,6 +37,39 @@ class PlaybackNoisyReceiverManagerTest {
         assertEquals(1, registrar.unregisterCalls)
     }
 
+    @Test
+    fun actionsFromPlaybackStatePausesOnlyWhenPlaybackIsActive() {
+        var playingPauseCalls = 0
+        PlaybackNoisyReceiverManager.actionsFromPlaybackState(
+            { true },
+            Runnable { playingPauseCalls += 1 }
+        ).pauseIfPlaying()
+
+        var stoppedPauseCalls = 0
+        PlaybackNoisyReceiverManager.actionsFromPlaybackState(
+            { false },
+            Runnable { stoppedPauseCalls += 1 }
+        ).pauseIfPlaying()
+
+        assertEquals(1, playingPauseCalls)
+        assertEquals(0, stoppedPauseCalls)
+    }
+
+    @Test
+    fun actionsFromPlaybackStateIgnoresMissingDependencies() {
+        var pauseCalls = 0
+        PlaybackNoisyReceiverManager.actionsFromPlaybackState(
+            null,
+            Runnable { pauseCalls += 1 }
+        ).pauseIfPlaying()
+        PlaybackNoisyReceiverManager.actionsFromPlaybackState(
+            { true },
+            null
+        ).pauseIfPlaying()
+
+        assertEquals(0, pauseCalls)
+    }
+
     private class FakeRegistrar(
         private val throwOnUnregister: Boolean = false
     ) : PlaybackNoisyReceiverManager.Registrar {

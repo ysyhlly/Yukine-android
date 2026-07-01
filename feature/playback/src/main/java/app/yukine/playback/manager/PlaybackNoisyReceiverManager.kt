@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioManager
+import java.util.function.BooleanSupplier
 
 internal class PlaybackNoisyReceiverManager(
     private val registrar: Registrar,
@@ -17,6 +18,20 @@ internal class PlaybackNoisyReceiverManager(
 
     interface Actions {
         fun pauseIfPlaying()
+    }
+
+    companion object {
+        @JvmStatic
+        fun actionsFromPlaybackState(
+            playbackStateProvider: BooleanSupplier?,
+            pauseAction: Runnable?
+        ): Actions = object : Actions {
+            override fun pauseIfPlaying() {
+                if (playbackStateProvider?.asBoolean == true) {
+                    pauseAction?.run()
+                }
+            }
+        }
     }
 
     private var registered = false

@@ -6866,7 +6866,7 @@ public final class MainActivityArchitectureContractTest {
         );
         String mainHandlerSchedulerOwner = read("app/src/main/java/app/yukine/playback/PlaybackMainHandlerSchedulerOwner.java");
         String noisyReceiverRegistrarOwner = read("app/src/main/java/app/yukine/playback/PlaybackNoisyReceiverRegistrarOwner.java");
-        String noisyReceiverActionsOwner = read("app/src/main/java/app/yukine/playback/PlaybackNoisyReceiverActionsOwner.java");
+        String noisyReceiverManager = read("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackNoisyReceiverManager.kt");
         String warmupCoordinator = read("app/src/main/java/app/yukine/playback/PlaybackWarmupCoordinator.kt");
         String visualizationAnalyzer = read("app/src/main/java/app/yukine/playback/PlaybackVisualizationAnalyzer.kt");
         String visualizationCacheManager = read("app/src/main/java/app/yukine/playback/PlaybackVisualizationCacheManager.java");
@@ -6952,14 +6952,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(noisyReceiverRegistrarOwner.contains("if (sdkInt >= 33)"));
         assertTrue(noisyReceiverRegistrarOwner.contains("Context.RECEIVER_NOT_EXPORTED"));
         assertTrue(noisyReceiverRegistrarOwner.contains("receiverRegistry.unregisterReceiver(receiver);"));
-        assertTrue(noisyReceiverActionsOwner.contains(
-                "final class PlaybackNoisyReceiverActionsOwner implements PlaybackNoisyReceiverManager.Actions"));
-        assertFalse(noisyReceiverActionsOwner.contains("interface PlaybackStateProvider"));
-        assertTrue(noisyReceiverActionsOwner.contains("import java.util.function.BooleanSupplier;"));
-        assertTrue(noisyReceiverActionsOwner.contains("private final BooleanSupplier playbackStateProvider;"));
-        assertTrue(noisyReceiverActionsOwner.contains("interface PlaybackControls"));
-        assertTrue(noisyReceiverActionsOwner.contains("playbackStateProvider.getAsBoolean()"));
-        assertTrue(noisyReceiverActionsOwner.contains("playbackControls.pause();"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackNoisyReceiverActionsOwner.java")));
+        assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackNoisyReceiverActionsOwnerTest.java")));
+        assertTrue(noisyReceiverManager.contains("fun actionsFromPlaybackState("));
+        assertTrue(noisyReceiverManager.contains("playbackStateProvider: BooleanSupplier?"));
+        assertTrue(noisyReceiverManager.contains("pauseAction: Runnable?"));
+        assertTrue(noisyReceiverManager.contains("pauseAction?.run()"));
         assertTrue(owner.contains("fun releaseLyrics()"));
         assertTrue(owner.contains("fun shutdownTaskSchedulers()"));
         assertTrue(owner.contains("fun releaseWarmup()"));
@@ -7031,7 +7029,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("new PlaybackNoisyReceiverRegistrarOwner(EchoPlaybackService.this)"));
         assertFalse(service.contains("new PlaybackNoisyReceiverManager.Registrar()"));
         assertFalse(service.contains("new PlaybackNoisyReceiverManager.Actions()"));
-        assertTrue(service.contains("new PlaybackNoisyReceiverActionsOwner("));
+        assertFalse(service.contains("new PlaybackNoisyReceiverActionsOwner("));
+        assertTrue(service.contains("PlaybackNoisyReceiverManager.actionsFromPlaybackState("));
         assertTrue(service.contains("                        playbackPlayerStateOwner::isPlaying,"));
         assertTrue(service.contains("                        EchoPlaybackService.this::pause"));
         assertTrue(service.contains("                playbackShutdownPlaybackResourcesOwner,"));
