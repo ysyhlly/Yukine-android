@@ -1949,6 +1949,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("mediaSourceProvider.headersForTrack("));
         assertFalse(playbackService.contains("mediaSourceProvider.audioCache()"));
         assertFalse(playbackService.contains("mediaSourceProvider.releaseAudioCache()"));
+        assertFalse(playbackService.contains("import java.net.HttpURLConnection;"));
+        assertFalse(playbackService.contains("import java.net.URL;"));
+        assertFalse(playbackService.contains("import java.io.InputStream;"));
+        assertFalse(playbackService.contains("import java.nio.charset.StandardCharsets;"));
+        assertFalse(playbackService.contains("import android.util.LruCache;"));
+        assertFalse(playbackService.contains("import android.graphics.Bitmap;"));
+        assertFalse(playbackService.contains("import android.util.Base64;"));
         assertTrue(playbackPrecacheManager.contains("SEGMENTED_PRECACHE_BYTES"));
         assertTrue(playbackPrecacheManager.contains("SEGMENTED_PRECACHE_CHUNK_BYTES"));
         assertTrue(playbackPrecacheManager.contains("SEGMENTED_PRECACHE_CONCURRENCY"));
