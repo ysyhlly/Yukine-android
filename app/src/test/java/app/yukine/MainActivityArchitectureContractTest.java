@@ -5618,7 +5618,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("private PlaybackRecoveryDiagnosticsRecorderOwner playbackRecoveryDiagnosticsRecorderOwner;"));
         assertTrue(service.contains("PlaybackRecoveryDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider("));
         assertTrue(service.contains("mediaSourceProvider::streamingQualityForTrack"));
-        assertTrue(service.contains("playbackWifiLockManager.acquireIfStreaming()"));
+        assertTrue(service.contains("acquireWifiLockIfStreamingAction.run();"));
         assertTrue(service.contains("private void onMirroredQueueReused(boolean playWhenReady)"));
         assertTrue(service.contains("startProgressUpdates();"));
         assertFalse(service.contains("private void clearQueueState()"));
@@ -6331,7 +6331,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackWifiLockStreamingTrackOwner"));
         assertTrue(service.contains("() -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertTrue(service.contains("private PlaybackWifiLockManager playbackWifiLockManager"));
-        assertTrue(service.contains("playbackWifiLockManager.acquireIfStreaming()"));
+        assertTrue(service.contains("private final Runnable acquireWifiLockIfStreamingAction"));
+        assertTrue(service.contains("private final Runnable releaseWifiLockAction"));
+        assertTrue(service.contains("PlaybackWifiLockManager.acquireIfStreamingAction(() -> playbackWifiLockManager)"));
+        assertTrue(service.contains("PlaybackWifiLockManager.releaseAction(() -> playbackWifiLockManager)"));
+        assertTrue(service.contains("acquireWifiLockIfStreamingAction.run();"));
+        assertFalse(service.contains("playbackWifiLockManager.acquireIfStreaming()"));
         assertTrue(service.contains("PlaybackWifiLockManager::release"));
         assertTrue(owner.contains("class PlaybackWifiLockManager"));
         assertTrue(owner.contains("interface Lock"));
@@ -6342,6 +6347,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("fun isHttpUri(uri: Uri?): Boolean"));
         assertTrue(owner.contains("fun acquireIfStreaming()"));
         assertTrue(owner.contains("fun release()"));
+        assertTrue(owner.contains("fun acquireIfStreamingAction("));
+        assertTrue(owner.contains("fun releaseAction("));
         assertTrue(lockOwner.contains("final class PlaybackWifiLockOwner implements PlaybackWifiLockManager.Lock"));
         assertTrue(lockOwner.contains("static PlaybackWifiLockOwner fromWifiLock(WifiManager.WifiLock wifiLock)"));
         assertTrue(lockOwner.contains("private static final class AndroidWifiLockOperations"));

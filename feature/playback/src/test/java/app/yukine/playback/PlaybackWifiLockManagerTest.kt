@@ -63,6 +63,38 @@ class PlaybackWifiLockManagerTest {
         assertEquals(0, releasedLock.releaseCalls)
     }
 
+    @Test
+    fun acquireIfStreamingActionUsesLatestManagerAndIgnoresMissingManager() {
+        val lock = FakeLock()
+        var manager: PlaybackWifiLockManager? = null
+        val action = PlaybackWifiLockManager.acquireIfStreamingAction { manager }
+
+        action.run()
+        manager = PlaybackWifiLockManager(
+            lock,
+            FakeTrackProvider(track("https://example.com/song.mp3")),
+            httpTrackPredicate()
+        )
+        action.run()
+
+        assertEquals(1, lock.acquireCalls)
+        assertEquals(true, lock.held)
+    }
+
+    @Test
+    fun releaseActionUsesLatestManagerAndIgnoresMissingManager() {
+        val lock = FakeLock(held = true)
+        var manager: PlaybackWifiLockManager? = null
+        val action = PlaybackWifiLockManager.releaseAction { manager }
+
+        action.run()
+        manager = PlaybackWifiLockManager(lock, FakeTrackProvider(null), httpTrackPredicate())
+        action.run()
+
+        assertEquals(1, lock.releaseCalls)
+        assertEquals(false, lock.held)
+    }
+
     private class FakeLock(var held: Boolean = false) : PlaybackWifiLockManager.Lock {
         var acquireCalls = 0
         var releaseCalls = 0

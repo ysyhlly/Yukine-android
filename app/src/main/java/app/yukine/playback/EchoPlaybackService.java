@@ -238,6 +238,10 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackShutdownLifecycleResourcesOwner playbackShutdownLifecycleResourcesOwner;
     private PlaybackShutdownCoordinator playbackShutdownCoordinator;
     private PlaybackWifiLockManager playbackWifiLockManager;
+    private final Runnable acquireWifiLockIfStreamingAction =
+            PlaybackWifiLockManager.acquireIfStreamingAction(() -> playbackWifiLockManager);
+    private final Runnable releaseWifiLockAction =
+            PlaybackWifiLockManager.releaseAction(() -> playbackWifiLockManager);
     private PlaybackNoisyReceiverManager playbackNoisyReceiverManager;
     private PlaybackProgressUpdateCommandOwner playbackProgressUpdateCommandOwner;
     private PlaybackProgressUpdateStateOwner playbackProgressUpdateStateOwner;
@@ -316,13 +320,9 @@ public final class EchoPlaybackService extends MediaLibraryService
             // playback (explicit play, auto-advance, queue tap, restore) keeps WiFi awake, and
             // every pause/stop releases it. acquire/release are idempotent (guarded by isHeld).
             if (isPlaying) {
-                if (playbackWifiLockManager != null) {
-                    playbackWifiLockManager.acquireIfStreaming();
-                }
+                acquireWifiLockIfStreamingAction.run();
             } else {
-                if (playbackWifiLockManager != null) {
-                    playbackWifiLockManager.release();
-                }
+                releaseWifiLockAction.run();
             }
             publishState();
             playbackProgressUpdateCommandOwner.startProgressUpdates();
@@ -904,9 +904,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
         player.play();
         playbackQueuePersistenceOwner.requestPlaybackResume();
-        if (playbackWifiLockManager != null) {
-            playbackWifiLockManager.acquireIfStreaming();
-        }
+        acquireWifiLockIfStreamingAction.run();
         publishState();
         playbackProgressUpdateCommandOwner.startProgressUpdates();
     }
@@ -921,9 +919,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             player.pause();
         }
         playbackQueuePersistenceOwner.clearPlaybackResumeRequest();
-        if (playbackWifiLockManager != null) {
-            playbackWifiLockManager.release();
-        }
+        releaseWifiLockAction.run();
         persistPlaybackPositionThrottled(true);
         publishState();
     }
@@ -1376,8 +1372,8 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     private void onMirroredQueueReused(boolean playWhenReady) {
-        if (playWhenReady && playbackWifiLockManager != null) {
-            playbackWifiLockManager.acquireIfStreaming();
+        if (playWhenReady) {
+            acquireWifiLockIfStreamingAction.run();
         }
         playbackProgressUpdateCommandOwner.startProgressUpdates();
     }
