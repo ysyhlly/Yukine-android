@@ -765,8 +765,10 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackPrecacheManager = new PlaybackPrecacheManager(
                 playbackPrecacheStateOwner,
                 playbackQueueStateOwner::upcomingTracksForPrecache,
-                mediaSourceProvider,
-                playbackMainHandlerSchedulerOwner);
+                PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider),
+                playbackMainHandlerSchedulerOwner,
+                PlaybackPrecacheManager.audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)
+        );
         playbackQueueRestoreOwner.restorePlaybackQueue();
         playbackNotificationCommandOwner.publishPlaybackNotificationIfWorthy();
         playbackLyricsManager.bind();

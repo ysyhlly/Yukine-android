@@ -186,7 +186,7 @@ final class PlaybackPrecacheManager {
         };
     }
 
-    private static Runnable audioCacheReleaseActionFromMediaSourceProvider(
+    static Runnable audioCacheReleaseActionFromMediaSourceProvider(
             PlaybackMediaSourceProvider mediaSourceProvider
     ) {
         return () -> {
@@ -196,7 +196,7 @@ final class PlaybackPrecacheManager {
         };
     }
 
-    private static MediaCacheOperations mediaCacheOperationsFromMediaSourceProvider(
+    static MediaCacheOperations mediaCacheOperationsFromMediaSourceProvider(
             PlaybackMediaSourceProvider mediaSourceProvider
     ) {
         return new PlaybackMediaSourceProviderCacheOperations(mediaSourceProvider);

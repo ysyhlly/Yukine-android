@@ -1840,6 +1840,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("final class PlaybackPrecacheManager"));
         assertTrue(playbackPrecacheManager.contains("interface MediaCacheOperations"));
         assertTrue(playbackPrecacheManager.contains("private final MediaCacheOperations mediaCacheOperations;"));
+        assertTrue(playbackService.contains("PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
+        assertTrue(playbackService.contains("PlaybackPrecacheManager.audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)"));
+        assertFalse(playbackService.contains("                mediaSourceProvider,\r\n                playbackMainHandlerSchedulerOwner"));
         String playbackPrecacheManagerBody =
                 playbackPrecacheManager.substring(
                         0,
