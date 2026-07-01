@@ -118,6 +118,29 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
         assertEquals(0L, owner.prepareCurrentTrack(track).startPositionMs());
     }
 
+    @Test
+    public void mediaSourceProviderFactoryFallsBackWhenProviderIsMissing() {
+        List<String> events = new ArrayList<>();
+        Track track = track(4L, Uri.parse("file:///music/local.flac"));
+        PlaybackCurrentTrackPreparationOwner owner =
+                PlaybackCurrentTrackPreparationOwner.fromMediaSourceProvider(
+                        null,
+                        requested -> null,
+                        new FakeQueuePreparationController(events, 3000L),
+                        new FakeRuntimeStateController(events),
+                        () -> events.add("publish"),
+                        requested -> events.add("refuse:" + requested.id)
+                );
+
+        PlaybackCurrentTrackPreparationOwner.PreparedTrack prepared = owner.prepareCurrentTrack(track);
+
+        assertTrue(prepared.playable());
+        assertSame(track, prepared.track());
+        assertEquals(3000L, prepared.startPositionMs());
+        assertNull(prepared.mediaSource());
+        assertEquals(Arrays.asList("position:4"), events);
+    }
+
     private static PlaybackMediaSourceProvider.PlaybackPreparation preparation(
             Track track,
             Track restoredTrack,

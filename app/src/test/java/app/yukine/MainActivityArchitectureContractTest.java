@@ -3948,10 +3948,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun restoreHeadersForTrack(track: Track?): Boolean"));
         assertTrue(owner.contains("fun restoreHeadersForDataPath(dataPath: String?): Boolean"));
         assertTrue(service.contains("private PlaybackCurrentTrackPreparationOwner playbackCurrentTrackPreparationOwner;"));
-        assertTrue(service.contains("playbackCurrentTrackPreparationOwner = new PlaybackCurrentTrackPreparationOwner("));
+        assertTrue(service.contains("playbackCurrentTrackPreparationOwner = PlaybackCurrentTrackPreparationOwner.fromMediaSourceProvider("));
         assertTrue(owner.contains("streamingPlaybackHeaderStore.restoredTrackFor(track)"));
         assertTrue(owner.contains("streamingPlaybackHeaderStore.restoreForDataPath(dataPath)"));
-        assertTrue(service.contains("mediaSourceProvider::prepareTrackForPlayback"));
+        assertFalse(service.contains("mediaSourceProvider::prepareTrackForPlayback"));
         assertFalse(service.contains("PlaybackMediaSourceProvider::unplayableMessageForTrack"));
         assertFalse(service.contains("mediaSourceProvider.restoreHeadersForTrack(track)"));
         assertFalse(service.contains("streamingPlaybackHeaderStore.restoreForDataPath(track.dataPath)"));
@@ -6150,7 +6150,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("import app.yukine.common.StreamingDataPathMetadata;"));
         assertFalse(service.contains("StreamingDataPathMetadata.quality("));
         assertFalse(service.contains("mediaSourceProvider.streamingQualityForTrack(track)"));
-        assertTrue(service.contains("mediaSourceProvider::prepareTrackForPlayback"));
+        assertFalse(service.contains("mediaSourceProvider::prepareTrackForPlayback"));
         assertFalse(service.contains("PlaybackMediaSourceProvider::unplayableMessageForTrack"));
         assertTrue(service.contains("playbackCurrentTrackPreparationOwner.prepareCurrentTrack(track)"));
         assertTrue(service.contains("if (!preparedTrack.playable())"));
@@ -6158,6 +6158,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(preparationOwner.contains("if (preparation != null && !preparation.getPlayable())"));
         assertTrue(preparationOwner.contains("final class PlaybackCurrentTrackPreparationOwner"));
         assertTrue(preparationOwner.contains("PlaybackMediaSourceProvider"));
+        assertTrue(preparationOwner.contains("static PlaybackCurrentTrackPreparationOwner fromMediaSourceProvider("));
+        assertTrue(preparationOwner.contains("mediaSourceProvider.prepareTrackForPlayback(track)"));
+        assertTrue(preparationOwner.contains("mediaSourceProvider.mediaSourceForTrack("));
+        assertTrue(preparationOwner.contains("metadataProvider == null ? null : metadataProvider::apply"));
         assertTrue(preparationOwner.contains("import java.util.function.Function;"));
         assertFalse(preparationOwner.contains("interface PlaybackPreparationProvider"));
         assertFalse(preparationOwner.contains("interface MediaSourceResolver"));
@@ -6221,7 +6225,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackMediaSourceResolutionOwner"));
         assertFalse(service.contains("playbackMediaSourceResolutionOwner"));
         assertFalse(service.contains("player.setMediaSource(mediaSourceProvider.mediaSourceForTrack("));
-        assertTrue(service.contains("track -> mediaSourceProvider.mediaSourceForTrack("));
+        assertFalse(service.contains("track -> mediaSourceProvider.mediaSourceForTrack("));
         assertTrue(service.contains("prepareSingleTrack(preparedTrack.track(), preparedTrack.mediaSource()"));
         assertFalse(service.contains("List<MediaSource> mediaSources = mediaSourceProvider.mediaSourcesForTracks("));
         assertTrue(service.contains("tracks -> mediaSourceProvider.mediaSourcesForTracks("));
