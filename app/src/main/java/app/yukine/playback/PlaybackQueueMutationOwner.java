@@ -4,96 +4,22 @@ import androidx.media3.common.C;
 
 import java.util.List;
 import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOwner.QueuePlayer {
-    private final PlaybackControllerMediaItemsOwner.QueuePlayer playQueue;
-    private final Consumer<List<Track>> appendToQueue;
-    private final Consumer<Set<Long>> removeTracksById;
-    private final Consumer<Set<Long>> retainTracksById;
-    private final Runnable clearQueue;
-    private final BiConsumer<Integer, Integer> moveQueueTrack;
-    private final Consumer<Track> replaceQueuedTrack;
-    private final BiConsumer<Long, Track> replaceQueuedTrackById;
+    private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
 
-    PlaybackQueueMutationOwner(
-            PlaybackControllerMediaItemsOwner.QueuePlayer playQueue,
-            Consumer<List<Track>> appendToQueue,
-            Consumer<Set<Long>> removeTracksById,
-            Consumer<Set<Long>> retainTracksById,
-            Runnable clearQueue,
-            BiConsumer<Integer, Integer> moveQueueTrack,
-            Consumer<Track> replaceQueuedTrack,
-            BiConsumer<Long, Track> replaceQueuedTrackById
-    ) {
-        this.playQueue = playQueue;
-        this.appendToQueue = appendToQueue;
-        this.removeTracksById = removeTracksById;
-        this.retainTracksById = retainTracksById;
-        this.clearQueue = clearQueue;
-        this.moveQueueTrack = moveQueueTrack;
-        this.replaceQueuedTrack = replaceQueuedTrack;
-        this.replaceQueuedTrackById = replaceQueuedTrackById;
+    private PlaybackQueueMutationOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
+        this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
     }
 
     static PlaybackQueueMutationOwner fromPlaybackQueueManager(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
     ) {
-        return new PlaybackQueueMutationOwner(
-                (tracks, startIndex, startPositionMs) -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.playQueue(tracks, startIndex, startPositionMs);
-                    }
-                },
-                tracks -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.appendToQueue(tracks);
-                    }
-                },
-                trackIds -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.removeTracksById(trackIds);
-                    }
-                },
-                trackIdsToKeep -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.retainTracksById(trackIdsToKeep);
-                    }
-                },
-                () -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.clearQueue();
-                    }
-                },
-                (fromIndex, toIndex) -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.moveQueueTrack(fromIndex, toIndex);
-                    }
-                },
-                replacement -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.replaceQueuedTrack(replacement);
-                    }
-                },
-                (oldTrackId, replacement) -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.replaceQueuedTrackById(oldTrackId, replacement);
-                    }
-                }
-        );
+        return new PlaybackQueueMutationOwner(playbackQueueManagerSupplier);
     }
 
     void playQueue(List<Track> tracks, int startIndex) {
@@ -105,8 +31,9 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
         if (tracks == null || tracks.isEmpty()) {
             return;
         }
-        if (playQueue != null) {
-            playQueue.playQueue(tracks, startIndex, startPositionMs);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.playQueue(tracks, startIndex, startPositionMs);
         }
     }
 
@@ -114,8 +41,9 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
         if (tracks == null || tracks.isEmpty()) {
             return;
         }
-        if (appendToQueue != null) {
-            appendToQueue.accept(tracks);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.appendToQueue(tracks);
         }
     }
 
@@ -123,8 +51,9 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
         if (trackIds == null || trackIds.isEmpty()) {
             return;
         }
-        if (removeTracksById != null) {
-            removeTracksById.accept(trackIds);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.removeTracksById(trackIds);
         }
     }
 
@@ -132,36 +61,41 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
         if (trackIdsToKeep == null || trackIdsToKeep.isEmpty()) {
             return;
         }
-        if (retainTracksById != null) {
-            retainTracksById.accept(trackIdsToKeep);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.retainTracksById(trackIdsToKeep);
         }
     }
 
     void clearQueue() {
-        if (clearQueue != null) {
-            clearQueue.run();
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.clearQueue();
         }
     }
 
     void moveQueueTrack(int fromIndex, int toIndex) {
-        if (moveQueueTrack != null) {
-            moveQueueTrack.accept(fromIndex, toIndex);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.moveQueueTrack(fromIndex, toIndex);
         }
     }
 
     void replaceQueuedTrack(Track replacement) {
-        if (replaceQueuedTrack != null) {
-            replaceQueuedTrack.accept(replacement);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.replaceQueuedTrack(replacement);
         }
     }
 
     void replaceQueuedTrackById(long oldTrackId, Track replacement) {
-        if (replaceQueuedTrackById != null) {
-            replaceQueuedTrackById.accept(oldTrackId, replacement);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.replaceQueuedTrackById(oldTrackId, replacement);
         }
     }
 
-    private static PlaybackQueueManager playbackQueueManager(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
+    private PlaybackQueueManager playbackQueueManager() {
         return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }
 }

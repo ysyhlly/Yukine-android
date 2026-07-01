@@ -5484,11 +5484,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueMutationOwner.contains("interface QueueMutationOperations"));
         assertFalse(queueMutationOwner.contains("QueueMutationOperations"));
         assertFalse(queueMutationOwner.contains("PlaybackQueueManagerOperations"));
-        assertTrue(queueMutationOwner.contains("import java.util.function.BiConsumer;"));
-        assertTrue(queueMutationOwner.contains("import java.util.function.Consumer;"));
-        assertTrue(queueMutationOwner.contains("private final PlaybackControllerMediaItemsOwner.QueuePlayer playQueue;"));
-        assertTrue(queueMutationOwner.contains("private final Consumer<List<Track>> appendToQueue;"));
-        assertTrue(queueMutationOwner.contains("private final Runnable clearQueue;"));
+        assertFalse(queueMutationOwner.contains("import java.util.function.BiConsumer;"));
+        assertFalse(queueMutationOwner.contains("import java.util.function.Consumer;"));
+        assertFalse(queueMutationOwner.contains("private final PlaybackControllerMediaItemsOwner.QueuePlayer playQueue;"));
+        assertFalse(queueMutationOwner.contains("private final Consumer<List<Track>> appendToQueue;"));
+        assertFalse(queueMutationOwner.contains("private final Runnable clearQueue;"));
+        assertFalse(queueMutationOwner.contains("BiConsumer<Integer, Integer> moveQueueTrack"));
+        assertFalse(queueMutationOwner.contains("BiConsumer<Long, Track> replaceQueuedTrackById"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.playQueue(tracks, startIndex, startPositionMs);"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.appendToQueue(tracks);"));
         assertFalse(queueStopClearOwner.contains("interface QueueStopClearOperations"));
