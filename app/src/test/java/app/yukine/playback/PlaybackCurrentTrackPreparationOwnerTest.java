@@ -9,7 +9,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -25,9 +24,10 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
         Track restored = track(1L, Uri.parse("https://audio.example/restored.flac"));
         PlaybackCurrentTrackPreparationOwner owner = new PlaybackCurrentTrackPreparationOwner(
                 track -> {
-                    events.add("prepare:" + track.id);
-                    return new PlaybackMediaSourceProvider.PlaybackPreparation(restored, restored, true, null);
+                    events.add("restore:" + track.id);
+                    return restored;
                 },
+                track -> null,
                 track -> {
                     events.add("source:" + track.id);
                     return null;
@@ -45,7 +45,7 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
         assertEquals(4500L, prepared.startPositionMs());
         assertEquals(
                 Arrays.asList(
-                        "prepare:1",
+                        "restore:1",
                         "replace:1",
                         "position:1"
                 ),
@@ -54,7 +54,7 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
         assertNull(prepared.mediaSource());
         assertEquals(
                 Arrays.asList(
-                        "prepare:1",
+                        "restore:1",
                         "replace:1",
                         "position:1",
                         "source:1"
@@ -68,12 +68,8 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
         List<String> events = new ArrayList<>();
         Track unresolved = track(2L, Uri.EMPTY);
         PlaybackCurrentTrackPreparationOwner owner = new PlaybackCurrentTrackPreparationOwner(
-                track -> new PlaybackMediaSourceProvider.PlaybackPreparation(
-                        unresolved,
-                        null,
-                        false,
-                        "Streaming track is not resolved yet. Tap the track again to play."
-                ),
+                track -> null,
+                track -> "Streaming track is not resolved yet. Tap the track again to play.",
                 track -> {
                     events.add("source:" + track.id);
                     return null;
@@ -105,7 +101,8 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
     public void restoredPositionIsClampedToZero() {
         Track track = track(3L, Uri.parse("file:///music/local.flac"));
         PlaybackCurrentTrackPreparationOwner owner = new PlaybackCurrentTrackPreparationOwner(
-                requested -> new PlaybackMediaSourceProvider.PlaybackPreparation(track, null, true, null),
+                requested -> null,
+                requested -> null,
                 requested -> null,
                 new FakeQueuePreparationController(new ArrayList<>(), -1L),
                 new FakeRuntimeStateController(new ArrayList<>()),

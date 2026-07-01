@@ -3927,7 +3927,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackCurrentTrackPreparationOwner = new PlaybackCurrentTrackPreparationOwner("));
         assertTrue(owner.contains("streamingPlaybackHeaderStore.restoredTrackFor(track)"));
         assertTrue(owner.contains("streamingPlaybackHeaderStore.restoreForDataPath(dataPath)"));
-        assertTrue(service.contains("mediaSourceProvider::prepareTrackForPlayback"));
+        assertTrue(service.contains("mediaSourceProvider::restoredTrackForPreparation"));
+        assertTrue(service.contains("PlaybackMediaSourceProvider::unplayableMessageForTrack"));
         assertFalse(service.contains("mediaSourceProvider.restoreHeadersForTrack(track)"));
         assertFalse(service.contains("streamingPlaybackHeaderStore.restoreForDataPath(track.dataPath)"));
         assertFalse(service.contains("streamingPlaybackHeaderStore.restoredTrackFor(track)"));
@@ -6109,18 +6110,24 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("import app.yukine.common.StreamingDataPathMetadata;"));
         assertFalse(service.contains("StreamingDataPathMetadata.quality("));
         assertFalse(service.contains("mediaSourceProvider.streamingQualityForTrack(track)"));
-        assertTrue(service.contains("mediaSourceProvider::prepareTrackForPlayback"));
+        assertFalse(service.contains("mediaSourceProvider::prepareTrackForPlayback"));
+        assertTrue(service.contains("mediaSourceProvider::restoredTrackForPreparation"));
+        assertTrue(service.contains("PlaybackMediaSourceProvider::unplayableMessageForTrack"));
         assertTrue(service.contains("playbackCurrentTrackPreparationOwner.prepareCurrentTrack(track)"));
         assertTrue(service.contains("if (!preparedTrack.playable())"));
         assertFalse(service.contains("PlaybackMediaSourceProvider.PlaybackPreparation preparation"));
         assertFalse(service.contains("if (!preparation.getPlayable())"));
         assertTrue(preparationOwner.contains("final class PlaybackCurrentTrackPreparationOwner"));
-        assertTrue(preparationOwner.contains("interface PreparationProvider"));
+        assertFalse(preparationOwner.contains("PlaybackMediaSourceProvider"));
+        assertFalse(preparationOwner.contains("interface PreparationProvider"));
+        assertTrue(preparationOwner.contains("interface RestoredTrackProvider"));
+        assertTrue(preparationOwner.contains("interface UnplayableMessageProvider"));
         assertTrue(preparationOwner.contains("interface QueuePreparationController"));
         assertTrue(preparationOwner.contains("interface RuntimeStateController"));
-        assertTrue(preparationOwner.contains("preparationProvider.prepareTrackForPlayback(track)"));
+        assertTrue(preparationOwner.contains("restoredTrackProvider.restoredTrackForPreparation(track)"));
+        assertTrue(preparationOwner.contains("unplayableMessageProvider.unplayableMessageForTrack(preparedTrack)"));
         assertTrue(preparationOwner.contains("queuePreparationController.replaceCurrentQueueTrack(restoredTrack)"));
-        assertTrue(preparationOwner.contains("runtimeStateController.setErrorMessage(preparation.getUnplayableMessage())"));
+        assertTrue(preparationOwner.contains("runtimeStateController.setErrorMessage(unplayableMessage)"));
         assertTrue(preparationQueueOwner.contains(
                 "final class PlaybackCurrentTrackPreparationQueueOwner"));
         assertTrue(preparationRuntimeOwner.contains(

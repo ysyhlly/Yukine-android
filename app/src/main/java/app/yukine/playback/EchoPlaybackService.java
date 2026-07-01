@@ -562,7 +562,8 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackTransitionStateManager
         );
         playbackCurrentTrackPreparationOwner = new PlaybackCurrentTrackPreparationOwner(
-                mediaSourceProvider::prepareTrackForPlayback,
+                mediaSourceProvider::restoredTrackForPreparation,
+                PlaybackMediaSourceProvider::unplayableMessageForTrack,
                 track -> mediaSourceProvider.mediaSourceForTrack(
                         track,
                         playbackNotificationManager::mediaMetadataForTrack
