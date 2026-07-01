@@ -216,7 +216,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackCrossfadeCommandOwner playbackCrossfadeCommandOwner;
     private PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner;
     private PlaybackCrossfadeAdvanceManager playbackCrossfadeAdvanceManager;
-    private PlaybackRecoveryCommandOwner playbackRecoveryCommandOwner;
     private PlaybackRecoveryScheduler playbackRecoveryScheduler;
     private final PlaybackCurrentTrackReplacementOwner playbackCurrentTrackReplacementOwner =
             PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager(
@@ -452,16 +451,13 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackCrossfadeStateOwner,
                 playbackCrossfadeCommandOwner
         );
-        playbackRecoveryCommandOwner = new PlaybackRecoveryCommandOwner(
-                EchoPlaybackService.this::prepareCurrent
-        );
         playbackRecoveryScheduler = new PlaybackRecoveryScheduler(
                 task -> playbackTaskScheduler.schedule(
                         PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY,
                         task
                 ),
                 playbackMainHandlerSchedulerOwner,
-                playbackRecoveryCommandOwner
+                EchoPlaybackService.this::prepareCurrent
         );
         createPlayerIfNeeded();
         playbackNotificationForegroundOwner = new PlaybackNotificationForegroundOwner(

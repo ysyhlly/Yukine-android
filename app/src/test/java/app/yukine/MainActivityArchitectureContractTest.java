@@ -7345,17 +7345,16 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
-    public void playbackRecoveryCommandsAreOwnedOutsideEchoPlaybackService() throws Exception {
+    public void playbackRecoverySchedulerUsesSemanticPrepareActionWithoutForwardingOwner() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
-        String commandOwner = read("app/src/main/java/app/yukine/playback/PlaybackRecoveryCommandOwner.java");
+        String scheduler = read("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackRecoveryScheduler.kt");
 
-        assertTrue(service.contains("private PlaybackRecoveryCommandOwner playbackRecoveryCommandOwner;"));
-        assertTrue(service.contains("playbackRecoveryCommandOwner = new PlaybackRecoveryCommandOwner("));
-        assertTrue(service.contains("playbackRecoveryCommandOwner"));
-        assertTrue(service.contains("                playbackRecoveryCommandOwner"));
-        assertTrue(commandOwner.contains("final class PlaybackRecoveryCommandOwner implements PlaybackRecoveryScheduler.Actions"));
-        assertTrue(commandOwner.contains("interface PlaybackPreparer"));
-        assertTrue(commandOwner.contains("playbackPreparer.prepareCurrent(playWhenReady);"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackRecoveryCommandOwner.java")));
+        assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackRecoveryCommandOwnerTest.java")));
+        assertFalse(service.contains("PlaybackRecoveryCommandOwner"));
+        assertTrue(service.contains("                EchoPlaybackService.this::prepareCurrent"));
+        assertTrue(scheduler.contains("fun interface Actions"));
+        assertTrue(scheduler.contains("fun prepareCurrent(playWhenReady: Boolean)"));
     }
 
     @Test
