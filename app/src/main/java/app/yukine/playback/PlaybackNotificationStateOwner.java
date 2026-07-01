@@ -5,45 +5,37 @@ import android.media.session.MediaSession;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackNotificationManager;
 
-final class PlaybackNotificationStateOwner implements PlaybackNotificationManager.StateProvider {
-    interface QueueStateProvider {
-        boolean isQueueEmpty();
-    }
+import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
+final class PlaybackNotificationStateOwner implements PlaybackNotificationManager.StateProvider {
     interface PlaybackStateProvider {
         boolean isPlaying();
         boolean isPreparing();
         Track currentTrack();
     }
 
-    interface FavoriteStateProvider {
-        boolean isFavorite(Track track);
-    }
-
-    interface SessionTokenProvider {
-        MediaSession.Token playbackSessionPlatformToken();
-    }
-
-    private final QueueStateProvider queueStateProvider;
+    private final BooleanSupplier queueEmptySupplier;
     private final PlaybackStateProvider playbackStateProvider;
-    private final FavoriteStateProvider favoriteStateProvider;
-    private final SessionTokenProvider sessionTokenProvider;
+    private final Predicate<Track> favoriteStateProvider;
+    private final Supplier<MediaSession.Token> sessionTokenSupplier;
 
     PlaybackNotificationStateOwner(
-            QueueStateProvider queueStateProvider,
+            BooleanSupplier queueEmptySupplier,
             PlaybackStateProvider playbackStateProvider,
-            FavoriteStateProvider favoriteStateProvider,
-            SessionTokenProvider sessionTokenProvider
+            Predicate<Track> favoriteStateProvider,
+            Supplier<MediaSession.Token> sessionTokenSupplier
     ) {
-        this.queueStateProvider = queueStateProvider;
+        this.queueEmptySupplier = queueEmptySupplier;
         this.playbackStateProvider = playbackStateProvider;
         this.favoriteStateProvider = favoriteStateProvider;
-        this.sessionTokenProvider = sessionTokenProvider;
+        this.sessionTokenSupplier = sessionTokenSupplier;
     }
 
     @Override
     public boolean isQueueEmpty() {
-        return queueStateProvider.isQueueEmpty();
+        return queueEmptySupplier.getAsBoolean();
     }
 
     @Override
@@ -63,11 +55,11 @@ final class PlaybackNotificationStateOwner implements PlaybackNotificationManage
 
     @Override
     public boolean isFavorite(Track track) {
-        return favoriteStateProvider.isFavorite(track);
+        return favoriteStateProvider.test(track);
     }
 
     @Override
     public MediaSession.Token playbackSessionPlatformToken() {
-        return sessionTokenProvider.playbackSessionPlatformToken();
+        return sessionTokenSupplier.get();
     }
 }

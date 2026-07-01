@@ -9,7 +9,6 @@ import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 final class PlaybackQueueStateOwner implements
-        PlaybackNotificationStateOwner.QueueStateProvider,
         PlaybackStateSnapshotOwner.QueueStateProvider,
         PlaybackCrossfadeStateOwner.QueueStateProvider,
         PlaybackErrorRecoveryCommandOwner.FailedTrackPolicy {
@@ -56,7 +55,6 @@ final class PlaybackQueueStateOwner implements
         );
     }
 
-    @Override
     public boolean isQueueEmpty() {
         return queueStateSnapshot().isQueueEmpty();
     }
