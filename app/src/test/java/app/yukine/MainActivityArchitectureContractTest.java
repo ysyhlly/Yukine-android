@@ -6244,8 +6244,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("class PlaybackWifiLockManager"));
         assertTrue(owner.contains("interface Lock"));
         assertTrue(owner.contains("interface StreamingTrackProvider"));
-        assertTrue(owner.contains("private val mediaSourceProvider: PlaybackMediaSourceProvider"));
-        assertTrue(owner.contains("mediaSourceProvider.isHttpTrack(track)"));
+        assertFalse(owner.contains("private val mediaSourceProvider: PlaybackMediaSourceProvider"));
+        assertTrue(owner.contains("private val streamingTrackPredicate: Predicate<Track?>"));
+        assertTrue(owner.contains("streamingTrackPredicate.test(track)"));
         assertFalse(owner.contains("fun isHttpUri(uri: Uri?): Boolean"));
         assertTrue(owner.contains("fun acquireIfStreaming()"));
         assertTrue(owner.contains("fun release()"));

@@ -1,17 +1,13 @@
 package app.yukine.playback
 
 import android.net.Uri
-import app.yukine.common.StreamingDataPathParser
-import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackWifiLockManager
-import app.yukine.playback.manager.PlaybackMediaSourceProvider
-import app.yukine.streaming.StreamingPlaybackHeaderStore
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RuntimeEnvironment
 import org.robolectric.RobolectricTestRunner
+import java.util.function.Predicate
 
 @RunWith(RobolectricTestRunner::class)
 class PlaybackWifiLockManagerTest {
@@ -19,7 +15,7 @@ class PlaybackWifiLockManagerTest {
     fun acquireIfStreamingAcquiresForHttpCurrentTrack() {
         val lock = FakeLock()
         val provider = FakeTrackProvider(track("https://example.com/song.mp3"))
-        val manager = PlaybackWifiLockManager(lock, provider, mediaSourceProvider())
+        val manager = PlaybackWifiLockManager(lock, provider, httpTrackPredicate())
 
         manager.acquireIfStreaming()
 
@@ -30,14 +26,14 @@ class PlaybackWifiLockManagerTest {
     @Test
     fun acquireIfStreamingSkipsNonStreamingOrUnavailableLock() {
         val fileLock = FakeLock()
-        PlaybackWifiLockManager(fileLock, FakeTrackProvider(track("file:///music/song.mp3")), mediaSourceProvider())
+        PlaybackWifiLockManager(fileLock, FakeTrackProvider(track("file:///music/song.mp3")), httpTrackPredicate())
             .acquireIfStreaming()
 
         val noTrackLock = FakeLock()
-        PlaybackWifiLockManager(noTrackLock, FakeTrackProvider(null), mediaSourceProvider())
+        PlaybackWifiLockManager(noTrackLock, FakeTrackProvider(null), httpTrackPredicate())
             .acquireIfStreaming()
 
-        PlaybackWifiLockManager(null, FakeTrackProvider(track("https://example.com/song.mp3")), mediaSourceProvider())
+        PlaybackWifiLockManager(null, FakeTrackProvider(track("https://example.com/song.mp3")), httpTrackPredicate())
             .acquireIfStreaming()
 
         assertEquals(0, fileLock.acquireCalls)
@@ -47,7 +43,7 @@ class PlaybackWifiLockManagerTest {
     @Test
     fun acquireIfStreamingDoesNotAcquireTwiceWhenHeld() {
         val lock = FakeLock(held = true)
-        val manager = PlaybackWifiLockManager(lock, FakeTrackProvider(track("https://example.com/song.mp3")), mediaSourceProvider())
+        val manager = PlaybackWifiLockManager(lock, FakeTrackProvider(track("https://example.com/song.mp3")), httpTrackPredicate())
 
         manager.acquireIfStreaming()
 
@@ -57,10 +53,10 @@ class PlaybackWifiLockManagerTest {
     @Test
     fun releaseOnlyReleasesHeldLock() {
         val heldLock = FakeLock(held = true)
-        PlaybackWifiLockManager(heldLock, FakeTrackProvider(null), mediaSourceProvider()).release()
+        PlaybackWifiLockManager(heldLock, FakeTrackProvider(null), httpTrackPredicate()).release()
 
         val releasedLock = FakeLock(held = false)
-        PlaybackWifiLockManager(releasedLock, FakeTrackProvider(null), mediaSourceProvider()).release()
+        PlaybackWifiLockManager(releasedLock, FakeTrackProvider(null), httpTrackPredicate()).release()
 
         assertEquals(1, heldLock.releaseCalls)
         assertEquals(false, heldLock.held)
@@ -91,13 +87,11 @@ class PlaybackWifiLockManagerTest {
     }
 
     private companion object {
-        fun mediaSourceProvider(): PlaybackMediaSourceProvider {
-            val context = RuntimeEnvironment.getApplication()
-            return PlaybackMediaSourceProvider(
-                context,
-                MusicLibraryRepository(context, FakeStreamingDataPathParser),
-                FakeStreamingPlaybackHeaderStore()
-            )
+        fun httpTrackPredicate(): Predicate<Track?> {
+            return Predicate { track ->
+                val scheme = track?.contentUri?.scheme
+                scheme.equals("http", ignoreCase = true) || scheme.equals("https", ignoreCase = true)
+            }
         }
 
         fun track(uri: String): Track {
@@ -105,16 +99,4 @@ class PlaybackWifiLockManagerTest {
         }
     }
 
-    private object FakeStreamingDataPathParser : StreamingDataPathParser {
-        override fun isStreamingTrack(dataPath: String): Boolean = dataPath.startsWith("streaming:")
-        override fun providerName(dataPath: String): String? = dataPath.substringAfter("streaming:", "").substringBefore(":")
-        override fun providerTrackId(dataPath: String): String = dataPath.substringAfterLast(":")
-    }
-
-    private class FakeStreamingPlaybackHeaderStore : StreamingPlaybackHeaderStore {
-        override fun register(dataPath: String, headers: Map<String, String>) = Unit
-        override fun forDataPath(dataPath: String?): Map<String, String> = emptyMap()
-        override fun restoreForDataPath(dataPath: String?): Boolean = true
-        override fun restoredTrackFor(track: Track?): Track? = null
-    }
 }

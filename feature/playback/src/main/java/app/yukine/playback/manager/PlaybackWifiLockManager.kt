@@ -1,11 +1,12 @@
 package app.yukine.playback.manager
 
 import app.yukine.model.Track
+import java.util.function.Predicate
 
 internal class PlaybackWifiLockManager(
     private val lock: Lock?,
     private val streamingTrackProvider: StreamingTrackProvider,
-    private val mediaSourceProvider: PlaybackMediaSourceProvider
+    private val streamingTrackPredicate: Predicate<Track?>
 ) {
     interface Lock {
         fun isHeld(): Boolean
@@ -19,7 +20,7 @@ internal class PlaybackWifiLockManager(
 
     fun acquireIfStreaming() {
         val track = streamingTrackProvider.currentTrack()
-        if (mediaSourceProvider.isHttpTrack(track) && lock != null && !lock.isHeld()) {
+        if (streamingTrackPredicate.test(track) && lock != null && !lock.isHeld()) {
             lock.acquire()
         }
     }
