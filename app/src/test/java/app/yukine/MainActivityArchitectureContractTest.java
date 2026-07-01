@@ -6638,12 +6638,17 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun errorMessage(): String"));
         assertFalse(owner.contains("fun queueIsEmpty(): Boolean"));
         assertTrue(stateOwner.contains("final class PlaybackRuntimeStateOwner implements PlaybackRuntimeStateManager.StateProvider"));
-        assertTrue(stateOwner.contains("interface PlayerProvider"));
-        assertTrue(stateOwner.contains("interface MirroredQueueProvider"));
-        assertTrue(stateOwner.contains("interface CurrentTrackProvider"));
-        assertTrue(stateOwner.contains("return playerProvider.player();"));
-        assertTrue(stateOwner.contains("return mirroredQueueProvider.playerMirrorsQueue();"));
-        assertTrue(stateOwner.contains("return currentTrackProvider.currentTrack();"));
+        assertFalse(stateOwner.contains("interface PlayerProvider"));
+        assertFalse(stateOwner.contains("interface MirroredQueueProvider"));
+        assertFalse(stateOwner.contains("interface CurrentTrackProvider"));
+        assertTrue(stateOwner.contains("import java.util.function.BooleanSupplier;"));
+        assertTrue(stateOwner.contains("import java.util.function.Supplier;"));
+        assertTrue(stateOwner.contains("private final Supplier<ExoPlayer> playerSupplier;"));
+        assertTrue(stateOwner.contains("private final BooleanSupplier mirroredQueueSupplier;"));
+        assertTrue(stateOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
+        assertTrue(stateOwner.contains("return playerSupplier.get();"));
+        assertTrue(stateOwner.contains("return mirroredQueueSupplier.getAsBoolean();"));
+        assertTrue(stateOwner.contains("return currentTrackSupplier.get();"));
     }
 
     @Test

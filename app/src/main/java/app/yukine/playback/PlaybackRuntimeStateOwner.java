@@ -5,45 +5,36 @@ import androidx.media3.exoplayer.ExoPlayer;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
+
 final class PlaybackRuntimeStateOwner implements PlaybackRuntimeStateManager.StateProvider {
-    interface PlayerProvider {
-        ExoPlayer player();
-    }
-
-    interface MirroredQueueProvider {
-        boolean playerMirrorsQueue();
-    }
-
-    interface CurrentTrackProvider {
-        Track currentTrack();
-    }
-
-    private final PlayerProvider playerProvider;
-    private final MirroredQueueProvider mirroredQueueProvider;
-    private final CurrentTrackProvider currentTrackProvider;
+    private final Supplier<ExoPlayer> playerSupplier;
+    private final BooleanSupplier mirroredQueueSupplier;
+    private final Supplier<Track> currentTrackSupplier;
 
     PlaybackRuntimeStateOwner(
-            PlayerProvider playerProvider,
-            MirroredQueueProvider mirroredQueueProvider,
-            CurrentTrackProvider currentTrackProvider
+            Supplier<ExoPlayer> playerSupplier,
+            BooleanSupplier mirroredQueueSupplier,
+            Supplier<Track> currentTrackSupplier
     ) {
-        this.playerProvider = playerProvider;
-        this.mirroredQueueProvider = mirroredQueueProvider;
-        this.currentTrackProvider = currentTrackProvider;
+        this.playerSupplier = playerSupplier;
+        this.mirroredQueueSupplier = mirroredQueueSupplier;
+        this.currentTrackSupplier = currentTrackSupplier;
     }
 
     @Override
     public ExoPlayer player() {
-        return playerProvider.player();
+        return playerSupplier.get();
     }
 
     @Override
     public boolean playerMirrorsQueue() {
-        return mirroredQueueProvider.playerMirrorsQueue();
+        return mirroredQueueSupplier.getAsBoolean();
     }
 
     @Override
     public Track currentTrack() {
-        return currentTrackProvider.currentTrack();
+        return currentTrackSupplier.get();
     }
 }
