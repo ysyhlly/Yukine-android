@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import app.yukine.playback.manager.PlaybackQueueManager;
 
@@ -19,12 +21,7 @@ public class PlaybackQueueRestoreOwnerTest {
                 events,
                 new PlaybackQueueManager.RestorePlaybackResult(true, true, true)
         );
-        PlaybackQueueRestoreOwner owner = new PlaybackQueueRestoreOwner(
-                actions::restorePlaybackQueue,
-                actions::restoreLastPlayback,
-                actions::setPlaybackRestoreEnabled,
-                new FakeRestorePlaybackBoundary(events)
-        );
+        PlaybackQueueRestoreOwner owner = owner(actions, new FakeRestorePlaybackBoundary(events));
 
         owner.restoreLastPlayback(false);
 
@@ -45,12 +42,7 @@ public class PlaybackQueueRestoreOwnerTest {
                 events,
                 new PlaybackQueueManager.RestorePlaybackResult(true, false, false)
         );
-        PlaybackQueueRestoreOwner owner = new PlaybackQueueRestoreOwner(
-                actions::restorePlaybackQueue,
-                actions::restoreLastPlayback,
-                actions::setPlaybackRestoreEnabled,
-                new FakeRestorePlaybackBoundary(events)
-        );
+        PlaybackQueueRestoreOwner owner = owner(actions, new FakeRestorePlaybackBoundary(events));
 
         owner.restoreLastPlayback(true);
 
@@ -67,12 +59,7 @@ public class PlaybackQueueRestoreOwnerTest {
     @Test
     public void missingQueueActionsPublishesEmptyRestoreState() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueRestoreOwner missingActions = new PlaybackQueueRestoreOwner(
-                null,
-                null,
-                null,
-                new FakeRestorePlaybackBoundary(events)
-        );
+        PlaybackQueueRestoreOwner missingActions = owner(null, new FakeRestorePlaybackBoundary(events));
 
         missingActions.restoreLastPlayback(false);
 
@@ -84,7 +71,9 @@ public class PlaybackQueueRestoreOwnerTest {
         List<String> events = new ArrayList<>();
         PlaybackQueueRestoreOwner owner = PlaybackQueueRestoreOwner.fromPlaybackQueueManager(
                 null,
-                new FakeRestorePlaybackBoundary(events)
+                () -> events.add("create"),
+                playWhenReady -> events.add("prepare:" + playWhenReady),
+                () -> events.add("publish")
         );
 
         owner.restoreLastPlayback(false);
@@ -99,12 +88,7 @@ public class PlaybackQueueRestoreOwnerTest {
                 events,
                 new PlaybackQueueManager.RestorePlaybackResult(true, true, true)
         );
-        PlaybackQueueRestoreOwner owner = new PlaybackQueueRestoreOwner(
-                actions::restorePlaybackQueue,
-                actions::restoreLastPlayback,
-                actions::setPlaybackRestoreEnabled,
-                null
-        );
+        PlaybackQueueRestoreOwner owner = owner(actions, null);
 
         owner.restoreLastPlayback(false);
 
@@ -115,13 +99,8 @@ public class PlaybackQueueRestoreOwnerTest {
     public void delegatesRestoreEnabledSetting() {
         List<String> events = new ArrayList<>();
         FakeQueueRestoreActions actions = new FakeQueueRestoreActions(events, null);
-        PlaybackQueueRestoreOwner owner = new PlaybackQueueRestoreOwner(
-                actions::restorePlaybackQueue,
-                actions::restoreLastPlayback,
-                actions::setPlaybackRestoreEnabled,
-                null
-        );
-        PlaybackQueueRestoreOwner missingActions = new PlaybackQueueRestoreOwner(null, null, null, null);
+        PlaybackQueueRestoreOwner owner = owner(actions, null);
+        PlaybackQueueRestoreOwner missingActions = owner(null, null);
 
         owner.setPlaybackRestoreEnabled(true);
         missingActions.setPlaybackRestoreEnabled(false);
@@ -133,13 +112,8 @@ public class PlaybackQueueRestoreOwnerTest {
     public void delegatesQueueRestoreSnapshot() {
         List<String> events = new ArrayList<>();
         FakeQueueRestoreActions actions = new FakeQueueRestoreActions(events, null);
-        PlaybackQueueRestoreOwner owner = new PlaybackQueueRestoreOwner(
-                actions::restorePlaybackQueue,
-                actions::restoreLastPlayback,
-                actions::setPlaybackRestoreEnabled,
-                null
-        );
-        PlaybackQueueRestoreOwner missingActions = new PlaybackQueueRestoreOwner(null, null, null, null);
+        PlaybackQueueRestoreOwner owner = owner(actions, null);
+        PlaybackQueueRestoreOwner missingActions = owner(null, null);
 
         owner.restorePlaybackQueue();
         missingActions.restorePlaybackQueue();
@@ -174,25 +148,43 @@ public class PlaybackQueueRestoreOwnerTest {
         }
     }
 
-    private static final class FakeRestorePlaybackBoundary
-            implements PlaybackQueueRestoreOwner.RestorePlaybackBoundary {
+    private static PlaybackQueueRestoreOwner owner(
+            FakeQueueRestoreActions actions,
+            FakeRestorePlaybackBoundary boundary
+    ) {
+        Runnable restorePlaybackQueue = actions == null ? null : actions::restorePlaybackQueue;
+        Function<Boolean, PlaybackQueueManager.RestorePlaybackResult> restoreLastPlayback =
+                actions == null ? null : actions::restoreLastPlayback;
+        Consumer<Boolean> setPlaybackRestoreEnabled =
+                actions == null ? null : actions::setPlaybackRestoreEnabled;
+        Runnable createPlayerIfNeeded = boundary == null ? null : boundary::createPlayerIfNeeded;
+        Consumer<Boolean> prepareCurrent = boundary == null ? null : boundary::prepareCurrent;
+        Runnable publishState = boundary == null ? null : boundary::publishState;
+        return new PlaybackQueueRestoreOwner(
+                restorePlaybackQueue,
+                restoreLastPlayback,
+                setPlaybackRestoreEnabled,
+                createPlayerIfNeeded,
+                prepareCurrent,
+                publishState
+        );
+    }
+
+    private static final class FakeRestorePlaybackBoundary {
         private final List<String> events;
 
         private FakeRestorePlaybackBoundary(List<String> events) {
             this.events = events;
         }
 
-        @Override
         public void createPlayerIfNeeded() {
             events.add("create");
         }
 
-        @Override
         public void prepareCurrent(boolean playWhenReady) {
             events.add("prepare:" + playWhenReady);
         }
 
-        @Override
         public void publishState() {
             events.add("publish");
         }

@@ -124,22 +124,9 @@ public final class EchoPlaybackService extends MediaLibraryService
     private final PlaybackQueueRestoreOwner playbackQueueRestoreOwner =
             PlaybackQueueRestoreOwner.fromPlaybackQueueManager(
                     () -> playbackQueueManager,
-                    new PlaybackQueueRestoreOwner.RestorePlaybackBoundary() {
-                        @Override
-                        public void createPlayerIfNeeded() {
-                            EchoPlaybackService.this.createPlayerIfNeeded();
-                        }
-
-                        @Override
-                        public void prepareCurrent(boolean playWhenReady) {
-                            EchoPlaybackService.this.prepareCurrent(playWhenReady);
-                        }
-
-                        @Override
-                        public void publishState() {
-                            EchoPlaybackService.this.publishState();
-                        }
-                    }
+                    EchoPlaybackService.this::createPlayerIfNeeded,
+                    EchoPlaybackService.this::prepareCurrent,
+                    EchoPlaybackService.this::publishState
             );
     private final PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner =
             PlaybackQueuePersistenceOwner.fromPlaybackQueueManager(() -> playbackQueueManager);

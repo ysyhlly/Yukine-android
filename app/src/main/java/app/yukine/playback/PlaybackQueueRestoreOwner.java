@@ -7,34 +7,34 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 final class PlaybackQueueRestoreOwner {
-    interface RestorePlaybackBoundary {
-        void createPlayerIfNeeded();
-
-        void prepareCurrent(boolean playWhenReady);
-
-        void publishState();
-    }
-
     private final Runnable restorePlaybackQueue;
     private final Function<Boolean, PlaybackQueueManager.RestorePlaybackResult> restoreLastPlayback;
     private final Consumer<Boolean> setPlaybackRestoreEnabled;
-    private final RestorePlaybackBoundary restorePlaybackBoundary;
+    private final Runnable createPlayerIfNeeded;
+    private final Consumer<Boolean> prepareCurrent;
+    private final Runnable statePublisher;
 
     PlaybackQueueRestoreOwner(
             Runnable restorePlaybackQueue,
             Function<Boolean, PlaybackQueueManager.RestorePlaybackResult> restoreLastPlayback,
             Consumer<Boolean> setPlaybackRestoreEnabled,
-            RestorePlaybackBoundary restorePlaybackBoundary
+            Runnable createPlayerIfNeeded,
+            Consumer<Boolean> prepareCurrent,
+            Runnable statePublisher
     ) {
         this.restorePlaybackQueue = restorePlaybackQueue;
         this.restoreLastPlayback = restoreLastPlayback;
         this.setPlaybackRestoreEnabled = setPlaybackRestoreEnabled;
-        this.restorePlaybackBoundary = restorePlaybackBoundary;
+        this.createPlayerIfNeeded = createPlayerIfNeeded;
+        this.prepareCurrent = prepareCurrent;
+        this.statePublisher = statePublisher;
     }
 
     static PlaybackQueueRestoreOwner fromPlaybackQueueManager(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            RestorePlaybackBoundary restorePlaybackBoundary
+            Runnable createPlayerIfNeeded,
+            Consumer<Boolean> prepareCurrent,
+            Runnable statePublisher
     ) {
         return new PlaybackQueueRestoreOwner(
                 () -> {
@@ -61,7 +61,9 @@ final class PlaybackQueueRestoreOwner {
                         playbackQueueManager.setPlaybackRestoreEnabled(enabled);
                     }
                 },
-                restorePlaybackBoundary
+                createPlayerIfNeeded,
+                prepareCurrent,
+                statePublisher
         );
     }
 
@@ -72,17 +74,14 @@ final class PlaybackQueueRestoreOwner {
         if (restoreResult == null) {
             restoreResult = PlaybackQueueManager.RestorePlaybackResult.empty();
         }
-        if (restorePlaybackBoundary == null) {
-            return;
-        }
         if (restoreResult.getShouldCreatePlayer()) {
-            restorePlaybackBoundary.createPlayerIfNeeded();
+            createPlayerIfNeeded();
         }
         if (!restoreResult.getShouldPrepare()) {
-            restorePlaybackBoundary.publishState();
+            publishState();
             return;
         }
-        restorePlaybackBoundary.prepareCurrent(restoreResult.getPlayWhenReady());
+        prepareCurrent(restoreResult.getPlayWhenReady());
     }
 
     void restorePlaybackQueue() {
@@ -94,6 +93,24 @@ final class PlaybackQueueRestoreOwner {
     void setPlaybackRestoreEnabled(boolean enabled) {
         if (setPlaybackRestoreEnabled != null) {
             setPlaybackRestoreEnabled.accept(enabled);
+        }
+    }
+
+    private void createPlayerIfNeeded() {
+        if (createPlayerIfNeeded != null) {
+            createPlayerIfNeeded.run();
+        }
+    }
+
+    private void prepareCurrent(boolean playWhenReady) {
+        if (prepareCurrent != null) {
+            prepareCurrent.accept(playWhenReady);
+        }
+    }
+
+    private void publishState() {
+        if (statePublisher != null) {
+            statePublisher.run();
         }
     }
 }
