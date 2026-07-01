@@ -356,10 +356,8 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackCurrentTrackPreparationQueueOwner =
                 PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager(
                         () -> playbackQueueManager,
-                        tracks -> mediaSourceProvider.mediaSourcesForTracks(
-                                tracks,
-                                playbackNotificationManager::mediaMetadataForTrack
-                        )
+                        mediaSourceProvider,
+                        playbackNotificationManager::mediaMetadataForTrack
                 );
         playerFactory = new PlaybackPlayerFactory(this, realtimeBassAudioProcessor);
         playbackAudioEffectSettingsStore = PlaybackAudioEffectSettingsStore.fromRepository(repository);

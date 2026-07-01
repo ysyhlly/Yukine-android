@@ -95,6 +95,18 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
         owner.consumeRestoredPositionAfterPrepare(7100L);
     }
 
+    @Test
+    public void mediaSourceProviderFactoryFallsBackWhenProviderIsMissing() {
+        PlaybackCurrentTrackPreparationQueueOwner owner =
+                PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager(
+                        null,
+                        null,
+                        track -> null
+                );
+
+        assertEquals(null, owner.queuePreparationForNewPlayer().mirroredQueueMediaSources());
+    }
+
     private static Track track(long id) {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "streaming:netease:" + id);
     }

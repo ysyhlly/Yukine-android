@@ -1,8 +1,10 @@
 package app.yukine.playback;
 
+import androidx.media3.common.MediaMetadata;
 import androidx.media3.exoplayer.source.MediaSource;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.List;
@@ -91,6 +93,22 @@ final class PlaybackCurrentTrackPreparationQueueOwner
                         playbackQueueManager.consumeRestoredPositionAfterPrepare(startPositionMs);
                     }
                 }
+        );
+    }
+
+    static PlaybackCurrentTrackPreparationQueueOwner fromPlaybackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            PlaybackMediaSourceProvider mediaSourceProvider,
+            Function<Track, MediaMetadata> metadataProvider
+    ) {
+        return fromPlaybackQueueManager(
+                playbackQueueManagerSupplier,
+                tracks -> mediaSourceProvider == null
+                        ? null
+                        : mediaSourceProvider.mediaSourcesForTracks(
+                                tracks,
+                                metadataProvider == null ? null : metadataProvider::apply
+                        )
         );
     }
 
