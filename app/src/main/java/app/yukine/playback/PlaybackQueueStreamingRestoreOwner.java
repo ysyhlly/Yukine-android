@@ -1,6 +1,7 @@
 package app.yukine.playback;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.Consumer;
@@ -16,6 +17,21 @@ final class PlaybackQueueStreamingRestoreOwner implements PlaybackQueueManager.S
     ) {
         this.restoredTrackForPreparation = restoredTrackForPreparation;
         this.restoreHeadersForDataPath = restoreHeadersForDataPath;
+    }
+
+    static PlaybackQueueStreamingRestoreOwner fromMediaSourceProvider(
+            PlaybackMediaSourceProvider mediaSourceProvider
+    ) {
+        return new PlaybackQueueStreamingRestoreOwner(
+                track -> mediaSourceProvider == null
+                        ? null
+                        : mediaSourceProvider.restoredTrackForPreparation(track),
+                dataPath -> {
+                    if (mediaSourceProvider != null) {
+                        mediaSourceProvider.restoreHeadersForDataPath(dataPath);
+                    }
+                }
+        );
     }
 
     @Override

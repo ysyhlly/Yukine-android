@@ -45,6 +45,15 @@ public class PlaybackQueueStreamingRestoreOwnerTest {
         owner.restoreForDataPath("streaming:test:3");
     }
 
+    @Test
+    public void mediaSourceProviderFactoryIsSafeWhenProviderIsMissing() {
+        PlaybackQueueStreamingRestoreOwner owner =
+                PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(null);
+
+        org.junit.Assert.assertNull(owner.restoredTrackFor(track(4L)));
+        owner.restoreForDataPath("streaming:test:4");
+    }
+
     private static Track track(long id) {
         return new Track(
                 id,

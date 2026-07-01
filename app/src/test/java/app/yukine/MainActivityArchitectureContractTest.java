@@ -5937,7 +5937,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("new PlaybackQueueManager.MirroredQueuePlayer()"));
         assertTrue(owner.contains("streamingRestoreProvider.restoreForDataPath(track.dataPath)"));
         assertTrue(service.contains("private PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner;"));
-        assertTrue(service.contains("playbackQueueStreamingRestoreOwner = new PlaybackQueueStreamingRestoreOwner("));
+        assertTrue(service.contains(
+                "PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(service.contains("                playbackQueueStreamingRestoreOwner,"));
         assertFalse(service.contains("new PlaybackQueueManager.StreamingRestoreProvider()"));
         assertTrue(owner.contains("private fun clearErrorMessage()"));
@@ -6113,16 +6114,21 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun restoredTrackForPreparation(track: Track?): Track?"));
         assertTrue(queueRestoreOwner.contains("final class PlaybackQueueStreamingRestoreOwner implements PlaybackQueueManager.StreamingRestoreProvider"));
         assertFalse(queueRestoreOwner.contains("interface StreamingRestoreResolver"));
+        assertTrue(queueRestoreOwner.contains("import app.yukine.playback.manager.PlaybackMediaSourceProvider;"));
         assertTrue(queueRestoreOwner.contains("import java.util.function.Consumer;"));
         assertTrue(queueRestoreOwner.contains("import java.util.function.Function;"));
+        assertTrue(queueRestoreOwner.contains("static PlaybackQueueStreamingRestoreOwner fromMediaSourceProvider("));
         assertTrue(queueRestoreOwner.contains("private final Function<Track, Track> restoredTrackForPreparation;"));
         assertTrue(queueRestoreOwner.contains("private final Consumer<String> restoreHeadersForDataPath;"));
+        assertTrue(queueRestoreOwner.contains("mediaSourceProvider.restoredTrackForPreparation(track)"));
+        assertTrue(queueRestoreOwner.contains("mediaSourceProvider.restoreHeadersForDataPath(dataPath)"));
         assertTrue(queueRestoreOwner.contains("return restoredTrackForPreparation == null ? null : restoredTrackForPreparation.apply(track);"));
         assertTrue(queueRestoreOwner.contains("restoreHeadersForDataPath.accept(dataPath);"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackQueueStreamingRestoreResolverOwner.java")));
         assertFalse(service.contains("PlaybackQueueStreamingRestoreResolverOwner"));
-        assertTrue(service.contains("mediaSourceProvider::restoredTrackForPreparation"));
-        assertTrue(service.contains("mediaSourceProvider::restoreHeadersForDataPath"));
+        assertTrue(service.contains("PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(mediaSourceProvider)"));
+        assertFalse(service.contains("mediaSourceProvider::restoredTrackForPreparation"));
+        assertFalse(service.contains("mediaSourceProvider::restoreHeadersForDataPath"));
         assertFalse(service.contains("new PlaybackQueueStreamingRestoreOwner.StreamingRestoreResolver()"));
         assertTrue(owner.contains("data class PlaybackPreparation"));
         assertTrue(owner.contains("fun prepareTrackForPlayback(track: Track): PlaybackPreparation"));
