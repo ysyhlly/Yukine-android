@@ -323,12 +323,11 @@ public final class PlaybackPrecacheManagerTest {
             FakeCallbackScheduler scheduler
     ) {
         PlaybackMediaSourceProvider mediaSourceProvider = mediaSourceProvider();
-        return new PlaybackPrecacheManager(
+        return PlaybackPrecacheManager.fromMediaSourceProvider(
                 stateProvider,
                 upcomingTracksProvider,
-                PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider),
-                scheduler,
-                PlaybackPrecacheManager.audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)
+                mediaSourceProvider,
+                scheduler
         );
     }
 

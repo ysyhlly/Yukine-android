@@ -1807,7 +1807,7 @@ public final class MainActivityArchitectureContractTest {
         );
         String diagnostics = read("feature/playback/src/main/java/app/yukine/playback/diagnostics/PlaybackStreamingDiagnostics.java");
 
-        assertTrue(playbackService.contains("playbackPrecacheManager = new PlaybackPrecacheManager("));
+        assertTrue(playbackService.contains("playbackPrecacheManager = PlaybackPrecacheManager.fromMediaSourceProvider("));
         assertTrue(playbackService.contains("private PlaybackPrecacheStateOwner playbackPrecacheStateOwner;"));
         assertTrue(playbackService.contains("playbackPrecacheStateOwner = new PlaybackPrecacheStateOwner("));
         assertTrue(playbackService.contains("                playbackPrecacheStateOwner,"));
@@ -1852,8 +1852,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("final class PlaybackPrecacheManager"));
         assertTrue(playbackPrecacheManager.contains("interface MediaCacheOperations"));
         assertTrue(playbackPrecacheManager.contains("private final MediaCacheOperations mediaCacheOperations;"));
-        assertTrue(playbackService.contains("PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
-        assertTrue(playbackService.contains("PlaybackPrecacheManager.audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)"));
+        assertFalse(playbackService.contains("PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
+        assertFalse(playbackService.contains("PlaybackPrecacheManager.audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)"));
+        assertTrue(playbackPrecacheManager.contains("static PlaybackPrecacheManager fromMediaSourceProvider("));
+        assertTrue(playbackPrecacheManager.contains("mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
+        assertTrue(playbackPrecacheManager.contains("audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)"));
         assertFalse(playbackService.contains("                mediaSourceProvider,\r\n                playbackMainHandlerSchedulerOwner"));
         String playbackPrecacheManagerBody =
                 playbackPrecacheManager.substring(

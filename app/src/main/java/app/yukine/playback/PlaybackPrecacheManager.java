@@ -113,6 +113,21 @@ final class PlaybackPrecacheManager {
         this.audioCacheReleaseAction = audioCacheReleaseAction;
     }
 
+    static PlaybackPrecacheManager fromMediaSourceProvider(
+            StateProvider stateProvider,
+            IntFunction<List<Track>> upcomingTracksProvider,
+            PlaybackMediaSourceProvider mediaSourceProvider,
+            CallbackScheduler callbackScheduler
+    ) {
+        return new PlaybackPrecacheManager(
+                stateProvider,
+                upcomingTracksProvider,
+                mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider),
+                callbackScheduler,
+                audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)
+        );
+    }
+
     void release() {
         if (released) {
             return;
