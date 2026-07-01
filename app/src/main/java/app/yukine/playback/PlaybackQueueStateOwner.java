@@ -5,6 +5,7 @@ import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 final class PlaybackQueueStateOwner implements
@@ -12,34 +13,22 @@ final class PlaybackQueueStateOwner implements
         PlaybackStateSnapshotOwner.QueueStateProvider,
         PlaybackCrossfadeStateOwner.QueueStateProvider,
         PlaybackErrorRecoveryCommandOwner.FailedTrackPolicy {
-    interface QueueStateOperations {
-        PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot();
-    }
+    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;
+    private final Supplier<List<Track>> queueSnapshotSupplier;
+    private final IntFunction<List<Track>> upcomingTracksSupplier;
 
-    interface QueueSnapshotOperations {
-        List<Track> queueSnapshot();
-    }
-
-    interface UpcomingTracksOperations {
-        List<Track> upcomingTracksForPrecache(int maxCount);
-    }
-
-    private final Supplier<QueueStateOperations> queueStateOperationsSupplier;
-    private final Supplier<QueueSnapshotOperations> queueSnapshotOperationsSupplier;
-    private final Supplier<UpcomingTracksOperations> upcomingTracksOperationsSupplier;
-
-    PlaybackQueueStateOwner(Supplier<QueueStateOperations> queueStateOperationsSupplier) {
-        this(queueStateOperationsSupplier, null, null);
+    PlaybackQueueStateOwner(Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier) {
+        this(queueStateSnapshotSupplier, null, null);
     }
 
     PlaybackQueueStateOwner(
-            Supplier<QueueStateOperations> queueStateOperationsSupplier,
-            Supplier<QueueSnapshotOperations> queueSnapshotOperationsSupplier,
-            Supplier<UpcomingTracksOperations> upcomingTracksOperationsSupplier
+            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier,
+            Supplier<List<Track>> queueSnapshotSupplier,
+            IntFunction<List<Track>> upcomingTracksSupplier
     ) {
-        this.queueStateOperationsSupplier = queueStateOperationsSupplier;
-        this.queueSnapshotOperationsSupplier = queueSnapshotOperationsSupplier;
-        this.upcomingTracksOperationsSupplier = upcomingTracksOperationsSupplier;
+        this.queueStateSnapshotSupplier = queueStateSnapshotSupplier;
+        this.queueSnapshotSupplier = queueSnapshotSupplier;
+        this.upcomingTracksSupplier = upcomingTracksSupplier;
     }
 
     static PlaybackQueueStateOwner fromPlaybackQueueManager(
@@ -50,19 +39,19 @@ final class PlaybackQueueStateOwner implements
                     PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
                             ? null
                             : playbackQueueManagerSupplier.get();
-                    return playbackQueueManager == null ? null : playbackQueueManager::queueStateSnapshot;
+                    return playbackQueueManager == null ? null : playbackQueueManager.queueStateSnapshot();
                 },
                 () -> {
                     PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
                             ? null
                             : playbackQueueManagerSupplier.get();
-                    return playbackQueueManager == null ? null : playbackQueueManager::queueSnapshot;
+                    return playbackQueueManager == null ? null : playbackQueueManager.queueSnapshot();
                 },
-                () -> {
+                maxCount -> {
                     PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
                             ? null
                             : playbackQueueManagerSupplier.get();
-                    return playbackQueueManager == null ? null : playbackQueueManager::upcomingTracksForPrecache;
+                    return playbackQueueManager == null ? null : playbackQueueManager.upcomingTracksForPrecache(maxCount);
                 }
         );
     }
@@ -74,12 +63,9 @@ final class PlaybackQueueStateOwner implements
 
     @Override
     public PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        QueueStateOperations operations = queueStateOperationsSupplier == null
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier == null
                 ? null
-                : queueStateOperationsSupplier.get();
-        PlaybackQueueManager.QueueStateSnapshot snapshot = operations == null
-                ? null
-                : operations.queueStateSnapshot();
+                : queueStateSnapshotSupplier.get();
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 
@@ -88,18 +74,12 @@ final class PlaybackQueueStateOwner implements
     }
 
     List<Track> queueSnapshot() {
-        QueueSnapshotOperations operations = queueSnapshotOperationsSupplier == null
-                ? null
-                : queueSnapshotOperationsSupplier.get();
-        List<Track> snapshot = operations == null ? null : operations.queueSnapshot();
+        List<Track> snapshot = queueSnapshotSupplier == null ? null : queueSnapshotSupplier.get();
         return snapshot == null ? Collections.emptyList() : snapshot;
     }
 
     List<Track> upcomingTracksForPrecache(int maxCount) {
-        UpcomingTracksOperations operations = upcomingTracksOperationsSupplier == null
-                ? null
-                : upcomingTracksOperationsSupplier.get();
-        List<Track> tracks = operations == null ? null : operations.upcomingTracksForPrecache(maxCount);
+        List<Track> tracks = upcomingTracksSupplier == null ? null : upcomingTracksSupplier.apply(maxCount);
         return tracks == null ? Collections.emptyList() : tracks;
     }
 

@@ -21,7 +21,7 @@ public class PlaybackQueueStateOwnerTest {
         PlaybackQueueManager.QueueStateSnapshot snapshot =
                 new PlaybackQueueManager.QueueStateSnapshot(track, 0, 1, false, true, false, true);
         PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(
-                () -> () -> snapshot
+                () -> snapshot
         );
 
         assertSame(snapshot, owner.queueStateSnapshot());
@@ -32,17 +32,13 @@ public class PlaybackQueueStateOwnerTest {
     @Test
     public void returnsEmptyQueueStateWhenProviderOperationsOrSnapshotAreMissing() {
         PlaybackQueueStateOwner missingSupplier = new PlaybackQueueStateOwner(null);
-        PlaybackQueueStateOwner missingOperations = new PlaybackQueueStateOwner(() -> null);
-        PlaybackQueueStateOwner missingSnapshot = new PlaybackQueueStateOwner(() -> () -> null);
+        PlaybackQueueStateOwner missingSnapshot = new PlaybackQueueStateOwner(() -> null);
 
         assertEmpty(missingSupplier.queueStateSnapshot());
-        assertEmpty(missingOperations.queueStateSnapshot());
         assertEmpty(missingSnapshot.queueStateSnapshot());
         assertTrue(missingSupplier.isQueueEmpty());
-        assertTrue(missingOperations.isQueueEmpty());
         assertTrue(missingSnapshot.isQueueEmpty());
         assertSame(null, missingSupplier.currentTrack());
-        assertSame(null, missingOperations.currentTrack());
         assertSame(null, missingSnapshot.currentTrack());
     }
 
@@ -51,10 +47,10 @@ public class PlaybackQueueStateOwnerTest {
         Track failed = track(7L);
         PlaybackQueueStateOwner missingQueue = new PlaybackQueueStateOwner(null);
         PlaybackQueueStateOwner singleTrack = new PlaybackQueueStateOwner(
-                () -> () -> new PlaybackQueueManager.QueueStateSnapshot(failed, 0, 1, false, true, false, true)
+                () -> new PlaybackQueueManager.QueueStateSnapshot(failed, 0, 1, false, true, false, true)
         );
         PlaybackQueueStateOwner multipleTracks = new PlaybackQueueStateOwner(
-                () -> () -> new PlaybackQueueManager.QueueStateSnapshot(failed, 0, 2, false, true, true, false)
+                () -> new PlaybackQueueManager.QueueStateSnapshot(failed, 0, 2, false, true, true, false)
         );
 
         assertFalse(missingQueue.canSkipFailedTrack(failed));
@@ -69,9 +65,9 @@ public class PlaybackQueueStateOwnerTest {
         List<Track> queue = Arrays.asList(track(1L), track(2L));
         List<Track> upcoming = Arrays.asList(track(3L), track(4L));
         PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(
-                () -> PlaybackQueueManager.QueueStateSnapshot::empty,
-                () -> () -> queue,
-                () -> maxCount -> upcoming.subList(0, Math.min(maxCount, upcoming.size()))
+                PlaybackQueueManager.QueueStateSnapshot::empty,
+                () -> queue,
+                maxCount -> upcoming.subList(0, Math.min(maxCount, upcoming.size()))
         );
 
         assertEquals(queue, owner.queueSnapshot());
@@ -81,11 +77,15 @@ public class PlaybackQueueStateOwnerTest {
     @Test
     public void returnsEmptyQueueSnapshotWhenProviderOperationsOrSnapshotAreMissing() {
         PlaybackQueueStateOwner missingSupplier = new PlaybackQueueStateOwner(null);
-        PlaybackQueueStateOwner missingOperations = new PlaybackQueueStateOwner(() -> null);
+        PlaybackQueueStateOwner missingOperations = new PlaybackQueueStateOwner(
+                PlaybackQueueManager.QueueStateSnapshot::empty,
+                null,
+                null
+        );
         PlaybackQueueStateOwner missingSnapshot = new PlaybackQueueStateOwner(
-                () -> () -> PlaybackQueueManager.QueueStateSnapshot.empty(),
-                () -> () -> null,
-                () -> maxCount -> null
+                PlaybackQueueManager.QueueStateSnapshot::empty,
+                () -> null,
+                maxCount -> null
         );
 
         assertTrue(missingSupplier.queueSnapshot().isEmpty());
