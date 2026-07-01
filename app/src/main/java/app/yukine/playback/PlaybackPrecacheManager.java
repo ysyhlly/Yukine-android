@@ -26,6 +26,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
@@ -79,15 +80,7 @@ final class PlaybackPrecacheManager {
     private final MediaCacheOperations mediaCacheOperations;
     private final CallbackScheduler callbackScheduler;
     private final Runnable audioCacheReleaseAction;
-    private final ThreadPoolExecutor playbackCacheExecutor =
-            new ThreadPoolExecutor(
-                    SEGMENTED_PRECACHE_CONCURRENCY,
-                    SEGMENTED_PRECACHE_CONCURRENCY,
-                    0L,
-                    TimeUnit.MILLISECONDS,
-                    new PriorityBlockingQueue<>(PLAYBACK_CACHE_PRIORITY_QUEUE_INITIAL_CAPACITY),
-                    new PlaybackCacheThreadFactory()
-            );
+    private final ThreadPoolExecutor playbackCacheExecutor;
     private final Set<String> activePrecacheRanges =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<CacheWriter> activePrecacheWriters =
@@ -106,11 +99,32 @@ final class PlaybackPrecacheManager {
             CallbackScheduler callbackScheduler,
             Runnable audioCacheReleaseAction
     ) {
+        this(
+                stateProvider,
+                upcomingTracksProvider,
+                mediaCacheOperations,
+                callbackScheduler,
+                audioCacheReleaseAction,
+                newPlaybackCacheExecutor()
+        );
+    }
+
+    PlaybackPrecacheManager(
+            StateProvider stateProvider,
+            IntFunction<List<Track>> upcomingTracksProvider,
+            MediaCacheOperations mediaCacheOperations,
+            CallbackScheduler callbackScheduler,
+            Runnable audioCacheReleaseAction,
+            ThreadPoolExecutor playbackCacheExecutor
+    ) {
         this.stateProvider = stateProvider;
         this.upcomingTracksProvider = upcomingTracksProvider;
         this.mediaCacheOperations = mediaCacheOperations;
         this.callbackScheduler = callbackScheduler;
         this.audioCacheReleaseAction = audioCacheReleaseAction;
+        this.playbackCacheExecutor = playbackCacheExecutor == null
+                ? newPlaybackCacheExecutor()
+                : playbackCacheExecutor;
     }
 
     static PlaybackPrecacheManager fromMediaSourceProvider(
@@ -551,7 +565,11 @@ final class PlaybackPrecacheManager {
         }
         trimPlaybackCacheQueueIfNeeded(priority);
         try {
-            playbackCacheExecutor.execute(new PrecacheTask(priority, task));
+            playbackCacheExecutor.execute(new PrecacheTask(
+                    priority,
+                    task,
+                    () -> !released && !playbackCacheExecutor.isShutdown()
+            ));
         } catch (RejectedExecutionException ignored) {
         }
     }
@@ -761,20 +779,36 @@ final class PlaybackPrecacheManager {
 
     }
 
+    private static ThreadPoolExecutor newPlaybackCacheExecutor() {
+        return new ThreadPoolExecutor(
+                SEGMENTED_PRECACHE_CONCURRENCY,
+                SEGMENTED_PRECACHE_CONCURRENCY,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new PriorityBlockingQueue<>(PLAYBACK_CACHE_PRIORITY_QUEUE_INITIAL_CAPACITY),
+                new PlaybackCacheThreadFactory()
+        );
+    }
+
     private static final class PrecacheTask implements Runnable, Comparable<PrecacheTask> {
         private static final AtomicInteger sequenceGenerator = new AtomicInteger();
         private final PrecachePriority priority;
         private final Runnable delegate;
+        private final BooleanSupplier canRun;
         private final int sequence;
 
-        PrecacheTask(PrecachePriority priority, Runnable delegate) {
+        PrecacheTask(PrecachePriority priority, Runnable delegate, BooleanSupplier canRun) {
             this.priority = priority == null ? PrecachePriority.CURRENT_SEGMENT : priority;
             this.delegate = delegate;
+            this.canRun = canRun;
             this.sequence = sequenceGenerator.incrementAndGet();
         }
 
         @Override
         public void run() {
+            if (canRun != null && !canRun.getAsBoolean()) {
+                return;
+            }
             delegate.run();
         }
 

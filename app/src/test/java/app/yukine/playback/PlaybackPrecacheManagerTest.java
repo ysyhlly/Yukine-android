@@ -26,6 +26,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 
@@ -210,6 +213,32 @@ public final class PlaybackPrecacheManagerTest {
 
         assertEquals(0, stateProvider.currentTrackCalls);
         assertEquals(0, scheduler.pendingCallbacks.size());
+    }
+
+    @Test
+    public void releasePreventsAlreadySubmittedExecutorTaskFromReadingCacheState() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                (IntFunction<List<Track>>) null,
+                mediaCacheOperations,
+                scheduler,
+                new FakeAudioCacheReleaseAction()::releaseAudioCache,
+                executor
+        );
+        Track track = track(1L, "https://example.test/one.mp3");
+
+        stateProvider.currentTrack = track;
+        manager.precacheTrack(track);
+        int cacheKeyCallsBeforeRelease = mediaCacheOperations.cacheKeyForPrecacheCalls;
+        manager.release();
+        executor.runSubmitted(0);
+
+        assertEquals(cacheKeyCallsBeforeRelease, mediaCacheOperations.cacheKeyForPrecacheCalls);
+        assertEquals(0, stateProvider.diagnostics.snapshot().precacheSuccesses);
     }
 
     @Test
@@ -488,6 +517,7 @@ public final class PlaybackPrecacheManagerTest {
     private static final class FakeMediaCacheOperations implements PlaybackPrecacheManager.MediaCacheOperations {
         private long contentLength = -1L;
         private long cachedBytes;
+        private int cacheKeyForPrecacheCalls;
         private int contentLengthCalls;
         private int cachedBytesInRangeCalls;
 
@@ -507,6 +537,7 @@ public final class PlaybackPrecacheManagerTest {
 
         @Override
         public String cacheKeyForPrecache(Track track) {
+            cacheKeyForPrecacheCalls++;
             String scheme = track == null || track.contentUri == null ? null : track.contentUri.getScheme();
             if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
                 return null;
@@ -536,6 +567,36 @@ public final class PlaybackPrecacheManagerTest {
         @Override
         public boolean mediaItemMatchesTrackForReuse(MediaItem mediaItem, Track track) {
             return true;
+        }
+    }
+
+    private static final class CapturingPlaybackCacheExecutor extends ThreadPoolExecutor {
+        private final List<Runnable> submittedTasks = new ArrayList<>();
+        private boolean shutdown;
+
+        CapturingPlaybackCacheExecutor() {
+            super(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+        }
+
+        @Override
+        public void execute(Runnable command) {
+            submittedTasks.add(command);
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            shutdown = true;
+            getQueue().clear();
+            return Collections.emptyList();
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return shutdown;
+        }
+
+        private void runSubmitted(int index) {
+            submittedTasks.get(index).run();
         }
     }
 
