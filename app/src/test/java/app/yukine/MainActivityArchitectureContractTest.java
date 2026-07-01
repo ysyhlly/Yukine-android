@@ -6608,7 +6608,6 @@ public final class MainActivityArchitectureContractTest {
     public void playbackRuntimeStateIsOwnedOutsideEchoPlaybackService() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackRuntimeStateManager.kt");
-        String stateOwner = read("app/src/main/java/app/yukine/playback/PlaybackRuntimeStateOwner.java");
         String modeStore = read("app/src/main/java/app/yukine/playback/PlaybackModeSettingsStore.java");
         String runtimeStore = read("app/src/main/java/app/yukine/playback/PlaybackRuntimeSettingsStore.java");
         String stateSnapshotOwner = read("app/src/main/java/app/yukine/playback/PlaybackStateSnapshotOwner.java");
@@ -6745,9 +6744,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackRuntimeStateManager::preparing"));
         assertFalse(service.contains("playbackRuntimeStateManager.errorMessage()"));
         assertTrue(stateSnapshotOwner.contains("manager.errorMessage()"));
-        assertTrue(service.contains("private final PlaybackRuntimeStateOwner playbackRuntimeStateOwner"));
-        assertTrue(service.contains("new PlaybackRuntimeStateOwner("));
-        assertTrue(service.contains("new PlaybackRuntimeStateManager(playbackRuntimeStateOwner)"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackRuntimeStateOwner.java")));
+        assertFalse(service.contains("PlaybackRuntimeStateOwner"));
+        assertTrue(service.contains("PlaybackRuntimeStateManager.stateProviderFromPlaybackState("));
         assertFalse(service.contains("new PlaybackRuntimeStateManager.StateProvider()"));
         assertTrue(owner.contains("private var shuffleEnabled"));
         assertTrue(owner.contains("private var repeatMode"));
@@ -6826,18 +6825,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun setErrorMessage(message: String?)"));
         assertTrue(owner.contains("fun errorMessage(): String"));
         assertFalse(owner.contains("fun queueIsEmpty(): Boolean"));
-        assertTrue(stateOwner.contains("final class PlaybackRuntimeStateOwner implements PlaybackRuntimeStateManager.StateProvider"));
-        assertFalse(stateOwner.contains("interface PlayerProvider"));
-        assertFalse(stateOwner.contains("interface MirroredQueueProvider"));
-        assertFalse(stateOwner.contains("interface CurrentTrackProvider"));
-        assertTrue(stateOwner.contains("import java.util.function.BooleanSupplier;"));
-        assertTrue(stateOwner.contains("import java.util.function.Supplier;"));
-        assertTrue(stateOwner.contains("private final Supplier<ExoPlayer> playerSupplier;"));
-        assertTrue(stateOwner.contains("private final BooleanSupplier mirroredQueueSupplier;"));
-        assertTrue(stateOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
-        assertTrue(stateOwner.contains("return playerSupplier.get();"));
-        assertTrue(stateOwner.contains("return mirroredQueueSupplier.getAsBoolean();"));
-        assertTrue(stateOwner.contains("return currentTrackSupplier.get();"));
+        assertTrue(owner.contains("fun stateProviderFromPlaybackState("));
+        assertTrue(owner.contains("playerSupplier: Supplier<ExoPlayer?>?"));
+        assertTrue(owner.contains("mirroredQueueSupplier: BooleanSupplier?"));
+        assertTrue(owner.contains("currentTrackSupplier: Supplier<Track?>?"));
+        assertTrue(owner.contains("override fun player(): ExoPlayer? = playerSupplier?.get()"));
+        assertTrue(owner.contains("override fun playerMirrorsQueue(): Boolean = mirroredQueueSupplier?.asBoolean == true"));
+        assertTrue(owner.contains("override fun currentTrack(): Track? = currentTrackSupplier?.get()"));
     }
 
     @Test

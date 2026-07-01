@@ -163,13 +163,14 @@ public final class EchoPlaybackService extends MediaLibraryService
                         }
                     }
             );
-    private final PlaybackRuntimeStateOwner playbackRuntimeStateOwner = new PlaybackRuntimeStateOwner(
-            () -> player,
-            playbackQueueMirrorStateOwner::playerMirrorsQueue,
-            () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()
-    );
     private final PlaybackRuntimeStateManager playbackRuntimeStateManager =
-            new PlaybackRuntimeStateManager(playbackRuntimeStateOwner);
+            new PlaybackRuntimeStateManager(
+                    PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
+                            () -> player,
+                            playbackQueueMirrorStateOwner::playerMirrorsQueue,
+                            () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()
+                    )
+            );
     private final PlaybackCurrentTrackPreparationRuntimeOwner playbackCurrentTrackPreparationRuntimeOwner =
             PlaybackCurrentTrackPreparationRuntimeOwner.fromRuntimeStateManager(playbackRuntimeStateManager);
     private final PlaybackAudioEffectManager audioEffectManager =

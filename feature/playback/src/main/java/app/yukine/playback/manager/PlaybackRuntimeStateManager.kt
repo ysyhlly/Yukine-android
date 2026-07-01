@@ -9,6 +9,8 @@ import app.yukine.playback.PlaybackRepeatMode.REPEAT_ALL
 import app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF
 import app.yukine.playback.PlaybackRepeatMode.REPEAT_ONE
 import app.yukine.model.Track
+import java.util.function.BooleanSupplier
+import java.util.function.Supplier
 import kotlin.math.pow
 
 internal class PlaybackRuntimeStateManager(
@@ -196,6 +198,19 @@ internal class PlaybackRuntimeStateManager(
     }
 
     companion object {
+        @JvmStatic
+        fun stateProviderFromPlaybackState(
+            playerSupplier: Supplier<ExoPlayer?>?,
+            mirroredQueueSupplier: BooleanSupplier?,
+            currentTrackSupplier: Supplier<Track?>?
+        ): StateProvider = object : StateProvider {
+            override fun player(): ExoPlayer? = playerSupplier?.get()
+
+            override fun playerMirrorsQueue(): Boolean = mirroredQueueSupplier?.asBoolean == true
+
+            override fun currentTrack(): Track? = currentTrackSupplier?.get()
+        }
+
         fun media3RepeatModeForAppRepeatMode(appRepeatMode: Int, playerMirrorsQueue: Boolean): Int {
             if (appRepeatMode == REPEAT_ONE) {
                 return Player.REPEAT_MODE_ONE

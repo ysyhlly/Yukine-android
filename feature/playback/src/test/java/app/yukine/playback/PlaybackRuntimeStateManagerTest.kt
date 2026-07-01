@@ -6,9 +6,13 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.lang.reflect.Proxy
+import java.util.function.BooleanSupplier
+import java.util.function.Supplier
 
 class PlaybackRuntimeStateManagerTest {
     @Test
@@ -214,6 +218,31 @@ class PlaybackRuntimeStateManagerTest {
         player.playing = true
 
         assertTrue(manager.isPlaying())
+    }
+
+    @Test
+    fun stateProviderFromPlaybackStateDelegatesToPlaybackBoundarySuppliers() {
+        val events = mutableListOf<String>()
+        val track = track()
+        val provider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
+            Supplier {
+                events += "player"
+                null
+            },
+            BooleanSupplier {
+                events += "mirrors"
+                true
+            },
+            Supplier {
+                events += "track"
+                track
+            }
+        )
+
+        assertNull(provider.player())
+        assertTrue(provider.playerMirrorsQueue())
+        assertSame(track, provider.currentTrack())
+        assertEquals(listOf("player", "mirrors", "track"), events)
     }
 
     @Test
