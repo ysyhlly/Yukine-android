@@ -3959,6 +3959,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun restoredTrackForPreparation(track: Track?): Track?"));
         assertTrue(owner.contains("fun restoreHeadersForTrack(track: Track?): Boolean"));
         assertTrue(owner.contains("fun restoreHeadersForDataPath(dataPath: String?): Boolean"));
+        assertTrue(owner.contains("private fun restorePlaybackHeadersForMediaSource(track: Track?)"));
+        assertTrue(owner.contains("StreamingDataPathMetadata.isStreamingTrack(track?.dataPath)"));
         assertTrue(service.contains("private PlaybackCurrentTrackPreparationOwner playbackCurrentTrackPreparationOwner;"));
         assertTrue(service.contains("playbackCurrentTrackPreparationOwner = PlaybackCurrentTrackPreparationOwner.fromMediaSourceProvider("));
         assertTrue(owner.contains("streamingPlaybackHeaderStore.restoredTrackFor(track)"));
@@ -6185,6 +6187,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("playable = unplayableMessage == null"));
         assertTrue(owner.contains("fun restoreHeadersForTrack(track: Track?): Boolean"));
         assertTrue(owner.contains("fun mediaSourceForTrack(track: Track, metadataProvider: ((Track) -> MediaMetadata)?): MediaSource"));
+        assertTrue(owner.contains("restorePlaybackHeadersForMediaSource(track)"));
         assertTrue(owner.contains("fun mediaSourcesForTracks("));
         assertTrue(owner.contains("StreamingDataPathMetadata.isStreamingTrack(track.dataPath)"));
         assertTrue(owner.contains("fun streamingQualityForTrack(track: Track?): String"));

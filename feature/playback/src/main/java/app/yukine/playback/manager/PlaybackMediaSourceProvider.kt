@@ -68,7 +68,7 @@ internal class PlaybackMediaSourceProvider(
     }
 
     fun mediaSourceForTrack(track: Track, metadataProvider: ((Track) -> MediaMetadata)?): MediaSource {
-        restoreHeadersForTrack(track)
+        restorePlaybackHeadersForMediaSource(track)
         return mediaSourceFactory(track).createMediaSource(mediaItemForTrack(track, metadataProvider))
     }
 
@@ -137,6 +137,12 @@ internal class PlaybackMediaSourceProvider(
 
     fun restoreHeadersForDataPath(dataPath: String?): Boolean {
         return streamingPlaybackHeaderStore.restoreForDataPath(dataPath)
+    }
+
+    private fun restorePlaybackHeadersForMediaSource(track: Track?) {
+        if (StreamingDataPathMetadata.isStreamingTrack(track?.dataPath)) {
+            restoreHeadersForTrack(track)
+        }
     }
 
     fun audioCache(): SimpleCache {

@@ -271,7 +271,7 @@ class PlaybackMediaSourceProviderTest {
     }
 
     @Test
-    fun providerBuildsPlayableMediaSourceWithCallerMetadata() {
+    fun providerBuildsLocalMediaSourceWithCallerMetadataWithoutRestoringStreamingHeaders() {
         val track = Track(
             7L,
             "Local",
@@ -290,8 +290,33 @@ class PlaybackMediaSourceProviderTest {
         }
 
         assertSame(track, metadataTrack)
-        assertEquals("/storage/emulated/0/Music/local.flac", headerStore.restoredDataPath)
+        assertNull(headerStore.restoredDataPath)
         assertEquals(PlaybackMediaSourceProvider.playbackMediaItemForTrack(track, MediaMetadata.Builder().setTitle("Local").build()), mediaSource.mediaItem)
+    }
+
+    @Test
+    fun providerBuildsStreamingMediaSourceAfterRestoringPlaybackHeaders() {
+        val track = Track(
+            42L,
+            "Stream",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://audio.example/current.flac"),
+            "streaming:netease:42"
+        )
+        val headerStore = FakeStreamingPlaybackHeaderStore()
+
+        val mediaSource = provider(headerStore).mediaSourceForTrack(track) {
+            MediaMetadata.Builder().setTitle(it.title).build()
+        }
+
+        assertEquals("streaming:netease:42", headerStore.restoredDataPath)
+        assertEquals("42", mediaSource.mediaItem.mediaId)
+        assertEquals(
+            "streaming:netease:42|url=https://audio.example/current.flac",
+            mediaSource.mediaItem.localConfiguration?.customCacheKey
+        )
     }
 
     @Test
