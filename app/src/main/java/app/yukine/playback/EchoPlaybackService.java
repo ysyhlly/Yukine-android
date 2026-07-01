@@ -252,7 +252,6 @@ public final class EchoPlaybackService extends MediaLibraryService
             PlaybackWifiLockManager.releaseAction(() -> playbackWifiLockManager);
     private PlaybackNoisyReceiverManager playbackNoisyReceiverManager;
     private PlaybackProgressUpdateCommandOwner playbackProgressUpdateCommandOwner;
-    private PlaybackProgressUpdateStateOwner playbackProgressUpdateStateOwner;
     private PlaybackProgressUpdateManager playbackProgressUpdateManager;
     @Inject
     MusicLibraryRepository repository;
@@ -407,13 +406,12 @@ public final class EchoPlaybackService extends MediaLibraryService
                 EchoPlaybackService.this::persistPlaybackPositionThrottled,
                 () -> playbackProgressUpdateManager
         );
-        playbackProgressUpdateStateOwner = new PlaybackProgressUpdateStateOwner(
-                playbackPlayerStateOwner::isPlaying,
-                playbackCurrentTrackPreparationRuntimeOwner::preparing
-        );
         playbackProgressUpdateManager = new PlaybackProgressUpdateManager(
                 playbackMainHandlerSchedulerOwner,
-                playbackProgressUpdateStateOwner,
+                PlaybackProgressUpdateManager.stateProviderFromPlaybackState(
+                        playbackPlayerStateOwner::isPlaying,
+                        playbackCurrentTrackPreparationRuntimeOwner::preparing
+                ),
                 playbackProgressUpdateCommandOwner
         );
         playbackCrossfadeCommandOwner = new PlaybackCrossfadeCommandOwner(

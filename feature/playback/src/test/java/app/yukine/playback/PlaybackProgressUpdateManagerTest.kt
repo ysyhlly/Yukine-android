@@ -107,6 +107,33 @@ class PlaybackProgressUpdateManagerTest {
         assertEquals(null, scheduler.pendingRunnable)
     }
 
+    @Test
+    fun stateProviderFromPlaybackStateDelegatesToSuppliedState() {
+        val events = mutableListOf<String>()
+        val state = PlaybackProgressUpdateManager.stateProviderFromPlaybackState(
+            {
+                events.add("playing")
+                true
+            },
+            {
+                events.add("preparing")
+                false
+            }
+        )
+
+        assertEquals(true, state.isPlaying())
+        assertEquals(false, state.isPreparing())
+        assertEquals(listOf("playing", "preparing"), events)
+    }
+
+    @Test
+    fun stateProviderFromPlaybackStateDefaultsMissingSuppliersToInactive() {
+        val state = PlaybackProgressUpdateManager.stateProviderFromPlaybackState(null, null)
+
+        assertEquals(false, state.isPlaying())
+        assertEquals(false, state.isPreparing())
+    }
+
     private class FakeScheduler : PlaybackProgressUpdateManager.CallbackScheduler {
         var pendingRunnable: Runnable? = null
         var lastDelayMs: Long = -1L

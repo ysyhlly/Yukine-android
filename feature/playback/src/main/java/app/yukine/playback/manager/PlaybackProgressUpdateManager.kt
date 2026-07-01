@@ -1,5 +1,7 @@
 package app.yukine.playback.manager
 
+import java.util.function.BooleanSupplier
+
 internal class PlaybackProgressUpdateManager @JvmOverloads constructor(
     private val scheduler: CallbackScheduler,
     private val stateProvider: StateProvider,
@@ -19,6 +21,20 @@ internal class PlaybackProgressUpdateManager @JvmOverloads constructor(
     interface Actions {
         fun publishState()
         fun persistPlaybackPosition()
+    }
+
+    companion object {
+        private const val DEFAULT_TICK_MS = 1000L
+
+        @JvmStatic
+        fun stateProviderFromPlaybackState(
+            playbackStateProvider: BooleanSupplier?,
+            preparingStateProvider: BooleanSupplier?
+        ): StateProvider = object : StateProvider {
+            override fun isPlaying(): Boolean = playbackStateProvider?.asBoolean == true
+
+            override fun isPreparing(): Boolean = preparingStateProvider?.asBoolean == true
+        }
     }
 
     private val progressRunnable = Runnable { onProgressTick() }
@@ -58,8 +74,4 @@ internal class PlaybackProgressUpdateManager @JvmOverloads constructor(
     }
 
     private fun shouldRun(): Boolean = stateProvider.isPlaying() || stateProvider.isPreparing()
-
-    private companion object {
-        const val DEFAULT_TICK_MS = 1000L
-    }
 }

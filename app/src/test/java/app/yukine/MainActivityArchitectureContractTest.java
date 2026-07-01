@@ -7373,16 +7373,18 @@ public final class MainActivityArchitectureContractTest {
     public void playbackProgressUpdateCommandsAreOwnedOutsideEchoPlaybackService() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String commandOwner = read("app/src/main/java/app/yukine/playback/PlaybackProgressUpdateCommandOwner.java");
-        String stateOwner = read("app/src/main/java/app/yukine/playback/PlaybackProgressUpdateStateOwner.java");
+        String manager = read("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackProgressUpdateManager.kt");
 
         assertFalse(service.contains("new PlaybackProgressUpdateManager.Actions()"));
         assertTrue(service.contains("private PlaybackProgressUpdateCommandOwner playbackProgressUpdateCommandOwner;"));
         assertTrue(service.contains("playbackProgressUpdateCommandOwner = new PlaybackProgressUpdateCommandOwner("));
         assertTrue(service.contains("playbackProgressUpdateCommandOwner"));
         assertFalse(service.contains("new PlaybackProgressUpdateManager.StateProvider()"));
-        assertTrue(service.contains("private PlaybackProgressUpdateStateOwner playbackProgressUpdateStateOwner;"));
-        assertTrue(service.contains("playbackProgressUpdateStateOwner = new PlaybackProgressUpdateStateOwner("));
-        assertTrue(service.contains("                playbackProgressUpdateStateOwner,"));
+        assertFalse(service.contains("private PlaybackProgressUpdateStateOwner playbackProgressUpdateStateOwner;"));
+        assertFalse(service.contains("new PlaybackProgressUpdateStateOwner("));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackProgressUpdateStateOwner.java")));
+        assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackProgressUpdateStateOwnerTest.java")));
+        assertTrue(service.contains("PlaybackProgressUpdateManager.stateProviderFromPlaybackState("));
         assertTrue(commandOwner.contains("final class PlaybackProgressUpdateCommandOwner implements PlaybackProgressUpdateManager.Actions"));
         assertTrue(commandOwner.contains("interface StatePublisher"));
         assertTrue(commandOwner.contains("interface PositionPersister"));
@@ -7393,14 +7395,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("void stopProgressUpdates()"));
         assertTrue(commandOwner.contains("manager.startIfNeeded();"));
         assertTrue(commandOwner.contains("manager.stop();"));
-        assertTrue(stateOwner.contains("final class PlaybackProgressUpdateStateOwner implements PlaybackProgressUpdateManager.StateProvider"));
-        assertFalse(stateOwner.contains("interface PlaybackStateProvider"));
-        assertFalse(stateOwner.contains("interface PreparingStateProvider"));
-        assertTrue(stateOwner.contains("import java.util.function.BooleanSupplier;"));
-        assertTrue(stateOwner.contains("private final BooleanSupplier playbackStateProvider;"));
-        assertTrue(stateOwner.contains("private final BooleanSupplier preparingStateProvider;"));
-        assertTrue(stateOwner.contains("return playbackStateProvider != null && playbackStateProvider.getAsBoolean();"));
-        assertTrue(stateOwner.contains("return preparingStateProvider != null && preparingStateProvider.getAsBoolean();"));
+        assertTrue(manager.contains("fun stateProviderFromPlaybackState("));
+        assertTrue(manager.contains("playbackStateProvider: BooleanSupplier?"));
+        assertTrue(manager.contains("preparingStateProvider: BooleanSupplier?"));
+        assertTrue(manager.contains("override fun isPlaying(): Boolean = playbackStateProvider?.asBoolean == true"));
+        assertTrue(manager.contains("override fun isPreparing(): Boolean = preparingStateProvider?.asBoolean == true"));
     }
 
     @Test
