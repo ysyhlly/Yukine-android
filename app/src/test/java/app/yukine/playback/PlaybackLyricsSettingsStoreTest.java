@@ -5,6 +5,8 @@ import app.yukine.playback.manager.LyricsPublisher;
 
 import org.junit.Test;
 
+import java.util.function.Consumer;
+
 import static org.junit.Assert.assertEquals;
 
 public final class PlaybackLyricsSettingsStoreTest {
@@ -27,6 +29,26 @@ public final class PlaybackLyricsSettingsStoreTest {
         new PlaybackLyricsSettingsStore(settings).restoreInto(null);
 
         assertEquals(0, settings.loadCalls);
+    }
+
+    @Test
+    public void statusBarLyricsEnabledActionDelegatesToPublisher() {
+        FakeLyricsPublisher publisher = new FakeLyricsPublisher();
+        Consumer<Boolean> action =
+                PlaybackLyricsSettingsStore.statusBarLyricsEnabledActionFromSupplier(() -> publisher);
+
+        action.accept(false);
+
+        assertEquals(1, publisher.setStatusBarLyricsEnabledCalls);
+        assertEquals(false, publisher.statusBarLyricsEnabled);
+    }
+
+    @Test
+    public void statusBarLyricsEnabledActionIgnoresMissingPublisher() {
+        Consumer<Boolean> action =
+                PlaybackLyricsSettingsStore.statusBarLyricsEnabledActionFromSupplier(() -> null);
+
+        action.accept(false);
     }
 
     private static final class FakeLyricsSettings implements PlaybackLyricsSettingsStore.LyricsSettings {

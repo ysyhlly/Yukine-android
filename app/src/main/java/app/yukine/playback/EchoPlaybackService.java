@@ -16,6 +16,7 @@ import android.util.Log;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import app.yukine.R;
 import app.yukine.common.EmbeddedArtwork;
@@ -174,6 +175,8 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackSessionManager playbackSessionManager;
     private PlaybackSessionRefreshOwner playbackSessionRefreshOwner;
     private app.yukine.playback.manager.LyricsPublisher playbackLyricsManager;
+    private final Consumer<Boolean> statusBarLyricsEnabledAction =
+            PlaybackLyricsSettingsStore.statusBarLyricsEnabledActionFromSupplier(() -> playbackLyricsManager);
     private PlaybackLyricsStateOwner playbackLyricsStateOwner;
     private PlaybackMediaLibraryCallback playbackMediaLibraryCallback;
     private PlaybackModeSettingsStore playbackModeSettingsStore;
@@ -1089,9 +1092,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void setStatusBarLyricsEnabled(boolean enabled) {
-        if (playbackLyricsManager != null) {
-            playbackLyricsManager.setStatusBarLyricsEnabled(enabled);
-        }
+        statusBarLyricsEnabledAction.accept(enabled);
     }
 
     public void setPlaybackRestoreEnabled(boolean enabled) {

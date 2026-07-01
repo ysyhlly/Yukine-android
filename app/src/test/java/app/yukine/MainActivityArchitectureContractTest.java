@@ -5157,7 +5157,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(lyricsSettingsStore.contains("void restoreInto(LyricsPublisher lyricsPublisher)"));
         assertTrue(lyricsSettingsStore.contains("repository::loadStatusBarLyricsEnabled"));
         assertTrue(lyricsSettingsStore.contains("lyricsPublisher.setStatusBarLyricsEnabled(lyricsSettings.loadStatusBarLyricsEnabled())"));
-        assertTrue(normalizedPlaybackService.contains("public void setStatusBarLyricsEnabled(boolean enabled) {\n        if (playbackLyricsManager != null) {\n            playbackLyricsManager.setStatusBarLyricsEnabled(enabled);\n        }\n    }"));
+        assertTrue(lyricsSettingsStore.contains("static Consumer<Boolean> statusBarLyricsEnabledActionFromSupplier("));
+        assertTrue(lyricsSettingsStore.contains("lyricsPublisher.setStatusBarLyricsEnabled(enabled);"));
+        assertTrue(playbackService.contains(
+                "PlaybackLyricsSettingsStore.statusBarLyricsEnabledActionFromSupplier(() -> playbackLyricsManager)"));
+        assertTrue(normalizedPlaybackService.contains(
+                "public void setStatusBarLyricsEnabled(boolean enabled) {\n        statusBarLyricsEnabledAction.accept(enabled);\n    }"));
+        assertFalse(playbackService.contains("playbackLyricsManager.setStatusBarLyricsEnabled(enabled);"));
         assertFalse(normalizedPlaybackService.contains("public void setStatusBarLyricsEnabled(boolean enabled) {\n        if (playbackLyricsManager != null) {\n            playbackLyricsManager.setStatusBarLyricsEnabled(enabled);\n        }\n        refreshPlaybackSession();"));
         assertFalse(normalizedPlaybackService.contains("public void setStatusBarLyricsEnabled(boolean enabled) {\n        if (playbackLyricsManager != null) {\n            playbackLyricsManager.setStatusBarLyricsEnabled(enabled);\n        }\n        publishPlaybackNotification(true);"));
         assertFalse(normalizedPlaybackService.contains("\n    private boolean hasNotificationWorthyState() {"));
