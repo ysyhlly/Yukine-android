@@ -19,18 +19,11 @@ public class PlaybackQueueStreamingRestoreOwnerTest {
         Track input = track(1L);
         Track restored = track(2L);
         PlaybackQueueStreamingRestoreOwner owner = new PlaybackQueueStreamingRestoreOwner(
-                new PlaybackQueueStreamingRestoreOwner.StreamingRestoreResolver() {
-                    @Override
-                    public Track restoredTrackForPreparation(Track track) {
-                        events.add("track:" + track.id);
-                        return restored;
-                    }
-
-                    @Override
-                    public void restoreHeadersForDataPath(String dataPath) {
-                        events.add("headers:" + dataPath);
-                    }
-                }
+                track -> {
+                    events.add("track:" + track.id);
+                    return restored;
+                },
+                dataPath -> events.add("headers:" + dataPath)
         );
 
         assertSame(restored, owner.restoredTrackFor(input));
@@ -42,6 +35,14 @@ public class PlaybackQueueStreamingRestoreOwnerTest {
                 ),
                 events
         );
+    }
+
+    @Test
+    public void missingRestoreActionsAreSafe() {
+        PlaybackQueueStreamingRestoreOwner owner = new PlaybackQueueStreamingRestoreOwner(null, null);
+
+        org.junit.Assert.assertNull(owner.restoredTrackFor(track(3L)));
+        owner.restoreForDataPath("streaming:test:3");
     }
 
     private static Track track(long id) {
