@@ -7,38 +7,30 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.function.BiPredicate;
+import java.util.function.IntFunction;
+import java.util.function.Supplier;
+
 final class PlaybackMirroredQueueTrackMatcherOwner
         implements PlaybackQueueManager.QueueTrackMatcher {
-    interface PlayerProvider {
-        Player player();
-    }
-
-    interface PlayerMediaItemProvider {
-        MediaItem mediaItemAt(int index);
-    }
-
-    interface TrackMediaItemMatcher {
-        boolean mediaItemMatchesTrackForReuse(MediaItem mediaItem, Track track);
-    }
-
-    private final PlayerMediaItemProvider playerMediaItemProvider;
-    private final TrackMediaItemMatcher trackMediaItemMatcher;
+    private final IntFunction<MediaItem> playerMediaItemProvider;
+    private final BiPredicate<MediaItem, Track> trackMediaItemMatcher;
 
     PlaybackMirroredQueueTrackMatcherOwner(
-            PlayerMediaItemProvider playerMediaItemProvider,
-            TrackMediaItemMatcher trackMediaItemMatcher
+            IntFunction<MediaItem> playerMediaItemProvider,
+            BiPredicate<MediaItem, Track> trackMediaItemMatcher
     ) {
         this.playerMediaItemProvider = playerMediaItemProvider;
         this.trackMediaItemMatcher = trackMediaItemMatcher;
     }
 
     static PlaybackMirroredQueueTrackMatcherOwner fromPlayerProvider(
-            PlayerProvider playerProvider,
+            Supplier<Player> playerProvider,
             PlaybackMediaSourceProvider mediaSourceProvider
     ) {
         return new PlaybackMirroredQueueTrackMatcherOwner(
                 index -> {
-                    Player player = playerProvider == null ? null : playerProvider.player();
+                    Player player = playerProvider == null ? null : playerProvider.get();
                     return player == null ? null : player.getMediaItemAt(index);
                 },
                 mediaSourceProvider == null
@@ -53,8 +45,8 @@ final class PlaybackMirroredQueueTrackMatcherOwner
             return false;
         }
         try {
-            MediaItem mediaItem = playerMediaItemProvider.mediaItemAt(index);
-            return trackMediaItemMatcher.mediaItemMatchesTrackForReuse(mediaItem, track);
+            MediaItem mediaItem = playerMediaItemProvider.apply(index);
+            return trackMediaItemMatcher.test(mediaItem, track);
         } catch (IndexOutOfBoundsException | IllegalStateException error) {
             return false;
         }

@@ -14,10 +14,10 @@ public class PlaybackMirroredQueueTrackMatcherOwnerTest {
     public void delegatesPlayerMediaItemAndTrackToMatcher() {
         MediaItem mediaItem = new MediaItem.Builder().setUri("https://example.test/one.mp3").build();
         Track track = track();
-        FakeTrackMediaItemMatcher matcher = new FakeTrackMediaItemMatcher(true);
+        FakeMediaItemMatcher matcher = new FakeMediaItemMatcher(true);
         PlaybackMirroredQueueTrackMatcherOwner owner = new PlaybackMirroredQueueTrackMatcherOwner(
                 index -> index == 2 ? mediaItem : null,
-                matcher
+                matcher::matches
         );
 
         assertEquals(true, owner.matches(2, track));
@@ -57,18 +57,16 @@ public class PlaybackMirroredQueueTrackMatcherOwnerTest {
         );
     }
 
-    private static final class FakeTrackMediaItemMatcher
-            implements PlaybackMirroredQueueTrackMatcherOwner.TrackMediaItemMatcher {
+    private static final class FakeMediaItemMatcher {
         private final boolean matches;
         private MediaItem lastMediaItem;
         private Track lastTrack;
 
-        private FakeTrackMediaItemMatcher(boolean matches) {
+        private FakeMediaItemMatcher(boolean matches) {
             this.matches = matches;
         }
 
-        @Override
-        public boolean mediaItemMatchesTrackForReuse(MediaItem mediaItem, Track track) {
+        public boolean matches(MediaItem mediaItem, Track track) {
             lastMediaItem = mediaItem;
             lastTrack = track;
             return matches;

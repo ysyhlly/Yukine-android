@@ -5600,9 +5600,14 @@ public final class MainActivityArchitectureContractTest {
                 "final class PlaybackMirroredQueueTrackMatcherOwner"));
         assertTrue(mirroredTrackMatcherOwner.contains(
                 "implements PlaybackQueueManager.QueueTrackMatcher"));
-        assertTrue(mirroredTrackMatcherOwner.contains("interface PlayerProvider"));
-        assertTrue(mirroredTrackMatcherOwner.contains("interface PlayerMediaItemProvider"));
-        assertTrue(mirroredTrackMatcherOwner.contains("interface TrackMediaItemMatcher"));
+        assertFalse(mirroredTrackMatcherOwner.contains("interface PlayerProvider"));
+        assertFalse(mirroredTrackMatcherOwner.contains("interface PlayerMediaItemProvider"));
+        assertFalse(mirroredTrackMatcherOwner.contains("interface TrackMediaItemMatcher"));
+        assertTrue(mirroredTrackMatcherOwner.contains("import java.util.function.BiPredicate;"));
+        assertTrue(mirroredTrackMatcherOwner.contains("import java.util.function.IntFunction;"));
+        assertTrue(mirroredTrackMatcherOwner.contains("import java.util.function.Supplier;"));
+        assertTrue(mirroredTrackMatcherOwner.contains("private final IntFunction<MediaItem> playerMediaItemProvider;"));
+        assertTrue(mirroredTrackMatcherOwner.contains("private final BiPredicate<MediaItem, Track> trackMediaItemMatcher;"));
         assertTrue(mirroredTrackMatcherOwner.contains("mediaSourceProvider::mediaItemMatchesTrackForReuse"));
         assertTrue(mirroredTrackMatcherOwner.contains("player.getMediaItemAt(index)"));
         assertTrue(recoveryDiagnosticsOwner.contains("final class PlaybackRecoveryDiagnosticsRecorderOwner"));
