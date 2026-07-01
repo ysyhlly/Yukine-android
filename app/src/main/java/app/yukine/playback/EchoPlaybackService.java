@@ -209,7 +209,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackVisualizationCacheStateOwner playbackVisualizationCacheStateOwner;
     private PlaybackVisualizationCacheManager playbackVisualizationCacheManager;
     private PlaybackNotificationArtworkManager playbackNotificationArtworkManager;
-    private PlaybackNotificationArtworkStateOwner playbackNotificationArtworkStateOwner;
     private PlaybackPrecacheStateOwner playbackPrecacheStateOwner;
     private PlaybackPrecacheManager playbackPrecacheManager;
     private PlaybackWarmupCoordinator playbackWarmupCoordinator;
@@ -721,12 +720,9 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackShutdownServiceResourcesOwner,
                 playbackShutdownLifecycleResourcesOwner
         );
-        playbackNotificationArtworkStateOwner = new PlaybackNotificationArtworkStateOwner(
-                () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()
-        );
         playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(
                 this,
-                playbackNotificationArtworkStateOwner,
+                () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
                 new PlaybackNotificationArtworkBridgeOwner(
                         playbackSessionRefreshOwner,
                         playbackNotificationCommandOwner::publishPlaybackNotification

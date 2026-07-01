@@ -7410,7 +7410,6 @@ public final class MainActivityArchitectureContractTest {
         String stateOwner = read("app/src/main/java/app/yukine/playback/PlaybackNotificationStateOwner.java");
         String activeStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackActiveStateOwner.java");
         String artworkProviderOwner = read("app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkProviderOwner.java");
-        String artworkStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkStateOwner.java");
         String artworkSource = read("feature/playback/src/main/java/app/yukine/playback/PlaybackNotificationArtworkSource.java");
         String toggleFavoriteUseCase = read("app/src/main/java/app/yukine/ToggleFavoriteUseCase.kt");
 
@@ -7450,9 +7449,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackNotificationArtworkProviderOwner = new PlaybackNotificationArtworkProviderOwner("));
         assertTrue(service.contains("                playbackNotificationArtworkProviderOwner,"));
         assertFalse(service.contains("new PlaybackNotificationManager.ArtworkProvider()"));
-        assertTrue(service.contains("private PlaybackNotificationArtworkStateOwner playbackNotificationArtworkStateOwner;"));
-        assertTrue(service.contains("playbackNotificationArtworkStateOwner = new PlaybackNotificationArtworkStateOwner("));
-        assertTrue(service.contains("                playbackNotificationArtworkStateOwner,"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkStateOwner.java")));
+        assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackNotificationArtworkStateOwnerTest.java")));
+        assertFalse(service.contains("PlaybackNotificationArtworkStateOwner"));
+        assertTrue(service.contains("                () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),"));
         assertTrue(activeStateOwner.contains("final class PlaybackActiveStateOwner implements"));
         assertTrue(activeStateOwner.contains("PlaybackNotificationStateOwner.PlaybackStateProvider"));
         assertTrue(activeStateOwner.contains("PlaybackLyricsStateOwner.PlaybackStateProvider"));
@@ -7556,11 +7556,6 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(artworkProviderOwner.contains("PlaybackNotificationArtworkSource source = artworkSource();"));
         assertTrue(artworkProviderOwner.contains("return source == null ? null : source.notificationArtworkFor(track);"));
         assertTrue(artworkProviderOwner.contains("return source == null ? null : source.notificationArtworkDataFor(track);"));
-        assertTrue(artworkStateOwner.contains("final class PlaybackNotificationArtworkStateOwner implements PlaybackNotificationArtworkManager.StateProvider"));
-        assertFalse(artworkStateOwner.contains("interface CurrentTrackProvider"));
-        assertTrue(artworkStateOwner.contains("import java.util.function.Supplier;"));
-        assertTrue(artworkStateOwner.contains("private final Supplier<Track> currentTrackProvider;"));
-        assertTrue(artworkStateOwner.contains("return currentTrackProvider == null ? null : currentTrackProvider.get();"));
         assertTrue(artworkSource.contains("interface PlaybackNotificationArtworkSource"));
         assertTrue(artworkSource.contains("Bitmap notificationArtworkFor(Track track);"));
         assertTrue(artworkSource.contains("byte[] notificationArtworkDataFor(Track track);"));
