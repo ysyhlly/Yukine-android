@@ -14,8 +14,11 @@ public class PlaybackCurrentTrackPreparationRuntimeOwnerTest {
     @Test
     public void delegatesRuntimeStatePreparationUpdates() {
         List<String> events = new ArrayList<>();
+        FakeRuntimeStateActions actions = new FakeRuntimeStateActions(events);
         PlaybackCurrentTrackPreparationRuntimeOwner owner = new PlaybackCurrentTrackPreparationRuntimeOwner(
-                () -> new FakeRuntimeStateOperations(events)
+                actions::setPreparing,
+                actions::setErrorMessage,
+                actions::preparing
         );
 
         owner.setPreparing(false);
@@ -33,8 +36,11 @@ public class PlaybackCurrentTrackPreparationRuntimeOwnerTest {
     @Test
     public void beginPreparingAndOpenFailureUsePreparationRuntimeState() {
         List<String> events = new ArrayList<>();
+        FakeRuntimeStateActions actions = new FakeRuntimeStateActions(events);
         PlaybackCurrentTrackPreparationRuntimeOwner owner = new PlaybackCurrentTrackPreparationRuntimeOwner(
-                () -> new FakeRuntimeStateOperations(events)
+                actions::setPreparing,
+                actions::setErrorMessage,
+                actions::preparing
         );
 
         owner.beginPreparing();
@@ -53,9 +59,11 @@ public class PlaybackCurrentTrackPreparationRuntimeOwnerTest {
     @Test
     public void readsPreparingRuntimeState() {
         List<String> events = new ArrayList<>();
-        FakeRuntimeStateOperations runtimeStateOperations = new FakeRuntimeStateOperations(events);
+        FakeRuntimeStateActions actions = new FakeRuntimeStateActions(events);
         PlaybackCurrentTrackPreparationRuntimeOwner owner = new PlaybackCurrentTrackPreparationRuntimeOwner(
-                () -> runtimeStateOperations
+                actions::setPreparing,
+                actions::setErrorMessage,
+                actions::preparing
         );
 
         owner.beginPreparing();
@@ -66,21 +74,10 @@ public class PlaybackCurrentTrackPreparationRuntimeOwnerTest {
     }
 
     @Test
-    public void ignoresMissingRuntimeStateOperations() {
+    public void ignoresMissingRuntimeStateActions() {
         PlaybackCurrentTrackPreparationRuntimeOwner owner = new PlaybackCurrentTrackPreparationRuntimeOwner(
-                () -> null
-        );
-
-        owner.setPreparing(false);
-        owner.setErrorMessage("ignored");
-        owner.beginPreparing();
-        owner.markUnableToOpenCurrentTrack();
-        assertFalse(owner.preparing());
-    }
-
-    @Test
-    public void ignoresMissingRuntimeStateOperationsProvider() {
-        PlaybackCurrentTrackPreparationRuntimeOwner owner = new PlaybackCurrentTrackPreparationRuntimeOwner(
+                null,
+                null,
                 null
         );
 
@@ -91,27 +88,23 @@ public class PlaybackCurrentTrackPreparationRuntimeOwnerTest {
         assertFalse(owner.preparing());
     }
 
-    private static final class FakeRuntimeStateOperations
-            implements PlaybackCurrentTrackPreparationRuntimeOwner.RuntimeStateOperations {
+    private static final class FakeRuntimeStateActions {
         private final List<String> events;
         private boolean preparing;
 
-        private FakeRuntimeStateOperations(List<String> events) {
+        private FakeRuntimeStateActions(List<String> events) {
             this.events = events;
         }
 
-        @Override
         public void setPreparing(boolean preparing) {
             this.preparing = preparing;
             events.add("preparing:" + preparing);
         }
 
-        @Override
         public void setErrorMessage(String message) {
             events.add("error:" + message);
         }
 
-        @Override
         public boolean preparing() {
             return preparing;
         }
