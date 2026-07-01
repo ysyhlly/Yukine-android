@@ -1,5 +1,8 @@
 package app.yukine.playback;
 
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+
 final class PlaybackShutdownServiceResourcesOwner implements PlaybackShutdownCoordinator.ServiceResources {
     private final Runnable unregisterNoisyReceiver;
     private final Runnable releaseWarmup;
@@ -57,6 +60,15 @@ final class PlaybackShutdownServiceResourcesOwner implements PlaybackShutdownCoo
                 if (scheduler != null) {
                     scheduler.shutdownNow();
                 }
+            }
+        };
+    }
+
+    static <T> Runnable releaseFrom(Supplier<T> provider, Consumer<T> releaseAction) {
+        return () -> {
+            T resource = provider == null ? null : provider.get();
+            if (resource != null && releaseAction != null) {
+                releaseAction.accept(resource);
             }
         };
     }

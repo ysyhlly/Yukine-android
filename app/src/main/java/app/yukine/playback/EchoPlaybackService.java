@@ -643,75 +643,62 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackWarmupActionsOwner::scheduleVisualizationCache
         );
         playbackShutdownServiceResourcesOwner = new PlaybackShutdownServiceResourcesOwner(
-                () -> {
-                    if (playbackNoisyReceiverManager != null) {
-                        playbackNoisyReceiverManager.unregister();
-                    }
-                },
-                () -> {
-                    if (playbackWarmupCoordinator != null) {
-                        playbackWarmupCoordinator.release();
-                    }
-                },
-                () -> {
-                    if (playbackVisualizationAnalyzer != null) {
-                        playbackVisualizationAnalyzer.release();
-                    }
-                },
-                () -> {
-                    if (playbackRecoveryScheduler != null) {
-                        playbackRecoveryScheduler.release();
-                    }
-                },
+                PlaybackShutdownServiceResourcesOwner.releaseFrom(
+                        () -> playbackNoisyReceiverManager,
+                        PlaybackNoisyReceiverManager::unregister
+                ),
+                PlaybackShutdownServiceResourcesOwner.releaseFrom(
+                        () -> playbackWarmupCoordinator,
+                        PlaybackWarmupCoordinator::release
+                ),
+                PlaybackShutdownServiceResourcesOwner.releaseFrom(
+                        () -> playbackVisualizationAnalyzer,
+                        PlaybackVisualizationAnalyzer::release
+                ),
+                PlaybackShutdownServiceResourcesOwner.releaseFrom(
+                        () -> playbackRecoveryScheduler,
+                        PlaybackRecoveryScheduler::release
+                ),
                 PlaybackShutdownServiceResourcesOwner.shutdownPlaybackTaskSchedulers(
                         playbackTaskScheduler,
                         visualizationTaskScheduler
                 ),
-                () -> {
-                    if (playbackErrorRecoveryManager != null) {
-                        playbackErrorRecoveryManager.release();
-                    }
-                },
-                () -> {
-                    if (playbackProgressUpdateManager != null) {
-                        playbackProgressUpdateManager.release();
-                    }
-                },
-                () -> {
-                    if (playbackSleepTimerManager != null) {
-                        playbackSleepTimerManager.release();
-                    }
-                },
-                () -> {
-                    if (playbackCrossfadeAdvanceManager != null) {
-                        playbackCrossfadeAdvanceManager.release();
-                    }
-                },
-                () -> {
-                    if (playbackMainHandlerSchedulerOwner != null) {
-                        playbackMainHandlerSchedulerOwner.clearCallbacks();
-                    }
-                },
-                () -> {
-                    if (playbackVisualizationCacheManager != null) {
-                        playbackVisualizationCacheManager.release();
-                    }
-                },
-                () -> {
-                    if (playbackNotificationArtworkManager != null) {
-                        playbackNotificationArtworkManager.release();
-                    }
-                },
-                () -> {
-                    if (playbackPrecacheManager != null) {
-                        playbackPrecacheManager.release();
-                    }
-                },
-                () -> {
-                    if (playbackStatePublisher != null) {
-                        playbackStatePublisher.release();
-                    }
-                }
+                PlaybackShutdownServiceResourcesOwner.releaseFrom(
+                        () -> playbackErrorRecoveryManager,
+                        PlaybackErrorRecoveryManager::release
+                ),
+                PlaybackShutdownServiceResourcesOwner.releaseFrom(
+                        () -> playbackProgressUpdateManager,
+                        PlaybackProgressUpdateManager::release
+                ),
+                PlaybackShutdownServiceResourcesOwner.releaseFrom(
+                        () -> playbackSleepTimerManager,
+                        PlaybackSleepTimerManager::release
+                ),
+                PlaybackShutdownServiceResourcesOwner.releaseFrom(
+                        () -> playbackCrossfadeAdvanceManager,
+                        PlaybackCrossfadeAdvanceManager::release
+                ),
+                PlaybackShutdownServiceResourcesOwner.releaseFrom(
+                        () -> playbackMainHandlerSchedulerOwner,
+                        PlaybackMainHandlerSchedulerOwner::clearCallbacks
+                ),
+                PlaybackShutdownServiceResourcesOwner.releaseFrom(
+                        () -> playbackVisualizationCacheManager,
+                        PlaybackVisualizationCacheManager::release
+                ),
+                PlaybackShutdownServiceResourcesOwner.releaseFrom(
+                        () -> playbackNotificationArtworkManager,
+                        PlaybackNotificationArtworkManager::release
+                ),
+                PlaybackShutdownServiceResourcesOwner.releaseFrom(
+                        () -> playbackPrecacheManager,
+                        PlaybackPrecacheManager::release
+                ),
+                PlaybackShutdownServiceResourcesOwner.releaseFrom(
+                        () -> playbackStatePublisher,
+                        PlaybackStatePublisher::release
+                )
         );
         playbackShutdownLifecycleResourcesOwner = new PlaybackShutdownLifecycleResourcesOwner(
                 () -> EchoPlaybackService.this.persistPlaybackPositionThrottled(true),

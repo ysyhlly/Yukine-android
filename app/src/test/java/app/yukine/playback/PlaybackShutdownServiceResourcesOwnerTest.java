@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 
@@ -97,6 +98,29 @@ public class PlaybackShutdownServiceResourcesOwnerTest {
         second.schedule(PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE, executedTasks::incrementAndGet);
 
         assertEquals(0, executedTasks.get());
+    }
+
+    @Test
+    public void releaseFromRunsProvidedActionWhenResourceExists() {
+        AtomicReference<String> released = new AtomicReference<>();
+
+        PlaybackShutdownServiceResourcesOwner.releaseFrom(
+                () -> "resource",
+                released::set
+        ).run();
+
+        assertEquals("resource", released.get());
+    }
+
+    @Test
+    public void releaseFromIgnoresMissingProviderResourceOrAction() {
+        PlaybackShutdownServiceResourcesOwner.releaseFrom(null, resource -> {
+            throw new AssertionError("missing provider should not run release action");
+        }).run();
+        PlaybackShutdownServiceResourcesOwner.releaseFrom(() -> null, resource -> {
+            throw new AssertionError("missing resource should not run release action");
+        }).run();
+        PlaybackShutdownServiceResourcesOwner.releaseFrom(() -> "resource", null).run();
     }
 
     private static PlaybackShutdownServiceResourcesOwner owner(List<String> calls) {
