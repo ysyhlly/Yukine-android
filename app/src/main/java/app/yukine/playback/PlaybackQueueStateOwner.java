@@ -63,10 +63,6 @@ final class PlaybackQueueStateOwner implements
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 
-    public Track currentTrack() {
-        return queueStateSnapshot().getCurrentTrack();
-    }
-
     List<Track> queueSnapshot() {
         List<Track> snapshot = queueSnapshotSupplier == null ? null : queueSnapshotSupplier.get();
         return snapshot == null ? Collections.emptyList() : snapshot;

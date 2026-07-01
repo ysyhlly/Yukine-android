@@ -163,7 +163,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     private final PlaybackRuntimeStateOwner playbackRuntimeStateOwner = new PlaybackRuntimeStateOwner(
             () -> player,
             playbackQueueMirrorStateOwner::playerMirrorsQueue,
-            playbackQueueStateOwner::currentTrack
+            () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()
     );
     private final PlaybackRuntimeStateManager playbackRuntimeStateManager =
             new PlaybackRuntimeStateManager(playbackRuntimeStateOwner);
@@ -378,7 +378,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackTransitionStateManager
         );
         playbackPositionStateOwner = new PlaybackPositionStateOwner(
-                playbackQueueStateOwner::currentTrack,
+                () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
                 playbackPlayerStateOwner
         );
         playbackPositionManager = new PlaybackPositionManager(queueStore, playbackPositionStateOwner);
@@ -392,7 +392,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackSleepTimerCommandOwner
         );
         playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner(
-                playbackQueueStateOwner::currentTrack,
+                () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
                 playbackQueueStateOwner,
                 EchoPlaybackService.this::prepareCurrent,
                 EchoPlaybackService.this,
@@ -482,7 +482,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackNotificationForegroundOwner::stopForegroundAndSelf
         );
         playbackActiveStateOwner = new PlaybackActiveStateOwner(
-                playbackQueueStateOwner::currentTrack,
+                () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
                 playbackPlayerStateOwner,
                 playbackCurrentTrackPreparationRuntimeOwner::preparing
         );
@@ -543,7 +543,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 ),
                 () -> player != null,
                 playbackCurrentTrackPreparationRuntimeOwner::setPreparing,
-                playbackQueueStateOwner::currentTrack,
+                () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
                 EchoPlaybackService.this::resetWaveformIfTrackChanged,
                 EchoPlaybackService.this::applyPlaybackModeAndParametersToPlayer,
                 (index, positionMs) -> player.seekTo(index, positionMs),
@@ -618,7 +618,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackVisualizationCacheStateOwner = new PlaybackVisualizationCacheStateOwner(
                 () -> mainHandler,
-                playbackQueueStateOwner::currentTrack,
+                () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
                 task -> visualizationTaskScheduler.schedule(PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE, task)
         );
         playbackVisualizationCacheManager = new PlaybackVisualizationCacheManager(
@@ -726,7 +726,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackShutdownLifecycleResourcesOwner
         );
         playbackNotificationArtworkStateOwner = new PlaybackNotificationArtworkStateOwner(
-                playbackQueueStateOwner::currentTrack
+                () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()
         );
         playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(
                 this,
@@ -757,7 +757,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                         mediaSourceProvider::streamingQualityForTrack
                 );
         playbackPrecacheStateOwner = new PlaybackPrecacheStateOwner(
-                playbackQueueStateOwner::currentTrack,
+                () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
                 PlaybackPrecacheStateOwner.playerMediaItemSupplierFromPlayerSupplier(() -> player),
                 () -> streamingDiagnostics
         );
@@ -786,7 +786,9 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
         playbackWifiLockManager = new PlaybackWifiLockManager(
                 PlaybackWifiLockOwner.fromWifiLock(wifiLock),
-                new PlaybackWifiLockStreamingTrackOwner(playbackQueueStateOwner::currentTrack),
+                new PlaybackWifiLockStreamingTrackOwner(
+                        () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()
+                ),
                 mediaSourceProvider::isHttpTrack
         );
         publishState();
@@ -810,7 +812,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                     EchoPlaybackService.this::seekTo,
                     EchoPlaybackService.this::setRepeatMode,
                     playbackControllerMediaItemsOwner,
-                    playbackQueueStateOwner::currentTrack,
+                    () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
                     playbackNotificationManager::mediaMetadataForTrack
             );
         }
@@ -1501,7 +1503,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     private Track currentTrack() {
-        return playbackQueueStateOwner.currentTrack();
+        return playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack();
     }
 
     private boolean isPlaying() {
