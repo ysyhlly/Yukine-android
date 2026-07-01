@@ -1689,10 +1689,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(bufferedProgressOwner.contains(
                 "implements PlaybackVisualizationStateOwner.BufferedProgressProvider"));
         assertTrue(bufferedProgressOwner.contains("interface PlaybackPositionProvider"));
-        assertTrue(bufferedProgressOwner.contains("interface PlayerBufferProvider"));
-        assertTrue(bufferedProgressOwner.contains("Player player = playerProvider == null ? null : playerProvider.player();"));
-        assertTrue(bufferedProgressOwner.contains("player::getBufferedPosition"));
-        assertTrue(bufferedProgressOwner.contains("Math.max(positionMs, playerBufferProvider.bufferedPositionMs())"));
+        assertFalse(bufferedProgressOwner.contains("interface PlayerBufferProvider"));
+        assertFalse(bufferedProgressOwner.contains("PlayerBufferProviderSource"));
+        assertTrue(bufferedProgressOwner.contains("private final PlayerProvider playerProvider;"));
+        assertTrue(bufferedProgressOwner.contains("Player player = player();"));
+        assertTrue(bufferedProgressOwner.contains("Math.max(positionMs, player.getBufferedPosition())"));
         assertTrue(bufferedProgressOwner.contains("Math.max(0.0f, Math.min(1.0f, bufferedMs / (float) durationMs))"));
         assertTrue(visualizationStateOwner.contains("return bufferedProgressProvider.bufferedProgress(durationMs);"));
         assertTrue(visualizationStateOwner.contains("statePublisher.publishState();"));

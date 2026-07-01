@@ -12,36 +12,22 @@ final class PlaybackBufferedProgressOwner
         Player player();
     }
 
-    interface PlayerBufferProvider {
-        long bufferedPositionMs();
-    }
-
-    interface PlayerBufferProviderSource {
-        PlayerBufferProvider playerBufferProvider();
-    }
-
     private final PlaybackPositionProvider playbackPositionProvider;
-    private final PlayerBufferProviderSource playerBufferProviderSource;
+    private final PlayerProvider playerProvider;
 
     PlaybackBufferedProgressOwner(
             PlaybackPositionProvider playbackPositionProvider,
-            PlayerBufferProviderSource playerBufferProviderSource
+            PlayerProvider playerProvider
     ) {
         this.playbackPositionProvider = playbackPositionProvider;
-        this.playerBufferProviderSource = playerBufferProviderSource;
+        this.playerProvider = playerProvider;
     }
 
     static PlaybackBufferedProgressOwner fromPlayerProvider(
             PlaybackPositionProvider playbackPositionProvider,
             PlayerProvider playerProvider
     ) {
-        return new PlaybackBufferedProgressOwner(
-                playbackPositionProvider,
-                () -> {
-                    Player player = playerProvider == null ? null : playerProvider.player();
-                    return player == null ? null : player::getBufferedPosition;
-                }
-        );
+        return new PlaybackBufferedProgressOwner(playbackPositionProvider, playerProvider);
     }
 
     @Override
@@ -49,20 +35,20 @@ final class PlaybackBufferedProgressOwner
         if (durationMs <= 0L) {
             return 0.0f;
         }
-        PlayerBufferProvider playerBufferProvider = playerBufferProvider();
-        if (playerBufferProvider == null) {
+        Player player = player();
+        if (player == null) {
             return 0.0f;
         }
         try {
             long positionMs = playbackPositionProvider == null ? 0L : playbackPositionProvider.positionMs();
-            long bufferedMs = Math.max(positionMs, playerBufferProvider.bufferedPositionMs());
+            long bufferedMs = Math.max(positionMs, player.getBufferedPosition());
             return Math.max(0.0f, Math.min(1.0f, bufferedMs / (float) durationMs));
         } catch (IllegalStateException ignored) {
             return 0.0f;
         }
     }
 
-    private PlayerBufferProvider playerBufferProvider() {
-        return playerBufferProviderSource == null ? null : playerBufferProviderSource.playerBufferProvider();
+    private Player player() {
+        return playerProvider == null ? null : playerProvider.player();
     }
 }
