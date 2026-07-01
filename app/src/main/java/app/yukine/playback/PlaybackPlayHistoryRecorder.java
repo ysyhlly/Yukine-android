@@ -4,6 +4,9 @@ import app.yukine.data.MusicLibraryRepository;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackTransitionStateManager;
 
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
+
 final class PlaybackPlayHistoryRecorder {
     interface HistorySink {
         void markPlayed(long trackId);
@@ -25,6 +28,24 @@ final class PlaybackPlayHistoryRecorder {
             PlaybackTransitionStateManager transitionStateManager
     ) {
         return new PlaybackPlayHistoryRecorder(repository::markPlayed, transitionStateManager);
+    }
+
+    static Runnable recordIfPlaybackStartedAction(
+            Supplier<PlaybackPlayHistoryRecorder> recorderProvider,
+            BooleanSupplier playWhenReady,
+            Supplier<Track> currentTrack
+    ) {
+        return () -> {
+            PlaybackPlayHistoryRecorder recorder =
+                    recorderProvider == null ? null : recorderProvider.get();
+            if (recorder == null) {
+                return;
+            }
+            recorder.recordIfPlaybackStarted(
+                    playWhenReady != null && playWhenReady.getAsBoolean(),
+                    currentTrack == null ? null : currentTrack.get()
+            );
+        };
     }
 
     void recordIfPlaybackStarted(boolean playWhenReady, Track track) {

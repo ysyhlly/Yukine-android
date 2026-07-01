@@ -187,6 +187,12 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackErrorRecoveryCommandOwner playbackErrorRecoveryCommandOwner;
     private PlaybackErrorRecoveryManager playbackErrorRecoveryManager;
     private PlaybackPlayHistoryRecorder playbackPlayHistoryRecorder;
+    private final Runnable recordPlaybackStartHistoryAction =
+            PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
+                    () -> playbackPlayHistoryRecorder,
+                    () -> player != null && player.getPlayWhenReady(),
+                    this::currentTrack
+            );
     private PlaybackQueueCommandOwner playbackQueueCommandOwner;
     private PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner;
     private PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner;
@@ -271,12 +277,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 if (playbackErrorRecoveryManager != null) {
                     playbackErrorRecoveryManager.onPlaybackReady();
                 }
-                if (playbackPlayHistoryRecorder != null) {
-                    playbackPlayHistoryRecorder.recordIfPlaybackStarted(
-                            player.getPlayWhenReady(),
-                            currentTrack()
-                    );
-                }
+                recordPlaybackStartHistoryAction.run();
             } else if (playbackState == Player.STATE_ENDED) {
                 playAfterCompletion();
                 return;

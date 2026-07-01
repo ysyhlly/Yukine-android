@@ -8,6 +8,8 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackTransitionStateManager;
@@ -42,6 +44,29 @@ public final class PlaybackPlayHistoryRecorderTest {
         recorder.recordIfPlaybackStarted(true, track(1L));
         recorder.recordIfPlaybackStarted(true, track(1L));
         recorder.recordIfPlaybackStarted(true, track(2L));
+
+        assertEquals(list(1L, 2L), historySink.markedTrackIds);
+    }
+
+    @Test
+    public void recordIfPlaybackStartedActionUsesLatestRecorderAndState() {
+        FakeHistorySink historySink = new FakeHistorySink();
+        AtomicReference<PlaybackPlayHistoryRecorder> recorder = new AtomicReference<>();
+        AtomicBoolean playWhenReady = new AtomicBoolean(false);
+        AtomicReference<Track> currentTrack = new AtomicReference<>(track(1L));
+        Runnable action = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
+                recorder::get,
+                playWhenReady::get,
+                currentTrack::get
+        );
+
+        action.run();
+        recorder.set(recorder(historySink));
+        action.run();
+        playWhenReady.set(true);
+        action.run();
+        currentTrack.set(track(2L));
+        action.run();
 
         assertEquals(list(1L, 2L), historySink.markedTrackIds);
     }
