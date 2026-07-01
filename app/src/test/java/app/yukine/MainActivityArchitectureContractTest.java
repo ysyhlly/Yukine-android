@@ -1596,7 +1596,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playerStateOwner.contains("PlaybackProgressUpdateStateOwner.PlaybackStateProvider"));
         assertTrue(playerStateOwner.contains("PlaybackCrossfadeStateOwner.PlaybackStateProvider"));
         assertTrue(playerStateOwner.contains("PlaybackRealtimeVisualizationOwner.PlaybackStateProvider"));
-        assertTrue(playerStateOwner.contains("PlaybackPositionStateOwner.PlaybackPositionProvider"));
+        assertFalse(playerStateOwner.contains("PlaybackPositionStateOwner.PlaybackPositionProvider"));
         assertFalse(playerStateOwner.contains("PlaybackNoisyReceiverActionsOwner.PlaybackStateProvider"));
         assertFalse(playerStateOwner.contains("PlaybackShutdownPlaybackStateOwner.PlaybackStateProvider"));
         assertTrue(playerStateOwner.contains("return playerStateOperations.isPlaying();"));
@@ -5304,6 +5304,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queuePersistenceOwner.contains("playbackQueueManager.persistCurrentPlaybackPosition(force);"));
         assertTrue(service.contains("private PlaybackPositionStateOwner playbackPositionStateOwner;"));
         assertTrue(service.contains("playbackPositionStateOwner = new PlaybackPositionStateOwner("));
+        assertTrue(service.contains("                playbackPlayerStateOwner::positionMs"));
         assertTrue(service.contains("playbackPositionManager = new PlaybackPositionManager(queueStore, playbackPositionStateOwner);"));
         assertFalse(service.contains("new PlaybackPositionManager.StateProvider()"));
         assertFalse(service.contains("private long restoredPositionFor(Track track)"));
@@ -5334,10 +5335,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(positionOwner.contains("fun persistCurrentPosition(force: Boolean)"));
         assertTrue(positionOwner.contains("fun setExplicitRestoredPosition(track: Track?, positionMs: Long)"));
         assertTrue(positionStateOwner.contains("final class PlaybackPositionStateOwner implements PlaybackPositionManager.StateProvider"));
-        assertTrue(positionStateOwner.contains("interface CurrentTrackProvider"));
-        assertTrue(positionStateOwner.contains("interface PlaybackPositionProvider"));
-        assertTrue(positionStateOwner.contains("return currentTrackProvider.currentTrack();"));
-        assertTrue(positionStateOwner.contains("return playbackPositionProvider.positionMs();"));
+        assertFalse(positionStateOwner.contains("interface CurrentTrackProvider"));
+        assertFalse(positionStateOwner.contains("interface PlaybackPositionProvider"));
+        assertTrue(positionStateOwner.contains("import java.util.function.LongSupplier;"));
+        assertTrue(positionStateOwner.contains("import java.util.function.Supplier;"));
+        assertTrue(positionStateOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
+        assertTrue(positionStateOwner.contains("private final LongSupplier playbackPositionSupplier;"));
+        assertTrue(positionStateOwner.contains("return currentTrackSupplier.get();"));
+        assertTrue(positionStateOwner.contains("return playbackPositionSupplier.getAsLong();"));
     }
 
     @Test

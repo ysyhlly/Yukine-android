@@ -6,7 +6,6 @@ import androidx.media3.common.Player;
 final class PlaybackPlayerStateOwner implements
         PlaybackCrossfadeStateOwner.PlaybackStateProvider,
         PlaybackRealtimeVisualizationOwner.PlaybackStateProvider,
-        PlaybackPositionStateOwner.PlaybackPositionProvider,
         PlaybackStateSnapshotOwner.PlaybackPositionProvider,
         PlaybackBufferedProgressOwner.PlaybackPositionProvider {
     interface PlayerProvider {

@@ -3,33 +3,28 @@ package app.yukine.playback;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackPositionManager;
 
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+
 final class PlaybackPositionStateOwner implements PlaybackPositionManager.StateProvider {
-    interface CurrentTrackProvider {
-        Track currentTrack();
-    }
-
-    interface PlaybackPositionProvider {
-        long positionMs();
-    }
-
-    private final CurrentTrackProvider currentTrackProvider;
-    private final PlaybackPositionProvider playbackPositionProvider;
+    private final Supplier<Track> currentTrackSupplier;
+    private final LongSupplier playbackPositionSupplier;
 
     PlaybackPositionStateOwner(
-            CurrentTrackProvider currentTrackProvider,
-            PlaybackPositionProvider playbackPositionProvider
+            Supplier<Track> currentTrackSupplier,
+            LongSupplier playbackPositionSupplier
     ) {
-        this.currentTrackProvider = currentTrackProvider;
-        this.playbackPositionProvider = playbackPositionProvider;
+        this.currentTrackSupplier = currentTrackSupplier;
+        this.playbackPositionSupplier = playbackPositionSupplier;
     }
 
     @Override
     public Track currentTrack() {
-        return currentTrackProvider.currentTrack();
+        return currentTrackSupplier.get();
     }
 
     @Override
     public long positionMs() {
-        return playbackPositionProvider.positionMs();
+        return playbackPositionSupplier.getAsLong();
     }
 }

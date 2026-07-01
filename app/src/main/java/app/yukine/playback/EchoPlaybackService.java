@@ -379,7 +379,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackPositionStateOwner = new PlaybackPositionStateOwner(
                 () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
-                playbackPlayerStateOwner
+                playbackPlayerStateOwner::positionMs
         );
         playbackPositionManager = new PlaybackPositionManager(queueStore, playbackPositionStateOwner);
         playbackSleepTimerCommandOwner = new PlaybackSleepTimerCommandOwner(
