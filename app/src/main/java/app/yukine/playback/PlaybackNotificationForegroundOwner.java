@@ -10,8 +10,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 final class PlaybackNotificationForegroundOwner
-        implements PlaybackNotificationManager.ForegroundController,
-        PlaybackNotificationCommandOwner.ForegroundController {
+        implements PlaybackNotificationManager.ForegroundController {
     private final Supplier<PendingIntent> activityPendingIntentProvider;
     private final BiFunction<String, Integer, PendingIntent> serviceActionPendingIntentProvider;
     private final Consumer<Notification> foregroundStarter;
@@ -52,7 +51,6 @@ final class PlaybackNotificationForegroundOwner
         foregroundStarter.accept(notification);
     }
 
-    @Override
     public void stopForegroundAndSelf() {
         if (foregroundStopper != null) {
             foregroundStopper.run();

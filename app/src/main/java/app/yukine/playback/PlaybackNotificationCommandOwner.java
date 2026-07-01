@@ -2,6 +2,10 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackNotificationManager;
 
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+
 final class PlaybackNotificationCommandOwner implements PlaybackNotificationManager.ActionCallbacks {
     interface PlaybackCommands {
         void play();
@@ -19,79 +23,59 @@ final class PlaybackNotificationCommandOwner implements PlaybackNotificationMana
         void stopAndClear();
     }
 
-    interface NotificationPublisher {
-        void publishPlaybackNotification(boolean force);
-    }
-
-    interface StatePublisherProvider {
-        PlaybackStatePublisher playbackStatePublisher();
-    }
-
-    interface NotificationManagerProvider {
-        PlaybackNotificationManager playbackNotificationManager();
-    }
-
-    interface NotificationStateProvider {
-        boolean hasNotificationWorthyState();
-    }
-
-    interface ForegroundController {
-        void stopForegroundAndSelf();
-    }
-
-    private final NotificationPublisher notificationPublisher;
-    private final NotificationStateProvider notificationStateProvider;
+    private final Consumer<Boolean> notificationPublisher;
+    private final BooleanSupplier notificationWorthySupplier;
     private final PlaybackCommands playbackCommands;
-    private final ForegroundController foregroundController;
+    private final Runnable foregroundStopper;
 
     static PlaybackNotificationCommandOwner fromNotificationOwners(
-            StatePublisherProvider statePublisherProvider,
-            NotificationManagerProvider notificationManagerProvider,
-            NotificationStateProvider notificationStateProvider,
+            Supplier<PlaybackStatePublisher> statePublisherProvider,
+            Supplier<PlaybackNotificationManager> notificationManagerProvider,
+            BooleanSupplier notificationWorthySupplier,
             PlaybackCommands playbackCommands,
-            ForegroundController foregroundController
+            Runnable foregroundStopper
     ) {
         return new PlaybackNotificationCommandOwner(
                 force -> {
                     PlaybackStatePublisher statePublisher = statePublisherProvider == null
                             ? null
-                            : statePublisherProvider.playbackStatePublisher();
+                            : statePublisherProvider.get();
                     if (statePublisher != null) {
                         statePublisher.publishNotification(force);
                         return;
                     }
                     PlaybackNotificationManager notificationManager = notificationManagerProvider == null
                             ? null
-                            : notificationManagerProvider.playbackNotificationManager();
+                            : notificationManagerProvider.get();
                     if (notificationManager != null) {
                         notificationManager.updateMediaNotification(force);
                     }
                 },
-                notificationStateProvider,
+                notificationWorthySupplier,
                 playbackCommands,
-                foregroundController
+                foregroundStopper
         );
     }
 
     PlaybackNotificationCommandOwner(
-            NotificationPublisher notificationPublisher,
-            NotificationStateProvider notificationStateProvider,
+            Consumer<Boolean> notificationPublisher,
+            BooleanSupplier notificationWorthySupplier,
             PlaybackCommands playbackCommands,
-            ForegroundController foregroundController
+            Runnable foregroundStopper
     ) {
         this.notificationPublisher = notificationPublisher;
-        this.notificationStateProvider = notificationStateProvider;
+        this.notificationWorthySupplier = notificationWorthySupplier;
         this.playbackCommands = playbackCommands;
-        this.foregroundController = foregroundController;
+        this.foregroundStopper = foregroundStopper;
     }
 
     @Override
     public void publishPlaybackNotification(boolean force) {
-        notificationPublisher.publishPlaybackNotification(force);
+        notificationPublisher.accept(force);
     }
 
     boolean hasNotificationWorthyState() {
-        return notificationStateProvider != null && notificationStateProvider.hasNotificationWorthyState();
+        return notificationWorthySupplier != null && notificationWorthySupplier.getAsBoolean();
     }
 
     void publishPlaybackNotificationIfWorthy() {
@@ -137,6 +121,6 @@ final class PlaybackNotificationCommandOwner implements PlaybackNotificationMana
 
     @Override
     public void stopForegroundAndSelf() {
-        foregroundController.stopForegroundAndSelf();
+        foregroundStopper.run();
     }
 }
