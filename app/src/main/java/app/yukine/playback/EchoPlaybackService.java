@@ -1252,7 +1252,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         playerFactory.releasePlayer(
                 player, playerListener, audioEffectManager,
                 this::releasePlaybackSession,
-                PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerProvider(
+                PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerSupplier(
                         () -> playbackPrecacheManager
                 )::releaseAudioCache
         );

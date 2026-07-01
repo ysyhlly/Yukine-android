@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 
 import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
@@ -78,10 +79,6 @@ final class PlaybackPrecacheManager {
         CacheDataSource cacheDataSourceForTrack(Track track);
 
         boolean mediaItemMatchesTrackForReuse(MediaItem mediaItem, Track track);
-    }
-
-    interface PrecacheManagerProvider {
-        PlaybackPrecacheManager playbackPrecacheManager();
     }
 
     private final StateProvider stateProvider;
@@ -181,12 +178,12 @@ final class PlaybackPrecacheManager {
         }
     }
 
-    static AudioCacheReleaser audioCacheReleaserFromPrecacheManagerProvider(
-            PrecacheManagerProvider provider
+    static AudioCacheReleaser audioCacheReleaserFromPrecacheManagerSupplier(
+            Supplier<PlaybackPrecacheManager> supplier
     ) {
         return () -> {
             PlaybackPrecacheManager manager =
-                    provider == null ? null : provider.playbackPrecacheManager();
+                    supplier == null ? null : supplier.get();
             if (manager != null) {
                 manager.releaseAudioCache();
             }

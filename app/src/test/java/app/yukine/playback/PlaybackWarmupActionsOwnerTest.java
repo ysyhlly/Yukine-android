@@ -36,6 +36,17 @@ public class PlaybackWarmupActionsOwnerTest {
         nullProvidersOwner.scheduleVisualizationCache(track());
     }
 
+    @Test
+    public void fromManagersIgnoresMissingSuppliedManagers() {
+        PlaybackWarmupActionsOwner owner = PlaybackWarmupActionsOwner.fromManagers(
+                () -> null,
+                () -> null
+        );
+
+        owner.precacheTrack(track());
+        owner.scheduleVisualizationCache(track());
+    }
+
     private static Track track() {
         return new Track(
                 11L,
@@ -57,4 +68,5 @@ public class PlaybackWarmupActionsOwnerTest {
             lastTrack = track;
         }
     }
+
 }

@@ -81,7 +81,7 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
-    public void audioCacheReleaserFromProviderDelegatesThroughManagerOnce() {
+    public void audioCacheReleaserFromSupplierDelegatesThroughManagerOnce() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
         FakeAudioCacheReleaser audioCacheReleaser = new FakeAudioCacheReleaser();
@@ -93,7 +93,7 @@ public final class PlaybackPrecacheManagerTest {
                 audioCacheReleaser
         );
         PlaybackPrecacheManager.AudioCacheReleaser releaser =
-                PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerProvider(() -> manager);
+                PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerSupplier(() -> manager);
 
         releaser.releaseAudioCache();
         releaser.releaseAudioCache();
@@ -102,9 +102,9 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
-    public void audioCacheReleaserFromProviderIgnoresMissingManager() {
+    public void audioCacheReleaserFromSupplierIgnoresMissingManager() {
         PlaybackPrecacheManager.AudioCacheReleaser releaser =
-                PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerProvider(() -> null);
+                PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerSupplier(() -> null);
 
         releaser.releaseAudioCache();
     }

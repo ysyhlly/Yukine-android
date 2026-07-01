@@ -1,18 +1,11 @@
 package app.yukine.playback;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import app.yukine.model.Track;
 
 final class PlaybackWarmupActionsOwner {
-    interface PrecacheManagerProvider {
-        PlaybackPrecacheManager playbackPrecacheManager();
-    }
-
-    interface VisualizationCacheManagerProvider {
-        PlaybackVisualizationCacheManager playbackVisualizationCacheManager();
-    }
-
     private final Consumer<Track> precacheAction;
     private final Consumer<Track> visualizationCacheAction;
 
@@ -25,22 +18,22 @@ final class PlaybackWarmupActionsOwner {
     }
 
     static PlaybackWarmupActionsOwner fromManagers(
-            PrecacheManagerProvider precacheManagerProvider,
-            VisualizationCacheManagerProvider visualizationCacheManagerProvider
+            Supplier<PlaybackPrecacheManager> precacheManagerSupplier,
+            Supplier<PlaybackVisualizationCacheManager> visualizationCacheManagerSupplier
     ) {
         return new PlaybackWarmupActionsOwner(
                 track -> {
-                    PlaybackPrecacheManager manager = precacheManagerProvider == null
+                    PlaybackPrecacheManager manager = precacheManagerSupplier == null
                             ? null
-                            : precacheManagerProvider.playbackPrecacheManager();
+                            : precacheManagerSupplier.get();
                     if (manager != null) {
                         manager.precacheTrack(track);
                     }
                 },
                 track -> {
-                    PlaybackVisualizationCacheManager manager = visualizationCacheManagerProvider == null
+                    PlaybackVisualizationCacheManager manager = visualizationCacheManagerSupplier == null
                             ? null
-                            : visualizationCacheManagerProvider.playbackVisualizationCacheManager();
+                            : visualizationCacheManagerSupplier.get();
                     if (manager != null) {
                         manager.scheduleVisualizationCache(track);
                     }

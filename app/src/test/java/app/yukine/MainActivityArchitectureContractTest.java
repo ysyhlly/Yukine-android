@@ -1858,8 +1858,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("private final IntFunction<List<Track>> upcomingTracksProvider;"));
         assertTrue(playbackPrecacheManager.contains("upcomingTracksProvider.apply(SEGMENTED_PRECACHE_CONCURRENCY)"));
         assertTrue(playbackPrecacheManager.contains("interface AudioCacheReleaser"));
-        assertTrue(playbackPrecacheManager.contains("interface PrecacheManagerProvider"));
-        assertTrue(playbackPrecacheManager.contains("static AudioCacheReleaser audioCacheReleaserFromPrecacheManagerProvider("));
+        assertFalse(playbackPrecacheManager.contains("interface PrecacheManagerProvider"));
+        assertTrue(playbackPrecacheManager.contains("import java.util.function.Supplier;"));
+        assertTrue(playbackPrecacheManager.contains("static AudioCacheReleaser audioCacheReleaserFromPrecacheManagerSupplier("));
         assertTrue(playbackPrecacheManager.contains("private final AudioCacheReleaser audioCacheReleaser;"));
         assertFalse(playbackPrecacheManager.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertFalse(playbackPrecacheManager.contains("private final PlaybackQueueManager playbackQueueManager;"));
@@ -1887,8 +1888,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheStateOwner.contains("playerOperations.mediaItemCount() <= 0"));
         assertTrue(playbackPrecacheStateOwner.contains("return playerOperations.currentMediaItem();"));
         assertTrue(playbackWarmupActionsOwner.contains("final class PlaybackWarmupActionsOwner"));
-        assertTrue(playbackWarmupActionsOwner.contains("interface PrecacheManagerProvider"));
-        assertTrue(playbackWarmupActionsOwner.contains("interface VisualizationCacheManagerProvider"));
+        assertFalse(playbackWarmupActionsOwner.contains("interface PrecacheManagerProvider"));
+        assertFalse(playbackWarmupActionsOwner.contains("interface VisualizationCacheManagerProvider"));
+        assertTrue(playbackWarmupActionsOwner.contains("import java.util.function.Supplier;"));
+        assertTrue(playbackWarmupActionsOwner.contains("Supplier<PlaybackPrecacheManager> precacheManagerSupplier"));
+        assertTrue(playbackWarmupActionsOwner.contains("Supplier<PlaybackVisualizationCacheManager> visualizationCacheManagerSupplier"));
         assertFalse(playbackWarmupActionsOwner.contains("interface PrecacheOperations"));
         assertFalse(playbackWarmupActionsOwner.contains("interface VisualizationCacheOperations"));
         assertFalse(playbackWarmupActionsOwner.contains("interface PrecacheOperationsProvider"));
@@ -1903,7 +1907,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackWarmupActionsOwner.contains("visualizationCacheAction.accept(track);"));
         assertTrue(playbackPrecacheManager.contains("void precacheTrack(Track track)"));
         assertTrue(playbackPrecacheManager.contains("void release()"));
-        assertTrue(playbackService.contains("PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerProvider("));
+        assertTrue(playbackService.contains("PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerSupplier("));
+        assertFalse(playbackService.contains("PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerProvider("));
         assertFalse(playbackService.contains("playbackPrecacheManager.releaseAudioCache();"));
         assertTrue(playbackPrecacheManager.contains("private final ThreadPoolExecutor playbackCacheExecutor"));
         assertTrue(playbackPrecacheManager.contains("private final Set<String> activePrecacheRanges"));
@@ -6068,7 +6073,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("mediaSourceProvider.mediaSourcesForTracks("));
         assertTrue(service.contains("playbackNotificationManager::mediaMetadataForTrack"));
         assertFalse(service.contains("playbackPrecacheManager.releaseAudioCache();"));
-        assertTrue(service.contains("PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerProvider("));
+        assertTrue(service.contains("PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerSupplier("));
+        assertFalse(service.contains("PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerProvider("));
         assertFalse(service.contains("mediaSourceProvider::releaseAudioCache"));
         assertTrue(precacheManager.contains("void releaseAudioCache()"));
         assertTrue(precacheManager.contains("audioCacheReleased.compareAndSet(false, true)"));
@@ -6709,7 +6715,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(releasePlayerMethod.contains("playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false)"));
         assertFalse(releasePlayerMethod.contains("playbackRuntimeStateManager.setPreparing(false)"));
         assertFalse(releasePlayerMethod.contains("playbackPrecacheManager.releaseAudioCache();"));
-        assertTrue(releasePlayerMethod.contains("PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerProvider("));
+        assertTrue(releasePlayerMethod.contains("PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerSupplier("));
         assertTrue(service.contains("private PlaybackShutdownServiceResourcesOwner playbackShutdownServiceResourcesOwner;"));
         assertTrue(service.contains("playbackShutdownServiceResourcesOwner = new PlaybackShutdownServiceResourcesOwner("));
         assertTrue(service.contains("private PlaybackShutdownLifecycleResourcesOwner playbackShutdownLifecycleResourcesOwner;"));
