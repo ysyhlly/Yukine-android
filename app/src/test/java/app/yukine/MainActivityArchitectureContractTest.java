@@ -5840,7 +5840,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private boolean isAtEndOfQueue()"));
         assertTrue(service.contains("playbackQueueStateOwner,"));
         assertFalse(service.contains("playbackQueueManager.canCrossfadeAdvance(repeatMode)"));
-        assertTrue(service.contains("playbackQueueMirroredTransitionOwner.applyMirroredTransitionIndex("));
+        assertTrue(service.contains("playbackQueueMirroredTransitionOwner.applyMirroredTransitionReason("));
+        assertFalse(service.contains("isAutomaticMediaItemAdvance(reason)"));
+        assertFalse(service.contains("static boolean isAutomaticMediaItemAdvance(int reason)"));
         assertFalse(service.contains("playbackQueueManager.applyMirroredTransitionIndex(nextIndex, isAutomaticMediaItemAdvance(reason))"));
         assertTrue(service.contains("playbackQueueMirroredTransitionOwner.prepareMirroredTransitionPlaybackState();"));
         assertFalse(service.contains("playbackQueueManager.prepareMirroredTransitionPlaybackState();"));
@@ -5866,6 +5868,9 @@ public final class MainActivityArchitectureContractTest {
                 "private final BiFunction<Integer, Boolean, PlaybackQueueManager.MirroredTransitionResult> applyMirroredTransitionIndex;"));
         assertTrue(mirroredTransitionOwner.contains(
                 "private final BooleanSupplier prepareMirroredTransitionPlaybackState;"));
+        assertTrue(mirroredTransitionOwner.contains("PlaybackQueueManager.MirroredTransitionResult applyMirroredTransitionReason("));
+        assertTrue(mirroredTransitionOwner.contains("static boolean isAutomaticMediaItemAdvance(int reason)"));
+        assertTrue(mirroredTransitionOwner.contains("return reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO;"));
         assertTrue(mirroredTransitionOwner.contains(
                 "Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertFalse(mirroredTransitionOwner.contains("mirroredTransitionOperationsProvider"));

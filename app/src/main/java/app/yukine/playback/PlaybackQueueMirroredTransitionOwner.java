@@ -1,5 +1,7 @@
 package app.yukine.playback;
 
+import androidx.media3.common.Player;
+
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BiFunction;
@@ -74,6 +76,17 @@ final class PlaybackQueueMirroredTransitionOwner {
         return applyMirroredTransitionIndex == null
                 ? null
                 : applyMirroredTransitionIndex.apply(nextIndex, automaticAdvance);
+    }
+
+    PlaybackQueueManager.MirroredTransitionResult applyMirroredTransitionReason(
+            int nextIndex,
+            int reason
+    ) {
+        return applyMirroredTransitionIndex(nextIndex, isAutomaticMediaItemAdvance(reason));
+    }
+
+    static boolean isAutomaticMediaItemAdvance(int reason) {
+        return reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO;
     }
 
     void prepareMirroredTransitionPlaybackState() {

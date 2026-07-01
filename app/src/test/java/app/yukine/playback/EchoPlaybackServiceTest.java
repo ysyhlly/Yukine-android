@@ -34,22 +34,6 @@ public class EchoPlaybackServiceTest {
     }
 
     @Test
-    public void automaticMediaItemTransitionIsDetectedForRepeatOffStop() {
-        assertEquals(
-                true,
-                EchoPlaybackService.isAutomaticMediaItemAdvance(Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
-        );
-        assertEquals(
-                false,
-                EchoPlaybackService.isAutomaticMediaItemAdvance(Player.MEDIA_ITEM_TRANSITION_REASON_SEEK)
-        );
-        assertEquals(
-                false,
-                EchoPlaybackService.isAutomaticMediaItemAdvance(Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)
-        );
-    }
-
-    @Test
     public void contentRangeTotalBytesAreParsedForSegmentedPrecacheProbe() {
         assertEquals(1234567L, PlaybackPrecacheManager.totalBytesFromContentRange("bytes 524288-524288/1234567"));
         assertEquals(-1L, PlaybackPrecacheManager.totalBytesFromContentRange("bytes 0-0/*"));

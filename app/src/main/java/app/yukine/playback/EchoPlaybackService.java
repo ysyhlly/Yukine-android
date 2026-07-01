@@ -293,10 +293,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             }
             int nextIndex = player.getCurrentMediaItemIndex();
             PlaybackQueueManager.MirroredTransitionResult transition =
-                    playbackQueueMirroredTransitionOwner.applyMirroredTransitionIndex(
-                            nextIndex,
-                            isAutomaticMediaItemAdvance(reason)
-                    );
+                    playbackQueueMirroredTransitionOwner.applyMirroredTransitionReason(nextIndex, reason);
             if (transition == null) {
                 return;
             }
@@ -1385,10 +1382,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                 || command == Player.COMMAND_SEEK_TO_NEXT
                 || command == Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM
                 || command == Player.COMMAND_SEEK_TO_NEXT_WINDOW;
-    }
-
-    static boolean isAutomaticMediaItemAdvance(int reason) {
-        return reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO;
     }
 
     private void stopAfterAutomaticAdvance(int completedIndex) {
