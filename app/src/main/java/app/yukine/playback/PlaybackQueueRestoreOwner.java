@@ -38,25 +38,19 @@ final class PlaybackQueueRestoreOwner {
     ) {
         return new PlaybackQueueRestoreOwner(
                 () -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
-                            ? null
-                            : playbackQueueManagerSupplier.get();
+                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
                     if (playbackQueueManager != null) {
                         playbackQueueManager.restorePlaybackQueue();
                     }
                 },
                 playWhenRestored -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
-                            ? null
-                            : playbackQueueManagerSupplier.get();
+                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
                     return playbackQueueManager == null
                             ? null
                             : playbackQueueManager.restoreLastPlayback(playWhenRestored);
                 },
                 enabled -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
-                            ? null
-                            : playbackQueueManagerSupplier.get();
+                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
                     if (playbackQueueManager != null) {
                         playbackQueueManager.setPlaybackRestoreEnabled(enabled);
                     }
@@ -65,6 +59,12 @@ final class PlaybackQueueRestoreOwner {
                 prepareCurrent,
                 statePublisher
         );
+    }
+
+    private static PlaybackQueueManager playbackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
+    ) {
+        return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }
 
     void restoreLastPlayback(boolean playWhenRestored) {
