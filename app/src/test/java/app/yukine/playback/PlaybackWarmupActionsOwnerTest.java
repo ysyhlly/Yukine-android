@@ -12,35 +12,28 @@ public class PlaybackWarmupActionsOwnerTest {
     @Test
     public void delegatesPrecacheAndVisualizationWarmup() {
         Track track = track();
-        FakePrecacheOperations precacheOperations = new FakePrecacheOperations();
-        FakeVisualizationCacheOperations visualizationOperations =
-                new FakeVisualizationCacheOperations();
+        FakeWarmupAction precacheAction = new FakeWarmupAction();
+        FakeWarmupAction visualizationAction = new FakeWarmupAction();
         PlaybackWarmupActionsOwner owner = new PlaybackWarmupActionsOwner(
-                () -> precacheOperations,
-                () -> visualizationOperations
+                precacheAction::accept,
+                visualizationAction::accept
         );
 
         owner.precacheTrack(track);
         owner.scheduleVisualizationCache(track);
 
-        assertEquals(1, precacheOperations.calls);
-        assertSame(track, precacheOperations.lastTrack);
-        assertEquals(1, visualizationOperations.calls);
-        assertSame(track, visualizationOperations.lastTrack);
+        assertEquals(1, precacheAction.calls);
+        assertSame(track, precacheAction.lastTrack);
+        assertEquals(1, visualizationAction.calls);
+        assertSame(track, visualizationAction.lastTrack);
     }
 
     @Test
     public void ignoresMissingWarmupOperations() {
         PlaybackWarmupActionsOwner nullProvidersOwner = new PlaybackWarmupActionsOwner(null, null);
-        PlaybackWarmupActionsOwner missingOperationsOwner = new PlaybackWarmupActionsOwner(
-                () -> null,
-                () -> null
-        );
 
         nullProvidersOwner.precacheTrack(track());
         nullProvidersOwner.scheduleVisualizationCache(track());
-        missingOperationsOwner.precacheTrack(track());
-        missingOperationsOwner.scheduleVisualizationCache(track());
     }
 
     private static Track track() {
@@ -55,25 +48,11 @@ public class PlaybackWarmupActionsOwnerTest {
         );
     }
 
-    private static final class FakePrecacheOperations
-            implements PlaybackWarmupActionsOwner.PrecacheOperations {
+    private static final class FakeWarmupAction {
         private int calls;
         private Track lastTrack;
 
-        @Override
-        public void precacheTrack(Track track) {
-            calls++;
-            lastTrack = track;
-        }
-    }
-
-    private static final class FakeVisualizationCacheOperations
-            implements PlaybackWarmupActionsOwner.VisualizationCacheOperations {
-        private int calls;
-        private Track lastTrack;
-
-        @Override
-        public void scheduleVisualizationCache(Track track) {
+        private void accept(Track track) {
             calls++;
             lastTrack = track;
         }

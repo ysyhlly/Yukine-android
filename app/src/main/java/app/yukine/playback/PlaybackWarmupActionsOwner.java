@@ -1,5 +1,7 @@
 package app.yukine.playback;
 
+import java.util.function.Consumer;
+
 import app.yukine.model.Track;
 
 final class PlaybackWarmupActionsOwner {
@@ -11,31 +13,15 @@ final class PlaybackWarmupActionsOwner {
         PlaybackVisualizationCacheManager playbackVisualizationCacheManager();
     }
 
-    interface PrecacheOperations {
-        void precacheTrack(Track track);
-    }
-
-    interface VisualizationCacheOperations {
-        void scheduleVisualizationCache(Track track);
-    }
-
-    interface PrecacheOperationsProvider {
-        PrecacheOperations precacheOperations();
-    }
-
-    interface VisualizationCacheOperationsProvider {
-        VisualizationCacheOperations visualizationCacheOperations();
-    }
-
-    private final PrecacheOperationsProvider precacheOperationsProvider;
-    private final VisualizationCacheOperationsProvider visualizationCacheOperationsProvider;
+    private final Consumer<Track> precacheAction;
+    private final Consumer<Track> visualizationCacheAction;
 
     PlaybackWarmupActionsOwner(
-            PrecacheOperationsProvider precacheOperationsProvider,
-            VisualizationCacheOperationsProvider visualizationCacheOperationsProvider
+            Consumer<Track> precacheAction,
+            Consumer<Track> visualizationCacheAction
     ) {
-        this.precacheOperationsProvider = precacheOperationsProvider;
-        this.visualizationCacheOperationsProvider = visualizationCacheOperationsProvider;
+        this.precacheAction = precacheAction;
+        this.visualizationCacheAction = visualizationCacheAction;
     }
 
     static PlaybackWarmupActionsOwner fromManagers(
@@ -43,88 +29,34 @@ final class PlaybackWarmupActionsOwner {
             VisualizationCacheManagerProvider visualizationCacheManagerProvider
     ) {
         return new PlaybackWarmupActionsOwner(
-                new PrecacheManagerOperationsProvider(precacheManagerProvider),
-                new VisualizationCacheManagerOperationsProvider(visualizationCacheManagerProvider)
+                track -> {
+                    PlaybackPrecacheManager manager = precacheManagerProvider == null
+                            ? null
+                            : precacheManagerProvider.playbackPrecacheManager();
+                    if (manager != null) {
+                        manager.precacheTrack(track);
+                    }
+                },
+                track -> {
+                    PlaybackVisualizationCacheManager manager = visualizationCacheManagerProvider == null
+                            ? null
+                            : visualizationCacheManagerProvider.playbackVisualizationCacheManager();
+                    if (manager != null) {
+                        manager.scheduleVisualizationCache(track);
+                    }
+                }
         );
     }
 
     void precacheTrack(Track track) {
-        PrecacheOperations operations = precacheOperationsProvider == null
-                ? null
-                : precacheOperationsProvider.precacheOperations();
-        if (operations != null) {
-            operations.precacheTrack(track);
+        if (precacheAction != null) {
+            precacheAction.accept(track);
         }
     }
 
     void scheduleVisualizationCache(Track track) {
-        VisualizationCacheOperations operations = visualizationCacheOperationsProvider == null
-                ? null
-                : visualizationCacheOperationsProvider.visualizationCacheOperations();
-        if (operations != null) {
-            operations.scheduleVisualizationCache(track);
-        }
-    }
-
-    private static final class PrecacheManagerOperationsProvider implements PrecacheOperationsProvider {
-        private final PrecacheManagerProvider precacheManagerProvider;
-
-        private PrecacheManagerOperationsProvider(PrecacheManagerProvider precacheManagerProvider) {
-            this.precacheManagerProvider = precacheManagerProvider;
-        }
-
-        @Override
-        public PrecacheOperations precacheOperations() {
-            PlaybackPrecacheManager manager = precacheManagerProvider == null
-                    ? null
-                    : precacheManagerProvider.playbackPrecacheManager();
-            return manager == null ? null : new PrecacheManagerOperations(manager);
-        }
-    }
-
-    private static final class VisualizationCacheManagerOperationsProvider
-            implements VisualizationCacheOperationsProvider {
-        private final VisualizationCacheManagerProvider visualizationCacheManagerProvider;
-
-        private VisualizationCacheManagerOperationsProvider(
-                VisualizationCacheManagerProvider visualizationCacheManagerProvider
-        ) {
-            this.visualizationCacheManagerProvider = visualizationCacheManagerProvider;
-        }
-
-        @Override
-        public VisualizationCacheOperations visualizationCacheOperations() {
-            PlaybackVisualizationCacheManager manager = visualizationCacheManagerProvider == null
-                    ? null
-                    : visualizationCacheManagerProvider.playbackVisualizationCacheManager();
-            return manager == null ? null : new VisualizationCacheManagerOperations(manager);
-        }
-    }
-
-    private static final class PrecacheManagerOperations implements PrecacheOperations {
-        private final PlaybackPrecacheManager manager;
-
-        private PrecacheManagerOperations(PlaybackPrecacheManager manager) {
-            this.manager = manager;
-        }
-
-        @Override
-        public void precacheTrack(Track track) {
-            manager.precacheTrack(track);
-        }
-    }
-
-    private static final class VisualizationCacheManagerOperations
-            implements VisualizationCacheOperations {
-        private final PlaybackVisualizationCacheManager manager;
-
-        private VisualizationCacheManagerOperations(PlaybackVisualizationCacheManager manager) {
-            this.manager = manager;
-        }
-
-        @Override
-        public void scheduleVisualizationCache(Track track) {
-            manager.scheduleVisualizationCache(track);
+        if (visualizationCacheAction != null) {
+            visualizationCacheAction.accept(track);
         }
     }
 }
