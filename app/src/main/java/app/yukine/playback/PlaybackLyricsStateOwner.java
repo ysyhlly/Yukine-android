@@ -3,11 +3,9 @@ package app.yukine.playback;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackLyricsManager;
 
-final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvider {
-    interface AppVisibilityProvider {
-        boolean isAppVisible();
-    }
+import java.util.function.BooleanSupplier;
 
+final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvider {
     interface PlaybackStateProvider {
         Track currentTrack();
 
@@ -16,20 +14,20 @@ final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvi
         boolean isPreparing();
     }
 
-    private final AppVisibilityProvider appVisibilityProvider;
+    private final BooleanSupplier appVisibilitySupplier;
     private final PlaybackStateProvider playbackStateProvider;
 
     PlaybackLyricsStateOwner(
-            AppVisibilityProvider appVisibilityProvider,
+            BooleanSupplier appVisibilitySupplier,
             PlaybackStateProvider playbackStateProvider
     ) {
-        this.appVisibilityProvider = appVisibilityProvider;
+        this.appVisibilitySupplier = appVisibilitySupplier;
         this.playbackStateProvider = playbackStateProvider;
     }
 
     @Override
     public boolean isAppVisible() {
-        return appVisibilityProvider.isAppVisible();
+        return appVisibilitySupplier.getAsBoolean();
     }
 
     @Override

@@ -5108,9 +5108,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(lyricsOwner.contains("notificationBridge.notifyMediaNotification(true)"));
         assertTrue(lyricsOwner.contains("notificationBridge.hasNotificationWorthyState()"));
         assertTrue(lyricsStateOwner.contains("final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvider"));
-        assertTrue(lyricsStateOwner.contains("interface AppVisibilityProvider"));
+        assertFalse(lyricsStateOwner.contains("interface AppVisibilityProvider"));
         assertTrue(lyricsStateOwner.contains("interface PlaybackStateProvider"));
-        assertTrue(lyricsStateOwner.contains("return appVisibilityProvider.isAppVisible();"));
+        assertTrue(lyricsStateOwner.contains("import java.util.function.BooleanSupplier;"));
+        assertTrue(lyricsStateOwner.contains("private final BooleanSupplier appVisibilitySupplier;"));
+        assertTrue(lyricsStateOwner.contains("return appVisibilitySupplier.getAsBoolean();"));
         assertTrue(lyricsStateOwner.contains("return playbackStateProvider.currentTrack();"));
         assertTrue(lyricsStateOwner.contains("return playbackStateProvider.isPlaying();"));
         assertTrue(lyricsStateOwner.contains("return playbackStateProvider.isPreparing();"));
