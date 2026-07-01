@@ -9,6 +9,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -122,7 +123,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
             events.add("track:" + index + ":" + matchedTrack.id);
             return matchedTrack == track;
         };
-        PlaybackQueueMirroredPlayerOwner.MirroredQueueMatcher matcher =
+        BooleanSupplier matcher =
                 PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
                         () -> {
                             events.add("mirrors");
@@ -143,7 +144,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                         queueTrackMatcher
                 );
 
-        assertTrue(matcher.matchesCurrentQueue());
+        assertTrue(matcher.getAsBoolean());
 
         assertEquals(
                 java.util.Arrays.asList(
@@ -160,7 +161,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     @Test
     public void matcherReturnsFalseWhenMirrorStateOrPlayerIsMissing() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueMirroredPlayerOwner.MirroredQueueMatcher matcher =
+        BooleanSupplier matcher =
                 PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
                         () -> {
                             events.add("mirrors");
@@ -181,13 +182,13 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                         (index, track) -> true
                 );
 
-        assertFalse(matcher.matchesCurrentQueue());
+        assertFalse(matcher.getAsBoolean());
         assertEquals(java.util.Collections.singletonList("mirrors"), events);
     }
 
     @Test
     public void matcherReturnsFalseWhenPlayerStateCannotBeRead() {
-        PlaybackQueueMirroredPlayerOwner.MirroredQueueMatcher matcher =
+        BooleanSupplier matcher =
                 PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
                         () -> true,
                         () -> true,
@@ -198,13 +199,13 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                         (index, track) -> true
                 );
 
-        assertFalse(matcher.matchesCurrentQueue());
+        assertFalse(matcher.getAsBoolean());
     }
 
     @Test
     public void matcherReturnsFalseWhenPlaybackQueueManagerSupplierIsMissing() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueMirroredPlayerOwner.MirroredQueueMatcher matcher =
+        BooleanSupplier matcher =
                 PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManager(
                         () -> {
                             events.add("mirrors");
@@ -222,7 +223,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                         (index, track) -> true
                 );
 
-        assertFalse(matcher.matchesCurrentQueue());
+        assertFalse(matcher.getAsBoolean());
         assertEquals(
                 java.util.Arrays.asList("mirrors", "hasPlayer"),
                 events
