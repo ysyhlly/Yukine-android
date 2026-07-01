@@ -46,7 +46,7 @@ internal class PlaybackLyricsManager(
             }
             lastLyricNotificationUpdateAtMs = now
             notificationBridge.notifyMediaNotification(false)
-            updateLiveLyricsNotificationService(nextLyric)
+            updateLiveLyricsNotificationService()
         }
     }
 
@@ -75,7 +75,7 @@ internal class PlaybackLyricsManager(
         }
         statusBarLyricsEnabled = enabled
         lastNotificationLyric = ""
-        updateLiveLyricsNotificationService(notificationLyricText(stateProvider.currentTrack()))
+        updateLiveLyricsNotificationService()
         notificationBridge.refreshPlaybackSession()
         notificationBridge.notifyMediaNotification(true)
     }
@@ -150,7 +150,7 @@ internal class PlaybackLyricsManager(
         return track.title == state.trackTitle && track.artist == state.artist
     }
 
-    private fun updateLiveLyricsNotificationService(lyricText: String) {
+    private fun updateLiveLyricsNotificationService() {
         if (!statusBarLyricsEnabled || stateProvider.currentTrack() == null || (!stateProvider.isPlaying() && !stateProvider.isPreparing())) {
             LiveLyricsNotificationService.stop(context)
             return

@@ -129,6 +129,65 @@ class PlaybackLyricsManagerTest {
         FloatingLyricsPublisher.update("Track 1", "Artist", null, true, "second line")
 
         assertEquals(listOf(false), bridge.notificationForces)
+
+        manager.release()
+    }
+
+    @Test
+    fun notificationLyricTextReturnsSanitizedLineForCurrentTrack() {
+        FloatingLyricsPublisher.clear()
+        FloatingLyricsPublisher.update("Track 1", "Artist", null, true, "  first   line  \n\n second line \n third line")
+        val manager = PlaybackLyricsManager(
+            ApplicationProvider.getApplicationContext<Context>(),
+            FakeStateProvider(),
+            FakeNotificationBridge()
+        )
+
+        assertEquals("first line\nsecond line", manager.notificationLyricText(track()))
+    }
+
+    @Test
+    fun notificationLyricTextReturnsEmptyForMismatchedTrack() {
+        FloatingLyricsPublisher.clear()
+        FloatingLyricsPublisher.update("Other Track", "Artist", null, true, "first line")
+        val manager = PlaybackLyricsManager(
+            ApplicationProvider.getApplicationContext<Context>(),
+            FakeStateProvider(),
+            FakeNotificationBridge()
+        )
+
+        assertEquals("", manager.notificationLyricText(track()))
+    }
+
+    @Test
+    fun notificationLyricTextReturnsEmptyWhenStatusBarLyricsDisabled() {
+        FloatingLyricsPublisher.clear()
+        FloatingLyricsPublisher.update("Track 1", "Artist", null, true, "first line")
+        val manager = PlaybackLyricsManager(
+            ApplicationProvider.getApplicationContext<Context>(),
+            FakeStateProvider(),
+            FakeNotificationBridge()
+        )
+
+        manager.setStatusBarLyricsEnabled(false)
+
+        assertEquals("", manager.notificationLyricText(track()))
+    }
+
+    @Test
+    fun notificationLyricTextReturnsEmptyAfterRelease() {
+        FloatingLyricsPublisher.clear()
+        FloatingLyricsPublisher.update("Track 1", "Artist", null, true, "first line")
+        val context = FakeContext(ApplicationProvider.getApplicationContext())
+        val manager = PlaybackLyricsManager(
+            context,
+            FakeStateProvider(),
+            FakeNotificationBridge()
+        )
+
+        manager.release()
+
+        assertEquals("", manager.notificationLyricText(track()))
     }
 
     private fun track(): Track {
