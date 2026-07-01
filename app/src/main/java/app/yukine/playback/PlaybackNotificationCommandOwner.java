@@ -57,6 +57,19 @@ final class PlaybackNotificationCommandOwner implements PlaybackNotificationMana
         );
     }
 
+    static PlaybackStatePublisher.NotificationUpdater notificationUpdaterFromNotificationManagerSupplier(
+            Supplier<PlaybackNotificationManager> notificationManagerProvider
+    ) {
+        return force -> {
+            PlaybackNotificationManager notificationManager = notificationManagerProvider == null
+                    ? null
+                    : notificationManagerProvider.get();
+            if (notificationManager != null) {
+                notificationManager.updateMediaNotification(force);
+            }
+        };
+    }
+
     PlaybackNotificationCommandOwner(
             Consumer<Boolean> notificationPublisher,
             BooleanSupplier notificationWorthySupplier,

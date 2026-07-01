@@ -49,6 +49,14 @@ public class PlaybackNotificationCommandOwnerFactoryTest {
         owner.publishPlaybackNotification(true);
     }
 
+    @Test
+    public void notificationUpdaterFromNotificationManagerSupplierIgnoresMissingManager() {
+        PlaybackStatePublisher.NotificationUpdater updater =
+                PlaybackNotificationCommandOwner.notificationUpdaterFromNotificationManagerSupplier(() -> null);
+
+        updater.updateMediaNotification(true);
+    }
+
     private static final class FakePlaybackCommands
             implements PlaybackNotificationCommandOwner.PlaybackCommands {
         @Override

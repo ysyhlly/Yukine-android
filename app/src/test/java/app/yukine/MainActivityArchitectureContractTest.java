@@ -6405,7 +6405,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackStatePublisher.publishBufferingState("));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackStatePublisherNotificationOwner.java")));
         assertFalse(service.contains("PlaybackStatePublisherNotificationOwner"));
-        assertTrue(service.contains("playbackNotificationManager.updateMediaNotification(force);"));
+        assertTrue(service.contains(
+                "PlaybackNotificationCommandOwner.notificationUpdaterFromNotificationManagerSupplier("));
+        assertTrue(service.contains("() -> playbackNotificationManager"));
+        assertFalse(service.contains("playbackNotificationManager.updateMediaNotification(force);"));
         assertTrue(service.contains("                playbackNotificationArtworkProviderOwner,"));
         assertTrue(service.contains("PlaybackStatePublisherWidgetOwner.fromContextProvider(() -> this)"));
         assertTrue(service.contains("private PlaybackBufferingDiagnosticsRecorderOwner playbackBufferingDiagnosticsRecorderOwner;"));
@@ -7518,8 +7521,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("ACTION_RESTORE_AND_PLAY.equals(action)"));
         assertFalse(service.contains("playbackNotificationManager.updateMediaNotification(false)"));
         assertFalse(service.contains("playbackNotificationManager.updateMediaNotification(true)"));
-        assertTrue(service.contains("if (playbackNotificationManager != null)"));
-        assertTrue(service.contains("playbackNotificationManager.updateMediaNotification(force);"));
+        assertTrue(commandOwner.contains(
+                "static PlaybackStatePublisher.NotificationUpdater notificationUpdaterFromNotificationManagerSupplier("));
+        assertTrue(commandOwner.contains("notificationManager.updateMediaNotification(force);"));
+        assertFalse(service.contains("playbackNotificationManager.updateMediaNotification(force);"));
         assertFalse(service.contains("playbackNotificationManager.handleServiceAction(null)"));
         assertTrue(owner.contains("interface ActionCallbacks"));
         assertTrue(owner.contains("fun handleServiceAction(action: String?): Boolean"));
