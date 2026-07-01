@@ -2,22 +2,16 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.function.Consumer;
+
 final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlaybackActions {
-    interface PlaybackPreparer {
-        void prepareCurrent(boolean playWhenReady);
-    }
-
-    interface StatePublisher {
-        void publishState();
-    }
-
-    private final PlaybackPreparer playbackPreparer;
-    private final StatePublisher statePublisher;
+    private final Consumer<Boolean> playbackPreparer;
+    private final Runnable statePublisher;
     private final PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands;
 
     PlaybackQueueCommandOwner(
-            PlaybackPreparer playbackPreparer,
-            StatePublisher statePublisher,
+            Consumer<Boolean> playbackPreparer,
+            Runnable statePublisher,
             PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands
     ) {
         this.playbackPreparer = playbackPreparer;
@@ -27,12 +21,12 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
 
     @Override
     public void prepareCurrent(boolean playWhenReady) {
-        playbackPreparer.prepareCurrent(playWhenReady);
+        playbackPreparer.accept(playWhenReady);
     }
 
     @Override
     public void publishState() {
-        statePublisher.publishState();
+        statePublisher.run();
     }
 
     @Override

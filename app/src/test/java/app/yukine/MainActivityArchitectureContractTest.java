@@ -5919,10 +5919,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackQueueCommandOwner"));
         assertTrue(commandOwner.contains("final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlaybackActions"));
         assertFalse(commandOwner.contains("interface PlaybackStateProvider"));
-        assertTrue(commandOwner.contains("interface PlaybackPreparer"));
+        assertFalse(commandOwner.contains("interface PlaybackPreparer"));
+        assertFalse(commandOwner.contains("interface StatePublisher"));
         assertFalse(playerStateOwner.contains("PlaybackQueueCommandOwner.PlaybackStateProvider"));
-        assertTrue(commandOwner.contains("playbackPreparer.prepareCurrent(playWhenReady);"));
-        assertTrue(commandOwner.contains("statePublisher.publishState();"));
+        assertTrue(commandOwner.contains("import java.util.function.Consumer;"));
+        assertTrue(commandOwner.contains("private final Consumer<Boolean> playbackPreparer;"));
+        assertTrue(commandOwner.contains("private final Runnable statePublisher;"));
+        assertTrue(commandOwner.contains("playbackPreparer.accept(playWhenReady);"));
+        assertTrue(commandOwner.contains("statePublisher.run();"));
         assertTrue(commandOwner.contains("playbackCommands.stopAndClear();"));
         assertFalse(owner.contains("queueProvider.canPrepareMirroredQueueTrack(track)"));
         assertFalse(service.contains("canMirrorQueueToPlayer()"));
