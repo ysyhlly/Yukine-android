@@ -63,13 +63,13 @@ public final class PlaybackPrecacheManagerTest {
     public void releaseAudioCacheIsIdempotentAcrossExplicitAndManagerRelease() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        FakeAudioCacheReleaser audioCacheReleaser = new FakeAudioCacheReleaser();
+        FakeAudioCacheReleaseAction audioCacheReleaseAction = new FakeAudioCacheReleaseAction();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 (IntFunction<List<Track>>) null,
                 mediaSourceProvider(),
                 scheduler,
-                audioCacheReleaser
+                audioCacheReleaseAction::releaseAudioCache
         );
 
         manager.releaseAudioCache();
@@ -77,36 +77,36 @@ public final class PlaybackPrecacheManagerTest {
         manager.releaseAudioCache();
         manager.release();
 
-        assertEquals(1, audioCacheReleaser.releaseCalls);
+        assertEquals(1, audioCacheReleaseAction.releaseCalls);
     }
 
     @Test
-    public void audioCacheReleaserFromSupplierDelegatesThroughManagerOnce() {
+    public void audioCacheReleaseActionFromSupplierDelegatesThroughManagerOnce() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        FakeAudioCacheReleaser audioCacheReleaser = new FakeAudioCacheReleaser();
+        FakeAudioCacheReleaseAction audioCacheReleaseAction = new FakeAudioCacheReleaseAction();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 (IntFunction<List<Track>>) null,
                 mediaSourceProvider(),
                 scheduler,
-                audioCacheReleaser
+                audioCacheReleaseAction::releaseAudioCache
         );
-        PlaybackPrecacheManager.AudioCacheReleaser releaser =
-                PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerSupplier(() -> manager);
+        Runnable releaseAction =
+                PlaybackPrecacheManager.audioCacheReleaseActionFromPrecacheManagerSupplier(() -> manager);
 
-        releaser.releaseAudioCache();
-        releaser.releaseAudioCache();
+        releaseAction.run();
+        releaseAction.run();
 
-        assertEquals(1, audioCacheReleaser.releaseCalls);
+        assertEquals(1, audioCacheReleaseAction.releaseCalls);
     }
 
     @Test
-    public void audioCacheReleaserFromSupplierIgnoresMissingManager() {
-        PlaybackPrecacheManager.AudioCacheReleaser releaser =
-                PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerSupplier(() -> null);
+    public void audioCacheReleaseActionFromSupplierIgnoresMissingManager() {
+        Runnable releaseAction =
+                PlaybackPrecacheManager.audioCacheReleaseActionFromPrecacheManagerSupplier(() -> null);
 
-        releaser.releaseAudioCache();
+        releaseAction.run();
     }
 
     @Test
@@ -229,7 +229,7 @@ public final class PlaybackPrecacheManagerTest {
                 (IntFunction<List<Track>>) null,
                 mediaCacheOperations,
                 scheduler,
-                new FakeAudioCacheReleaser()
+                new FakeAudioCacheReleaseAction()::releaseAudioCache
         );
         Track track = track(1L, "https://example.test/current.mp3");
         mediaCacheOperations.contentLength = 1024L;
@@ -409,10 +409,9 @@ public final class PlaybackPrecacheManagerTest {
         }
     }
 
-    private static final class FakeAudioCacheReleaser implements PlaybackPrecacheManager.AudioCacheReleaser {
+    private static final class FakeAudioCacheReleaseAction {
         private int releaseCalls;
 
-        @Override
         public void releaseAudioCache() {
             releaseCalls++;
         }
