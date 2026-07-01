@@ -272,8 +272,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 return;
             }
             if (playbackState == Player.STATE_READY) {
-                playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false);
-                playbackErrorRecoveryCommandOwner.setErrorMessage("");
+                playbackCurrentTrackPreparationRuntimeOwner.markPlaybackReady();
                 if (playbackErrorRecoveryManager != null) {
                     playbackErrorRecoveryManager.onPlaybackReady();
                 }

@@ -6221,8 +6221,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(preparationRuntimeOwner.contains("runtimeStateManager::setErrorMessage"));
         assertTrue(preparationRuntimeOwner.contains("runtimeStateManager::preparing"));
         assertTrue(preparationRuntimeOwner.contains("void beginPreparing()"));
+        assertTrue(preparationRuntimeOwner.contains("void markPlaybackReady()"));
         assertTrue(preparationRuntimeOwner.contains("void markUnableToOpenCurrentTrack()"));
         assertTrue(preparationRuntimeOwner.contains("setPreparing(false);"));
+        assertTrue(preparationRuntimeOwner.contains("setErrorMessage(\"\");"));
         assertTrue(preparationRuntimeOwner.contains("setErrorMessage(\"Unable to open this track.\");"));
         assertTrue(preparationRuntimeOwner.contains("return preparing != null && preparing.getAsBoolean();"));
         assertTrue(service.contains("PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager("));
@@ -6232,6 +6234,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("private final PlaybackCurrentTrackPreparationRuntimeOwner playbackCurrentTrackPreparationRuntimeOwner"));
         assertTrue(service.contains("PlaybackCurrentTrackPreparationRuntimeOwner.fromRuntimeStateManager(playbackRuntimeStateManager)"));
         assertTrue(service.contains("playbackCurrentTrackPreparationRuntimeOwner.beginPreparing();"));
+        assertTrue(service.contains("playbackCurrentTrackPreparationRuntimeOwner.markPlaybackReady();"));
         assertTrue(service.contains("playbackCurrentTrackPreparationRuntimeOwner.markUnableToOpenCurrentTrack();"));
         assertTrue(service.contains("playbackCurrentTrackPreparationRuntimeOwner::preparing"));
         assertTrue(service.contains("playbackCurrentTrackPreparationRuntimeOwner.preparing()"));

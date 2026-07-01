@@ -49,6 +49,11 @@ final class PlaybackCurrentTrackPreparationRuntimeOwner
         setPreparing(true);
     }
 
+    void markPlaybackReady() {
+        setPreparing(false);
+        setErrorMessage("");
+    }
+
     void markUnableToOpenCurrentTrack() {
         setPreparing(false);
         setErrorMessage("Unable to open this track.");

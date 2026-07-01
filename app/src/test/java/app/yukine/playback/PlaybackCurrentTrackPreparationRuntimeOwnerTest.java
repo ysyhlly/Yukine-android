@@ -44,10 +44,15 @@ public class PlaybackCurrentTrackPreparationRuntimeOwnerTest {
         );
 
         owner.beginPreparing();
+        owner.markPlaybackReady();
+        owner.beginPreparing();
         owner.markUnableToOpenCurrentTrack();
 
         assertEquals(
                 Arrays.asList(
+                        "preparing:true",
+                        "preparing:false",
+                        "error:",
                         "preparing:true",
                         "preparing:false",
                         "error:Unable to open this track."
