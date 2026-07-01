@@ -678,7 +678,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackShutdownLifecycleResourcesOwner = new PlaybackShutdownLifecycleResourcesOwner(
                 () -> EchoPlaybackService.this.persistPlaybackPositionThrottled(true),
                 playbackQueuePersistenceOwner,
-                new PlaybackShutdownPlaybackStateOwner(
+                PlaybackShutdownLifecycleResourcesOwner.playbackStateProviderFromPlaybackState(
                         playbackPlayerStateOwner::isPlaying,
                         playbackCurrentTrackPreparationRuntimeOwner::preparing
                 ),

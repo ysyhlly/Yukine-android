@@ -6861,9 +6861,6 @@ public final class MainActivityArchitectureContractTest {
         String queuePersistenceOwner = read(
                 "app/src/main/java/app/yukine/playback/PlaybackQueuePersistenceOwner.java"
         );
-        String shutdownPlaybackStateOwner = read(
-                "app/src/main/java/app/yukine/playback/PlaybackShutdownPlaybackStateOwner.java"
-        );
         String mainHandlerSchedulerOwner = read("app/src/main/java/app/yukine/playback/PlaybackMainHandlerSchedulerOwner.java");
         String noisyReceiverRegistrarOwner = read("app/src/main/java/app/yukine/playback/PlaybackNoisyReceiverRegistrarOwner.java");
         String noisyReceiverManager = read("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackNoisyReceiverManager.kt");
@@ -6927,17 +6924,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queuePersistenceOwner.contains("playbackQueueManager.persistQueueState();"));
         assertTrue(queuePersistenceOwner.contains("playbackQueueManager.savePlaybackResumeRequested(requested);"));
         assertTrue(queuePersistenceOwner.contains("playbackQueueManager.persistCurrentPlaybackPosition(force);"));
-        assertTrue(shutdownPlaybackStateOwner.contains(
-                "final class PlaybackShutdownPlaybackStateOwner"));
-        assertTrue(shutdownPlaybackStateOwner.contains(
-                "implements PlaybackShutdownLifecycleResourcesOwner.PlaybackStateProvider"));
-        assertFalse(shutdownPlaybackStateOwner.contains("interface PlaybackStateProvider"));
-        assertFalse(shutdownPlaybackStateOwner.contains("interface PreparingStateProvider"));
-        assertTrue(shutdownPlaybackStateOwner.contains("import java.util.function.BooleanSupplier;"));
-        assertTrue(shutdownPlaybackStateOwner.contains("private final BooleanSupplier playbackStateProvider;"));
-        assertTrue(shutdownPlaybackStateOwner.contains("private final BooleanSupplier preparingStateProvider;"));
-        assertTrue(shutdownPlaybackStateOwner.contains("return playbackStateProvider != null && playbackStateProvider.getAsBoolean();"));
-        assertTrue(shutdownPlaybackStateOwner.contains("return preparingStateProvider != null && preparingStateProvider.getAsBoolean();"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackShutdownPlaybackStateOwner.java")));
+        assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackShutdownPlaybackStateOwnerTest.java")));
+        assertTrue(lifecycleResourcesOwner.contains("static PlaybackStateProvider playbackStateProviderFromPlaybackState("));
+        assertTrue(lifecycleResourcesOwner.contains("BooleanSupplier playbackStateProvider"));
+        assertTrue(lifecycleResourcesOwner.contains("BooleanSupplier preparingStateProvider"));
+        assertTrue(lifecycleResourcesOwner.contains("return playbackStateProvider != null && playbackStateProvider.getAsBoolean();"));
+        assertTrue(lifecycleResourcesOwner.contains("return preparingStateProvider != null && preparingStateProvider.getAsBoolean();"));
         assertTrue(mainHandlerSchedulerOwner.contains("final class PlaybackMainHandlerSchedulerOwner implements"));
         assertTrue(mainHandlerSchedulerOwner.contains("PlaybackSleepTimerManager.CallbackScheduler"));
         assertTrue(mainHandlerSchedulerOwner.contains("PlaybackErrorRecoveryManager.RetryScheduler"));
@@ -7020,8 +7013,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackShutdownQueueLifecycleStoreOwner"));
         assertFalse(service.contains("playbackShutdownQueueLifecycleStoreOwner"));
         assertTrue(service.contains("PlaybackQueuePersistenceOwner.fromPlaybackQueueManager("));
-        assertTrue(service.contains("new PlaybackShutdownPlaybackStateOwner("));
-        assertTrue(service.contains("                        playbackPlayerStateOwner,"));
+        assertFalse(service.contains("new PlaybackShutdownPlaybackStateOwner("));
+        assertTrue(service.contains("PlaybackShutdownLifecycleResourcesOwner.playbackStateProviderFromPlaybackState("));
+        assertTrue(service.contains("                        playbackPlayerStateOwner::isPlaying,"));
         assertTrue(service.contains("                        playbackCurrentTrackPreparationRuntimeOwner::preparing"));
         assertFalse(service.contains("                        playbackRuntimeStateManager::preparing"));
         assertTrue(service.contains("private PlaybackMainHandlerSchedulerOwner playbackMainHandlerSchedulerOwner;"));

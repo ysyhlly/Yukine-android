@@ -72,6 +72,27 @@ public class PlaybackShutdownLifecycleResourcesOwnerTest {
         assertFalse(owner.hasNotificationWorthyState());
     }
 
+    @Test
+    public void playbackStateProviderFromPlaybackStateDelegatesPlaybackAndPreparingState() {
+        PlaybackShutdownLifecycleResourcesOwner.PlaybackStateProvider provider =
+                PlaybackShutdownLifecycleResourcesOwner.playbackStateProviderFromPlaybackState(
+                        () -> true,
+                        () -> true
+                );
+
+        assertTrue(provider.isPlaying());
+        assertTrue(provider.isPreparing());
+    }
+
+    @Test
+    public void playbackStateProviderFromPlaybackStateDefaultsMissingSuppliersToInactive() {
+        PlaybackShutdownLifecycleResourcesOwner.PlaybackStateProvider provider =
+                PlaybackShutdownLifecycleResourcesOwner.playbackStateProviderFromPlaybackState(null, null);
+
+        assertFalse(provider.isPlaying());
+        assertFalse(provider.isPreparing());
+    }
+
     private static final class FakeQueueLifecycleStore
             implements PlaybackShutdownLifecycleResourcesOwner.PlaybackQueueLifecycleStore {
         private final List<String> calls;
