@@ -15,68 +15,72 @@ public class PlaybackPrecacheStateOwnerPlayerMediaItemTest {
     public void returnsCurrentMediaItemForActivePlayerWithItems() {
         MediaItem mediaItem = MediaItem.fromUri("https://example.test/song.mp3");
         Supplier<MediaItem> supplier =
-                PlaybackPrecacheStateOwner.playerMediaItemSupplierFromOperationsSupplier(
-                () -> new FakePlayerOperations(Player.STATE_READY, 1, mediaItem)
-        );
+                supplierFromState(new FakePlayerState(Player.STATE_READY, 1, mediaItem));
 
         assertSame(mediaItem, supplier.get());
     }
 
     @Test
     public void returnsNullForMissingIdleOrEmptyPlayer() {
-        assertNull(PlaybackPrecacheStateOwner.playerMediaItemSupplierFromOperationsSupplier(null)
+        assertNull(PlaybackPrecacheStateOwner.playerMediaItemSupplierFromStateSuppliers(null, null, null)
                 .get());
-        assertNull(PlaybackPrecacheStateOwner.playerMediaItemSupplierFromOperationsSupplier(
-                () -> new FakePlayerOperations(Player.STATE_IDLE, 1, MediaItem.fromUri("https://example.test/idle.mp3"))
-        ).get());
-        assertNull(PlaybackPrecacheStateOwner.playerMediaItemSupplierFromOperationsSupplier(
-                () -> new FakePlayerOperations(Player.STATE_READY, 0, MediaItem.fromUri("https://example.test/empty.mp3"))
-        ).get());
+        assertNull(supplierFromState(new FakePlayerState(
+                Player.STATE_IDLE,
+                1,
+                MediaItem.fromUri("https://example.test/idle.mp3")
+        )).get());
+        assertNull(supplierFromState(new FakePlayerState(
+                Player.STATE_READY,
+                0,
+                MediaItem.fromUri("https://example.test/empty.mp3")
+        )).get());
     }
 
     @Test
     public void returnsNullWhenPlayerStateCannotBeRead() {
         Supplier<MediaItem> supplier =
-                PlaybackPrecacheStateOwner.playerMediaItemSupplierFromOperationsSupplier(
-                () -> new ThrowingPlayerOperations()
-        );
+                supplierFromState(new ThrowingPlayerState());
 
         assertNull(supplier.get());
     }
 
-    private static class FakePlayerOperations implements PlaybackPrecacheStateOwner.PlayerOperations {
+    private static Supplier<MediaItem> supplierFromState(FakePlayerState state) {
+        return PlaybackPrecacheStateOwner.playerMediaItemSupplierFromStateSuppliers(
+                state::playbackState,
+                state::mediaItemCount,
+                state::currentMediaItem
+        );
+    }
+
+    private static class FakePlayerState {
         private final int playbackState;
         private final int mediaItemCount;
         private final MediaItem currentMediaItem;
 
-        private FakePlayerOperations(int playbackState, int mediaItemCount, MediaItem currentMediaItem) {
+        private FakePlayerState(int playbackState, int mediaItemCount, MediaItem currentMediaItem) {
             this.playbackState = playbackState;
             this.mediaItemCount = mediaItemCount;
             this.currentMediaItem = currentMediaItem;
         }
 
-        @Override
         public int playbackState() {
             return playbackState;
         }
 
-        @Override
         public int mediaItemCount() {
             return mediaItemCount;
         }
 
-        @Override
         public MediaItem currentMediaItem() {
             return currentMediaItem;
         }
     }
 
-    private static final class ThrowingPlayerOperations extends FakePlayerOperations {
-        private ThrowingPlayerOperations() {
+    private static final class ThrowingPlayerState extends FakePlayerState {
+        private ThrowingPlayerState() {
             super(Player.STATE_READY, 1, MediaItem.fromUri("https://example.test/throw.mp3"));
         }
 
-        @Override
         public int playbackState() {
             throw new IllegalStateException("player released");
         }

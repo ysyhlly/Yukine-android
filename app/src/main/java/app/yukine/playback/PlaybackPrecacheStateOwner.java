@@ -6,17 +6,10 @@ import androidx.media3.common.Player;
 import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateProvider {
-    interface PlayerOperations {
-        int playbackState();
-
-        int mediaItemCount();
-
-        MediaItem currentMediaItem();
-    }
-
     private final Supplier<Track> currentTrackSupplier;
     private final Supplier<MediaItem> playerMediaItemSupplier;
     private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsSupplier;
@@ -32,32 +25,50 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
     }
 
     static Supplier<MediaItem> playerMediaItemSupplierFromPlayerSupplier(Supplier<Player> playerSupplier) {
-        return playerMediaItemSupplierFromOperationsSupplier(() -> {
+        return () -> {
             Player player = playerSupplier == null ? null : playerSupplier.get();
-            return player == null ? null : new Media3PlayerOperations(player);
-        });
+            if (player == null) {
+                return null;
+            }
+            return currentMediaItemForPlayerState(
+                    player::getPlaybackState,
+                    player::getMediaItemCount,
+                    player::getCurrentMediaItem
+            );
+        };
     }
 
-    static Supplier<MediaItem> playerMediaItemSupplierFromOperationsSupplier(
-            Supplier<PlayerOperations> playerOperationsSupplier
+    static Supplier<MediaItem> playerMediaItemSupplierFromStateSuppliers(
+            IntSupplier playbackStateSupplier,
+            IntSupplier mediaItemCountSupplier,
+            Supplier<MediaItem> currentMediaItemSupplier
     ) {
-        return () -> {
-            PlayerOperations playerOperations = playerOperationsSupplier == null
-                    ? null
-                    : playerOperationsSupplier.get();
-            if (playerOperations == null) {
+        return () -> currentMediaItemForPlayerState(
+                playbackStateSupplier,
+                mediaItemCountSupplier,
+                currentMediaItemSupplier
+        );
+    }
+
+    private static MediaItem currentMediaItemForPlayerState(
+            IntSupplier playbackStateSupplier,
+            IntSupplier mediaItemCountSupplier,
+            Supplier<MediaItem> currentMediaItemSupplier
+    ) {
+        if (playbackStateSupplier == null
+                || mediaItemCountSupplier == null
+                || currentMediaItemSupplier == null) {
+            return null;
+        }
+        try {
+            if (playbackStateSupplier.getAsInt() == Player.STATE_IDLE
+                    || mediaItemCountSupplier.getAsInt() <= 0) {
                 return null;
             }
-            try {
-                if (playerOperations.playbackState() == Player.STATE_IDLE
-                        || playerOperations.mediaItemCount() <= 0) {
-                    return null;
-                }
-                return playerOperations.currentMediaItem();
-            } catch (IllegalStateException ignored) {
-                return null;
-            }
-        };
+            return currentMediaItemSupplier.get();
+        } catch (IllegalStateException ignored) {
+            return null;
+        }
     }
 
     @Override
@@ -73,28 +84,5 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
     @Override
     public PlaybackStreamingDiagnostics streamingDiagnostics() {
         return streamingDiagnosticsSupplier.get();
-    }
-
-    private static final class Media3PlayerOperations implements PlayerOperations {
-        private final Player player;
-
-        private Media3PlayerOperations(Player player) {
-            this.player = player;
-        }
-
-        @Override
-        public int playbackState() {
-            return player.getPlaybackState();
-        }
-
-        @Override
-        public int mediaItemCount() {
-            return player.getMediaItemCount();
-        }
-
-        @Override
-        public MediaItem currentMediaItem() {
-            return player.getCurrentMediaItem();
-        }
     }
 }
