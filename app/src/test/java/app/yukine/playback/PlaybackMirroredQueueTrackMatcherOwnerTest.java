@@ -5,9 +5,12 @@ import static org.junit.Assert.assertEquals;
 import android.net.Uri;
 
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.Player;
 
 import app.yukine.model.Track;
 import org.junit.Test;
+
+import java.lang.reflect.Proxy;
 
 public class PlaybackMirroredQueueTrackMatcherOwnerTest {
     @Test
@@ -43,6 +46,50 @@ public class PlaybackMirroredQueueTrackMatcherOwnerTest {
         assertEquals(false, missingProvider.matches(0, track));
         assertEquals(false, missingMatcher.matches(0, track));
         assertEquals(false, throwingProvider.matches(0, track));
+    }
+
+    @Test
+    public void mediaSourceProviderFactoryIsSafeWhenProviderIsMissing() {
+        MediaItem mediaItem = new MediaItem.Builder().setUri("https://example.test/one.mp3").build();
+        PlaybackMirroredQueueTrackMatcherOwner owner =
+                PlaybackMirroredQueueTrackMatcherOwner.fromMediaSourceProvider(
+                        () -> playerWithMediaItem(mediaItem),
+                        null
+                );
+
+        assertEquals(false, owner.matches(0, track()));
+    }
+
+    private static Player playerWithMediaItem(MediaItem mediaItem) {
+        return (Player) Proxy.newProxyInstance(
+                Player.class.getClassLoader(),
+                new Class<?>[]{Player.class},
+                (proxy, method, args) -> {
+                    if ("getMediaItemAt".equals(method.getName())) {
+                        return mediaItem;
+                    }
+                    return defaultValue(method.getReturnType());
+                }
+        );
+    }
+
+    private static Object defaultValue(Class<?> returnType) {
+        if (returnType == Boolean.TYPE) {
+            return false;
+        }
+        if (returnType == Integer.TYPE) {
+            return 0;
+        }
+        if (returnType == Long.TYPE) {
+            return 0L;
+        }
+        if (returnType == Float.TYPE) {
+            return 0.0f;
+        }
+        if (returnType == Double.TYPE) {
+            return 0.0d;
+        }
+        return null;
     }
 
     private static Track track() {

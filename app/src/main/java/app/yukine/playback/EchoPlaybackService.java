@@ -522,9 +522,9 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackQueueStreamingRestoreOwner =
                 PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(mediaSourceProvider);
         playbackMirroredQueueTrackMatcherOwner =
-                PlaybackMirroredQueueTrackMatcherOwner.fromPlayerProvider(
+                PlaybackMirroredQueueTrackMatcherOwner.fromMediaSourceProvider(
                         () -> player,
-                        mediaSourceProvider::mediaItemMatchesTrackForReuse
+                        mediaSourceProvider
         );
         playbackQueueMirroredPlayerOwner = new PlaybackQueueMirroredPlayerOwner(
                 PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManager(

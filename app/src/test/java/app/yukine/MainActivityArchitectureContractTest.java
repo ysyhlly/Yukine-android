@@ -5639,7 +5639,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private boolean mirroredQueueMatchesCurrentPlayer()"));
         assertFalse(service.contains("playbackQueueManager.matchesMirroredQueue("));
         assertTrue(service.contains("private PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner;"));
-        assertTrue(service.contains("PlaybackMirroredQueueTrackMatcherOwner.fromPlayerProvider("));
+        assertTrue(service.contains("PlaybackMirroredQueueTrackMatcherOwner.fromMediaSourceProvider("));
         assertTrue(service.contains("                playbackMirroredQueueTrackMatcherOwner"));
         assertFalse(service.contains("new PlaybackQueueManager.QueueTrackMatcher()"));
         assertFalse(service.contains("mediaSourceProvider.mediaItemMatchesTrackForReuse(player.getMediaItemAt(index), track)"));
@@ -5657,9 +5657,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mirroredTrackMatcherOwner.contains("import java.util.function.Supplier;"));
         assertTrue(mirroredTrackMatcherOwner.contains("private final IntFunction<MediaItem> playerMediaItemProvider;"));
         assertTrue(mirroredTrackMatcherOwner.contains("private final BiPredicate<MediaItem, Track> trackMediaItemMatcher;"));
-        assertFalse(mirroredTrackMatcherOwner.contains("PlaybackMediaSourceProvider"));
-        assertTrue(service.contains("mediaSourceProvider::mediaItemMatchesTrackForReuse"));
+        assertTrue(mirroredTrackMatcherOwner.contains("PlaybackMediaSourceProvider"));
+        assertFalse(service.contains("mediaSourceProvider::mediaItemMatchesTrackForReuse"));
         assertTrue(mirroredTrackMatcherOwner.contains("BiPredicate<MediaItem, Track> trackMediaItemMatcher"));
+        assertTrue(mirroredTrackMatcherOwner.contains("static PlaybackMirroredQueueTrackMatcherOwner fromMediaSourceProvider("));
+        assertTrue(mirroredTrackMatcherOwner.contains("mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track)"));
         assertTrue(mirroredTrackMatcherOwner.contains("player.getMediaItemAt(index)"));
         assertTrue(recoveryDiagnosticsOwner.contains("final class PlaybackRecoveryDiagnosticsRecorderOwner"));
         assertTrue(recoveryDiagnosticsOwner.contains("interface StreamingDiagnosticsProvider"));
@@ -6232,8 +6234,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(precacheManager.contains("audioCacheReleased.compareAndSet(false, true)"));
         assertTrue(precacheManager.contains("mediaSourceProvider.releaseAudioCache();"));
         assertFalse(service.contains("mediaSourceProvider.mediaItemMatchesTrackForReuse("));
-        assertFalse(mirroredTrackMatcherOwner.contains("PlaybackMediaSourceProvider"));
-        assertTrue(service.contains("mediaSourceProvider::mediaItemMatchesTrackForReuse"));
+        assertTrue(mirroredTrackMatcherOwner.contains("PlaybackMediaSourceProvider"));
+        assertFalse(service.contains("mediaSourceProvider::mediaItemMatchesTrackForReuse"));
+        assertTrue(service.contains("PlaybackMirroredQueueTrackMatcherOwner.fromMediaSourceProvider("));
+        assertTrue(mirroredTrackMatcherOwner.contains("mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track)"));
         assertFalse(service.contains("private boolean isStreamingPlaceholder"));
         assertFalse(service.contains("track.dataPath.startsWith(\"streaming:\")"));
         assertFalse(service.contains("Uri.EMPTY.equals(track.contentUri)"));
