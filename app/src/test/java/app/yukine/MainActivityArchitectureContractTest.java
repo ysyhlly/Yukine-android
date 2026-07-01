@@ -1798,9 +1798,6 @@ public final class MainActivityArchitectureContractTest {
         String normalizedPlaybackService = playbackService.replace("\r\n", "\n");
         String playbackPrecacheManager = read("app/src/main/java/app/yukine/playback/PlaybackPrecacheManager.java");
         String playbackPrecacheStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackPrecacheStateOwner.java");
-        String playbackPrecachePlayerMediaItemOwner = read(
-                "app/src/main/java/app/yukine/playback/PlaybackPrecachePlayerMediaItemOwner.java"
-        );
         String playbackWarmupActionsOwner = read(
                 "app/src/main/java/app/yukine/playback/PlaybackWarmupActionsOwner.java"
         );
@@ -1812,7 +1809,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackService.contains("                playbackPrecacheStateOwner,"));
         assertTrue(playbackService.contains("playbackQueueStateOwner::upcomingTracksForPrecache"));
         assertFalse(playbackService.contains("playbackQueueManager::upcomingTracksForPrecache"));
-        assertTrue(playbackService.contains("PlaybackPrecachePlayerMediaItemOwner.fromPlayerProvider(() -> player)"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackPrecachePlayerMediaItemOwner.java")));
+        assertFalse(playbackService.contains("PlaybackPrecachePlayerMediaItemOwner"));
+        assertTrue(playbackService.contains("PlaybackPrecacheStateOwner.playerMediaItemProviderFromPlayerProvider(() -> player)"));
         assertFalse(playbackService.contains("|| player.getPlaybackState() == Player.STATE_IDLE"));
         assertFalse(playbackService.contains("return player.getCurrentMediaItem();"));
         assertFalse(playbackService.contains("new PlaybackPrecacheManager.StateProvider()"));
@@ -1879,6 +1878,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheStateOwner.contains("return currentTrackProvider.currentTrack();"));
         assertTrue(playbackPrecacheStateOwner.contains("return playerMediaItemProvider.currentPlayerMediaItem();"));
         assertTrue(playbackPrecacheStateOwner.contains("return streamingDiagnosticsProvider.streamingDiagnostics();"));
+        assertTrue(playbackPrecacheStateOwner.contains("interface PlayerProvider"));
+        assertTrue(playbackPrecacheStateOwner.contains("interface PlayerOperations"));
+        assertTrue(playbackPrecacheStateOwner.contains("static PlayerMediaItemProvider playerMediaItemProviderFromPlayerProvider("));
+        assertTrue(playbackPrecacheStateOwner.contains("playerOperations.playbackState() == Player.STATE_IDLE"));
+        assertTrue(playbackPrecacheStateOwner.contains("playerOperations.mediaItemCount() <= 0"));
+        assertTrue(playbackPrecacheStateOwner.contains("return playerOperations.currentMediaItem();"));
         assertTrue(playbackWarmupActionsOwner.contains("final class PlaybackWarmupActionsOwner"));
         assertTrue(playbackWarmupActionsOwner.contains("interface PrecacheManagerProvider"));
         assertTrue(playbackWarmupActionsOwner.contains("interface VisualizationCacheManagerProvider"));
@@ -1886,15 +1891,6 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackWarmupActionsOwner.contains("interface VisualizationCacheOperations"));
         assertTrue(playbackWarmupActionsOwner.contains("operations.precacheTrack(track);"));
         assertTrue(playbackWarmupActionsOwner.contains("operations.scheduleVisualizationCache(track);"));
-        assertTrue(playbackPrecachePlayerMediaItemOwner.contains(
-                "final class PlaybackPrecachePlayerMediaItemOwner"));
-        assertTrue(playbackPrecachePlayerMediaItemOwner.contains(
-                "implements PlaybackPrecacheStateOwner.PlayerMediaItemProvider"));
-        assertTrue(playbackPrecachePlayerMediaItemOwner.contains("interface PlayerProvider"));
-        assertTrue(playbackPrecachePlayerMediaItemOwner.contains("interface PlayerOperations"));
-        assertTrue(playbackPrecachePlayerMediaItemOwner.contains("playerOperations.playbackState() == Player.STATE_IDLE"));
-        assertTrue(playbackPrecachePlayerMediaItemOwner.contains("playerOperations.mediaItemCount() <= 0"));
-        assertTrue(playbackPrecachePlayerMediaItemOwner.contains("return playerOperations.currentMediaItem();"));
         assertTrue(playbackPrecacheManager.contains("void precacheTrack(Track track)"));
         assertTrue(playbackPrecacheManager.contains("void release()"));
         assertTrue(playbackService.contains("PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerProvider("));

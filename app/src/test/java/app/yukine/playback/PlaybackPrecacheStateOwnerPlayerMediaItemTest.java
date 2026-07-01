@@ -8,38 +8,41 @@ import androidx.media3.common.Player;
 
 import org.junit.Test;
 
-public class PlaybackPrecachePlayerMediaItemOwnerTest {
+public class PlaybackPrecacheStateOwnerPlayerMediaItemTest {
     @Test
     public void returnsCurrentMediaItemForActivePlayerWithItems() {
         MediaItem mediaItem = MediaItem.fromUri("https://example.test/song.mp3");
-        PlaybackPrecachePlayerMediaItemOwner owner = new PlaybackPrecachePlayerMediaItemOwner(
+        PlaybackPrecacheStateOwner.PlayerMediaItemProvider provider =
+                PlaybackPrecacheStateOwner.playerMediaItemProviderFromOperationsProvider(
                 () -> new FakePlayerOperations(Player.STATE_READY, 1, mediaItem)
         );
 
-        assertSame(mediaItem, owner.currentPlayerMediaItem());
+        assertSame(mediaItem, provider.currentPlayerMediaItem());
     }
 
     @Test
     public void returnsNullForMissingIdleOrEmptyPlayer() {
-        assertNull(new PlaybackPrecachePlayerMediaItemOwner(null).currentPlayerMediaItem());
-        assertNull(new PlaybackPrecachePlayerMediaItemOwner(
+        assertNull(PlaybackPrecacheStateOwner.playerMediaItemProviderFromOperationsProvider(null)
+                .currentPlayerMediaItem());
+        assertNull(PlaybackPrecacheStateOwner.playerMediaItemProviderFromOperationsProvider(
                 () -> new FakePlayerOperations(Player.STATE_IDLE, 1, MediaItem.fromUri("https://example.test/idle.mp3"))
         ).currentPlayerMediaItem());
-        assertNull(new PlaybackPrecachePlayerMediaItemOwner(
+        assertNull(PlaybackPrecacheStateOwner.playerMediaItemProviderFromOperationsProvider(
                 () -> new FakePlayerOperations(Player.STATE_READY, 0, MediaItem.fromUri("https://example.test/empty.mp3"))
         ).currentPlayerMediaItem());
     }
 
     @Test
     public void returnsNullWhenPlayerStateCannotBeRead() {
-        PlaybackPrecachePlayerMediaItemOwner owner = new PlaybackPrecachePlayerMediaItemOwner(
+        PlaybackPrecacheStateOwner.PlayerMediaItemProvider provider =
+                PlaybackPrecacheStateOwner.playerMediaItemProviderFromOperationsProvider(
                 () -> new ThrowingPlayerOperations()
         );
 
-        assertNull(owner.currentPlayerMediaItem());
+        assertNull(provider.currentPlayerMediaItem());
     }
 
-    private static class FakePlayerOperations implements PlaybackPrecachePlayerMediaItemOwner.PlayerOperations {
+    private static class FakePlayerOperations implements PlaybackPrecacheStateOwner.PlayerOperations {
         private final int playbackState;
         private final int mediaItemCount;
         private final MediaItem currentMediaItem;
