@@ -5817,7 +5817,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueStateOwner.contains("PlaybackCrossfadeStateOwner.QueueStateProvider"));
         assertFalse(queueStateOwner.contains("interface PlaybackQueueManagerProvider"));
         assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier"));
-        assertTrue(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot> fallbackQueueStateSnapshotSupplier"));
+        assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot> fallbackQueueStateSnapshotSupplier"));
+        assertFalse(queueStateOwner.contains("fallbackQueueStateSnapshot"));
+        assertFalse(queueStateOwner.contains("PlaybackQueueStateOwner(Supplier<PlaybackQueueManager.QueueStateSnapshot>"));
         assertFalse(queueStateOwner.contains("playbackQueueManagerProvider"));
         assertEquals(0, countOccurrences(queueStateOwner, "    interface "));
         assertEquals(0, countOccurrences(queueStateOwner, "interface QueueStateOperations"));

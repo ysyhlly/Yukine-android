@@ -12,31 +12,22 @@ final class PlaybackQueueStateOwner implements
         PlaybackCrossfadeStateOwner.QueueStateProvider,
         PlaybackErrorRecoveryCommandOwner.FailedTrackPolicy {
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
-    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> fallbackQueueStateSnapshotSupplier;
 
-    PlaybackQueueStateOwner(Supplier<PlaybackQueueManager.QueueStateSnapshot> fallbackQueueStateSnapshotSupplier) {
-        this(null, fallbackQueueStateSnapshotSupplier);
-    }
-
-    private PlaybackQueueStateOwner(
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> fallbackQueueStateSnapshotSupplier
-    ) {
+    private PlaybackQueueStateOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
         this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
-        this.fallbackQueueStateSnapshotSupplier = fallbackQueueStateSnapshotSupplier;
     }
 
     static PlaybackQueueStateOwner fromPlaybackQueueManager(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
     ) {
-        return new PlaybackQueueStateOwner(playbackQueueManagerSupplier, null);
+        return new PlaybackQueueStateOwner(playbackQueueManagerSupplier);
     }
 
     @Override
     public PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? fallbackQueueStateSnapshot()
+                ? null
                 : playbackQueueManager.queueStateSnapshot();
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
@@ -62,9 +53,5 @@ final class PlaybackQueueStateOwner implements
 
     private PlaybackQueueManager playbackQueueManager() {
         return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot fallbackQueueStateSnapshot() {
-        return fallbackQueueStateSnapshotSupplier == null ? null : fallbackQueueStateSnapshotSupplier.get();
     }
 }
