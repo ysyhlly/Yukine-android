@@ -285,6 +285,62 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
+    public void fullyCachedCurrentLeadingRangeCompletesWithoutOpeningCacheDataSource() throws Exception {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                (IntFunction<List<Track>>) null,
+                mediaCacheOperations,
+                scheduler,
+                new FakeAudioCacheReleaseAction()::releaseAudioCache,
+                executor
+        );
+        Track track = track(1L, "https://example.test/cached.mp3");
+        mediaCacheOperations.mediaItemMatchesForReuse = false;
+        mediaCacheOperations.cachedBytes = PlaybackPrecacheManager.PRECACHE_BYTES * 2L;
+
+        stateProvider.currentTrack = track;
+        manager.precacheTrack(track);
+        executor.runSubmitted(0);
+        manager.release();
+
+        assertEquals(PlaybackPrecacheManager.PRECACHE_BYTES, stateProvider.diagnostics.snapshot().recentEvents.get(0).bytes);
+        assertEquals(1, stateProvider.diagnostics.snapshot().precacheSuccesses);
+        assertEquals(0, mediaCacheOperations.cacheDataSourceForTrackCalls);
+    }
+
+    @Test
+    public void failedCurrentLeadingRangeCleansActiveRangeForRetry() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                (IntFunction<List<Track>>) null,
+                mediaCacheOperations,
+                scheduler,
+                new FakeAudioCacheReleaseAction()::releaseAudioCache,
+                executor
+        );
+        Track track = track(1L, "https://example.test/fails.mp3");
+        mediaCacheOperations.mediaItemMatchesForReuse = false;
+
+        stateProvider.currentTrack = track;
+        manager.precacheTrack(track);
+        executor.runSubmitted(0);
+        manager.precacheTrack(track);
+        executor.runSubmitted(1);
+        manager.release();
+
+        assertEquals(2, mediaCacheOperations.cacheDataSourceForTrackCalls);
+        assertEquals(2, stateProvider.diagnostics.snapshot().precacheFailures);
+    }
+
+    @Test
     public void resolvedUriMatchUsesCurrentTrackPrecachePath() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
@@ -517,9 +573,11 @@ public final class PlaybackPrecacheManagerTest {
     private static final class FakeMediaCacheOperations implements PlaybackPrecacheManager.MediaCacheOperations {
         private long contentLength = -1L;
         private long cachedBytes;
+        private boolean mediaItemMatchesForReuse = true;
         private int cacheKeyForPrecacheCalls;
         private int contentLengthCalls;
         private int cachedBytesInRangeCalls;
+        private int cacheDataSourceForTrackCalls;
 
         @Override
         public boolean tracksShareResolvedUriForReuse(Track current, Track candidate) {
@@ -561,12 +619,13 @@ public final class PlaybackPrecacheManagerTest {
 
         @Override
         public CacheDataSource cacheDataSourceForTrack(Track track) {
+            cacheDataSourceForTrackCalls++;
             return null;
         }
 
         @Override
         public boolean mediaItemMatchesTrackForReuse(MediaItem mediaItem, Track track) {
-            return true;
+            return mediaItemMatchesForReuse;
         }
     }
 
