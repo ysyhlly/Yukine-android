@@ -16,11 +16,27 @@ import static org.junit.Assert.assertEquals;
 
 public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     @Test
-    public void delegatesQueuePreparationToCurrentQueueOperations() {
+    public void delegatesQueuePreparationToSuppliedActions() {
         List<String> events = new ArrayList<>();
-        FakeQueueOperations operations = new FakeQueueOperations(events, 3200L);
+        Track[] lastReplacedTrack = new Track[1];
         PlaybackCurrentTrackPreparationQueueOwner owner = new PlaybackCurrentTrackPreparationQueueOwner(
-                () -> operations
+                track -> {
+                    events.add("replace:" + track.id);
+                    lastReplacedTrack[0] = track;
+                },
+                track -> {
+                    events.add("position:" + track.id);
+                    return 3200L;
+                },
+                () -> {
+                    events.add("queuePreparation");
+                    return new PlaybackQueueManager.QueuePreparation(
+                            lastReplacedTrack[0],
+                            2,
+                            Collections.singletonList(lastReplacedTrack[0])
+                    );
+                },
+                startPositionMs -> events.add("consume:" + startPositionMs)
         );
         Track track = track(7L);
 
@@ -46,9 +62,12 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     }
 
     @Test
-    public void ignoresMissingQueueOperations() {
+    public void ignoresMissingQueueActions() {
         PlaybackCurrentTrackPreparationQueueOwner owner = new PlaybackCurrentTrackPreparationQueueOwner(
-                () -> null
+                null,
+                null,
+                null,
+                null
         );
 
         owner.replaceCurrentQueueTrack(track(8L));
@@ -59,20 +78,7 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     }
 
     @Test
-    public void ignoresMissingQueueOperationsSupplier() {
-        PlaybackCurrentTrackPreparationQueueOwner owner = new PlaybackCurrentTrackPreparationQueueOwner(
-                null
-        );
-
-        owner.replaceCurrentQueueTrack(track(9L));
-
-        assertEquals(0L, owner.restoredPositionFor(track(9L)));
-        assertEquals(null, owner.queuePreparationForNewPlayer().getCurrentTrack());
-        owner.consumeRestoredPositionAfterPrepare(6100L);
-    }
-
-    @Test
-    public void missingPlaybackQueueManagerSupplierSkipsQueueOperations() {
+    public void missingPlaybackQueueManagerSupplierSkipsQueueActions() {
         PlaybackCurrentTrackPreparationQueueOwner owner =
                 PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager(null);
 
@@ -85,43 +91,5 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
 
     private static Track track(long id) {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "streaming:netease:" + id);
-    }
-
-    private static final class FakeQueueOperations implements PlaybackCurrentTrackPreparationQueueOwner.QueueOperations {
-        private final List<String> events;
-        private final long positionMs;
-        private Track lastReplacedTrack;
-
-        private FakeQueueOperations(List<String> events, long positionMs) {
-            this.events = events;
-            this.positionMs = positionMs;
-        }
-
-        @Override
-        public void replaceCurrentQueueTrack(Track track) {
-            events.add("replace:" + track.id);
-            lastReplacedTrack = track;
-        }
-
-        @Override
-        public long restoredPositionFor(Track track) {
-            events.add("position:" + track.id);
-            return positionMs;
-        }
-
-        @Override
-        public PlaybackQueueManager.QueuePreparation queuePreparationForNewPlayer() {
-            events.add("queuePreparation");
-            return new PlaybackQueueManager.QueuePreparation(
-                    lastReplacedTrack,
-                    2,
-                    Collections.singletonList(lastReplacedTrack)
-            );
-        }
-
-        @Override
-        public void consumeRestoredPositionAfterPrepare(long startPositionMs) {
-            events.add("consume:" + startPositionMs);
-        }
     }
 }
