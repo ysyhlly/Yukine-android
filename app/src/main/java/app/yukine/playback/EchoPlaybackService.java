@@ -287,7 +287,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         public void onMediaItemTransition(MediaItem mediaItem, int reason) {
             if (!playbackQueueMirrorStateOwner.playerMirrorsQueue()
                     || player == null
-                    || playbackQueueStateOwner.isQueueEmpty()) {
+                    || playbackQueueStateOwner.queueStateSnapshot().isQueueEmpty()) {
                 return;
             }
             int nextIndex = player.getCurrentMediaItemIndex();
@@ -487,7 +487,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackCurrentTrackPreparationRuntimeOwner::preparing
         );
         playbackNotificationStateOwner = new PlaybackNotificationStateOwner(
-                playbackQueueStateOwner::isQueueEmpty,
+                () -> playbackQueueStateOwner.queueStateSnapshot().isQueueEmpty(),
                 playbackActiveStateOwner,
                 track -> toggleFavoriteUseCase != null && toggleFavoriteUseCase.isFavorite(track),
                 () -> {

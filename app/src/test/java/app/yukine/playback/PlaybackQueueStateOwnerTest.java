@@ -25,7 +25,7 @@ public class PlaybackQueueStateOwnerTest {
         );
 
         assertSame(snapshot, owner.queueStateSnapshot());
-        assertEquals(false, owner.isQueueEmpty());
+        assertEquals(false, owner.queueStateSnapshot().isQueueEmpty());
         assertSame(track, owner.currentTrack());
     }
 
@@ -36,8 +36,6 @@ public class PlaybackQueueStateOwnerTest {
 
         assertEmpty(missingSupplier.queueStateSnapshot());
         assertEmpty(missingSnapshot.queueStateSnapshot());
-        assertTrue(missingSupplier.isQueueEmpty());
-        assertTrue(missingSnapshot.isQueueEmpty());
         assertSame(null, missingSupplier.currentTrack());
         assertSame(null, missingSnapshot.currentTrack());
     }

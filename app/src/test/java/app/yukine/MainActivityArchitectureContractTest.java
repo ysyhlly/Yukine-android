@@ -5724,10 +5724,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("hasMultipleTracks = queue.size >= 2"));
         assertTrue(service.contains("private final PlaybackQueueStateOwner playbackQueueStateOwner"));
         assertTrue(service.contains("PlaybackQueueStateOwner.fromPlaybackQueueManager(() -> playbackQueueManager)"));
-        assertTrue(service.contains("playbackQueueStateOwner.isQueueEmpty()"));
+        assertFalse(queueStateOwner.contains("boolean isQueueEmpty()"));
+        assertFalse(service.contains("playbackQueueStateOwner.isQueueEmpty()"));
+        assertTrue(service.contains("playbackQueueStateOwner.queueStateSnapshot().isQueueEmpty()"));
         assertTrue(service.contains("playbackNotificationStateOwner = new PlaybackNotificationStateOwner("));
         assertTrue(service.contains("playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner("));
-        assertTrue(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
+        assertTrue(service.contains("                () -> playbackQueueStateOwner.queueStateSnapshot().isQueueEmpty(),"));
         assertTrue(service.contains("                playbackQueueStateOwner,"));
         assertFalse(service.contains("playbackQueueManager.queueStateSnapshot()"));
         assertTrue(queueStateOwner.contains("final class PlaybackQueueStateOwner implements"));

@@ -55,10 +55,6 @@ final class PlaybackQueueStateOwner implements
         );
     }
 
-    public boolean isQueueEmpty() {
-        return queueStateSnapshot().isQueueEmpty();
-    }
-
     @Override
     public PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
         PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier == null
