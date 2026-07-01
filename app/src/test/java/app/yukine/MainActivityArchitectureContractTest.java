@@ -6994,11 +6994,18 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun playerMirrorsQueue(): Boolean"));
         assertTrue(owner.contains("fun setPlayerMirrorsQueue(enabled: Boolean)"));
         assertTrue(queueMirrorStateOwner.contains("final class PlaybackQueueMirrorStateOwner"));
-        assertTrue(queueMirrorStateOwner.contains("interface MirrorStateOperations"));
-        assertTrue(queueMirrorStateOwner.contains("boolean playerMirrorsQueue()"));
-        assertTrue(queueMirrorStateOwner.contains("void setPlayerMirrorsQueue(boolean enabled)"));
-        assertTrue(queueMirrorStateOwner.contains("runtimeStateManager.playerMirrorsQueue()"));
-        assertTrue(queueMirrorStateOwner.contains("runtimeStateManager.setPlayerMirrorsQueue(enabled);"));
+        assertFalse(queueMirrorStateOwner.contains("interface MirrorStateOperations"));
+        assertFalse(queueMirrorStateOwner.contains("interface MirrorStateOperationsProvider"));
+        assertFalse(queueMirrorStateOwner.contains("PlaybackQueueRuntimeStateManagerOperations"));
+        assertTrue(queueMirrorStateOwner.contains("import java.util.function.BooleanSupplier;"));
+        assertTrue(queueMirrorStateOwner.contains("import java.util.function.Consumer;"));
+        assertTrue(queueMirrorStateOwner.contains("private final BooleanSupplier playerMirrorsQueue;"));
+        assertTrue(queueMirrorStateOwner.contains("private final Consumer<Boolean> setPlayerMirrorsQueue;"));
+        assertTrue(queueMirrorStateOwner.contains("runtimeStateManager::playerMirrorsQueue"));
+        assertTrue(queueMirrorStateOwner.contains("runtimeStateManager::setPlayerMirrorsQueue"));
+        assertTrue(queueMirrorStateOwner.contains(
+                "return playerMirrorsQueue != null && playerMirrorsQueue.getAsBoolean();"));
+        assertTrue(queueMirrorStateOwner.contains("setPlayerMirrorsQueue.accept(enabled);"));
         assertFalse(owner.contains("private var currentIndex"));
         assertFalse(owner.contains("fun currentIndex(): Int"));
         assertFalse(owner.contains("fun setCurrentIndex(index: Int)"));

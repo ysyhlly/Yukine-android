@@ -8,8 +8,11 @@ import static org.junit.Assert.assertTrue;
 public final class PlaybackQueueMirrorStateOwnerTest {
     @Test
     public void delegatesMirrorStateToRuntimeOperations() {
-        FakeMirrorStateOperations operations = new FakeMirrorStateOperations();
-        PlaybackQueueMirrorStateOwner owner = new PlaybackQueueMirrorStateOwner(() -> operations);
+        FakeMirrorStateActions actions = new FakeMirrorStateActions();
+        PlaybackQueueMirrorStateOwner owner = new PlaybackQueueMirrorStateOwner(
+                actions::playerMirrorsQueue,
+                actions::setPlayerMirrorsQueue
+        );
 
         assertFalse(owner.playerMirrorsQueue());
         owner.setPlayerMirrorsQueue(true);
@@ -20,26 +23,21 @@ public final class PlaybackQueueMirrorStateOwnerTest {
 
     @Test
     public void missingRuntimeOperationsFallBackToNotMirrored() {
-        PlaybackQueueMirrorStateOwner missingOperations = new PlaybackQueueMirrorStateOwner(() -> null);
-        PlaybackQueueMirrorStateOwner missingProvider = new PlaybackQueueMirrorStateOwner(null);
+        PlaybackQueueMirrorStateOwner missingOperations =
+                new PlaybackQueueMirrorStateOwner(null, null);
 
         missingOperations.setPlayerMirrorsQueue(true);
-        missingProvider.setPlayerMirrorsQueue(true);
 
         assertFalse(missingOperations.playerMirrorsQueue());
-        assertFalse(missingProvider.playerMirrorsQueue());
     }
 
-    private static final class FakeMirrorStateOperations
-            implements PlaybackQueueMirrorStateOwner.MirrorStateOperations {
+    private static final class FakeMirrorStateActions {
         private boolean playerMirrorsQueue;
 
-        @Override
         public boolean playerMirrorsQueue() {
             return playerMirrorsQueue;
         }
 
-        @Override
         public void setPlayerMirrorsQueue(boolean enabled) {
             playerMirrorsQueue = enabled;
         }
