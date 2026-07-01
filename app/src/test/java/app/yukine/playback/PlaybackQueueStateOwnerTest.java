@@ -7,16 +7,13 @@ import static org.junit.Assert.assertTrue;
 
 import android.net.Uri;
 
-import java.util.Arrays;
-import java.util.List;
-
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 import org.junit.Test;
 
 public class PlaybackQueueStateOwnerTest {
     @Test
-    public void delegatesQueueStateSnapshotToQueueOperations() {
+    public void delegatesQueueStateSnapshotToFallbackSupplier() {
         Track track = track(12L);
         PlaybackQueueManager.QueueStateSnapshot snapshot =
                 new PlaybackQueueManager.QueueStateSnapshot(track, 0, 1, false, true, false, true);
@@ -29,7 +26,7 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     @Test
-    public void returnsEmptyQueueStateWhenProviderOperationsOrSnapshotAreMissing() {
+    public void returnsEmptyQueueStateWhenFallbackSupplierOrSnapshotAreMissing() {
         PlaybackQueueStateOwner missingSupplier = new PlaybackQueueStateOwner(null);
         PlaybackQueueStateOwner missingSnapshot = new PlaybackQueueStateOwner(() -> null);
 
@@ -56,39 +53,19 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     @Test
-    public void delegatesQueueSnapshotToQueueOperations() {
-        List<Track> queue = Arrays.asList(track(1L), track(2L));
-        List<Track> upcoming = Arrays.asList(track(3L), track(4L));
-        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(
-                PlaybackQueueManager.QueueStateSnapshot::empty,
-                () -> queue,
-                maxCount -> upcoming.subList(0, Math.min(maxCount, upcoming.size()))
-        );
-
-        assertEquals(queue, owner.queueSnapshot());
-        assertEquals(upcoming.subList(0, 1), owner.upcomingTracksForPrecache(1));
-    }
-
-    @Test
-    public void returnsEmptyQueueSnapshotWhenProviderOperationsOrSnapshotAreMissing() {
+    public void returnsEmptyQueueSnapshotWhenManagerIsMissing() {
         PlaybackQueueStateOwner missingSupplier = new PlaybackQueueStateOwner(null);
-        PlaybackQueueStateOwner missingOperations = new PlaybackQueueStateOwner(
-                PlaybackQueueManager.QueueStateSnapshot::empty,
-                null,
-                null
-        );
-        PlaybackQueueStateOwner missingSnapshot = new PlaybackQueueStateOwner(
-                PlaybackQueueManager.QueueStateSnapshot::empty,
-                () -> null,
-                maxCount -> null
-        );
+        PlaybackQueueStateOwner missingManagerProvider =
+                PlaybackQueueStateOwner.fromPlaybackQueueManager(null);
+        PlaybackQueueStateOwner missingManager =
+                PlaybackQueueStateOwner.fromPlaybackQueueManager(() -> null);
 
         assertTrue(missingSupplier.queueSnapshot().isEmpty());
-        assertTrue(missingOperations.queueSnapshot().isEmpty());
-        assertTrue(missingSnapshot.queueSnapshot().isEmpty());
+        assertTrue(missingManagerProvider.queueSnapshot().isEmpty());
+        assertTrue(missingManager.queueSnapshot().isEmpty());
         assertTrue(missingSupplier.upcomingTracksForPrecache(3).isEmpty());
-        assertTrue(missingOperations.upcomingTracksForPrecache(3).isEmpty());
-        assertTrue(missingSnapshot.upcomingTracksForPrecache(3).isEmpty());
+        assertTrue(missingManagerProvider.upcomingTracksForPrecache(3).isEmpty());
+        assertTrue(missingManager.upcomingTracksForPrecache(3).isEmpty());
     }
 
     private static void assertEmpty(PlaybackQueueManager.QueueStateSnapshot snapshot) {

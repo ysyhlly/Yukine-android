@@ -5742,9 +5742,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueManager.queueSnapshot();"));
         assertFalse(queueStateOwner.contains("interface QueueSnapshotOperations"));
         assertFalse(queueStateOwner.contains("interface QueueSnapshotOperationsProvider"));
-        assertTrue(queueStateOwner.contains("Supplier<List<Track>> queueSnapshotSupplier"));
+        assertFalse(queueStateOwner.contains("Supplier<List<Track>> queueSnapshotSupplier"));
+        assertTrue(queueStateOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertFalse(queueStateOwner.contains("queueSnapshotOperationsProvider"));
-        assertTrue(queueStateOwner.contains("return playbackQueueManager == null ? null : playbackQueueManager.queueSnapshot();"));
+        assertTrue(queueStateOwner.contains("playbackQueueManager == null ? null : playbackQueueManager.queueSnapshot();"));
         assertTrue(queueStateOwner.contains("return snapshot == null ? Collections.emptyList() : snapshot;"));
         assertFalse(queueStateOwner.contains("default List<Track> queueSnapshot()"));
         assertFalse(service.contains("Collections.unmodifiableList(new ArrayList<>(queue))"));
@@ -5768,7 +5769,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueStateOwner.contains("PlaybackStateSnapshotOwner.QueueStateProvider"));
         assertTrue(queueStateOwner.contains("PlaybackCrossfadeStateOwner.QueueStateProvider"));
         assertFalse(queueStateOwner.contains("interface PlaybackQueueManagerProvider"));
-        assertTrue(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier"));
+        assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier"));
+        assertTrue(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot> fallbackQueueStateSnapshotSupplier"));
         assertFalse(queueStateOwner.contains("playbackQueueManagerProvider"));
         assertEquals(0, countOccurrences(queueStateOwner, "    interface "));
         assertEquals(0, countOccurrences(queueStateOwner, "interface QueueStateOperations"));
@@ -5781,13 +5783,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueStateOwner.contains("interface QueueStateOperationsProvider"));
         assertFalse(queueStateOwner.contains("Supplier<QueueStateOperations> queueStateOperationsSupplier"));
         assertFalse(queueStateOwner.contains("queueStateOperationsProvider"));
-        assertTrue(queueStateOwner.contains("return playbackQueueManager == null ? null : playbackQueueManager.queueStateSnapshot();"));
+        assertTrue(queueStateOwner.contains("playbackQueueManager.queueStateSnapshot();"));
         assertFalse(queueStateOwner.contains("interface UpcomingTracksOperations"));
         assertFalse(queueStateOwner.contains("interface UpcomingTracksOperationsProvider"));
-        assertTrue(queueStateOwner.contains("IntFunction<List<Track>> upcomingTracksSupplier"));
+        assertFalse(queueStateOwner.contains("IntFunction<List<Track>> upcomingTracksSupplier"));
         assertFalse(queueStateOwner.contains("upcomingTracksOperationsProvider"));
         assertTrue(queueStateOwner.contains(
-                "return playbackQueueManager == null ? null : playbackQueueManager.upcomingTracksForPrecache(maxCount);"));
+                "playbackQueueManager.upcomingTracksForPrecache(maxCount);"));
         assertFalse(queueStateOwner.contains("new QueueStateOperations()"));
         assertFalse(queueStateOwner.contains("default List<Track> upcomingTracksForPrecache(int maxCount)"));
         assertTrue(queueStateOwner.contains("return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;"));
@@ -7126,7 +7128,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("fun setClampedCurrentIndex(index: Int, queueSize: Int)"));
         assertTrue(queueStateOwner.contains("upcomingTracksForPrecache(int maxCount)"));
         assertTrue(queueStateOwner.contains(
-                "return playbackQueueManager == null ? null : playbackQueueManager.upcomingTracksForPrecache(maxCount);"));
+                "playbackQueueManager.upcomingTracksForPrecache(maxCount);"));
         assertFalse(queueStateOwner.contains("default List<Track> upcomingTracksForPrecache(int maxCount)"));
         assertTrue(queueOwner.contains("private var currentIndex = -1"));
         assertTrue(queueOwner.contains("private fun currentIndex(): Int"));
