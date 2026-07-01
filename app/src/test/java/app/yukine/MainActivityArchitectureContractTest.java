@@ -5402,8 +5402,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueMutationOwner.contains("interface QueueMutationOperations"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.playQueue(tracks, startIndex, startPositionMs);"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.appendToQueue(tracks);"));
-        assertTrue(queueStopClearOwner.contains(
-                "Supplier<QueueStopClearOperations> queueStopClearOperationsSupplier"));
+        assertFalse(queueStopClearOwner.contains("interface QueueStopClearOperations"));
+        assertFalse(queueStopClearOwner.contains("Supplier<QueueStopClearOperations> queueStopClearOperationsSupplier"));
+        assertTrue(queueStopClearOwner.contains("private final Supplier<Runnable> prepareStopAndClearPlaybackStateSupplier;"));
         assertTrue(queueStopClearOwner.contains(
                 "Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertFalse(queueStopClearOwner.contains("queueStopClearOperationsProvider"));

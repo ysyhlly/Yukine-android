@@ -5,14 +5,10 @@ import app.yukine.playback.manager.PlaybackQueueManager;
 import java.util.function.Supplier;
 
 final class PlaybackQueueStopClearOwner {
-    interface QueueStopClearOperations {
-        void prepareStopAndClearPlaybackState();
-    }
+    private final Supplier<Runnable> prepareStopAndClearPlaybackStateSupplier;
 
-    private final Supplier<QueueStopClearOperations> queueStopClearOperationsSupplier;
-
-    PlaybackQueueStopClearOwner(Supplier<QueueStopClearOperations> queueStopClearOperationsSupplier) {
-        this.queueStopClearOperationsSupplier = queueStopClearOperationsSupplier;
+    PlaybackQueueStopClearOwner(Supplier<Runnable> prepareStopAndClearPlaybackStateSupplier) {
+        this.prepareStopAndClearPlaybackStateSupplier = prepareStopAndClearPlaybackStateSupplier;
     }
 
     static PlaybackQueueStopClearOwner fromPlaybackQueueManager(
@@ -31,17 +27,17 @@ final class PlaybackQueueStopClearOwner {
     }
 
     boolean prepareStopAndClearPlaybackState() {
-        QueueStopClearOperations operations = queueStopClearOperations();
-        if (operations == null) {
+        Runnable prepareStopAndClearPlaybackState = prepareStopAndClearPlaybackStateAction();
+        if (prepareStopAndClearPlaybackState == null) {
             return false;
         }
-        operations.prepareStopAndClearPlaybackState();
+        prepareStopAndClearPlaybackState.run();
         return true;
     }
 
-    private QueueStopClearOperations queueStopClearOperations() {
-        return queueStopClearOperationsSupplier == null
+    private Runnable prepareStopAndClearPlaybackStateAction() {
+        return prepareStopAndClearPlaybackStateSupplier == null
                 ? null
-                : queueStopClearOperationsSupplier.get();
+                : prepareStopAndClearPlaybackStateSupplier.get();
     }
 }

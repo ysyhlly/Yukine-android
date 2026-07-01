@@ -8,12 +8,12 @@ import org.junit.Test;
 public class PlaybackQueueStopClearOwnerTest {
     @Test
     public void delegatesStopClearPreparationToCurrentOperations() {
-        FakeQueueStopClearOperations operations = new FakeQueueStopClearOperations();
-        PlaybackQueueStopClearOwner owner = new PlaybackQueueStopClearOwner(() -> operations);
+        boolean[] called = new boolean[1];
+        PlaybackQueueStopClearOwner owner = new PlaybackQueueStopClearOwner(() -> () -> called[0] = true);
 
         assertTrue(owner.prepareStopAndClearPlaybackState());
 
-        assertTrue(operations.called);
+        assertTrue(called[0]);
     }
 
     @Test
@@ -33,13 +33,4 @@ public class PlaybackQueueStopClearOwnerTest {
         assertFalse(owner.prepareStopAndClearPlaybackState());
     }
 
-    private static final class FakeQueueStopClearOperations
-            implements PlaybackQueueStopClearOwner.QueueStopClearOperations {
-        private boolean called;
-
-        @Override
-        public void prepareStopAndClearPlaybackState() {
-            called = true;
-        }
-    }
 }
