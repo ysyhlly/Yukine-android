@@ -248,6 +248,34 @@ internal class PlaybackMediaSourceProvider(
         }
 
         @JvmStatic
+        fun isRestorableQueueTrack(track: Track?): Boolean {
+            if (track == null || track.id < 0L) {
+                return false
+            }
+            if (track.dataPath.isNullOrBlank()) {
+                return false
+            }
+            val contentUri = track.contentUri
+            if (contentUri == null || Uri.EMPTY == contentUri) {
+                return isStreamingPlaceholder(track)
+            }
+            val scheme = contentUri.scheme
+            if (scheme.equals("file", ignoreCase = true)) {
+                val path = contentUri.path
+                return path != null && File(path).exists()
+            }
+            if (scheme.isNullOrBlank()) {
+                return contentUri.toString().isNotBlank()
+            }
+            return true
+        }
+
+        @JvmStatic
+        fun isStreamingPlaceholder(track: Track?): Boolean {
+            return StreamingDataPathMetadata.isStreamingTrack(track?.dataPath)
+        }
+
+        @JvmStatic
         fun unplayableMessageForTrack(track: Track?): String? {
             if (track == null || hasPlayableMediaUri(track)) {
                 return null

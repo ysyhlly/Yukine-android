@@ -1,11 +1,9 @@
 package app.yukine.playback.manager
 
-import android.net.Uri
 import app.yukine.playback.PlaybackRepeatMode.REPEAT_ALL
 import app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF
 import app.yukine.playback.PlaybackRepeatMode.REPEAT_ONE
 import app.yukine.model.Track
-import java.io.File
 import java.util.ArrayList
 import java.util.Collections
 import java.util.HashSet
@@ -737,7 +735,7 @@ internal class PlaybackQueueManager(
         val queue = this.queue
         queue.clear()
         for (track in restored.tracks) {
-            if (!isRestorableQueueTrack(track)) {
+            if (!PlaybackMediaSourceProvider.isRestorableQueueTrack(track)) {
                 continue
             }
             val queueTrack = streamingRestoreProvider.restoredTrackFor(track) ?: track
@@ -911,32 +909,6 @@ internal class PlaybackQueueManager(
             }
         }
         return true
-    }
-
-    private fun isRestorableQueueTrack(track: Track): Boolean {
-        if (track.id < 0L) {
-            return false
-        }
-        if (track.dataPath.isNullOrBlank()) {
-            return false
-        }
-        val contentUri = track.contentUri
-        if (contentUri == null || Uri.EMPTY == contentUri) {
-            return isStreamingPlaceholder(track)
-        }
-        val scheme = contentUri.scheme
-        if (scheme.equals("file", ignoreCase = true)) {
-            val path = contentUri.path
-            return path != null && File(path).exists()
-        }
-        if (scheme.isNullOrBlank()) {
-            return contentUri.toString().isNotBlank()
-        }
-        return true
-    }
-
-    private fun isStreamingPlaceholder(track: Track): Boolean {
-        return track.dataPath != null && track.dataPath.startsWith("streaming:")
     }
 
     private object NoopQueuePlaybackActions : QueuePlaybackActions {

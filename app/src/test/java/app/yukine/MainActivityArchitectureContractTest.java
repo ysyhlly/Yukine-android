@@ -5403,6 +5403,9 @@ public final class MainActivityArchitectureContractTest {
     public void playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackQueueManager.kt");
+        String mediaSourceProvider = read(
+                "feature/playback/src/main/java/app/yukine/playback/manager/PlaybackMediaSourceProvider.kt"
+        );
         String positionOwner = read("app/src/main/java/app/yukine/playback/manager/PlaybackPositionManager.kt");
         String commandOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueCommandOwner.java");
         String playerStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackPlayerStateOwner.java");
@@ -5990,9 +5993,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private boolean isRestorableQueueTrack(Track track)"));
         assertFalse(service.contains("EchoPlaybackService.this.isRestorableQueueTrack(track)"));
         assertFalse(service.contains("public long playbackPositionMs()"));
-        assertTrue(owner.contains("private fun isRestorableQueueTrack(track: Track): Boolean"));
-        assertTrue(owner.contains("return isStreamingPlaceholder(track)"));
-        assertTrue(owner.contains("File(path).exists()"));
+        assertFalse(owner.contains("private fun isRestorableQueueTrack(track: Track): Boolean"));
+        assertFalse(owner.contains("File(path).exists()"));
+        assertTrue(owner.contains("PlaybackMediaSourceProvider.isRestorableQueueTrack(track)"));
+        assertTrue(mediaSourceProvider.contains("fun isRestorableQueueTrack(track: Track?): Boolean"));
+        assertTrue(mediaSourceProvider.contains("fun isStreamingPlaceholder(track: Track?): Boolean"));
+        assertTrue(mediaSourceProvider.contains("File(path).exists()"));
         assertTrue(owner.contains("mirroredQueuePlayer.matchesCurrentQueue()"));
         assertTrue(owner.contains("mirroredQueuePlayer.seekTo(targetIndex, startAtMs, playWhenReady)"));
         assertTrue(service.contains("private PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner;"));

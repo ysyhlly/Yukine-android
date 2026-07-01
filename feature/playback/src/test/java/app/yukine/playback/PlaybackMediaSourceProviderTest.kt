@@ -21,6 +21,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.RobolectricTestRunner
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 class PlaybackMediaSourceProviderTest {
@@ -411,6 +412,46 @@ class PlaybackMediaSourceProviderTest {
             "Streaming track is not resolved yet. Tap the track again to play.",
             PlaybackMediaSourceProvider.unplayableMessageForTrack(track)
         )
+    }
+
+    @Test
+    fun restorableQueueTrackPolicyIsOwnedByMediaSourceProvider() {
+        val existingFile = File.createTempFile("yukine-restorable", ".flac")
+        existingFile.deleteOnExit()
+        val existingFileTrack = Track(
+            1L,
+            "Existing",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.fromFile(existingFile),
+            existingFile.absolutePath
+        )
+        val missingFileTrack = Track(
+            2L,
+            "Missing",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.fromFile(File(existingFile.parentFile, "missing-${existingFile.name}")),
+            "/missing/file.flac"
+        )
+        val contentTrack = Track(3L, "Content", "Artist", "Album", 180_000L, Uri.parse("content://media/audio/3"), "/music/3")
+        val relativeUriTrack = Track(4L, "Relative", "Artist", "Album", 180_000L, Uri.parse("relative/path.flac"), "/music/4")
+        val streamingPlaceholder = Track(5L, "Stream", "Artist", "Album", 180_000L, Uri.EMPTY, "streaming:netease:5")
+        val emptyLocalUri = Track(6L, "Local", "Artist", "Album", 180_000L, Uri.EMPTY, "/music/6")
+        val missingDataPath = Track(7L, "Missing Data", "Artist", "Album", 180_000L, Uri.parse("content://media/audio/7"), "")
+        val invalidId = Track(-1L, "Invalid", "Artist", "Album", 180_000L, Uri.parse("content://media/audio/8"), "/music/8")
+
+        assertTrue(PlaybackMediaSourceProvider.isRestorableQueueTrack(existingFileTrack))
+        assertFalse(PlaybackMediaSourceProvider.isRestorableQueueTrack(missingFileTrack))
+        assertTrue(PlaybackMediaSourceProvider.isRestorableQueueTrack(contentTrack))
+        assertTrue(PlaybackMediaSourceProvider.isRestorableQueueTrack(relativeUriTrack))
+        assertTrue(PlaybackMediaSourceProvider.isRestorableQueueTrack(streamingPlaceholder))
+        assertFalse(PlaybackMediaSourceProvider.isRestorableQueueTrack(emptyLocalUri))
+        assertFalse(PlaybackMediaSourceProvider.isRestorableQueueTrack(missingDataPath))
+        assertFalse(PlaybackMediaSourceProvider.isRestorableQueueTrack(invalidId))
+        assertFalse(PlaybackMediaSourceProvider.isRestorableQueueTrack(null))
     }
 
     @Test
