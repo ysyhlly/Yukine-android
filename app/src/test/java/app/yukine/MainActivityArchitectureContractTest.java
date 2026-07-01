@@ -5644,6 +5644,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueStateOwner.contains("interface PlaybackQueueManagerProvider"));
         assertTrue(queueStateOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertFalse(queueStateOwner.contains("playbackQueueManagerProvider"));
+        assertEquals(3, countOccurrences(queueStateOwner, "    interface "));
+        assertEquals(1, countOccurrences(queueStateOwner, "interface QueueStateOperations"));
+        assertEquals(1, countOccurrences(queueStateOwner, "interface QueueSnapshotOperations"));
+        assertEquals(1, countOccurrences(queueStateOwner, "interface UpcomingTracksOperations"));
+        assertFalse(queueStateOwner.contains("interface QueueOperations"));
+        assertFalse(queueStateOwner.contains("interface QueueReadOperations"));
+        assertFalse(queueStateOwner.contains("interface QueueProvider"));
         assertTrue(queueStateOwner.contains("interface QueueStateOperations"));
         assertFalse(queueStateOwner.contains("interface QueueStateOperationsProvider"));
         assertTrue(queueStateOwner.contains("Supplier<QueueStateOperations> queueStateOperationsSupplier"));
