@@ -6205,9 +6205,6 @@ public final class MainActivityArchitectureContractTest {
     public void playbackStateBroadcastsAreOwnedOutsideEchoPlaybackService() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String owner = read("app/src/main/java/app/yukine/playback/PlaybackStatePublisher.kt");
-        String notificationOwner = read(
-                "app/src/main/java/app/yukine/playback/PlaybackStatePublisherNotificationOwner.java"
-        );
         String widgetOwner = read(
                 "app/src/main/java/app/yukine/playback/PlaybackStatePublisherWidgetOwner.java"
         );
@@ -6223,7 +6220,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackStatePublisher.unregisterListener(listener)"));
         assertTrue(service.contains("playbackStatePublisher.publishState()"));
         assertTrue(service.contains("playbackStatePublisher.publishBufferingState("));
-        assertTrue(service.contains("PlaybackStatePublisherNotificationOwner.fromNotificationManagerProvider("));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackStatePublisherNotificationOwner.java")));
+        assertFalse(service.contains("PlaybackStatePublisherNotificationOwner"));
+        assertTrue(service.contains("playbackNotificationManager.updateMediaNotification(force);"));
         assertTrue(service.contains("                playbackNotificationArtworkProviderOwner,"));
         assertTrue(service.contains("PlaybackStatePublisherWidgetOwner.fromContextProvider(() -> this)"));
         assertTrue(service.contains("private PlaybackBufferingDiagnosticsRecorderOwner playbackBufferingDiagnosticsRecorderOwner;"));
@@ -6240,16 +6239,6 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun publishBufferingState("));
         assertTrue(owner.contains("fun release()"));
         assertTrue(owner.contains("listeners.clear()"));
-        assertTrue(notificationOwner.contains(
-                "final class PlaybackStatePublisherNotificationOwner"));
-        assertTrue(notificationOwner.contains(
-                "implements PlaybackStatePublisher.NotificationUpdater"));
-        assertTrue(notificationOwner.contains("interface NotificationOperations"));
-        assertFalse(notificationOwner.contains("interface NotificationManagerProvider"));
-        assertFalse(notificationOwner.contains("interface NotificationOperationsProvider"));
-        assertTrue(notificationOwner.contains("Supplier<NotificationOperations>"));
-        assertTrue(notificationOwner.contains("Supplier<PlaybackNotificationManager>"));
-        assertTrue(notificationOwner.contains("notificationOperations.updateMediaNotification(force);"));
         assertFalse(service.contains("private void publishPlaybackNotification(boolean force)"));
         assertFalse(service.contains("EchoPlaybackService.this::publishPlaybackNotification"));
         assertTrue(widgetOwner.contains(
@@ -7297,7 +7286,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("ACTION_NEXT.equals(action)"));
         assertFalse(service.contains("ACTION_PREVIOUS.equals(action)"));
         assertFalse(service.contains("ACTION_RESTORE_AND_PLAY.equals(action)"));
-        assertFalse(service.contains("playbackNotificationManager.updateMediaNotification("));
+        assertFalse(service.contains("playbackNotificationManager.updateMediaNotification(false)"));
+        assertFalse(service.contains("playbackNotificationManager.updateMediaNotification(true)"));
+        assertTrue(service.contains("if (playbackNotificationManager != null)"));
+        assertTrue(service.contains("playbackNotificationManager.updateMediaNotification(force);"));
         assertFalse(service.contains("playbackNotificationManager.handleServiceAction(null)"));
         assertTrue(owner.contains("interface ActionCallbacks"));
         assertTrue(owner.contains("fun handleServiceAction(action: String?): Boolean"));

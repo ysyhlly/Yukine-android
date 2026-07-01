@@ -762,9 +762,11 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackStatePublisher = new PlaybackStatePublisher(
                 this::snapshot,
                 playbackLyricsManager,
-                PlaybackStatePublisherNotificationOwner.fromNotificationManagerProvider(
-                        () -> playbackNotificationManager
-                ),
+                force -> {
+                    if (playbackNotificationManager != null) {
+                        playbackNotificationManager.updateMediaNotification(force);
+                    }
+                },
                 playbackNotificationArtworkProviderOwner,
                 PlaybackStatePublisherWidgetOwner.fromContextProvider(() -> this)
         );
