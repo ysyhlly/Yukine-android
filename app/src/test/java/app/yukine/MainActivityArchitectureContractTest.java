@@ -5399,7 +5399,14 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueMutationOwner.contains("interface PlaybackQueueManagerProvider"));
         assertTrue(queueMutationOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertFalse(queueMutationOwner.contains("playbackQueueManagerProvider"));
-        assertTrue(queueMutationOwner.contains("interface QueueMutationOperations"));
+        assertFalse(queueMutationOwner.contains("interface QueueMutationOperations"));
+        assertFalse(queueMutationOwner.contains("QueueMutationOperations"));
+        assertFalse(queueMutationOwner.contains("PlaybackQueueManagerOperations"));
+        assertTrue(queueMutationOwner.contains("import java.util.function.BiConsumer;"));
+        assertTrue(queueMutationOwner.contains("import java.util.function.Consumer;"));
+        assertTrue(queueMutationOwner.contains("private final PlaybackControllerMediaItemsOwner.QueuePlayer playQueue;"));
+        assertTrue(queueMutationOwner.contains("private final Consumer<List<Track>> appendToQueue;"));
+        assertTrue(queueMutationOwner.contains("private final Runnable clearQueue;"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.playQueue(tracks, startIndex, startPositionMs);"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.appendToQueue(tracks);"));
         assertFalse(queueStopClearOwner.contains("interface QueueStopClearOperations"));

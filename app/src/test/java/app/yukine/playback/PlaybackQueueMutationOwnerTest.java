@@ -17,8 +17,8 @@ import org.junit.Test;
 public class PlaybackQueueMutationOwnerTest {
     @Test
     public void delegatesQueueMutationsToQueueOperations() {
-        FakeQueueMutationOperations operations = new FakeQueueMutationOperations();
-        PlaybackQueueMutationOwner owner = new PlaybackQueueMutationOwner(() -> operations);
+        FakeQueueMutationActions actions = new FakeQueueMutationActions();
+        PlaybackQueueMutationOwner owner = owner(actions);
         List<Track> tracks = Arrays.asList(track(1L), track(2L));
 
         owner.playQueue(tracks, 1, 2500L);
@@ -34,34 +34,41 @@ public class PlaybackQueueMutationOwnerTest {
         owner.replaceQueuedTrack(replacement);
         owner.replaceQueuedTrackById(6L, replacementById);
 
-        assertSame(tracks, operations.playedTracks);
-        assertEquals(1, operations.startIndex);
-        assertEquals(2500L, operations.startPositionMs);
-        assertSame(tracks, operations.appendedTracks);
-        assertSame(trackIds, operations.removedTrackIds);
-        assertSame(retainedTrackIds, operations.retainedTrackIds);
-        assertEquals(1, operations.clearCalls);
-        assertEquals(3, operations.moveFromIndex);
-        assertEquals(1, operations.moveToIndex);
-        assertSame(replacement, operations.replacement);
-        assertEquals(6L, operations.oldTrackId);
-        assertSame(replacementById, operations.replacementById);
+        assertSame(tracks, actions.playedTracks);
+        assertEquals(1, actions.startIndex);
+        assertEquals(2500L, actions.startPositionMs);
+        assertSame(tracks, actions.appendedTracks);
+        assertSame(trackIds, actions.removedTrackIds);
+        assertSame(retainedTrackIds, actions.retainedTrackIds);
+        assertEquals(1, actions.clearCalls);
+        assertEquals(3, actions.moveFromIndex);
+        assertEquals(1, actions.moveToIndex);
+        assertSame(replacement, actions.replacement);
+        assertEquals(6L, actions.oldTrackId);
+        assertSame(replacementById, actions.replacementById);
     }
 
     @Test
     public void ignoresMissingOrEmptyQueueMutationInputs() {
-        FakeQueueMutationOperations operations = new FakeQueueMutationOperations();
-        PlaybackQueueMutationOwner missingSupplier = new PlaybackQueueMutationOwner(null);
-        PlaybackQueueMutationOwner missingOperations = new PlaybackQueueMutationOwner(() -> null);
-        PlaybackQueueMutationOwner owner = new PlaybackQueueMutationOwner(() -> operations);
+        FakeQueueMutationActions actions = new FakeQueueMutationActions();
+        PlaybackQueueMutationOwner missingActions = new PlaybackQueueMutationOwner(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        PlaybackQueueMutationOwner owner = owner(actions);
 
-        missingSupplier.playQueue(Collections.singletonList(track(3L)), 0, 0L);
-        missingOperations.appendToQueue(Collections.singletonList(track(4L)));
-        missingSupplier.clearQueue();
-        missingOperations.clearQueue();
-        missingSupplier.moveQueueTrack(1, 2);
-        missingOperations.replaceQueuedTrack(track(9L));
-        missingSupplier.replaceQueuedTrackById(9L, track(10L));
+        missingActions.playQueue(Collections.singletonList(track(3L)), 0, 0L);
+        missingActions.appendToQueue(Collections.singletonList(track(4L)));
+        missingActions.clearQueue();
+        missingActions.moveQueueTrack(1, 2);
+        missingActions.replaceQueuedTrack(track(9L));
+        missingActions.replaceQueuedTrackById(9L, track(10L));
         owner.playQueue(null, 0, 0L);
         owner.playQueue(Collections.emptyList(), 0, 0L);
         owner.appendToQueue(null);
@@ -71,35 +78,47 @@ public class PlaybackQueueMutationOwnerTest {
         owner.retainTracksById(null);
         owner.retainTracksById(Collections.emptySet());
 
-        assertEquals(0, operations.playCalls);
-        assertEquals(0, operations.appendCalls);
-        assertEquals(0, operations.removeCalls);
-        assertEquals(0, operations.retainCalls);
-        assertEquals(0, operations.clearCalls);
-        assertEquals(0, operations.moveCalls);
-        assertEquals(0, operations.replaceCalls);
-        assertEquals(0, operations.replaceByIdCalls);
+        assertEquals(0, actions.playCalls);
+        assertEquals(0, actions.appendCalls);
+        assertEquals(0, actions.removeCalls);
+        assertEquals(0, actions.retainCalls);
+        assertEquals(0, actions.clearCalls);
+        assertEquals(0, actions.moveCalls);
+        assertEquals(0, actions.replaceCalls);
+        assertEquals(0, actions.replaceByIdCalls);
     }
 
     @Test
     public void usesUnsetPositionForTwoArgumentPlayQueue() {
-        FakeQueueMutationOperations operations = new FakeQueueMutationOperations();
-        PlaybackQueueMutationOwner owner = new PlaybackQueueMutationOwner(() -> operations);
+        FakeQueueMutationActions actions = new FakeQueueMutationActions();
+        PlaybackQueueMutationOwner owner = owner(actions);
         List<Track> tracks = Collections.singletonList(track(5L));
 
         owner.playQueue(tracks, 2);
 
-        assertSame(tracks, operations.playedTracks);
-        assertEquals(2, operations.startIndex);
-        assertEquals(androidx.media3.common.C.TIME_UNSET, operations.startPositionMs);
+        assertSame(tracks, actions.playedTracks);
+        assertEquals(2, actions.startIndex);
+        assertEquals(androidx.media3.common.C.TIME_UNSET, actions.startPositionMs);
+    }
+
+    private static PlaybackQueueMutationOwner owner(FakeQueueMutationActions actions) {
+        return new PlaybackQueueMutationOwner(
+                actions::playQueue,
+                actions::appendToQueue,
+                actions::removeTracksById,
+                actions::retainTracksById,
+                actions::clearQueue,
+                actions::moveQueueTrack,
+                actions::replaceQueuedTrack,
+                actions::replaceQueuedTrackById
+        );
     }
 
     private static Track track(long id) {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "file:" + id);
     }
 
-    private static final class FakeQueueMutationOperations
-            implements PlaybackQueueMutationOwner.QueueMutationOperations {
+    private static final class FakeQueueMutationActions {
         private int playCalls;
         private int appendCalls;
         private int removeCalls;
@@ -120,7 +139,6 @@ public class PlaybackQueueMutationOwnerTest {
         private long oldTrackId;
         private Track replacementById;
 
-        @Override
         public void playQueue(List<Track> tracks, int startIndex, long startPositionMs) {
             playCalls++;
             playedTracks = tracks;
@@ -128,43 +146,36 @@ public class PlaybackQueueMutationOwnerTest {
             this.startPositionMs = startPositionMs;
         }
 
-        @Override
         public void appendToQueue(List<Track> tracks) {
             appendCalls++;
             appendedTracks = tracks;
         }
 
-        @Override
         public void removeTracksById(Set<Long> trackIds) {
             removeCalls++;
             removedTrackIds = trackIds;
         }
 
-        @Override
         public void retainTracksById(Set<Long> trackIdsToKeep) {
             retainCalls++;
             retainedTrackIds = trackIdsToKeep;
         }
 
-        @Override
         public void clearQueue() {
             clearCalls++;
         }
 
-        @Override
         public void moveQueueTrack(int fromIndex, int toIndex) {
             moveCalls++;
             moveFromIndex = fromIndex;
             moveToIndex = toIndex;
         }
 
-        @Override
         public void replaceQueuedTrack(Track replacement) {
             replaceCalls++;
             this.replacement = replacement;
         }
 
-        @Override
         public void replaceQueuedTrackById(long oldTrackId, Track replacement) {
             replaceByIdCalls++;
             this.oldTrackId = oldTrackId;
