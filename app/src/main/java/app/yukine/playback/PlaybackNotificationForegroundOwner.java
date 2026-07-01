@@ -5,43 +5,31 @@ import android.app.PendingIntent;
 
 import app.yukine.playback.manager.PlaybackNotificationManager;
 
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+
 final class PlaybackNotificationForegroundOwner
         implements PlaybackNotificationManager.ForegroundController,
         PlaybackNotificationCommandOwner.ForegroundController {
-    interface ActivityPendingIntentProvider {
-        PendingIntent activityPendingIntent();
-    }
-
-    interface ServiceActionPendingIntentProvider {
-        PendingIntent serviceActionPendingIntent(String action, int requestCode);
-    }
-
-    interface ForegroundStarter {
-        void startPlaybackForeground(Notification notification);
-    }
-
-    interface ForegroundStopper {
-        void stopForegroundAndSelf();
-    }
-
-    private final ActivityPendingIntentProvider activityPendingIntentProvider;
-    private final ServiceActionPendingIntentProvider serviceActionPendingIntentProvider;
-    private final ForegroundStarter foregroundStarter;
-    private final ForegroundStopper foregroundStopper;
+    private final Supplier<PendingIntent> activityPendingIntentProvider;
+    private final BiFunction<String, Integer, PendingIntent> serviceActionPendingIntentProvider;
+    private final Consumer<Notification> foregroundStarter;
+    private final Runnable foregroundStopper;
 
     PlaybackNotificationForegroundOwner(
-            ActivityPendingIntentProvider activityPendingIntentProvider,
-            ServiceActionPendingIntentProvider serviceActionPendingIntentProvider,
-            ForegroundStarter foregroundStarter
+            Supplier<PendingIntent> activityPendingIntentProvider,
+            BiFunction<String, Integer, PendingIntent> serviceActionPendingIntentProvider,
+            Consumer<Notification> foregroundStarter
     ) {
         this(activityPendingIntentProvider, serviceActionPendingIntentProvider, foregroundStarter, null);
     }
 
     PlaybackNotificationForegroundOwner(
-            ActivityPendingIntentProvider activityPendingIntentProvider,
-            ServiceActionPendingIntentProvider serviceActionPendingIntentProvider,
-            ForegroundStarter foregroundStarter,
-            ForegroundStopper foregroundStopper
+            Supplier<PendingIntent> activityPendingIntentProvider,
+            BiFunction<String, Integer, PendingIntent> serviceActionPendingIntentProvider,
+            Consumer<Notification> foregroundStarter,
+            Runnable foregroundStopper
     ) {
         this.activityPendingIntentProvider = activityPendingIntentProvider;
         this.serviceActionPendingIntentProvider = serviceActionPendingIntentProvider;
@@ -51,23 +39,23 @@ final class PlaybackNotificationForegroundOwner
 
     @Override
     public PendingIntent activityPendingIntent() {
-        return activityPendingIntentProvider.activityPendingIntent();
+        return activityPendingIntentProvider.get();
     }
 
     @Override
     public PendingIntent serviceActionPendingIntent(String action, int requestCode) {
-        return serviceActionPendingIntentProvider.serviceActionPendingIntent(action, requestCode);
+        return serviceActionPendingIntentProvider.apply(action, requestCode);
     }
 
     @Override
     public void startPlaybackForeground(Notification notification) {
-        foregroundStarter.startPlaybackForeground(notification);
+        foregroundStarter.accept(notification);
     }
 
     @Override
     public void stopForegroundAndSelf() {
         if (foregroundStopper != null) {
-            foregroundStopper.stopForegroundAndSelf();
+            foregroundStopper.run();
         }
     }
 }
