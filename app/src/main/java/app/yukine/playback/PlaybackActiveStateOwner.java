@@ -2,29 +2,20 @@ package app.yukine.playback;
 
 import app.yukine.model.Track;
 
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
+
 final class PlaybackActiveStateOwner implements
         PlaybackNotificationStateOwner.PlaybackStateProvider,
         PlaybackLyricsStateOwner.PlaybackStateProvider {
-    interface CurrentTrackProvider {
-        Track currentTrack();
-    }
-
-    interface PlayingStateProvider {
-        boolean isPlaying();
-    }
-
-    interface PreparingStateProvider {
-        boolean isPreparing();
-    }
-
-    private final CurrentTrackProvider currentTrackProvider;
-    private final PlayingStateProvider playingStateProvider;
-    private final PreparingStateProvider preparingStateProvider;
+    private final Supplier<Track> currentTrackProvider;
+    private final BooleanSupplier playingStateProvider;
+    private final BooleanSupplier preparingStateProvider;
 
     PlaybackActiveStateOwner(
-            CurrentTrackProvider currentTrackProvider,
-            PlayingStateProvider playingStateProvider,
-            PreparingStateProvider preparingStateProvider
+            Supplier<Track> currentTrackProvider,
+            BooleanSupplier playingStateProvider,
+            BooleanSupplier preparingStateProvider
     ) {
         this.currentTrackProvider = currentTrackProvider;
         this.playingStateProvider = playingStateProvider;
@@ -33,16 +24,16 @@ final class PlaybackActiveStateOwner implements
 
     @Override
     public Track currentTrack() {
-        return currentTrackProvider.currentTrack();
+        return currentTrackProvider == null ? null : currentTrackProvider.get();
     }
 
     @Override
     public boolean isPlaying() {
-        return playingStateProvider.isPlaying();
+        return playingStateProvider != null && playingStateProvider.getAsBoolean();
     }
 
     @Override
     public boolean isPreparing() {
-        return preparingStateProvider.isPreparing();
+        return preparingStateProvider != null && preparingStateProvider.getAsBoolean();
     }
 }

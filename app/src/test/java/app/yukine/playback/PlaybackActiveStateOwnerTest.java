@@ -11,6 +11,7 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -45,6 +46,15 @@ public class PlaybackActiveStateOwnerTest {
                 ),
                 events
         );
+    }
+
+    @Test
+    public void missingProvidersReturnInactiveState() {
+        PlaybackActiveStateOwner owner = new PlaybackActiveStateOwner(null, null, null);
+
+        assertNull(owner.currentTrack());
+        assertFalse(owner.isPlaying());
+        assertFalse(owner.isPreparing());
     }
 
     private static Track track(long id) {

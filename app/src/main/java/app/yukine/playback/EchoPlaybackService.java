@@ -483,7 +483,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackActiveStateOwner = new PlaybackActiveStateOwner(
                 () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
-                playbackPlayerStateOwner,
+                playbackPlayerStateOwner::isPlaying,
                 playbackCurrentTrackPreparationRuntimeOwner::preparing
         );
         playbackNotificationStateOwner = new PlaybackNotificationStateOwner(
