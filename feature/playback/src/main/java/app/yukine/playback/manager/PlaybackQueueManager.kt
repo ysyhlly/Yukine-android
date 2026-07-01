@@ -28,7 +28,6 @@ internal class PlaybackQueueManager(
     private var currentIndex = -1
 
     interface QueuePlaybackActions {
-        fun isPlaying(): Boolean
         fun prepareCurrent(playWhenReady: Boolean)
         fun publishState()
         fun stopAndClear()
@@ -480,7 +479,7 @@ internal class PlaybackQueueManager(
             persistQueue()
             if (replacedCurrent) {
                 resetCurrentPlaybackPosition()
-                queuePlaybackActions.prepareCurrent(queuePlaybackActions.isPlaying() || preparing() || queue.isEmpty())
+                queuePlaybackActions.prepareCurrent(isPlaying() || preparing() || queue.isEmpty())
                 return
             }
             queuePlaybackActions.publishState()
@@ -528,7 +527,7 @@ internal class PlaybackQueueManager(
         persistQueue()
         if (replacedCurrent) {
             resetCurrentPlaybackPosition()
-            queuePlaybackActions.prepareCurrent(queuePlaybackActions.isPlaying())
+            queuePlaybackActions.prepareCurrent(isPlaying())
         } else {
             persistPlaybackPosition()
             queuePlaybackActions.publishState()
@@ -704,7 +703,7 @@ internal class PlaybackQueueManager(
         persistQueue()
         if (currentWasOldTrack) {
             resetCurrentPlaybackPosition()
-            queuePlaybackActions.prepareCurrent(queuePlaybackActions.isPlaying())
+            queuePlaybackActions.prepareCurrent(isPlaying())
         } else {
             persistPlaybackPosition()
             queuePlaybackActions.publishState()
@@ -840,6 +839,10 @@ internal class PlaybackQueueManager(
         return playbackRuntimeStateManager?.preparing() ?: false
     }
 
+    private fun isPlaying(): Boolean {
+        return playbackRuntimeStateManager?.isPlaying() ?: false
+    }
+
     private fun currentTrack(): Track? {
         val index = currentIndex()
         val queue = this.queue
@@ -937,7 +940,6 @@ internal class PlaybackQueueManager(
     }
 
     private object NoopQueuePlaybackActions : QueuePlaybackActions {
-        override fun isPlaying(): Boolean = false
         override fun prepareCurrent(playWhenReady: Boolean) {}
         override fun publishState() {}
         override fun stopAndClear() {}

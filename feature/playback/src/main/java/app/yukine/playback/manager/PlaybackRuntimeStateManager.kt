@@ -97,6 +97,10 @@ internal class PlaybackRuntimeStateManager(
         return preparing
     }
 
+    fun isPlaying(): Boolean {
+        return stateProvider.player()?.isPlaying ?: false
+    }
+
     fun setErrorMessage(message: String?) {
         errorMessage = message.orEmpty()
     }

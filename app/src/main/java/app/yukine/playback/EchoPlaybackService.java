@@ -529,7 +529,6 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         PlaybackLyricsSettingsStore.fromRepository(repository).restoreInto(playbackLyricsManager);
         playbackQueueCommandOwner = new PlaybackQueueCommandOwner(
-                playbackPlayerStateOwner,
                 EchoPlaybackService.this::prepareCurrent,
                 EchoPlaybackService.this::publishState,
                 EchoPlaybackService.this

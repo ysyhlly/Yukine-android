@@ -6,30 +6,23 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class PlaybackQueueCommandOwnerTest {
     @Test
     public void delegatesQueueActionsToPlaybackOwners() {
         List<String> events = new ArrayList<>();
         PlaybackQueueCommandOwner owner = new PlaybackQueueCommandOwner(
-                () -> {
-                    events.add("isPlaying");
-                    return true;
-                },
                 playWhenReady -> events.add("prepare:" + playWhenReady),
                 () -> events.add("publish"),
                 new FakePlaybackCommands(events)
         );
 
-        assertTrue(owner.isPlaying());
         owner.prepareCurrent(true);
         owner.publishState();
         owner.stopAndClear();
 
         assertEquals(
                 java.util.Arrays.asList(
-                        "isPlaying",
                         "prepare:true",
                         "publish",
                         "stopAndClear"

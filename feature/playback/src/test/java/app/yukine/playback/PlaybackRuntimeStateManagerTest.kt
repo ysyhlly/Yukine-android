@@ -203,6 +203,20 @@ class PlaybackRuntimeStateManagerTest {
     }
 
     @Test
+    fun isPlayingReadsCurrentPlayerState() {
+        val missingPlayer = PlaybackRuntimeStateManager(FakeStateProvider())
+        val player = RecordingExoPlayer()
+        val manager = PlaybackRuntimeStateManager(FakeStateProvider(player = player.proxy))
+
+        assertEquals(false, missingPlayer.isPlaying())
+        assertEquals(false, manager.isPlaying())
+
+        player.playing = true
+
+        assertTrue(manager.isPlaying())
+    }
+
+    @Test
     fun repeatModeFallbackMatchesQueueMirroringRules() {
         assertEquals(
             ExoPlayer.REPEAT_MODE_OFF,
@@ -244,6 +258,7 @@ class PlaybackRuntimeStateManagerTest {
         var shuffleModeEnabled = false
         var repeatMode = Player.REPEAT_MODE_OFF
         var handleAudioFocus = true
+        var playing = false
 
         val proxy: ExoPlayer = Proxy.newProxyInstance(
             ExoPlayer::class.java.classLoader,
@@ -253,25 +268,31 @@ class PlaybackRuntimeStateManagerTest {
                 "setPlaybackParameters" -> {
                     calls += method.name
                     playbackSpeed = (args?.get(0) as PlaybackParameters).speed
+                    null
                 }
                 "setVolume" -> {
                     calls += method.name
                     volume = args?.get(0) as Float
+                    null
                 }
                 "setShuffleModeEnabled" -> {
                     calls += method.name
                     shuffleModeEnabled = args?.get(0) as Boolean
+                    null
                 }
                 "setRepeatMode" -> {
                     calls += method.name
                     repeatMode = args?.get(0) as Int
+                    null
                 }
                 "setAudioAttributes" -> {
                     calls += method.name
                     handleAudioFocus = args?.get(1) as Boolean
+                    null
                 }
+                "isPlaying" -> playing
+                else -> defaultReturnValue(method.returnType)
             }
-            defaultReturnValue(method.returnType)
         } as ExoPlayer
     }
 

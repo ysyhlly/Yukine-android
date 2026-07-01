@@ -1230,11 +1230,9 @@ class PlaybackQueueManagerTest {
     }
 
     private class FakeQueuePlaybackActions : PlaybackQueueManager.QueuePlaybackActions {
-        var isPlayingValue = false
         var prepareCurrentCalled = false
         var published = false
         var stoppedAndCleared = false
-        override fun isPlaying(): Boolean = isPlayingValue
         override fun prepareCurrent(playWhenReady: Boolean) {
             prepareCurrentCalled = playWhenReady
         }
