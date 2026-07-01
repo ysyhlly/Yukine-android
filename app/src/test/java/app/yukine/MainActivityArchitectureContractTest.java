@@ -6395,8 +6395,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(bufferingRecorderOwner.contains(
                 "implements PlaybackStatePublisher.BufferingRecorder"));
         assertTrue(bufferingRecorderOwner.contains("interface StreamingDiagnosticsProvider"));
-        assertTrue(bufferingRecorderOwner.contains("interface StreamingDiagnosticsOperations"));
-        assertTrue(bufferingRecorderOwner.contains("operations.recordBuffering(snapshot.currentTrack, snapshot.positionMs);"));
+        assertFalse(bufferingRecorderOwner.contains("interface StreamingDiagnosticsOperations"));
+        assertFalse(bufferingRecorderOwner.contains("StreamingDiagnosticsOperationsProvider"));
+        assertTrue(bufferingRecorderOwner.contains("diagnostics.recordBuffering(snapshot.currentTrack, snapshot.positionMs);"));
     }
 
     @Test
