@@ -2,6 +2,7 @@ package app.yukine.playback.manager
 
 import app.yukine.model.Track
 import java.util.function.LongSupplier
+import java.util.function.Supplier
 import kotlin.math.abs
 
 internal class PlaybackPositionManager @JvmOverloads constructor(
@@ -107,7 +108,17 @@ internal class PlaybackPositionManager @JvmOverloads constructor(
         return minOf(position, latestResumePosition)
     }
 
-    private companion object {
-        const val DEFAULT_SAVE_INTERVAL_MS = 5000L
+    companion object {
+        @JvmStatic
+        fun stateProviderFromPlaybackState(
+            currentTrackSupplier: Supplier<Track?>?,
+            playbackPositionSupplier: LongSupplier?
+        ): StateProvider = object : StateProvider {
+            override fun currentTrack(): Track? = currentTrackSupplier?.get()
+
+            override fun positionMs(): Long = playbackPositionSupplier?.asLong ?: 0L
+        }
+
+        private const val DEFAULT_SAVE_INTERVAL_MS = 5000L
     }
 }

@@ -6,8 +6,10 @@ import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackPositionManager
 import app.yukine.playback.manager.PlaybackQueueStore
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Test
 import java.util.function.LongSupplier
+import java.util.function.Supplier
 
 class PlaybackPositionManagerTest {
     @Test
@@ -68,6 +70,26 @@ class PlaybackPositionManagerTest {
         val manager = PlaybackPositionManager(FakeQueueStore(), state, MutableClock())
 
         assertEquals(2400L, manager.positionMs())
+    }
+
+    @Test
+    fun stateProviderFromPlaybackStateDelegatesToPlaybackBoundarySuppliers() {
+        val events = mutableListOf<String>()
+        val track = track(23L)
+        val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
+            Supplier {
+                events += "track"
+                track
+            },
+            LongSupplier {
+                events += "position"
+                321L
+            }
+        )
+
+        assertSame(track, provider.currentTrack())
+        assertEquals(321L, provider.positionMs())
+        assertEquals(listOf("track", "position"), events)
     }
 
     private fun manager(): PlaybackPositionManager {

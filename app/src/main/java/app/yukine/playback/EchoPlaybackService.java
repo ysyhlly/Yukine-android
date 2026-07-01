@@ -200,7 +200,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner;
     private PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner;
     private PlaybackPositionManager playbackPositionManager;
-    private PlaybackPositionStateOwner playbackPositionStateOwner;
     private PlaybackActiveStateOwner playbackActiveStateOwner;
     private PlaybackNotificationManager playbackNotificationManager;
     private PlaybackNotificationForegroundOwner playbackNotificationForegroundOwner;
@@ -372,11 +371,13 @@ public final class EchoPlaybackService extends MediaLibraryService
                 repository,
                 playbackTransitionStateManager
         );
-        playbackPositionStateOwner = new PlaybackPositionStateOwner(
-                () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
-                playbackPlayerStateOwner::positionMs
+        playbackPositionManager = new PlaybackPositionManager(
+                queueStore,
+                PlaybackPositionManager.stateProviderFromPlaybackState(
+                        () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
+                        playbackPlayerStateOwner::positionMs
+                )
         );
-        playbackPositionManager = new PlaybackPositionManager(queueStore, playbackPositionStateOwner);
         playbackSleepTimerCommandOwner = new PlaybackSleepTimerCommandOwner(
                 EchoPlaybackService.this,
                 EchoPlaybackService.this::publishState,
