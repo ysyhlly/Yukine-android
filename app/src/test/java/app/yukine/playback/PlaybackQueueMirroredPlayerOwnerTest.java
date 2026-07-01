@@ -174,9 +174,9 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                             events.add("count");
                             return 1;
                         },
-                        () -> {
+                        () -> (itemCount, suppliedMatcher) -> {
                             events.add("operations");
-                            return (itemCount, suppliedMatcher) -> true;
+                            return true;
                         },
                         (index, track) -> true
                 );

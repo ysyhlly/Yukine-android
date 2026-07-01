@@ -3,6 +3,7 @@ package app.yukine.playback;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 
 final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.MirroredQueuePlayer {
@@ -20,10 +21,6 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
 
     interface PlayerMediaItemCountProvider {
         int mediaItemCount();
-    }
-
-    interface MirroredQueueOperations {
-        boolean matchesMirroredQueue(int itemCount, PlaybackQueueManager.QueueTrackMatcher matcher);
     }
 
     interface PreparingStateController {
@@ -90,9 +87,9 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
                             playbackQueueManagerSupplier == null
                                     ? null
                                     : playbackQueueManagerSupplier.get();
-                    return playbackQueueManager == null
-                            ? null
-                            : new PlaybackQueueManagerOperations(playbackQueueManager);
+                    return playbackQueueManager != null
+                            ? playbackQueueManager::matchesMirroredQueue
+                            : null;
                 },
                 queueTrackMatcher
         );
@@ -102,14 +99,14 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
             MirrorStateProvider mirrorStateProvider,
             PlayerAvailability playerAvailability,
             PlayerMediaItemCountProvider playerMediaItemCountProvider,
-            Supplier<MirroredQueueOperations> mirroredQueueOperationsProvider,
+            Supplier<BiPredicate<Integer, PlaybackQueueManager.QueueTrackMatcher>> mirroredQueueMatcherSupplier,
             PlaybackQueueManager.QueueTrackMatcher queueTrackMatcher
     ) {
         return new PlaybackQueueManagerMatcher(
                 mirrorStateProvider,
                 playerAvailability,
                 playerMediaItemCountProvider,
-                mirroredQueueOperationsProvider,
+                mirroredQueueMatcherSupplier,
                 queueTrackMatcher
         );
     }
@@ -174,20 +171,20 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
         private final MirrorStateProvider mirrorStateProvider;
         private final PlayerAvailability playerAvailability;
         private final PlayerMediaItemCountProvider playerMediaItemCountProvider;
-        private final Supplier<MirroredQueueOperations> mirroredQueueOperationsProvider;
+        private final Supplier<BiPredicate<Integer, PlaybackQueueManager.QueueTrackMatcher>> mirroredQueueMatcherSupplier;
         private final PlaybackQueueManager.QueueTrackMatcher queueTrackMatcher;
 
         private PlaybackQueueManagerMatcher(
                 MirrorStateProvider mirrorStateProvider,
                 PlayerAvailability playerAvailability,
                 PlayerMediaItemCountProvider playerMediaItemCountProvider,
-                Supplier<MirroredQueueOperations> mirroredQueueOperationsProvider,
+                Supplier<BiPredicate<Integer, PlaybackQueueManager.QueueTrackMatcher>> mirroredQueueMatcherSupplier,
                 PlaybackQueueManager.QueueTrackMatcher queueTrackMatcher
         ) {
             this.mirrorStateProvider = mirrorStateProvider;
             this.playerAvailability = playerAvailability;
             this.playerMediaItemCountProvider = playerMediaItemCountProvider;
-            this.mirroredQueueOperationsProvider = mirroredQueueOperationsProvider;
+            this.mirroredQueueMatcherSupplier = mirroredQueueMatcherSupplier;
             this.queueTrackMatcher = queueTrackMatcher;
         }
 
@@ -198,37 +195,23 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
                     || playerAvailability == null
                     || !playerAvailability.hasPlayer()
                     || playerMediaItemCountProvider == null
+                    || mirroredQueueMatcherSupplier == null
                     || queueTrackMatcher == null) {
                 return false;
             }
-            MirroredQueueOperations operations =
-                    mirroredQueueOperationsProvider == null
-                            ? null
-                            : mirroredQueueOperationsProvider.get();
-            if (operations == null) {
+            BiPredicate<Integer, PlaybackQueueManager.QueueTrackMatcher> mirroredQueueMatcher =
+                    mirroredQueueMatcherSupplier.get();
+            if (mirroredQueueMatcher == null) {
                 return false;
             }
             try {
-                return operations.matchesMirroredQueue(
+                return mirroredQueueMatcher.test(
                         playerMediaItemCountProvider.mediaItemCount(),
                         queueTrackMatcher
                 );
             } catch (IllegalStateException error) {
                 return false;
             }
-        }
-    }
-
-    private static final class PlaybackQueueManagerOperations implements MirroredQueueOperations {
-        private final PlaybackQueueManager playbackQueueManager;
-
-        private PlaybackQueueManagerOperations(PlaybackQueueManager playbackQueueManager) {
-            this.playbackQueueManager = playbackQueueManager;
-        }
-
-        @Override
-        public boolean matchesMirroredQueue(int itemCount, PlaybackQueueManager.QueueTrackMatcher matcher) {
-            return playbackQueueManager.matchesMirroredQueue(itemCount, matcher);
         }
     }
 }
