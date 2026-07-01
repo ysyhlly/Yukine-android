@@ -14,22 +14,13 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
     @Test
     public void delegatesApplyAndPrepareToCurrentOperations() {
         List<String> events = new ArrayList<>();
+        FakeMirroredTransitionActions actions = new FakeMirroredTransitionActions(
+                events,
+                new PlaybackQueueManager.MirroredTransitionResult(3, true)
+        );
         PlaybackQueueMirroredTransitionOwner owner = new PlaybackQueueMirroredTransitionOwner(
-                () -> new PlaybackQueueMirroredTransitionOwner.MirroredTransitionOperations() {
-                    @Override
-                    public PlaybackQueueManager.MirroredTransitionResult applyMirroredTransitionIndex(
-                            int nextIndex,
-                            boolean automaticAdvance
-                    ) {
-                        events.add("apply:" + nextIndex + ":" + automaticAdvance);
-                        return new PlaybackQueueManager.MirroredTransitionResult(3, true);
-                    }
-
-                    @Override
-                    public void prepareMirroredTransitionPlaybackState() {
-                        events.add("prepare");
-                    }
-                },
+                actions::applyMirroredTransitionIndex,
+                actions::prepareMirroredTransitionPlaybackState,
                 () -> events.add("applyVolume")
         );
 
@@ -52,21 +43,10 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
     @Test
     public void preparesBeforeApplyingCurrentTrackVolume() {
         List<String> events = new ArrayList<>();
+        FakeMirroredTransitionActions actions = new FakeMirroredTransitionActions(events, null);
         PlaybackQueueMirroredTransitionOwner owner = new PlaybackQueueMirroredTransitionOwner(
-                () -> new PlaybackQueueMirroredTransitionOwner.MirroredTransitionOperations() {
-                    @Override
-                    public PlaybackQueueManager.MirroredTransitionResult applyMirroredTransitionIndex(
-                            int nextIndex,
-                            boolean automaticAdvance
-                    ) {
-                        return null;
-                    }
-
-                    @Override
-                    public void prepareMirroredTransitionPlaybackState() {
-                        events.add("prepare");
-                    }
-                },
+                actions::applyMirroredTransitionIndex,
+                actions::prepareMirroredTransitionPlaybackState,
                 () -> events.add("applyVolume")
         );
 
@@ -79,7 +59,7 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
     public void returnsNullAndIgnoresPrepareWhenOperationsAreMissing() {
         List<String> events = new ArrayList<>();
         PlaybackQueueMirroredTransitionOwner owner =
-                new PlaybackQueueMirroredTransitionOwner(() -> null, () -> events.add("applyVolume"));
+                new PlaybackQueueMirroredTransitionOwner(null, null, () -> events.add("applyVolume"));
 
         assertNull(owner.applyMirroredTransitionIndex(2, false));
         owner.prepareMirroredTransitionPlaybackState();
@@ -98,5 +78,31 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         assertNull(owner.applyMirroredTransitionIndex(4, true));
         owner.prepareMirroredTransitionPlaybackState();
         assertEquals(java.util.Collections.emptyList(), events);
+    }
+
+    private static final class FakeMirroredTransitionActions {
+        private final List<String> events;
+        private final PlaybackQueueManager.MirroredTransitionResult result;
+
+        private FakeMirroredTransitionActions(
+                List<String> events,
+                PlaybackQueueManager.MirroredTransitionResult result
+        ) {
+            this.events = events;
+            this.result = result;
+        }
+
+        public PlaybackQueueManager.MirroredTransitionResult applyMirroredTransitionIndex(
+                int nextIndex,
+                boolean automaticAdvance
+        ) {
+            events.add("apply:" + nextIndex + ":" + automaticAdvance);
+            return result;
+        }
+
+        public boolean prepareMirroredTransitionPlaybackState() {
+            events.add("prepare");
+            return true;
+        }
     }
 }

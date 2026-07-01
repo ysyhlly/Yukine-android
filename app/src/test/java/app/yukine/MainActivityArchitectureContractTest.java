@@ -5738,10 +5738,16 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackQueueMirroredTransitionOwner.currentTrackVolumeApplierFromRuntimeStateManagerProvider("
         ));
         assertTrue(mirroredTransitionOwner.contains("final class PlaybackQueueMirroredTransitionOwner"));
-        assertTrue(mirroredTransitionOwner.contains("interface MirroredTransitionOperations"));
+        assertFalse(mirroredTransitionOwner.contains("interface MirroredTransitionOperations"));
+        assertFalse(mirroredTransitionOwner.contains("MirroredTransitionOperations"));
+        assertFalse(mirroredTransitionOwner.contains("PlaybackQueueManagerOperations"));
         assertTrue(mirroredTransitionOwner.contains("interface CurrentTrackVolumeApplier"));
+        assertTrue(mirroredTransitionOwner.contains("import java.util.function.BiFunction;"));
+        assertTrue(mirroredTransitionOwner.contains("import java.util.function.BooleanSupplier;"));
         assertTrue(mirroredTransitionOwner.contains(
-                "Supplier<MirroredTransitionOperations> mirroredTransitionOperationsSupplier"));
+                "private final BiFunction<Integer, Boolean, PlaybackQueueManager.MirroredTransitionResult> applyMirroredTransitionIndex;"));
+        assertTrue(mirroredTransitionOwner.contains(
+                "private final BooleanSupplier prepareMirroredTransitionPlaybackState;"));
         assertTrue(mirroredTransitionOwner.contains(
                 "Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertFalse(mirroredTransitionOwner.contains("mirroredTransitionOperationsProvider"));
