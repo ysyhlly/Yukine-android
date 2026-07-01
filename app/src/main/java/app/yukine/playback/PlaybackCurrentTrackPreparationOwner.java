@@ -5,15 +5,9 @@ import androidx.media3.exoplayer.source.MediaSource;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
+import java.util.function.Function;
+
 final class PlaybackCurrentTrackPreparationOwner {
-    interface PlaybackPreparationProvider {
-        PlaybackMediaSourceProvider.PlaybackPreparation prepareTrackForPlayback(Track track);
-    }
-
-    interface MediaSourceResolver {
-        MediaSource mediaSourceForTrack(Track track);
-    }
-
     interface QueuePreparationController {
         void replaceCurrentQueueTrack(Track track);
         long restoredPositionFor(Track track);
@@ -36,13 +30,13 @@ final class PlaybackCurrentTrackPreparationOwner {
         private final Track track;
         private final long startPositionMs;
         private final boolean playable;
-        private final MediaSourceResolver mediaSourceResolver;
+        private final Function<Track, MediaSource> mediaSourceResolver;
 
         private PreparedTrack(
                 Track track,
                 long startPositionMs,
                 boolean playable,
-                MediaSourceResolver mediaSourceResolver
+                Function<Track, MediaSource> mediaSourceResolver
         ) {
             this.track = track;
             this.startPositionMs = startPositionMs;
@@ -53,7 +47,7 @@ final class PlaybackCurrentTrackPreparationOwner {
         static PreparedTrack playable(
                 Track track,
                 long startPositionMs,
-                MediaSourceResolver mediaSourceResolver
+                Function<Track, MediaSource> mediaSourceResolver
         ) {
             return new PreparedTrack(track, Math.max(0L, startPositionMs), true, mediaSourceResolver);
         }
@@ -78,20 +72,20 @@ final class PlaybackCurrentTrackPreparationOwner {
             if (mediaSourceResolver == null) {
                 return null;
             }
-            return mediaSourceResolver.mediaSourceForTrack(track);
+            return mediaSourceResolver.apply(track);
         }
     }
 
-    private final PlaybackPreparationProvider playbackPreparationProvider;
-    private final MediaSourceResolver mediaSourceResolver;
+    private final Function<Track, PlaybackMediaSourceProvider.PlaybackPreparation> playbackPreparationProvider;
+    private final Function<Track, MediaSource> mediaSourceResolver;
     private final QueuePreparationController queuePreparationController;
     private final RuntimeStateController runtimeStateController;
     private final StatePublisher statePublisher;
     private final RefusalLogger refusalLogger;
 
     PlaybackCurrentTrackPreparationOwner(
-            PlaybackPreparationProvider playbackPreparationProvider,
-            MediaSourceResolver mediaSourceResolver,
+            Function<Track, PlaybackMediaSourceProvider.PlaybackPreparation> playbackPreparationProvider,
+            Function<Track, MediaSource> mediaSourceResolver,
             QueuePreparationController queuePreparationController,
             RuntimeStateController runtimeStateController,
             StatePublisher statePublisher,
@@ -108,7 +102,7 @@ final class PlaybackCurrentTrackPreparationOwner {
     PreparedTrack prepareCurrentTrack(Track track) {
         PlaybackMediaSourceProvider.PlaybackPreparation preparation = playbackPreparationProvider == null
                 ? null
-                : playbackPreparationProvider.prepareTrackForPlayback(track);
+                : playbackPreparationProvider.apply(track);
         Track restoredTrack = preparation == null ? null : preparation.getRestoredTrack();
         if (restoredTrack != null) {
             queuePreparationController.replaceCurrentQueueTrack(restoredTrack);

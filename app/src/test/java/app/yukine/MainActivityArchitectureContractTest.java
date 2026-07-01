@@ -6138,12 +6138,18 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(preparationOwner.contains("if (preparation != null && !preparation.getPlayable())"));
         assertTrue(preparationOwner.contains("final class PlaybackCurrentTrackPreparationOwner"));
         assertTrue(preparationOwner.contains("PlaybackMediaSourceProvider"));
-        assertTrue(preparationOwner.contains("interface PlaybackPreparationProvider"));
+        assertTrue(preparationOwner.contains("import java.util.function.Function;"));
+        assertFalse(preparationOwner.contains("interface PlaybackPreparationProvider"));
+        assertFalse(preparationOwner.contains("interface MediaSourceResolver"));
+        assertTrue(preparationOwner.contains(
+                "private final Function<Track, PlaybackMediaSourceProvider.PlaybackPreparation> playbackPreparationProvider;"));
+        assertTrue(preparationOwner.contains("private final Function<Track, MediaSource> mediaSourceResolver;"));
         assertFalse(preparationOwner.contains("interface RestoredTrackProvider"));
         assertFalse(preparationOwner.contains("interface UnplayableMessageProvider"));
         assertTrue(preparationOwner.contains("interface QueuePreparationController"));
         assertTrue(preparationOwner.contains("interface RuntimeStateController"));
-        assertTrue(preparationOwner.contains("playbackPreparationProvider.prepareTrackForPlayback(track)"));
+        assertTrue(preparationOwner.contains("playbackPreparationProvider.apply(track)"));
+        assertTrue(preparationOwner.contains("return mediaSourceResolver.apply(track);"));
         assertTrue(preparationOwner.contains("preparation.getUnplayableMessage()"));
         assertTrue(preparationOwner.contains("queuePreparationController.replaceCurrentQueueTrack(restoredTrack)"));
         assertTrue(preparationOwner.contains("runtimeStateController.setErrorMessage(unplayableMessage)"));
