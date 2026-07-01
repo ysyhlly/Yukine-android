@@ -34,7 +34,7 @@ public final class PlaybackPrecacheManagerTest {
     public void releaseCancelsDelayedPrecacheCallbacksOwnedByManager() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(stateProvider, mediaSourceProvider(), scheduler);
+        PlaybackPrecacheManager manager = precacheManager(stateProvider, scheduler);
         stateProvider.currentTrack = track(1L, "https://example.test/one.mp3");
 
         manager.precacheTrack(stateProvider.currentTrack);
@@ -48,7 +48,7 @@ public final class PlaybackPrecacheManagerTest {
     public void releaseIsIdempotentAfterCallbacksAreCancelled() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(stateProvider, mediaSourceProvider(), scheduler);
+        PlaybackPrecacheManager manager = precacheManager(stateProvider, scheduler);
         stateProvider.currentTrack = track(1L, "https://example.test/one.mp3");
 
         manager.precacheTrack(stateProvider.currentTrack);
@@ -67,7 +67,7 @@ public final class PlaybackPrecacheManagerTest {
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 (IntFunction<List<Track>>) null,
-                mediaSourceProvider(),
+                PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider()),
                 scheduler,
                 audioCacheReleaseAction::releaseAudioCache
         );
@@ -88,7 +88,7 @@ public final class PlaybackPrecacheManagerTest {
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 (IntFunction<List<Track>>) null,
-                mediaSourceProvider(),
+                PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider()),
                 scheduler,
                 audioCacheReleaseAction::releaseAudioCache
         );
@@ -113,7 +113,7 @@ public final class PlaybackPrecacheManagerTest {
     public void replacingCurrentPrecacheCancelsPreviousDelayedCallbacks() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(stateProvider, mediaSourceProvider(), scheduler);
+        PlaybackPrecacheManager manager = precacheManager(stateProvider, scheduler);
         Track first = track(1L, "https://example.test/one.mp3");
         Track second = track(2L, "https://example.test/two.mp3");
 
@@ -131,7 +131,7 @@ public final class PlaybackPrecacheManagerTest {
     public void releasePreventsLatePrecacheDiagnosticsAndCallbacks() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(stateProvider, mediaSourceProvider(), scheduler);
+        PlaybackPrecacheManager manager = precacheManager(stateProvider, scheduler);
         Track track = track(1L, "https://example.test/one.mp3");
 
         manager.release();
@@ -146,7 +146,7 @@ public final class PlaybackPrecacheManagerTest {
     public void releasePreventsAlreadyDequeuedDelayedCallbackFromReadingState() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(stateProvider, mediaSourceProvider(), scheduler);
+        PlaybackPrecacheManager manager = precacheManager(stateProvider, scheduler);
         Track track = track(1L, "https://example.test/one.mp3");
 
         stateProvider.currentTrack = track;
@@ -164,7 +164,7 @@ public final class PlaybackPrecacheManagerTest {
     public void nonHttpTrackDoesNotQueuePrecacheWork() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(stateProvider, mediaSourceProvider(), scheduler);
+        PlaybackPrecacheManager manager = precacheManager(stateProvider, scheduler);
         Track track = track(1L, "content://media/audio/1");
 
         stateProvider.currentTrack = track;
@@ -178,7 +178,7 @@ public final class PlaybackPrecacheManagerTest {
     public void httpTrackWithoutCacheKeyDoesNotQueuePrecacheWork() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(stateProvider, mediaSourceProvider(), scheduler);
+        PlaybackPrecacheManager manager = precacheManager(stateProvider, scheduler);
         Track track = track(1L, "https://example.test/no-cache-key.mp3", "");
 
         stateProvider.currentTrack = track;
@@ -192,7 +192,7 @@ public final class PlaybackPrecacheManagerTest {
     public void matchingCurrentPlayerMediaItemLetsPlayerFillLeadingRange() throws Exception {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(stateProvider, mediaSourceProvider(), scheduler);
+        PlaybackPrecacheManager manager = precacheManager(stateProvider, scheduler);
         Track track = track(1L, "https://example.test/one.mp3");
 
         stateProvider.currentTrack = track;
@@ -207,7 +207,7 @@ public final class PlaybackPrecacheManagerTest {
     public void resolvedUriMatchUsesCurrentTrackPrecachePath() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(stateProvider, mediaSourceProvider(), scheduler);
+        PlaybackPrecacheManager manager = precacheManager(stateProvider, scheduler);
         Track current = track(1L, "https://example.test/shared.mp3");
         Track candidate = track(2L, "https://example.test/shared.mp3");
 
@@ -256,12 +256,7 @@ public final class PlaybackPrecacheManagerTest {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
         FakeUpcomingTracksProvider upcomingTracksProvider = new FakeUpcomingTracksProvider();
-        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
-                stateProvider,
-                upcomingTracksProvider,
-                mediaSourceProvider(),
-                scheduler
-        );
+        PlaybackPrecacheManager manager = precacheManager(stateProvider, upcomingTracksProvider, scheduler);
         Track current = track(1L, "https://example.test/current.mp3");
         upcomingTracksProvider.tracks.add(track(2L, "https://example.test/upcoming.mp3"));
 
@@ -288,6 +283,28 @@ public final class PlaybackPrecacheManagerTest {
                 180000L,
                 Uri.parse(uri),
                 dataPath
+        );
+    }
+
+    private static PlaybackPrecacheManager precacheManager(
+            FakeStateProvider stateProvider,
+            FakeCallbackScheduler scheduler
+    ) {
+        return precacheManager(stateProvider, null, scheduler);
+    }
+
+    private static PlaybackPrecacheManager precacheManager(
+            FakeStateProvider stateProvider,
+            IntFunction<List<Track>> upcomingTracksProvider,
+            FakeCallbackScheduler scheduler
+    ) {
+        PlaybackMediaSourceProvider mediaSourceProvider = mediaSourceProvider();
+        return new PlaybackPrecacheManager(
+                stateProvider,
+                upcomingTracksProvider,
+                PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider),
+                scheduler,
+                PlaybackPrecacheManager.audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)
         );
     }
 

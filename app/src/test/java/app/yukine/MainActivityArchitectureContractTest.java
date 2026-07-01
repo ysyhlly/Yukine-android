@@ -1851,6 +1851,18 @@ public final class MainActivityArchitectureContractTest {
                         )
                 );
         assertFalse(playbackPrecacheManagerBody.contains("private final PlaybackMediaSourceProvider mediaSourceProvider;"));
+        String normalizedPlaybackPrecacheManager = playbackPrecacheManager.replace("\r\n", "\n");
+        assertFalse(normalizedPlaybackPrecacheManager.contains(
+                "PlaybackPrecacheManager(\n"
+                        + "            StateProvider stateProvider,\n"
+                        + "            PlaybackMediaSourceProvider mediaSourceProvider"
+        ));
+        assertFalse(normalizedPlaybackPrecacheManager.contains(
+                "PlaybackPrecacheManager(\n"
+                        + "            StateProvider stateProvider,\n"
+                        + "            IntFunction<List<Track>> upcomingTracksProvider,\n"
+                        + "            PlaybackMediaSourceProvider mediaSourceProvider"
+        ));
         assertTrue(playbackPrecacheManager.contains("interface CallbackScheduler"));
         assertTrue(playbackPrecacheManager.contains("void postDelayed(Runnable runnable, long delayMs);"));
         assertTrue(playbackPrecacheManager.contains("void removeCallbacks(Runnable runnable);"));

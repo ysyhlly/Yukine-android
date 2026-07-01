@@ -104,45 +104,6 @@ final class PlaybackPrecacheManager {
 
     PlaybackPrecacheManager(
             StateProvider stateProvider,
-            PlaybackMediaSourceProvider mediaSourceProvider,
-            CallbackScheduler callbackScheduler
-    ) {
-        this(stateProvider, (IntFunction<List<Track>>) null, mediaSourceProvider, callbackScheduler);
-    }
-
-    PlaybackPrecacheManager(
-            StateProvider stateProvider,
-            IntFunction<List<Track>> upcomingTracksProvider,
-            PlaybackMediaSourceProvider mediaSourceProvider,
-            CallbackScheduler callbackScheduler
-    ) {
-        this(
-                stateProvider,
-                upcomingTracksProvider,
-                mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider),
-                callbackScheduler,
-                audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)
-        );
-    }
-
-    PlaybackPrecacheManager(
-            StateProvider stateProvider,
-            IntFunction<List<Track>> upcomingTracksProvider,
-            PlaybackMediaSourceProvider mediaSourceProvider,
-            CallbackScheduler callbackScheduler,
-            Runnable audioCacheReleaseAction
-    ) {
-        this(
-                stateProvider,
-                upcomingTracksProvider,
-                mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider),
-                callbackScheduler,
-                audioCacheReleaseAction
-        );
-    }
-
-    PlaybackPrecacheManager(
-            StateProvider stateProvider,
             IntFunction<List<Track>> upcomingTracksProvider,
             MediaCacheOperations mediaCacheOperations,
             CallbackScheduler callbackScheduler,
