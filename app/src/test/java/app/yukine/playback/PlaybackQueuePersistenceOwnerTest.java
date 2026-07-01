@@ -6,9 +6,13 @@ import org.junit.Test;
 
 public class PlaybackQueuePersistenceOwnerTest {
     @Test
-    public void delegatesQueuePersistenceToCurrentOperations() {
-        FakeQueuePersistenceOperations operations = new FakeQueuePersistenceOperations();
-        PlaybackQueuePersistenceOwner owner = new PlaybackQueuePersistenceOwner(() -> operations);
+    public void delegatesQueuePersistenceToCurrentActions() {
+        FakeQueuePersistenceActions actions = new FakeQueuePersistenceActions();
+        PlaybackQueuePersistenceOwner owner = new PlaybackQueuePersistenceOwner(
+                actions::persistQueueState,
+                actions::savePlaybackResumeRequested,
+                actions::persistCurrentPlaybackPosition
+        );
 
         owner.persistQueueState();
         owner.savePlaybackResumeRequested(true);
@@ -18,50 +22,40 @@ public class PlaybackQueuePersistenceOwnerTest {
         owner.persistCurrentPlaybackPosition(true);
         owner.persistCurrentPlaybackPosition(false);
 
-        assertEquals(1, operations.persistQueueCalls);
-        assertEquals(4, operations.resumeCalls);
-        assertEquals(false, operations.lastResumeRequested);
-        assertEquals(2, operations.positionCalls);
-        assertEquals(false, operations.lastPositionForce);
+        assertEquals(1, actions.persistQueueCalls);
+        assertEquals(4, actions.resumeCalls);
+        assertEquals(false, actions.lastResumeRequested);
+        assertEquals(2, actions.positionCalls);
+        assertEquals(false, actions.lastPositionForce);
     }
 
     @Test
-    public void ignoresMissingQueuePersistenceOperations() {
-        PlaybackQueuePersistenceOwner missingSupplier = new PlaybackQueuePersistenceOwner(null);
-        PlaybackQueuePersistenceOwner missingOperations = new PlaybackQueuePersistenceOwner(() -> null);
+    public void ignoresMissingQueuePersistenceActions() {
+        PlaybackQueuePersistenceOwner missingActions = new PlaybackQueuePersistenceOwner(null, null, null);
 
-        missingSupplier.persistQueueState();
-        missingSupplier.savePlaybackResumeRequested(true);
-        missingSupplier.requestPlaybackResume();
-        missingSupplier.clearPlaybackResumeRequest();
-        missingSupplier.persistCurrentPlaybackPosition(true);
-        missingOperations.persistQueueState();
-        missingOperations.savePlaybackResumeRequested(false);
-        missingOperations.requestPlaybackResume();
-        missingOperations.clearPlaybackResumeRequest();
-        missingOperations.persistCurrentPlaybackPosition(false);
+        missingActions.persistQueueState();
+        missingActions.savePlaybackResumeRequested(false);
+        missingActions.requestPlaybackResume();
+        missingActions.clearPlaybackResumeRequest();
+        missingActions.persistCurrentPlaybackPosition(false);
     }
 
-    private static final class FakeQueuePersistenceOperations
-            implements PlaybackQueuePersistenceOwner.QueuePersistenceOperations {
+    private static final class FakeQueuePersistenceActions {
         private int persistQueueCalls;
         private int resumeCalls;
         private boolean lastResumeRequested;
         private int positionCalls;
         private boolean lastPositionForce;
 
-        @Override
         public void persistQueueState() {
             persistQueueCalls++;
         }
 
-        @Override
         public void savePlaybackResumeRequested(boolean requested) {
             resumeCalls++;
             lastResumeRequested = requested;
         }
 
-        @Override
         public void persistCurrentPlaybackPosition(boolean force) {
             positionCalls++;
             lastPositionForce = force;

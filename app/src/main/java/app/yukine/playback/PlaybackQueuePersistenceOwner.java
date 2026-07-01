@@ -2,19 +2,14 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 final class PlaybackQueuePersistenceOwner
         implements PlaybackShutdownLifecycleResourcesOwner.PlaybackQueueLifecycleStore {
-    interface QueuePersistenceOperations {
-        void persistQueueState();
-
-        void savePlaybackResumeRequested(boolean requested);
-
-        void persistCurrentPlaybackPosition(boolean force);
-    }
-
-    private final Supplier<QueuePersistenceOperations> queuePersistenceOperationsSupplier;
+    private final Runnable persistQueueState;
+    private final Consumer<Boolean> savePlaybackResumeRequested;
+    private final Consumer<Boolean> persistCurrentPlaybackPosition;
 
     static PlaybackQueuePersistenceOwner fromPlaybackQueueManager(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
@@ -25,32 +20,52 @@ final class PlaybackQueuePersistenceOwner
                             playbackQueueManagerSupplier == null
                                     ? null
                                     : playbackQueueManagerSupplier.get();
-                    return playbackQueueManager == null
-                            ? null
-                            : new PlaybackQueueManagerOperations(playbackQueueManager);
+                    if (playbackQueueManager != null) {
+                        playbackQueueManager.persistQueueState();
+                    }
+                },
+                requested -> {
+                    PlaybackQueueManager playbackQueueManager =
+                            playbackQueueManagerSupplier == null
+                                    ? null
+                                    : playbackQueueManagerSupplier.get();
+                    if (playbackQueueManager != null) {
+                        playbackQueueManager.savePlaybackResumeRequested(requested);
+                    }
+                },
+                force -> {
+                    PlaybackQueueManager playbackQueueManager =
+                            playbackQueueManagerSupplier == null
+                                    ? null
+                                    : playbackQueueManagerSupplier.get();
+                    if (playbackQueueManager != null) {
+                        playbackQueueManager.persistCurrentPlaybackPosition(force);
+                    }
                 }
         );
     }
 
     PlaybackQueuePersistenceOwner(
-            Supplier<QueuePersistenceOperations> queuePersistenceOperationsSupplier
+            Runnable persistQueueState,
+            Consumer<Boolean> savePlaybackResumeRequested,
+            Consumer<Boolean> persistCurrentPlaybackPosition
     ) {
-        this.queuePersistenceOperationsSupplier = queuePersistenceOperationsSupplier;
+        this.persistQueueState = persistQueueState;
+        this.savePlaybackResumeRequested = savePlaybackResumeRequested;
+        this.persistCurrentPlaybackPosition = persistCurrentPlaybackPosition;
     }
 
     @Override
     public void persistQueueState() {
-        QueuePersistenceOperations queuePersistenceOperations = queuePersistenceOperations();
-        if (queuePersistenceOperations != null) {
-            queuePersistenceOperations.persistQueueState();
+        if (persistQueueState != null) {
+            persistQueueState.run();
         }
     }
 
     @Override
     public void savePlaybackResumeRequested(boolean requested) {
-        QueuePersistenceOperations queuePersistenceOperations = queuePersistenceOperations();
-        if (queuePersistenceOperations != null) {
-            queuePersistenceOperations.savePlaybackResumeRequested(requested);
+        if (savePlaybackResumeRequested != null) {
+            savePlaybackResumeRequested.accept(requested);
         }
     }
 
@@ -63,38 +78,8 @@ final class PlaybackQueuePersistenceOwner
     }
 
     void persistCurrentPlaybackPosition(boolean force) {
-        QueuePersistenceOperations queuePersistenceOperations = queuePersistenceOperations();
-        if (queuePersistenceOperations != null) {
-            queuePersistenceOperations.persistCurrentPlaybackPosition(force);
-        }
-    }
-
-    private QueuePersistenceOperations queuePersistenceOperations() {
-        return queuePersistenceOperationsSupplier == null
-                ? null
-                : queuePersistenceOperationsSupplier.get();
-    }
-
-    private static final class PlaybackQueueManagerOperations implements QueuePersistenceOperations {
-        private final PlaybackQueueManager playbackQueueManager;
-
-        private PlaybackQueueManagerOperations(PlaybackQueueManager playbackQueueManager) {
-            this.playbackQueueManager = playbackQueueManager;
-        }
-
-        @Override
-        public void persistQueueState() {
-            playbackQueueManager.persistQueueState();
-        }
-
-        @Override
-        public void savePlaybackResumeRequested(boolean requested) {
-            playbackQueueManager.savePlaybackResumeRequested(requested);
-        }
-
-        @Override
-        public void persistCurrentPlaybackPosition(boolean force) {
-            playbackQueueManager.persistCurrentPlaybackPosition(force);
+        if (persistCurrentPlaybackPosition != null) {
+            persistCurrentPlaybackPosition.accept(force);
         }
     }
 }

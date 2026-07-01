@@ -6633,7 +6633,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queuePersistenceOwner.contains("interface PlaybackQueueManagerProvider"));
         assertTrue(queuePersistenceOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertFalse(queuePersistenceOwner.contains("playbackQueueManagerProvider"));
-        assertTrue(queuePersistenceOwner.contains("interface QueuePersistenceOperations"));
+        assertFalse(queuePersistenceOwner.contains("interface QueuePersistenceOperations"));
+        assertFalse(queuePersistenceOwner.contains("QueuePersistenceOperations"));
+        assertTrue(queuePersistenceOwner.contains("import java.util.function.Consumer;"));
+        assertTrue(queuePersistenceOwner.contains("private final Runnable persistQueueState;"));
+        assertTrue(queuePersistenceOwner.contains("private final Consumer<Boolean> savePlaybackResumeRequested;"));
+        assertTrue(queuePersistenceOwner.contains("private final Consumer<Boolean> persistCurrentPlaybackPosition;"));
         assertTrue(queuePersistenceOwner.contains("fromPlaybackQueueManager("));
         assertTrue(queuePersistenceOwner.contains("playbackQueueManager.persistQueueState();"));
         assertTrue(queuePersistenceOwner.contains("playbackQueueManager.savePlaybackResumeRequested(requested);"));
