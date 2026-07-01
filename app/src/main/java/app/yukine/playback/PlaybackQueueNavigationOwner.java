@@ -4,25 +4,22 @@ import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 final class PlaybackQueueNavigationOwner {
-    interface MirroredQueueReuseHandler {
-        void onMirroredQueueReused(boolean playWhenReady);
-    }
-
     private final Runnable playFirstQueuedTrack;
     private final BooleanSupplier skipToNextImmediately;
     private final BooleanSupplier skipToPrevious;
     private final BiPredicate<Boolean, Long> reuseMirroredQueueIfAvailable;
-    private final MirroredQueueReuseHandler mirroredQueueReuseHandler;
+    private final Consumer<Boolean> mirroredQueueReuseHandler;
 
     PlaybackQueueNavigationOwner(
             Runnable playFirstQueuedTrack,
             BooleanSupplier skipToNextImmediately,
             BooleanSupplier skipToPrevious,
             BiPredicate<Boolean, Long> reuseMirroredQueueIfAvailable,
-            MirroredQueueReuseHandler mirroredQueueReuseHandler
+            Consumer<Boolean> mirroredQueueReuseHandler
     ) {
         this.playFirstQueuedTrack = playFirstQueuedTrack;
         this.skipToNextImmediately = skipToNextImmediately;
@@ -33,7 +30,7 @@ final class PlaybackQueueNavigationOwner {
 
     static PlaybackQueueNavigationOwner fromPlaybackQueueManager(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            MirroredQueueReuseHandler mirroredQueueReuseHandler
+            Consumer<Boolean> mirroredQueueReuseHandler
     ) {
         return new PlaybackQueueNavigationOwner(
                 () -> {
@@ -96,7 +93,7 @@ final class PlaybackQueueNavigationOwner {
 
     private void notifyMirroredQueueReused(boolean playWhenReady) {
         if (mirroredQueueReuseHandler != null) {
-            mirroredQueueReuseHandler.onMirroredQueueReused(playWhenReady);
+            mirroredQueueReuseHandler.accept(playWhenReady);
         }
     }
 }

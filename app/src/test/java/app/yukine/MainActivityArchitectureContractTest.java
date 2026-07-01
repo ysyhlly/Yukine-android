@@ -5478,12 +5478,16 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueNavigationOwner.contains("interface QueueNavigationOperations"));
         assertFalse(queueNavigationOwner.contains("QueueNavigationOperations"));
         assertFalse(queueNavigationOwner.contains("PlaybackQueueManagerOperations"));
+        assertFalse(queueNavigationOwner.contains("interface MirroredQueueReuseHandler"));
         assertTrue(queueNavigationOwner.contains("import java.util.function.BiPredicate;"));
         assertTrue(queueNavigationOwner.contains("import java.util.function.BooleanSupplier;"));
+        assertTrue(queueNavigationOwner.contains("import java.util.function.Consumer;"));
         assertTrue(queueNavigationOwner.contains("private final Runnable playFirstQueuedTrack;"));
         assertTrue(queueNavigationOwner.contains("private final BooleanSupplier skipToNextImmediately;"));
         assertTrue(queueNavigationOwner.contains("private final BooleanSupplier skipToPrevious;"));
         assertTrue(queueNavigationOwner.contains("private final BiPredicate<Boolean, Long> reuseMirroredQueueIfAvailable;"));
+        assertTrue(queueNavigationOwner.contains("private final Consumer<Boolean> mirroredQueueReuseHandler;"));
+        assertTrue(queueNavigationOwner.contains("mirroredQueueReuseHandler.accept(playWhenReady);"));
         assertFalse(queueNavigationOwner.contains("queueNavigationOperationsProvider"));
         assertTrue(service.contains("playbackQueueNavigationOwner.skipToPrevious();"));
         assertFalse(service.contains("playbackQueueManager.skipToPrevious()"));
