@@ -6109,6 +6109,21 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("interface QueueProvider"));
         assertFalse(owner.contains("queueProvider"));
         assertFalse(service.contains("new PlaybackQueueManager.QueueProvider()"));
+        String queuePlaybackActions = owner.substring(
+                owner.indexOf("interface QueuePlaybackActions"),
+                owner.indexOf("interface StreamingRestoreProvider"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "prepareCurrent",
+                "publishState",
+                "stopAndClear"
+        )), kotlinInterfaceFunNames(queuePlaybackActions));
+        assertFalse(queuePlaybackActions.contains("currentTrack"));
+        assertFalse(queuePlaybackActions.contains("currentIndex"));
+        assertFalse(queuePlaybackActions.contains("queueSnapshot"));
+        assertFalse(queuePlaybackActions.contains("queueStateSnapshot"));
+        assertFalse(queuePlaybackActions.contains("restoredPosition"));
+        assertFalse(queuePlaybackActions.contains("isPlaying"));
+        assertFalse(queuePlaybackActions.contains("preparing"));
         assertFalse(owner.contains("\n    fun currentIndex(): Int"));
         assertFalse(owner.contains("\n    fun setCurrentIndex(index: Int)"));
         assertFalse(owner.contains("\n    fun currentTrack(): Track?"));
@@ -7972,6 +7987,22 @@ public final class MainActivityArchitectureContractTest {
             int nameEnd = line.indexOf('(', nameStart);
             if (nameEnd > nameStart) {
                 names.add(line.substring(nameStart, nameEnd));
+            }
+        }
+        return names;
+    }
+
+    private static java.util.Set<String> kotlinInterfaceFunNames(String source) {
+        java.util.Set<String> names = new java.util.TreeSet<>();
+        for (String line : source.split("\\R")) {
+            String trimmed = line.trim();
+            if (!trimmed.startsWith("fun ")) {
+                continue;
+            }
+            int nameStart = "fun ".length();
+            int nameEnd = trimmed.indexOf('(', nameStart);
+            if (nameEnd > nameStart) {
+                names.add(trimmed.substring(nameStart, nameEnd));
             }
         }
         return names;
