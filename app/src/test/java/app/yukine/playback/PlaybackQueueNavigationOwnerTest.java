@@ -15,8 +15,12 @@ public class PlaybackQueueNavigationOwnerTest {
     @Test
     public void delegatesSkipCommandsToQueueOperations() {
         List<String> events = new ArrayList<>();
+        FakeQueueNavigationActions actions = new FakeQueueNavigationActions(events, false, false, false);
         PlaybackQueueNavigationOwner owner = new PlaybackQueueNavigationOwner(
-                () -> new FakeQueueNavigationOperations(events, false, false, false),
+                actions::playFirstQueuedTrack,
+                actions::skipToNextImmediately,
+                actions::skipToPrevious,
+                actions::reuseMirroredQueueIfAvailable,
                 playWhenReady -> events.add("reuse:" + playWhenReady)
         );
 
@@ -30,8 +34,12 @@ public class PlaybackQueueNavigationOwnerTest {
     @Test
     public void notifiesWhenMirroredQueueIsReused() {
         List<String> events = new ArrayList<>();
+        FakeQueueNavigationActions actions = new FakeQueueNavigationActions(events, true, true, false);
         PlaybackQueueNavigationOwner owner = new PlaybackQueueNavigationOwner(
-                () -> new FakeQueueNavigationOperations(events, true, true, false),
+                actions::playFirstQueuedTrack,
+                actions::skipToNextImmediately,
+                actions::skipToPrevious,
+                actions::reuseMirroredQueueIfAvailable,
                 playWhenReady -> events.add("reuse:" + playWhenReady)
         );
 
@@ -51,19 +59,21 @@ public class PlaybackQueueNavigationOwnerTest {
 
     @Test
     public void ignoresMissingDependencies() {
-        PlaybackQueueNavigationOwner missingSupplier = new PlaybackQueueNavigationOwner(null, null);
-        PlaybackQueueNavigationOwner missingOperations = new PlaybackQueueNavigationOwner(() -> null, null);
         List<String> events = new ArrayList<>();
+        PlaybackQueueNavigationOwner missingActions = new PlaybackQueueNavigationOwner(null, null, null, null, null);
+        FakeQueueNavigationActions actions = new FakeQueueNavigationActions(events, true, true, true);
         PlaybackQueueNavigationOwner missingReuseHandler = new PlaybackQueueNavigationOwner(
-                () -> new FakeQueueNavigationOperations(events, true, true, true),
+                actions::playFirstQueuedTrack,
+                actions::skipToNextImmediately,
+                actions::skipToPrevious,
+                actions::reuseMirroredQueueIfAvailable,
                 null
         );
 
-        missingSupplier.skipToNextImmediately();
-        missingSupplier.playFirstQueuedTrack();
-        missingOperations.skipToPrevious();
-        missingOperations.playFirstQueuedTrack();
-        missingOperations.reuseMirroredQueueIfAvailable(true, 200L);
+        missingActions.skipToNextImmediately();
+        missingActions.playFirstQueuedTrack();
+        missingActions.skipToPrevious();
+        missingActions.reuseMirroredQueueIfAvailable(true, 200L);
         missingReuseHandler.skipToNextImmediately();
         missingReuseHandler.skipToPrevious();
         missingReuseHandler.reuseMirroredQueueIfAvailable(false, 300L);
@@ -74,8 +84,12 @@ public class PlaybackQueueNavigationOwnerTest {
     @Test
     public void delegatesExistingMirroredQueueReuseAndNotifiesBoundary() {
         List<String> events = new ArrayList<>();
+        FakeQueueNavigationActions actions = new FakeQueueNavigationActions(events, false, false, true);
         PlaybackQueueNavigationOwner owner = new PlaybackQueueNavigationOwner(
-                () -> new FakeQueueNavigationOperations(events, false, false, true),
+                actions::playFirstQueuedTrack,
+                actions::skipToNextImmediately,
+                actions::skipToPrevious,
+                actions::reuseMirroredQueueIfAvailable,
                 playWhenReady -> events.add("reuse:" + playWhenReady)
         );
 
@@ -87,8 +101,12 @@ public class PlaybackQueueNavigationOwnerTest {
     @Test
     public void doesNotNotifyBoundaryWhenExistingMirroredQueueCannotBeReused() {
         List<String> events = new ArrayList<>();
+        FakeQueueNavigationActions actions = new FakeQueueNavigationActions(events, false, false, false);
         PlaybackQueueNavigationOwner owner = new PlaybackQueueNavigationOwner(
-                () -> new FakeQueueNavigationOperations(events, false, false, false),
+                actions::playFirstQueuedTrack,
+                actions::skipToNextImmediately,
+                actions::skipToPrevious,
+                actions::reuseMirroredQueueIfAvailable,
                 playWhenReady -> events.add("reuse:" + playWhenReady)
         );
 
@@ -113,13 +131,12 @@ public class PlaybackQueueNavigationOwnerTest {
         assertEquals(Collections.emptyList(), events);
     }
 
-    private static final class FakeQueueNavigationOperations
-            implements PlaybackQueueNavigationOwner.QueueNavigationOperations {
+    private static final class FakeQueueNavigationActions {
         private final List<String> events;
         private final boolean nextReusesMirroredQueue;
         private final boolean previousReusesMirroredQueue;
         private final boolean reusesExistingMirroredQueue;
-        private FakeQueueNavigationOperations(
+        private FakeQueueNavigationActions(
                 List<String> events,
                 boolean nextReusesMirroredQueue,
                 boolean previousReusesMirroredQueue,
@@ -131,24 +148,20 @@ public class PlaybackQueueNavigationOwnerTest {
             this.reusesExistingMirroredQueue = reusesExistingMirroredQueue;
         }
 
-        @Override
         public void playFirstQueuedTrack() {
             events.add("first");
         }
 
-        @Override
         public boolean skipToNextImmediately() {
             events.add("next");
             return nextReusesMirroredQueue;
         }
 
-        @Override
         public boolean skipToPrevious() {
             events.add("previous");
             return previousReusesMirroredQueue;
         }
 
-        @Override
         public boolean reuseMirroredQueueIfAvailable(boolean playWhenReady, long startPositionMs) {
             events.add("reuseExisting:" + playWhenReady + ":" + startPositionMs);
             return reusesExistingMirroredQueue;
