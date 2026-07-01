@@ -2,6 +2,7 @@ package app.yukine.playback
 
 import app.yukine.model.Track
 import app.yukine.playback.manager.LyricsPublisher
+import app.yukine.playback.state.PlaybackStateListener
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

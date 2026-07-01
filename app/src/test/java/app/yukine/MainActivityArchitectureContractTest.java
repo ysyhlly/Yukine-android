@@ -687,6 +687,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("PlaybackStateListener"));
         assertTrue(mainActivity.contains("PlaybackStateEventController"));
         assertFalse(exists("app/src/main/java/app/yukine/PlaybackStateEventController.java"));
+        assertFalse(exists("feature/playback/src/main/java/app/yukine/playback/PlaybackStateListener.java"));
+        assertTrue(exists("feature/playback/src/main/java/app/yukine/playback/state/PlaybackStateListener.java"));
         assertTrue(playbackStateEventController.contains(": PlaybackStateListener"));
         assertTrue(playbackStateEventController.contains("playbackStore.replaceSnapshot(snapshot)"));
         assertTrue(playbackStateEventController.contains("interface QueueSnapshotSource"));

@@ -6,7 +6,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
 import app.yukine.playback.EchoPlaybackService
-import app.yukine.playback.PlaybackStateListener
+import app.yukine.playback.state.PlaybackStateListener
 
 internal class PlaybackServiceConnectionController(
     private val context: Context,

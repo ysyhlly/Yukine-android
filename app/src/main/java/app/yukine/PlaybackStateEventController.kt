@@ -2,8 +2,8 @@ package app.yukine
 
 import android.os.Handler
 import app.yukine.model.Track
-import app.yukine.playback.PlaybackStateListener
 import app.yukine.playback.PlaybackStateSnapshot
+import app.yukine.playback.state.PlaybackStateListener
 import app.yukine.streaming.StreamingPlaybackAdapter
 
 internal class PlaybackStateEventController(

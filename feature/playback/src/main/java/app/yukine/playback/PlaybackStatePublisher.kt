@@ -3,6 +3,7 @@ package app.yukine.playback
 import android.graphics.Bitmap
 import app.yukine.model.Track
 import app.yukine.playback.manager.LyricsPublisher
+import app.yukine.playback.state.PlaybackStateListener
 import java.util.concurrent.CopyOnWriteArraySet
 
 internal class PlaybackStatePublisher(

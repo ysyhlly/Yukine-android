@@ -1,6 +1,6 @@
 package app.yukine
 
-import app.yukine.playback.PlaybackStateListener
+import app.yukine.playback.state.PlaybackStateListener
 
 interface PlaybackServiceHostPort : NowPlayingPlaybackServicePort, SettingsPlaybackServicePort {
     fun registerListener(listener: PlaybackStateListener?)

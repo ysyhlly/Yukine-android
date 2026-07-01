@@ -3,7 +3,7 @@ package app.yukine
 import app.yukine.model.Track
 import app.yukine.playback.AudioEffectSettings
 import app.yukine.playback.PlaybackStateSnapshot
-import app.yukine.playback.PlaybackStateListener
+import app.yukine.playback.state.PlaybackStateListener
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
