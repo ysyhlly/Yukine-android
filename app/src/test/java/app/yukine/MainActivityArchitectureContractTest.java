@@ -1952,10 +1952,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("private String cacheKeyForPrecache(Track track)"));
         assertTrue(playbackPrecacheManager.contains("cacheKeyForPrecache(upcomingTrack)"));
         assertTrue(playbackPrecacheManager.contains("String cacheKey = cacheKeyForPrecache(track);"));
-        assertTrue(playbackPrecacheManager.contains("mediaCacheOperations.isHttpTrack(track)"));
-        assertTrue(playbackPrecacheManager.contains("mediaCacheOperations.cacheKeyForTrack(track)"));
+        assertFalse(playbackPrecacheManager.contains("mediaCacheOperations.isHttpTrack(track)"));
+        assertFalse(playbackPrecacheManager.contains("mediaCacheOperations.cacheKeyForTrack(track)"));
         assertFalse(playbackPrecacheManager.contains("boolean isHttpUri(Uri uri);"));
-        assertTrue(playbackPrecacheManager.contains("String cacheKeyForTrack(Track track);"));
+        assertFalse(playbackPrecacheManager.contains("boolean isHttpTrack(Track track);"));
+        assertFalse(playbackPrecacheManager.contains("String cacheKeyForTrack(Track track);"));
+        assertTrue(playbackPrecacheManager.contains("String cacheKeyForPrecache(Track track);"));
+        assertTrue(playbackPrecacheManager.contains("mediaCacheOperations.cacheKeyForPrecache(track)"));
         assertFalse(playbackService.contains("private boolean isHttpUri(Uri uri)"));
         assertFalse(playbackService.contains("private String cacheKeyForTrack(Track track)"));
         assertFalse(playbackService.contains("private Map<String, String> headersForTrack(Track track)"));

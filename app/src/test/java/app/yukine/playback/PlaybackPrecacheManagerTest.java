@@ -455,13 +455,11 @@ public final class PlaybackPrecacheManagerTest {
         }
 
         @Override
-        public boolean isHttpTrack(Track track) {
+        public String cacheKeyForPrecache(Track track) {
             String scheme = track == null || track.contentUri == null ? null : track.contentUri.getScheme();
-            return "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
-        }
-
-        @Override
-        public String cacheKeyForTrack(Track track) {
+            if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
+                return null;
+            }
             if (track == null || track.contentUri == null || track.dataPath == null || track.dataPath.isEmpty()) {
                 return null;
             }

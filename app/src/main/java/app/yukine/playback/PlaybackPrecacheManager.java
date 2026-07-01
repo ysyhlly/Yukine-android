@@ -62,9 +62,7 @@ final class PlaybackPrecacheManager {
 
         long contentLengthForCacheKey(String cacheKey);
 
-        boolean isHttpTrack(Track track);
-
-        String cacheKeyForTrack(Track track);
+        String cacheKeyForPrecache(Track track);
 
         Map<String, String> headersForTrack(Track track);
 
@@ -330,10 +328,7 @@ final class PlaybackPrecacheManager {
     }
 
     private String cacheKeyForPrecache(Track track) {
-        if (!mediaCacheOperations.isHttpTrack(track)) {
-            return null;
-        }
-        String cacheKey = mediaCacheOperations.cacheKeyForTrack(track);
+        String cacheKey = mediaCacheOperations.cacheKeyForPrecache(track);
         return cacheKey == null || cacheKey.isEmpty() ? null : cacheKey;
     }
 
@@ -688,13 +683,11 @@ final class PlaybackPrecacheManager {
         }
 
         @Override
-        public boolean isHttpTrack(Track track) {
-            return mediaSourceProvider != null && mediaSourceProvider.isHttpTrack(track);
-        }
-
-        @Override
-        public String cacheKeyForTrack(Track track) {
-            return mediaSourceProvider == null ? null : mediaSourceProvider.cacheKeyForTrack(track);
+        public String cacheKeyForPrecache(Track track) {
+            if (mediaSourceProvider == null || !mediaSourceProvider.isHttpTrack(track)) {
+                return null;
+            }
+            return mediaSourceProvider.cacheKeyForTrack(track);
         }
 
         @Override
