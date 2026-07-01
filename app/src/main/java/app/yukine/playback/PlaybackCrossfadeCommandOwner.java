@@ -19,10 +19,15 @@ final class PlaybackCrossfadeCommandOwner implements PlaybackCrossfadeAdvanceMan
         void applyAppVolume();
     }
 
+    interface CrossfadeAdvanceManagerProvider {
+        PlaybackCrossfadeAdvanceManager playbackCrossfadeAdvanceManager();
+    }
+
     private final TransitionState transitionState;
     private final PlayerVolumeController playerVolumeController;
     private final ImmediateSkipCommand immediateSkipCommand;
     private final AppVolumeApplier appVolumeApplier;
+    private final CrossfadeAdvanceManagerProvider crossfadeAdvanceManagerProvider;
 
     PlaybackCrossfadeCommandOwner(
             TransitionState transitionState,
@@ -30,10 +35,21 @@ final class PlaybackCrossfadeCommandOwner implements PlaybackCrossfadeAdvanceMan
             ImmediateSkipCommand immediateSkipCommand,
             AppVolumeApplier appVolumeApplier
     ) {
+        this(transitionState, playerVolumeController, immediateSkipCommand, appVolumeApplier, null);
+    }
+
+    PlaybackCrossfadeCommandOwner(
+            TransitionState transitionState,
+            PlayerVolumeController playerVolumeController,
+            ImmediateSkipCommand immediateSkipCommand,
+            AppVolumeApplier appVolumeApplier,
+            CrossfadeAdvanceManagerProvider crossfadeAdvanceManagerProvider
+    ) {
         this.transitionState = transitionState;
         this.playerVolumeController = playerVolumeController;
         this.immediateSkipCommand = immediateSkipCommand;
         this.appVolumeApplier = appVolumeApplier;
+        this.crossfadeAdvanceManagerProvider = crossfadeAdvanceManagerProvider;
     }
 
     @Override
@@ -54,5 +70,23 @@ final class PlaybackCrossfadeCommandOwner implements PlaybackCrossfadeAdvanceMan
     @Override
     public void applyAppVolume() {
         appVolumeApplier.applyAppVolume();
+    }
+
+    void cancelCrossfadeAdvance() {
+        PlaybackCrossfadeAdvanceManager manager = crossfadeAdvanceManager();
+        if (manager != null) {
+            manager.cancel();
+        }
+    }
+
+    boolean startFadeOutThenNext() {
+        PlaybackCrossfadeAdvanceManager manager = crossfadeAdvanceManager();
+        return manager != null && manager.startFadeOutThenNext();
+    }
+
+    private PlaybackCrossfadeAdvanceManager crossfadeAdvanceManager() {
+        return crossfadeAdvanceManagerProvider == null
+                ? null
+                : crossfadeAdvanceManagerProvider.playbackCrossfadeAdvanceManager();
     }
 }

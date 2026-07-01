@@ -25,10 +25,16 @@ internal object PlaybackUiModule {
 
     @Provides
     @ActivityScoped
-    fun provideMainNowPlayingPlaybackGatewayFactory(
+    fun provideNowPlayingPlaybackServiceStarter(
         @ActivityContext context: Context
+    ): NowPlayingPlaybackServiceStarter =
+        NowPlayingPlaybackServiceStarter(context)
+
+    @Provides
+    @ActivityScoped
+    fun provideMainNowPlayingPlaybackGatewayFactory(
+        serviceStarter: NowPlayingPlaybackServiceStarter
     ): MainNowPlayingPlaybackGatewayFactory {
-        val serviceStarter = NowPlayingPlaybackServiceStarter(context)
         return MainNowPlayingPlaybackGatewayFactory(serviceStarter::startPlaybackService)
     }
 

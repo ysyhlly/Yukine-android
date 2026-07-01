@@ -2096,6 +2096,32 @@ After the next notification-owner slice:
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackNotificationManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
 
+## P1 Audit - QueueProvider Removed From Production Source
+
+Current audit date: 2026-07-01.
+
+- `PlaybackQueueManager.QueueProvider` is no longer present in production
+  source. The previous service-state provider interface has been replaced by
+  explicit constructor dependencies on `PlaybackQueueStore`, queue state,
+  `PlaybackQueueManager.QueuePlaybackActions`, `PlaybackPositionManager`,
+  `PlaybackQueueManager.StreamingRestoreProvider`,
+  `PlaybackQueueManager.MirroredQueuePlayer`, runtime state, and transition
+  state.
+- Source scan result: `QueueProvider`, `PlaybackQueueManager.QueueProvider`,
+  and `queueProvider.` appear only in historical docs and architecture
+  contract assertions, not in `app/src/main/java/app/yukine/playback` or
+  `feature/playback/src/main/java`.
+- The active P1 contract is now
+  `MainActivityArchitectureContractTest.playbackQueueManagerPublicApiStaysExplicitlyAudited`.
+  It scans playback production sources to prevent the old provider from
+  returning and pins the current `PlaybackQueueManager` class-level public API
+  into four groups:
+  queue mutation, queue restore/persistence, mirrored queue operations, and
+  derived read APIs.
+- Remaining P1 work should reduce or split the pinned `PlaybackQueueManager`
+  public API by small behavior-preserving slices. Do not reintroduce a generic
+  queue provider, and do not move queue policy back into `EchoPlaybackService`.
+
 ## P5 Delta - Service Lifecycle Shutdown Boundary
 
 After the first shutdown/concurrency slice:

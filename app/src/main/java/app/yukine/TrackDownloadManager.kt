@@ -23,8 +23,10 @@ import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -46,21 +48,37 @@ interface TrackDownloadRequestQueue : TrackDownloadDirectoryController {
 }
 
 @Singleton
-class TrackDownloadManager @Inject constructor(
+class TrackDownloadManager internal constructor(
     @ApplicationContext private val context: Context,
-    private val streamingHeaders: StreamingPlaybackHeaderStore
+    private val streamingHeaders: StreamingPlaybackHeaderStore,
+    private val customExecutor: ExecutorService,
+    private val segmentExecutor: ExecutorService
 ) : TrackDownloadRequestQueue {
     private val records = linkedMapOf<Long, TrackDownloadRecord>()
     private val preferences = context.getSharedPreferences("track_downloads", Context.MODE_PRIVATE)
-    private val customExecutor = Executors.newFixedThreadPool(APP_DOWNLOAD_CONCURRENCY)
-    private val segmentExecutor = Executors.newFixedThreadPool(SEGMENT_DOWNLOAD_CONCURRENCY)
     private val customIdCounter = AtomicLong(-2L)
+    @Volatile
+    private var shutdown = false
+
+    @Inject
+    constructor(
+        @ApplicationContext context: Context,
+        streamingHeaders: StreamingPlaybackHeaderStore
+    ) : this(
+        context,
+        streamingHeaders,
+        Executors.newFixedThreadPool(APP_DOWNLOAD_CONCURRENCY),
+        Executors.newFixedThreadPool(SEGMENT_DOWNLOAD_CONCURRENCY)
+    )
 
     init {
         restoreRecords()
     }
 
     override fun enqueue(track: Track, quality: StreamingAudioQuality): TrackDownloadResult {
+        if (shutdown) {
+            return TrackDownloadResult(false, message = "下载服务已关闭")
+        }
         val uri = downloadableUri(track)
             ?: return TrackDownloadResult(false, message = "当前歌曲暂不支持下载，请先播放解析成功后再试")
         customDownloadTreeUri()?.let { treeUri ->
@@ -113,6 +131,12 @@ class TrackDownloadManager @Inject constructor(
         }
         scheduleArtworkDownload(track, null)
         return TrackDownloadResult(true, id, downloadStartedMessage("已提交系统下载", track))
+    }
+
+    fun shutdownNow() {
+        shutdown = true
+        customExecutor.shutdownNow()
+        segmentExecutor.shutdownNow()
     }
 
     fun downloadDirectory(): String =
@@ -219,6 +243,9 @@ class TrackDownloadManager @Inject constructor(
     }
 
     override fun resume(downloadId: Long): TrackDownloadActionResult {
+        if (shutdown) {
+            return TrackDownloadActionResult(false, "下载服务已关闭")
+        }
         var recordToResume: TrackDownloadRecord? = null
         synchronized(records) {
             val current = records[downloadId] ?: return TrackDownloadActionResult(false, "未找到下载任务")
@@ -237,10 +264,13 @@ class TrackDownloadManager @Inject constructor(
         if (record.sourceUri.isBlank()) {
             return TrackDownloadActionResult(false, "旧下载任务缺少音源信息，请重新添加下载")
         }
-        customExecutor.execute {
+        if (!submitCustomTask {
             val source = Uri.parse(record.sourceUri)
             val targetTree = record.treeUri.takeIf { it.isNotBlank() }?.let(Uri::parse)
             runAppManagedDownload(record.downloadId, record.toTrack(), source, targetTree)
+        }) {
+            updateCustomRecord(record.downloadId) { it.copy(status = TrackDownloadStatus.Paused) }
+            return TrackDownloadActionResult(false, "下载服务已关闭")
         }
         return TrackDownloadActionResult(true, "已继续下载")
     }
@@ -280,6 +310,9 @@ class TrackDownloadManager @Inject constructor(
     }
 
     override fun resumeAll(): TrackDownloadActionResult {
+        if (shutdown) {
+            return TrackDownloadActionResult(false, "下载服务已关闭")
+        }
         val toResume = mutableListOf<TrackDownloadRecord>()
         synchronized(records) {
             for ((id, record) in records) {
@@ -295,10 +328,13 @@ class TrackDownloadManager @Inject constructor(
         }
         val resumable = toResume.filter { it.sourceUri.isNotBlank() }
         for (record in resumable) {
-            customExecutor.execute {
+            if (!submitCustomTask {
                 val source = Uri.parse(record.sourceUri)
                 val targetTree = record.treeUri.takeIf { it.isNotBlank() }?.let(Uri::parse)
                 runAppManagedDownload(record.downloadId, record.toTrack(), source, targetTree)
+            }) {
+                updateCustomRecord(record.downloadId) { it.copy(status = TrackDownloadStatus.Paused) }
+                return TrackDownloadActionResult(false, "下载服务已关闭")
             }
         }
         return if (resumable.isNotEmpty()) {
@@ -340,7 +376,13 @@ class TrackDownloadManager @Inject constructor(
             )
             persistRecordsLocked()
         }
-        customExecutor.execute { runAppManagedDownload(id, track, sourceUri, treeUri) }
+        if (!submitCustomTask { runAppManagedDownload(id, track, sourceUri, treeUri) }) {
+            synchronized(records) {
+                records.remove(id)
+                persistRecordsLocked()
+            }
+            return TrackDownloadResult(false, id, "下载服务已关闭")
+        }
         return TrackDownloadResult(true, id, downloadStartedMessage("已开始下载", track))
     }
 
@@ -738,8 +780,20 @@ class TrackDownloadManager @Inject constructor(
         if (track.albumArtUri == null) {
             return
         }
-        customExecutor.execute {
+        submitCustomTask {
             saveArtworkForTrack(track, treeUri)
+        }
+    }
+
+    private fun submitCustomTask(task: () -> Unit): Boolean {
+        if (shutdown || customExecutor.isShutdown) {
+            return false
+        }
+        return try {
+            customExecutor.execute(task)
+            true
+        } catch (_: RejectedExecutionException) {
+            false
         }
     }
 

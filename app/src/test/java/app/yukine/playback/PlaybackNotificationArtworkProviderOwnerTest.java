@@ -12,8 +12,9 @@ import static org.junit.Assert.assertSame;
 public class PlaybackNotificationArtworkProviderOwnerTest {
     @Test
     public void returnsNullUntilArtworkManagerIsAvailable() {
-        MutableArtworkManagerProvider provider = new MutableArtworkManagerProvider();
-        PlaybackNotificationArtworkProviderOwner owner = new PlaybackNotificationArtworkProviderOwner(provider);
+        MutableArtworkSourceProvider provider = new MutableArtworkSourceProvider();
+        PlaybackNotificationArtworkProviderOwner owner =
+                new PlaybackNotificationArtworkProviderOwner(provider::artworkSource);
 
         assertNull(owner.notificationArtworkFor(track()));
         assertNull(owner.notificationArtworkDataFor(track()));
@@ -21,8 +22,9 @@ public class PlaybackNotificationArtworkProviderOwnerTest {
 
     @Test
     public void delegatesArtworkRequestsToCurrentManager() {
-        MutableArtworkManagerProvider provider = new MutableArtworkManagerProvider();
-        PlaybackNotificationArtworkProviderOwner owner = new PlaybackNotificationArtworkProviderOwner(provider);
+        MutableArtworkSourceProvider provider = new MutableArtworkSourceProvider();
+        PlaybackNotificationArtworkProviderOwner owner =
+                new PlaybackNotificationArtworkProviderOwner(provider::artworkSource);
         byte[] artworkData = new byte[] {1, 2, 3};
         Track track = track();
         provider.source = new FakeArtworkSource(track, artworkData);
@@ -45,11 +47,9 @@ public class PlaybackNotificationArtworkProviderOwnerTest {
         );
     }
 
-    private static final class MutableArtworkManagerProvider
-            implements PlaybackNotificationArtworkProviderOwner.ArtworkManagerProvider {
+    private static final class MutableArtworkSourceProvider {
         private PlaybackNotificationArtworkSource source;
 
-        @Override
         public PlaybackNotificationArtworkSource artworkSource() {
             return source;
         }

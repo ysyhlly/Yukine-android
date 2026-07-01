@@ -21,18 +21,21 @@ public class PlaybackNotificationForegroundOwnerTest {
                     events.add("service:" + action + ":" + requestCode);
                     return null;
                 },
-                notification -> events.add("foreground:" + (notification == null))
+                notification -> events.add("foreground:" + (notification == null)),
+                () -> events.add("stopForegroundAndSelf")
         );
 
         assertNull(owner.activityPendingIntent());
         assertNull(owner.serviceActionPendingIntent("play", 7));
         owner.startPlaybackForeground(null);
+        owner.stopForegroundAndSelf();
 
         assertEquals(
                 java.util.Arrays.asList(
                         "activity",
                         "service:play:7",
-                        "foreground:true"
+                        "foreground:true",
+                        "stopForegroundAndSelf"
                 ),
                 events
         );

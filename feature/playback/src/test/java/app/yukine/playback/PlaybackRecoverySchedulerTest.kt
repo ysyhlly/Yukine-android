@@ -52,6 +52,55 @@ class PlaybackRecoverySchedulerTest {
     }
 
     @Test
+    fun cancelBeforeBackgroundTaskRunsPreventsPreparePost() {
+        val background = FakeBackgroundScheduler()
+        val main = FakeMainScheduler()
+        val actions = FakeActions()
+        val scheduler = PlaybackRecoveryScheduler(background, main, actions)
+
+        scheduler.scheduleCurrentPlaybackRecovery(playWhenReady = true)
+        scheduler.cancel()
+        background.tasks.single().run()
+
+        assertEquals(0, main.tasks.size)
+        assertEquals(emptyList<Boolean>(), actions.prepareCalls)
+    }
+
+    @Test
+    fun cancelBeforeMainTaskRunsRemovesAndSuppressesPrepare() {
+        val background = FakeBackgroundScheduler()
+        val main = FakeMainScheduler()
+        val actions = FakeActions()
+        val scheduler = PlaybackRecoveryScheduler(background, main, actions)
+
+        scheduler.scheduleCurrentPlaybackRecovery(playWhenReady = false)
+        background.tasks.single().run()
+        val pending = main.tasks.single()
+        scheduler.cancel()
+        pending.run()
+
+        assertEquals(listOf(pending), main.removed)
+        assertEquals(emptyList<Boolean>(), actions.prepareCalls)
+    }
+
+    @Test
+    fun cancelAllowsFutureRecoveryBeforeRelease() {
+        val background = FakeBackgroundScheduler()
+        val main = FakeMainScheduler()
+        val actions = FakeActions()
+        val scheduler = PlaybackRecoveryScheduler(background, main, actions)
+
+        scheduler.scheduleCurrentPlaybackRecovery(playWhenReady = false)
+        scheduler.cancel()
+        scheduler.scheduleCurrentPlaybackRecovery(playWhenReady = true)
+        background.tasks[0].run()
+        background.tasks[1].run()
+        main.tasks.single().run()
+
+        assertEquals(listOf(true), actions.prepareCalls)
+    }
+
+    @Test
     fun releaseIsIdempotentAfterPendingMainTaskIsCancelled() {
         val background = FakeBackgroundScheduler()
         val main = FakeMainScheduler()

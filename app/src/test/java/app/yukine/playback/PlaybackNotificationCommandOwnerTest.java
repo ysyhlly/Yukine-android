@@ -13,11 +13,13 @@ public class PlaybackNotificationCommandOwnerTest {
         List<String> events = new ArrayList<>();
         PlaybackNotificationCommandOwner owner = new PlaybackNotificationCommandOwner(
                 force -> events.add("notify:" + force),
+                () -> true,
                 new FakePlaybackCommands(events),
                 () -> events.add("stopForegroundAndSelf")
         );
 
         owner.publishPlaybackNotification(true);
+        owner.publishPlaybackNotificationIfWorthy();
         owner.play();
         owner.pause();
         owner.skipToPrevious();
@@ -31,6 +33,7 @@ public class PlaybackNotificationCommandOwnerTest {
         assertEquals(
                 java.util.Arrays.asList(
                         "notify:true",
+                        "notify:true",
                         "play",
                         "pause",
                         "previous",
@@ -43,6 +46,21 @@ public class PlaybackNotificationCommandOwnerTest {
                 ),
                 events
         );
+    }
+
+    @Test
+    public void skipsConditionalPublishWhenNotificationStateIsNotWorthy() {
+        List<String> events = new ArrayList<>();
+        PlaybackNotificationCommandOwner owner = new PlaybackNotificationCommandOwner(
+                force -> events.add("notify:" + force),
+                () -> false,
+                new FakePlaybackCommands(events),
+                () -> events.add("stopForegroundAndSelf")
+        );
+
+        owner.publishPlaybackNotificationIfWorthy();
+
+        assertEquals(java.util.Collections.emptyList(), events);
     }
 
     private static final class FakePlaybackCommands implements PlaybackNotificationCommandOwner.PlaybackCommands {

@@ -90,6 +90,18 @@ public final class PlaybackTaskSchedulerTest {
     }
 
     @Test
+    public void executeAfterShutdownIsIgnored() throws Exception {
+        PlaybackTaskScheduler scheduler = scheduler();
+        AtomicInteger calls = new AtomicInteger();
+
+        scheduler.shutdownNow();
+        scheduler.execute(calls::incrementAndGet);
+
+        Thread.sleep(100L);
+        assertEquals(0, calls.get());
+    }
+
+    @Test
     public void nullTasksAreIgnored() throws Exception {
         PlaybackTaskScheduler scheduler = scheduler();
 

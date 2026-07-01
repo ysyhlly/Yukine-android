@@ -4,26 +4,28 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.LyricsPublisher;
 import app.yukine.playback.manager.PlaybackNotificationManager;
 
+import java.util.function.Supplier;
+
 final class PlaybackNotificationLyricsTextOwner implements PlaybackNotificationManager.LyricsTextProvider {
-    interface LyricsPublisherProvider {
-        LyricsPublisher lyricsPublisher();
-    }
+    private final Supplier<LyricsPublisher> lyricsPublisherSupplier;
 
-    private final LyricsPublisherProvider lyricsPublisherProvider;
-
-    PlaybackNotificationLyricsTextOwner(LyricsPublisherProvider lyricsPublisherProvider) {
-        this.lyricsPublisherProvider = lyricsPublisherProvider;
+    PlaybackNotificationLyricsTextOwner(Supplier<LyricsPublisher> lyricsPublisherSupplier) {
+        this.lyricsPublisherSupplier = lyricsPublisherSupplier;
     }
 
     @Override
     public String currentNotificationLyric(Track track) {
-        LyricsPublisher publisher = lyricsPublisherProvider.lyricsPublisher();
+        LyricsPublisher publisher = lyricsPublisher();
         return publisher == null ? "" : publisher.notificationLyricText(track);
     }
 
     @Override
     public String sanitizeNotificationLyric(String value) {
-        LyricsPublisher publisher = lyricsPublisherProvider.lyricsPublisher();
+        LyricsPublisher publisher = lyricsPublisher();
         return publisher == null ? "" : publisher.sanitizeNotificationLyric(value);
+    }
+
+    private LyricsPublisher lyricsPublisher() {
+        return lyricsPublisherSupplier == null ? null : lyricsPublisherSupplier.get();
     }
 }

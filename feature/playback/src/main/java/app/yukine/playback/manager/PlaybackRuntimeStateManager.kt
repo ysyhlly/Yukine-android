@@ -31,10 +31,12 @@ internal class PlaybackRuntimeStateManager(
 
     fun setReplayGainEnabled(enabled: Boolean) {
         replayGainEnabled = enabled
+        applyPlaybackParametersToPlayer()
     }
 
     fun setConcurrentPlaybackEnabled(enabled: Boolean) {
         concurrentPlaybackEnabled = enabled
+        applyAudioFocusHandling()
     }
 
     fun replayGainEnabled(): Boolean {
@@ -47,10 +49,12 @@ internal class PlaybackRuntimeStateManager(
 
     fun setPlaybackSpeed(speed: Float) {
         playbackSpeed = normalizePlaybackSpeed(speed)
+        applyPlaybackParametersToPlayer()
     }
 
     fun setAppVolume(volume: Float) {
         appVolume = normalizeAppVolume(volume)
+        applyPlaybackParametersToPlayer()
     }
 
     fun playbackSpeed(): Float {

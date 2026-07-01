@@ -75,6 +75,22 @@ public final class PlaybackModeSettingsStoreTest {
         assertEquals(REPEAT_ONE, settings.savedRepeatMode);
     }
 
+    @Test
+    public void applyPlaybackModeIgnoresMissingRuntimeStateOwner() {
+        new PlaybackModeSettingsStore(new FakeModeSettings()).applyPlaybackModeToPlayer(null);
+    }
+
+    @Test
+    public void repeatModeReadsRuntimeStateOrDefault() {
+        PlaybackRuntimeStateManager runtime = runtimeStateManager();
+        PlaybackModeSettingsStore store = new PlaybackModeSettingsStore(new FakeModeSettings());
+
+        runtime.setRepeatMode(REPEAT_ONE);
+
+        assertEquals(REPEAT_ONE, store.repeatMode(runtime));
+        assertEquals(REPEAT_ALL, store.repeatMode(null));
+    }
+
     private static PlaybackRuntimeStateManager runtimeStateManager() {
         return new PlaybackRuntimeStateManager(new PlaybackRuntimeStateManager.StateProvider() {
             @Override

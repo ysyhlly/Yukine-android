@@ -39,6 +39,7 @@ final class PlaybackModeSettingsStore {
     void setShuffleEnabled(PlaybackRuntimeStateManager runtimeStateManager, boolean enabled) {
         if (runtimeStateManager != null) {
             runtimeStateManager.setShuffleEnabled(enabled);
+            runtimeStateManager.applyPlaybackModeToPlayer();
         }
         modeSettings.saveShuffleEnabled(runtimeStateManager != null && runtimeStateManager.shuffleEnabled());
     }
@@ -46,6 +47,7 @@ final class PlaybackModeSettingsStore {
     void setRepeatMode(PlaybackRuntimeStateManager runtimeStateManager, int mode) {
         if (runtimeStateManager != null) {
             runtimeStateManager.setRepeatMode(mode);
+            runtimeStateManager.applyPlaybackModeToPlayer();
         }
         modeSettings.saveRepeatMode(
                 runtimeStateManager != null ? runtimeStateManager.repeatMode() : normalizedRepeatFallback(mode)
@@ -55,8 +57,19 @@ final class PlaybackModeSettingsStore {
     void cycleRepeatMode(PlaybackRuntimeStateManager runtimeStateManager) {
         if (runtimeStateManager != null) {
             runtimeStateManager.cycleRepeatMode();
+            runtimeStateManager.applyPlaybackModeToPlayer();
         }
         modeSettings.saveRepeatMode(runtimeStateManager != null ? runtimeStateManager.repeatMode() : REPEAT_ALL);
+    }
+
+    void applyPlaybackModeToPlayer(PlaybackRuntimeStateManager runtimeStateManager) {
+        if (runtimeStateManager != null) {
+            runtimeStateManager.applyPlaybackModeToPlayer();
+        }
+    }
+
+    int repeatMode(PlaybackRuntimeStateManager runtimeStateManager) {
+        return runtimeStateManager == null ? REPEAT_ALL : runtimeStateManager.repeatMode();
     }
 
     private static int normalizedRepeatFallback(int mode) {

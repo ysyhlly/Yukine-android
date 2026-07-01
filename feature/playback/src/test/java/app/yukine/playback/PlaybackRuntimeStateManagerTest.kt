@@ -53,7 +53,26 @@ class PlaybackRuntimeStateManagerTest {
 
         manager.setPlaybackSpeed(1.236f)
         manager.setAppVolume(0.784f)
+        player.calls.clear()
         manager.applyPlaybackParametersToPlayer()
+
+        assertEquals(listOf("setPlaybackParameters", "setVolume"), player.calls)
+        assertEquals(1.24f, player.playbackSpeed, 0.0f)
+        assertEquals(0.78f, player.volume, 0.0f)
+    }
+
+    @Test
+    fun runtimeParameterSettersApplyToPlayerImmediately() {
+        val player = RecordingExoPlayer()
+        val manager = PlaybackRuntimeStateManager(FakeStateProvider(player = player.proxy))
+
+        manager.setPlaybackSpeed(1.236f)
+
+        assertEquals(listOf("setPlaybackParameters", "setVolume"), player.calls)
+        assertEquals(1.24f, player.playbackSpeed, 0.0f)
+
+        player.calls.clear()
+        manager.setAppVolume(0.784f)
 
         assertEquals(listOf("setPlaybackParameters", "setVolume"), player.calls)
         assertEquals(1.24f, player.playbackSpeed, 0.0f)
@@ -84,6 +103,7 @@ class PlaybackRuntimeStateManagerTest {
         )
 
         manager.setAppVolume(0.75f)
+        player.calls.clear()
         manager.applyCurrentTrackVolumeToPlayer()
 
         assertEquals(listOf("setVolume"), player.calls)
@@ -96,6 +116,35 @@ class PlaybackRuntimeStateManagerTest {
 
         manager.setConcurrentPlaybackEnabled(true)
         assertTrue(manager.concurrentPlaybackEnabled())
+    }
+
+    @Test
+    fun concurrentPlaybackSetterAppliesAudioFocusHandling() {
+        val player = RecordingExoPlayer()
+        val manager = PlaybackRuntimeStateManager(FakeStateProvider(player = player.proxy))
+
+        manager.setConcurrentPlaybackEnabled(true)
+
+        assertEquals(listOf("setAudioAttributes"), player.calls)
+        assertEquals(false, player.handleAudioFocus)
+    }
+
+    @Test
+    fun replayGainSetterAppliesCurrentVolumeToPlayer() {
+        val player = RecordingExoPlayer()
+        val manager = PlaybackRuntimeStateManager(
+            FakeStateProvider(
+                player = player.proxy,
+                track = track(replayGainTrackDb = -6.0f)
+            )
+        )
+
+        manager.setAppVolume(0.8f)
+        player.calls.clear()
+        manager.setReplayGainEnabled(false)
+
+        assertEquals(listOf("setPlaybackParameters", "setVolume"), player.calls)
+        assertEquals(0.8f, player.volume, 0.0f)
     }
 
     @Test
@@ -123,6 +172,7 @@ class PlaybackRuntimeStateManagerTest {
         manager.setAppVolume(0.5f)
         manager.setShuffleEnabled(true)
         manager.setRepeatMode(PlaybackRepeatMode.REPEAT_ALL)
+        player.calls.clear()
         manager.applyPlaybackModeAndParametersToPlayer()
 
         assertEquals(
@@ -193,6 +243,7 @@ class PlaybackRuntimeStateManagerTest {
         var volume = 0.0f
         var shuffleModeEnabled = false
         var repeatMode = Player.REPEAT_MODE_OFF
+        var handleAudioFocus = true
 
         val proxy: ExoPlayer = Proxy.newProxyInstance(
             ExoPlayer::class.java.classLoader,
@@ -214,6 +265,10 @@ class PlaybackRuntimeStateManagerTest {
                 "setRepeatMode" -> {
                     calls += method.name
                     repeatMode = args?.get(0) as Int
+                }
+                "setAudioAttributes" -> {
+                    calls += method.name
+                    handleAudioFocus = args?.get(1) as Boolean
                 }
             }
             defaultReturnValue(method.returnType)

@@ -5,6 +5,8 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 
+import app.yukine.playback.manager.PlaybackQueueManager;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -30,9 +32,9 @@ public class PlaybackCrossfadeStateOwnerTest {
                     events.add("repeat");
                     return 2;
                 },
-                repeatMode -> {
-                    events.add("policy:" + repeatMode);
-                    return repeatMode == 2;
+                () -> {
+                    events.add("queue");
+                    return queueStateSnapshot(1, 2, false);
                 },
                 () -> {
                     events.add("volume");
@@ -50,11 +52,65 @@ public class PlaybackCrossfadeStateOwnerTest {
                         "fadeOut",
                         "player",
                         "playing",
+                        "queue",
                         "repeat",
-                        "policy:2",
                         "volume"
                 ),
                 events
+        );
+    }
+
+    @Test
+    public void crossfadeAdvancePolicyUsesQueueSnapshotAndRepeatMode() {
+        PlaybackCrossfadeStateOwner missingQueue = owner(null, PlaybackRepeatMode.REPEAT_ALL);
+        PlaybackCrossfadeStateOwner singleTrack = owner(queueStateSnapshot(0, 1, true), PlaybackRepeatMode.REPEAT_ALL);
+        PlaybackCrossfadeStateOwner repeatOffBeforeEnd = owner(
+                queueStateSnapshot(0, 2, false),
+                PlaybackRepeatMode.REPEAT_OFF
+        );
+        PlaybackCrossfadeStateOwner repeatOffAtEnd = owner(
+                queueStateSnapshot(1, 2, true),
+                PlaybackRepeatMode.REPEAT_OFF
+        );
+        PlaybackCrossfadeStateOwner repeatAllAtEnd = owner(
+                queueStateSnapshot(1, 2, true),
+                PlaybackRepeatMode.REPEAT_ALL
+        );
+
+        assertFalse(missingQueue.canCrossfadeAdvance());
+        assertFalse(singleTrack.canCrossfadeAdvance());
+        assertTrue(repeatOffBeforeEnd.canCrossfadeAdvance());
+        assertFalse(repeatOffAtEnd.canCrossfadeAdvance());
+        assertTrue(repeatAllAtEnd.canCrossfadeAdvance());
+    }
+
+    private static PlaybackCrossfadeStateOwner owner(
+            PlaybackQueueManager.QueueStateSnapshot snapshot,
+            int repeatMode
+    ) {
+        return new PlaybackCrossfadeStateOwner(
+                () -> false,
+                () -> true,
+                () -> true,
+                () -> repeatMode,
+                snapshot == null ? null : () -> snapshot,
+                () -> 1.0f
+        );
+    }
+
+    private static PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot(
+            int currentIndex,
+            int queueSize,
+            boolean atEnd
+    ) {
+        return new PlaybackQueueManager.QueueStateSnapshot(
+                null,
+                currentIndex,
+                queueSize,
+                queueSize == 0,
+                false,
+                queueSize > 1,
+                atEnd
         );
     }
 }

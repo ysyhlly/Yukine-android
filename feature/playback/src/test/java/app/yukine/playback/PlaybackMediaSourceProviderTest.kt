@@ -2,6 +2,10 @@ package app.yukine.playback
 
 import android.net.Uri
 import androidx.media3.common.MediaMetadata
+import androidx.media3.datasource.ByteArrayDataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.CacheWriter
 import app.yukine.common.StreamingDataPathParser
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
@@ -47,8 +51,118 @@ class PlaybackMediaSourceProviderTest {
         assertEquals(uri, mediaItem.localConfiguration?.uri)
         assertEquals(
             "streaming:netease:42|url=https://audio.example/current.flac",
+            mediaItem.localConfiguration?.customCacheKey
+        )
+        assertEquals(
+            "streaming:netease:42|url=https://audio.example/current.flac",
             PlaybackMediaSourceProvider.mediaCacheKey("streaming:netease:42", "https://audio.example/current.flac")
         )
+    }
+
+    @Test
+    fun providerMediaItemForLocalTrackUsesCallerMetadataProvider() {
+        val uri = Uri.parse("file:///storage/emulated/0/Music/local.flac")
+        val track = Track(7L, "Local", "Artist", "Album", 180_000L, uri, "/storage/emulated/0/Music/local.flac")
+        var metadataTrack: Track? = null
+
+        val mediaItem = provider(FakeStreamingPlaybackHeaderStore()).mediaItemForTrack(track) {
+            metadataTrack = it
+            MediaMetadata.Builder().setTitle(it.title).build()
+        }
+
+        assertSame(track, metadataTrack)
+        assertEquals("7", mediaItem.mediaId)
+        assertEquals(uri, mediaItem.localConfiguration?.uri)
+        assertNull(mediaItem.localConfiguration?.customCacheKey)
+        assertEquals("Local", mediaItem.mediaMetadata.title.toString())
+    }
+
+    @Test
+    fun providerMediaItemForStreamingTrackUsesOwnedCacheKeyRule() {
+        val uri = Uri.parse("https://audio.example/current.flac")
+        val track = Track(42L, "Stream", "Artist", "Album", 180_000L, uri, "streaming:netease:42")
+        var metadataTrack: Track? = null
+
+        val mediaItem = provider(FakeStreamingPlaybackHeaderStore()).mediaItemForTrack(track) {
+            metadataTrack = it
+            MediaMetadata.Builder().setTitle(it.title).build()
+        }
+
+        assertSame(track, metadataTrack)
+        assertEquals("42", mediaItem.mediaId)
+        assertEquals(uri, mediaItem.localConfiguration?.uri)
+        assertEquals(
+            "streaming:netease:42|url=https://audio.example/current.flac",
+            mediaItem.localConfiguration?.customCacheKey
+        )
+        assertEquals("Stream", mediaItem.mediaMetadata.title.toString())
+    }
+
+    @Test
+    fun providerMediaCacheKeyForTrackUsesStreamingKeyOrLocalUriFallback() {
+        val provider = provider(FakeStreamingPlaybackHeaderStore())
+        val streaming = Track(
+            42L,
+            "Stream",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://audio.example/current.flac"),
+            "streaming:netease:42"
+        )
+        val local = Track(
+            7L,
+            "Local",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("file:///storage/emulated/0/Music/local.flac"),
+            "/storage/emulated/0/Music/local.flac"
+        )
+
+        assertEquals(
+            "streaming:netease:42|url=https://audio.example/current.flac",
+            provider.mediaCacheKeyForTrack(streaming)
+        )
+        assertEquals("file:///storage/emulated/0/Music/local.flac", provider.mediaCacheKeyForTrack(local))
+    }
+
+    @Test
+    fun providerReportsMissingCacheAsZeroBytesAndUnknownLength() {
+        val provider = provider(FakeStreamingPlaybackHeaderStore())
+        try {
+            val cacheKey = "streaming:netease:missing|url=https://audio.example/missing.flac"
+
+            assertEquals(0L, provider.continuousCachedBytes(cacheKey))
+            assertEquals(-1L, provider.contentLengthForCacheKey(cacheKey))
+        } finally {
+            provider.releaseAudioCache()
+        }
+    }
+
+    @Test
+    fun providerReportsCommittedCacheSpanAsContinuousCachedBytes() {
+        val provider = provider(FakeStreamingPlaybackHeaderStore())
+        try {
+            val cacheKey = "streaming:netease:cached|url=https://audio.example/cached.flac"
+            val cacheWriter = CacheWriter(
+                CacheDataSource(provider.audioCache(), ByteArrayDataSource(byteArrayOf(1, 2, 3, 4))),
+                DataSpec.Builder()
+                    .setUri(Uri.parse("https://audio.example/cached.flac"))
+                    .setKey(cacheKey)
+                    .setLength(4L)
+                    .build(),
+                ByteArray(1024),
+                null
+            )
+
+            cacheWriter.cache()
+
+            assertEquals(4L, provider.continuousCachedBytes(cacheKey))
+            assertEquals(-1L, provider.contentLengthForCacheKey(cacheKey))
+        } finally {
+            provider.releaseAudioCache()
+        }
     }
 
     @Test

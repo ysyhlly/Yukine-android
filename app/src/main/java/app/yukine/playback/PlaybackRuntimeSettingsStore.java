@@ -34,6 +34,64 @@ final class PlaybackRuntimeSettingsStore {
         runtimeStateManager.setAppVolume(runtimeSettings.loadAppVolume());
     }
 
+    void setPlaybackSpeed(PlaybackRuntimeStateManager runtimeStateManager, float speed) {
+        if (runtimeStateManager != null) {
+            runtimeStateManager.setPlaybackSpeed(speed);
+        }
+    }
+
+    void setAppVolume(PlaybackRuntimeStateManager runtimeStateManager, float volume) {
+        if (runtimeStateManager != null) {
+            runtimeStateManager.setAppVolume(volume);
+        }
+    }
+
+    void setConcurrentPlaybackEnabled(PlaybackRuntimeStateManager runtimeStateManager, boolean enabled) {
+        if (runtimeStateManager != null) {
+            runtimeStateManager.setConcurrentPlaybackEnabled(enabled);
+        }
+    }
+
+    void setReplayGainEnabled(PlaybackRuntimeStateManager runtimeStateManager, boolean enabled) {
+        if (runtimeStateManager != null) {
+            runtimeStateManager.setReplayGainEnabled(enabled);
+        }
+    }
+
+    float playbackSpeed(PlaybackRuntimeStateManager runtimeStateManager) {
+        return runtimeStateManager == null ? 1.0f : runtimeStateManager.playbackSpeed();
+    }
+
+    float appVolume(PlaybackRuntimeStateManager runtimeStateManager) {
+        return runtimeStateManager == null ? 1.0f : runtimeStateManager.appVolume();
+    }
+
+    boolean concurrentPlaybackEnabled(PlaybackRuntimeStateManager runtimeStateManager) {
+        return runtimeStateManager != null && runtimeStateManager.concurrentPlaybackEnabled();
+    }
+
+    float currentTrackVolume(PlaybackRuntimeStateManager runtimeStateManager) {
+        return runtimeStateManager == null ? 1.0f : runtimeStateManager.currentTrackVolume();
+    }
+
+    void applyPlaybackParametersToPlayer(PlaybackRuntimeStateManager runtimeStateManager) {
+        if (runtimeStateManager != null) {
+            runtimeStateManager.applyPlaybackParametersToPlayer();
+        }
+    }
+
+    void applyCurrentTrackVolumeToPlayer(PlaybackRuntimeStateManager runtimeStateManager) {
+        if (runtimeStateManager != null) {
+            runtimeStateManager.applyCurrentTrackVolumeToPlayer();
+        }
+    }
+
+    void applyAudioFocusHandling(PlaybackRuntimeStateManager runtimeStateManager) {
+        if (runtimeStateManager != null) {
+            runtimeStateManager.applyAudioFocusHandling();
+        }
+    }
+
     private static final class RepositoryRuntimeSettings implements RuntimeSettings {
         private final MusicLibraryRepository repository;
 

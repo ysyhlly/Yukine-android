@@ -12,10 +12,6 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
         boolean canSkipFailedTrack(Track failed);
     }
 
-    interface TrackDebugger {
-        String debugTrack(Track track);
-    }
-
     interface PlaybackPreparer {
         void prepareCurrent(boolean playWhenReady);
     }
@@ -34,7 +30,6 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
 
     private final CurrentTrackProvider currentTrackProvider;
     private final FailedTrackPolicy failedTrackPolicy;
-    private final TrackDebugger trackDebugger;
     private final PlaybackPreparer playbackPreparer;
     private final PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands;
     private final ErrorMessageStore errorMessageStore;
@@ -44,7 +39,6 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
     PlaybackErrorRecoveryCommandOwner(
             CurrentTrackProvider currentTrackProvider,
             FailedTrackPolicy failedTrackPolicy,
-            TrackDebugger trackDebugger,
             PlaybackPreparer playbackPreparer,
             PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands,
             ErrorMessageStore errorMessageStore,
@@ -53,7 +47,6 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
     ) {
         this.currentTrackProvider = currentTrackProvider;
         this.failedTrackPolicy = failedTrackPolicy;
-        this.trackDebugger = trackDebugger;
         this.playbackPreparer = playbackPreparer;
         this.playbackCommands = playbackCommands;
         this.errorMessageStore = errorMessageStore;
@@ -73,7 +66,13 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
 
     @Override
     public String debugTrack(Track track) {
-        return trackDebugger.debugTrack(track);
+        if (track == null) {
+            return "track=<null>";
+        }
+        return "trackId=" + track.id
+                + ", title=" + track.title
+                + ", dataPath=" + track.dataPath
+                + ", uri=" + track.contentUri;
     }
 
     @Override

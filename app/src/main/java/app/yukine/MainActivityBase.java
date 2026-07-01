@@ -19,7 +19,6 @@ import app.yukine.data.MusicLibraryRepository;
 import app.yukine.model.Playlist;
 import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
-import app.yukine.playback.EchoPlaybackService;
 import app.yukine.playback.PlaybackStateSnapshot;
 import app.yukine.queue.QueueIntent;
 import app.yukine.streaming.LuoxueSourceStore;
@@ -132,6 +131,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject MainPlaybackStoreFactory playbackStoreFactory;
     @Inject MainNowPlayingGatewayFactory nowPlayingGatewayFactory;
     @Inject MainNowPlayingPlaybackGatewayFactory nowPlayingPlaybackGatewayFactory;
+    @Inject NowPlayingPlaybackServiceStarter nowPlayingPlaybackServiceStarter;
     @Inject MainNowPlayingStateListenerFactory nowPlayingStateListenerFactory;
     @Inject MainPlaybackActionListenerFactory playbackActionListenerFactory;
     @Inject MainQueueActionListenerFactory queueActionListenerFactory;
@@ -594,7 +594,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         playbackStartListener = playbackStartListenerFactory.create(
                 () -> streamingRecommendationViewModel.stopHeartbeatRecommendationMode(),
-                () -> startService(new Intent(MainActivityBase.this, EchoPlaybackService.class)),
+                () -> nowPlayingPlaybackServiceStarter.startPlaybackService(null),
                 () -> playbackService != null,
                 () -> streamingViewModel.prepareStreamingPlaybackStatusText(
                         settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
@@ -1179,6 +1179,9 @@ public abstract class MainActivityBase extends ComponentActivity {
     protected void onDestroy() {
         if (playbackServiceConnectionController != null) {
             playbackServiceConnectionController.release();
+        }
+        if (streamingPlaybackTaskScheduler != null) {
+            streamingPlaybackTaskScheduler.shutdownNow();
         }
         executors.shutdownNow();
         super.onDestroy();

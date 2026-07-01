@@ -19,12 +19,12 @@ internal class PlaybackServiceConnectionController(
         fun onPlaybackServiceDisconnected()
     }
 
-    private var service: EchoPlaybackService? = null
+    private var service: PlaybackServiceHostPort? = null
     private var bound: Boolean = false
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
-            val nextService = (binder as EchoPlaybackService.LocalBinder).service
+            val nextService: PlaybackServiceHostPort = (binder as EchoPlaybackService.LocalBinder).service
             if (service != null && service !== nextService) {
                 service?.unregisterListener(playbackStateListener)
             }

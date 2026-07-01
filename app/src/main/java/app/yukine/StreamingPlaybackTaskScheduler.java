@@ -47,9 +47,10 @@ final class StreamingPlaybackTaskScheduler implements StreamingPlaybackTaskQueue
     private final AtomicLong sequence = new AtomicLong();
     private boolean criticalActive;
     private boolean nextResolveActive;
+    private boolean shutdown;
 
     synchronized void schedule(Priority priority, Task task) {
-        if (task == null) {
+        if (shutdown || task == null) {
             return;
         }
         ScheduledTask scheduledTask = new ScheduledTask(priority, sequence.getAndIncrement(), task);
@@ -62,8 +63,16 @@ final class StreamingPlaybackTaskScheduler implements StreamingPlaybackTaskQueue
         }
     }
 
+    synchronized void shutdownNow() {
+        shutdown = true;
+        criticalQueue.clear();
+        nextResolveQueue.clear();
+        criticalActive = false;
+        nextResolveActive = false;
+    }
+
     private synchronized void drainCritical() {
-        if (criticalActive) {
+        if (shutdown || criticalActive) {
             return;
         }
         ScheduledTask next = criticalQueue.poll();
@@ -72,13 +81,18 @@ final class StreamingPlaybackTaskScheduler implements StreamingPlaybackTaskQueue
         }
         criticalActive = true;
         next.task.run(() -> {
-            criticalActive = false;
-            drainCritical();
+            synchronized (StreamingPlaybackTaskScheduler.this) {
+                if (shutdown) {
+                    return;
+                }
+                criticalActive = false;
+                drainCritical();
+            }
         });
     }
 
     private synchronized void drainNextResolve() {
-        if (nextResolveActive) {
+        if (shutdown || nextResolveActive) {
             return;
         }
         ScheduledTask next = nextResolveQueue.poll();
@@ -87,8 +101,13 @@ final class StreamingPlaybackTaskScheduler implements StreamingPlaybackTaskQueue
         }
         nextResolveActive = true;
         next.task.run(() -> {
-            nextResolveActive = false;
-            drainNextResolve();
+            synchronized (StreamingPlaybackTaskScheduler.this) {
+                if (shutdown) {
+                    return;
+                }
+                nextResolveActive = false;
+                drainNextResolve();
+            }
         });
     }
 

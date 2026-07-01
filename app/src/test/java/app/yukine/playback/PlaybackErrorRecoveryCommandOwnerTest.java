@@ -24,10 +24,6 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
                     events.add("canSkip:" + (failed == track));
                     return true;
                 },
-                failed -> {
-                    events.add("debug:" + failed.id);
-                    return "debug:" + failed.id;
-                },
                 playWhenReady -> events.add("prepare:" + playWhenReady),
                 new FakePlaybackCommands(events),
                 message -> events.add("error:" + message),
@@ -37,7 +33,8 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
 
         assertSame(track, owner.currentTrack());
         assertTrue(owner.canSkipFailedTrack(track));
-        assertEquals("debug:7", owner.debugTrack(track));
+        assertEquals("trackId=7, title=Track 7, dataPath=file:7, uri=null", owner.debugTrack(track));
+        assertEquals("track=<null>", owner.debugTrack(null));
         owner.prepareCurrent(true);
         owner.skipToNext();
         owner.setErrorMessage("Unable");
@@ -47,7 +44,6 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
         assertEquals(
                 java.util.Arrays.asList(
                         "canSkip:true",
-                        "debug:7",
                         "prepare:true",
                         "next",
                         "error:Unable",

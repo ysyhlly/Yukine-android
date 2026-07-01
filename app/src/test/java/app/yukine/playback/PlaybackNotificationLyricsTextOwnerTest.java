@@ -13,8 +13,9 @@ import static org.junit.Assert.assertEquals;
 public class PlaybackNotificationLyricsTextOwnerTest {
     @Test
     public void returnsEmptyTextUntilLyricsPublisherIsAvailable() {
-        MutableLyricsPublisherProvider provider = new MutableLyricsPublisherProvider();
-        PlaybackNotificationLyricsTextOwner owner = new PlaybackNotificationLyricsTextOwner(provider);
+        MutableLyricsPublisherSource provider = new MutableLyricsPublisherSource();
+        PlaybackNotificationLyricsTextOwner owner =
+                new PlaybackNotificationLyricsTextOwner(provider::lyricsPublisher);
 
         assertEquals("", owner.currentNotificationLyric(track()));
         assertEquals("", owner.sanitizeNotificationLyric("line"));
@@ -22,8 +23,9 @@ public class PlaybackNotificationLyricsTextOwnerTest {
 
     @Test
     public void delegatesNotificationLyricsToCurrentPublisher() {
-        MutableLyricsPublisherProvider provider = new MutableLyricsPublisherProvider();
-        PlaybackNotificationLyricsTextOwner owner = new PlaybackNotificationLyricsTextOwner(provider);
+        MutableLyricsPublisherSource provider = new MutableLyricsPublisherSource();
+        PlaybackNotificationLyricsTextOwner owner =
+                new PlaybackNotificationLyricsTextOwner(provider::lyricsPublisher);
         provider.publisher = new FakeLyricsPublisher();
         Track track = track();
 
@@ -35,11 +37,9 @@ public class PlaybackNotificationLyricsTextOwnerTest {
         return new Track(9L, "Track", "Artist", "Album", 1000L, Uri.EMPTY, "file:9");
     }
 
-    private static final class MutableLyricsPublisherProvider
-            implements PlaybackNotificationLyricsTextOwner.LyricsPublisherProvider {
+    private static final class MutableLyricsPublisherSource {
         private LyricsPublisher publisher;
 
-        @Override
         public LyricsPublisher lyricsPublisher() {
             return publisher;
         }

@@ -58,6 +58,9 @@ internal class PlaybackLyricsManager(
     }
 
     override fun release() {
+        if (released) {
+            return
+        }
         released = true
         FloatingLyricsPublisher.removeListener(floatingLyricsListener)
         LiveLyricsNotificationService.stop(context)

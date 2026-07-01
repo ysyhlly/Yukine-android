@@ -6,6 +6,7 @@ import android.content.Context;
 import android.net.Uri;
 
 import androidx.media3.common.MediaItem;
+import androidx.media3.datasource.cache.CacheDataSource;
 
 import app.yukine.common.StreamingDataPathParser;
 import app.yukine.data.MusicLibraryRepository;
@@ -22,6 +23,7 @@ import org.robolectric.annotation.Config;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 33)
@@ -53,6 +55,56 @@ public final class PlaybackPrecacheManagerTest {
 
         assertEquals(2, scheduler.removedCallbacks);
         assertEquals(0, scheduler.pendingCallbacks.size());
+    }
+
+    @Test
+    public void releaseAudioCacheIsIdempotentAcrossExplicitAndManagerRelease() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeAudioCacheReleaser audioCacheReleaser = new FakeAudioCacheReleaser();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                (PlaybackPrecacheManager.UpcomingTracksProvider) null,
+                mediaSourceProvider(),
+                scheduler,
+                audioCacheReleaser
+        );
+
+        manager.releaseAudioCache();
+        manager.release();
+        manager.releaseAudioCache();
+        manager.release();
+
+        assertEquals(1, audioCacheReleaser.releaseCalls);
+    }
+
+    @Test
+    public void audioCacheReleaserFromProviderDelegatesThroughManagerOnce() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeAudioCacheReleaser audioCacheReleaser = new FakeAudioCacheReleaser();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                (PlaybackPrecacheManager.UpcomingTracksProvider) null,
+                mediaSourceProvider(),
+                scheduler,
+                audioCacheReleaser
+        );
+        PlaybackPrecacheManager.AudioCacheReleaser releaser =
+                PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerProvider(() -> manager);
+
+        releaser.releaseAudioCache();
+        releaser.releaseAudioCache();
+
+        assertEquals(1, audioCacheReleaser.releaseCalls);
+    }
+
+    @Test
+    public void audioCacheReleaserFromProviderIgnoresMissingManager() {
+        PlaybackPrecacheManager.AudioCacheReleaser releaser =
+                PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerProvider(() -> null);
+
+        releaser.releaseAudioCache();
     }
 
     @Test
@@ -163,6 +215,62 @@ public final class PlaybackPrecacheManagerTest {
 
         assertEquals(2, scheduler.removedCallbacks);
         assertEquals(0, scheduler.pendingCallbacks.size());
+    }
+
+    @Test
+    public void repeatedCurrentPrecacheUsesManagerOwnedCacheStateToAvoidRescheduling() throws Exception {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                (PlaybackPrecacheManager.UpcomingTracksProvider) null,
+                mediaCacheOperations,
+                scheduler,
+                new FakeAudioCacheReleaser()
+        );
+        Track track = track(1L, "https://example.test/current.mp3");
+        mediaCacheOperations.contentLength = 1024L;
+        mediaCacheOperations.cachedBytes = 1024L;
+
+        stateProvider.currentTrack = track;
+        manager.precacheTrack(track);
+        assertEventuallyPrecacheComplete(stateProvider, 1, 0L);
+        int pendingCallbacks = scheduler.pendingCallbacks.size();
+        int precacheAttempts = stateProvider.diagnostics.snapshot().precacheAttempts;
+        int contentLengthCalls = mediaCacheOperations.contentLengthCalls;
+        int cachedBytesInRangeCalls = mediaCacheOperations.cachedBytesInRangeCalls;
+        manager.precacheTrack(track);
+        manager.release();
+
+        assertEquals(pendingCallbacks, scheduler.pendingCallbacks.size() + scheduler.removedCallbacks);
+        assertEquals(precacheAttempts, stateProvider.diagnostics.snapshot().precacheAttempts);
+        assertEquals(contentLengthCalls + 1, mediaCacheOperations.contentLengthCalls);
+        assertEquals(cachedBytesInRangeCalls + 1, mediaCacheOperations.cachedBytesInRangeCalls);
+    }
+
+    @Test
+    public void upcomingPrecacheReadsTracksThroughNarrowProvider() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeUpcomingTracksProvider upcomingTracksProvider = new FakeUpcomingTracksProvider();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                upcomingTracksProvider,
+                mediaSourceProvider(),
+                scheduler
+        );
+        Track current = track(1L, "https://example.test/current.mp3");
+        upcomingTracksProvider.tracks.add(track(2L, "https://example.test/upcoming.mp3"));
+
+        stateProvider.currentTrack = current;
+        manager.precacheTrack(current);
+        scheduler.runNext();
+        scheduler.runNext();
+        manager.release();
+
+        assertEquals(PlaybackPrecacheManager.SEGMENTED_PRECACHE_CONCURRENCY, upcomingTracksProvider.lastMaxCount);
+        assertEquals(1, upcomingTracksProvider.calls);
     }
 
     private static Track track(long id, String uri) {
@@ -296,6 +404,90 @@ public final class PlaybackPrecacheManagerTest {
 
         private Runnable takeNext() {
             return pendingCallbacks.remove(0);
+        }
+    }
+
+    private static final class FakeAudioCacheReleaser implements PlaybackPrecacheManager.AudioCacheReleaser {
+        private int releaseCalls;
+
+        @Override
+        public void releaseAudioCache() {
+            releaseCalls++;
+        }
+    }
+
+    private static final class FakeMediaCacheOperations implements PlaybackPrecacheManager.MediaCacheOperations {
+        private long contentLength = -1L;
+        private long cachedBytes;
+        private int contentLengthCalls;
+        private int cachedBytesInRangeCalls;
+
+        @Override
+        public String mediaCacheKeyForTrack(Track track) {
+            return cacheKeyForTrack(track);
+        }
+
+        @Override
+        public boolean tracksShareResolvedUriForReuse(Track current, Track candidate) {
+            return current != null
+                    && candidate != null
+                    && current.contentUri != null
+                    && current.contentUri.equals(candidate.contentUri);
+        }
+
+        @Override
+        public long contentLengthForCacheKey(String cacheKey) {
+            contentLengthCalls++;
+            return contentLength;
+        }
+
+        @Override
+        public boolean isHttpTrack(Track track) {
+            String scheme = track == null || track.contentUri == null ? null : track.contentUri.getScheme();
+            return "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
+        }
+
+        @Override
+        public String cacheKeyForTrack(Track track) {
+            if (track == null || track.contentUri == null || track.dataPath == null || track.dataPath.isEmpty()) {
+                return null;
+            }
+            return track.dataPath + "|url=" + track.contentUri;
+        }
+
+        @Override
+        public Map<String, String> headersForTrack(Track track) {
+            return Collections.emptyMap();
+        }
+
+        @Override
+        public long cachedBytesInRange(String cacheKey, long position, long length) {
+            cachedBytesInRangeCalls++;
+            return cachedBytes;
+        }
+
+        @Override
+        public CacheDataSource cacheDataSourceForTrack(Track track) {
+            return null;
+        }
+
+        @Override
+        public boolean mediaItemMatchesTrackForReuse(MediaItem mediaItem, Track track) {
+            return true;
+        }
+    }
+
+    private static final class FakeUpcomingTracksProvider
+            implements PlaybackPrecacheManager.UpcomingTracksProvider {
+        private final List<Track> tracks = new ArrayList<>();
+        private int calls;
+        private int lastMaxCount;
+
+        @Override
+        public List<Track> upcomingTracksForPrecache(int maxCount) {
+            calls++;
+            lastMaxCount = maxCount;
+            return tracks;
         }
     }
 }
