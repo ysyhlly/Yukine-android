@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -25,9 +26,8 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
         PlaybackCurrentTrackPreparationOwner owner = new PlaybackCurrentTrackPreparationOwner(
                 track -> {
                     events.add("restore:" + track.id);
-                    return restored;
+                    return preparation(restored, restored, true, null);
                 },
-                track -> null,
                 track -> {
                     events.add("source:" + track.id);
                     return null;
@@ -68,8 +68,12 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
         List<String> events = new ArrayList<>();
         Track unresolved = track(2L, Uri.EMPTY);
         PlaybackCurrentTrackPreparationOwner owner = new PlaybackCurrentTrackPreparationOwner(
-                track -> null,
-                track -> "Streaming track is not resolved yet. Tap the track again to play.",
+                track -> preparation(
+                        unresolved,
+                        null,
+                        false,
+                        "Streaming track is not resolved yet. Tap the track again to play."
+                ),
                 track -> {
                     events.add("source:" + track.id);
                     return null;
@@ -101,8 +105,7 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
     public void restoredPositionIsClampedToZero() {
         Track track = track(3L, Uri.parse("file:///music/local.flac"));
         PlaybackCurrentTrackPreparationOwner owner = new PlaybackCurrentTrackPreparationOwner(
-                requested -> null,
-                requested -> null,
+                requested -> preparation(requested, null, true, null),
                 requested -> null,
                 new FakeQueuePreparationController(new ArrayList<>(), -1L),
                 new FakeRuntimeStateController(new ArrayList<>()),
@@ -113,6 +116,20 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
         );
 
         assertEquals(0L, owner.prepareCurrentTrack(track).startPositionMs());
+    }
+
+    private static PlaybackMediaSourceProvider.PlaybackPreparation preparation(
+            Track track,
+            Track restoredTrack,
+            boolean playable,
+            String unplayableMessage
+    ) {
+        return new PlaybackMediaSourceProvider.PlaybackPreparation(
+                track,
+                restoredTrack,
+                playable,
+                unplayableMessage
+        );
     }
 
     private static Track track(long id, Uri uri) {

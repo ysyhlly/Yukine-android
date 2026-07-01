@@ -3,14 +3,11 @@ package app.yukine.playback;
 import androidx.media3.exoplayer.source.MediaSource;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
 final class PlaybackCurrentTrackPreparationOwner {
-    interface RestoredTrackProvider {
-        Track restoredTrackForPreparation(Track track);
-    }
-
-    interface UnplayableMessageProvider {
-        String unplayableMessageForTrack(Track track);
+    interface PlaybackPreparationProvider {
+        PlaybackMediaSourceProvider.PlaybackPreparation prepareTrackForPlayback(Track track);
     }
 
     interface MediaSourceResolver {
@@ -85,8 +82,7 @@ final class PlaybackCurrentTrackPreparationOwner {
         }
     }
 
-    private final RestoredTrackProvider restoredTrackProvider;
-    private final UnplayableMessageProvider unplayableMessageProvider;
+    private final PlaybackPreparationProvider playbackPreparationProvider;
     private final MediaSourceResolver mediaSourceResolver;
     private final QueuePreparationController queuePreparationController;
     private final RuntimeStateController runtimeStateController;
@@ -94,16 +90,14 @@ final class PlaybackCurrentTrackPreparationOwner {
     private final RefusalLogger refusalLogger;
 
     PlaybackCurrentTrackPreparationOwner(
-            RestoredTrackProvider restoredTrackProvider,
-            UnplayableMessageProvider unplayableMessageProvider,
+            PlaybackPreparationProvider playbackPreparationProvider,
             MediaSourceResolver mediaSourceResolver,
             QueuePreparationController queuePreparationController,
             RuntimeStateController runtimeStateController,
             StatePublisher statePublisher,
             RefusalLogger refusalLogger
     ) {
-        this.restoredTrackProvider = restoredTrackProvider;
-        this.unplayableMessageProvider = unplayableMessageProvider;
+        this.playbackPreparationProvider = playbackPreparationProvider;
         this.mediaSourceResolver = mediaSourceResolver;
         this.queuePreparationController = queuePreparationController;
         this.runtimeStateController = runtimeStateController;
@@ -112,17 +106,19 @@ final class PlaybackCurrentTrackPreparationOwner {
     }
 
     PreparedTrack prepareCurrentTrack(Track track) {
-        Track restoredTrack = restoredTrackProvider == null
+        PlaybackMediaSourceProvider.PlaybackPreparation preparation = playbackPreparationProvider == null
                 ? null
-                : restoredTrackProvider.restoredTrackForPreparation(track);
+                : playbackPreparationProvider.prepareTrackForPlayback(track);
+        Track restoredTrack = preparation == null ? null : preparation.getRestoredTrack();
         if (restoredTrack != null) {
             queuePreparationController.replaceCurrentQueueTrack(restoredTrack);
         }
-        Track preparedTrack = restoredTrack == null ? track : restoredTrack;
-        String unplayableMessage = unplayableMessageProvider == null
-                ? null
-                : unplayableMessageProvider.unplayableMessageForTrack(preparedTrack);
-        if (unplayableMessage != null) {
+        Track preparedTrack = preparation == null ? track : preparation.getTrack();
+        if (preparedTrack == null) {
+            preparedTrack = track;
+        }
+        if (preparation != null && !preparation.getPlayable()) {
+            String unplayableMessage = preparation.getUnplayableMessage();
             runtimeStateController.setPreparing(false);
             runtimeStateController.setErrorMessage(unplayableMessage);
             refusalLogger.logRefusingToPrepareEmptyUri(preparedTrack);
