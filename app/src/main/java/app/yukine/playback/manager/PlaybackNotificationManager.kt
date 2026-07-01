@@ -8,7 +8,7 @@ import android.os.Bundle
 import android.media.session.MediaSession
 import app.yukine.R
 import app.yukine.model.Track
-import app.yukine.playback.PlaybackServiceActions
+import app.yukine.playback.service.PlaybackServiceActions
 import androidx.media3.common.MediaMetadata
 
 internal class PlaybackNotificationManager(

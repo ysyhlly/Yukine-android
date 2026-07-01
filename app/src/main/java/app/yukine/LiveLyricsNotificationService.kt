@@ -15,7 +15,7 @@ import android.os.Bundle
 import android.os.IBinder
 import app.yukine.common.EmbeddedArtwork
 import app.yukine.playback.EchoPlaybackService
-import app.yukine.playback.PlaybackServiceActions
+import app.yukine.playback.service.PlaybackServiceActions
 import java.io.InputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

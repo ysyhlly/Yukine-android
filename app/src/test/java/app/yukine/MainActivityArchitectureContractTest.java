@@ -949,6 +949,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(nowPlayingViewModel.contains("EchoPlaybackService.ACTION_PREVIOUS"));
         assertFalse(nowPlayingViewModel.contains("EchoPlaybackService.REPEAT_ALL"));
         assertFalse(nowPlayingViewModel.contains("import app.yukine.playback.PlaybackServiceActions"));
+        assertFalse(nowPlayingViewModel.contains("import app.yukine.playback.service.PlaybackServiceActions"));
         assertTrue(nowPlayingViewModel.contains("import app.yukine.playback.PlaybackRepeatMode"));
         assertFalse(nowPlayingViewModel.contains("startPlaybackService(PlaybackServiceActions"));
         assertTrue(nowPlayingViewModel.contains("player.setRepeatMode(PlaybackRepeatMode.REPEAT_ALL)"));
@@ -5018,7 +5019,7 @@ public final class MainActivityArchitectureContractTest {
         String lyricsStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackLyricsStateOwner.java");
         String lyricsSettingsStore = read("app/src/main/java/app/yukine/playback/PlaybackLyricsSettingsStore.java");
         String sessionRefreshOwner = read("app/src/main/java/app/yukine/playback/PlaybackSessionRefreshOwner.java");
-        String actionOwner = read("app/src/main/java/app/yukine/playback/PlaybackServiceActions.java");
+        String actionOwner = read("app/src/main/java/app/yukine/playback/service/PlaybackServiceActions.java");
         String manifest = read("app/src/main/AndroidManifest.xml");
         String normalizedPlaybackService = playbackService.replace("\r\n", "\n");
 

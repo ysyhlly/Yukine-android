@@ -1,8 +1,8 @@
 package app.yukine
 
 import app.yukine.model.Track
-import app.yukine.playback.PlaybackServiceActions
 import app.yukine.playback.PlaybackStateSnapshot
+import app.yukine.playback.service.PlaybackServiceActions
 
 interface NowPlayingPlaybackServicePort {
     fun snapshot(): PlaybackStateSnapshot?

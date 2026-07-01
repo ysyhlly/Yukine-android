@@ -1,4 +1,4 @@
-package app.yukine.playback;
+package app.yukine.playback.service;
 
 public final class PlaybackServiceActions {
     public static final String PLAY = "app.yukine.action.PLAY";

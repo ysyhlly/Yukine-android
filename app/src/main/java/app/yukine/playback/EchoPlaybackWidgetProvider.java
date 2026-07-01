@@ -14,6 +14,7 @@ import android.widget.RemoteViews;
 import app.yukine.MainActivity;
 import app.yukine.R;
 import app.yukine.model.Track;
+import app.yukine.playback.service.PlaybackServiceActions;
 
 public final class EchoPlaybackWidgetProvider extends AppWidgetProvider {
     private static PlaybackStateSnapshot lastSnapshot = PlaybackStateSnapshot.empty();
