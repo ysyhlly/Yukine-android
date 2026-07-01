@@ -5959,9 +5959,6 @@ public final class MainActivityArchitectureContractTest {
         String mirroredTrackMatcherOwner = read(
                 "app/src/main/java/app/yukine/playback/PlaybackMirroredQueueTrackMatcherOwner.java"
         );
-        String mediaSourceResolutionOwner = read(
-                "app/src/main/java/app/yukine/playback/PlaybackMediaSourceResolutionOwner.java"
-        );
         String precacheManager = read("app/src/main/java/app/yukine/playback/PlaybackPrecacheManager.java");
 
         assertTrue(owner.contains("fun mediaItemMatchesTrackForReuse("));
@@ -6049,28 +6046,15 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackMediaSourceProvider.mediaItemIdentityMatchesForReuse("));
         assertTrue(dataSource.contains("MediaItem mediaItemForTrack(Track track, Function<Track, MediaMetadata> metadataProvider)"));
         assertTrue(dataSource.contains("return mediaSourceProvider.mediaItemForTrack(track, metadataProvider::apply);"));
-        assertTrue(service.contains("private PlaybackMediaSourceResolutionOwner playbackMediaSourceResolutionOwner;"));
-        assertTrue(service.contains("PlaybackMediaSourceResolutionOwner.fromMediaSourceProvider("));
-        assertTrue(service.contains("playbackMediaSourceResolutionOwner.mediaSourceForTrack(track)"));
-        assertTrue(service.contains("playbackMediaSourceResolutionOwner.mediaSourcesForTracks(mirroredQueueTracks)"));
-        assertFalse(service.contains("playbackMediaSourceResolutionOwner::releaseAudioCache"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackMediaSourceResolutionOwner.java")));
+        assertFalse(service.contains("PlaybackMediaSourceResolutionOwner"));
+        assertFalse(service.contains("playbackMediaSourceResolutionOwner"));
+        assertTrue(service.contains("mediaSourceProvider.mediaSourceForTrack("));
+        assertTrue(service.contains("mediaSourceProvider.mediaSourcesForTracks("));
+        assertTrue(service.contains("playbackNotificationManager::mediaMetadataForTrack"));
         assertFalse(service.contains("playbackPrecacheManager.releaseAudioCache();"));
         assertTrue(service.contains("PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerProvider("));
-        assertFalse(service.contains("player.setMediaSource(mediaSourceProvider.mediaSourceForTrack(track, playbackNotificationManager::mediaMetadataForTrack));"));
-        assertFalse(service.contains("mediaSourceProvider.mediaSourcesForTracks("));
         assertFalse(service.contains("mediaSourceProvider::releaseAudioCache"));
-        assertTrue(mediaSourceResolutionOwner.contains("final class PlaybackMediaSourceResolutionOwner"));
-        assertTrue(mediaSourceResolutionOwner.contains("interface MediaSourceResolver"));
-        assertTrue(mediaSourceResolutionOwner.contains("interface MetadataProvider"));
-        assertFalse(mediaSourceResolutionOwner.contains("interface MediaSourceResolverProvider"));
-        assertTrue(mediaSourceResolutionOwner.contains("Supplier<MediaSourceResolver>"));
-        assertTrue(mediaSourceResolutionOwner.contains("mediaSourceProvider.mediaSourceForTrack("));
-        assertTrue(mediaSourceResolutionOwner.contains("mediaSourceProvider.mediaSourcesForTracks("));
-        assertFalse(mediaSourceResolutionOwner.contains("PlaybackPrecacheManager"));
-        assertFalse(mediaSourceResolutionOwner.contains("precache"));
-        assertFalse(mediaSourceResolutionOwner.contains("CacheDataSource"));
-        assertFalse(mediaSourceResolutionOwner.contains("cacheKey"));
-        assertFalse(mediaSourceResolutionOwner.contains("releaseAudioCache"));
         assertTrue(precacheManager.contains("void releaseAudioCache()"));
         assertTrue(precacheManager.contains("audioCacheReleased.compareAndSet(false, true)"));
         assertTrue(precacheManager.contains("mediaSourceProvider.releaseAudioCache();"));

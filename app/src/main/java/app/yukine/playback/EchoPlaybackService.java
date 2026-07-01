@@ -267,7 +267,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     ToggleFavoriteUseCase toggleFavoriteUseCase;
     private PlaybackAudioEffectSettingsStore playbackAudioEffectSettingsStore;
     private PlaybackMediaSourceProvider mediaSourceProvider;
-    private PlaybackMediaSourceResolutionOwner playbackMediaSourceResolutionOwner;
     private PlaybackPlayerFactory playerFactory;
     private PlaybackRuntimeSettingsStore playbackRuntimeSettingsStore;
     private final PlaybackTransitionStateManager playbackTransitionStateManager = new PlaybackTransitionStateManager();
@@ -374,10 +373,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     public void onCreate() {
         super.onCreate();
         mediaSourceProvider = new PlaybackMediaSourceProvider(this, repository, streamingPlaybackHeaderStore);
-        playbackMediaSourceResolutionOwner = PlaybackMediaSourceResolutionOwner.fromMediaSourceProvider(
-                mediaSourceProvider,
-                playbackNotificationManager::mediaMetadataForTrack
-        );
         playerFactory = new PlaybackPlayerFactory(this, realtimeBassAudioProcessor);
         playbackAudioEffectSettingsStore = PlaybackAudioEffectSettingsStore.fromRepository(repository);
         playbackAudioEffectSettingsStore.restore();
@@ -1204,7 +1199,10 @@ public final class EchoPlaybackService extends MediaLibraryService
             prepareSingleTrack(track, playWhenReady, startPositionMs);
             return;
         }
-        List<MediaSource> mediaSources = playbackMediaSourceResolutionOwner.mediaSourcesForTracks(mirroredQueueTracks);
+        List<MediaSource> mediaSources = mediaSourceProvider.mediaSourcesForTracks(
+                mirroredQueueTracks,
+                playbackNotificationManager::mediaMetadataForTrack
+        );
         playbackCurrentTrackPreparationRuntimeOwner.beginPreparing();
         createPlayerIfNeeded();
         playbackTransitionStateManager.setLastMarkedTrack(null);
@@ -1243,7 +1241,10 @@ public final class EchoPlaybackService extends MediaLibraryService
         player.clearMediaItems();
         playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(false);
         applyPlaybackParametersToPlayer();
-        player.setMediaSource(playbackMediaSourceResolutionOwner.mediaSourceForTrack(track));
+        player.setMediaSource(mediaSourceProvider.mediaSourceForTrack(
+                track,
+                playbackNotificationManager::mediaMetadataForTrack
+        ));
         player.setPlayWhenReady(playWhenReady);
         try {
             player.prepare();
