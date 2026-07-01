@@ -6,8 +6,12 @@ import static org.junit.Assert.assertTrue;
 
 import android.os.Process;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
@@ -87,6 +91,48 @@ public final class PlaybackTaskSchedulerTest {
 
         Thread.sleep(100L);
         assertEquals(0, calls.get());
+    }
+
+    @Test
+    public void scheduledTasksRunByPlaybackPriorityBeforeSequenceOrder() throws Exception {
+        CountDownLatch firstTaskDequeued = new CountDownLatch(1);
+        CountDownLatch releaseFirstTask = new CountDownLatch(1);
+        CountDownLatch scheduledTasksFinished = new CountDownLatch(2);
+        AtomicBoolean blockFirstTask = new AtomicBoolean(true);
+        List<String> events = Collections.synchronizedList(new ArrayList<>());
+        PlaybackTaskScheduler scheduler = new PlaybackTaskScheduler(
+                "test-playback-task-scheduler",
+                Process.THREAD_PRIORITY_BACKGROUND,
+                () -> {
+                    if (blockFirstTask.compareAndSet(true, false)) {
+                        firstTaskDequeued.countDown();
+                        try {
+                            releaseFirstTask.await(2, TimeUnit.SECONDS);
+                        } catch (InterruptedException ignored) {
+                        }
+                    }
+                }
+        );
+
+        scheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY, () -> {
+        });
+        assertTrue(firstTaskDequeued.await(2, TimeUnit.SECONDS));
+
+        scheduler.schedule(PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE, () -> {
+            events.add("next-precache");
+            scheduledTasksFinished.countDown();
+        });
+        scheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_URL_RESOLVE, () -> {
+            events.add("current-url");
+            scheduledTasksFinished.countDown();
+        });
+        releaseFirstTask.countDown();
+
+        assertTrue(scheduledTasksFinished.await(2, TimeUnit.SECONDS));
+        scheduler.shutdownNow();
+        assertEquals(2, events.size());
+        assertEquals("current-url", events.get(0));
+        assertEquals("next-precache", events.get(1));
     }
 
     @Test
