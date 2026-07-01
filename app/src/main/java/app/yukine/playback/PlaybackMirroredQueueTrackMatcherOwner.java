@@ -4,7 +4,6 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BiPredicate;
@@ -26,16 +25,14 @@ final class PlaybackMirroredQueueTrackMatcherOwner
 
     static PlaybackMirroredQueueTrackMatcherOwner fromPlayerProvider(
             Supplier<Player> playerProvider,
-            PlaybackMediaSourceProvider mediaSourceProvider
+            BiPredicate<MediaItem, Track> trackMediaItemMatcher
     ) {
         return new PlaybackMirroredQueueTrackMatcherOwner(
                 index -> {
                     Player player = playerProvider == null ? null : playerProvider.get();
                     return player == null ? null : player.getMediaItemAt(index);
                 },
-                mediaSourceProvider == null
-                        ? null
-                        : mediaSourceProvider::mediaItemMatchesTrackForReuse
+                trackMediaItemMatcher
         );
     }
 
