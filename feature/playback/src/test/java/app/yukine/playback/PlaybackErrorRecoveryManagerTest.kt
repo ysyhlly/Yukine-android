@@ -1,18 +1,14 @@
 package app.yukine.playback
 
 import android.net.Uri
-import app.yukine.common.StreamingDataPathParser
-import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackErrorRecoveryManager
-import app.yukine.playback.manager.PlaybackMediaSourceProvider
-import app.yukine.streaming.StreamingPlaybackHeaderStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RuntimeEnvironment
 import org.robolectric.RobolectricTestRunner
+import java.util.function.Predicate
 
 @RunWith(RobolectricTestRunner::class)
 class PlaybackErrorRecoveryManagerTest {
@@ -23,7 +19,7 @@ class PlaybackErrorRecoveryManagerTest {
             track = track(1L, "https://example.com/song.mp3"),
             canSkipFailedTrack = true
         )
-        val manager = PlaybackErrorRecoveryManager(scheduler, actions, provider())
+        val manager = PlaybackErrorRecoveryManager(scheduler, actions, httpTrackPredicate())
         val error = Exception("boom")
 
         manager.onPlayerError(error)
@@ -42,7 +38,7 @@ class PlaybackErrorRecoveryManagerTest {
             track = track(1L, "https://example.com/song.mp3"),
             canSkipFailedTrack = true
         )
-        val manager = PlaybackErrorRecoveryManager(scheduler, actions, provider())
+        val manager = PlaybackErrorRecoveryManager(scheduler, actions, httpTrackPredicate())
         val error = Exception("boom")
 
         manager.onPlayerError(error)
@@ -61,7 +57,7 @@ class PlaybackErrorRecoveryManagerTest {
             track = track(1L, "https://example.com/song.mp3"),
             canSkipFailedTrack = true
         )
-        val manager = PlaybackErrorRecoveryManager(scheduler, actions, provider())
+        val manager = PlaybackErrorRecoveryManager(scheduler, actions, httpTrackPredicate())
 
         manager.onPlayerError(Exception("boom"))
         manager.release()
@@ -78,7 +74,7 @@ class PlaybackErrorRecoveryManagerTest {
             track = track(1L, "https://example.com/song.mp3"),
             canSkipFailedTrack = true
         )
-        val manager = PlaybackErrorRecoveryManager(scheduler, actions, provider())
+        val manager = PlaybackErrorRecoveryManager(scheduler, actions, httpTrackPredicate())
 
         manager.onPlayerError(Exception("boom"))
         manager.release()
@@ -99,7 +95,7 @@ class PlaybackErrorRecoveryManagerTest {
             track = track(1L, "https://example.com/song.mp3"),
             canSkipFailedTrack = true
         )
-        val manager = PlaybackErrorRecoveryManager(scheduler, actions, provider())
+        val manager = PlaybackErrorRecoveryManager(scheduler, actions, httpTrackPredicate())
 
         manager.release()
         manager.onPlayerError(Exception("boom"))
@@ -118,7 +114,7 @@ class PlaybackErrorRecoveryManagerTest {
             track = track(1L, "content://local/song.mp3"),
             canSkipFailedTrack = false
         )
-        val manager = PlaybackErrorRecoveryManager(scheduler, actions, provider())
+        val manager = PlaybackErrorRecoveryManager(scheduler, actions, httpTrackPredicate())
 
         manager.onPlayerError(Exception("boom"))
 
@@ -167,13 +163,11 @@ class PlaybackErrorRecoveryManagerTest {
     }
 
     private companion object {
-        fun provider(): PlaybackMediaSourceProvider {
-            val context = RuntimeEnvironment.getApplication()
-            return PlaybackMediaSourceProvider(
-                context,
-                MusicLibraryRepository(context, FakeStreamingDataPathParser),
-                FakeStreamingPlaybackHeaderStore()
-            )
+        fun httpTrackPredicate(): Predicate<Track?> {
+            return Predicate { track ->
+                val scheme = track?.contentUri?.scheme
+                scheme.equals("http", ignoreCase = true) || scheme.equals("https", ignoreCase = true)
+            }
         }
 
         fun track(id: Long, uri: String): Track {
@@ -181,16 +175,4 @@ class PlaybackErrorRecoveryManagerTest {
         }
     }
 
-    private object FakeStreamingDataPathParser : StreamingDataPathParser {
-        override fun isStreamingTrack(dataPath: String): Boolean = dataPath.startsWith("streaming:")
-        override fun providerName(dataPath: String): String? = dataPath.substringAfter("streaming:", "").substringBefore(":")
-        override fun providerTrackId(dataPath: String): String = dataPath.substringAfterLast(":")
-    }
-
-    private class FakeStreamingPlaybackHeaderStore : StreamingPlaybackHeaderStore {
-        override fun register(dataPath: String, headers: Map<String, String>) = Unit
-        override fun forDataPath(dataPath: String?): Map<String, String> = emptyMap()
-        override fun restoreForDataPath(dataPath: String?): Boolean = true
-        override fun restoredTrackFor(track: Track?): Track? = null
-    }
 }

@@ -1,11 +1,12 @@
 package app.yukine.playback.manager
 
 import app.yukine.model.Track
+import java.util.function.Predicate
 
 internal class PlaybackErrorRecoveryManager(
     private val scheduler: RetryScheduler,
     private val actions: Actions,
-    private val mediaSourceProvider: PlaybackMediaSourceProvider,
+    private val streamingTrackPredicate: Predicate<Track?>,
     private val retryDelayMs: Long = DEFAULT_RETRY_DELAY_MS
 ) {
     interface RetryScheduler {
@@ -51,7 +52,7 @@ internal class PlaybackErrorRecoveryManager(
         }
         val failed = actions.currentTrack()
         val failedId = failed?.id ?: -1L
-        val isStreaming = mediaSourceProvider.isHttpTrack(failed)
+        val isStreaming = streamingTrackPredicate.test(failed)
         actions.logWarning("Playback failed for ${actions.debugTrack(failed)}", error)
         if (isStreaming && failedId != -1L && failedId != lastErrorTrackId) {
             lastErrorTrackId = failedId

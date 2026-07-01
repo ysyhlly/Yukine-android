@@ -403,7 +403,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackErrorRecoveryManager = new PlaybackErrorRecoveryManager(
                 playbackMainHandlerSchedulerOwner,
                 playbackErrorRecoveryCommandOwner,
-                mediaSourceProvider,
+                mediaSourceProvider::isHttpTrack,
                 1500L
         );
         playbackProgressUpdateCommandOwner = new PlaybackProgressUpdateCommandOwner(

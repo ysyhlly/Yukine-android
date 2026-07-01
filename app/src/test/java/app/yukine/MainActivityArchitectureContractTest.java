@@ -6380,9 +6380,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueManager.canSkipFailedTrack(failed)"));
         assertFalse(queueNavigationOwner.contains("playbackQueueManager.canSkipFailedTrack(failed);"));
         assertTrue(owner.contains("class PlaybackErrorRecoveryManager"));
-        assertTrue(owner.contains("private val mediaSourceProvider: PlaybackMediaSourceProvider"));
+        assertFalse(owner.contains("private val mediaSourceProvider: PlaybackMediaSourceProvider"));
+        assertTrue(owner.contains("private val streamingTrackPredicate: Predicate<Track?>"));
         assertTrue(owner.contains("private var lastErrorTrackId"));
-        assertTrue(owner.contains("mediaSourceProvider.isHttpTrack(failed)"));
+        assertTrue(owner.contains("streamingTrackPredicate.test(failed)"));
         assertFalse(owner.contains("fun isHttpUri(uri: Uri?): Boolean"));
         assertTrue(owner.contains("fun canSkipFailedTrack(failed: Track?): Boolean"));
         assertTrue(owner.contains("actions.canSkipFailedTrack(failed)"));
