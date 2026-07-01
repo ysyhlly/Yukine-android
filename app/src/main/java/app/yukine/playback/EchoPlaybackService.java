@@ -201,7 +201,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner;
     private PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner;
     private PlaybackPositionManager playbackPositionManager;
-    private PlaybackActiveStateOwner playbackActiveStateOwner;
     private PlaybackNotificationManager playbackNotificationManager;
     private PlaybackNotificationForegroundOwner playbackNotificationForegroundOwner;
     private PlaybackNotificationCommandOwner playbackNotificationCommandOwner;
@@ -474,14 +473,13 @@ public final class EchoPlaybackService extends MediaLibraryService
                 EchoPlaybackService.this,
                 playbackNotificationForegroundOwner::stopForegroundAndSelf
         );
-        playbackActiveStateOwner = new PlaybackActiveStateOwner(
-                () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
-                playbackPlayerStateOwner::isPlaying,
-                playbackCurrentTrackPreparationRuntimeOwner::preparing
-        );
         playbackNotificationStateOwner = new PlaybackNotificationStateOwner(
                 () -> playbackQueueStateOwner.queueStateSnapshot().isQueueEmpty(),
-                playbackActiveStateOwner,
+                PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(
+                        () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
+                        playbackPlayerStateOwner::isPlaying,
+                        playbackCurrentTrackPreparationRuntimeOwner::preparing
+                ),
                 track -> toggleFavoriteUseCase != null && toggleFavoriteUseCase.isFavorite(track),
                 () -> {
                     MediaLibrarySession session = playbackSessionManager == null ? null : playbackSessionManager.session();
@@ -504,7 +502,11 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackLyricsStateOwner = new PlaybackLyricsStateOwner(
                 () -> appVisible,
-                playbackActiveStateOwner
+                PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState(
+                        () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
+                        playbackPlayerStateOwner::isPlaying,
+                        playbackCurrentTrackPreparationRuntimeOwner::preparing
+                )
         );
         playbackLyricsManager = new PlaybackLyricsManager(
                 this,

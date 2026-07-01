@@ -16,6 +16,29 @@ final class PlaybackNotificationStateOwner implements PlaybackNotificationManage
         Track currentTrack();
     }
 
+    static PlaybackStateProvider playbackStateProviderFromPlaybackState(
+            Supplier<Track> currentTrackProvider,
+            BooleanSupplier playingStateProvider,
+            BooleanSupplier preparingStateProvider
+    ) {
+        return new PlaybackStateProvider() {
+            @Override
+            public boolean isPlaying() {
+                return playingStateProvider != null && playingStateProvider.getAsBoolean();
+            }
+
+            @Override
+            public boolean isPreparing() {
+                return preparingStateProvider != null && preparingStateProvider.getAsBoolean();
+            }
+
+            @Override
+            public Track currentTrack() {
+                return currentTrackProvider == null ? null : currentTrackProvider.get();
+            }
+        };
+    }
+
     private final BooleanSupplier queueEmptySupplier;
     private final PlaybackStateProvider playbackStateProvider;
     private final Predicate<Track> favoriteStateProvider;

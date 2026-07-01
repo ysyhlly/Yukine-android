@@ -73,4 +73,47 @@ public class PlaybackNotificationStateOwnerTest {
                 events
         );
     }
+
+    @Test
+    public void playbackStateProviderFromPlaybackStateDelegatesPlaybackSuppliers() {
+        List<String> events = new ArrayList<>();
+        Track track = new Track(8L, "Track", "Artist", "Album", 1000L, Uri.EMPTY, "file:8");
+        PlaybackNotificationStateOwner.PlaybackStateProvider provider =
+                PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(
+                        () -> {
+                            events.add("track");
+                            return track;
+                        },
+                        () -> {
+                            events.add("playing");
+                            return true;
+                        },
+                        () -> {
+                            events.add("preparing");
+                            return false;
+                        }
+                );
+
+        assertSame(track, provider.currentTrack());
+        assertTrue(provider.isPlaying());
+        assertFalse(provider.isPreparing());
+        assertEquals(
+                java.util.Arrays.asList(
+                        "track",
+                        "playing",
+                        "preparing"
+                ),
+                events
+        );
+    }
+
+    @Test
+    public void playbackStateProviderFromPlaybackStateReturnsInactiveForMissingSuppliers() {
+        PlaybackNotificationStateOwner.PlaybackStateProvider provider =
+                PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(null, null, null);
+
+        assertNull(provider.currentTrack());
+        assertFalse(provider.isPlaying());
+        assertFalse(provider.isPreparing());
+    }
 }
