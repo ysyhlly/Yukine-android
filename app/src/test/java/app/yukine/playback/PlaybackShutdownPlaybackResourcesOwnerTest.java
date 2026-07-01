@@ -56,4 +56,27 @@ public class PlaybackShutdownPlaybackResourcesOwnerTest {
         owner.releaseWifiLock();
         owner.releasePlayer();
     }
+
+    @Test
+    public void releaseFromDelegatesToProvidedResource() {
+        List<String> calls = new ArrayList<>();
+
+        PlaybackShutdownPlaybackResourcesOwner.releaseFrom(
+                () -> "lyrics",
+                resource -> calls.add("release:" + resource)
+        ).run();
+
+        assertEquals(Arrays.asList("release:lyrics"), calls);
+    }
+
+    @Test
+    public void releaseFromIgnoresMissingProviderResourceOrAction() {
+        PlaybackShutdownPlaybackResourcesOwner.releaseFrom(null, resource -> {
+            throw new AssertionError("release should not run");
+        }).run();
+        PlaybackShutdownPlaybackResourcesOwner.releaseFrom(() -> null, resource -> {
+            throw new AssertionError("release should not run");
+        }).run();
+        PlaybackShutdownPlaybackResourcesOwner.releaseFrom(() -> "resource", null).run();
+    }
 }

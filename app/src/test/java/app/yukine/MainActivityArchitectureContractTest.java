@@ -6324,7 +6324,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("() -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertTrue(service.contains("private PlaybackWifiLockManager playbackWifiLockManager"));
         assertTrue(service.contains("playbackWifiLockManager.acquireIfStreaming()"));
-        assertTrue(service.contains("playbackWifiLockManager.release()"));
+        assertTrue(service.contains("PlaybackWifiLockManager::release"));
         assertTrue(owner.contains("class PlaybackWifiLockManager"));
         assertTrue(owner.contains("interface Lock"));
         assertTrue(owner.contains("interface StreamingTrackProvider"));
@@ -6808,6 +6808,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackResourcesOwner.contains("public void releaseLyrics()"));
         assertTrue(playbackResourcesOwner.contains("public void releaseWifiLock()"));
         assertTrue(playbackResourcesOwner.contains("public void releasePlayer()"));
+        assertTrue(playbackResourcesOwner.contains("static <T> Runnable releaseFrom(Supplier<T> provider, Consumer<T> releaseAction)"));
+        assertTrue(playbackResourcesOwner.contains("releaseAction.accept(resource);"));
         assertTrue(playbackResourcesOwner.contains("resetQueueMirrorState.run();"));
         assertTrue(playbackResourcesOwner.contains("resetRuntimePreparingState.run();"));
         assertTrue(serviceResourcesOwner.contains(
@@ -6900,6 +6902,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("new PlaybackShutdownCoordinator.LifecycleResources()"));
         assertTrue(service.contains("private PlaybackShutdownPlaybackResourcesOwner playbackShutdownPlaybackResourcesOwner;"));
         assertTrue(service.contains("playbackShutdownPlaybackResourcesOwner = new PlaybackShutdownPlaybackResourcesOwner("));
+        String shutdownPlaybackResourcesConstructor = service.substring(
+                service.indexOf("playbackShutdownPlaybackResourcesOwner = new PlaybackShutdownPlaybackResourcesOwner("),
+                service.indexOf("playbackShutdownCoordinator = new PlaybackShutdownCoordinator(")
+        );
         assertTrue(service.contains("() -> playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(false)"));
         assertFalse(service.contains("() -> playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false)"));
         assertTrue(service.contains("() -> playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false)"));
@@ -6942,7 +6948,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("                playbackShutdownPlaybackResourcesOwner,"));
         assertTrue(service.contains("                playbackShutdownServiceResourcesOwner,"));
         assertTrue(service.contains("                playbackShutdownLifecycleResourcesOwner"));
-        assertTrue(service.contains("playbackLyricsManager.release();"));
+        assertTrue(shutdownPlaybackResourcesConstructor.contains("PlaybackShutdownPlaybackResourcesOwner.releaseFrom("));
+        assertTrue(shutdownPlaybackResourcesConstructor.contains("app.yukine.playback.manager.LyricsPublisher::release"));
+        assertTrue(shutdownPlaybackResourcesConstructor.contains("PlaybackWifiLockManager::release"));
+        assertFalse(shutdownPlaybackResourcesConstructor.contains("playbackLyricsManager.release();"));
+        assertFalse(shutdownPlaybackResourcesConstructor.contains("playbackWifiLockManager.release();"));
         assertTrue(service.contains("PlaybackShutdownServiceResourcesOwner.releaseFrom("));
         assertTrue(service.contains("PlaybackWarmupCoordinator::release"));
         assertTrue(service.contains("PlaybackVisualizationAnalyzer::release"));

@@ -691,16 +691,14 @@ public final class EchoPlaybackService extends MediaLibraryService
                 () -> playbackNotificationCommandOwner.publishPlaybackNotification(true)
         );
         playbackShutdownPlaybackResourcesOwner = new PlaybackShutdownPlaybackResourcesOwner(
-                () -> {
-                    if (playbackLyricsManager != null) {
-                        playbackLyricsManager.release();
-                    }
-                },
-                () -> {
-                    if (playbackWifiLockManager != null) {
-                        playbackWifiLockManager.release();
-                    }
-                },
+                PlaybackShutdownPlaybackResourcesOwner.releaseFrom(
+                        () -> playbackLyricsManager,
+                        app.yukine.playback.manager.LyricsPublisher::release
+                ),
+                PlaybackShutdownPlaybackResourcesOwner.releaseFrom(
+                        () -> playbackWifiLockManager,
+                        PlaybackWifiLockManager::release
+                ),
                 EchoPlaybackService.this::releasePlayer,
                 () -> playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(false),
                 () -> playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false)

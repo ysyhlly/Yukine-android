@@ -1,5 +1,8 @@
 package app.yukine.playback;
 
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+
 final class PlaybackShutdownPlaybackResourcesOwner implements PlaybackShutdownCoordinator.PlaybackResources {
     private final Runnable releaseLyrics;
     private final Runnable releaseWifiLock;
@@ -44,6 +47,15 @@ final class PlaybackShutdownPlaybackResourcesOwner implements PlaybackShutdownCo
         releasePlayer.run();
         resetQueueMirrorState.run();
         resetRuntimePreparingState.run();
+    }
+
+    static <T> Runnable releaseFrom(Supplier<T> provider, Consumer<T> releaseAction) {
+        return () -> {
+            T resource = provider == null ? null : provider.get();
+            if (resource != null && releaseAction != null) {
+                releaseAction.accept(resource);
+            }
+        };
     }
 
     private static Runnable safe(Runnable runnable) {
