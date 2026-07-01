@@ -228,7 +228,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackNotificationArtworkStateOwner playbackNotificationArtworkStateOwner;
     private PlaybackPrecacheStateOwner playbackPrecacheStateOwner;
     private PlaybackPrecacheManager playbackPrecacheManager;
-    private PlaybackWarmupActionsOwner playbackWarmupActionsOwner;
     private PlaybackWarmupCoordinator playbackWarmupCoordinator;
     private PlaybackCrossfadeCommandOwner playbackCrossfadeCommandOwner;
     private PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner;
@@ -629,13 +628,17 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackVisualizationCacheStateOwner,
                 mediaSourceProvider
         );
-        playbackWarmupActionsOwner = PlaybackWarmupActionsOwner.fromManagers(
-                () -> playbackPrecacheManager,
-                () -> playbackVisualizationCacheManager
-        );
         playbackWarmupCoordinator = new PlaybackWarmupCoordinator(
-                playbackWarmupActionsOwner::precacheTrack,
-                playbackWarmupActionsOwner::scheduleVisualizationCache
+                track -> {
+                    if (playbackPrecacheManager != null) {
+                        playbackPrecacheManager.precacheTrack(track);
+                    }
+                },
+                track -> {
+                    if (playbackVisualizationCacheManager != null) {
+                        playbackVisualizationCacheManager.scheduleVisualizationCache(track);
+                    }
+                }
         );
         playbackShutdownServiceResourcesOwner = new PlaybackShutdownServiceResourcesOwner(
                 PlaybackShutdownServiceResourcesOwner.releaseFrom(

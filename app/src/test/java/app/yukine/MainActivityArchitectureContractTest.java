@@ -1798,9 +1798,6 @@ public final class MainActivityArchitectureContractTest {
         String normalizedPlaybackService = playbackService.replace("\r\n", "\n");
         String playbackPrecacheManager = read("app/src/main/java/app/yukine/playback/PlaybackPrecacheManager.java");
         String playbackPrecacheStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackPrecacheStateOwner.java");
-        String playbackWarmupActionsOwner = read(
-                "app/src/main/java/app/yukine/playback/PlaybackWarmupActionsOwner.java"
-        );
         String diagnostics = read("feature/playback/src/main/java/app/yukine/playback/diagnostics/PlaybackStreamingDiagnostics.java");
 
         assertTrue(playbackService.contains("playbackPrecacheManager = new PlaybackPrecacheManager("));
@@ -1818,12 +1815,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackService.contains("public void warmPlaybackTrack(Track track)"));
         assertTrue(normalizedPlaybackService.contains("public void warmPlaybackTrack(Track track) {\n        if (playbackWarmupCoordinator != null) {\n            playbackWarmupCoordinator.warmup(track);\n        }\n    }"));
         assertFalse(normalizedPlaybackService.contains("public void warmPlaybackTrack(Track track) {\n        if (playbackPrecacheManager != null) {\n            playbackPrecacheManager.precacheTrack(track);\n        }\n    }"));
-        assertTrue(playbackService.contains("private PlaybackWarmupActionsOwner playbackWarmupActionsOwner;"));
-        assertTrue(playbackService.contains("playbackWarmupActionsOwner = PlaybackWarmupActionsOwner.fromManagers("));
-        assertTrue(playbackService.contains("playbackWarmupActionsOwner::precacheTrack"));
-        assertTrue(playbackService.contains("playbackWarmupActionsOwner::scheduleVisualizationCache"));
-        assertFalse(playbackService.contains("track -> {\r\n                    if (playbackPrecacheManager != null)"));
-        assertFalse(playbackService.contains("track -> {\r\n                    if (playbackVisualizationCacheManager != null)"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackWarmupActionsOwner.java")));
+        assertFalse(playbackService.contains("PlaybackWarmupActionsOwner"));
+        assertFalse(playbackService.contains("playbackWarmupActionsOwner"));
+        assertTrue(playbackService.contains("private PlaybackWarmupCoordinator playbackWarmupCoordinator;"));
+        assertTrue(playbackService.contains("playbackWarmupCoordinator = new PlaybackWarmupCoordinator("));
+        assertTrue(playbackService.contains("playbackPrecacheManager.precacheTrack(track);"));
+        assertTrue(playbackService.contains("playbackVisualizationCacheManager.scheduleVisualizationCache(track);"));
         assertTrue(playbackService.contains("PlaybackPrecacheManager::release"));
         assertFalse(playbackService.contains("playbackPrecacheManager.release();"));
         assertFalse(playbackService.contains("private void precacheUpcomingTracks("));
@@ -1893,24 +1891,6 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheStateOwner.contains("playerOperations.playbackState() == Player.STATE_IDLE"));
         assertTrue(playbackPrecacheStateOwner.contains("playerOperations.mediaItemCount() <= 0"));
         assertTrue(playbackPrecacheStateOwner.contains("return playerOperations.currentMediaItem();"));
-        assertTrue(playbackWarmupActionsOwner.contains("final class PlaybackWarmupActionsOwner"));
-        assertFalse(playbackWarmupActionsOwner.contains("interface PrecacheManagerProvider"));
-        assertFalse(playbackWarmupActionsOwner.contains("interface VisualizationCacheManagerProvider"));
-        assertTrue(playbackWarmupActionsOwner.contains("import java.util.function.Supplier;"));
-        assertTrue(playbackWarmupActionsOwner.contains("Supplier<PlaybackPrecacheManager> precacheManagerSupplier"));
-        assertTrue(playbackWarmupActionsOwner.contains("Supplier<PlaybackVisualizationCacheManager> visualizationCacheManagerSupplier"));
-        assertFalse(playbackWarmupActionsOwner.contains("interface PrecacheOperations"));
-        assertFalse(playbackWarmupActionsOwner.contains("interface VisualizationCacheOperations"));
-        assertFalse(playbackWarmupActionsOwner.contains("interface PrecacheOperationsProvider"));
-        assertFalse(playbackWarmupActionsOwner.contains("interface VisualizationCacheOperationsProvider"));
-        assertFalse(playbackWarmupActionsOwner.contains("PrecacheManagerOperations"));
-        assertFalse(playbackWarmupActionsOwner.contains("VisualizationCacheManagerOperations"));
-        assertTrue(playbackWarmupActionsOwner.contains("private final Consumer<Track> precacheAction;"));
-        assertTrue(playbackWarmupActionsOwner.contains("private final Consumer<Track> visualizationCacheAction;"));
-        assertTrue(playbackWarmupActionsOwner.contains("manager.precacheTrack(track);"));
-        assertTrue(playbackWarmupActionsOwner.contains("manager.scheduleVisualizationCache(track);"));
-        assertTrue(playbackWarmupActionsOwner.contains("precacheAction.accept(track);"));
-        assertTrue(playbackWarmupActionsOwner.contains("visualizationCacheAction.accept(track);"));
         assertTrue(playbackPrecacheManager.contains("void precacheTrack(Track track)"));
         assertTrue(playbackPrecacheManager.contains("void release()"));
         assertTrue(playbackService.contains("PlaybackPrecacheManager.audioCacheReleaserFromPrecacheManagerSupplier("));
