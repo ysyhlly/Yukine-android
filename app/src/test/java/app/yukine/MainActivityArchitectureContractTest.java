@@ -7530,8 +7530,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(artworkProviderOwner.contains("return source == null ? null : source.notificationArtworkFor(track);"));
         assertTrue(artworkProviderOwner.contains("return source == null ? null : source.notificationArtworkDataFor(track);"));
         assertTrue(artworkStateOwner.contains("final class PlaybackNotificationArtworkStateOwner implements PlaybackNotificationArtworkManager.StateProvider"));
-        assertTrue(artworkStateOwner.contains("interface CurrentTrackProvider"));
-        assertTrue(artworkStateOwner.contains("return currentTrackProvider.currentTrack();"));
+        assertFalse(artworkStateOwner.contains("interface CurrentTrackProvider"));
+        assertTrue(artworkStateOwner.contains("import java.util.function.Supplier;"));
+        assertTrue(artworkStateOwner.contains("private final Supplier<Track> currentTrackProvider;"));
+        assertTrue(artworkStateOwner.contains("return currentTrackProvider == null ? null : currentTrackProvider.get();"));
         assertTrue(artworkSource.contains("interface PlaybackNotificationArtworkSource"));
         assertTrue(artworkSource.contains("Bitmap notificationArtworkFor(Track track);"));
         assertTrue(artworkSource.contains("byte[] notificationArtworkDataFor(Track track);"));

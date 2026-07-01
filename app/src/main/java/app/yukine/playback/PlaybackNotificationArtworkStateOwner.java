@@ -2,19 +2,17 @@ package app.yukine.playback;
 
 import app.yukine.model.Track;
 
+import java.util.function.Supplier;
+
 final class PlaybackNotificationArtworkStateOwner implements PlaybackNotificationArtworkManager.StateProvider {
-    interface CurrentTrackProvider {
-        Track currentTrack();
-    }
+    private final Supplier<Track> currentTrackProvider;
 
-    private final CurrentTrackProvider currentTrackProvider;
-
-    PlaybackNotificationArtworkStateOwner(CurrentTrackProvider currentTrackProvider) {
+    PlaybackNotificationArtworkStateOwner(Supplier<Track> currentTrackProvider) {
         this.currentTrackProvider = currentTrackProvider;
     }
 
     @Override
     public Track currentTrack() {
-        return currentTrackProvider.currentTrack();
+        return currentTrackProvider == null ? null : currentTrackProvider.get();
     }
 }

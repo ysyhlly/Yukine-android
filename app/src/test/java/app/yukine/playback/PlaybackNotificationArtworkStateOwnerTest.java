@@ -27,4 +27,11 @@ public class PlaybackNotificationArtworkStateOwnerTest {
         assertSame(track, owner.currentTrack());
         assertEquals(java.util.Collections.singletonList("track"), events);
     }
+
+    @Test
+    public void missingProviderReturnsNullTrack() {
+        PlaybackNotificationArtworkStateOwner owner = new PlaybackNotificationArtworkStateOwner(null);
+
+        assertSame(null, owner.currentTrack());
+    }
 }
