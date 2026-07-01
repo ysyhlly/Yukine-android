@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntFunction;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 33)
@@ -65,7 +66,7 @@ public final class PlaybackPrecacheManagerTest {
         FakeAudioCacheReleaser audioCacheReleaser = new FakeAudioCacheReleaser();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
-                (PlaybackPrecacheManager.UpcomingTracksProvider) null,
+                (IntFunction<List<Track>>) null,
                 mediaSourceProvider(),
                 scheduler,
                 audioCacheReleaser
@@ -86,7 +87,7 @@ public final class PlaybackPrecacheManagerTest {
         FakeAudioCacheReleaser audioCacheReleaser = new FakeAudioCacheReleaser();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
-                (PlaybackPrecacheManager.UpcomingTracksProvider) null,
+                (IntFunction<List<Track>>) null,
                 mediaSourceProvider(),
                 scheduler,
                 audioCacheReleaser
@@ -225,7 +226,7 @@ public final class PlaybackPrecacheManagerTest {
         FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
-                (PlaybackPrecacheManager.UpcomingTracksProvider) null,
+                (IntFunction<List<Track>>) null,
                 mediaCacheOperations,
                 scheduler,
                 new FakeAudioCacheReleaser()
@@ -478,14 +479,13 @@ public final class PlaybackPrecacheManagerTest {
         }
     }
 
-    private static final class FakeUpcomingTracksProvider
-            implements PlaybackPrecacheManager.UpcomingTracksProvider {
+    private static final class FakeUpcomingTracksProvider implements IntFunction<List<Track>> {
         private final List<Track> tracks = new ArrayList<>();
         private int calls;
         private int lastMaxCount;
 
         @Override
-        public List<Track> upcomingTracksForPrecache(int maxCount) {
+        public List<Track> apply(int maxCount) {
             calls++;
             lastMaxCount = maxCount;
             return tracks;

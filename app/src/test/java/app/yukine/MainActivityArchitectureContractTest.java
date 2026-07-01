@@ -1853,9 +1853,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("interface CallbackScheduler"));
         assertTrue(playbackPrecacheManager.contains("void postDelayed(Runnable runnable, long delayMs);"));
         assertTrue(playbackPrecacheManager.contains("void removeCallbacks(Runnable runnable);"));
-        assertTrue(playbackPrecacheManager.contains("interface UpcomingTracksProvider"));
-        assertTrue(playbackPrecacheManager.contains("List<Track> upcomingTracksForPrecache(int maxCount);"));
-        assertTrue(playbackPrecacheManager.contains("private final UpcomingTracksProvider upcomingTracksProvider;"));
+        assertFalse(playbackPrecacheManager.contains("interface UpcomingTracksProvider"));
+        assertTrue(playbackPrecacheManager.contains("import java.util.function.IntFunction;"));
+        assertTrue(playbackPrecacheManager.contains("private final IntFunction<List<Track>> upcomingTracksProvider;"));
+        assertTrue(playbackPrecacheManager.contains("upcomingTracksProvider.apply(SEGMENTED_PRECACHE_CONCURRENCY)"));
         assertTrue(playbackPrecacheManager.contains("interface AudioCacheReleaser"));
         assertTrue(playbackPrecacheManager.contains("interface PrecacheManagerProvider"));
         assertTrue(playbackPrecacheManager.contains("static AudioCacheReleaser audioCacheReleaserFromPrecacheManagerProvider("));
