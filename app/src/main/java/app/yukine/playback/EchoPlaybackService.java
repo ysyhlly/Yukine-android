@@ -110,6 +110,9 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackQueueManager playbackQueueManager;
     private final PlaybackQueueStateOwner playbackQueueStateOwner =
             PlaybackQueueStateOwner.fromPlaybackQueueManager(() -> playbackQueueManager);
+    private final PlaybackQueueRuntimeStateManager playbackQueueRuntimeStateManager = new PlaybackQueueRuntimeStateManager();
+    private final PlaybackQueueMirrorStateOwner playbackQueueMirrorStateOwner =
+            PlaybackQueueMirrorStateOwner.fromRuntimeStateManager(playbackQueueRuntimeStateManager);
     private final PlaybackQueueMutationOwner playbackQueueMutationOwner =
             PlaybackQueueMutationOwner.fromPlaybackQueueManager(() -> playbackQueueManager);
     private final PlaybackQueueNavigationOwner playbackQueueNavigationOwner =
@@ -120,6 +123,8 @@ public final class EchoPlaybackService extends MediaLibraryService
     private final PlaybackQueueMirroredTransitionOwner playbackQueueMirroredTransitionOwner =
             PlaybackQueueMirroredTransitionOwner.fromPlaybackQueueManager(
                     () -> playbackQueueManager,
+                    playbackQueueMirrorStateOwner::playerMirrorsQueue,
+                    () -> playbackQueueStateOwner.queueStateSnapshot().isQueueEmpty(),
                     EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer
             );
     private final PlaybackQueueRestoreOwner playbackQueueRestoreOwner =
@@ -158,9 +163,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                         }
                     }
             );
-    private final PlaybackQueueRuntimeStateManager playbackQueueRuntimeStateManager = new PlaybackQueueRuntimeStateManager();
-    private final PlaybackQueueMirrorStateOwner playbackQueueMirrorStateOwner =
-            PlaybackQueueMirrorStateOwner.fromRuntimeStateManager(playbackQueueRuntimeStateManager);
     private final PlaybackRuntimeStateOwner playbackRuntimeStateOwner = new PlaybackRuntimeStateOwner(
             () -> player,
             playbackQueueMirrorStateOwner::playerMirrorsQueue,
@@ -290,9 +292,7 @@ public final class EchoPlaybackService extends MediaLibraryService
 
         @Override
         public void onMediaItemTransition(MediaItem mediaItem, int reason) {
-            if (!playbackQueueMirrorStateOwner.playerMirrorsQueue()
-                    || player == null
-                    || playbackQueueStateOwner.queueStateSnapshot().isQueueEmpty()) {
+            if (player == null || !playbackQueueMirroredTransitionOwner.canApplyMirroredTransition()) {
                 return;
             }
             int nextIndex = player.getCurrentMediaItemIndex();

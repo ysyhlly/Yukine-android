@@ -10,7 +10,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class PlaybackQueueMirroredTransitionOwnerTest {
     @Test
@@ -89,6 +91,23 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
                 ),
                 events
         );
+    }
+
+    @Test
+    public void canApplyMirroredTransitionRequiresMirroredNonEmptyQueue() {
+        PlaybackQueueMirroredTransitionOwner missingStateOwner =
+                new PlaybackQueueMirroredTransitionOwner(null, null, null);
+        PlaybackQueueMirroredTransitionOwner readyOwner =
+                new PlaybackQueueMirroredTransitionOwner(null, null, null, () -> true, () -> false);
+        PlaybackQueueMirroredTransitionOwner notMirroredOwner =
+                new PlaybackQueueMirroredTransitionOwner(null, null, null, () -> false, () -> false);
+        PlaybackQueueMirroredTransitionOwner emptyQueueOwner =
+                new PlaybackQueueMirroredTransitionOwner(null, null, null, () -> true, () -> true);
+
+        assertTrue(missingStateOwner.canApplyMirroredTransition());
+        assertTrue(readyOwner.canApplyMirroredTransition());
+        assertFalse(notMirroredOwner.canApplyMirroredTransition());
+        assertFalse(emptyQueueOwner.canApplyMirroredTransition());
     }
 
     @Test
