@@ -5294,7 +5294,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackPositionManager.restoredPositionFor(track)"));
         assertFalse(service.contains("playbackQueueManager.restoredPositionFor(track)"));
         assertTrue(currentPreparationQueueOwner.contains("playbackQueueManager.restoredPositionFor(track);"));
-        assertTrue(service.contains("private final PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner"));
+        assertTrue(service.contains("private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner"));
         assertTrue(service.contains("PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager("));
         assertFalse(service.contains("private void clearRestoredPosition()"));
         assertFalse(service.contains("private PlaybackQueueStore queueStore"));
@@ -5777,7 +5777,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("return queueStateSnapshot().getHasMultipleTracks();"));
         assertTrue(owner.contains("val startIndex: Int"));
         assertTrue(owner.contains("startIndex = safeCurrentIndex()"));
-        assertTrue(service.contains("queuePreparation.getStartIndex()"));
+        assertFalse(service.contains("queuePreparation.getStartIndex()"));
+        assertTrue(service.contains("queuePreparation.startIndex()"));
         assertFalse(service.contains("return playbackQueueManager == null ? 0 : playbackQueueManager.safeCurrentIndex();"));
         assertFalse(service.contains("private boolean isAtEndOfQueue()"));
         assertTrue(service.contains("playbackQueueStateOwner,"));
@@ -5834,10 +5835,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(currentPreparationQueueOwner.contains("private final Consumer<Track> replaceCurrentQueueTrack;"));
         assertTrue(currentPreparationQueueOwner.contains("private final Function<Track, Long> restoredPositionFor;"));
         assertTrue(currentPreparationQueueOwner.contains("private final Supplier<PlaybackQueueManager.QueuePreparation> queuePreparationForNewPlayer;"));
+        assertTrue(currentPreparationQueueOwner.contains("private final Function<List<Track>, List<MediaSource>> mediaSourcesForTracks;"));
         assertTrue(currentPreparationQueueOwner.contains("private final LongConsumer consumeRestoredPositionAfterPrepare;"));
         assertTrue(currentPreparationQueueOwner.contains("playbackQueueManager.replaceCurrentQueueTrack(track);"));
         assertTrue(currentPreparationQueueOwner.contains("playbackQueueManager.restoredPositionFor(track);"));
-        assertTrue(service.contains("private final PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner"));
+        assertTrue(service.contains("private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner"));
         assertTrue(service.contains("PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager("));
         assertFalse(service.contains("PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManagerProvider("));
         assertFalse(service.contains("new PlaybackCurrentTrackPreparationOwner.QueuePreparationController()"));
@@ -6165,7 +6167,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("player.setMediaSource(mediaSourceProvider.mediaSourceForTrack("));
         assertTrue(service.contains("track -> mediaSourceProvider.mediaSourceForTrack("));
         assertTrue(service.contains("prepareSingleTrack(preparedTrack.track(), preparedTrack.mediaSource()"));
-        assertTrue(service.contains("mediaSourceProvider.mediaSourcesForTracks("));
+        assertFalse(service.contains("List<MediaSource> mediaSources = mediaSourceProvider.mediaSourcesForTracks("));
+        assertTrue(service.contains("tracks -> mediaSourceProvider.mediaSourcesForTracks("));
         assertTrue(service.contains("playbackNotificationManager::mediaMetadataForTrack"));
         assertFalse(service.contains("playbackPrecacheManager.releaseAudioCache();"));
         assertTrue(service.contains("PlaybackPrecacheManager.audioCacheReleaseActionFromPrecacheManagerSupplier("));

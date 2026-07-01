@@ -36,25 +36,30 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
                             Collections.singletonList(lastReplacedTrack[0])
                     );
                 },
+                tracks -> {
+                    events.add("sources:" + tracks.size());
+                    return Collections.singletonList(null);
+                },
                 startPositionMs -> events.add("consume:" + startPositionMs)
         );
         Track track = track(7L);
 
         owner.replaceCurrentQueueTrack(track);
         long positionMs = owner.restoredPositionFor(track);
-        PlaybackQueueManager.QueuePreparation queuePreparation = owner.queuePreparationForNewPlayer();
+        PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
+                owner.queuePreparationForNewPlayer();
         owner.consumeRestoredPositionAfterPrepare(4300L);
 
         assertEquals(3200L, positionMs);
-        assertEquals(track.id, queuePreparation.getCurrentTrack().id);
-        assertEquals(2, queuePreparation.getStartIndex());
-        assertEquals(1, queuePreparation.getMirroredQueueTracks().size());
-        assertEquals(track.id, queuePreparation.getMirroredQueueTracks().get(0).id);
+        assertEquals(track.id, queuePreparation.currentTrack().id);
+        assertEquals(2, queuePreparation.startIndex());
+        assertEquals(1, queuePreparation.mirroredQueueMediaSources().size());
         assertEquals(
                 Arrays.asList(
                         "replace:7",
                         "position:7",
                         "queuePreparation",
+                        "sources:1",
                         "consume:4300"
                 ),
                 events
@@ -67,25 +72,26 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 
         owner.replaceCurrentQueueTrack(track(8L));
 
         assertEquals(0L, owner.restoredPositionFor(track(8L)));
-        assertEquals(null, owner.queuePreparationForNewPlayer().getCurrentTrack());
+        assertEquals(null, owner.queuePreparationForNewPlayer().currentTrack());
         owner.consumeRestoredPositionAfterPrepare(5100L);
     }
 
     @Test
     public void missingPlaybackQueueManagerSupplierSkipsQueueActions() {
         PlaybackCurrentTrackPreparationQueueOwner owner =
-                PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager(null);
+                PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager(null, null);
 
         owner.replaceCurrentQueueTrack(track(10L));
 
         assertEquals(0L, owner.restoredPositionFor(track(10L)));
-        assertEquals(null, owner.queuePreparationForNewPlayer().getCurrentTrack());
+        assertEquals(null, owner.queuePreparationForNewPlayer().currentTrack());
         owner.consumeRestoredPositionAfterPrepare(7100L);
     }
 
