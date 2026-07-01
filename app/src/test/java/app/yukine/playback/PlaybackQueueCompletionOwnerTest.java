@@ -16,8 +16,8 @@ public class PlaybackQueueCompletionOwnerTest {
     @Test
     public void routesRepeatCurrentCompletionThroughQueuePreparationAndBoundary() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
-                () -> new FakeQueueCompletionOperations(
+        PlaybackQueueCompletionOwner owner = owner(
+                new FakeQueueCompletionActions(
                         events,
                         PlaybackQueueManager.PlaybackCompletionAction.REPEAT_CURRENT
                 ),
@@ -35,8 +35,8 @@ public class PlaybackQueueCompletionOwnerTest {
     @Test
     public void routesStopAtEndCompletionThroughQueuePreparationAndBoundary() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
-                () -> new FakeQueueCompletionOperations(
+        PlaybackQueueCompletionOwner owner = owner(
+                new FakeQueueCompletionActions(
                         events,
                         PlaybackQueueManager.PlaybackCompletionAction.STOP_AT_END
                 ),
@@ -54,8 +54,8 @@ public class PlaybackQueueCompletionOwnerTest {
     @Test
     public void routesAdvanceCompletionThroughQueuePreparationAndBoundary() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
-                () -> new FakeQueueCompletionOperations(
+        PlaybackQueueCompletionOwner owner = owner(
+                new FakeQueueCompletionActions(
                         events,
                         PlaybackQueueManager.PlaybackCompletionAction.ADVANCE_TO_NEXT
                 ),
@@ -73,8 +73,8 @@ public class PlaybackQueueCompletionOwnerTest {
     @Test
     public void stopAndClearCompletionDoesNotPrepareQueueCompletion() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
-                () -> new FakeQueueCompletionOperations(
+        PlaybackQueueCompletionOwner owner = owner(
+                new FakeQueueCompletionActions(
                         events,
                         PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR
                 ),
@@ -89,8 +89,8 @@ public class PlaybackQueueCompletionOwnerTest {
     @Test
     public void delegatesStopPreparationsToQueueOperations() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
-                () -> new FakeQueueCompletionOperations(
+        PlaybackQueueCompletionOwner owner = owner(
+                new FakeQueueCompletionActions(
                         events,
                         PlaybackQueueManager.PlaybackCompletionAction.STOP_AT_END
                 ),
@@ -106,23 +106,19 @@ public class PlaybackQueueCompletionOwnerTest {
     @Test
     public void missingQueueOperationsUseStopAndClearBoundaryAndReportUnhandledStopAtEnd() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueCompletionOwner missingSupplier = new PlaybackQueueCompletionOwner(
+        PlaybackQueueCompletionOwner missingActions = new PlaybackQueueCompletionOwner(
+                null,
+                null,
+                null,
                 null,
                 new FakeCompletionBoundary(events)
         );
-        PlaybackQueueCompletionOwner missingOperations = new PlaybackQueueCompletionOwner(
-                () -> null,
-                new FakeCompletionBoundary(events)
-        );
 
-        missingSupplier.playAfterCompletion();
-        assertFalse(missingSupplier.prepareStopAtEndOfQueue());
-        missingSupplier.prepareStopAfterAutomaticAdvance(5);
-        missingOperations.playAfterCompletion();
-        assertFalse(missingOperations.prepareStopAtEndOfQueue());
-        missingOperations.prepareStopAfterAutomaticAdvance(6);
+        missingActions.playAfterCompletion();
+        assertFalse(missingActions.prepareStopAtEndOfQueue());
+        missingActions.prepareStopAfterAutomaticAdvance(5);
 
-        assertEquals(Arrays.asList("stopAndClear", "stopAndClear"), events);
+        assertEquals(Arrays.asList("stopAndClear"), events);
     }
 
     @Test
@@ -142,8 +138,8 @@ public class PlaybackQueueCompletionOwnerTest {
 
     @Test
     public void missingBoundaryDoesNotCrash() {
-        PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
-                () -> new FakeQueueCompletionOperations(
+        PlaybackQueueCompletionOwner owner = owner(
+                new FakeQueueCompletionActions(
                         new ArrayList<>(),
                         PlaybackQueueManager.PlaybackCompletionAction.ADVANCE_TO_NEXT
                 ),
@@ -153,12 +149,24 @@ public class PlaybackQueueCompletionOwnerTest {
         owner.playAfterCompletion();
     }
 
-    private static final class FakeQueueCompletionOperations
-            implements PlaybackQueueCompletionOwner.QueueCompletionOperations {
+    private static PlaybackQueueCompletionOwner owner(
+            FakeQueueCompletionActions actions,
+            PlaybackQueueCompletionOwner.CompletionBoundary boundary
+    ) {
+        return new PlaybackQueueCompletionOwner(
+                actions::playbackCompletionAction,
+                actions::preparePlaybackCompletion,
+                actions::prepareStopAtEndOfQueue,
+                actions::prepareStopAfterAutomaticAdvance,
+                boundary
+        );
+    }
+
+    private static final class FakeQueueCompletionActions {
         private final List<String> events;
         private final PlaybackQueueManager.PlaybackCompletionAction completionAction;
 
-        private FakeQueueCompletionOperations(
+        private FakeQueueCompletionActions(
                 List<String> events,
                 PlaybackQueueManager.PlaybackCompletionAction completionAction
         ) {
@@ -166,23 +174,20 @@ public class PlaybackQueueCompletionOwnerTest {
             this.completionAction = completionAction;
         }
 
-        @Override
         public PlaybackQueueManager.PlaybackCompletionAction playbackCompletionAction() {
             events.add("action");
             return completionAction;
         }
 
-        @Override
         public void preparePlaybackCompletion(PlaybackQueueManager.PlaybackCompletionAction action) {
             events.add("prepare:" + action.name());
         }
 
-        @Override
-        public void prepareStopAtEndOfQueue() {
+        public boolean prepareStopAtEndOfQueue() {
             events.add("prepareStopAtEnd");
+            return true;
         }
 
-        @Override
         public void prepareStopAfterAutomaticAdvance(int completedIndex) {
             events.add("prepareStopAfterAutomaticAdvance:" + completedIndex);
         }
