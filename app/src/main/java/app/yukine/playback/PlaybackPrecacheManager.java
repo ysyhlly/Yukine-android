@@ -26,6 +26,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
@@ -149,6 +150,17 @@ final class PlaybackPrecacheManager {
         return () -> {
             if (mediaSourceProvider != null) {
                 mediaSourceProvider.releaseAudioCache();
+            }
+        };
+    }
+
+    static Consumer<Track> precacheTrackActionFromSupplier(
+            Supplier<PlaybackPrecacheManager> supplier
+    ) {
+        return track -> {
+            PlaybackPrecacheManager manager = supplier == null ? null : supplier.get();
+            if (manager != null) {
+                manager.precacheTrack(track);
             }
         };
     }

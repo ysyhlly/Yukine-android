@@ -1802,6 +1802,9 @@ public final class MainActivityArchitectureContractTest {
         String normalizedPlaybackService = playbackService.replace("\r\n", "\n");
         String playbackPrecacheManager = read("app/src/main/java/app/yukine/playback/PlaybackPrecacheManager.java");
         String playbackPrecacheStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackPrecacheStateOwner.java");
+        String playbackVisualizationCacheManager = read(
+                "feature/playback/src/main/java/app/yukine/playback/PlaybackVisualizationCacheManager.java"
+        );
         String diagnostics = read("feature/playback/src/main/java/app/yukine/playback/diagnostics/PlaybackStreamingDiagnostics.java");
 
         assertTrue(playbackService.contains("playbackPrecacheManager = new PlaybackPrecacheManager("));
@@ -1824,8 +1827,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("playbackWarmupActionsOwner"));
         assertTrue(playbackService.contains("private PlaybackWarmupCoordinator playbackWarmupCoordinator;"));
         assertTrue(playbackService.contains("playbackWarmupCoordinator = new PlaybackWarmupCoordinator("));
-        assertTrue(playbackService.contains("playbackPrecacheManager.precacheTrack(track);"));
-        assertTrue(playbackService.contains("playbackVisualizationCacheManager.scheduleVisualizationCache(track);"));
+        assertTrue(playbackService.contains("PlaybackPrecacheManager.precacheTrackActionFromSupplier(() -> playbackPrecacheManager)"));
+        assertTrue(playbackService.contains("PlaybackVisualizationCacheManager.scheduleVisualizationCacheActionFromSupplier("));
+        assertTrue(playbackPrecacheManager.contains("static Consumer<Track> precacheTrackActionFromSupplier("));
+        assertTrue(playbackVisualizationCacheManager.contains(
+                "static Consumer<Track> scheduleVisualizationCacheActionFromSupplier("));
+        assertFalse(playbackService.contains("playbackPrecacheManager.precacheTrack(track);"));
+        assertFalse(playbackService.contains("playbackVisualizationCacheManager.scheduleVisualizationCache(track);"));
         assertTrue(playbackService.contains("PlaybackPrecacheManager::release"));
         assertFalse(playbackService.contains("playbackPrecacheManager.release();"));
         assertFalse(playbackService.contains("private void precacheUpcomingTracks("));

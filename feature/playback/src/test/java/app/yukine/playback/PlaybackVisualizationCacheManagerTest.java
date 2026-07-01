@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -156,6 +157,30 @@ public final class PlaybackVisualizationCacheManagerTest {
 
         assertEquals(0, stateProvider.scheduledTasks.size());
         assertEquals(0, writerFactory.createCalls);
+    }
+
+    @Test
+    public void scheduleVisualizationCacheActionFromSupplierDelegatesThroughManager() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        Track track = track(10L);
+        stateProvider.currentTrack = track;
+        FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
+        PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
+        Consumer<Track> action =
+                PlaybackVisualizationCacheManager.scheduleVisualizationCacheActionFromSupplier(() -> manager);
+
+        action.accept(track);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(1, stateProvider.scheduledTasks.size());
+    }
+
+    @Test
+    public void scheduleVisualizationCacheActionFromSupplierIgnoresMissingManager() {
+        Consumer<Track> action =
+                PlaybackVisualizationCacheManager.scheduleVisualizationCacheActionFromSupplier(() -> null);
+
+        action.accept(track(11L));
     }
 
     @Test

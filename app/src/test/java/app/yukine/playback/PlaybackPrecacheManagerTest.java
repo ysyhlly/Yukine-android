@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.IntFunction;
 
 @RunWith(RobolectricTestRunner.class)
@@ -107,6 +108,29 @@ public final class PlaybackPrecacheManagerTest {
                 PlaybackPrecacheManager.audioCacheReleaseActionFromPrecacheManagerSupplier(() -> null);
 
         releaseAction.run();
+    }
+
+    @Test
+    public void precacheTrackActionFromSupplierDelegatesThroughManager() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        PlaybackPrecacheManager manager = precacheManager(stateProvider, scheduler);
+        Track track = track(1L, "https://example.test/one.mp3");
+        Consumer<Track> precacheAction =
+                PlaybackPrecacheManager.precacheTrackActionFromSupplier(() -> manager);
+
+        stateProvider.currentTrack = track;
+        precacheAction.accept(track);
+
+        assertEquals(1, stateProvider.diagnostics.snapshot().precacheAttempts);
+    }
+
+    @Test
+    public void precacheTrackActionFromSupplierIgnoresMissingManager() {
+        Consumer<Track> precacheAction =
+                PlaybackPrecacheManager.precacheTrackActionFromSupplier(() -> null);
+
+        precacheAction.accept(track(1L, "https://example.test/one.mp3"));
     }
 
     @Test
