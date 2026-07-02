@@ -876,7 +876,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             if (playbackQueueStateOwner.currentTrack() != null) {
                 prepareCurrent(true);
             } else {
-                playFirstQueuedTrack();
+                playbackQueueNavigationOwner.playFirstQueuedTrack();
             }
             return;
         }
@@ -885,7 +885,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
         Track track = playbackQueueStateOwner.currentTrack();
         if (track == null) {
-            playFirstQueuedTrack();
+            playbackQueueNavigationOwner.playFirstQueuedTrack();
             return;
         }
         if (player.getMediaItemCount() == 0) {
@@ -900,10 +900,6 @@ public final class EchoPlaybackService extends MediaLibraryService
         acquireWifiLockIfStreamingAction.run();
         publishState();
         playbackProgressUpdateCommandOwner.startProgressUpdates();
-    }
-
-    private void playFirstQueuedTrack() {
-        playbackQueueNavigationOwner.playFirstQueuedTrack();
     }
 
     public void pause() {

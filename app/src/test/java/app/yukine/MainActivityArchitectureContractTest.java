@@ -5747,6 +5747,7 @@ public final class MainActivityArchitectureContractTest {
                 "playbackQueueManager != null && playbackQueueManager.skipToNextImmediately()"
         ));
         assertTrue(service.contains("playbackQueueNavigationOwner.playFirstQueuedTrack();"));
+        assertFalse(service.contains("private void playFirstQueuedTrack()"));
         assertFalse(service.contains("playbackQueueManager.playFirstQueuedTrack()"));
         assertTrue(queueNavigationOwner.contains("playbackQueueManager.playFirstQueuedTrack();"));
         assertTrue(queueNavigationOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
