@@ -4,25 +4,18 @@ import android.os.Handler;
 
 import app.yukine.model.Track;
 
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizationCacheManager.StateProvider {
-    interface MainHandlerProvider {
-        Handler mainHandler();
-    }
-
-    interface CacheTaskScheduler {
-        void scheduleVisualizationCacheTask(Runnable task);
-    }
-
-    private final MainHandlerProvider mainHandlerProvider;
+    private final Supplier<Handler> mainHandlerProvider;
     private final Supplier<Track> currentTrackSupplier;
-    private final CacheTaskScheduler cacheTaskScheduler;
+    private final Consumer<Runnable> cacheTaskScheduler;
 
     PlaybackVisualizationCacheStateOwner(
-            MainHandlerProvider mainHandlerProvider,
+            Supplier<Handler> mainHandlerProvider,
             Supplier<Track> currentTrackSupplier,
-            CacheTaskScheduler cacheTaskScheduler
+            Consumer<Runnable> cacheTaskScheduler
     ) {
         this.mainHandlerProvider = mainHandlerProvider;
         this.currentTrackSupplier = currentTrackSupplier;
@@ -31,7 +24,7 @@ final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizatio
 
     @Override
     public Handler mainHandler() {
-        return mainHandlerProvider.mainHandler();
+        return mainHandlerProvider == null ? null : mainHandlerProvider.get();
     }
 
     @Override
@@ -41,6 +34,8 @@ final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizatio
 
     @Override
     public void scheduleVisualizationCacheTask(Runnable task) {
-        cacheTaskScheduler.scheduleVisualizationCacheTask(task);
+        if (cacheTaskScheduler != null) {
+            cacheTaskScheduler.accept(task);
+        }
     }
 }
