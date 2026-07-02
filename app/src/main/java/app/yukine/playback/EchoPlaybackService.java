@@ -225,10 +225,8 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackBufferedProgressOwner playbackBufferedProgressOwner;
     private PlaybackVisualizationStateOwner playbackVisualizationStateOwner;
     private PlaybackVisualizationAnalyzer playbackVisualizationAnalyzer;
-    private PlaybackVisualizationCacheStateOwner playbackVisualizationCacheStateOwner;
     private PlaybackVisualizationCacheManager playbackVisualizationCacheManager;
     private PlaybackNotificationArtworkManager playbackNotificationArtworkManager;
-    private PlaybackPrecacheStateOwner playbackPrecacheStateOwner;
     private PlaybackPrecacheManager playbackPrecacheManager;
     private PlaybackWarmupCoordinator playbackWarmupCoordinator;
     private PlaybackCrossfadeCommandOwner playbackCrossfadeCommandOwner;
@@ -615,11 +613,12 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackRealtimeVisualizationOwner,
                 REPEAT_ALL
         );
-        playbackVisualizationCacheStateOwner = new PlaybackVisualizationCacheStateOwner(
-                () -> mainHandler,
-                playbackQueueStateOwner::currentTrack,
-                task -> visualizationTaskScheduler.schedule(PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE, task)
-        );
+        PlaybackVisualizationCacheStateOwner playbackVisualizationCacheStateOwner =
+                new PlaybackVisualizationCacheStateOwner(
+                        () -> mainHandler,
+                        playbackQueueStateOwner::currentTrack,
+                        task -> visualizationTaskScheduler.schedule(PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE, task)
+                );
         playbackVisualizationCacheManager = new PlaybackVisualizationCacheManager(
                 playbackVisualizationCacheStateOwner,
                 mediaSourceProvider
@@ -742,7 +741,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                         () -> streamingDiagnostics,
                         mediaSourceProvider::streamingQualityForTrack
                 );
-        playbackPrecacheStateOwner = new PlaybackPrecacheStateOwner(
+        PlaybackPrecacheStateOwner playbackPrecacheStateOwner = new PlaybackPrecacheStateOwner(
                 playbackQueueStateOwner::currentTrack,
                 PlaybackPrecacheStateOwner.playerMediaItemSupplierFromPlayerSupplier(() -> player),
                 () -> streamingDiagnostics
