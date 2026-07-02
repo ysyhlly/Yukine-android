@@ -13,20 +13,6 @@ final class PlaybackQueueMirroredTransitionOwner {
     private final BooleanSupplier playerMirrorsQueue;
     private final BooleanSupplier queueEmpty;
 
-    static PlaybackQueueMirroredTransitionOwner fromPlaybackQueueManager(
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            BooleanSupplier playerMirrorsQueue,
-            BooleanSupplier queueEmpty,
-            Runnable currentTrackVolumeApplier
-    ) {
-        return new PlaybackQueueMirroredTransitionOwner(
-                playbackQueueManagerSupplier,
-                currentTrackVolumeApplier,
-                playerMirrorsQueue,
-                queueEmpty
-        );
-    }
-
     PlaybackQueueMirroredTransitionOwner(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             Runnable currentTrackVolumeApplier,

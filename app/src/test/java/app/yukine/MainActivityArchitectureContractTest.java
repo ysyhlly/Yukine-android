@@ -5946,7 +5946,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackQueueMirroredTransitionOwner.prepareMirroredTransitionPlaybackState();"));
         assertFalse(service.contains("playbackQueueManager.prepareMirroredTransitionPlaybackState();"));
         assertFalse(service.contains("playbackRuntimeStateManager.applyCurrentTrackVolumeToPlayer();"));
-        assertTrue(service.contains("PlaybackQueueMirroredTransitionOwner.fromPlaybackQueueManager("));
+        assertTrue(service.contains("new PlaybackQueueMirroredTransitionOwner("));
+        assertFalse(service.contains("PlaybackQueueMirroredTransitionOwner.fromPlaybackQueueManager("));
+        assertFalse(mirroredTransitionOwner.contains("static PlaybackQueueMirroredTransitionOwner fromPlaybackQueueManager("));
         assertFalse(service.contains("PlaybackQueueMirroredTransitionOwner.fromPlaybackQueueManagerProvider("));
         assertTrue(service.contains("EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer"));
         assertTrue(service.contains("private void applyCurrentTrackVolumeToPlayer()"));
