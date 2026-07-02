@@ -107,7 +107,7 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     private ExoPlayer player;
     private final PlaybackPlayerStateOwner playbackPlayerStateOwner =
-            PlaybackPlayerStateOwner.fromPlayerProvider(() -> player);
+            new PlaybackPlayerStateOwner(() -> player);
     private PlaybackQueueManager playbackQueueManager;
     private final PlaybackQueueStateOwner playbackQueueStateOwner =
             new PlaybackQueueStateOwner(() -> playbackQueueManager);
@@ -580,7 +580,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 this::activityPendingIntent
         );
         final PlaybackBufferedProgressOwner playbackBufferedProgressOwner =
-                PlaybackBufferedProgressOwner.fromPlayerProvider(
+                new PlaybackBufferedProgressOwner(
                         playbackPlayerStateOwner::positionMs,
                         () -> player
                 );

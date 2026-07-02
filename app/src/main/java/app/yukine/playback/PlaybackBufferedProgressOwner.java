@@ -18,13 +18,6 @@ final class PlaybackBufferedProgressOwner
         this.playerProvider = playerProvider;
     }
 
-    static PlaybackBufferedProgressOwner fromPlayerProvider(
-            LongSupplier playbackPositionProvider,
-            Supplier<Player> playerProvider
-    ) {
-        return new PlaybackBufferedProgressOwner(playbackPositionProvider, playerProvider);
-    }
-
     @Override
     public float bufferedProgress(long durationMs) {
         if (durationMs <= 0L) {

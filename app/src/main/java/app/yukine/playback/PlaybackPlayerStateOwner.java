@@ -15,10 +15,6 @@ final class PlaybackPlayerStateOwner implements
         this.playerProvider = playerProvider;
     }
 
-    static PlaybackPlayerStateOwner fromPlayerProvider(Supplier<Player> playerProvider) {
-        return new PlaybackPlayerStateOwner(playerProvider);
-    }
-
     @Override
     public boolean isPlaying() {
         Player player = player();

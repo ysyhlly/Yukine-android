@@ -1673,7 +1673,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(visualizationAnalyzer.contains("private const val PLAYBACK_VISUALIZATION_WARMUP_MS"));
         assertTrue(visualizationAnalyzer.contains("visualizationWarmupUntilMs = System.currentTimeMillis() + PLAYBACK_VISUALIZATION_WARMUP_MS"));
         assertTrue(playbackService.contains("private final PlaybackPlayerStateOwner playbackPlayerStateOwner"));
-        assertTrue(playbackService.contains("PlaybackPlayerStateOwner.fromPlayerProvider(() -> player)"));
+        assertTrue(playbackService.contains("new PlaybackPlayerStateOwner(() -> player)"));
+        assertFalse(playerStateOwner.contains("fromPlayerProvider("));
         assertFalse(playbackService.contains("player.isPlaying()"));
         assertFalse(playbackService.contains("player.getCurrentPosition()"));
         assertFalse(playbackService.contains("player.getDuration()"));
@@ -1722,7 +1723,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("private PlaybackVisualizationStateOwner playbackVisualizationStateOwner;"));
         assertFalse(playbackService.contains("private PlaybackBufferedProgressOwner playbackBufferedProgressOwner;"));
         assertTrue(playbackService.contains("final PlaybackBufferedProgressOwner playbackBufferedProgressOwner ="));
-        assertTrue(playbackService.contains("PlaybackBufferedProgressOwner.fromPlayerProvider("));
+        assertTrue(playbackService.contains("new PlaybackBufferedProgressOwner("));
+        assertFalse(bufferedProgressOwner.contains("fromPlayerProvider("));
         assertTrue(playbackService.contains("                        playbackPlayerStateOwner::positionMs,"));
         assertTrue(playbackService.contains("                        playbackBufferedProgressOwner,"));
         assertFalse(playbackService.contains("private float bufferedProgress(long durationMs)"));
