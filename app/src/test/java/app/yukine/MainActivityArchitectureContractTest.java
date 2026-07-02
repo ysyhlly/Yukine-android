@@ -67,6 +67,9 @@ public final class MainActivityArchitectureContractTest {
         String mediaCacheOperations = read(
                 "feature/playback/src/main/java/app/yukine/playback/manager/PlaybackMediaCacheOperations.java"
         );
+        String mediaSourceProvider = read(
+                "feature/playback/src/main/java/app/yukine/playback/manager/PlaybackMediaSourceProvider.kt"
+        );
 
         assertEquals(42, countFiles("app/src/main/java/app/yukine/playback", "Playback*Owner.java"));
         assertTrue(
@@ -81,6 +84,14 @@ public final class MainActivityArchitectureContractTest {
                 "feature/playback/src/main/java/app/yukine/playback/manager/PlaybackMediaSourceResolutionOwner.kt"));
         assertFalse(exists(
                 "feature/playback/src/test/java/app/yukine/playback/PlaybackMediaSourceResolutionOwnerTest.kt"));
+        assertFalse(exists("app/src/main/java/app/yukine/playback/PlaybackItemResolver.java"));
+        assertFalse(exists("app/src/main/java/app/yukine/playback/PlaybackItemResolver.kt"));
+        assertFalse(exists("app/src/test/java/app/yukine/playback/PlaybackItemResolverTest.java"));
+        assertFalse(exists("feature/playback/src/main/java/app/yukine/playback/PlaybackItemResolver.java"));
+        assertFalse(exists("feature/playback/src/main/java/app/yukine/playback/PlaybackItemResolver.kt"));
+        assertFalse(exists("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackItemResolver.java"));
+        assertFalse(exists("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackItemResolver.kt"));
+        assertFalse(exists("feature/playback/src/test/java/app/yukine/playback/PlaybackItemResolverTest.kt"));
         assertEquals(0, countFiles("app/src/main/java/app/yukine/playback", "Playback*ResolutionOwner.*"));
         assertEquals(0, countFiles("app/src/main/java/app/yukine/playback", "Playback*ResolverOwner.*"));
         assertEquals(0, countFiles("app/src/main/java/app/yukine/playback", "Playback*ResolverFacade.*"));
@@ -95,6 +106,12 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(0, countFiles("feature/playback/src/main/java/app/yukine/playback/manager", "Playback*MediaSource*Owner.*"));
         assertFalse(service.contains("PlaybackMediaSourceResolutionOwner"));
         assertFalse(precacheManager.contains("PlaybackMediaSourceResolutionOwner"));
+        assertFalse(service.contains("PlaybackItemResolver"));
+        assertFalse(service.contains("prepareTrackForPlayback("));
+        assertFalse(service.contains("mediaSourceForTrack("));
+        assertFalse(service.contains("mediaSourcesForTracks("));
+        assertFalse(service.contains("mediaItemForTrack("));
+        assertFalse(service.contains("playbackMediaItemForTrack("));
         assertTrue(service.contains("PlaybackPrecacheManager.fromMediaSourceProvider("));
         assertFalse(service.contains("PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider("));
         assertFalse(service.contains("PlaybackPrecacheManager.audioCacheReleaseActionFromMediaSourceProvider("));
@@ -102,6 +119,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(precacheManager.contains("private final PlaybackMediaCacheOperations mediaCacheOperations;"));
         assertFalse(precacheManager.contains("private final PlaybackMediaSourceProvider"));
         assertTrue(precacheManager.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)"));
+        assertFalse(precacheManager.contains("prepareTrackForPlayback("));
+        assertFalse(precacheManager.contains("mediaSourceForTrack("));
+        assertFalse(precacheManager.contains("mediaSourcesForTracks("));
+        assertFalse(precacheManager.contains("mediaItemForTrack("));
+        assertFalse(precacheManager.contains("playbackMediaItemForTrack("));
         assertFalse(precacheManager.contains("mediaCacheOperationsFromMediaSourceProvider("));
         assertFalse(precacheManager.contains("audioCacheReleaseActionFromMediaSourceProvider("));
         assertFalse(visualizationCacheManager.contains("interface MediaCacheOperations"));
@@ -117,6 +139,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mediaCacheOperations.contains("mediaSourcesForTracks("));
         assertFalse(mediaCacheOperations.contains("mediaItemForTrack("));
         assertFalse(mediaCacheOperations.contains("playbackMediaItemForTrack("));
+        assertTrue(mediaSourceProvider.contains("fun prepareTrackForPlayback("));
+        assertTrue(mediaSourceProvider.contains("fun mediaSourceForTrack("));
+        assertTrue(mediaSourceProvider.contains("fun mediaSourcesForTracks("));
+        assertTrue(mediaSourceProvider.contains("fun mediaItemForTrack("));
+        assertTrue(mediaSourceProvider.contains("fun playbackMediaItemForTrack("));
     }
 
     @Test
