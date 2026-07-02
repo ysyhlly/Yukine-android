@@ -22,25 +22,15 @@ final class PlaybackMirroredQueueTrackMatcherOwner {
         this.trackMediaItemMatcher = trackMediaItemMatcher;
     }
 
-    static PlaybackMirroredQueueTrackMatcherOwner fromPlayerProvider(
+    static PlaybackMirroredQueueTrackMatcherOwner fromMediaSourceProvider(
             Supplier<Player> playerProvider,
-            BiPredicate<MediaItem, Track> trackMediaItemMatcher
+            PlaybackMediaSourceProvider mediaSourceProvider
     ) {
         return new PlaybackMirroredQueueTrackMatcherOwner(
                 index -> {
                     Player player = playerProvider == null ? null : playerProvider.get();
                     return player == null ? null : player.getMediaItemAt(index);
                 },
-                trackMediaItemMatcher
-        );
-    }
-
-    static PlaybackMirroredQueueTrackMatcherOwner fromMediaSourceProvider(
-            Supplier<Player> playerProvider,
-            PlaybackMediaSourceProvider mediaSourceProvider
-    ) {
-        return fromPlayerProvider(
-                playerProvider,
                 (mediaItem, track) -> mediaSourceProvider != null
                         && mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track)
         );
