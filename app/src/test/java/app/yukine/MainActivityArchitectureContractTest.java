@@ -5787,15 +5787,16 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner;"));
         assertTrue(service.contains("final PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner ="));
         assertTrue(service.contains("PlaybackMirroredQueueTrackMatcherOwner.fromMediaSourceProvider("));
-        assertTrue(service.contains("                playbackMirroredQueueTrackMatcherOwner"));
+        assertTrue(service.contains("playbackMirroredQueueTrackMatcherOwner::matches"));
         assertFalse(service.contains("new PlaybackQueueManager.QueueTrackMatcher()"));
         assertFalse(service.contains("mediaSourceProvider.mediaItemMatchesTrackForReuse(player.getMediaItemAt(index), track)"));
         assertFalse(service.contains("EchoPlaybackService.this.resetWaveformIfTrackChanged(track);"));
         assertFalse(service.contains("EchoPlaybackService.this.applyPlaybackModeAndParametersToPlayer();"));
         assertTrue(mirroredTrackMatcherOwner.contains(
                 "final class PlaybackMirroredQueueTrackMatcherOwner"));
-        assertTrue(mirroredTrackMatcherOwner.contains(
+        assertFalse(mirroredTrackMatcherOwner.contains(
                 "implements PlaybackQueueManager.QueueTrackMatcher"));
+        assertFalse(mirroredTrackMatcherOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertFalse(mirroredTrackMatcherOwner.contains("interface PlayerProvider"));
         assertFalse(mirroredTrackMatcherOwner.contains("interface PlayerMediaItemProvider"));
         assertFalse(mirroredTrackMatcherOwner.contains("interface TrackMediaItemMatcher"));
@@ -5828,13 +5829,14 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredPlayerOwner.contains("interface PlayerAvailability"));
         assertFalse(mirroredPlayerOwner.contains("interface PlayerMediaItemCountProvider"));
         assertFalse(mirroredPlayerOwner.contains("interface PlaybackQueueManagerProvider"));
-        assertTrue(mirroredPlayerOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
+        assertFalse(mirroredPlayerOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
+        assertTrue(mirroredPlayerOwner.contains("Supplier<List<Track>> queueSnapshotProvider"));
         assertFalse(mirroredPlayerOwner.contains("playbackQueueManagerProvider"));
         assertFalse(mirroredPlayerOwner.contains("interface MirroredQueueOperations"));
         assertFalse(mirroredPlayerOwner.contains("MirroredQueueOperations"));
         assertFalse(mirroredPlayerOwner.contains("PlaybackQueueManagerOperations"));
         assertTrue(mirroredPlayerOwner.contains("import java.util.function.BiConsumer;"));
-        assertFalse(mirroredPlayerOwner.contains("import java.util.function.BiPredicate;"));
+        assertTrue(mirroredPlayerOwner.contains("import java.util.function.BiPredicate;"));
         assertTrue(mirroredPlayerOwner.contains("import java.util.function.BooleanSupplier;"));
         assertTrue(mirroredPlayerOwner.contains("import java.util.function.Consumer;"));
         assertTrue(mirroredPlayerOwner.contains("import java.util.function.IntSupplier;"));
@@ -5869,8 +5871,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mirroredPlayerOwner.contains("playerStarter.run();"));
         assertTrue(mirroredPlayerOwner.contains("mirrorStateController.accept(false);"));
         assertTrue(mirroredPlayerOwner.contains("failureLogger.accept(error);"));
-        assertTrue(mirroredPlayerOwner.contains("playbackQueueManager.matchesMirroredQueue("));
+        assertFalse(mirroredPlayerOwner.contains("playbackQueueManager.matchesMirroredQueue("));
         assertFalse(mirroredPlayerOwner.contains("playbackQueueManager::matchesMirroredQueue"));
+        assertTrue(mirroredPlayerOwner.contains("queueSnapshotProvider.get();"));
+        assertTrue(mirroredPlayerOwner.contains("queueTrackMatcher.test(i, track)"));
         assertFalse(owner.contains("\n        fun currentTrack(): Track?"));
         assertFalse(owner.contains("\n        fun currentIndex(): Int"));
         assertFalse(owner.contains("\n        fun setCurrentIndex(index: Int)"));
@@ -5968,8 +5972,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("private fun safeCurrentIndex(): Int"));
         assertFalse(owner.contains("\n    fun safeCurrentIndex(): Int"));
         assertTrue(owner.contains("fun replaceCurrentQueueTrack(replacement: Track?): Boolean"));
-        assertTrue(owner.contains("interface QueueTrackMatcher"));
-        assertTrue(owner.contains("fun matchesMirroredQueue(itemCount: Int, matcher: QueueTrackMatcher): Boolean"));
+        assertFalse(owner.contains("interface QueueTrackMatcher"));
+        assertFalse(owner.contains("fun matchesMirroredQueue(itemCount: Int, matcher: QueueTrackMatcher): Boolean"));
         assertTrue(owner.contains("private fun clearQueueState()"));
         assertFalse(owner.contains("\n    fun clearQueueState()"));
         assertTrue(owner.contains("fun persistQueueState()"));
@@ -6084,7 +6088,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(currentPreparationQueueOwner.contains("playbackQueueManager.queuePreparationForNewPlayer();"));
         assertFalse(service.contains("playbackQueueManager.mirroredQueueTracksForPreparation()"));
         assertFalse(service.contains("return playbackQueueManager.matchesMirroredQueue("));
-        assertTrue(mirroredPlayerOwner.contains("playbackQueueManager.matchesMirroredQueue("));
+        assertFalse(mirroredPlayerOwner.contains("playbackQueueManager.matchesMirroredQueue("));
         assertFalse(mirroredPlayerOwner.contains("playbackQueueManager::matchesMirroredQueue"));
         assertFalse(service.contains("new PlaybackQueueManager.QueueTrackMatcher()"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
@@ -6255,7 +6259,6 @@ public final class MainActivityArchitectureContractTest {
         ));
         java.util.Set<String> queueMirrorApi = new java.util.TreeSet<>(java.util.Arrays.asList(
                 "applyMirroredTransitionIndex",
-                "matchesMirroredQueue",
                 "reuseMirroredQueueIfAvailable"
         ));
         java.util.Set<String> queueDerivedReadApi = new java.util.TreeSet<>(java.util.Arrays.asList(

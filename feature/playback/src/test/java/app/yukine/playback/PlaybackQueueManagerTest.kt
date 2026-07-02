@@ -1077,37 +1077,6 @@ class PlaybackQueueManagerTest {
         assertEquals(0L, provider.positionManager.restoredPositionFor(second))
     }
 
-    @Test
-    fun matchesMirroredQueueChecksItemCountAndDelegatesTrackIdentity() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        provider.queue.addAll(listOf(track(1L), track(2L)))
-        val manager = queueManager(store, provider)
-        val matchedTrackIds = mutableListOf<Long>()
-
-        assertFalse(
-                manager.matchesMirroredQueue(1, object : PlaybackQueueManager.QueueTrackMatcher {
-                    override fun matches(index: Int, track: Track): Boolean = true
-                })
-        )
-
-        assertFalse(
-                manager.matchesMirroredQueue(2, object : PlaybackQueueManager.QueueTrackMatcher {
-                    override fun matches(index: Int, track: Track): Boolean {
-                        matchedTrackIds.add(track.id)
-                        return index == 0
-                    }
-                })
-        )
-        assertEquals(listOf(1L, 2L), matchedTrackIds)
-
-        assertTrue(
-                manager.matchesMirroredQueue(2, object : PlaybackQueueManager.QueueTrackMatcher {
-                    override fun matches(index: Int, track: Track): Boolean = track.id == index + 1L
-                })
-        )
-    }
-
     private fun queueManager(store: FakeQueueStore, provider: FakeQueueState): PlaybackQueueManager {
         lateinit var manager: PlaybackQueueManager
         val positionManager = PlaybackPositionManager(

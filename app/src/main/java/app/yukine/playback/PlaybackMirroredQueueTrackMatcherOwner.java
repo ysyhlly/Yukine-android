@@ -5,14 +5,12 @@ import androidx.media3.common.Player;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BiPredicate;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
-final class PlaybackMirroredQueueTrackMatcherOwner
-        implements PlaybackQueueManager.QueueTrackMatcher {
+final class PlaybackMirroredQueueTrackMatcherOwner {
     private final IntFunction<MediaItem> playerMediaItemProvider;
     private final BiPredicate<MediaItem, Track> trackMediaItemMatcher;
 
@@ -48,8 +46,7 @@ final class PlaybackMirroredQueueTrackMatcherOwner
         );
     }
 
-    @Override
-    public boolean matches(int index, Track track) {
+    boolean matches(int index, Track track) {
         if (playerMediaItemProvider == null || trackMediaItemMatcher == null) {
             return false;
         }

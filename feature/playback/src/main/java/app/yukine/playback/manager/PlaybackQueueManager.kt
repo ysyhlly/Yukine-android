@@ -41,10 +41,6 @@ internal class PlaybackQueueManager(
         fun seekTo(index: Int, positionMs: Long, playWhenReady: Boolean): Boolean
     }
 
-    interface QueueTrackMatcher {
-        fun matches(index: Int, track: Track): Boolean
-    }
-
     data class CurrentTrackReplacementRecovery(
         val track: Track,
         val restoredPositionMs: Long,
@@ -896,20 +892,6 @@ internal class PlaybackQueueManager(
     private fun isAtEndOfQueue(): Boolean {
         val queue = this.queue
         return currentIndex() >= queue.size - 1
-    }
-
-    fun matchesMirroredQueue(itemCount: Int, matcher: QueueTrackMatcher): Boolean {
-        val queue = this.queue
-        if (itemCount != queue.size) {
-            return false
-        }
-        for (i in queue.indices) {
-            val track = queue[i] ?: return false
-            if (!matcher.matches(i, track)) {
-                return false
-            }
-        }
-        return true
     }
 
     private object NoopQueuePlaybackActions : QueuePlaybackActions {

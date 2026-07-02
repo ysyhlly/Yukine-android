@@ -3,18 +3,13 @@ package app.yukine.playback;
 import android.net.Uri;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.function.BooleanSupplier;
-
-import app.yukine.model.PlaybackQueueState;
-import app.yukine.playback.manager.PlaybackQueueStore;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -124,8 +119,8 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     public void matcherDelegatesMirroredQueueMatchInPlaybackOrder() {
         List<String> events = new ArrayList<>();
         Track track = track(7L);
-        PlaybackQueueManager queueManager = queueManager(Collections.singletonList(track));
-        PlaybackQueueManager.QueueTrackMatcher queueTrackMatcher = (index, matchedTrack) -> {
+        List<Track> queueSnapshot = Collections.singletonList(track);
+        java.util.function.BiPredicate<Integer, Track> queueTrackMatcher = (index, matchedTrack) -> {
             events.add("track:" + index + ":" + matchedTrack.id);
             return matchedTrack == track;
         };
@@ -143,7 +138,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                             events.add("count");
                             return 1;
                         },
-                        () -> queueManager,
+                        () -> queueSnapshot,
                         queueTrackMatcher
                 );
 
@@ -158,6 +153,25 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 ),
                 events
         );
+    }
+
+    @Test
+    public void matcherReturnsFalseWhenItemCountDiffers() {
+        List<String> events = new ArrayList<>();
+        BooleanSupplier matcher =
+                PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
+                        () -> true,
+                        () -> true,
+                        () -> 2,
+                        () -> Collections.singletonList(track(7L)),
+                        (index, matchedTrack) -> {
+                            events.add("track:" + index + ":" + matchedTrack.id);
+                            return true;
+                        }
+                );
+
+        assertFalse(matcher.getAsBoolean());
+        assertEquals(Collections.emptyList(), events);
     }
 
     @Test
@@ -178,8 +192,8 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                             return 1;
                         },
                         () -> {
-                            events.add("operations");
-                            return queueManager(Collections.emptyList());
+                            events.add("snapshot");
+                            return Collections.emptyList();
                         },
                         (index, track) -> true
                 );
@@ -197,7 +211,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                         () -> {
                             throw new IllegalStateException("released");
                         },
-                        () -> queueManager(Collections.emptyList()),
+                        Collections::emptyList,
                         (index, track) -> true
                 );
 
@@ -205,7 +219,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     }
 
     @Test
-    public void matcherReturnsFalseWhenPlaybackQueueManagerSupplierIsMissing() {
+    public void matcherReturnsFalseWhenQueueSnapshotSupplierIsMissing() {
         List<String> events = new ArrayList<>();
         BooleanSupplier matcher =
                 PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
@@ -232,20 +246,6 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
         );
     }
 
-    private static PlaybackQueueManager queueManager(List<Track> queue) {
-        return new PlaybackQueueManager(
-                new FakeQueueStore(),
-                new ArrayList<>(queue),
-                new NoopQueuePlaybackActions(),
-                null,
-                new NoopStreamingRestoreProvider(),
-                new NoopMirroredQueuePlayer(),
-                null,
-                null,
-                new Random(1L)
-        );
-    }
-
     private static Track track(long id) {
         return new Track(
                 id,
@@ -256,88 +256,5 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 Uri.parse("content://media/audio/" + id),
                 "/music/" + id + ".mp3"
         );
-    }
-
-    private static final class FakeQueueStore implements PlaybackQueueStore {
-        @Override
-        public PlaybackQueueState load() {
-            return new PlaybackQueueState(Collections.emptyList(), -1);
-        }
-
-        @Override
-        public void save(List<Track> tracks, int currentIndex) {
-        }
-
-        @Override
-        public boolean loadResumeRequested() {
-            return false;
-        }
-
-        @Override
-        public void saveResumeRequested(boolean requested) {
-        }
-
-        @Override
-        public boolean loadPlaybackRestoreEnabled() {
-            return true;
-        }
-
-        @Override
-        public void savePlaybackRestoreEnabled(boolean enabled) {
-        }
-
-        @Override
-        public long loadPlaybackPositionTrackId() {
-            return -1L;
-        }
-
-        @Override
-        public long loadPlaybackPositionMs() {
-            return 0L;
-        }
-
-        @Override
-        public void savePlaybackPosition(long trackId, long positionMs) {
-        }
-    }
-
-    private static final class NoopQueuePlaybackActions
-            implements PlaybackQueueManager.QueuePlaybackActions {
-        @Override
-        public void prepareCurrent(boolean playWhenReady) {
-        }
-
-        @Override
-        public void publishState() {
-        }
-
-        @Override
-        public void stopAndClear() {
-        }
-    }
-
-    private static final class NoopStreamingRestoreProvider
-            implements PlaybackQueueManager.StreamingRestoreProvider {
-        @Override
-        public Track restoredTrackFor(Track track) {
-            return track;
-        }
-
-        @Override
-        public void restoreForDataPath(String dataPath) {
-        }
-    }
-
-    private static final class NoopMirroredQueuePlayer
-            implements PlaybackQueueManager.MirroredQueuePlayer {
-        @Override
-        public boolean matchesCurrentQueue() {
-            return false;
-        }
-
-        @Override
-        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
-            return false;
-        }
     }
 }
