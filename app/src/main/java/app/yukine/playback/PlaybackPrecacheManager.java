@@ -549,15 +549,7 @@ final class PlaybackPrecacheManager {
     }
 
     private long continuousCachedBytes(String cacheKey) {
-        if (cacheKey == null || cacheKey.isEmpty()) {
-            return 0L;
-        }
-        try {
-            long cached = mediaCacheOperations.cachedBytesInRange(cacheKey, 0L, Long.MAX_VALUE);
-            return Math.max(0L, cached);
-        } catch (RuntimeException ignored) {
-            return 0L;
-        }
+        return cachedBytesInRange(cacheKey, 0L, Long.MAX_VALUE);
     }
 
     private boolean currentPlayerLoadsTrack(Track track) {

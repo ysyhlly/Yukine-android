@@ -2178,6 +2178,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("callbackScheduler.removeCallbacks(callback);"));
         assertTrue(playbackPrecacheManager.contains("private boolean isCurrentPrecacheGeneration(int generation, String cacheKey)"));
         assertTrue(playbackPrecacheManager.contains("private long cachedBytesInRange(String cacheKey, long position, long length)"));
+        assertTrue(playbackPrecacheManager.contains("return cachedBytesInRange(cacheKey, 0L, Long.MAX_VALUE);"));
         assertTrue(playbackPrecacheManager.contains("private long cacheMediaRange(Track track, String cacheKey, long position, long length, int generation)"));
         assertTrue(playbackPrecacheManager.contains("private void cancelActivePrecacheWriters()"));
         assertTrue(playbackPrecacheManager.contains("private static final class PlaybackCacheThreadFactory implements ThreadFactory"));
