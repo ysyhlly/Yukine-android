@@ -67,7 +67,7 @@ public class PlaybackQueueMutationOwnerTest {
     public void ignoresMissingManagerOrEmptyQueueMutationInputs() {
         FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
         PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);
-        PlaybackQueueMutationOwner missingManager = PlaybackQueueMutationOwner.fromPlaybackQueueManager(null);
+        PlaybackQueueMutationOwner missingManager = new PlaybackQueueMutationOwner(null);
         PlaybackQueueMutationOwner owner = owner(queueManager);
 
         missingManager.playQueue(Collections.singletonList(track(3L)), 0, 0L);
@@ -126,7 +126,7 @@ public class PlaybackQueueMutationOwnerTest {
     }
 
     private static PlaybackQueueMutationOwner owner(PlaybackQueueManager queueManager) {
-        return PlaybackQueueMutationOwner.fromPlaybackQueueManager(() -> queueManager);
+        return new PlaybackQueueMutationOwner(() -> queueManager);
     }
 
     private static PlaybackQueueManager queueManager(

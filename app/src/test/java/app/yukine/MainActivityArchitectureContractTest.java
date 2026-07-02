@@ -5469,7 +5469,9 @@ public final class MainActivityArchitectureContractTest {
                 "app/src/main/java/app/yukine/playback/PlaybackCurrentTrackReplacementOwner.java"
         );
         assertTrue(service.contains("private final PlaybackQueueMutationOwner playbackQueueMutationOwner"));
-        assertTrue(service.contains("PlaybackQueueMutationOwner.fromPlaybackQueueManager(() -> playbackQueueManager)"));
+        assertTrue(service.contains("new PlaybackQueueMutationOwner(() -> playbackQueueManager)"));
+        assertFalse(service.contains("PlaybackQueueMutationOwner.fromPlaybackQueueManager("));
+        assertFalse(queueMutationOwner.contains("static PlaybackQueueMutationOwner fromPlaybackQueueManager("));
         assertTrue(service.contains("private final PlaybackQueueNavigationOwner playbackQueueNavigationOwner"));
         assertTrue(service.contains("PlaybackQueueNavigationOwner.fromPlaybackQueueManager("));
         assertTrue(service.contains("this::onMirroredQueueReused"));

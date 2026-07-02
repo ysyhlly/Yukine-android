@@ -10,14 +10,8 @@ import app.yukine.playback.manager.PlaybackQueueManager;
 final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOwner.QueuePlayer {
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
 
-    private PlaybackQueueMutationOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
+    PlaybackQueueMutationOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
         this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
-    }
-
-    static PlaybackQueueMutationOwner fromPlaybackQueueManager(
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
-    ) {
-        return new PlaybackQueueMutationOwner(playbackQueueManagerSupplier);
     }
 
     @Override
