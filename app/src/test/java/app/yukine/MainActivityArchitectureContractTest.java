@@ -5962,6 +5962,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mirroredTransitionOwner.contains("return reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO;"));
         assertTrue(mirroredTransitionOwner.contains(
                 "Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
+        assertFalse(mirroredTransitionOwner.contains(
+                "return fromPlaybackQueueManager(playbackQueueManagerSupplier, null);"));
+        assertFalse(mirroredTransitionOwner.contains(
+                "return fromPlaybackQueueManager(playbackQueueManagerSupplier, null, null, currentTrackVolumeApplier);"));
+        assertFalse(mirroredTransitionOwner.contains("this(playbackQueueManagerSupplier, null);"));
         assertFalse(mirroredTransitionOwner.contains("mirroredTransitionOperationsProvider"));
         assertFalse(mirroredTransitionOwner.contains("playbackQueueManagerProvider"));
         assertFalse(mirroredTransitionOwner.contains("PlaybackRuntimeStateManager"));

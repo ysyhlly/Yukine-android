@@ -45,6 +45,8 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner owner =
                 PlaybackQueueMirroredTransitionOwner.fromPlaybackQueueManager(
                         () -> queueManager,
+                        null,
+                        null,
                         () -> events.add("applyVolume")
                 );
 
@@ -79,6 +81,8 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner owner =
                 PlaybackQueueMirroredTransitionOwner.fromPlaybackQueueManager(
                         () -> queueManager,
+                        null,
+                        null,
                         () -> events.add("applyVolume")
                 );
 
@@ -101,11 +105,15 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner missingManagerProvider =
                 PlaybackQueueMirroredTransitionOwner.fromPlaybackQueueManager(
                         null,
+                        null,
+                        null,
                         () -> events.add("applyVolume")
                 );
         PlaybackQueueMirroredTransitionOwner missingManager =
                 PlaybackQueueMirroredTransitionOwner.fromPlaybackQueueManager(
                         () -> null,
+                        null,
+                        null,
                         () -> events.add("applyVolume")
                 );
 
@@ -126,7 +134,12 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         );
         queueManager.playQueue(Arrays.asList(track(1L), track(2L), track(3L)), 0, 0L);
         PlaybackQueueMirroredTransitionOwner owner =
-                PlaybackQueueMirroredTransitionOwner.fromPlaybackQueueManager(() -> queueManager);
+                PlaybackQueueMirroredTransitionOwner.fromPlaybackQueueManager(
+                        () -> queueManager,
+                        null,
+                        null,
+                        null
+                );
 
         PlaybackQueueManager.MirroredTransitionResult automaticResult =
                 owner.applyMirroredTransitionReason(2, Player.MEDIA_ITEM_TRANSITION_REASON_AUTO);
