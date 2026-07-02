@@ -4,7 +4,6 @@ import android.net.Uri
 import app.yukine.model.PlaybackQueueState
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackPositionManager
-import app.yukine.playback.manager.PlaybackQueueManager
 import app.yukine.playback.manager.PlaybackQueueStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
@@ -79,8 +78,8 @@ class PlaybackPositionManagerTest {
         val track = track(23L)
         val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
             Supplier {
-                events += "queueState"
-                PlaybackQueueManager.QueueStateSnapshot(track, 0, 1)
+                events += "currentTrack"
+                track
             },
             LongSupplier {
                 events += "position"
@@ -90,20 +89,20 @@ class PlaybackPositionManagerTest {
 
         assertSame(track, provider.currentTrack())
         assertEquals(321L, provider.positionMs())
-        assertEquals(listOf("queueState", "position"), events)
+        assertEquals(listOf("currentTrack", "position"), events)
     }
 
     @Test
-    fun stateProviderFromPlaybackStateHandlesMissingQueueState() {
+    fun stateProviderFromPlaybackStateHandlesMissingCurrentTrack() {
         val missingProvider = PlaybackPositionManager.stateProviderFromPlaybackState(null, null)
-        val nullSnapshotProvider = PlaybackPositionManager.stateProviderFromPlaybackState(
+        val nullTrackProvider = PlaybackPositionManager.stateProviderFromPlaybackState(
             Supplier { null },
             null
         )
 
         assertEquals(null, missingProvider.currentTrack())
         assertEquals(0L, missingProvider.positionMs())
-        assertEquals(null, nullSnapshotProvider.currentTrack())
+        assertEquals(null, nullTrackProvider.currentTrack())
     }
 
     private fun manager(): PlaybackPositionManager {

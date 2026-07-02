@@ -368,7 +368,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackPositionManager = new PlaybackPositionManager(
                 queueStore,
                 PlaybackPositionManager.stateProviderFromPlaybackState(
-                        playbackQueueStateOwner::queueStateSnapshot,
+                        playbackQueueStateOwner::currentTrack,
                         playbackPlayerStateOwner::positionMs
                 )
         );
