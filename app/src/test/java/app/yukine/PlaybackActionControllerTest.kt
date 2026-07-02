@@ -105,7 +105,6 @@ class PlaybackActionControllerTest {
         override fun removeTracksById(trackIds: Set<Long>) {}
         override fun clearQueue() {}
         override fun moveQueueTrack(fromIndex: Int, toIndex: Int) {}
-        override fun replaceQueuedTrack(updated: Track) {}
         override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) {}
         override fun retainTracksById(trackIds: Set<Long>) {}
         override fun warmPlaybackTrack(track: Track) {}

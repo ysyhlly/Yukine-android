@@ -43,7 +43,7 @@ public class PlaybackQueueMutationOwnerTest {
         assertEquals(2L, queueManager.queueStateSnapshot().getCurrentTrack().id);
 
         Track replacement = track(1L);
-        owner.replaceQueuedTrack(replacement);
+        owner.replaceQueuedTrackById(1L, replacement);
         assertSame(replacement, queueManager.queueSnapshot().get(1));
 
         Track replacementById = track(9L);
@@ -76,7 +76,6 @@ public class PlaybackQueueMutationOwnerTest {
         missingManager.retainTracksById(Collections.singleton(4L));
         missingManager.clearQueue();
         missingManager.moveQueueTrack(1, 2);
-        missingManager.replaceQueuedTrack(track(9L));
         missingManager.replaceQueuedTrackById(9L, track(10L));
         owner.playQueue(null, 0, 0L);
         owner.playQueue(Collections.emptyList(), 0, 0L);

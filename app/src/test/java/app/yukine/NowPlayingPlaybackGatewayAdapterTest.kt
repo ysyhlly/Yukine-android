@@ -83,10 +83,6 @@ class NowPlayingPlaybackGatewayAdapterTest {
             calls += "move:$fromIndex:$toIndex"
         }
 
-        override fun replaceQueuedTrack(updated: Track) {
-            calls += "replace:${updated.id}"
-        }
-
         override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) {
             calls += "replaceById:$oldTrackId:${updated.id}"
         }

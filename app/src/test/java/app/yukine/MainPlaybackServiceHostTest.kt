@@ -129,8 +129,6 @@ class MainPlaybackServiceHostTest {
 
         override fun moveQueueTrack(fromIndex: Int, toIndex: Int) = Unit
 
-        override fun replaceQueuedTrack(updated: Track) = Unit
-
         override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) = Unit
 
         override fun retainTracksById(trackIds: Set<Long>) = Unit

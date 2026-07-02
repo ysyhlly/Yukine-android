@@ -326,10 +326,6 @@ class NowPlayingViewModelTest {
             calls.add("clear")
         }
 
-        override fun replaceQueuedTrack(updated: Track) {
-            calls.add("replace:${updated.id}")
-        }
-
         override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) {
             calls.add("replaceById:$oldTrackId:${updated.id}")
         }

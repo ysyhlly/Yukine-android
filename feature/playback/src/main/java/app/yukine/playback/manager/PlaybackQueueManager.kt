@@ -458,7 +458,7 @@ internal class PlaybackQueueManager(
         removeTracksById(trackIdsToRemove)
     }
 
-    fun replaceQueuedTrack(replacement: Track) {
+    private fun replaceQueuedTrack(replacement: Track) {
         val queue = this.queue
         if (queue.isEmpty()) {
             return

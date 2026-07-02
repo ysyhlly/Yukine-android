@@ -13,7 +13,6 @@ interface NowPlayingPlaybackServicePort {
     fun removeTracksById(trackIds: Set<Long>)
     fun clearQueue()
     fun moveQueueTrack(fromIndex: Int, toIndex: Int)
-    fun replaceQueuedTrack(updated: Track)
     fun replaceQueuedTrackById(oldTrackId: Long, updated: Track)
     fun retainTracksById(trackIds: Set<Long>)
     fun warmPlaybackTrack(track: Track)
@@ -79,10 +78,6 @@ internal class NowPlayingPlaybackGatewayAdapter(
 
     override fun moveQueueTrack(fromIndex: Int, toIndex: Int) {
         service()?.moveQueueTrack(fromIndex, toIndex)
-    }
-
-    override fun replaceQueuedTrack(updated: Track) {
-        service()?.replaceQueuedTrack(updated)
     }
 
     override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) {

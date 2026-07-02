@@ -98,8 +98,6 @@ class MainNetworkActionsListenerTest {
         override fun removeTracksById(trackIds: Set<Long>) = Unit
         override fun clearQueue() = Unit
         override fun moveQueueTrack(fromIndex: Int, toIndex: Int) = Unit
-        override fun replaceQueuedTrack(updated: Track) = Unit
-
         override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) {
             calls += "replaceById:$oldTrackId:${updated.id}"
         }

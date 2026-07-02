@@ -64,7 +64,6 @@ interface NowPlayingPlaybackGateway {
     fun removeTracksById(trackIds: Set<Long>)
     fun clearQueue()
     fun moveQueueTrack(fromIndex: Int, toIndex: Int)
-    fun replaceQueuedTrack(updated: Track)
     fun replaceQueuedTrackById(oldTrackId: Long, updated: Track)
     fun retainTracksById(trackIds: Set<Long>)
     fun warmPlaybackTrack(track: Track)
@@ -254,11 +253,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         if (updated == null) {
             return
         }
-        if (oldTrackId == updated.id) {
-            player.replaceQueuedTrack(updated)
-        } else {
-            player.replaceQueuedTrackById(oldTrackId, updated)
-        }
+        player.replaceQueuedTrackById(oldTrackId, updated)
     }
 
     fun warmPlaybackTrack(track: Track?) {

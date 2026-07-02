@@ -5615,9 +5615,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackQueueMutationOwner.clearQueue();"));
         assertFalse(service.contains("playbackQueueManager.clearQueue()"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.clearQueue();"));
-        assertTrue(service.contains("playbackQueueMutationOwner.replaceQueuedTrack(replacement);"));
+        assertFalse(service.contains("public void replaceQueuedTrack(Track replacement)"));
+        assertFalse(service.contains("playbackQueueMutationOwner.replaceQueuedTrack(replacement);"));
         assertFalse(service.contains("playbackQueueManager.replaceQueuedTrack(replacement)"));
-        assertTrue(queueMutationOwner.contains("playbackQueueManager.replaceQueuedTrack(replacement);"));
+        assertFalse(queueMutationOwner.contains("void replaceQueuedTrack(Track replacement)"));
+        assertFalse(queueMutationOwner.contains("playbackQueueManager.replaceQueuedTrack(replacement);"));
         assertTrue(service.contains("playbackQueueMutationOwner.replaceQueuedTrackById(oldTrackId, replacement);"));
         assertFalse(service.contains("playbackQueueManager.replaceQueuedTrackById(oldTrackId, replacement)"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.replaceQueuedTrackById(oldTrackId, replacement);"));
@@ -6230,7 +6232,6 @@ public final class MainActivityArchitectureContractTest {
                 "removeTracksById",
                 "replaceCurrentQueueTrack",
                 "replaceCurrentTrackAndResume",
-                "replaceQueuedTrack",
                 "replaceQueuedTrackById",
                 "retainTracksById",
                 "setPlaybackRestoreEnabled",

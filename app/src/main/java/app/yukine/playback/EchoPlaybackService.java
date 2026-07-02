@@ -994,10 +994,6 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackQueueRestoreOwner.restoreLastPlayback(playWhenRestored);
     }
 
-    public void replaceQueuedTrack(Track replacement) {
-        playbackQueueMutationOwner.replaceQueuedTrack(replacement);
-    }
-
     public void replaceQueuedTrackById(long oldTrackId, Track replacement) {
         playbackQueueMutationOwner.replaceQueuedTrackById(oldTrackId, replacement);
     }

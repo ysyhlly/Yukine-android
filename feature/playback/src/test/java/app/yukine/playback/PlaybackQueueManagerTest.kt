@@ -373,7 +373,7 @@ class PlaybackQueueManagerTest {
         restoreQueue(manager, store, listOf(track(1L)), 0)
         provider.runtimeStateManager.setPreparing(true)
 
-        manager.replaceQueuedTrack(track(1L, durationMs = 2_000L))
+        manager.replaceQueuedTrackById(1L, track(1L, durationMs = 2_000L))
 
         assertTrue(provider.prepareCurrentCalled)
     }
