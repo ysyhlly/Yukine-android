@@ -160,6 +160,16 @@ public final class EchoPlaybackService extends MediaLibraryService
                         public void skipToNext() {
                             EchoPlaybackService.this.skipToNext();
                         }
+
+                        @Override
+                        public void prepareStopAndClearFallbackState() {
+                            if (playbackPositionManager != null) {
+                                playbackPositionManager.clearPlaybackPosition();
+                            }
+                            playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false);
+                            playbackErrorRecoveryCommandOwner.setErrorMessage("");
+                            playbackTransitionStateManager.clear();
+                        }
                     }
             );
     private final PlaybackRuntimeStateManager playbackRuntimeStateManager =
@@ -1243,19 +1253,11 @@ public final class EchoPlaybackService extends MediaLibraryService
     public void stopAndClear() {
         playbackCrossfadeCommandOwner.cancelCrossfadeAdvance();
         playbackSleepTimerCommandOwner.cancelSleepTimer(false);
-        boolean queueStopPrepared = playbackQueueCompletionOwner.prepareStopAndClearPlaybackState();
-        if (!queueStopPrepared && playbackPositionManager != null) {
-            playbackPositionManager.clearPlaybackPosition();
-        }
+        playbackQueueCompletionOwner.prepareStopAndClearPlaybackState();
         if (playbackShutdownCoordinator != null) {
             playbackShutdownCoordinator.releasePlaybackResources();
         } else {
             releasePlaybackPlayerResources();
-        }
-        if (!queueStopPrepared) {
-            playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false);
-            playbackErrorRecoveryCommandOwner.setErrorMessage("");
-            playbackTransitionStateManager.clear();
         }
         playbackProgressUpdateCommandOwner.stopProgressUpdates();
         playbackNotificationCommandOwner.stopForegroundAndSelf();

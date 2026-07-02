@@ -5664,8 +5664,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queuePersistenceOwner.contains("void requestPlaybackResume()"));
         assertTrue(queuePersistenceOwner.contains("void clearPlaybackResumeRequest()"));
         assertTrue(service.contains("playbackQueueCompletionOwner.prepareStopAndClearPlaybackState()"));
+        assertFalse(service.contains("queueStopPrepared"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAndClearPlaybackState()"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
+        assertTrue(queueCompletionOwner.contains("completionBoundary.prepareStopAndClearFallbackState();"));
         assertTrue(service.contains("playbackQueueCompletionOwner.playAfterCompletion();"));
         assertFalse(service.contains("playbackQueueManager.playbackCompletionAction()"));
         assertFalse(service.contains("playbackQueueManager.preparePlaybackCompletion(completionAction)"));
