@@ -173,11 +173,11 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner missingStateOwner =
                 new PlaybackQueueMirroredTransitionOwner(null, null, null, null);
         PlaybackQueueMirroredTransitionOwner readyOwner =
-                new PlaybackQueueMirroredTransitionOwner(null, null, () -> true, () -> false);
+                new PlaybackQueueMirroredTransitionOwner(null, null, () -> true, queueStateProvider(false));
         PlaybackQueueMirroredTransitionOwner notMirroredOwner =
-                new PlaybackQueueMirroredTransitionOwner(null, null, () -> false, () -> false);
+                new PlaybackQueueMirroredTransitionOwner(null, null, () -> false, queueStateProvider(false));
         PlaybackQueueMirroredTransitionOwner emptyQueueOwner =
-                new PlaybackQueueMirroredTransitionOwner(null, null, () -> true, () -> true);
+                new PlaybackQueueMirroredTransitionOwner(null, null, () -> true, queueStateProvider(true));
 
         assertTrue(missingStateOwner.canApplyMirroredTransition());
         assertTrue(readyOwner.canApplyMirroredTransition());
@@ -251,6 +251,14 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
                 1000L,
                 null,
                 "streaming:netease:" + id
+        );
+    }
+
+    private static PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider(boolean empty) {
+        return () -> new PlaybackQueueManager.QueueStateSnapshot(
+                empty ? null : track(1L),
+                empty ? -1 : 0,
+                empty ? 0 : 1
         );
     }
 
