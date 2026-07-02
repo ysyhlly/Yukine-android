@@ -5,21 +5,22 @@ import androidx.media3.common.Player;
 
 import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateProvider {
-    private final Supplier<Track> currentTrackSupplier;
+    private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;
     private final Supplier<MediaItem> playerMediaItemSupplier;
     private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsSupplier;
 
     PlaybackPrecacheStateOwner(
-            Supplier<Track> currentTrackSupplier,
+            PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider,
             Supplier<MediaItem> playerMediaItemSupplier,
             Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsSupplier
     ) {
-        this.currentTrackSupplier = currentTrackSupplier;
+        this.queueStateProvider = queueStateProvider;
         this.playerMediaItemSupplier = playerMediaItemSupplier;
         this.streamingDiagnosticsSupplier = streamingDiagnosticsSupplier;
     }
@@ -73,7 +74,7 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
 
     @Override
     public Track currentTrack() {
-        return currentTrackSupplier.get();
+        return queueStateSnapshot().getCurrentTrack();
     }
 
     @Override
@@ -84,5 +85,13 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
     @Override
     public PlaybackStreamingDiagnostics streamingDiagnostics() {
         return streamingDiagnosticsSupplier.get();
+    }
+
+    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
+        if (queueStateProvider == null) {
+            return PlaybackQueueManager.QueueStateSnapshot.empty();
+        }
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.queueStateSnapshot();
+        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 }
