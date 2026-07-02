@@ -6953,8 +6953,9 @@ public final class MainActivityArchitectureContractTest {
                 service.indexOf("playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner("),
                 service.indexOf("        playbackErrorRecoveryManager = new PlaybackErrorRecoveryManager(")
         );
-        assertTrue(errorRecoveryCommandWiring.contains("playbackQueueStateOwner::currentTrack"));
-        assertTrue(errorRecoveryCommandWiring.contains("playbackQueueStateOwner::hasMultipleTracks"));
+        assertTrue(errorRecoveryCommandWiring.contains("playbackQueueStateOwner::queueStateSnapshot"));
+        assertFalse(errorRecoveryCommandWiring.contains("playbackQueueStateOwner::currentTrack"));
+        assertFalse(errorRecoveryCommandWiring.contains("playbackQueueStateOwner::hasMultipleTracks"));
         assertFalse(errorRecoveryCommandWiring.contains("                playbackQueueStateOwner,"));
         assertFalse(service.contains("playbackQueueManager.canSkipFailedTrack(failed)"));
         assertFalse(queueNavigationOwner.contains("playbackQueueManager.canSkipFailedTrack(failed);"));
@@ -7867,8 +7868,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("private PlaybackErrorRecoveryCommandOwner playbackErrorRecoveryCommandOwner;"));
         assertTrue(service.contains("playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner("));
         assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner,"));
-        assertTrue(errorRecoveryWiring.contains("playbackQueueStateOwner::currentTrack"));
-        assertTrue(errorRecoveryWiring.contains("playbackQueueStateOwner::hasMultipleTracks"));
+        assertTrue(errorRecoveryWiring.contains("playbackQueueStateOwner::queueStateSnapshot"));
+        assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner::currentTrack"));
+        assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner::hasMultipleTracks"));
         assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner::canSkipFailedTrack"));
         assertTrue(errorRecoveryWiring.contains("EchoPlaybackService.this::skipToNext"));
         assertTrue(service.contains("playbackErrorRecoveryCommandOwner"));
@@ -7892,12 +7894,15 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(commandOwner.contains("private final Supplier<Track> currentTrackProvider;"));
         assertFalse(commandOwner.contains("private final Predicate<Track> failedTrackPolicy;"));
         assertFalse(commandOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
-        assertFalse(commandOwner.contains("PlaybackQueueManager.QueueStateSnapshot"));
-        assertFalse(commandOwner.contains("queueStateSnapshot()"));
-        assertTrue(commandOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
-        assertTrue(commandOwner.contains("private final BooleanSupplier hasMultipleTracksSupplier;"));
-        assertTrue(commandOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
-        assertTrue(commandOwner.contains("hasMultipleTracksSupplier.getAsBoolean()"));
+        assertTrue(commandOwner.contains("PlaybackQueueManager.QueueStateSnapshot"));
+        assertTrue(commandOwner.contains("queueStateSnapshot()"));
+        assertFalse(commandOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
+        assertFalse(commandOwner.contains("private final BooleanSupplier hasMultipleTracksSupplier;"));
+        assertTrue(commandOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier;"));
+        assertFalse(commandOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
+        assertFalse(commandOwner.contains("hasMultipleTracksSupplier.getAsBoolean()"));
+        assertTrue(commandOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertTrue(commandOwner.contains("&& queueStateSnapshot().getHasMultipleTracks();"));
         assertTrue(commandOwner.contains("private final Consumer<Boolean> playbackPreparer;"));
         assertTrue(commandOwner.contains("private final Runnable skipToNextCommand;"));
         assertTrue(commandOwner.contains("private final Consumer<String> errorMessageStore;"));

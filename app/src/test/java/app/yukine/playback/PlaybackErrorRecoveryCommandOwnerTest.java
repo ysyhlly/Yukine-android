@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -20,8 +21,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
         List<String> events = new ArrayList<>();
         Track track = track(7L);
         PlaybackErrorRecoveryCommandOwner owner = new PlaybackErrorRecoveryCommandOwner(
-                () -> track,
-                () -> true,
+                () -> new PlaybackQueueManager.QueueStateSnapshot(track, 0, 2),
                 playWhenReady -> events.add("prepare:" + playWhenReady),
                 () -> events.add("next"),
                 message -> events.add("error:" + message),
@@ -58,7 +58,6 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
         Track track = track(7L);
         PlaybackErrorRecoveryCommandOwner missingStateOwner = new PlaybackErrorRecoveryCommandOwner(
                 null,
-                null,
                 playWhenReady -> {
                 },
                 () -> {
@@ -71,8 +70,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
                 }
         );
         PlaybackErrorRecoveryCommandOwner singleTrackOwner = new PlaybackErrorRecoveryCommandOwner(
-                () -> track,
-                () -> false,
+                () -> new PlaybackQueueManager.QueueStateSnapshot(track, 0, 1),
                 playWhenReady -> {
                 },
                 () -> {
