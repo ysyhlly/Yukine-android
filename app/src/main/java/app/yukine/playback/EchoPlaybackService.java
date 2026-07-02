@@ -124,7 +124,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             PlaybackQueueMirroredTransitionOwner.fromPlaybackQueueManager(
                     () -> playbackQueueManager,
                     playbackQueueMirrorStateOwner::playerMirrorsQueue,
-                    () -> playbackQueueStateOwner.queueStateSnapshot().isQueueEmpty(),
+                    playbackQueueStateOwner::isQueueEmpty,
                     EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer
             );
     private final PlaybackQueueRestoreOwner playbackQueueRestoreOwner =
@@ -472,7 +472,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackNotificationForegroundOwner::stopForegroundAndSelf
         );
         playbackNotificationStateOwner = new PlaybackNotificationStateOwner(
-                () -> playbackQueueStateOwner.queueStateSnapshot().isQueueEmpty(),
+                playbackQueueStateOwner::isQueueEmpty,
                 PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(
                         playbackQueueStateOwner::currentTrack,
                         playbackPlayerStateOwner::isPlaying,
