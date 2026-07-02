@@ -430,7 +430,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 () -> playbackModeSettingsStore == null
                         ? REPEAT_ALL
                         : playbackModeSettingsStore.repeatMode(playbackRuntimeStateManager),
-                playbackQueueStateOwner::queueStateSnapshot,
+                playbackQueueStateOwner,
                 () -> playbackRuntimeSettingsStore == null
                         ? 1.0f
                         : playbackRuntimeSettingsStore.currentTrackVolume(playbackRuntimeStateManager)
