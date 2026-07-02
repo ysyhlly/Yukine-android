@@ -184,11 +184,26 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner missingStateOwner =
                 new PlaybackQueueMirroredTransitionOwner(null, null, null, null);
         PlaybackQueueMirroredTransitionOwner readyOwner =
-                new PlaybackQueueMirroredTransitionOwner(() -> readyManager, null, () -> true, () -> false);
+                new PlaybackQueueMirroredTransitionOwner(
+                        () -> readyManager,
+                        null,
+                        () -> true,
+                        readyManager::queueStateSnapshot
+                );
         PlaybackQueueMirroredTransitionOwner notMirroredOwner =
-                new PlaybackQueueMirroredTransitionOwner(() -> readyManager, null, () -> false, () -> false);
+                new PlaybackQueueMirroredTransitionOwner(
+                        () -> readyManager,
+                        null,
+                        () -> false,
+                        readyManager::queueStateSnapshot
+                );
         PlaybackQueueMirroredTransitionOwner emptyQueueOwner =
-                new PlaybackQueueMirroredTransitionOwner(() -> emptyManager, null, () -> true, () -> true);
+                new PlaybackQueueMirroredTransitionOwner(
+                        () -> emptyManager,
+                        null,
+                        () -> true,
+                        emptyManager::queueStateSnapshot
+                );
 
         assertFalse(missingStateOwner.canApplyMirroredTransition());
         assertTrue(readyOwner.canApplyMirroredTransition());

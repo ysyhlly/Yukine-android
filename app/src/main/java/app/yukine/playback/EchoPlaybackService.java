@@ -134,7 +134,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                     () -> playbackQueueManager,
                     EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer,
                     playbackQueueRuntimeStateManager::playerMirrorsQueue,
-                    playbackQueueStateOwner::isQueueEmpty
+                    () -> playbackQueueStateOwner.queueStateSnapshot()
             );
     private final PlaybackQueueRestoreOwner playbackQueueRestoreOwner =
             new PlaybackQueueRestoreOwner(
