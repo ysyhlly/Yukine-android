@@ -1,128 +1,211 @@
 package app.yukine.playback;
 
-import android.net.Uri;
+import static org.junit.Assert.assertEquals;
 
-import org.junit.Test;
+import app.yukine.model.PlaybackQueueState;
+import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackQueueManager;
+import app.yukine.playback.manager.PlaybackQueueStore;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
+import org.junit.Test;
 
 public class PlaybackCurrentTrackReplacementOwnerTest {
     @Test
     public void delegatesCurrentReplacementAndSchedulesRecovery() {
         List<String> events = new ArrayList<>();
-        Track replacement = track(7L);
-        PlaybackQueueManager.CurrentTrackReplacementRecovery recovery =
-                new PlaybackQueueManager.CurrentTrackReplacementRecovery(replacement, 4200L, true);
-        FakeReplacementAction action = new FakeReplacementAction(events, recovery);
-        PlaybackCurrentTrackReplacementOwner owner = new PlaybackCurrentTrackReplacementOwner(
-                action::replaceCurrentTrackAndResume,
-                recorded -> events.add("record:" + recorded.getRestoredPositionMs()),
-                playWhenReady -> events.add("schedule:" + playWhenReady)
-        );
+        PlaybackQueueManager queueManager = queueManagerWithCurrent(track(1L, "original"));
+        PlaybackCurrentTrackReplacementOwner owner =
+                PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager(
+                        () -> queueManager,
+                        recovery -> events.add("record:" + recovery.getRestoredPositionMs()),
+                        playWhenReady -> events.add("schedule:" + playWhenReady)
+                );
 
-        owner.replaceCurrentTrackAndResume(replacement, 1800L);
+        owner.replaceCurrentTrackAndResume(track(7L, "replacement"), 1800L);
 
-        assertSame(replacement, action.replacement);
-        assertEquals(1800L, action.positionMs);
         assertEquals(
                 Arrays.asList(
-                        "replace:7@1800",
-                        "record:4200",
+                        "record:0",
                         "schedule:true"
                 ),
                 events
         );
+        assertEquals(7L, queueManager.queueStateSnapshot().getCurrentTrack().id);
     }
 
     @Test
     public void skipsRecoveryWorkWhenReplacementDoesNotNeedRecovery() {
         List<String> events = new ArrayList<>();
-        FakeReplacementAction action = new FakeReplacementAction(events, null);
-        PlaybackCurrentTrackReplacementOwner owner = new PlaybackCurrentTrackReplacementOwner(
-                action::replaceCurrentTrackAndResume,
-                recorded -> events.add("record"),
-                playWhenReady -> events.add("schedule")
-        );
+        Track current = track(8L, "same");
+        PlaybackQueueManager queueManager = queueManagerWithCurrent(current);
+        PlaybackCurrentTrackReplacementOwner owner =
+                PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager(
+                        () -> queueManager,
+                        recorded -> events.add("record"),
+                        playWhenReady -> events.add("schedule")
+                );
 
-        owner.replaceCurrentTrackAndResume(track(8L), 2200L);
+        owner.replaceCurrentTrackAndResume(track(8L, "same"), 2200L);
 
-        assertEquals(Collections.singletonList("replace:8@2200"), events);
+        assertEquals(Collections.emptyList(), events);
+        assertEquals(8L, queueManager.queueStateSnapshot().getCurrentTrack().id);
     }
 
     @Test
     public void ignoresMissingDependencies() {
         List<String> events = new ArrayList<>();
-        Track replacement = track(9L);
-        PlaybackQueueManager.CurrentTrackReplacementRecovery recovery =
-                new PlaybackQueueManager.CurrentTrackReplacementRecovery(replacement, 3300L, false);
-        PlaybackCurrentTrackReplacementOwner missingAction = new PlaybackCurrentTrackReplacementOwner(
-                null,
-                recorded -> events.add("record"),
-                playWhenReady -> events.add("schedule")
-        );
-        FakeReplacementAction action = new FakeReplacementAction(events, recovery);
-        PlaybackCurrentTrackReplacementOwner missingRecoveryHandlers = new PlaybackCurrentTrackReplacementOwner(
-                action::replaceCurrentTrackAndResume,
-                null,
-                null
-        );
+        PlaybackQueueManager queueManager = queueManagerWithCurrent(track(9L, "original"));
+        PlaybackCurrentTrackReplacementOwner missingRecoveryHandlers =
+                PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager(
+                        () -> queueManager,
+                        null,
+                        null
+                );
 
-        missingAction.replaceCurrentTrackAndResume(replacement, 0L);
-        missingRecoveryHandlers.replaceCurrentTrackAndResume(replacement, 0L);
+        missingRecoveryHandlers.replaceCurrentTrackAndResume(track(10L, "replacement"), 0L);
 
-        assertEquals(Collections.singletonList("replace:9@0"), events);
+        assertEquals(Collections.emptyList(), events);
+        assertEquals(10L, queueManager.queueStateSnapshot().getCurrentTrack().id);
     }
 
     @Test
     public void missingPlaybackQueueManagerSupplierSkipsReplacement() {
         List<String> events = new ArrayList<>();
-        PlaybackCurrentTrackReplacementOwner owner =
+        PlaybackCurrentTrackReplacementOwner missingManagerProvider =
                 PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager(
                         null,
                         recorded -> events.add("record"),
                         playWhenReady -> events.add("schedule")
                 );
+        PlaybackCurrentTrackReplacementOwner missingManager =
+                PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager(
+                        () -> null,
+                        recorded -> events.add("record"),
+                        playWhenReady -> events.add("schedule")
+                );
 
-        owner.replaceCurrentTrackAndResume(track(10L), 1200L);
+        missingManagerProvider.replaceCurrentTrackAndResume(track(10L, "replacement"), 1200L);
+        missingManager.replaceCurrentTrackAndResume(track(11L, "replacement"), 1200L);
 
         assertEquals(Collections.emptyList(), events);
     }
 
-    private static Track track(long id) {
-        return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "file:" + id);
+    private static PlaybackQueueManager queueManagerWithCurrent(Track current) {
+        PlaybackQueueManager queueManager = new PlaybackQueueManager(
+                new FakeQueueStore(),
+                new NoopQueuePlaybackActions(),
+                null,
+                new NoopStreamingRestoreProvider(),
+                new NoopMirroredQueuePlayer(),
+                null,
+                null
+        );
+        queueManager.playQueue(Collections.singletonList(current), 0, 0L);
+        return queueManager;
     }
 
-    private static final class FakeReplacementAction {
-        private final List<String> events;
-        private final PlaybackQueueManager.CurrentTrackReplacementRecovery recovery;
-        private Track replacement;
-        private long positionMs;
+    private static Track track(long id, String dataPathSuffix) {
+        return new Track(
+                id,
+                "Track " + id,
+                "Artist",
+                "Album",
+                1000L,
+                null,
+                "streaming:netease:" + dataPathSuffix
+        );
+    }
 
-        private FakeReplacementAction(
-                List<String> events,
-                PlaybackQueueManager.CurrentTrackReplacementRecovery recovery
-        ) {
-            this.events = events;
-            this.recovery = recovery;
+    private static final class FakeQueueStore implements PlaybackQueueStore {
+        private List<Track> savedTracks = Collections.emptyList();
+        private int savedIndex = -1;
+
+        @Override
+        public PlaybackQueueState load() {
+            return new PlaybackQueueState(savedTracks, savedIndex);
         }
 
-        public PlaybackQueueManager.CurrentTrackReplacementRecovery replaceCurrentTrackAndResume(
-                Track replacement,
-                long positionMs
-        ) {
-            this.replacement = replacement;
-            this.positionMs = positionMs;
-            events.add("replace:" + replacement.id + "@" + positionMs);
-            return recovery;
+        @Override
+        public void save(List<Track> tracks, int currentIndex) {
+            savedTracks = tracks == null ? Collections.emptyList() : new ArrayList<>(tracks);
+            savedIndex = currentIndex;
+        }
+
+        @Override
+        public boolean loadResumeRequested() {
+            return false;
+        }
+
+        @Override
+        public void saveResumeRequested(boolean requested) {
+        }
+
+        @Override
+        public boolean loadPlaybackRestoreEnabled() {
+            return true;
+        }
+
+        @Override
+        public void savePlaybackRestoreEnabled(boolean enabled) {
+        }
+
+        @Override
+        public long loadPlaybackPositionTrackId() {
+            return -1L;
+        }
+
+        @Override
+        public long loadPlaybackPositionMs() {
+            return 0L;
+        }
+
+        @Override
+        public void savePlaybackPosition(long trackId, long positionMs) {
+        }
+    }
+
+    private static final class NoopQueuePlaybackActions
+            implements PlaybackQueueManager.QueuePlaybackActions {
+        @Override
+        public void prepareCurrent(boolean playWhenReady) {
+        }
+
+        @Override
+        public void publishState() {
+        }
+
+        @Override
+        public void stopAndClear() {
+        }
+    }
+
+    private static final class NoopStreamingRestoreProvider
+            implements PlaybackQueueManager.StreamingRestoreProvider {
+        @Override
+        public Track restoredTrackFor(Track track) {
+            return track;
+        }
+
+        @Override
+        public void restoreForDataPath(String dataPath) {
+        }
+    }
+
+    private static final class NoopMirroredQueuePlayer
+            implements PlaybackQueueManager.MirroredQueuePlayer {
+        @Override
+        public boolean matchesCurrentQueue() {
+            return false;
+        }
+
+        @Override
+        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
+            return false;
         }
     }
 }
