@@ -6229,6 +6229,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredTransitionOwner.contains("static PlaybackQueueMirroredTransitionOwner fromPlaybackQueueManager("));
         assertFalse(service.contains("PlaybackQueueMirroredTransitionOwner.fromPlaybackQueueManagerProvider("));
         assertTrue(service.contains("EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer"));
+        assertTrue(service.contains("playbackQueueStateOwner::isQueueEmpty"));
         assertTrue(service.contains("private void applyCurrentTrackVolumeToPlayer()"));
         assertTrue(service.contains(
                 "playbackRuntimeSettingsStore.applyCurrentTrackVolumeToPlayer(playbackRuntimeStateManager);"
@@ -6251,11 +6252,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mirroredTransitionOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
         assertTrue(mirroredTransitionOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertTrue(mirroredTransitionOwner.contains("private final BooleanSupplier playerMirrorsQueue;"));
-        assertFalse(mirroredTransitionOwner.contains("private final BooleanSupplier queueEmpty;"));
+        assertTrue(mirroredTransitionOwner.contains("private final BooleanSupplier queueEmptySupplier;"));
         assertFalse(mirroredTransitionOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
         assertFalse(mirroredTransitionOwner.contains("QueueStateProvider queueStateProvider"));
+        assertFalse(mirroredTransitionOwner.contains("QueueStateSnapshot"));
+        assertFalse(mirroredTransitionOwner.contains("queueStateSnapshot()"));
         assertTrue(mirroredTransitionOwner.contains("PlaybackQueueManager playbackQueueManager = playbackQueueManager();"));
-        assertTrue(mirroredTransitionOwner.contains("return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;"));
+        assertTrue(mirroredTransitionOwner.contains("boolean emptyQueue = queueEmptySupplier == null || queueEmptySupplier.getAsBoolean();"));
         assertTrue(mirroredTransitionOwner.contains("boolean canApplyMirroredTransition()"));
         assertTrue(mirroredTransitionOwner.contains("PlaybackQueueManager.MirroredTransitionResult applyMirroredTransitionReason("));
         assertTrue(mirroredTransitionOwner.contains("static boolean isAutomaticMediaItemAdvance(int reason)"));

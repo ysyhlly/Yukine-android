@@ -132,7 +132,8 @@ public final class EchoPlaybackService extends MediaLibraryService
             new PlaybackQueueMirroredTransitionOwner(
                     () -> playbackQueueManager,
                     EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer,
-                    playbackQueueRuntimeStateManager::playerMirrorsQueue
+                    playbackQueueRuntimeStateManager::playerMirrorsQueue,
+                    playbackQueueStateOwner::isQueueEmpty
             );
     private final PlaybackQueueRestoreOwner playbackQueueRestoreOwner =
             new PlaybackQueueRestoreOwner(
