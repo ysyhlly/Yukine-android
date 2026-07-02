@@ -12,7 +12,6 @@ import java.util.Collections;
 import java.util.List;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -33,7 +32,7 @@ public class PlaybackSessionCommandOwnerTest {
                     events.add("controllerItems:" + mediaItems.size() + ":" + startIndex + ":" + startPositionMs);
                     return true;
                 },
-                () -> new PlaybackQueueManager.QueueStateSnapshot(track, 0, 1),
+                () -> track,
                 requestedTrack -> {
                     events.add("metadata:" + requestedTrack.id);
                     return metadata;

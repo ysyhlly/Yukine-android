@@ -4,9 +4,9 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackSessionPlayer;
 
 final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegate {
@@ -30,7 +30,7 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
     private final SeekController seekController;
     private final RepeatModeController repeatModeController;
     private final ControllerMediaItems controllerMediaItems;
-    private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;
+    private final Supplier<Track> currentTrackSupplier;
     private final MetadataProvider metadataProvider;
 
     PlaybackSessionCommandOwner(
@@ -38,14 +38,14 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
             SeekController seekController,
             RepeatModeController repeatModeController,
             ControllerMediaItems controllerMediaItems,
-            PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider,
+            Supplier<Track> currentTrackSupplier,
             MetadataProvider metadataProvider
     ) {
         this.playbackCommands = playbackCommands;
         this.seekController = seekController;
         this.repeatModeController = repeatModeController;
         this.controllerMediaItems = controllerMediaItems;
-        this.queueStateProvider = queueStateProvider;
+        this.currentTrackSupplier = currentTrackSupplier;
         this.metadataProvider = metadataProvider;
     }
 
@@ -91,7 +91,7 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
 
     @Override
     public Track currentTrack() {
-        return queueStateSnapshot().getCurrentTrack();
+        return currentTrackSupplier == null ? null : currentTrackSupplier.get();
     }
 
     @Override
@@ -99,11 +99,4 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
         return metadataProvider.mediaMetadataForTrack(track);
     }
 
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        if (queueStateProvider == null) {
-            return PlaybackQueueManager.QueueStateSnapshot.empty();
-        }
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
-    }
 }
