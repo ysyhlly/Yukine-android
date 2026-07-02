@@ -221,8 +221,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackSleepTimerCommandOwner playbackSleepTimerCommandOwner;
     private PlaybackSleepTimerManager playbackSleepTimerManager;
     private PlaybackRealtimeVisualizationOwner playbackRealtimeVisualizationOwner;
-    private PlaybackBufferedProgressOwner playbackBufferedProgressOwner;
-    private PlaybackVisualizationStateOwner playbackVisualizationStateOwner;
     private PlaybackVisualizationAnalyzer playbackVisualizationAnalyzer;
     private PlaybackVisualizationCacheManager playbackVisualizationCacheManager;
     private PlaybackNotificationArtworkManager playbackNotificationArtworkManager;
@@ -583,15 +581,17 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackMediaLibraryCallback,
                 this::activityPendingIntent
         );
-        playbackBufferedProgressOwner = PlaybackBufferedProgressOwner.fromPlayerProvider(
-                playbackPlayerStateOwner::positionMs,
-                () -> player
-        );
-        playbackVisualizationStateOwner = new PlaybackVisualizationStateOwner(
-                () -> appVisible,
-                playbackBufferedProgressOwner,
-                EchoPlaybackService.this::publishState
-        );
+        final PlaybackBufferedProgressOwner playbackBufferedProgressOwner =
+                PlaybackBufferedProgressOwner.fromPlayerProvider(
+                        playbackPlayerStateOwner::positionMs,
+                        () -> player
+                );
+        final PlaybackVisualizationStateOwner playbackVisualizationStateOwner =
+                new PlaybackVisualizationStateOwner(
+                        () -> appVisible,
+                        playbackBufferedProgressOwner,
+                        EchoPlaybackService.this::publishState
+                );
         playbackVisualizationAnalyzer = new PlaybackVisualizationAnalyzer(
                 this,
                 visualizationTaskScheduler,
