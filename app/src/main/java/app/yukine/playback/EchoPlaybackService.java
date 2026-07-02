@@ -141,31 +141,28 @@ public final class EchoPlaybackService extends MediaLibraryService
                     EchoPlaybackService.this::createPlayerIfNeeded,
                     playbackQueueCommandOwner
             );
-    private final PlaybackQueueCompletionOwner playbackQueueCompletionOwner =
-            new PlaybackQueueCompletionOwner(
-                    () -> playbackQueueManager,
-                    new PlaybackQueueCompletionOwner.CompletionBoundary() {
-                        @Override
-                        public void stopAndClear() {
-                            EchoPlaybackService.this.stopAndClear();
-                        }
+    private final PlaybackQueueCompletionOwner.CompletionBoundary playbackQueueCompletionBoundary =
+            new PlaybackQueueCompletionOwner.CompletionBoundary() {
+                @Override
+                public void stopAndClear() {
+                    EchoPlaybackService.this.stopAndClear();
+                }
 
-                        @Override
-                        public void stopAtEndOfQueue() {
-                            EchoPlaybackService.this.stopAtEndOfQueue();
-                        }
+                @Override
+                public void stopAtEndOfQueue() {
+                    EchoPlaybackService.this.stopAtEndOfQueue();
+                }
 
-                        @Override
-                        public void skipToNext() {
-                            EchoPlaybackService.this.skipToNext();
-                        }
+                @Override
+                public void skipToNext() {
+                    EchoPlaybackService.this.skipToNext();
+                }
 
-                        @Override
-                        public void repeatCurrent() {
-                            playbackQueueCommandOwner.prepareCurrent(true);
-                        }
-                    }
-            );
+                @Override
+                public void repeatCurrent() {
+                    playbackQueueCommandOwner.prepareCurrent(true);
+                }
+            };
     private final PlaybackRuntimeStateManager playbackRuntimeStateManager =
             new PlaybackRuntimeStateManager(
                     PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
@@ -261,7 +258,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 }
                 recordPlaybackStartHistoryAction.run();
             } else if (playbackState == Player.STATE_ENDED) {
-                playbackQueueCompletionOwner.playAfterCompletion();
+                withPlaybackQueueCompletionOwner(PlaybackQueueCompletionOwner::playAfterCompletion);
                 return;
             }
             publishState();
@@ -1224,7 +1221,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     public void stopAndClear() {
         playbackCrossfadeCommandOwner.cancelCrossfadeAdvance();
         playbackSleepTimerCommandOwner.cancelSleepTimer(false);
-        playbackQueueCompletionOwner.prepareStopAndClearPlaybackState();
+        withPlaybackQueueCompletionOwner(PlaybackQueueCompletionOwner::prepareStopAndClearPlaybackState);
         if (playbackShutdownCoordinator != null) {
             playbackShutdownCoordinator.releasePlaybackResources();
         } else {
@@ -1236,7 +1233,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     private void stopAtEndOfQueue() {
-        playbackQueueCompletionOwner.prepareStopAtEndOfQueue();
+        withPlaybackQueueCompletionOwner(PlaybackQueueCompletionOwner::prepareStopAtEndOfQueue);
         playbackProgressUpdateCommandOwner.stopProgressUpdates();
         if (player == null) {
             createPlayerIfNeeded();
@@ -1304,8 +1301,17 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     private void stopAfterAutomaticAdvance(int completedIndex) {
-        playbackQueueCompletionOwner.prepareStopAfterAutomaticAdvance(completedIndex);
+        withPlaybackQueueCompletionOwner(
+                owner -> owner.prepareStopAfterAutomaticAdvance(completedIndex)
+        );
         stopAtEndOfQueue();
+    }
+
+    private void withPlaybackQueueCompletionOwner(Consumer<PlaybackQueueCompletionOwner> action) {
+        action.accept(new PlaybackQueueCompletionOwner(
+                playbackQueueManager,
+                playbackQueueCompletionBoundary
+        ));
     }
 
     private void createPlayerIfNeeded() {

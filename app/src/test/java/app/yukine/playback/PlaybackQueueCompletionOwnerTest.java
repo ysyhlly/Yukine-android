@@ -34,7 +34,7 @@ public class PlaybackQueueCompletionOwnerTest {
                 REPEAT_ONE
         );
         PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
-                () -> queueManager,
+                queueManager,
                 new FakeCompletionBoundary(events)
         );
 
@@ -140,7 +140,7 @@ public class PlaybackQueueCompletionOwnerTest {
     }
 
     @Test
-    public void missingPlaybackQueueManagerSupplierUsesStopAndClearBoundaryOnlyForCompletion() {
+    public void missingPlaybackQueueManagerUsesStopAndClearBoundaryOnlyForCompletion() {
         List<String> events = new ArrayList<>();
         PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
                 null,
@@ -175,7 +175,7 @@ public class PlaybackQueueCompletionOwnerTest {
             PlaybackQueueCompletionOwner.CompletionBoundary boundary
     ) {
         return new PlaybackQueueCompletionOwner(
-                () -> queueManager,
+                queueManager,
                 boundary
         );
     }

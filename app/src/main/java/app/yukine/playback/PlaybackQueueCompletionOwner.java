@@ -2,8 +2,6 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackQueueManager;
 
-import java.util.function.Supplier;
-
 final class PlaybackQueueCompletionOwner {
     interface CompletionBoundary {
         void stopAndClear();
@@ -15,19 +13,18 @@ final class PlaybackQueueCompletionOwner {
         void repeatCurrent();
     }
 
-    private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
+    private final PlaybackQueueManager playbackQueueManager;
     private final CompletionBoundary completionBoundary;
 
     PlaybackQueueCompletionOwner(
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            PlaybackQueueManager playbackQueueManager,
             CompletionBoundary completionBoundary
     ) {
-        this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
+        this.playbackQueueManager = playbackQueueManager;
         this.completionBoundary = completionBoundary;
     }
 
     void playAfterCompletion() {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         PlaybackQueueManager.PlaybackCompletionAction completionAction = playbackQueueManager == null
                 ? PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR
                 : playbackQueueManager.preparePlaybackCompletionAction();
@@ -62,7 +59,6 @@ final class PlaybackQueueCompletionOwner {
     }
 
     void prepareStopAndClearPlaybackState() {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         if (playbackQueueManager == null) {
             return;
         }
@@ -70,7 +66,6 @@ final class PlaybackQueueCompletionOwner {
     }
 
     void prepareStopAtEndOfQueue() {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         if (playbackQueueManager == null) {
             return;
         }
@@ -78,13 +73,8 @@ final class PlaybackQueueCompletionOwner {
     }
 
     void prepareStopAfterAutomaticAdvance(int completedIndex) {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         if (playbackQueueManager != null) {
             playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex);
         }
-    }
-
-    private PlaybackQueueManager playbackQueueManager() {
-        return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }
 }
