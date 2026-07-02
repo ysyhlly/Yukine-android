@@ -541,14 +541,13 @@ internal class PlaybackQueueManager(
         return CurrentTrackReplacementRecovery(replacement, restoredPositionMs, playWhenReady = true)
     }
 
-    fun replaceCurrentQueueTrack(replacement: Track?): Boolean {
+    fun replaceCurrentQueueTrack(replacement: Track?) {
         val queue = this.queue
         if (replacement == null || currentIndex() < 0 || currentIndex() >= queue.size) {
-            return false
+            return
         }
         queue[currentIndex()] = replacement
         persistQueue()
-        return true
     }
 
     fun reuseMirroredQueueIfAvailable(playWhenReady: Boolean, startPositionMs: Long): Boolean {

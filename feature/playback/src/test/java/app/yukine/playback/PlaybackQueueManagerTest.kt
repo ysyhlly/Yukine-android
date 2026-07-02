@@ -381,7 +381,7 @@ class PlaybackQueueManagerTest {
         restoreQueue(manager, store, listOf(track(1L), track(2L)), 1)
         val replacement = track(9L)
 
-        assertTrue(manager.replaceCurrentQueueTrack(replacement))
+        manager.replaceCurrentQueueTrack(replacement)
 
         assertEquals(listOf(1L, 9L), provider.queue.map { it.id })
         assertEquals(listOf(1L, 9L), store.savedTracks.map { it.id })
@@ -396,7 +396,7 @@ class PlaybackQueueManagerTest {
         val manager = queueManager(store, provider)
         setRawCurrentIndex(manager, 3)
 
-        assertFalse(manager.replaceCurrentQueueTrack(track(9L)))
+        manager.replaceCurrentQueueTrack(track(9L))
 
         assertEquals(listOf(1L), provider.queue.map { it.id })
         assertTrue(store.savedTracks.isEmpty())

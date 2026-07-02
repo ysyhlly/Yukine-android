@@ -6152,7 +6152,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("private fun safeCurrentIndex(): Int"));
         assertTrue(owner.contains("startIndex = currentIndex()"));
         assertFalse(owner.contains("\n    fun safeCurrentIndex(): Int"));
-        assertTrue(owner.contains("fun replaceCurrentQueueTrack(replacement: Track?): Boolean"));
+        assertTrue(owner.contains("fun replaceCurrentQueueTrack(replacement: Track?)"));
+        assertFalse(owner.contains("fun replaceCurrentQueueTrack(replacement: Track?): Boolean"));
         assertFalse(owner.contains("interface QueueTrackMatcher"));
         assertFalse(owner.contains("fun matchesMirroredQueue(itemCount: Int, matcher: QueueTrackMatcher): Boolean"));
         assertFalse(owner.contains("private fun clearQueueState()"));
