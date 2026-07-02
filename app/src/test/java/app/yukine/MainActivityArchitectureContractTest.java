@@ -6602,7 +6602,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackWifiLockStreamingTrackOwner.java")));
         assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackWifiLockStreamingTrackOwnerTest.java")));
         assertFalse(service.contains("PlaybackWifiLockStreamingTrackOwner"));
-        assertTrue(service.contains("playbackQueueStateOwner::currentTrack"));
+        assertTrue(service.contains(
+                "                playbackQueueStateOwner,\n" +
+                        "                mediaSourceProvider::isHttpTrack"));
+        assertFalse(service.contains(
+                "                playbackQueueStateOwner::currentTrack,\n" +
+                        "                mediaSourceProvider::isHttpTrack"));
         assertTrue(service.contains("private PlaybackWifiLockManager playbackWifiLockManager"));
         assertTrue(service.contains("private final Runnable acquireWifiLockIfStreamingAction"));
         assertTrue(service.contains("private final Runnable releaseWifiLockAction"));
@@ -6613,7 +6618,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("PlaybackWifiLockManager::release"));
         assertTrue(owner.contains("class PlaybackWifiLockManager"));
         assertTrue(owner.contains("interface Lock"));
-        assertTrue(owner.contains("interface StreamingTrackProvider"));
+        assertFalse(owner.contains("interface StreamingTrackProvider"));
+        assertFalse(owner.contains("streamingTrackProvider.currentTrack()"));
+        assertTrue(owner.contains("private val queueStateSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
+        assertTrue(owner.contains("return queueStateSupplier?.get()?.currentTrack"));
         assertFalse(owner.contains("private val mediaSourceProvider: PlaybackMediaSourceProvider"));
         assertTrue(owner.contains("private val streamingTrackPredicate: Predicate<Track?>"));
         assertTrue(owner.contains("streamingTrackPredicate.test(track)"));

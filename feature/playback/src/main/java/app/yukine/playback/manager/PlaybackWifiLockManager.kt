@@ -6,7 +6,7 @@ import java.util.function.Supplier
 
 internal class PlaybackWifiLockManager(
     private val lock: Lock?,
-    private val streamingTrackProvider: StreamingTrackProvider,
+    private val queueStateSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?,
     private val streamingTrackPredicate: Predicate<Track?>
 ) {
     interface Lock {
@@ -15,12 +15,8 @@ internal class PlaybackWifiLockManager(
         fun release()
     }
 
-    interface StreamingTrackProvider {
-        fun currentTrack(): Track?
-    }
-
     fun acquireIfStreaming() {
-        val track = streamingTrackProvider.currentTrack()
+        val track = currentTrack()
         if (streamingTrackPredicate.test(track) && lock != null && !lock.isHeld()) {
             lock.acquire()
         }
@@ -30,6 +26,10 @@ internal class PlaybackWifiLockManager(
         if (lock != null && lock.isHeld()) {
             lock.release()
         }
+    }
+
+    private fun currentTrack(): Track? {
+        return queueStateSupplier?.get()?.currentTrack
     }
 
     companion object {
