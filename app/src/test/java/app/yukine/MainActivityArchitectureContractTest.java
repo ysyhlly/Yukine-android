@@ -5915,7 +5915,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueNavigationOwner.contains(
                 "playbackQueueManager.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs);"));
         assertTrue(service.contains("private PlaybackRecoveryDiagnosticsRecorderOwner playbackRecoveryDiagnosticsRecorderOwner;"));
-        assertTrue(service.contains("PlaybackRecoveryDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider("));
+        assertTrue(service.contains("new PlaybackRecoveryDiagnosticsRecorderOwner("));
+        assertFalse(service.contains("PlaybackRecoveryDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider("));
+        assertFalse(recoveryDiagnosticsOwner.contains("static PlaybackRecoveryDiagnosticsRecorderOwner fromStreamingDiagnosticsProvider("));
         assertTrue(service.contains("mediaSourceProvider::streamingQualityForTrack"));
         assertTrue(service.contains("playbackRecoveryDiagnosticsRecorderOwner.record(recovery)"));
         assertTrue(service.contains("playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(playWhenReady)"));
@@ -6847,7 +6849,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("                playbackNotificationArtworkSource,"));
         assertTrue(service.contains("PlaybackStatePublisherWidgetOwner.fromContextProvider(() -> this)"));
         assertTrue(service.contains("private PlaybackBufferingDiagnosticsRecorderOwner playbackBufferingDiagnosticsRecorderOwner;"));
-        assertTrue(service.contains("PlaybackBufferingDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider("));
+        assertTrue(service.contains("new PlaybackBufferingDiagnosticsRecorderOwner("));
+        assertFalse(service.contains("PlaybackBufferingDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider("));
+        assertFalse(bufferingRecorderOwner.contains(
+                "static PlaybackBufferingDiagnosticsRecorderOwner fromStreamingDiagnosticsProvider("));
         assertTrue(service.contains("playbackStatePublisher.publishBufferingState(playbackBufferingDiagnosticsRecorderOwner);"));
         assertFalse(service.contains("force -> playbackNotificationManager.updateMediaNotification(force)"));
         assertFalse(service.contains("track -> playbackNotificationArtworkManager.notificationArtworkFor(track)"));

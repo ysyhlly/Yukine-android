@@ -736,11 +736,11 @@ public final class EchoPlaybackService extends MediaLibraryService
                 PlaybackStatePublisherWidgetOwner.fromContextProvider(() -> this)
         );
         playbackBufferingDiagnosticsRecorderOwner =
-                PlaybackBufferingDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider(
+                new PlaybackBufferingDiagnosticsRecorderOwner(
                         () -> streamingDiagnostics
                 );
         playbackRecoveryDiagnosticsRecorderOwner =
-                PlaybackRecoveryDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider(
+                new PlaybackRecoveryDiagnosticsRecorderOwner(
                         () -> streamingDiagnostics,
                         mediaSourceProvider::streamingQualityForTrack
                 );

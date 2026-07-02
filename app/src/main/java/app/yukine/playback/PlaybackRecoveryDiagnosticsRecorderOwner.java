@@ -19,13 +19,6 @@ final class PlaybackRecoveryDiagnosticsRecorderOwner {
         this.streamingQualityProvider = streamingQualityProvider;
     }
 
-    static PlaybackRecoveryDiagnosticsRecorderOwner fromStreamingDiagnosticsProvider(
-            Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider,
-            Function<Track, String> streamingQualityProvider
-    ) {
-        return new PlaybackRecoveryDiagnosticsRecorderOwner(streamingDiagnosticsProvider, streamingQualityProvider);
-    }
-
     void record(PlaybackQueueManager.CurrentTrackReplacementRecovery recovery) {
         PlaybackStreamingDiagnostics diagnostics = streamingDiagnosticsProvider == null
                 ? null

@@ -14,12 +14,6 @@ final class PlaybackBufferingDiagnosticsRecorderOwner
         this.streamingDiagnosticsProvider = streamingDiagnosticsProvider;
     }
 
-    static PlaybackBufferingDiagnosticsRecorderOwner fromStreamingDiagnosticsProvider(
-            Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider
-    ) {
-        return new PlaybackBufferingDiagnosticsRecorderOwner(streamingDiagnosticsProvider);
-    }
-
     @Override
     public void record(PlaybackStateSnapshot snapshot) {
         PlaybackStreamingDiagnostics diagnostics = streamingDiagnosticsProvider == null
