@@ -6823,8 +6823,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueOwner.contains("fun canSkipFailedTrack(failed: Track?): Boolean"));
         assertFalse(queueStateOwner.contains("PlaybackErrorRecoveryCommandOwner.FailedTrackPolicy"));
         assertFalse(queueStateOwner.contains("public boolean canSkipFailedTrack("));
-        assertTrue(queueStateOwner.contains("boolean canSkipFailedTrack("));
-        assertTrue(queueStateOwner.contains("failed != null && failed.id != -1L && queueStateSnapshot().getHasMultipleTracks()"));
+        assertFalse(queueStateOwner.contains("boolean canSkipFailedTrack("));
+        assertFalse(queueStateOwner.contains("failed != null && failed.id != -1L && queueStateSnapshot().getHasMultipleTracks()"));
         assertFalse(owner.contains("fun queueSize(): Int"));
         assertFalse(owner.contains("actions.queueSize() > 1"));
         assertTrue(owner.contains("fun onPlaybackReady()"));

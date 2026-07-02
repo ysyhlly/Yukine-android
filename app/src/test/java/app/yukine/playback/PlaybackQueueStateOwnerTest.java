@@ -74,20 +74,6 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     @Test
-    public void failedTrackPolicyUsesQueueStateSnapshot() {
-        Track failed = track(7L);
-        PlaybackQueueStateOwner missingQueue = new PlaybackQueueStateOwner(null);
-        PlaybackQueueStateOwner singleTrack = ownerForTracks(failed);
-        PlaybackQueueStateOwner multipleTracks = ownerForTracks(failed, track(8L));
-
-        assertFalse(missingQueue.canSkipFailedTrack(failed));
-        assertFalse(multipleTracks.canSkipFailedTrack(null));
-        assertFalse(multipleTracks.canSkipFailedTrack(track(-1L)));
-        assertFalse(singleTrack.canSkipFailedTrack(failed));
-        assertTrue(multipleTracks.canSkipFailedTrack(failed));
-    }
-
-    @Test
     public void returnsEmptyQueueSnapshotWhenManagerIsMissing() {
         PlaybackQueueStateOwner missingManagerProvider =
                 new PlaybackQueueStateOwner(null);
@@ -133,12 +119,6 @@ public class PlaybackQueueStateOwnerTest {
             actualIds.add(track.id);
         }
         assertEquals(expectedIds, actualIds);
-    }
-
-    private static PlaybackQueueStateOwner ownerForTracks(Track... tracks) {
-        PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
-        queueManager.playQueue(Arrays.asList(tracks), 0, -1L);
-        return new PlaybackQueueStateOwner(() -> queueManager);
     }
 
     private static PlaybackQueueManager playbackQueueManager(
