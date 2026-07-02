@@ -293,7 +293,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 stopAfterAutomaticAdvance(transition.getCompletedIndex());
                 return;
             }
-            Track track = currentTrack();
+            Track track = playbackQueueStateOwner.currentTrack();
             if (track != null) {
                 resetWaveformIfTrackChanged(track);
             }
@@ -323,7 +323,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 return;
             }
             Log.w(TAG, "Playback failed for "
-                    + playbackErrorRecoveryCommandOwner.debugTrack(currentTrack()), error);
+                    + playbackErrorRecoveryCommandOwner.debugTrack(playbackQueueStateOwner.currentTrack()), error);
             playbackErrorRecoveryCommandOwner.setErrorMessage("Unable to play this track.");
             publishState();
         }
@@ -363,7 +363,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         recordPlaybackStartHistoryAction = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 playbackPlayHistoryRecorder,
                 () -> player != null && player.getPlayWhenReady(),
-                this::currentTrack
+                playbackQueueStateOwner::currentTrack
         );
         playbackPositionManager = new PlaybackPositionManager(
                 queueStore,
@@ -873,7 +873,7 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     public void play() {
         if (player == null) {
-            if (currentTrack() != null) {
+            if (playbackQueueStateOwner.currentTrack() != null) {
                 prepareCurrent(true);
             } else {
                 playFirstQueuedTrack();
@@ -883,7 +883,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackCurrentTrackPreparationRuntimeOwner.preparing()) {
             return;
         }
-        Track track = currentTrack();
+        Track track = playbackQueueStateOwner.currentTrack();
         if (track == null) {
             playFirstQueuedTrack();
             return;
@@ -982,7 +982,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void toggleCurrentFavorite() {
-        Track track = currentTrack();
+        Track track = playbackQueueStateOwner.currentTrack();
         if (toggleFavoriteUseCase != null && toggleFavoriteUseCase.toggle(track)) {
             publishState();
         }
@@ -1111,7 +1111,7 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     @OptIn(markerClass = UnstableApi.class)
     private void prepareCurrent(final boolean playWhenReady) {
-        Track track = currentTrack();
+        Track track = playbackQueueStateOwner.currentTrack();
         if (track == null) {
             return;
         }
@@ -1410,10 +1410,6 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     private int pendingIntentFlags() {
         return PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
-    }
-
-    private Track currentTrack() {
-        return playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack();
     }
 
     private boolean isPlaying() {
