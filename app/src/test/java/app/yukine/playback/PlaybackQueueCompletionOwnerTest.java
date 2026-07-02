@@ -121,7 +121,7 @@ public class PlaybackQueueCompletionOwnerTest {
                 endRuntime
         );
 
-        assertTrue(owner(endManager, null).prepareStopAtEndOfQueue());
+        owner(endManager, null).prepareStopAtEndOfQueue();
         assertFalse(endRuntime.preparing());
         assertEquals("", endRuntime.errorMessage());
         assertEquals(Collections.singletonList(false), endStore.savedResumeRequestedValues);
@@ -152,9 +152,13 @@ public class PlaybackQueueCompletionOwnerTest {
         owner.playAfterCompletion();
 
         owner.prepareStopAndClearPlaybackState();
-        assertFalse(owner.prepareStopAtEndOfQueue());
+        owner.prepareStopAtEndOfQueue();
         owner.prepareStopAfterAutomaticAdvance(7);
-        assertEquals(Arrays.asList("stopAndClear", "prepareStopAndClearFallback"), events);
+        assertEquals(Arrays.asList(
+                "stopAndClear",
+                "prepareStopAndClearFallback",
+                "prepareStopAtEndFallback"
+        ), events);
     }
 
     @Test
@@ -390,6 +394,11 @@ public class PlaybackQueueCompletionOwnerTest {
         @Override
         public void prepareStopAndClearFallbackState() {
             events.add("prepareStopAndClearFallback");
+        }
+
+        @Override
+        public void prepareStopAtEndFallbackState() {
+            events.add("prepareStopAtEndFallback");
         }
     }
 }

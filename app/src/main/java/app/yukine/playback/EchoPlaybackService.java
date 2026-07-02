@@ -170,6 +170,16 @@ public final class EchoPlaybackService extends MediaLibraryService
                             playbackErrorRecoveryCommandOwner.setErrorMessage("");
                             playbackTransitionStateManager.clear();
                         }
+
+                        @Override
+                        public void prepareStopAtEndFallbackState() {
+                            if (playbackPositionManager != null) {
+                                playbackPositionManager.clearRestoredPosition();
+                            }
+                            playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false);
+                            playbackErrorRecoveryCommandOwner.setErrorMessage("");
+                            playbackTransitionStateManager.setLastMarkedTrack(null);
+                        }
                     }
             );
     private final PlaybackRuntimeStateManager playbackRuntimeStateManager =
@@ -1241,14 +1251,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     private void stopAtEndOfQueue() {
-        if (!playbackQueueCompletionOwner.prepareStopAtEndOfQueue()) {
-            if (playbackPositionManager != null) {
-                playbackPositionManager.clearRestoredPosition();
-            }
-            playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false);
-            playbackErrorRecoveryCommandOwner.setErrorMessage("");
-            playbackTransitionStateManager.setLastMarkedTrack(null);
-        }
+        playbackQueueCompletionOwner.prepareStopAtEndOfQueue();
         playbackProgressUpdateCommandOwner.stopProgressUpdates();
         if (player == null) {
             createPlayerIfNeeded();
