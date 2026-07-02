@@ -6233,7 +6233,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mirroredTransitionOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertTrue(mirroredTransitionOwner.contains("private final BooleanSupplier playerMirrorsQueue;"));
         assertFalse(mirroredTransitionOwner.contains("private final BooleanSupplier queueEmpty;"));
-        assertTrue(mirroredTransitionOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
+        assertFalse(mirroredTransitionOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
+        assertFalse(mirroredTransitionOwner.contains("QueueStateProvider queueStateProvider"));
+        assertTrue(mirroredTransitionOwner.contains("PlaybackQueueManager playbackQueueManager = playbackQueueManager();"));
         assertTrue(mirroredTransitionOwner.contains("return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;"));
         assertTrue(mirroredTransitionOwner.contains("boolean canApplyMirroredTransition()"));
         assertTrue(mirroredTransitionOwner.contains("PlaybackQueueManager.MirroredTransitionResult applyMirroredTransitionReason("));

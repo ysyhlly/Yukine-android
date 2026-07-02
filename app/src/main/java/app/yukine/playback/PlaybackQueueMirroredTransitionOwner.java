@@ -11,24 +11,20 @@ final class PlaybackQueueMirroredTransitionOwner {
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
     private final Runnable currentTrackVolumeApplier;
     private final BooleanSupplier playerMirrorsQueue;
-    private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;
 
     PlaybackQueueMirroredTransitionOwner(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             Runnable currentTrackVolumeApplier,
-            BooleanSupplier playerMirrorsQueue,
-            PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider
+            BooleanSupplier playerMirrorsQueue
     ) {
         this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
         this.currentTrackVolumeApplier = currentTrackVolumeApplier;
         this.playerMirrorsQueue = playerMirrorsQueue;
-        this.queueStateProvider = queueStateProvider;
     }
 
     boolean canApplyMirroredTransition() {
         boolean mirrorsQueue = playerMirrorsQueue == null || playerMirrorsQueue.getAsBoolean();
-        boolean emptyQueue = queueStateProvider != null
-                && queueStateSnapshot().isQueueEmpty();
+        boolean emptyQueue = queueStateSnapshot().isQueueEmpty();
         return mirrorsQueue && !emptyQueue;
     }
 
@@ -62,9 +58,10 @@ final class PlaybackQueueMirroredTransitionOwner {
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider == null
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
                 ? null
-                : queueStateProvider.queueStateSnapshot();
+                : playbackQueueManager.queueStateSnapshot();
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 }

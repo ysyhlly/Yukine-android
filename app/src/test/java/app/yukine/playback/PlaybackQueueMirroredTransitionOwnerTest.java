@@ -46,7 +46,6 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
                 new PlaybackQueueMirroredTransitionOwner(
                         () -> queueManager,
                         () -> events.add("applyVolume"),
-                        null,
                         null
                 );
 
@@ -84,7 +83,6 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
                 new PlaybackQueueMirroredTransitionOwner(
                         () -> queueManager,
                         () -> events.add("applyVolume"),
-                        null,
                         null
                 );
 
@@ -113,14 +111,12 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
                 new PlaybackQueueMirroredTransitionOwner(
                         null,
                         () -> events.add("applyVolume"),
-                        null,
                         null
                 );
         PlaybackQueueMirroredTransitionOwner missingManager =
                 new PlaybackQueueMirroredTransitionOwner(
                         () -> null,
                         () -> events.add("applyVolume"),
-                        null,
                         null
                 );
 
@@ -148,7 +144,6 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
                 new PlaybackQueueMirroredTransitionOwner(
                         () -> queueManager,
                         null,
-                        null,
                         null
                 );
 
@@ -170,16 +165,27 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
 
     @Test
     public void canApplyMirroredTransitionRequiresMirroredNonEmptyQueue() {
+        PlaybackQueueManager readyManager = queueManager(
+                new FakeQueueStore(new ArrayList<>()),
+                new RecordingStreamingRestoreProvider(new ArrayList<>()),
+                REPEAT_OFF
+        );
+        readyManager.playQueue(Collections.singletonList(track(1L)), 0, 0L);
+        PlaybackQueueManager emptyManager = queueManager(
+                new FakeQueueStore(new ArrayList<>()),
+                new RecordingStreamingRestoreProvider(new ArrayList<>()),
+                REPEAT_OFF
+        );
         PlaybackQueueMirroredTransitionOwner missingStateOwner =
-                new PlaybackQueueMirroredTransitionOwner(null, null, null, null);
+                new PlaybackQueueMirroredTransitionOwner(null, null, null);
         PlaybackQueueMirroredTransitionOwner readyOwner =
-                new PlaybackQueueMirroredTransitionOwner(null, null, () -> true, queueStateProvider(false));
+                new PlaybackQueueMirroredTransitionOwner(() -> readyManager, null, () -> true);
         PlaybackQueueMirroredTransitionOwner notMirroredOwner =
-                new PlaybackQueueMirroredTransitionOwner(null, null, () -> false, queueStateProvider(false));
+                new PlaybackQueueMirroredTransitionOwner(() -> readyManager, null, () -> false);
         PlaybackQueueMirroredTransitionOwner emptyQueueOwner =
-                new PlaybackQueueMirroredTransitionOwner(null, null, () -> true, queueStateProvider(true));
+                new PlaybackQueueMirroredTransitionOwner(() -> emptyManager, null, () -> true);
 
-        assertTrue(missingStateOwner.canApplyMirroredTransition());
+        assertFalse(missingStateOwner.canApplyMirroredTransition());
         assertTrue(readyOwner.canApplyMirroredTransition());
         assertFalse(notMirroredOwner.canApplyMirroredTransition());
         assertFalse(emptyQueueOwner.canApplyMirroredTransition());
@@ -251,14 +257,6 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
                 1000L,
                 null,
                 "streaming:netease:" + id
-        );
-    }
-
-    private static PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider(boolean empty) {
-        return () -> new PlaybackQueueManager.QueueStateSnapshot(
-                empty ? null : track(1L),
-                empty ? -1 : 0,
-                empty ? 0 : 1
         );
     }
 
