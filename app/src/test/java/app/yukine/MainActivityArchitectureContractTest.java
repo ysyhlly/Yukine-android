@@ -7406,13 +7406,17 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackSleepTimerCommandOwner.cancelSleepTimer(true);"));
         assertTrue(service.contains("playbackSleepTimerCommandOwner.cancelSleepTimer(false);"));
         assertTrue(commandOwner.contains("final class PlaybackSleepTimerCommandOwner implements PlaybackSleepTimerManager.Actions"));
-        assertTrue(commandOwner.contains("interface StatePublisher"));
-        assertTrue(commandOwner.contains("interface SleepTimerManagerProvider"));
+        assertFalse(commandOwner.contains("interface StatePublisher"));
+        assertFalse(commandOwner.contains("interface SleepTimerManagerProvider"));
         assertFalse(commandOwner.contains("PlaybackNotificationCommandOwner.PlaybackCommands"));
         assertFalse(commandOwner.contains("private final PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands;"));
         assertTrue(commandOwner.contains("private final Runnable pauseCommand;"));
+        assertTrue(commandOwner.contains("private final Runnable statePublisher;"));
+        assertTrue(commandOwner.contains(
+                "private final Supplier<PlaybackSleepTimerManager> sleepTimerManagerProvider;"));
         assertTrue(commandOwner.contains("pauseCommand.run();"));
-        assertTrue(commandOwner.contains("statePublisher.publishState();"));
+        assertTrue(commandOwner.contains("statePublisher.run();"));
+        assertTrue(commandOwner.contains("sleepTimerManagerProvider.get();"));
         assertTrue(commandOwner.contains("void startSleepTimerMinutes(int minutes)"));
         assertTrue(commandOwner.contains("manager.startMinutes(minutes);"));
         assertTrue(commandOwner.contains("void cancelSleepTimer(boolean publish)"));

@@ -2,30 +2,24 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackSleepTimerManager;
 
+import java.util.function.Supplier;
+
 final class PlaybackSleepTimerCommandOwner implements PlaybackSleepTimerManager.Actions {
-    interface StatePublisher {
-        void publishState();
-    }
-
-    interface SleepTimerManagerProvider {
-        PlaybackSleepTimerManager playbackSleepTimerManager();
-    }
-
     private final Runnable pauseCommand;
-    private final StatePublisher statePublisher;
-    private final SleepTimerManagerProvider sleepTimerManagerProvider;
+    private final Runnable statePublisher;
+    private final Supplier<PlaybackSleepTimerManager> sleepTimerManagerProvider;
 
     PlaybackSleepTimerCommandOwner(
             Runnable pauseCommand,
-            StatePublisher statePublisher
+            Runnable statePublisher
     ) {
         this(pauseCommand, statePublisher, null);
     }
 
     PlaybackSleepTimerCommandOwner(
             Runnable pauseCommand,
-            StatePublisher statePublisher,
-            SleepTimerManagerProvider sleepTimerManagerProvider
+            Runnable statePublisher,
+            Supplier<PlaybackSleepTimerManager> sleepTimerManagerProvider
     ) {
         this.pauseCommand = pauseCommand;
         this.statePublisher = statePublisher;
@@ -39,7 +33,7 @@ final class PlaybackSleepTimerCommandOwner implements PlaybackSleepTimerManager.
 
     @Override
     public void publishState() {
-        statePublisher.publishState();
+        statePublisher.run();
     }
 
     void cancelSleepTimer(boolean publish) {
@@ -64,6 +58,6 @@ final class PlaybackSleepTimerCommandOwner implements PlaybackSleepTimerManager.
     private PlaybackSleepTimerManager sleepTimerManager() {
         return sleepTimerManagerProvider == null
                 ? null
-                : sleepTimerManagerProvider.playbackSleepTimerManager();
+                : sleepTimerManagerProvider.get();
     }
 }
