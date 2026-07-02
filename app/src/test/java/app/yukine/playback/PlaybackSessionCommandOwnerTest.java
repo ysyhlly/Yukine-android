@@ -12,8 +12,10 @@ import java.util.Collections;
 import java.util.List;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -31,7 +33,7 @@ public class PlaybackSessionCommandOwnerTest {
                     events.add("controllerItems:" + mediaItems.size() + ":" + startIndex + ":" + startPositionMs);
                     return true;
                 },
-                () -> track,
+                () -> new PlaybackQueueManager.QueueStateSnapshot(track, 0, 1),
                 requestedTrack -> {
                     events.add("metadata:" + requestedTrack.id);
                     return metadata;
@@ -63,6 +65,22 @@ public class PlaybackSessionCommandOwnerTest {
                 ),
                 events
         );
+    }
+
+    @Test
+    public void missingQueueStateReturnsNoCurrentTrack() {
+        PlaybackSessionCommandOwner owner = new PlaybackSessionCommandOwner(
+                new FakePlaybackCommands(new ArrayList<>()),
+                positionMs -> {
+                },
+                repeatMode -> {
+                },
+                (mediaItems, startIndex, startPositionMs) -> false,
+                () -> null,
+                track -> null
+        );
+
+        assertNull(owner.currentTrack());
     }
 
     private static Track track(long id) {

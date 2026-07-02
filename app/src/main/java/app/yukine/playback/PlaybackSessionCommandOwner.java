@@ -6,6 +6,7 @@ import androidx.media3.common.MediaMetadata;
 import java.util.List;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackSessionPlayer;
 
 final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegate {
@@ -21,10 +22,6 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
         boolean setControllerMediaItems(List<MediaItem> mediaItems, int startIndex, long startPositionMs);
     }
 
-    interface StateProvider {
-        Track currentTrack();
-    }
-
     interface MetadataProvider {
         MediaMetadata mediaMetadataForTrack(Track track);
     }
@@ -33,7 +30,7 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
     private final SeekController seekController;
     private final RepeatModeController repeatModeController;
     private final ControllerMediaItems controllerMediaItems;
-    private final StateProvider stateProvider;
+    private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;
     private final MetadataProvider metadataProvider;
 
     PlaybackSessionCommandOwner(
@@ -41,14 +38,14 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
             SeekController seekController,
             RepeatModeController repeatModeController,
             ControllerMediaItems controllerMediaItems,
-            StateProvider stateProvider,
+            PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider,
             MetadataProvider metadataProvider
     ) {
         this.playbackCommands = playbackCommands;
         this.seekController = seekController;
         this.repeatModeController = repeatModeController;
         this.controllerMediaItems = controllerMediaItems;
-        this.stateProvider = stateProvider;
+        this.queueStateProvider = queueStateProvider;
         this.metadataProvider = metadataProvider;
     }
 
@@ -94,11 +91,19 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
 
     @Override
     public Track currentTrack() {
-        return stateProvider.currentTrack();
+        return queueStateSnapshot().getCurrentTrack();
     }
 
     @Override
     public MediaMetadata mediaMetadataForTrack(Track track) {
         return metadataProvider.mediaMetadataForTrack(track);
+    }
+
+    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
+        if (queueStateProvider == null) {
+            return PlaybackQueueManager.QueueStateSnapshot.empty();
+        }
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.queueStateSnapshot();
+        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 }

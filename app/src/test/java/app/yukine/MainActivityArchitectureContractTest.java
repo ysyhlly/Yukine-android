@@ -7534,6 +7534,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("private PlaybackSessionCommandOwner playbackSessionCommandOwner;"));
         assertTrue(service.contains("playbackSessionCommandOwner = new PlaybackSessionCommandOwner("));
         assertTrue(service.contains("return new PlaybackSessionPlayer(player, playbackSessionCommandOwner);"));
+        assertTrue(service.contains(
+                "                    playbackQueueStateOwner,\n" +
+                        "                    playbackNotificationManager::mediaMetadataForTrack"));
+        assertFalse(service.contains(
+                "                    playbackQueueStateOwner::currentTrack,\n" +
+                        "                    playbackNotificationManager::mediaMetadataForTrack"));
         assertTrue(service.contains("playbackSessionManager.bind()"));
         assertTrue(service.contains("playbackSessionManager.release()"));
         assertFalse(service.contains("playbackSessionManager.refreshPlayer()"));
@@ -7556,6 +7562,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(notificationArtworkBridgeOwner.contains("sessionOperations.refreshPlayer();"));
         assertTrue(commandOwner.contains("final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegate"));
         assertTrue(commandOwner.contains("interface ControllerMediaItems"));
+        assertFalse(commandOwner.contains("interface StateProvider"));
+        assertFalse(commandOwner.contains("stateProvider.currentTrack()"));
+        assertTrue(commandOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
+        assertTrue(commandOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertTrue(commandOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.queueStateSnapshot();"));
         assertTrue(commandOwner.contains("playbackCommands.skipToNext();"));
         assertTrue(commandOwner.contains("controllerMediaItems.setControllerMediaItems(mediaItems, startIndex, startPositionMs)"));
         assertTrue(commandOwner.contains("metadataProvider.mediaMetadataForTrack(track)"));
