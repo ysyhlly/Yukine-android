@@ -3,7 +3,6 @@ package app.yukine.playback
 import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackWifiLockManager
-import app.yukine.playback.manager.PlaybackQueueManager
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -16,7 +15,7 @@ class PlaybackWifiLockManagerTest {
     @Test
     fun acquireIfStreamingAcquiresForHttpCurrentTrack() {
         val lock = FakeLock()
-        val provider = queueStateProvider(track("https://example.com/song.mp3"))
+        val provider = currentTrackProvider(track("https://example.com/song.mp3"))
         val manager = PlaybackWifiLockManager(lock, provider, httpTrackPredicate())
 
         manager.acquireIfStreaming()
@@ -28,14 +27,14 @@ class PlaybackWifiLockManagerTest {
     @Test
     fun acquireIfStreamingSkipsNonStreamingOrUnavailableLock() {
         val fileLock = FakeLock()
-        PlaybackWifiLockManager(fileLock, queueStateProvider(track("file:///music/song.mp3")), httpTrackPredicate())
+        PlaybackWifiLockManager(fileLock, currentTrackProvider(track("file:///music/song.mp3")), httpTrackPredicate())
             .acquireIfStreaming()
 
         val noTrackLock = FakeLock()
-        PlaybackWifiLockManager(noTrackLock, queueStateProvider(null), httpTrackPredicate())
+        PlaybackWifiLockManager(noTrackLock, currentTrackProvider(null), httpTrackPredicate())
             .acquireIfStreaming()
 
-        PlaybackWifiLockManager(null, queueStateProvider(track("https://example.com/song.mp3")), httpTrackPredicate())
+        PlaybackWifiLockManager(null, currentTrackProvider(track("https://example.com/song.mp3")), httpTrackPredicate())
             .acquireIfStreaming()
 
         assertEquals(0, fileLock.acquireCalls)
@@ -45,7 +44,7 @@ class PlaybackWifiLockManagerTest {
     @Test
     fun acquireIfStreamingDoesNotAcquireTwiceWhenHeld() {
         val lock = FakeLock(held = true)
-        val manager = PlaybackWifiLockManager(lock, queueStateProvider(track("https://example.com/song.mp3")), httpTrackPredicate())
+        val manager = PlaybackWifiLockManager(lock, currentTrackProvider(track("https://example.com/song.mp3")), httpTrackPredicate())
 
         manager.acquireIfStreaming()
 
@@ -63,10 +62,10 @@ class PlaybackWifiLockManagerTest {
     @Test
     fun releaseOnlyReleasesHeldLock() {
         val heldLock = FakeLock(held = true)
-        PlaybackWifiLockManager(heldLock, queueStateProvider(null), httpTrackPredicate()).release()
+        PlaybackWifiLockManager(heldLock, currentTrackProvider(null), httpTrackPredicate()).release()
 
         val releasedLock = FakeLock(held = false)
-        PlaybackWifiLockManager(releasedLock, queueStateProvider(null), httpTrackPredicate()).release()
+        PlaybackWifiLockManager(releasedLock, currentTrackProvider(null), httpTrackPredicate()).release()
 
         assertEquals(1, heldLock.releaseCalls)
         assertEquals(false, heldLock.held)
@@ -82,7 +81,7 @@ class PlaybackWifiLockManagerTest {
         action.run()
         manager = PlaybackWifiLockManager(
             lock,
-            queueStateProvider(track("https://example.com/song.mp3")),
+            currentTrackProvider(track("https://example.com/song.mp3")),
             httpTrackPredicate()
         )
         action.run()
@@ -98,7 +97,7 @@ class PlaybackWifiLockManagerTest {
         val action = PlaybackWifiLockManager.releaseAction { manager }
 
         action.run()
-        manager = PlaybackWifiLockManager(lock, queueStateProvider(null), httpTrackPredicate())
+        manager = PlaybackWifiLockManager(lock, currentTrackProvider(null), httpTrackPredicate())
         action.run()
 
         assertEquals(1, lock.releaseCalls)
@@ -123,8 +122,8 @@ class PlaybackWifiLockManagerTest {
     }
 
     private companion object {
-        fun queueStateProvider(track: Track?): Supplier<PlaybackQueueManager.QueueStateSnapshot?> {
-            return Supplier { PlaybackQueueManager.QueueStateSnapshot(track, 0, if (track == null) 0 else 1) }
+        fun currentTrackProvider(track: Track?): Supplier<Track?> {
+            return Supplier { track }
         }
 
         fun httpTrackPredicate(): Predicate<Track?> {
