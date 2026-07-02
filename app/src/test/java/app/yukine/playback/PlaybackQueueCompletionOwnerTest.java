@@ -139,7 +139,7 @@ public class PlaybackQueueCompletionOwnerTest {
     @Test
     public void missingPlaybackQueueManagerSupplierUsesStopAndClearBoundary() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueCompletionOwner owner = PlaybackQueueCompletionOwner.fromPlaybackQueueManager(
+        PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
                 null,
                 new FakeCompletionBoundary(events)
         );
@@ -171,7 +171,7 @@ public class PlaybackQueueCompletionOwnerTest {
             PlaybackQueueManager queueManager,
             PlaybackQueueCompletionOwner.CompletionBoundary boundary
     ) {
-        return PlaybackQueueCompletionOwner.fromPlaybackQueueManager(() -> queueManager, boundary);
+        return new PlaybackQueueCompletionOwner(() -> queueManager, boundary);
     }
 
     private static PlaybackQueueManager queueManagerWithTracks(

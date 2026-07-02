@@ -138,7 +138,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     private final PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner =
             new PlaybackQueuePersistenceOwner(() -> playbackQueueManager);
     private final PlaybackQueueCompletionOwner playbackQueueCompletionOwner =
-            PlaybackQueueCompletionOwner.fromPlaybackQueueManager(
+            new PlaybackQueueCompletionOwner(
                     () -> playbackQueueManager,
                     new PlaybackQueueCompletionOwner.CompletionBoundary() {
                         @Override

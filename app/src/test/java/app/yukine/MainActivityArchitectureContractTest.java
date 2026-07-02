@@ -5485,7 +5485,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackQueueStopClearOwner"));
         assertFalse(service.contains("playbackQueueStopClearOwner"));
         assertTrue(service.contains("private final PlaybackQueueCompletionOwner playbackQueueCompletionOwner"));
-        assertTrue(service.contains("PlaybackQueueCompletionOwner.fromPlaybackQueueManager("));
+        assertTrue(service.contains("new PlaybackQueueCompletionOwner("));
+        assertFalse(service.contains("PlaybackQueueCompletionOwner.fromPlaybackQueueManager("));
+        assertFalse(queueCompletionOwner.contains("static PlaybackQueueCompletionOwner fromPlaybackQueueManager("));
         assertFalse(service.contains("PlaybackQueueCompletionOwner.fromPlaybackQueueManagerProvider("));
         assertTrue(service.contains("private final PlaybackCurrentTrackReplacementOwner playbackCurrentTrackReplacementOwner"));
         assertTrue(service.contains("new PlaybackCurrentTrackReplacementOwner("));

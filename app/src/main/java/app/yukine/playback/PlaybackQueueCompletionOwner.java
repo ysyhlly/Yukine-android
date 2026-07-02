@@ -26,16 +26,6 @@ final class PlaybackQueueCompletionOwner {
         this.completionBoundary = completionBoundary;
     }
 
-    static PlaybackQueueCompletionOwner fromPlaybackQueueManager(
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            CompletionBoundary completionBoundary
-    ) {
-        return new PlaybackQueueCompletionOwner(
-                playbackQueueManagerSupplier,
-                completionBoundary
-        );
-    }
-
     void playAfterCompletion() {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         PlaybackQueueManager.PlaybackCompletionAction completionAction = playbackQueueManager == null
