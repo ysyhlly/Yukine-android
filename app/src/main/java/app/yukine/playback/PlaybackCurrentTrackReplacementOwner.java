@@ -3,25 +3,18 @@ package app.yukine.playback;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 final class PlaybackCurrentTrackReplacementOwner {
-    interface RecoveryDiagnosticsRecorder {
-        void record(PlaybackQueueManager.CurrentTrackReplacementRecovery recovery);
-    }
-
-    interface RecoveryScheduler {
-        void scheduleCurrentPlaybackRecovery(boolean playWhenReady);
-    }
-
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
-    private final RecoveryDiagnosticsRecorder recoveryDiagnosticsRecorder;
-    private final RecoveryScheduler recoveryScheduler;
+    private final Consumer<PlaybackQueueManager.CurrentTrackReplacementRecovery> recoveryDiagnosticsRecorder;
+    private final Consumer<Boolean> recoveryScheduler;
 
     PlaybackCurrentTrackReplacementOwner(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            RecoveryDiagnosticsRecorder recoveryDiagnosticsRecorder,
-            RecoveryScheduler recoveryScheduler
+            Consumer<PlaybackQueueManager.CurrentTrackReplacementRecovery> recoveryDiagnosticsRecorder,
+            Consumer<Boolean> recoveryScheduler
     ) {
         this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
         this.recoveryDiagnosticsRecorder = recoveryDiagnosticsRecorder;
@@ -30,8 +23,8 @@ final class PlaybackCurrentTrackReplacementOwner {
 
     static PlaybackCurrentTrackReplacementOwner fromPlaybackQueueManager(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            RecoveryDiagnosticsRecorder recoveryDiagnosticsRecorder,
-            RecoveryScheduler recoveryScheduler
+            Consumer<PlaybackQueueManager.CurrentTrackReplacementRecovery> recoveryDiagnosticsRecorder,
+            Consumer<Boolean> recoveryScheduler
     ) {
         return new PlaybackCurrentTrackReplacementOwner(
                 playbackQueueManagerSupplier,
@@ -51,10 +44,10 @@ final class PlaybackCurrentTrackReplacementOwner {
             return;
         }
         if (recoveryDiagnosticsRecorder != null) {
-            recoveryDiagnosticsRecorder.record(recovery);
+            recoveryDiagnosticsRecorder.accept(recovery);
         }
         if (recoveryScheduler != null) {
-            recoveryScheduler.scheduleCurrentPlaybackRecovery(recovery.getPlayWhenReady());
+            recoveryScheduler.accept(recovery.getPlayWhenReady());
         }
     }
 
