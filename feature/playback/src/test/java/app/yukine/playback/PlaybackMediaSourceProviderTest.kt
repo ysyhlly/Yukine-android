@@ -100,6 +100,26 @@ class PlaybackMediaSourceProviderTest {
     }
 
     @Test
+    fun providerMediaItemForUnresolvedStreamingTrackKeepsPlaceholderCacheKeyWithoutResolvedUrl() {
+        val track = Track(42L, "Stream", "Artist", "Album", 180_000L, Uri.EMPTY, "streaming:netease:42")
+
+        val mediaItem = provider(FakeStreamingPlaybackHeaderStore()).mediaItemForTrack(track) {
+            MediaMetadata.Builder().setTitle(it.title).build()
+        }
+
+        assertEquals("42", mediaItem.mediaId)
+        assertEquals(Uri.EMPTY, mediaItem.localConfiguration?.uri)
+        assertEquals("streaming:netease:42", mediaItem.localConfiguration?.customCacheKey)
+        assertEquals("Stream", mediaItem.mediaMetadata.title.toString())
+        assertEquals("streaming:netease:42", PlaybackMediaSourceProvider.mediaCacheKey(track))
+        assertFalse(PlaybackMediaSourceProvider.hasPlayableMediaUri(track))
+        assertEquals(
+            "Streaming track is not resolved yet. Tap the track again to play.",
+            PlaybackMediaSourceProvider.unplayableMessageForTrack(track)
+        )
+    }
+
+    @Test
     fun providerMediaCacheKeyForTrackUsesOwnedStreamingWebDavAndLocalRules() {
         val provider = provider(FakeStreamingPlaybackHeaderStore())
         val streaming = Track(
