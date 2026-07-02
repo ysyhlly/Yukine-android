@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -25,8 +26,8 @@ public class PlaybackVisualizationCacheStateOwnerTest {
                     return null;
                 },
                 () -> {
-                    events.add("track");
-                    return track;
+                    events.add("queueState");
+                    return new PlaybackQueueManager.QueueStateSnapshot(track, 0, 1);
                 },
                 scheduled -> {
                     events.add("schedule");
@@ -40,10 +41,29 @@ public class PlaybackVisualizationCacheStateOwnerTest {
         assertEquals(
                 java.util.Arrays.asList(
                         "handler",
-                        "track",
+                        "queueState",
                         "schedule"
                 ),
                 events
         );
+    }
+
+    @Test
+    public void returnsNullCurrentTrackWhenQueueStateIsMissing() {
+        PlaybackVisualizationCacheStateOwner missingProviderOwner = new PlaybackVisualizationCacheStateOwner(
+                () -> null,
+                null,
+                task -> {
+                }
+        );
+        PlaybackVisualizationCacheStateOwner nullSnapshotOwner = new PlaybackVisualizationCacheStateOwner(
+                () -> null,
+                () -> null,
+                task -> {
+                }
+        );
+
+        assertNull(missingProviderOwner.currentTrack());
+        assertNull(nullSnapshotOwner.currentTrack());
     }
 }

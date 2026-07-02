@@ -1623,6 +1623,7 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void playbackStartDefersHeavyVisualizationWork() throws Exception {
         String playbackService = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String normalizedPlaybackService = playbackService.replace("\r\n", "\n");
         String playerStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackPlayerStateOwner.java");
         String visualizationAnalyzer = read("app/src/main/java/app/yukine/playback/PlaybackVisualizationAnalyzer.kt");
         String visualizationStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackVisualizationStateOwner.java");
@@ -1700,6 +1701,16 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("private PlaybackVisualizationCacheStateOwner playbackVisualizationCacheStateOwner;"));
         assertTrue(playbackService.contains("PlaybackVisualizationCacheStateOwner playbackVisualizationCacheStateOwner ="));
         assertTrue(playbackService.contains("new PlaybackVisualizationCacheStateOwner("));
+        String normalizedVisualizationCacheStateWiring = normalizedPlaybackService.substring(
+                normalizedPlaybackService.indexOf(
+                        "PlaybackVisualizationCacheStateOwner playbackVisualizationCacheStateOwner ="
+                ),
+                normalizedPlaybackService.indexOf(
+                        "        playbackVisualizationCacheManager = new PlaybackVisualizationCacheManager("
+                )
+        );
+        assertTrue(normalizedVisualizationCacheStateWiring.contains("                        playbackQueueStateOwner,\n"));
+        assertFalse(normalizedVisualizationCacheStateWiring.contains("playbackQueueStateOwner::currentTrack"));
         assertTrue(playbackService.contains("playbackVisualizationCacheManager = new PlaybackVisualizationCacheManager("));
         assertTrue(playbackService.contains("                playbackVisualizationCacheStateOwner,"));
         assertFalse(playbackService.contains("new PlaybackVisualizationCacheManager.StateProvider()"));
@@ -1804,10 +1815,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(visualizationCacheManager.contains("mediaSourceProvider.cacheDataSourceForTrack(track)"));
         assertTrue(visualizationCacheStateOwner.contains("final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizationCacheManager.StateProvider"));
         assertTrue(visualizationCacheStateOwner.contains("interface MainHandlerProvider"));
-        assertTrue(visualizationCacheStateOwner.contains("interface CurrentTrackProvider"));
+        assertFalse(visualizationCacheStateOwner.contains("interface CurrentTrackProvider"));
         assertTrue(visualizationCacheStateOwner.contains("interface CacheTaskScheduler"));
+        assertTrue(visualizationCacheStateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
+        assertTrue(visualizationCacheStateOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
         assertTrue(visualizationCacheStateOwner.contains("return mainHandlerProvider.mainHandler();"));
-        assertTrue(visualizationCacheStateOwner.contains("return currentTrackProvider.currentTrack();"));
+        assertTrue(visualizationCacheStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertTrue(visualizationCacheStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
+        assertFalse(visualizationCacheStateOwner.contains("return currentTrackProvider.currentTrack();"));
         assertTrue(visualizationCacheStateOwner.contains("cacheTaskScheduler.scheduleVisualizationCacheTask(task);"));
         assertFalse(visualizationCacheManager.contains("boolean isHttpUri(Uri uri);"));
         assertFalse(visualizationCacheManager.contains("String cacheKeyForTrack(Track track);"));
