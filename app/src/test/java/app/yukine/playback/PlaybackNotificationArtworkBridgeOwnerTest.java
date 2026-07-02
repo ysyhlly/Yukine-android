@@ -31,6 +31,36 @@ public class PlaybackNotificationArtworkBridgeOwnerTest {
         owner.updateMediaNotification();
     }
 
+    @Test
+    public void sessionRefresherUsesCurrentSessionOperations() {
+        MutableSessionOperationsSource source = new MutableSessionOperationsSource();
+        FakeSessionOperations first = new FakeSessionOperations();
+        FakeSessionOperations second = new FakeSessionOperations();
+        PlaybackNotificationArtworkBridgeOwner.SessionRefresher refresher =
+                PlaybackNotificationArtworkBridgeOwner.sessionRefresherFromSessionOperations(
+                        source::sessionOperations
+                );
+
+        source.sessionOperations = first;
+        refresher.refreshPlaybackSession();
+        source.sessionOperations = second;
+        refresher.refreshPlaybackSession();
+
+        assertEquals(1, first.refreshPlayerCalls);
+        assertEquals(1, second.refreshPlayerCalls);
+    }
+
+    @Test
+    public void sessionRefresherIgnoresMissingSessionOperations() {
+        PlaybackNotificationArtworkBridgeOwner.SessionRefresher nullSupplierRefresher =
+                PlaybackNotificationArtworkBridgeOwner.sessionRefresherFromSessionOperations(null);
+        PlaybackNotificationArtworkBridgeOwner.SessionRefresher missingSessionRefresher =
+                PlaybackNotificationArtworkBridgeOwner.sessionRefresherFromSessionOperations(() -> null);
+
+        nullSupplierRefresher.refreshPlaybackSession();
+        missingSessionRefresher.refreshPlaybackSession();
+    }
+
     private static final class FakeSessionRefresher
             implements PlaybackNotificationArtworkBridgeOwner.SessionRefresher {
         private int refreshCalls;
@@ -38,6 +68,24 @@ public class PlaybackNotificationArtworkBridgeOwnerTest {
         @Override
         public void refreshPlaybackSession() {
             refreshCalls++;
+        }
+    }
+
+    private static final class MutableSessionOperationsSource {
+        private FakeSessionOperations sessionOperations;
+
+        public PlaybackNotificationArtworkBridgeOwner.SessionOperations sessionOperations() {
+            return sessionOperations;
+        }
+    }
+
+    private static final class FakeSessionOperations
+            implements PlaybackNotificationArtworkBridgeOwner.SessionOperations {
+        private int refreshPlayerCalls;
+
+        @Override
+        public void refreshPlayer() {
+            refreshPlayerCalls++;
         }
     }
 

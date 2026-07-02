@@ -1602,7 +1602,6 @@ public final class MainActivityArchitectureContractTest {
         String notificationArtworkBridgeOwner = read(
                 "app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkBridgeOwner.java"
         );
-        String sessionRefreshOwner = read("app/src/main/java/app/yukine/playback/PlaybackSessionRefreshOwner.java");
         String normalizedNotificationArtworkManager = notificationArtworkManager.replace("\r\n", "\n");
 
         assertFalse(playbackService.contains("PLAYBACK_VISUALIZATION_CACHE_DELAY_MS"));
@@ -1666,11 +1665,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackService.contains("playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager("));
         assertFalse(playbackService.contains("new PlaybackNotificationArtworkManager.NotificationBridge()"));
         assertTrue(playbackService.contains("new PlaybackNotificationArtworkBridgeOwner("));
-        assertTrue(playbackService.contains("                        playbackSessionRefreshOwner,"));
+        assertTrue(playbackService.contains("                        playbackSessionRefresher,"));
         assertTrue(playbackService.contains("                        playbackNotificationCommandOwner::publishPlaybackNotification"));
         assertFalse(playbackService.contains("                        EchoPlaybackService.this::publishPlaybackNotification"));
-        assertTrue(playbackService.contains("private PlaybackSessionRefreshOwner playbackSessionRefreshOwner;"));
-        assertTrue(playbackService.contains("playbackSessionRefreshOwner = PlaybackSessionRefreshOwner.fromPlaybackSessionManager("));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackSessionRefreshOwner.java")));
+        assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackSessionRefreshOwnerTest.java")));
+        assertFalse(playbackService.contains("PlaybackSessionRefreshOwner"));
+        assertFalse(playbackService.contains("playbackSessionRefreshOwner"));
+        assertTrue(playbackService.contains("private PlaybackNotificationArtworkBridgeOwner.SessionRefresher playbackSessionRefresher;"));
+        assertTrue(playbackService.contains(
+                "playbackSessionRefresher = PlaybackNotificationArtworkBridgeOwner.sessionRefresherFromPlaybackSessionManager("));
         assertFalse(playbackService.contains("private void refreshPlaybackSession()"));
         assertTrue(playbackService.contains("postponePlaybackVisualizationWarmup();"));
         assertTrue(playbackService.contains("private PlaybackStateSnapshotOwner playbackStateSnapshotOwner;"));
@@ -1790,20 +1794,18 @@ public final class MainActivityArchitectureContractTest {
                 "final class PlaybackNotificationArtworkBridgeOwner"));
         assertTrue(notificationArtworkBridgeOwner.contains(
                 "implements PlaybackNotificationArtworkManager.NotificationBridge"));
-        assertTrue(notificationArtworkBridgeOwner.contains("interface SessionRefresher"));
+        assertTrue(notificationArtworkBridgeOwner.contains(
+                "interface SessionRefresher extends PlaybackNotificationManager.SessionRefresher"));
+        assertTrue(notificationArtworkBridgeOwner.contains("interface SessionOperations"));
+        assertTrue(notificationArtworkBridgeOwner.contains(
+                "static SessionRefresher sessionRefresherFromPlaybackSessionManager("));
+        assertTrue(notificationArtworkBridgeOwner.contains(
+                "static SessionRefresher sessionRefresherFromSessionOperations("));
         assertTrue(notificationArtworkBridgeOwner.contains("interface NotificationUpdater"));
+        assertTrue(notificationArtworkBridgeOwner.contains("return manager == null ? null : manager::refreshPlayer;"));
+        assertTrue(notificationArtworkBridgeOwner.contains("sessionOperations.refreshPlayer();"));
         assertTrue(notificationArtworkBridgeOwner.contains("sessionRefresher.refreshPlaybackSession();"));
         assertTrue(notificationArtworkBridgeOwner.contains("notificationUpdater.updateMediaNotification(true);"));
-        assertTrue(sessionRefreshOwner.contains("final class PlaybackSessionRefreshOwner"));
-        assertTrue(sessionRefreshOwner.contains("implements PlaybackNotificationArtworkBridgeOwner.SessionRefresher"));
-        assertTrue(sessionRefreshOwner.contains("PlaybackNotificationManager.SessionRefresher"));
-        assertTrue(sessionRefreshOwner.contains("import java.util.function.Supplier;"));
-        assertTrue(sessionRefreshOwner.contains("Supplier<PlaybackSessionManager> playbackSessionManagerSupplier"));
-        assertFalse(sessionRefreshOwner.contains("interface PlaybackSessionManagerProvider"));
-        assertFalse(sessionRefreshOwner.contains("interface SessionOperationsProvider"));
-        assertFalse(sessionRefreshOwner.contains("PlaybackSessionManager playbackSessionManager();"));
-        assertTrue(sessionRefreshOwner.contains("manager::refreshPlayer"));
-        assertTrue(sessionRefreshOwner.contains("sessionOperations.refreshPlayer();"));
         assertFalse(normalizedNotificationArtworkManager.contains("interface StateProvider {\n        Track currentTrack();\n        void refreshPlaybackSession();"));
         assertFalse(normalizedNotificationArtworkManager.contains("interface StateProvider {\n        Track currentTrack();\n        void updateMediaNotification();"));
         assertTrue(notificationArtworkManager.contains("Bitmap notificationArtworkFor(Track track)"));
@@ -5092,7 +5094,9 @@ public final class MainActivityArchitectureContractTest {
         String lyricsOwner = read("app/src/main/java/app/yukine/playback/manager/PlaybackLyricsManager.kt");
         String lyricsStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackLyricsStateOwner.java");
         String lyricsSettingsStore = read("app/src/main/java/app/yukine/playback/PlaybackLyricsSettingsStore.java");
-        String sessionRefreshOwner = read("app/src/main/java/app/yukine/playback/PlaybackSessionRefreshOwner.java");
+        String notificationArtworkBridgeOwner = read(
+                "app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkBridgeOwner.java"
+        );
         String actionOwner = read("app/src/main/java/app/yukine/playback/service/PlaybackServiceActions.java");
         String manifest = read("app/src/main/AndroidManifest.xml");
         String normalizedPlaybackService = playbackService.replace("\r\n", "\n");
@@ -5199,12 +5203,15 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(normalizedPlaybackService.contains("\n    private boolean hasNotificationWorthyState() {"));
         assertTrue(playbackService.contains("playbackNotificationManager.hasNotificationWorthyState()"));
         assertFalse(playbackService.contains("PlaybackNotificationManager.isNotificationWorthy("));
-        assertTrue(playbackService.contains("playbackNotificationManager.lyricsNotificationBridge(playbackSessionRefreshOwner)"));
+        assertTrue(playbackService.contains("playbackNotificationManager.lyricsNotificationBridge(playbackSessionRefresher)"));
         assertFalse(playbackService.contains("playbackNotificationManager.lyricsNotificationBridge(EchoPlaybackService.this::refreshPlaybackSession)"));
         assertFalse(playbackService.contains("new PlaybackLyricsManager.NotificationBridge()"));
-        assertTrue(sessionRefreshOwner.contains("implements PlaybackNotificationArtworkBridgeOwner.SessionRefresher"));
-        assertTrue(sessionRefreshOwner.contains("PlaybackNotificationManager.SessionRefresher"));
-        assertTrue(sessionRefreshOwner.contains("sessionOperations.refreshPlayer();"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackSessionRefreshOwner.java")));
+        assertFalse(playbackService.contains("PlaybackSessionRefreshOwner"));
+        assertFalse(playbackService.contains("playbackSessionRefreshOwner"));
+        assertTrue(notificationArtworkBridgeOwner.contains(
+                "interface SessionRefresher extends PlaybackNotificationManager.SessionRefresher"));
+        assertTrue(notificationArtworkBridgeOwner.contains("sessionOperations.refreshPlayer();"));
         assertFalse(playbackService.contains("return currentTrack() != null || !isQueueEmpty() || playbackRuntimeStateManager.preparing() || isPlaying();"));
         assertFalse(playbackService.contains("private boolean notificationWorthyState()"));
         assertTrue(owner.contains("class PlaybackNotificationManager"));
@@ -7278,7 +7285,9 @@ public final class MainActivityArchitectureContractTest {
         String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackSessionManager.kt");
         String commandOwner = read("app/src/main/java/app/yukine/playback/PlaybackSessionCommandOwner.java");
         String controllerMediaItemsOwner = read("app/src/main/java/app/yukine/playback/PlaybackControllerMediaItemsOwner.java");
-        String sessionRefreshOwner = read("app/src/main/java/app/yukine/playback/PlaybackSessionRefreshOwner.java");
+        String notificationArtworkBridgeOwner = read(
+                "app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkBridgeOwner.java"
+        );
 
         assertFalse(service.contains("private Player sessionPlayer"));
         assertFalse(service.contains("private MediaLibrarySession mediaSession"));
@@ -7305,12 +7314,18 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun bind()"));
         assertTrue(owner.contains("fun refreshPlayer()"));
         assertTrue(owner.contains("fun release()"));
-        assertTrue(sessionRefreshOwner.contains("Supplier<PlaybackSessionManager> playbackSessionManagerSupplier"));
-        assertFalse(sessionRefreshOwner.contains("interface PlaybackSessionManagerProvider"));
-        assertFalse(sessionRefreshOwner.contains("interface SessionOperationsProvider"));
-        assertFalse(sessionRefreshOwner.contains("PlaybackSessionManager playbackSessionManager();"));
-        assertTrue(sessionRefreshOwner.contains("manager::refreshPlayer"));
-        assertTrue(sessionRefreshOwner.contains("sessionOperations.refreshPlayer();"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackSessionRefreshOwner.java")));
+        assertFalse(service.contains("PlaybackSessionRefreshOwner"));
+        assertFalse(service.contains("playbackSessionRefreshOwner"));
+        assertTrue(service.contains("private PlaybackNotificationArtworkBridgeOwner.SessionRefresher playbackSessionRefresher;"));
+        assertTrue(notificationArtworkBridgeOwner.contains(
+                "static SessionRefresher sessionRefresherFromPlaybackSessionManager("));
+        assertTrue(notificationArtworkBridgeOwner.contains("Supplier<PlaybackSessionManager> playbackSessionManagerSupplier"));
+        assertFalse(notificationArtworkBridgeOwner.contains("interface PlaybackSessionManagerProvider"));
+        assertFalse(notificationArtworkBridgeOwner.contains("interface SessionOperationsProvider"));
+        assertFalse(notificationArtworkBridgeOwner.contains("PlaybackSessionManager playbackSessionManager();"));
+        assertTrue(notificationArtworkBridgeOwner.contains("manager::refreshPlayer"));
+        assertTrue(notificationArtworkBridgeOwner.contains("sessionOperations.refreshPlayer();"));
         assertTrue(commandOwner.contains("final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegate"));
         assertTrue(commandOwner.contains("interface ControllerMediaItems"));
         assertTrue(commandOwner.contains("playbackCommands.skipToNext();"));

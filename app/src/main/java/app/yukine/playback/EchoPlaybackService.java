@@ -176,7 +176,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     private final PlaybackAudioEffectManager audioEffectManager =
             new PlaybackAudioEffectManager(TAG);
     private PlaybackSessionManager playbackSessionManager;
-    private PlaybackSessionRefreshOwner playbackSessionRefreshOwner;
+    private PlaybackNotificationArtworkBridgeOwner.SessionRefresher playbackSessionRefresher;
     private app.yukine.playback.manager.LyricsPublisher playbackLyricsManager;
     private final Consumer<Boolean> statusBarLyricsEnabledAction =
             PlaybackLyricsSettingsStore.statusBarLyricsEnabledActionFromSupplier(() -> playbackLyricsManager);
@@ -497,7 +497,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackNotificationArtworkSource,
                 playbackNotificationCommandOwner
         );
-        playbackSessionRefreshOwner = PlaybackSessionRefreshOwner.fromPlaybackSessionManager(
+        playbackSessionRefresher = PlaybackNotificationArtworkBridgeOwner.sessionRefresherFromPlaybackSessionManager(
                 () -> playbackSessionManager
         );
         playbackLyricsStateOwner = new PlaybackLyricsStateOwner(
@@ -511,7 +511,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackLyricsManager = new PlaybackLyricsManager(
                 this,
                 playbackLyricsStateOwner,
-                playbackNotificationManager.lyricsNotificationBridge(playbackSessionRefreshOwner)
+                playbackNotificationManager.lyricsNotificationBridge(playbackSessionRefresher)
         );
         PlaybackLyricsSettingsStore.fromRepository(repository).restoreInto(playbackLyricsManager);
         playbackQueueCommandOwner = new PlaybackQueueCommandOwner(
@@ -711,7 +711,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 this,
                 () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
                 new PlaybackNotificationArtworkBridgeOwner(
-                        playbackSessionRefreshOwner,
+                        playbackSessionRefresher,
                         playbackNotificationCommandOwner::publishPlaybackNotification
                 )
         );
