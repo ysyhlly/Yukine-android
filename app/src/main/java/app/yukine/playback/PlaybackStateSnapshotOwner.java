@@ -4,6 +4,7 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 final class PlaybackStateSnapshotOwner {
@@ -33,10 +34,6 @@ final class PlaybackStateSnapshotOwner {
         PlaybackRuntimeStateManager runtimeStateManager();
     }
 
-    interface SleepTimerProvider {
-        long sleepTimerRemainingMs();
-    }
-
     interface VisualizationProvider {
         boolean shouldDeferPlaybackVisualization();
 
@@ -56,7 +53,7 @@ final class PlaybackStateSnapshotOwner {
     private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;
     private final PlaybackPositionProvider playbackPositionProvider;
     private final RuntimeStateProvider runtimeStateProvider;
-    private final SleepTimerProvider sleepTimerProvider;
+    private final LongSupplier sleepTimerProvider;
     private final VisualizationProvider visualizationProvider;
     private final RealtimeBeatProvider realtimeBeatProvider;
     private final int defaultRepeatMode;
@@ -65,7 +62,7 @@ final class PlaybackStateSnapshotOwner {
             Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider,
             PlaybackPositionProvider playbackPositionProvider,
             RuntimeStateProvider runtimeStateProvider,
-            SleepTimerProvider sleepTimerProvider,
+            LongSupplier sleepTimerProvider,
             VisualizationProvider visualizationProvider,
             RealtimeBeatProvider realtimeBeatProvider,
             int defaultRepeatMode
@@ -200,7 +197,7 @@ final class PlaybackStateSnapshotOwner {
                 runtimeStateProvider == null ? defaultRepeatMode : runtimeStateProvider.repeatMode(),
                 runtimeStateProvider == null ? 1.0f : runtimeStateProvider.playbackSpeed(),
                 runtimeStateProvider == null ? 1.0f : runtimeStateProvider.appVolume(),
-                sleepTimerProvider == null ? 0L : sleepTimerProvider.sleepTimerRemainingMs(),
+                sleepTimerProvider == null ? 0L : sleepTimerProvider.getAsLong(),
                 waveform,
                 spectrum,
                 playing && realtimeBeatProvider != null ? realtimeBeatProvider.beat() : 0f

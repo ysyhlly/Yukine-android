@@ -1809,7 +1809,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("private boolean shouldDeferPlaybackVisualization()"));
         assertTrue(stateSnapshotOwner.contains("final class PlaybackStateSnapshotOwner"));
         assertFalse(stateSnapshotOwner.contains("interface QueueStateProvider"));
+        assertFalse(stateSnapshotOwner.contains("interface SleepTimerProvider"));
         assertTrue(stateSnapshotOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;"));
+        assertTrue(stateSnapshotOwner.contains("private final LongSupplier sleepTimerProvider;"));
         assertTrue(stateSnapshotOwner.contains("interface RuntimeStateProvider"));
         assertTrue(stateSnapshotOwner.contains("interface VisualizationProvider"));
         assertTrue(stateSnapshotOwner.contains("boolean deferVisualGeneration = visualizationProvider != null"));
