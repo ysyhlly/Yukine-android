@@ -1810,8 +1810,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(stateSnapshotOwner.contains("final class PlaybackStateSnapshotOwner"));
         assertFalse(stateSnapshotOwner.contains("interface QueueStateProvider"));
         assertFalse(stateSnapshotOwner.contains("interface SleepTimerProvider"));
+        assertFalse(stateSnapshotOwner.contains("interface RuntimeStateManagerProvider"));
+        assertFalse(stateSnapshotOwner.contains("interface VisualizationAnalyzerProvider"));
         assertTrue(stateSnapshotOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;"));
         assertTrue(stateSnapshotOwner.contains("private final LongSupplier sleepTimerProvider;"));
+        assertTrue(stateSnapshotOwner.contains("Supplier<PlaybackRuntimeStateManager> runtimeStateManagerProvider"));
+        assertTrue(stateSnapshotOwner.contains("Supplier<PlaybackVisualizationAnalyzer> visualizationAnalyzerProvider"));
         assertTrue(stateSnapshotOwner.contains("interface RuntimeStateProvider"));
         assertTrue(stateSnapshotOwner.contains("interface VisualizationProvider"));
         assertTrue(stateSnapshotOwner.contains("boolean deferVisualGeneration = visualizationProvider != null"));

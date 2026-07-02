@@ -30,20 +30,12 @@ final class PlaybackStateSnapshotOwner {
         float appVolume();
     }
 
-    interface RuntimeStateManagerProvider {
-        PlaybackRuntimeStateManager runtimeStateManager();
-    }
-
     interface VisualizationProvider {
         boolean shouldDeferPlaybackVisualization();
 
         PlaybackWaveformSnapshot waveformSnapshot(Track track, long durationMs, boolean deferGeneration);
 
         PlaybackSpectrumSnapshot spectrumSnapshot(Track track, long durationMs, boolean deferGeneration);
-    }
-
-    interface VisualizationAnalyzerProvider {
-        PlaybackVisualizationAnalyzer playbackVisualizationAnalyzer();
     }
 
     interface RealtimeBeatProvider {
@@ -77,7 +69,7 @@ final class PlaybackStateSnapshotOwner {
     }
 
     static RuntimeStateProvider fromRuntimeStateManagerProvider(
-            RuntimeStateManagerProvider runtimeStateManagerProvider
+            Supplier<PlaybackRuntimeStateManager> runtimeStateManagerProvider
     ) {
         return new RuntimeStateProvider() {
             @Override
@@ -117,13 +109,13 @@ final class PlaybackStateSnapshotOwner {
             }
 
             private PlaybackRuntimeStateManager runtimeStateManager() {
-                return runtimeStateManagerProvider == null ? null : runtimeStateManagerProvider.runtimeStateManager();
+                return runtimeStateManagerProvider == null ? null : runtimeStateManagerProvider.get();
             }
         };
     }
 
     static VisualizationProvider fromVisualizationAnalyzerProvider(
-            VisualizationAnalyzerProvider visualizationAnalyzerProvider
+            Supplier<PlaybackVisualizationAnalyzer> visualizationAnalyzerProvider
     ) {
         return new VisualizationProvider() {
             @Override
@@ -159,7 +151,7 @@ final class PlaybackStateSnapshotOwner {
             private PlaybackVisualizationAnalyzer playbackVisualizationAnalyzer() {
                 return visualizationAnalyzerProvider == null
                         ? null
-                        : visualizationAnalyzerProvider.playbackVisualizationAnalyzer();
+                        : visualizationAnalyzerProvider.get();
             }
         };
     }
