@@ -695,13 +695,6 @@ internal class PlaybackQueueManager(
         return false
     }
 
-    fun clearQueue(): Boolean {
-        if (queue.isEmpty()) {
-            return false
-        }
-        return true
-    }
-
     fun persistQueueState() {
         persistQueue()
     }

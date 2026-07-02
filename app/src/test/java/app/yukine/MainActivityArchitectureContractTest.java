@@ -5758,7 +5758,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueMutationOwner.contains("playbackQueueManager.retainTracksById(trackIdsToKeep)"));
         assertTrue(service.contains("playbackQueueMutationOwner.clearQueue();"));
         assertFalse(service.contains("playbackQueueManager.clearQueue()"));
-        assertTrue(queueMutationOwner.contains("playbackQueueManager.clearQueue()"));
+        assertTrue(queueMutationOwner.contains("playbackQueueManager.queueStateSnapshot().isQueueEmpty()"));
         assertTrue(queueMutationOwner.contains("stopAndClear();"));
         assertFalse(service.contains("public void replaceQueuedTrack(Track replacement)"));
         assertFalse(service.contains("playbackQueueMutationOwner.replaceQueuedTrack(replacement);"));
@@ -6417,7 +6417,6 @@ public final class MainActivityArchitectureContractTest {
         }
         java.util.Set<String> queueMutationApi = new java.util.TreeSet<>(java.util.Arrays.asList(
                 "appendToQueue",
-                "clearQueue",
                 "moveQueueTrack",
                 "playFirstQueuedTrack",
                 "playQueue",
@@ -6459,6 +6458,7 @@ public final class MainActivityArchitectureContractTest {
         expectedPublicApi.addAll(queueDerivedReadApi);
 
         assertEquals(expectedPublicApi, kotlinClassLevelFunNames(owner));
+        assertFalse(owner.contains("fun clearQueue(): Boolean"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "queuePreparationForNewPlayer",
                 "queueSnapshot",
