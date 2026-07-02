@@ -46,7 +46,7 @@ final class PlaybackQueueStateOwner implements
         return queueStateSnapshot().isQueueEmpty();
     }
 
-    public boolean canSkipFailedTrack(Track failed) {
+    boolean canSkipFailedTrack(Track failed) {
         return failed != null && failed.id != -1L && queueStateSnapshot().getHasMultipleTracks();
     }
 
