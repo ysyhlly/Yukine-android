@@ -8,7 +8,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 final class PlaybackQueueStateOwner implements
-        PlaybackStateSnapshotOwner.QueueStateProvider {
+        PlaybackStateSnapshotOwner.QueueStateProvider,
+        Supplier<PlaybackQueueManager.QueueStateSnapshot> {
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
 
     PlaybackQueueStateOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
@@ -22,6 +23,11 @@ final class PlaybackQueueStateOwner implements
                 ? null
                 : playbackQueueManager.queueStateSnapshot();
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
+    }
+
+    @Override
+    public PlaybackQueueManager.QueueStateSnapshot get() {
+        return queueStateSnapshot();
     }
 
     List<Track> queueSnapshot() {

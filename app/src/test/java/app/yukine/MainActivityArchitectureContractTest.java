@@ -5393,7 +5393,9 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void playbackQueuePersistenceIsOwnedOutsideEchoPlaybackService() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String normalizedService = service.replace("\r\n", "\n");
         String queueManagerOwner = read("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackQueueManager.kt");
+        String queueStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueStateOwner.java");
         String queueStoreOwner = read("app/src/main/java/app/yukine/playback/manager/PlaybackQueueStore.kt");
         String positionOwner = read("app/src/main/java/app/yukine/playback/manager/PlaybackPositionManager.kt");
         String queuePersistenceOwner = read(
@@ -5449,6 +5451,14 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackPositionStateOwner.java")));
         assertFalse(service.contains("PlaybackPositionStateOwner"));
         assertTrue(service.contains("PlaybackPositionManager.stateProviderFromPlaybackState("));
+        String positionStateProviderWiring = normalizedService.substring(
+                normalizedService.indexOf("PlaybackPositionManager.stateProviderFromPlaybackState("),
+                normalizedService.indexOf(
+                        "                )\n        );\n        playbackSleepTimerCommandOwner"
+                )
+        );
+        assertTrue(positionStateProviderWiring.contains("                        playbackQueueStateOwner,\n"));
+        assertFalse(positionStateProviderWiring.contains("playbackQueueStateOwner::currentTrack"));
         assertTrue(service.contains("                        playbackPlayerStateOwner::positionMs"));
         assertFalse(service.contains("new PlaybackPositionManager.StateProvider()"));
         assertFalse(service.contains("private long restoredPositionFor(Track track)"));
@@ -5481,10 +5491,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(positionOwner.contains("fun persistCurrentPosition(force: Boolean)"));
         assertTrue(positionOwner.contains("fun setExplicitRestoredPosition(track: Track?, positionMs: Long)"));
         assertTrue(positionOwner.contains("fun stateProviderFromPlaybackState("));
-        assertTrue(positionOwner.contains("currentTrackSupplier: Supplier<Track?>?"));
+        assertFalse(positionOwner.contains("currentTrackSupplier: Supplier<Track?>?"));
+        assertTrue(positionOwner.contains("queueStateSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
         assertTrue(positionOwner.contains("playbackPositionSupplier: LongSupplier?"));
-        assertTrue(positionOwner.contains("override fun currentTrack(): Track? = currentTrackSupplier?.get()"));
+        assertTrue(positionOwner.contains("override fun currentTrack(): Track? = queueStateSupplier?.get()?.currentTrack"));
         assertTrue(positionOwner.contains("override fun positionMs(): Long = playbackPositionSupplier?.asLong ?: 0L"));
+        assertTrue(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot>"));
+        assertTrue(queueStateOwner.contains("public PlaybackQueueManager.QueueStateSnapshot get()"));
+        assertTrue(queueStateOwner.contains("return queueStateSnapshot();"));
     }
 
     @Test
