@@ -81,6 +81,18 @@ public final class MainActivityArchitectureContractTest {
                 "feature/playback/src/main/java/app/yukine/playback/manager/PlaybackMediaSourceResolutionOwner.kt"));
         assertFalse(exists(
                 "feature/playback/src/test/java/app/yukine/playback/PlaybackMediaSourceResolutionOwnerTest.kt"));
+        assertEquals(0, countFiles("app/src/main/java/app/yukine/playback", "Playback*ResolutionOwner.*"));
+        assertEquals(0, countFiles("app/src/main/java/app/yukine/playback", "Playback*ResolverOwner.*"));
+        assertEquals(0, countFiles("app/src/main/java/app/yukine/playback", "Playback*ResolverFacade.*"));
+        assertEquals(0, countFiles("app/src/main/java/app/yukine/playback", "Playback*MediaSource*Owner.*"));
+        assertEquals(0, countFiles("feature/playback/src/main/java/app/yukine/playback", "Playback*ResolutionOwner.*"));
+        assertEquals(0, countFiles("feature/playback/src/main/java/app/yukine/playback", "Playback*ResolverOwner.*"));
+        assertEquals(0, countFiles("feature/playback/src/main/java/app/yukine/playback", "Playback*ResolverFacade.*"));
+        assertEquals(0, countFiles("feature/playback/src/main/java/app/yukine/playback", "Playback*MediaSource*Owner.*"));
+        assertEquals(0, countFiles("feature/playback/src/main/java/app/yukine/playback/manager", "Playback*ResolutionOwner.*"));
+        assertEquals(0, countFiles("feature/playback/src/main/java/app/yukine/playback/manager", "Playback*ResolverOwner.*"));
+        assertEquals(0, countFiles("feature/playback/src/main/java/app/yukine/playback/manager", "Playback*ResolverFacade.*"));
+        assertEquals(0, countFiles("feature/playback/src/main/java/app/yukine/playback/manager", "Playback*MediaSource*Owner.*"));
         assertFalse(service.contains("PlaybackMediaSourceResolutionOwner"));
         assertFalse(precacheManager.contains("PlaybackMediaSourceResolutionOwner"));
         assertTrue(service.contains("PlaybackPrecacheManager.fromMediaSourceProvider("));
