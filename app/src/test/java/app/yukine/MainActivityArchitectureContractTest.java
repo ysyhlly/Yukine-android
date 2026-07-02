@@ -62,7 +62,7 @@ public final class MainActivityArchitectureContractTest {
                 .replace("\r\n", "\n");
         String precacheManager = read("app/src/main/java/app/yukine/playback/PlaybackPrecacheManager.java");
 
-        assertEquals(44, countFiles("app/src/main/java/app/yukine/playback", "Playback*Owner.java"));
+        assertEquals(43, countFiles("app/src/main/java/app/yukine/playback", "Playback*Owner.java"));
         assertTrue(
                 "EchoPlaybackService should not add more Playback* fields without a narrower owner/interface slice",
                 countOccurrences(service, "\n    private Playback") <= 44
@@ -7264,8 +7264,8 @@ public final class MainActivityArchitectureContractTest {
                 service.indexOf("playbackShutdownPlaybackResourcesOwner = new PlaybackShutdownPlaybackResourcesOwner("),
                 service.indexOf("playbackShutdownCoordinator = new PlaybackShutdownCoordinator(")
         );
-        assertTrue(service.contains("() -> playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(false)"));
-        assertFalse(service.contains("() -> playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false)"));
+        assertFalse(service.contains("() -> playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(false)"));
+        assertTrue(service.contains("() -> playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false)"));
         assertTrue(service.contains("() -> playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false)"));
         assertFalse(service.contains("() -> playbackRuntimeStateManager.setPreparing(false)"));
         assertTrue(service.contains("private void releasePlaybackPlayerResources()"));
@@ -7478,28 +7478,26 @@ public final class MainActivityArchitectureContractTest {
         String queueOwner = read("app/src/main/java/app/yukine/playback/manager/PlaybackQueueManager.kt");
         String queueCompletionOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueCompletionOwner.java");
         String queueStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueStateOwner.java");
-        String queueMirrorStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueMirrorStateOwner.java");
 
         assertFalse(service.contains("private boolean playerMirrorsQueue"));
         assertFalse(service.contains("private int currentIndex ="));
         assertFalse(service.contains("playerMirrorsQueue = true"));
         assertFalse(service.contains("playerMirrorsQueue = false"));
         assertFalse(service.contains("currentIndex = "));
-        assertTrue(service.contains("private final PlaybackQueueMirrorStateOwner playbackQueueMirrorStateOwner"));
-        assertFalse(service.contains("private final PlaybackQueueRuntimeStateManager playbackQueueRuntimeStateManager"));
-        assertTrue(service.contains(
-                "PlaybackQueueMirrorStateOwner.fromRuntimeStateManager(new PlaybackQueueRuntimeStateManager())"));
-        assertTrue(service.contains("playbackQueueMirrorStateOwner::playerMirrorsQueue"));
-        assertTrue(service.contains("playbackQueueMirrorStateOwner::setPlayerMirrorsQueue"));
-        assertTrue(service.contains("playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(true)"));
-        assertTrue(service.contains("playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(false)"));
-        assertFalse(service.contains("playbackQueueRuntimeStateManager.playerMirrorsQueue()"));
-        assertFalse(service.contains("playbackQueueRuntimeStateManager::playerMirrorsQueue"));
-        assertFalse(service.contains("playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(true)"));
-        assertFalse(service.contains("playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false)"));
-        assertFalse(service.contains("playbackQueueRuntimeStateManager::setPlayerMirrorsQueue"));
-        assertFalse(service.contains("playbackQueueRuntimeStateManager."));
-        assertFalse(service.contains("playbackQueueRuntimeStateManager::"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackQueueMirrorStateOwner.java")));
+        assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackQueueMirrorStateOwnerTest.java")));
+        assertFalse(service.contains("private final PlaybackQueueMirrorStateOwner playbackQueueMirrorStateOwner"));
+        assertFalse(service.contains("PlaybackQueueMirrorStateOwner.fromRuntimeStateManager("));
+        assertTrue(service.contains("private final PlaybackQueueRuntimeStateManager playbackQueueRuntimeStateManager"));
+        assertTrue(service.contains("new PlaybackQueueRuntimeStateManager()"));
+        assertFalse(service.contains("playbackQueueMirrorStateOwner::playerMirrorsQueue"));
+        assertFalse(service.contains("playbackQueueMirrorStateOwner::setPlayerMirrorsQueue"));
+        assertFalse(service.contains("playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(true)"));
+        assertFalse(service.contains("playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(false)"));
+        assertTrue(service.contains("playbackQueueRuntimeStateManager::playerMirrorsQueue"));
+        assertTrue(service.contains("playbackQueueRuntimeStateManager::setPlayerMirrorsQueue"));
+        assertTrue(service.contains("playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(true)"));
+        assertTrue(service.contains("playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false)"));
         assertFalse(service.contains("playbackQueueRuntimeStateManager.currentIndex()"));
         assertFalse(service.contains("playbackQueueRuntimeStateManager.setCurrentIndex(index)"));
         assertFalse(service.contains("playbackQueueRuntimeStateManager.setClampedCurrentIndex(index, queue.size())"));
@@ -7521,19 +7519,6 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("private var playerMirrorsQueue"));
         assertTrue(owner.contains("fun playerMirrorsQueue(): Boolean"));
         assertTrue(owner.contains("fun setPlayerMirrorsQueue(enabled: Boolean)"));
-        assertTrue(queueMirrorStateOwner.contains("final class PlaybackQueueMirrorStateOwner"));
-        assertFalse(queueMirrorStateOwner.contains("interface MirrorStateOperations"));
-        assertFalse(queueMirrorStateOwner.contains("interface MirrorStateOperationsProvider"));
-        assertFalse(queueMirrorStateOwner.contains("PlaybackQueueRuntimeStateManagerOperations"));
-        assertTrue(queueMirrorStateOwner.contains("import java.util.function.BooleanSupplier;"));
-        assertTrue(queueMirrorStateOwner.contains("import java.util.function.Consumer;"));
-        assertTrue(queueMirrorStateOwner.contains("private final BooleanSupplier playerMirrorsQueue;"));
-        assertTrue(queueMirrorStateOwner.contains("private final Consumer<Boolean> setPlayerMirrorsQueue;"));
-        assertTrue(queueMirrorStateOwner.contains("runtimeStateManager::playerMirrorsQueue"));
-        assertTrue(queueMirrorStateOwner.contains("runtimeStateManager::setPlayerMirrorsQueue"));
-        assertTrue(queueMirrorStateOwner.contains(
-                "return playerMirrorsQueue != null && playerMirrorsQueue.getAsBoolean();"));
-        assertTrue(queueMirrorStateOwner.contains("setPlayerMirrorsQueue.accept(enabled);"));
         assertFalse(owner.contains("private var currentIndex"));
         assertFalse(owner.contains("fun currentIndex(): Int"));
         assertFalse(owner.contains("fun setCurrentIndex(index: Int)"));

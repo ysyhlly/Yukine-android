@@ -111,8 +111,8 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackQueueManager playbackQueueManager;
     private final PlaybackQueueStateOwner playbackQueueStateOwner =
             new PlaybackQueueStateOwner(() -> playbackQueueManager);
-    private final PlaybackQueueMirrorStateOwner playbackQueueMirrorStateOwner =
-            PlaybackQueueMirrorStateOwner.fromRuntimeStateManager(new PlaybackQueueRuntimeStateManager());
+    private final PlaybackQueueRuntimeStateManager playbackQueueRuntimeStateManager =
+            new PlaybackQueueRuntimeStateManager();
     private final PlaybackQueueMutationOwner playbackQueueMutationOwner =
             new PlaybackQueueMutationOwner(
                     () -> playbackQueueManager,
@@ -127,7 +127,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             new PlaybackQueueMirroredTransitionOwner(
                     () -> playbackQueueManager,
                     EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer,
-                    playbackQueueMirrorStateOwner::playerMirrorsQueue,
+                    playbackQueueRuntimeStateManager::playerMirrorsQueue,
                     playbackQueueStateOwner::isQueueEmpty
             );
     private final PlaybackQueueRestoreOwner playbackQueueRestoreOwner =
@@ -176,7 +176,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             new PlaybackRuntimeStateManager(
                     PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
                             () -> player,
-                            playbackQueueMirrorStateOwner::playerMirrorsQueue,
+                            playbackQueueRuntimeStateManager::playerMirrorsQueue,
                             playbackQueueStateOwner
                     )
             );
@@ -520,7 +520,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         final PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner =
                 new PlaybackQueueMirroredPlayerOwner(
                         PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
-                                playbackQueueMirrorStateOwner::playerMirrorsQueue,
+                                playbackQueueRuntimeStateManager::playerMirrorsQueue,
                                 () -> player != null,
                                 () -> player == null ? -1 : player.getMediaItemCount(),
                                 playbackQueueStateOwner::queueSnapshot,
@@ -534,7 +534,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                         (index, positionMs) -> player.seekTo(index, positionMs),
                         playWhenReady -> player.setPlayWhenReady(playWhenReady),
                         () -> player.play(),
-                        playbackQueueMirrorStateOwner::setPlayerMirrorsQueue,
+                        playbackQueueRuntimeStateManager::setPlayerMirrorsQueue,
                         error -> Log.w(TAG, "Unable to reuse mirrored queue", error)
                 );
         playbackQueueManager = new PlaybackQueueManager(
@@ -694,7 +694,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                         PlaybackWifiLockManager::release
                 ),
                 EchoPlaybackService.this::releasePlayer,
-                () -> playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(false),
+                () -> playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false),
                 () -> playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false)
         );
         playbackShutdownCoordinator = new PlaybackShutdownCoordinator(
@@ -1156,7 +1156,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         applyPlaybackParametersToPlayer();
         player.clearMediaItems();
         player.setMediaSources(mediaSources, queuePreparation.startIndex(), Math.max(0L, startPositionMs));
-        playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(true);
+        playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(true);
         player.setPlayWhenReady(playWhenReady);
         try {
             player.prepare();
@@ -1189,7 +1189,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         postponePlaybackVisualizationWarmup();
         player.stop();
         player.clearMediaItems();
-        playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(false);
+        playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false);
         applyPlaybackParametersToPlayer();
         player.setMediaSource(mediaSource);
         player.setPlayWhenReady(playWhenReady);
