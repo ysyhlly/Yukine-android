@@ -60,12 +60,12 @@ public class PlaybackQueueNavigationOwnerTest {
     public void ignoresMissingPlaybackQueueManager() {
         List<Boolean> reuseNotifications = new ArrayList<>();
         PlaybackQueueNavigationOwner missingManagerProvider =
-                PlaybackQueueNavigationOwner.fromPlaybackQueueManager(
+                new PlaybackQueueNavigationOwner(
                         null,
                         reuseNotifications::add
                 );
         PlaybackQueueNavigationOwner missingManager =
-                PlaybackQueueNavigationOwner.fromPlaybackQueueManager(
+                new PlaybackQueueNavigationOwner(
                         () -> null,
                         reuseNotifications::add
                 );
@@ -119,7 +119,7 @@ public class PlaybackQueueNavigationOwnerTest {
             PlaybackQueueManager queueManager,
             List<Boolean> reuseNotifications
     ) {
-        return PlaybackQueueNavigationOwner.fromPlaybackQueueManager(
+        return new PlaybackQueueNavigationOwner(
                 () -> queueManager,
                 reuseNotifications::add
         );

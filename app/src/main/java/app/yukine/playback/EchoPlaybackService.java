@@ -117,7 +117,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     private final PlaybackQueueMutationOwner playbackQueueMutationOwner =
             new PlaybackQueueMutationOwner(() -> playbackQueueManager);
     private final PlaybackQueueNavigationOwner playbackQueueNavigationOwner =
-            PlaybackQueueNavigationOwner.fromPlaybackQueueManager(
+            new PlaybackQueueNavigationOwner(
                     () -> playbackQueueManager,
                     this::onMirroredQueueReused
             );

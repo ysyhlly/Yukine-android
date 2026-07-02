@@ -17,13 +17,6 @@ final class PlaybackQueueNavigationOwner {
         this.mirroredQueueReuseHandler = mirroredQueueReuseHandler;
     }
 
-    static PlaybackQueueNavigationOwner fromPlaybackQueueManager(
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            Consumer<Boolean> mirroredQueueReuseHandler
-    ) {
-        return new PlaybackQueueNavigationOwner(playbackQueueManagerSupplier, mirroredQueueReuseHandler);
-    }
-
     void playFirstQueuedTrack() {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         if (playbackQueueManager != null) {

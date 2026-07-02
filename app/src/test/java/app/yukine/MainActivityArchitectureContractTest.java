@@ -5473,7 +5473,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackQueueMutationOwner.fromPlaybackQueueManager("));
         assertFalse(queueMutationOwner.contains("static PlaybackQueueMutationOwner fromPlaybackQueueManager("));
         assertTrue(service.contains("private final PlaybackQueueNavigationOwner playbackQueueNavigationOwner"));
-        assertTrue(service.contains("PlaybackQueueNavigationOwner.fromPlaybackQueueManager("));
+        assertTrue(service.contains("new PlaybackQueueNavigationOwner("));
+        assertFalse(service.contains("PlaybackQueueNavigationOwner.fromPlaybackQueueManager("));
+        assertFalse(queueNavigationOwner.contains("static PlaybackQueueNavigationOwner fromPlaybackQueueManager("));
         assertTrue(service.contains("this::onMirroredQueueReused"));
         assertTrue(service.contains("private final PlaybackQueueRestoreOwner playbackQueueRestoreOwner"));
         assertTrue(service.contains("new PlaybackQueueRestoreOwner("));
