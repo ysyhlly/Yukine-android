@@ -5448,7 +5448,6 @@ public final class MainActivityArchitectureContractTest {
         String queuePersistenceOwner = read(
                 "app/src/main/java/app/yukine/playback/PlaybackQueuePersistenceOwner.java"
         );
-        String queueStopClearOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueStopClearOwner.java");
         String queueCompletionOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueCompletionOwner.java");
         String currentReplacementOwner = read(
                 "app/src/main/java/app/yukine/playback/PlaybackCurrentTrackReplacementOwner.java"
@@ -5463,9 +5462,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackQueueResumeRequestOwner.java")));
         assertFalse(service.contains("PlaybackQueueResumeRequestOwner"));
         assertFalse(service.contains("playbackQueueResumeRequestOwner"));
-        assertTrue(service.contains("private final PlaybackQueueStopClearOwner playbackQueueStopClearOwner"));
-        assertTrue(service.contains("PlaybackQueueStopClearOwner.fromPlaybackQueueManager(() -> playbackQueueManager)"));
-        assertFalse(service.contains("PlaybackQueueStopClearOwner.fromPlaybackQueueManagerProvider("));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackQueueStopClearOwner.java")));
+        assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackQueueStopClearOwnerTest.java")));
+        assertFalse(service.contains("PlaybackQueueStopClearOwner"));
+        assertFalse(service.contains("playbackQueueStopClearOwner"));
         assertTrue(service.contains("private final PlaybackQueueCompletionOwner playbackQueueCompletionOwner"));
         assertTrue(service.contains("PlaybackQueueCompletionOwner.fromPlaybackQueueManager("));
         assertFalse(service.contains("PlaybackQueueCompletionOwner.fromPlaybackQueueManagerProvider("));
@@ -5498,13 +5498,6 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueMutationOwner.contains("BiConsumer<Long, Track> replaceQueuedTrackById"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.playQueue(tracks, startIndex, startPositionMs);"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.appendToQueue(tracks);"));
-        assertFalse(queueStopClearOwner.contains("interface QueueStopClearOperations"));
-        assertFalse(queueStopClearOwner.contains("Supplier<QueueStopClearOperations> queueStopClearOperationsSupplier"));
-        assertTrue(queueStopClearOwner.contains("private final Supplier<Runnable> prepareStopAndClearPlaybackStateSupplier;"));
-        assertTrue(queueStopClearOwner.contains(
-                "Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
-        assertFalse(queueStopClearOwner.contains("queueStopClearOperationsProvider"));
-        assertFalse(queueStopClearOwner.contains("playbackQueueManagerProvider"));
         assertFalse(queueCompletionOwner.contains("interface QueueCompletionOperations"));
         assertFalse(queueCompletionOwner.contains("QueueCompletionOperations"));
         assertFalse(queueCompletionOwner.contains("PlaybackQueueManagerOperations"));
@@ -5515,10 +5508,12 @@ public final class MainActivityArchitectureContractTest {
                 "private final Supplier<PlaybackQueueManager.PlaybackCompletionAction> playbackCompletionAction;"));
         assertTrue(queueCompletionOwner.contains(
                 "private final Consumer<PlaybackQueueManager.PlaybackCompletionAction> preparePlaybackCompletion;"));
+        assertTrue(queueCompletionOwner.contains("private final BooleanSupplier prepareStopAndClearPlaybackState;"));
         assertTrue(queueCompletionOwner.contains("private final BooleanSupplier prepareStopAtEndOfQueue;"));
         assertTrue(queueCompletionOwner.contains("private final IntConsumer prepareStopAfterAutomaticAdvance;"));
         assertTrue(queueCompletionOwner.contains(
                 "Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
+        assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
         assertFalse(queueCompletionOwner.contains("queueCompletionOperationsProvider"));
         assertFalse(queueCompletionOwner.contains("playbackQueueManagerProvider"));
         assertFalse(currentReplacementOwner.contains("interface CurrentTrackReplacementOperations"));
@@ -5623,9 +5618,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueManager.savePlaybackResumeRequested(false)"));
         assertTrue(queuePersistenceOwner.contains("void requestPlaybackResume()"));
         assertTrue(queuePersistenceOwner.contains("void clearPlaybackResumeRequest()"));
-        assertTrue(service.contains("playbackQueueStopClearOwner.prepareStopAndClearPlaybackState()"));
+        assertTrue(service.contains("playbackQueueCompletionOwner.prepareStopAndClearPlaybackState()"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAndClearPlaybackState()"));
-        assertTrue(queueStopClearOwner.contains("playbackQueueManager::prepareStopAndClearPlaybackState"));
+        assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
         assertTrue(service.contains("playbackQueueCompletionOwner.playAfterCompletion();"));
         assertFalse(service.contains("playbackQueueManager.playbackCompletionAction()"));
         assertFalse(service.contains("playbackQueueManager.preparePlaybackCompletion(completionAction)"));

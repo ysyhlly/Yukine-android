@@ -20,6 +20,7 @@ final class PlaybackQueueCompletionOwner {
 
     private final Supplier<PlaybackQueueManager.PlaybackCompletionAction> playbackCompletionAction;
     private final Consumer<PlaybackQueueManager.PlaybackCompletionAction> preparePlaybackCompletion;
+    private final BooleanSupplier prepareStopAndClearPlaybackState;
     private final BooleanSupplier prepareStopAtEndOfQueue;
     private final IntConsumer prepareStopAfterAutomaticAdvance;
     private final CompletionBoundary completionBoundary;
@@ -27,12 +28,14 @@ final class PlaybackQueueCompletionOwner {
     PlaybackQueueCompletionOwner(
             Supplier<PlaybackQueueManager.PlaybackCompletionAction> playbackCompletionAction,
             Consumer<PlaybackQueueManager.PlaybackCompletionAction> preparePlaybackCompletion,
+            BooleanSupplier prepareStopAndClearPlaybackState,
             BooleanSupplier prepareStopAtEndOfQueue,
             IntConsumer prepareStopAfterAutomaticAdvance,
             CompletionBoundary completionBoundary
     ) {
         this.playbackCompletionAction = playbackCompletionAction;
         this.preparePlaybackCompletion = preparePlaybackCompletion;
+        this.prepareStopAndClearPlaybackState = prepareStopAndClearPlaybackState;
         this.prepareStopAtEndOfQueue = prepareStopAtEndOfQueue;
         this.prepareStopAfterAutomaticAdvance = prepareStopAfterAutomaticAdvance;
         this.completionBoundary = completionBoundary;
@@ -58,6 +61,16 @@ final class PlaybackQueueCompletionOwner {
                     if (playbackQueueManager != null) {
                         playbackQueueManager.preparePlaybackCompletion(action);
                     }
+                },
+                () -> {
+                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
+                            ? null
+                            : playbackQueueManagerSupplier.get();
+                    if (playbackQueueManager == null) {
+                        return false;
+                    }
+                    playbackQueueManager.prepareStopAndClearPlaybackState();
+                    return true;
                 },
                 () -> {
                     PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
@@ -106,6 +119,11 @@ final class PlaybackQueueCompletionOwner {
                 stopAndClear();
                 break;
         }
+    }
+
+    boolean prepareStopAndClearPlaybackState() {
+        return prepareStopAndClearPlaybackState != null
+                && prepareStopAndClearPlaybackState.getAsBoolean();
     }
 
     boolean prepareStopAtEndOfQueue() {

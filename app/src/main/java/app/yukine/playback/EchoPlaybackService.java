@@ -136,8 +136,6 @@ public final class EchoPlaybackService extends MediaLibraryService
             );
     private final PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner =
             PlaybackQueuePersistenceOwner.fromPlaybackQueueManager(() -> playbackQueueManager);
-    private final PlaybackQueueStopClearOwner playbackQueueStopClearOwner =
-            PlaybackQueueStopClearOwner.fromPlaybackQueueManager(() -> playbackQueueManager);
     private final PlaybackQueueCompletionOwner playbackQueueCompletionOwner =
             PlaybackQueueCompletionOwner.fromPlaybackQueueManager(
                     () -> playbackQueueManager,
@@ -1244,7 +1242,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     public void stopAndClear() {
         playbackCrossfadeCommandOwner.cancelCrossfadeAdvance();
         playbackSleepTimerCommandOwner.cancelSleepTimer(false);
-        boolean queueStopPrepared = playbackQueueStopClearOwner.prepareStopAndClearPlaybackState();
+        boolean queueStopPrepared = playbackQueueCompletionOwner.prepareStopAndClearPlaybackState();
         if (!queueStopPrepared && playbackPositionManager != null) {
             playbackPositionManager.clearPlaybackPosition();
         }

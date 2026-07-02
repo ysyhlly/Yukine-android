@@ -97,10 +97,18 @@ public class PlaybackQueueCompletionOwnerTest {
                 null
         );
 
+        assertTrue(owner.prepareStopAndClearPlaybackState());
         assertTrue(owner.prepareStopAtEndOfQueue());
         owner.prepareStopAfterAutomaticAdvance(7);
 
-        assertEquals(Arrays.asList("prepareStopAtEnd", "prepareStopAfterAutomaticAdvance:7"), events);
+        assertEquals(
+                Arrays.asList(
+                        "prepareStopAndClear",
+                        "prepareStopAtEnd",
+                        "prepareStopAfterAutomaticAdvance:7"
+                ),
+                events
+        );
     }
 
     @Test
@@ -111,10 +119,12 @@ public class PlaybackQueueCompletionOwnerTest {
                 null,
                 null,
                 null,
+                null,
                 new FakeCompletionBoundary(events)
         );
 
         missingActions.playAfterCompletion();
+        assertFalse(missingActions.prepareStopAndClearPlaybackState());
         assertFalse(missingActions.prepareStopAtEndOfQueue());
         missingActions.prepareStopAfterAutomaticAdvance(5);
 
@@ -131,6 +141,7 @@ public class PlaybackQueueCompletionOwnerTest {
 
         owner.playAfterCompletion();
 
+        assertFalse(owner.prepareStopAndClearPlaybackState());
         assertFalse(owner.prepareStopAtEndOfQueue());
         owner.prepareStopAfterAutomaticAdvance(7);
         assertEquals(Arrays.asList("stopAndClear"), events);
@@ -156,6 +167,7 @@ public class PlaybackQueueCompletionOwnerTest {
         return new PlaybackQueueCompletionOwner(
                 actions::playbackCompletionAction,
                 actions::preparePlaybackCompletion,
+                actions::prepareStopAndClearPlaybackState,
                 actions::prepareStopAtEndOfQueue,
                 actions::prepareStopAfterAutomaticAdvance,
                 boundary
@@ -181,6 +193,11 @@ public class PlaybackQueueCompletionOwnerTest {
 
         public void preparePlaybackCompletion(PlaybackQueueManager.PlaybackCompletionAction action) {
             events.add("prepare:" + action.name());
+        }
+
+        public boolean prepareStopAndClearPlaybackState() {
+            events.add("prepareStopAndClear");
+            return true;
         }
 
         public boolean prepareStopAtEndOfQueue() {
