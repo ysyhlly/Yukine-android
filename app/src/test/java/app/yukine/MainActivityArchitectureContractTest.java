@@ -7011,6 +7011,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackRuntimeSettingsStore.applyAudioFocusHandling(playbackRuntimeStateManager)"));
         assertTrue(service.contains("playbackModeSettingsStore.repeatMode(playbackRuntimeStateManager)"));
         assertTrue(service.contains("playbackModeSettingsStore.applyPlaybackModeToPlayer(playbackRuntimeStateManager)"));
+        assertFalse(service.contains("private void applyPlaybackModeToPlayer()"));
         assertFalse(service.contains("playbackRuntimeStateManager.setPlaybackSpeed(speed)"));
         assertFalse(service.contains("playbackRuntimeStateManager.setAppVolume(volume)"));
         assertFalse(service.contains("playbackRuntimeStateManager.setReplayGainEnabled(enabled)"));

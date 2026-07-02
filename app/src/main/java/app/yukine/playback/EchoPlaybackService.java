@@ -1274,12 +1274,6 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
     }
 
-    private void applyPlaybackModeToPlayer() {
-        if (playbackModeSettingsStore != null) {
-            playbackModeSettingsStore.applyPlaybackModeToPlayer(playbackRuntimeStateManager);
-        }
-    }
-
     private void applyPlaybackParametersToPlayer() {
         if (playbackRuntimeSettingsStore != null) {
             playbackRuntimeSettingsStore.applyPlaybackParametersToPlayer(playbackRuntimeStateManager);
@@ -1294,7 +1288,9 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     private void applyPlaybackModeAndParametersToPlayer() {
         applyPlaybackParametersToPlayer();
-        applyPlaybackModeToPlayer();
+        if (playbackModeSettingsStore != null) {
+            playbackModeSettingsStore.applyPlaybackModeToPlayer(playbackRuntimeStateManager);
+        }
     }
 
     private void applyAudioFocusHandling() {
