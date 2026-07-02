@@ -1614,7 +1614,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("player.getDuration()"));
         assertTrue(playerStateOwner.contains("final class PlaybackPlayerStateOwner implements"));
         assertTrue(playerStateOwner.contains("PlaybackStateSnapshotOwner.PlaybackPositionProvider"));
-        assertTrue(playerStateOwner.contains("PlaybackBufferedProgressOwner.PlaybackPositionProvider"));
+        assertFalse(playerStateOwner.contains("PlaybackBufferedProgressOwner.PlaybackPositionProvider"));
+        assertFalse(playerStateOwner.contains("interface PlayerProvider"));
+        assertTrue(playerStateOwner.contains("private final Supplier<Player> playerProvider;"));
         assertFalse(playerStateOwner.contains("PlaybackActiveStateOwner.PlayingStateProvider"));
         assertFalse(playerStateOwner.contains("PlaybackProgressUpdateStateOwner.PlaybackStateProvider"));
         assertFalse(playerStateOwner.contains("PlaybackCrossfadeStateOwner.PlaybackStateProvider"));
@@ -1650,6 +1652,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackService.contains("private PlaybackVisualizationStateOwner playbackVisualizationStateOwner;"));
         assertTrue(playbackService.contains("private PlaybackBufferedProgressOwner playbackBufferedProgressOwner;"));
         assertTrue(playbackService.contains("playbackBufferedProgressOwner = PlaybackBufferedProgressOwner.fromPlayerProvider("));
+        assertTrue(playbackService.contains("                playbackPlayerStateOwner::positionMs,"));
         assertTrue(playbackService.contains("                playbackBufferedProgressOwner,"));
         assertFalse(playbackService.contains("private float bufferedProgress(long durationMs)"));
         assertFalse(playbackService.contains("player.getBufferedPosition()"));
@@ -1718,10 +1721,13 @@ public final class MainActivityArchitectureContractTest {
                 "final class PlaybackBufferedProgressOwner"));
         assertTrue(bufferedProgressOwner.contains(
                 "implements PlaybackVisualizationStateOwner.BufferedProgressProvider"));
-        assertTrue(bufferedProgressOwner.contains("interface PlaybackPositionProvider"));
+        assertFalse(bufferedProgressOwner.contains("interface PlaybackPositionProvider"));
+        assertFalse(bufferedProgressOwner.contains("interface PlayerProvider"));
         assertFalse(bufferedProgressOwner.contains("interface PlayerBufferProvider"));
         assertFalse(bufferedProgressOwner.contains("PlayerBufferProviderSource"));
-        assertTrue(bufferedProgressOwner.contains("private final PlayerProvider playerProvider;"));
+        assertTrue(bufferedProgressOwner.contains("private final LongSupplier playbackPositionProvider;"));
+        assertTrue(bufferedProgressOwner.contains("private final Supplier<Player> playerProvider;"));
+        assertTrue(bufferedProgressOwner.contains("playbackPositionProvider.getAsLong();"));
         assertTrue(bufferedProgressOwner.contains("Player player = player();"));
         assertTrue(bufferedProgressOwner.contains("Math.max(positionMs, player.getBufferedPosition())"));
         assertTrue(bufferedProgressOwner.contains("Math.max(0.0f, Math.min(1.0f, bufferedMs / (float) durationMs))"));

@@ -2,30 +2,25 @@ package app.yukine.playback;
 
 import androidx.media3.common.Player;
 
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+
 final class PlaybackBufferedProgressOwner
         implements PlaybackVisualizationStateOwner.BufferedProgressProvider {
-    interface PlaybackPositionProvider {
-        long positionMs();
-    }
-
-    interface PlayerProvider {
-        Player player();
-    }
-
-    private final PlaybackPositionProvider playbackPositionProvider;
-    private final PlayerProvider playerProvider;
+    private final LongSupplier playbackPositionProvider;
+    private final Supplier<Player> playerProvider;
 
     PlaybackBufferedProgressOwner(
-            PlaybackPositionProvider playbackPositionProvider,
-            PlayerProvider playerProvider
+            LongSupplier playbackPositionProvider,
+            Supplier<Player> playerProvider
     ) {
         this.playbackPositionProvider = playbackPositionProvider;
         this.playerProvider = playerProvider;
     }
 
     static PlaybackBufferedProgressOwner fromPlayerProvider(
-            PlaybackPositionProvider playbackPositionProvider,
-            PlayerProvider playerProvider
+            LongSupplier playbackPositionProvider,
+            Supplier<Player> playerProvider
     ) {
         return new PlaybackBufferedProgressOwner(playbackPositionProvider, playerProvider);
     }
@@ -40,7 +35,7 @@ final class PlaybackBufferedProgressOwner
             return 0.0f;
         }
         try {
-            long positionMs = playbackPositionProvider == null ? 0L : playbackPositionProvider.positionMs();
+            long positionMs = playbackPositionProvider == null ? 0L : playbackPositionProvider.getAsLong();
             long bufferedMs = Math.max(positionMs, player.getBufferedPosition());
             return Math.max(0.0f, Math.min(1.0f, bufferedMs / (float) durationMs));
         } catch (IllegalStateException ignored) {
@@ -49,6 +44,6 @@ final class PlaybackBufferedProgressOwner
     }
 
     private Player player() {
-        return playerProvider == null ? null : playerProvider.player();
+        return playerProvider == null ? null : playerProvider.get();
     }
 }

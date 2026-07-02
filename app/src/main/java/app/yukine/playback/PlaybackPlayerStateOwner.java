@@ -3,21 +3,19 @@ package app.yukine.playback;
 import androidx.media3.common.C;
 import androidx.media3.common.Player;
 
+import java.util.function.Supplier;
+
 final class PlaybackPlayerStateOwner implements
         PlaybackRealtimeVisualizationOwner.PlaybackStateProvider,
-        PlaybackStateSnapshotOwner.PlaybackPositionProvider,
-        PlaybackBufferedProgressOwner.PlaybackPositionProvider {
-    interface PlayerProvider {
-        Player player();
-    }
+        PlaybackStateSnapshotOwner.PlaybackPositionProvider {
 
-    private final PlayerProvider playerProvider;
+    private final Supplier<Player> playerProvider;
 
-    PlaybackPlayerStateOwner(PlayerProvider playerProvider) {
+    PlaybackPlayerStateOwner(Supplier<Player> playerProvider) {
         this.playerProvider = playerProvider;
     }
 
-    static PlaybackPlayerStateOwner fromPlayerProvider(PlayerProvider playerProvider) {
+    static PlaybackPlayerStateOwner fromPlayerProvider(Supplier<Player> playerProvider) {
         return new PlaybackPlayerStateOwner(playerProvider);
     }
 
@@ -62,6 +60,6 @@ final class PlaybackPlayerStateOwner implements
     }
 
     private Player player() {
-        return playerProvider == null ? null : playerProvider.player();
+        return playerProvider == null ? null : playerProvider.get();
     }
 }

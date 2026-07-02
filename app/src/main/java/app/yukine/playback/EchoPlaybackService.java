@@ -577,7 +577,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 this::activityPendingIntent
         );
         playbackBufferedProgressOwner = PlaybackBufferedProgressOwner.fromPlayerProvider(
-                playbackPlayerStateOwner,
+                playbackPlayerStateOwner::positionMs,
                 () -> player
         );
         playbackVisualizationStateOwner = new PlaybackVisualizationStateOwner(
