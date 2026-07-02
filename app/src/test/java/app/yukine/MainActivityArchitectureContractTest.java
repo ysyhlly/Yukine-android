@@ -5671,13 +5671,16 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackQueueCompletionOwner.fromPlaybackQueueManager("));
         assertFalse(queueCompletionOwner.contains("static PlaybackQueueCompletionOwner fromPlaybackQueueManager("));
         assertFalse(service.contains("PlaybackQueueCompletionOwner.fromPlaybackQueueManagerProvider("));
-        assertTrue(queueCompletionOwner.contains("private final PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions;"));
+        assertFalse(queueCompletionOwner.contains("private final PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions;"));
+        assertFalse(queueCompletionOwner.contains("PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions"));
         assertFalse(queueCompletionOwner.contains("void prepareCurrent(boolean playWhenReady);"));
+        assertTrue(queueCompletionOwner.contains("void repeatCurrent();"));
         String queueCompletionWiring = normalizedService.substring(
                 normalizedService.indexOf("private final PlaybackQueueCompletionOwner playbackQueueCompletionOwner"),
                 normalizedService.indexOf("    private final PlaybackRuntimeStateManager")
         );
-        assertTrue(queueCompletionWiring.contains("                playbackQueueCommandOwner"));
+        assertFalse(queueCompletionWiring.contains("                playbackQueueCommandOwner,"));
+        assertTrue(queueCompletionWiring.contains("playbackQueueCommandOwner.prepareCurrent(true);"));
         assertFalse(queueCompletionWiring.contains("public void prepareCurrent(boolean playWhenReady)"));
         assertFalse(queueCompletionWiring.contains("EchoPlaybackService.this.prepareCurrent(playWhenReady);"));
         assertTrue(service.contains("private final PlaybackCurrentTrackReplacementOwner playbackCurrentTrackReplacementOwner"));
@@ -5893,7 +5896,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueCompletionOwner.contains("private void stopAtEndOfQueue()"));
         assertFalse(queueCompletionOwner.contains("private void skipToNext()"));
         assertFalse(queueCompletionOwner.contains("private void prepareStopAndClearFallbackState()"));
-        assertTrue(queueCompletionOwner.contains("queuePlaybackActions.prepareCurrent(playWhenReady);"));
+        assertFalse(queueCompletionOwner.contains("queuePlaybackActions.prepareCurrent(playWhenReady);"));
+        assertTrue(queueCompletionOwner.contains("completionBoundary.repeatCurrent();"));
         assertFalse(queueCompletionOwner.contains("completionBoundary.prepareCurrent(playWhenReady);"));
         assertTrue(queueCompletionOwner.contains("completionBoundary.stopAtEndOfQueue();"));
         assertTrue(queueCompletionOwner.contains("completionBoundary.skipToNext();"));

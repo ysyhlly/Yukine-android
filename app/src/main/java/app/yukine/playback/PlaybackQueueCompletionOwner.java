@@ -12,22 +12,21 @@ final class PlaybackQueueCompletionOwner {
 
         void skipToNext();
 
+        void repeatCurrent();
+
         void prepareStopAndClearFallbackState();
 
         void prepareStopAtEndFallbackState();
     }
 
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
-    private final PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions;
     private final CompletionBoundary completionBoundary;
 
     PlaybackQueueCompletionOwner(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions,
             CompletionBoundary completionBoundary
     ) {
         this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
-        this.queuePlaybackActions = queuePlaybackActions;
         this.completionBoundary = completionBoundary;
     }
 
@@ -44,7 +43,9 @@ final class PlaybackQueueCompletionOwner {
         }
         switch (completionAction) {
             case REPEAT_CURRENT:
-                prepareCurrent(true);
+                if (completionBoundary != null) {
+                    completionBoundary.repeatCurrent();
+                }
                 break;
             case STOP_AT_END:
                 if (completionBoundary != null) {
@@ -90,12 +91,6 @@ final class PlaybackQueueCompletionOwner {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         if (playbackQueueManager != null) {
             playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex);
-        }
-    }
-
-    private void prepareCurrent(boolean playWhenReady) {
-        if (queuePlaybackActions != null) {
-            queuePlaybackActions.prepareCurrent(playWhenReady);
         }
     }
 

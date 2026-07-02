@@ -144,7 +144,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private final PlaybackQueueCompletionOwner playbackQueueCompletionOwner =
             new PlaybackQueueCompletionOwner(
                     () -> playbackQueueManager,
-                    playbackQueueCommandOwner,
                     new PlaybackQueueCompletionOwner.CompletionBoundary() {
                         @Override
                         public void stopAndClear() {
@@ -159,6 +158,11 @@ public final class EchoPlaybackService extends MediaLibraryService
                         @Override
                         public void skipToNext() {
                             EchoPlaybackService.this.skipToNext();
+                        }
+
+                        @Override
+                        public void repeatCurrent() {
+                            playbackQueueCommandOwner.prepareCurrent(true);
                         }
 
                         @Override
