@@ -2,17 +2,28 @@ package app.yukine.playback;
 
 import static org.junit.Assert.assertEquals;
 
+import android.net.Uri;
+
+import app.yukine.model.PlaybackQueueState;
+import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackQueueManager;
+import app.yukine.playback.manager.PlaybackQueueStore;
+
+import java.util.Collections;
+import java.util.List;
+
 import org.junit.Test;
 
 public class PlaybackQueuePersistenceOwnerTest {
     @Test
-    public void delegatesQueuePersistenceToCurrentActions() {
-        FakeQueuePersistenceActions actions = new FakeQueuePersistenceActions();
-        PlaybackQueuePersistenceOwner owner = new PlaybackQueuePersistenceOwner(
-                actions::persistQueueState,
-                actions::savePlaybackResumeRequested,
-                actions::persistCurrentPlaybackPosition
-        );
+    public void delegatesQueuePersistenceToPlaybackQueueManager() {
+        FakeQueueStore store = new FakeQueueStore();
+        PlaybackQueueManager queueManager = queueManager(store);
+        Track track = track(42L);
+        queueManager.playQueue(Collections.singletonList(track), 0, -1L);
+        store.resetCounts();
+        PlaybackQueuePersistenceOwner owner =
+                PlaybackQueuePersistenceOwner.fromPlaybackQueueManager(() -> queueManager);
 
         owner.persistQueueState();
         owner.savePlaybackResumeRequested(true);
@@ -22,43 +33,151 @@ public class PlaybackQueuePersistenceOwnerTest {
         owner.persistCurrentPlaybackPosition(true);
         owner.persistCurrentPlaybackPosition(false);
 
-        assertEquals(1, actions.persistQueueCalls);
-        assertEquals(4, actions.resumeCalls);
-        assertEquals(false, actions.lastResumeRequested);
-        assertEquals(2, actions.positionCalls);
-        assertEquals(false, actions.lastPositionForce);
+        assertEquals(1, store.saveCalls);
+        assertEquals(4, store.resumeCalls);
+        assertEquals(false, store.lastResumeRequested);
+        assertEquals(2, store.positionCalls);
+        assertEquals(42L, store.lastPositionTrackId);
+        assertEquals(0L, store.lastPositionMs);
     }
 
     @Test
-    public void ignoresMissingQueuePersistenceActions() {
-        PlaybackQueuePersistenceOwner missingActions = new PlaybackQueuePersistenceOwner(null, null, null);
+    public void ignoresMissingPlaybackQueueManager() {
+        PlaybackQueuePersistenceOwner missingManagerProvider =
+                PlaybackQueuePersistenceOwner.fromPlaybackQueueManager(null);
+        PlaybackQueuePersistenceOwner missingManager =
+                PlaybackQueuePersistenceOwner.fromPlaybackQueueManager(() -> null);
 
-        missingActions.persistQueueState();
-        missingActions.savePlaybackResumeRequested(false);
-        missingActions.requestPlaybackResume();
-        missingActions.clearPlaybackResumeRequest();
-        missingActions.persistCurrentPlaybackPosition(false);
+        missingManagerProvider.persistQueueState();
+        missingManagerProvider.savePlaybackResumeRequested(false);
+        missingManagerProvider.requestPlaybackResume();
+        missingManagerProvider.clearPlaybackResumeRequest();
+        missingManagerProvider.persistCurrentPlaybackPosition(false);
+        missingManager.persistQueueState();
+        missingManager.savePlaybackResumeRequested(false);
+        missingManager.requestPlaybackResume();
+        missingManager.clearPlaybackResumeRequest();
+        missingManager.persistCurrentPlaybackPosition(false);
     }
 
-    private static final class FakeQueuePersistenceActions {
-        private int persistQueueCalls;
+    private static PlaybackQueueManager queueManager(FakeQueueStore store) {
+        return new PlaybackQueueManager(
+                store,
+                new NoopQueuePlaybackActions(),
+                null,
+                new NoopStreamingRestoreProvider(),
+                new NoopMirroredQueuePlayer(),
+                null,
+                null
+        );
+    }
+
+    private static Track track(long id) {
+        return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "file:" + id);
+    }
+
+    private static final class FakeQueueStore implements PlaybackQueueStore {
+        private int saveCalls;
         private int resumeCalls;
         private boolean lastResumeRequested;
         private int positionCalls;
-        private boolean lastPositionForce;
+        private long lastPositionTrackId = -1L;
+        private long lastPositionMs = -1L;
 
-        public void persistQueueState() {
-            persistQueueCalls++;
+        @Override
+        public PlaybackQueueState load() {
+            return new PlaybackQueueState(Collections.emptyList(), -1);
         }
 
-        public void savePlaybackResumeRequested(boolean requested) {
+        @Override
+        public void save(List<Track> tracks, int currentIndex) {
+            saveCalls++;
+        }
+
+        @Override
+        public boolean loadResumeRequested() {
+            return false;
+        }
+
+        @Override
+        public void saveResumeRequested(boolean requested) {
             resumeCalls++;
             lastResumeRequested = requested;
         }
 
-        public void persistCurrentPlaybackPosition(boolean force) {
+        @Override
+        public boolean loadPlaybackRestoreEnabled() {
+            return true;
+        }
+
+        @Override
+        public void savePlaybackRestoreEnabled(boolean enabled) {
+        }
+
+        @Override
+        public long loadPlaybackPositionTrackId() {
+            return -1L;
+        }
+
+        @Override
+        public long loadPlaybackPositionMs() {
+            return 0L;
+        }
+
+        @Override
+        public void savePlaybackPosition(long trackId, long positionMs) {
             positionCalls++;
-            lastPositionForce = force;
+            lastPositionTrackId = trackId;
+            lastPositionMs = positionMs;
+        }
+
+        void resetCounts() {
+            saveCalls = 0;
+            resumeCalls = 0;
+            positionCalls = 0;
+            lastResumeRequested = false;
+            lastPositionTrackId = -1L;
+            lastPositionMs = -1L;
+        }
+    }
+
+    private static final class NoopQueuePlaybackActions
+            implements PlaybackQueueManager.QueuePlaybackActions {
+        @Override
+        public void prepareCurrent(boolean playWhenReady) {
+        }
+
+        @Override
+        public void publishState() {
+        }
+
+        @Override
+        public void stopAndClear() {
+        }
+    }
+
+    private static final class NoopStreamingRestoreProvider
+            implements PlaybackQueueManager.StreamingRestoreProvider {
+        @Override
+        public Track restoredTrackFor(Track track) {
+            return track;
+        }
+
+        @Override
+        public void restoreForDataPath(String dataPath) {
+        }
+    }
+
+    private static final class NoopMirroredQueuePlayer
+            implements PlaybackQueueManager.MirroredQueuePlayer {
+        @Override
+        public boolean matchesCurrentQueue() {
+            return false;
+        }
+
+        @Override
+        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
+            return false;
         }
     }
 }

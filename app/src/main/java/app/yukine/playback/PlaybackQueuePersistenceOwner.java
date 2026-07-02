@@ -2,70 +2,35 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackQueueManager;
 
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 final class PlaybackQueuePersistenceOwner
         implements PlaybackShutdownLifecycleResourcesOwner.PlaybackQueueLifecycleStore {
-    private final Runnable persistQueueState;
-    private final Consumer<Boolean> savePlaybackResumeRequested;
-    private final Consumer<Boolean> persistCurrentPlaybackPosition;
+    private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
 
     static PlaybackQueuePersistenceOwner fromPlaybackQueueManager(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
     ) {
-        return new PlaybackQueuePersistenceOwner(
-                () -> {
-                    PlaybackQueueManager playbackQueueManager =
-                            playbackQueueManagerSupplier == null
-                                    ? null
-                                    : playbackQueueManagerSupplier.get();
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.persistQueueState();
-                    }
-                },
-                requested -> {
-                    PlaybackQueueManager playbackQueueManager =
-                            playbackQueueManagerSupplier == null
-                                    ? null
-                                    : playbackQueueManagerSupplier.get();
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.savePlaybackResumeRequested(requested);
-                    }
-                },
-                force -> {
-                    PlaybackQueueManager playbackQueueManager =
-                            playbackQueueManagerSupplier == null
-                                    ? null
-                                    : playbackQueueManagerSupplier.get();
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.persistCurrentPlaybackPosition(force);
-                    }
-                }
-        );
+        return new PlaybackQueuePersistenceOwner(playbackQueueManagerSupplier);
     }
 
-    PlaybackQueuePersistenceOwner(
-            Runnable persistQueueState,
-            Consumer<Boolean> savePlaybackResumeRequested,
-            Consumer<Boolean> persistCurrentPlaybackPosition
-    ) {
-        this.persistQueueState = persistQueueState;
-        this.savePlaybackResumeRequested = savePlaybackResumeRequested;
-        this.persistCurrentPlaybackPosition = persistCurrentPlaybackPosition;
+    PlaybackQueuePersistenceOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
+        this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
     }
 
     @Override
     public void persistQueueState() {
-        if (persistQueueState != null) {
-            persistQueueState.run();
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.persistQueueState();
         }
     }
 
     @Override
     public void savePlaybackResumeRequested(boolean requested) {
-        if (savePlaybackResumeRequested != null) {
-            savePlaybackResumeRequested.accept(requested);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.savePlaybackResumeRequested(requested);
         }
     }
 
@@ -78,8 +43,13 @@ final class PlaybackQueuePersistenceOwner
     }
 
     void persistCurrentPlaybackPosition(boolean force) {
-        if (persistCurrentPlaybackPosition != null) {
-            persistCurrentPlaybackPosition.accept(force);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.persistCurrentPlaybackPosition(force);
         }
+    }
+
+    private PlaybackQueueManager playbackQueueManager() {
+        return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }
 }

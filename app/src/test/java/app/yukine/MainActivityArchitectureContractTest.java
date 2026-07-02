@@ -1883,7 +1883,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("static PlaybackPrecacheManager fromMediaSourceProvider("));
         assertTrue(playbackPrecacheManager.contains("mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(playbackPrecacheManager.contains("audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)"));
-        assertFalse(playbackService.contains("                mediaSourceProvider,\r\n                playbackMainHandlerSchedulerOwner"));
+        assertFalse(normalizedPlaybackService.contains(
+                "new PlaybackPrecacheManager(\n"
+                        + "                playbackPrecacheStateOwner,\n"
+                        + "                playbackQueueStateOwner::upcomingTracksForPrecache,\n"
+                        + "                mediaSourceProvider,\n"
+                        + "                playbackMainHandlerSchedulerOwner"
+        ));
         String playbackPrecacheManagerBody =
                 playbackPrecacheManager.substring(
                         0,
@@ -6920,10 +6926,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queuePersistenceOwner.contains("playbackQueueManagerProvider"));
         assertFalse(queuePersistenceOwner.contains("interface QueuePersistenceOperations"));
         assertFalse(queuePersistenceOwner.contains("QueuePersistenceOperations"));
-        assertTrue(queuePersistenceOwner.contains("import java.util.function.Consumer;"));
-        assertTrue(queuePersistenceOwner.contains("private final Runnable persistQueueState;"));
-        assertTrue(queuePersistenceOwner.contains("private final Consumer<Boolean> savePlaybackResumeRequested;"));
-        assertTrue(queuePersistenceOwner.contains("private final Consumer<Boolean> persistCurrentPlaybackPosition;"));
+        assertFalse(queuePersistenceOwner.contains("import java.util.function.Consumer;"));
+        assertFalse(queuePersistenceOwner.contains("private final Runnable persistQueueState;"));
+        assertFalse(queuePersistenceOwner.contains("private final Consumer<Boolean> savePlaybackResumeRequested;"));
+        assertFalse(queuePersistenceOwner.contains("private final Consumer<Boolean> persistCurrentPlaybackPosition;"));
+        assertTrue(queuePersistenceOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
+        assertTrue(queuePersistenceOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertTrue(queuePersistenceOwner.contains("fromPlaybackQueueManager("));
         assertTrue(queuePersistenceOwner.contains("playbackQueueManager.persistQueueState();"));
         assertTrue(queuePersistenceOwner.contains("playbackQueueManager.savePlaybackResumeRequested(requested);"));
