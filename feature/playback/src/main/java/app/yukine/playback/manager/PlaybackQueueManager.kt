@@ -148,23 +148,6 @@ internal class PlaybackQueueManager(
         currentIndex = index
     }
 
-    private fun clampCurrentIndex(): Int {
-        val queueSize = queue.size
-        if (queueSize <= 0) {
-            return 0
-        }
-        return maxOf(0, minOf(currentIndex, queueSize - 1))
-    }
-
-    private fun setClampedCurrentIndex(index: Int) {
-        val queueSize = queue.size
-        currentIndex = if (queueSize <= 0) {
-            -1
-        } else {
-            maxOf(0, minOf(index, queueSize - 1))
-        }
-    }
-
     fun applyMirroredTransitionIndex(nextIndex: Int, automaticAdvance: Boolean): MirroredTransitionResult? {
         val queue = this.queue
         if (nextIndex < 0 || nextIndex >= queue.size || nextIndex == currentIndex()) {
@@ -315,7 +298,10 @@ internal class PlaybackQueueManager(
 
     fun prepareStopAfterAutomaticAdvance(completedIndex: Int) {
         persistPlaybackPosition()
-        setClampedCurrentIndex(completedIndex)
+        val queueSize = queue.size
+        setCurrentIndex(
+            if (queueSize <= 0) -1 else maxOf(0, minOf(completedIndex, queueSize - 1))
+        )
         resetCurrentPlaybackPosition()
     }
 
@@ -628,7 +614,7 @@ internal class PlaybackQueueManager(
         val track = currentTrack() ?: return QueuePreparation.empty()
         return QueuePreparation(
             currentTrack = track,
-            startIndex = clampCurrentIndex(),
+            startIndex = currentIndex(),
             mirroredQueueTracks = mirroredQueueTracksForPreparation()
         )
     }
