@@ -2,8 +2,7 @@ package app.yukine.playback;
 
 import java.util.function.BooleanSupplier;
 
-final class PlaybackRealtimeVisualizationOwner
-        implements PlaybackStateSnapshotOwner.RealtimeBeatProvider {
+final class PlaybackRealtimeVisualizationOwner {
     private static final float[] EMPTY_BANDS = new float[0];
 
     interface RealtimeDataProvider {
@@ -43,8 +42,7 @@ final class PlaybackRealtimeVisualizationOwner
         );
     }
 
-    @Override
-    public float beat() {
+    float beat() {
         return canReadRealtimeData() ? realtimeDataProvider.beat() : 0f;
     }
 

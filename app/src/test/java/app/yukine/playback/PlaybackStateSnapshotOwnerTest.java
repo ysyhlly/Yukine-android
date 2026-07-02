@@ -235,11 +235,11 @@ public class PlaybackStateSnapshotOwnerTest {
         }
     }
 
-    private static final class CountingBeatProvider implements PlaybackStateSnapshotOwner.RealtimeBeatProvider {
+    private static final class CountingBeatProvider implements java.util.function.DoubleSupplier {
         private int calls;
 
         @Override
-        public float beat() {
+        public double getAsDouble() {
             calls++;
             return 1f;
         }

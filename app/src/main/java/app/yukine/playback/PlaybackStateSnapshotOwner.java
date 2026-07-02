@@ -4,6 +4,7 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 
+import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -38,16 +39,12 @@ final class PlaybackStateSnapshotOwner {
         PlaybackSpectrumSnapshot spectrumSnapshot(Track track, long durationMs, boolean deferGeneration);
     }
 
-    interface RealtimeBeatProvider {
-        float beat();
-    }
-
     private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;
     private final PlaybackPositionProvider playbackPositionProvider;
     private final RuntimeStateProvider runtimeStateProvider;
     private final LongSupplier sleepTimerProvider;
     private final VisualizationProvider visualizationProvider;
-    private final RealtimeBeatProvider realtimeBeatProvider;
+    private final DoubleSupplier realtimeBeatProvider;
     private final int defaultRepeatMode;
 
     PlaybackStateSnapshotOwner(
@@ -56,7 +53,7 @@ final class PlaybackStateSnapshotOwner {
             RuntimeStateProvider runtimeStateProvider,
             LongSupplier sleepTimerProvider,
             VisualizationProvider visualizationProvider,
-            RealtimeBeatProvider realtimeBeatProvider,
+            DoubleSupplier realtimeBeatProvider,
             int defaultRepeatMode
     ) {
         this.queueStateProvider = queueStateProvider;
@@ -192,7 +189,7 @@ final class PlaybackStateSnapshotOwner {
                 sleepTimerProvider == null ? 0L : sleepTimerProvider.getAsLong(),
                 waveform,
                 spectrum,
-                playing && realtimeBeatProvider != null ? realtimeBeatProvider.beat() : 0f
+                playing && realtimeBeatProvider != null ? (float) realtimeBeatProvider.getAsDouble() : 0f
         );
     }
 }

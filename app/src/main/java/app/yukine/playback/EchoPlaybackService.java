@@ -589,7 +589,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 PlaybackStateSnapshotOwner.fromRuntimeStateManagerProvider(() -> playbackRuntimeStateManager),
                 playbackSleepTimerCommandOwner::sleepTimerRemainingMs,
                 PlaybackStateSnapshotOwner.fromVisualizationAnalyzerProvider(() -> playbackVisualizationAnalyzer),
-                playbackRealtimeVisualizationOwner,
+                playbackRealtimeVisualizationOwner::beat,
                 REPEAT_ALL
         );
         PlaybackVisualizationCacheStateOwner playbackVisualizationCacheStateOwner =
