@@ -89,7 +89,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider("));
         assertTrue(precacheManager.contains("private final PlaybackMediaCacheOperations mediaCacheOperations;"));
         assertFalse(precacheManager.contains("private final PlaybackMediaSourceProvider"));
-        assertTrue(precacheManager.contains("mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
+        assertTrue(precacheManager.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)"));
+        assertFalse(precacheManager.contains("mediaCacheOperationsFromMediaSourceProvider("));
+        assertFalse(precacheManager.contains("audioCacheReleaseActionFromMediaSourceProvider("));
         assertTrue(visualizationCacheManager.contains("private final PlaybackMediaCacheOperations mediaCacheOperations;"));
         assertFalse(visualizationCacheManager.contains("private final PlaybackMediaSourceProvider"));
         assertTrue(visualizationCacheManager.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)"));
@@ -2022,8 +2024,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
         assertFalse(playbackService.contains("PlaybackPrecacheManager.audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(playbackPrecacheManager.contains("static PlaybackPrecacheManager fromMediaSourceProvider("));
-        assertTrue(playbackPrecacheManager.contains("mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
-        assertTrue(playbackPrecacheManager.contains("audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)"));
+        assertTrue(playbackPrecacheManager.contains(
+                "PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)"));
+        assertFalse(playbackPrecacheManager.contains("mediaCacheOperationsFromMediaSourceProvider("));
+        assertFalse(playbackPrecacheManager.contains("audioCacheReleaseActionFromMediaSourceProvider("));
         assertFalse(playbackPrecacheManager.contains(
                 "private void precacheWithMediaCache(Track track, int generation, PrecacheMode mode)"));
         assertFalse(normalizedPlaybackService.contains(

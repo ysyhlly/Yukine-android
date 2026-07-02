@@ -73,7 +73,7 @@ public final class PlaybackPrecacheManagerTest {
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 (IntFunction<List<Track>>) null,
-                PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider()),
+                PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider()),
                 scheduler,
                 audioCacheReleaseAction::releaseAudioCache
         );
@@ -245,7 +245,7 @@ public final class PlaybackPrecacheManagerTest {
     public void providerBackedMediaCacheOperationsOwnCacheKeyAndHeaders() {
         Map<String, String> headers = Collections.singletonMap("Cookie", "token=abc");
         PlaybackMediaCacheOperations operations =
-                PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(
+                PlaybackMediaCacheOperations.fromMediaSourceProvider(
                         mediaSourceProvider(new FakeStreamingPlaybackHeaderStore(headers))
                 );
         Track streaming = track(42L, "https://example.test/audio.flac", "streaming:test:42");

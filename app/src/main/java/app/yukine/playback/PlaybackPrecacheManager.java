@@ -120,9 +120,13 @@ final class PlaybackPrecacheManager {
         return new PlaybackPrecacheManager(
                 stateProvider,
                 upcomingTracksProvider,
-                mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider),
+                PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider),
                 callbackScheduler,
-                audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)
+                () -> {
+                    if (mediaSourceProvider != null) {
+                        mediaSourceProvider.releaseAudioCache();
+                    }
+                }
         );
     }
 
@@ -145,16 +149,6 @@ final class PlaybackPrecacheManager {
         }
     }
 
-    static Runnable audioCacheReleaseActionFromMediaSourceProvider(
-            PlaybackMediaSourceProvider mediaSourceProvider
-    ) {
-        return () -> {
-            if (mediaSourceProvider != null) {
-                mediaSourceProvider.releaseAudioCache();
-            }
-        };
-    }
-
     static Consumer<Track> precacheTrackActionFromSupplier(
             Supplier<PlaybackPrecacheManager> supplier
     ) {
@@ -164,12 +158,6 @@ final class PlaybackPrecacheManager {
                 manager.precacheTrack(track);
             }
         };
-    }
-
-    static PlaybackMediaCacheOperations mediaCacheOperationsFromMediaSourceProvider(
-            PlaybackMediaSourceProvider mediaSourceProvider
-    ) {
-        return PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider);
     }
 
     void precacheTrack(Track track) {
