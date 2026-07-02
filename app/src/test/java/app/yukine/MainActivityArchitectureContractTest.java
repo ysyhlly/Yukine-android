@@ -6304,6 +6304,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(preparationOwner.contains("mediaSourceProvider.prepareTrackForPlayback(track)"));
         assertTrue(preparationOwner.contains("mediaSourceProvider.mediaSourceForTrack("));
         assertTrue(preparationOwner.contains("metadataProvider == null ? null : metadataProvider::apply"));
+        assertTrue(preparationOwner.contains("import java.util.function.Consumer;"));
         assertTrue(preparationOwner.contains("import java.util.function.Function;"));
         assertFalse(preparationOwner.contains("interface PlaybackPreparationProvider"));
         assertFalse(preparationOwner.contains("interface MediaSourceResolver"));
@@ -6314,11 +6315,17 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(preparationOwner.contains("interface UnplayableMessageProvider"));
         assertTrue(preparationOwner.contains("interface QueuePreparationController"));
         assertTrue(preparationOwner.contains("interface RuntimeStateController"));
+        assertFalse(preparationOwner.contains("interface StatePublisher"));
+        assertFalse(preparationOwner.contains("interface RefusalLogger"));
+        assertTrue(preparationOwner.contains("private final Runnable statePublisher;"));
+        assertTrue(preparationOwner.contains("private final Consumer<Track> refusalLogger;"));
         assertTrue(preparationOwner.contains("playbackPreparationProvider.apply(track)"));
         assertTrue(preparationOwner.contains("return mediaSourceResolver.apply(track);"));
         assertTrue(preparationOwner.contains("preparation.getUnplayableMessage()"));
         assertTrue(preparationOwner.contains("queuePreparationController.replaceCurrentQueueTrack(restoredTrack)"));
         assertTrue(preparationOwner.contains("runtimeStateController.setErrorMessage(unplayableMessage)"));
+        assertTrue(preparationOwner.contains("refusalLogger.accept(preparedTrack);"));
+        assertTrue(preparationOwner.contains("statePublisher.run();"));
         assertTrue(preparationQueueOwner.contains(
                 "final class PlaybackCurrentTrackPreparationQueueOwner"));
         assertTrue(preparationRuntimeOwner.contains(

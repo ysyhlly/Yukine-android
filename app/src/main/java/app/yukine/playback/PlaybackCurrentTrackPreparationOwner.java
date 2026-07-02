@@ -6,6 +6,7 @@ import androidx.media3.exoplayer.source.MediaSource;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 final class PlaybackCurrentTrackPreparationOwner {
@@ -17,14 +18,6 @@ final class PlaybackCurrentTrackPreparationOwner {
     interface RuntimeStateController {
         void setPreparing(boolean preparing);
         void setErrorMessage(String message);
-    }
-
-    interface StatePublisher {
-        void publishState();
-    }
-
-    interface RefusalLogger {
-        void logRefusingToPrepareEmptyUri(Track track);
     }
 
     static final class PreparedTrack {
@@ -81,16 +74,16 @@ final class PlaybackCurrentTrackPreparationOwner {
     private final Function<Track, MediaSource> mediaSourceResolver;
     private final QueuePreparationController queuePreparationController;
     private final RuntimeStateController runtimeStateController;
-    private final StatePublisher statePublisher;
-    private final RefusalLogger refusalLogger;
+    private final Runnable statePublisher;
+    private final Consumer<Track> refusalLogger;
 
     static PlaybackCurrentTrackPreparationOwner fromMediaSourceProvider(
             PlaybackMediaSourceProvider mediaSourceProvider,
             Function<Track, MediaMetadata> metadataProvider,
             QueuePreparationController queuePreparationController,
             RuntimeStateController runtimeStateController,
-            StatePublisher statePublisher,
-            RefusalLogger refusalLogger
+            Runnable statePublisher,
+            Consumer<Track> refusalLogger
     ) {
         return new PlaybackCurrentTrackPreparationOwner(
                 track -> mediaSourceProvider == null
@@ -114,8 +107,8 @@ final class PlaybackCurrentTrackPreparationOwner {
             Function<Track, MediaSource> mediaSourceResolver,
             QueuePreparationController queuePreparationController,
             RuntimeStateController runtimeStateController,
-            StatePublisher statePublisher,
-            RefusalLogger refusalLogger
+            Runnable statePublisher,
+            Consumer<Track> refusalLogger
     ) {
         this.playbackPreparationProvider = playbackPreparationProvider;
         this.mediaSourceResolver = mediaSourceResolver;
@@ -141,8 +134,8 @@ final class PlaybackCurrentTrackPreparationOwner {
             String unplayableMessage = preparation.getUnplayableMessage();
             runtimeStateController.setPreparing(false);
             runtimeStateController.setErrorMessage(unplayableMessage);
-            refusalLogger.logRefusingToPrepareEmptyUri(preparedTrack);
-            statePublisher.publishState();
+            refusalLogger.accept(preparedTrack);
+            statePublisher.run();
             return PreparedTrack.unplayable(preparedTrack);
         }
         return PreparedTrack.playable(
