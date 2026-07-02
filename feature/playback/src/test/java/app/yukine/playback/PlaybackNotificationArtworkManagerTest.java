@@ -9,11 +9,13 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -167,7 +169,7 @@ public final class PlaybackNotificationArtworkManagerTest {
     }
 
     private static PlaybackNotificationArtworkManager manager(
-            PlaybackNotificationArtworkManager.StateProvider stateProvider,
+            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider,
             PlaybackNotificationArtworkManager.NotificationBridge notificationBridge,
             List<Runnable> pending,
             PlaybackNotificationArtworkManager.ArtworkLoader artworkLoader,
@@ -175,7 +177,7 @@ public final class PlaybackNotificationArtworkManagerTest {
     ) {
         return new PlaybackNotificationArtworkManager(
                 RuntimeEnvironment.getApplication(),
-                stateProvider,
+                queueStateProvider,
                 notificationBridge,
                 pending::add,
                 artworkLoader,
@@ -203,12 +205,15 @@ public final class PlaybackNotificationArtworkManagerTest {
         );
     }
 
-    private static final class FakeStateProvider implements PlaybackNotificationArtworkManager.StateProvider {
+    private static final class FakeStateProvider implements Supplier<PlaybackQueueManager.QueueStateSnapshot> {
         private Track currentTrack;
 
         @Override
-        public Track currentTrack() {
-            return currentTrack;
+        public PlaybackQueueManager.QueueStateSnapshot get() {
+            if (currentTrack == null) {
+                return PlaybackQueueManager.QueueStateSnapshot.empty();
+            }
+            return new PlaybackQueueManager.QueueStateSnapshot(currentTrack, 0, 1);
         }
     }
 

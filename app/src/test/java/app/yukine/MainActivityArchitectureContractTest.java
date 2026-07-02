@@ -1715,6 +1715,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackService.contains("                playbackVisualizationCacheStateOwner,"));
         assertFalse(playbackService.contains("new PlaybackVisualizationCacheManager.StateProvider()"));
         assertTrue(playbackService.contains("playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager("));
+        assertTrue(normalizedPlaybackService.contains(
+                "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
+                        + "                this,\n"
+                        + "                playbackQueueStateOwner,"
+        ));
+        assertFalse(normalizedPlaybackService.contains(
+                "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
+                        + "                this,\n"
+                        + "                playbackQueueStateOwner::currentTrack,"
+        ));
         assertFalse(playbackService.contains("new PlaybackNotificationArtworkManager.NotificationBridge()"));
         assertTrue(playbackService.contains("new PlaybackNotificationArtworkBridgeOwner("));
         assertTrue(playbackService.contains("                        playbackSessionRefresher,"));
@@ -5954,11 +5964,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackCurrentTrackOwner.java")));
         assertFalse(service.contains("PlaybackCurrentTrackOwner"));
         assertFalse(service.contains("playbackCurrentTrackOwner"));
-        assertTrue(service.contains("return playbackQueueStateOwner.currentTrack();"));
+        assertFalse(service.contains("return playbackQueueStateOwner.currentTrack();"));
+        assertTrue(service.contains("return playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack();"));
         assertFalse(service.contains("playbackQueueManager.currentTrack();"));
         assertFalse(queueStateOwner.contains("public Track currentTrack()"));
-        assertTrue(queueStateOwner.contains("Track currentTrack()"));
-        assertTrue(queueStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertFalse(queueStateOwner.contains("Track currentTrack()"));
+        assertTrue(queueStateOwner.contains("public PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
         assertFalse(queueStateOwner.contains("playbackQueueManager::currentTrack"));
         assertFalse(service.contains("return queue.get(currentIndex());"));
         assertTrue(owner.contains("fun queueSnapshot(): List<Track>"));
@@ -6768,7 +6779,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackErrorRecoveryManager.onPlayerError(error)"));
         assertFalse(service.contains("public boolean hasMultipleQueueTracks()"));
         assertFalse(service.contains("return EchoPlaybackService.this.hasMultipleQueueTracks();"));
-        assertTrue(service.contains("playbackQueueStateOwner::currentTrack"));
+        assertFalse(service.contains("playbackQueueStateOwner::currentTrack"));
         assertTrue(service.contains("                playbackQueueStateOwner,"));
         assertFalse(service.contains("playbackQueueManager.canSkipFailedTrack(failed)"));
         assertFalse(queueNavigationOwner.contains("playbackQueueManager.canSkipFailedTrack(failed);"));
@@ -7518,7 +7529,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private final PlaybackCurrentTrackOwner playbackCurrentTrackOwner"));
         assertTrue(service.contains("private Track currentTrack()"));
         assertFalse(service.contains("playbackQueueManager.currentTrack()"));
-        assertTrue(queueStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertFalse(queueStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
         assertFalse(queueStateOwner.contains("playbackQueueManager::currentTrack"));
         assertFalse(queueOwner.contains("fun clampCurrentIndex(queueSize: Int): Int"));
         assertFalse(queueOwner.contains("fun setClampedCurrentIndex(index: Int, queueSize: Int)"));

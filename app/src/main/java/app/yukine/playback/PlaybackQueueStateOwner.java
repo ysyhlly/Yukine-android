@@ -44,10 +44,6 @@ final class PlaybackQueueStateOwner implements
         return tracks == null ? Collections.emptyList() : tracks;
     }
 
-    Track currentTrack() {
-        return queueStateSnapshot().getCurrentTrack();
-    }
-
     boolean isQueueEmpty() {
         return queueStateSnapshot().isQueueEmpty();
     }

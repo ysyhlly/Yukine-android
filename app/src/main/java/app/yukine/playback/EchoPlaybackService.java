@@ -699,7 +699,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(
                 this,
-                playbackQueueStateOwner::currentTrack,
+                playbackQueueStateOwner,
                 new PlaybackNotificationArtworkBridgeOwner(
                         playbackSessionRefresher,
                         playbackNotificationCommandOwner::publishPlaybackNotification
@@ -1412,7 +1412,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     private Track currentTrack() {
-        return playbackQueueStateOwner.currentTrack();
+        return playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack();
     }
 
     private boolean isPlaying() {
