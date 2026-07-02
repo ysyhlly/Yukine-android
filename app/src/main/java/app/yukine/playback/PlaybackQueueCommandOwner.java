@@ -7,16 +7,16 @@ import java.util.function.Consumer;
 final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlaybackActions {
     private final Consumer<Boolean> playbackPreparer;
     private final Runnable statePublisher;
-    private final PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands;
+    private final Runnable stopAndClearCommand;
 
     PlaybackQueueCommandOwner(
             Consumer<Boolean> playbackPreparer,
             Runnable statePublisher,
-            PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands
+            Runnable stopAndClearCommand
     ) {
         this.playbackPreparer = playbackPreparer;
         this.statePublisher = statePublisher;
-        this.playbackCommands = playbackCommands;
+        this.stopAndClearCommand = stopAndClearCommand;
     }
 
     @Override
@@ -31,6 +31,6 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
 
     @Override
     public void stopAndClear() {
-        playbackCommands.stopAndClear();
+        stopAndClearCommand.run();
     }
 }

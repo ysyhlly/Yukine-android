@@ -516,7 +516,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackQueueCommandOwner = new PlaybackQueueCommandOwner(
                 EchoPlaybackService.this::prepareCurrent,
                 EchoPlaybackService.this::publishState,
-                EchoPlaybackService.this
+                EchoPlaybackService.this::stopAndClear
         );
         playbackQueueStreamingRestoreOwner =
                 PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(mediaSourceProvider);
