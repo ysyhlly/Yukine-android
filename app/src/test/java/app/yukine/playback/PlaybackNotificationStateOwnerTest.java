@@ -26,18 +26,13 @@ public class PlaybackNotificationStateOwnerTest {
                     events.add("queueState");
                     return new PlaybackQueueManager.QueueStateSnapshot(track, 0, 2);
                 },
-                new PlaybackNotificationStateOwner.PlaybackStateProvider() {
-                    @Override
-                    public boolean isPlaying() {
-                        events.add("playing");
-                        return true;
-                    }
-
-                    @Override
-                    public boolean isPreparing() {
-                        events.add("preparing");
-                        return false;
-                    }
+                () -> {
+                    events.add("playing");
+                    return true;
+                },
+                () -> {
+                    events.add("preparing");
+                    return false;
                 },
                 favoriteTrack -> {
                     events.add("favorite:" + (favoriteTrack == null ? -1L : favoriteTrack.id));
@@ -70,45 +65,25 @@ public class PlaybackNotificationStateOwnerTest {
     }
 
     @Test
-    public void playbackStateProviderFromPlaybackStateDelegatesPlaybackSuppliers() {
-        List<String> events = new ArrayList<>();
-        PlaybackNotificationStateOwner.PlaybackStateProvider provider =
-                PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(
-                        () -> {
-                            events.add("playing");
-                            return true;
-                        },
-                        () -> {
-                            events.add("preparing");
-                            return false;
-                        }
-                );
-
-        assertTrue(provider.isPlaying());
-        assertFalse(provider.isPreparing());
-        assertEquals(
-                java.util.Arrays.asList(
-                        "playing",
-                        "preparing"
-                ),
-                events
+    public void returnsInactivePlaybackStateWhenSuppliersAreMissing() {
+        PlaybackNotificationStateOwner owner = new PlaybackNotificationStateOwner(
+                null,
+                null,
+                null,
+                track -> false,
+                () -> null
         );
-    }
 
-    @Test
-    public void playbackStateProviderFromPlaybackStateReturnsInactiveForMissingSuppliers() {
-        PlaybackNotificationStateOwner.PlaybackStateProvider provider =
-                PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(null, null);
-
-        assertFalse(provider.isPlaying());
-        assertFalse(provider.isPreparing());
+        assertFalse(owner.isPlaying());
+        assertFalse(owner.isPreparing());
     }
 
     @Test
     public void returnsEmptyQueueStateWhenQueueSuppliersAreMissing() {
         PlaybackNotificationStateOwner owner = new PlaybackNotificationStateOwner(
                 null,
-                PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(null, null),
+                null,
+                null,
                 track -> false,
                 () -> null
         );

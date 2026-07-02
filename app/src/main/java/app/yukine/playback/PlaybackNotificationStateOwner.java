@@ -11,41 +11,22 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 final class PlaybackNotificationStateOwner implements PlaybackNotificationManager.StateProvider {
-    interface PlaybackStateProvider {
-        boolean isPlaying();
-        boolean isPreparing();
-    }
-
-    static PlaybackStateProvider playbackStateProviderFromPlaybackState(
-            BooleanSupplier playingStateProvider,
-            BooleanSupplier preparingStateProvider
-    ) {
-        return new PlaybackStateProvider() {
-            @Override
-            public boolean isPlaying() {
-                return playingStateProvider != null && playingStateProvider.getAsBoolean();
-            }
-
-            @Override
-            public boolean isPreparing() {
-                return preparingStateProvider != null && preparingStateProvider.getAsBoolean();
-            }
-        };
-    }
-
     private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier;
-    private final PlaybackStateProvider playbackStateProvider;
+    private final BooleanSupplier playingStateProvider;
+    private final BooleanSupplier preparingStateProvider;
     private final Predicate<Track> favoriteStateProvider;
     private final Supplier<MediaSession.Token> sessionTokenSupplier;
 
     PlaybackNotificationStateOwner(
             Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier,
-            PlaybackStateProvider playbackStateProvider,
+            BooleanSupplier playingStateProvider,
+            BooleanSupplier preparingStateProvider,
             Predicate<Track> favoriteStateProvider,
             Supplier<MediaSession.Token> sessionTokenSupplier
     ) {
         this.queueStateSupplier = queueStateSupplier;
-        this.playbackStateProvider = playbackStateProvider;
+        this.playingStateProvider = playingStateProvider;
+        this.preparingStateProvider = preparingStateProvider;
         this.favoriteStateProvider = favoriteStateProvider;
         this.sessionTokenSupplier = sessionTokenSupplier;
     }
@@ -57,12 +38,12 @@ final class PlaybackNotificationStateOwner implements PlaybackNotificationManage
 
     @Override
     public boolean isPlaying() {
-        return playbackStateProvider.isPlaying();
+        return playingStateProvider != null && playingStateProvider.getAsBoolean();
     }
 
     @Override
     public boolean isPreparing() {
-        return playbackStateProvider.isPreparing();
+        return preparingStateProvider != null && preparingStateProvider.getAsBoolean();
     }
 
     @Override

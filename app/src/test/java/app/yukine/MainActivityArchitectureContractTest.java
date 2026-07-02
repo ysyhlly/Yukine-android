@@ -8169,7 +8169,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("                queueStateSupplier,"));
         assertFalse(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
         assertTrue(service.contains("                playbackNotificationStateOwner,"));
-        assertTrue(service.contains("PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState("));
+        assertFalse(service.contains("PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState("));
+        assertTrue(service.contains("                playbackPlayerStateOwner::isPlaying,"));
+        assertTrue(service.contains("                playbackCurrentTrackPreparationRuntimeOwner::preparing,"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackActiveStateOwner.java")));
         assertFalse(service.contains("PlaybackActiveStateOwner"));
         assertFalse(service.contains("new PlaybackNotificationManager.StateProvider()"));
@@ -8193,7 +8195,7 @@ public final class MainActivityArchitectureContractTest {
         ));
         assertTrue(service.contains("                queueStateSupplier,"));
         assertFalse(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
-        assertTrue(stateOwner.contains("static PlaybackStateProvider playbackStateProviderFromPlaybackState("));
+        assertFalse(stateOwner.contains("static PlaybackStateProvider playbackStateProviderFromPlaybackState("));
         assertFalse(stateOwner.contains("final class PlaybackActiveStateOwner"));
         assertFalse(service.contains("new PlaybackNotificationArtworkManager.StateProvider()"));
         assertTrue(normalizedService.contains("@Inject\n    ToggleFavoriteUseCase toggleFavoriteUseCase;"));
@@ -8261,7 +8263,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("foregroundStopper.run();"));
         assertTrue(stateOwner.contains("final class PlaybackNotificationStateOwner implements PlaybackNotificationManager.StateProvider"));
         assertFalse(stateOwner.contains("interface QueueStateProvider"));
-        assertTrue(stateOwner.contains("interface PlaybackStateProvider"));
+        assertFalse(stateOwner.contains("interface PlaybackStateProvider"));
         assertFalse(stateOwner.contains("interface FavoriteStateProvider"));
         assertFalse(stateOwner.contains("interface SessionTokenProvider"));
         assertTrue(stateOwner.contains("import java.util.function.BooleanSupplier;"));
@@ -8272,6 +8274,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(stateOwner.contains(
                 "private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier;"
         ));
+        assertTrue(stateOwner.contains("private final BooleanSupplier playingStateProvider;"));
+        assertTrue(stateOwner.contains("private final BooleanSupplier preparingStateProvider;"));
         assertFalse(stateOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
         assertTrue(stateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertTrue(stateOwner.contains("private final Predicate<Track> favoriteStateProvider;"));
@@ -8281,6 +8285,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(stateOwner.contains("return queueEmptySupplier == null || queueEmptySupplier.getAsBoolean();"));
         assertFalse(stateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertFalse(stateOwner.contains("return playbackStateProvider.currentTrack();"));
+        assertFalse(stateOwner.contains("return playbackStateProvider.isPlaying();"));
+        assertFalse(stateOwner.contains("return playbackStateProvider.isPreparing();"));
+        assertTrue(stateOwner.contains("return playingStateProvider != null && playingStateProvider.getAsBoolean();"));
+        assertTrue(stateOwner.contains("return preparingStateProvider != null && preparingStateProvider.getAsBoolean();"));
         assertTrue(stateOwner.contains("return favoriteStateProvider.test(track);"));
         assertTrue(stateOwner.contains("return sessionTokenSupplier.get();"));
         assertFalse(owner.contains("interface LyricsTextProvider"));

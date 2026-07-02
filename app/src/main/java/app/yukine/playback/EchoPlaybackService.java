@@ -464,10 +464,8 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackNotificationStateOwner = new PlaybackNotificationStateOwner(
                 queueStateSupplier,
-                PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(
-                        playbackPlayerStateOwner::isPlaying,
-                        playbackCurrentTrackPreparationRuntimeOwner::preparing
-                ),
+                playbackPlayerStateOwner::isPlaying,
+                playbackCurrentTrackPreparationRuntimeOwner::preparing,
                 track -> toggleFavoriteUseCase != null && toggleFavoriteUseCase.isFavorite(track),
                 () -> {
                     MediaLibrarySession session = playbackSessionManager == null ? null : playbackSessionManager.session();
