@@ -5503,6 +5503,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("boolean shouldPlay = playWhenRestored ||"));
         assertFalse(service.contains("prepareCurrent(shouldPlay)"));
         assertTrue(queueManagerOwner.contains("data class RestorePlaybackResult"));
+        assertTrue(queueManagerOwner.contains("fun restorePlaybackQueue()"));
+        assertFalse(queueManagerOwner.contains("fun restorePlaybackQueue(): QueueStateSnapshot"));
         assertTrue(queueManagerOwner.contains("fun restoreLastPlayback(playWhenRestored: Boolean): RestorePlaybackResult"));
         assertTrue(queueManagerOwner.contains("playWhenReady = playWhenRestored || queueStore.loadResumeRequested()"));
         assertFalse(service.contains("queueStore().save("));

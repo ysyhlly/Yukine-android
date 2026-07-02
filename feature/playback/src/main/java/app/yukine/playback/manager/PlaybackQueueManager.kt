@@ -707,13 +707,13 @@ internal class PlaybackQueueManager(
         persistQueue()
     }
 
-    fun restorePlaybackQueue(): QueueStateSnapshot {
+    fun restorePlaybackQueue() {
         if (!playbackRestoreEnabled) {
-            return queueStateSnapshot()
+            return
         }
         val restored = queueStore.load()
         if (restored.isEmpty()) {
-            return queueStateSnapshot()
+            return
         }
         val queue = this.queue
         queue.clear()
@@ -727,7 +727,7 @@ internal class PlaybackQueueManager(
         }
         if (queue.isEmpty()) {
             setCurrentIndex(-1)
-            return queueStateSnapshot()
+            return
         }
         setCurrentIndex(restored.currentIndex)
         setRestoredPosition(
@@ -738,11 +738,11 @@ internal class PlaybackQueueManager(
         clearErrorMessage()
         clearLastMarkedTrack()
         persistQueue()
-        return queueStateSnapshot()
     }
 
     fun restoreLastPlayback(playWhenRestored: Boolean): RestorePlaybackResult {
-        val snapshot = restorePlaybackQueue()
+        restorePlaybackQueue()
+        val snapshot = queueStateSnapshot()
         if (snapshot.isQueueEmpty) {
             return RestorePlaybackResult.empty()
         }

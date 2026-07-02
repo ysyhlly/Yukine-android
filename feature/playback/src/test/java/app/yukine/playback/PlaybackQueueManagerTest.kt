@@ -410,10 +410,10 @@ class PlaybackQueueManagerTest {
         val manager = queueManager(store, provider)
 
         manager.setPlaybackRestoreEnabled(false)
-        val snapshot = manager.restorePlaybackQueue()
+        manager.restorePlaybackQueue()
+        val snapshot = manager.queueStateSnapshot()
 
         assertTrue(provider.queue.isEmpty())
-        assertEquals(-1, manager.queueStateSnapshot().currentIndex)
         assertTrue(snapshot.isQueueEmpty)
         assertEquals(-1, snapshot.currentIndex)
     }
@@ -426,10 +426,10 @@ class PlaybackQueueManagerTest {
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
 
-        val snapshot = manager.restorePlaybackQueue()
+        manager.restorePlaybackQueue()
+        val snapshot = manager.queueStateSnapshot()
 
         assertTrue(provider.queue.isEmpty())
-        assertEquals(-1, manager.queueStateSnapshot().currentIndex)
         assertTrue(snapshot.isQueueEmpty)
     }
 
@@ -461,11 +461,11 @@ class PlaybackQueueManagerTest {
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
 
-        val snapshot = manager.restorePlaybackQueue()
+        manager.restorePlaybackQueue()
+        val snapshot = manager.queueStateSnapshot()
 
         assertEquals(listOf(2L, 3L), provider.queue.map { it.id })
         assertEquals(listOf("streaming:netease:2", "/music/3"), provider.streamingRestoreProvider.restoredDataPaths)
-        assertEquals(0, manager.queueStateSnapshot().currentIndex)
         assertEquals(2L, snapshot.currentTrack?.id)
         assertEquals(0, snapshot.currentIndex)
         assertEquals(2, snapshot.queueSize)
