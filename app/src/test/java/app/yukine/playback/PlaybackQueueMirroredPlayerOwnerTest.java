@@ -48,6 +48,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
 
         assertEquals(
                 java.util.Arrays.asList(
+                        "hasPlayer",
                         "matches",
                         "hasPlayer",
                         "preparing:false",
@@ -81,6 +82,33 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
 
         assertFalse(owner.seekTo(0, 0L, true));
         assertEquals(java.util.Collections.emptyList(), events);
+    }
+
+    @Test
+    public void matchesCurrentQueueFailsWithoutPlayer() {
+        List<String> events = new ArrayList<>();
+        PlaybackQueueMirroredPlayerOwner owner = new PlaybackQueueMirroredPlayerOwner(
+                () -> {
+                    events.add("matches");
+                    return true;
+                },
+                () -> {
+                    events.add("hasPlayer");
+                    return false;
+                },
+                preparing -> events.add("preparing"),
+                () -> track(1L),
+                track -> events.add("waveform"),
+                () -> events.add("apply"),
+                (index, positionMs) -> events.add("seek"),
+                playWhenReady -> events.add("ready"),
+                () -> events.add("play"),
+                enabled -> events.add("mirror"),
+                error -> events.add("log")
+        );
+
+        assertFalse(owner.matchesCurrentQueue());
+        assertEquals(java.util.Collections.singletonList("hasPlayer"), events);
     }
 
     @Test
@@ -131,10 +159,6 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                             return true;
                         },
                         () -> {
-                            events.add("hasPlayer");
-                            return true;
-                        },
-                        () -> {
                             events.add("count");
                             return 1;
                         },
@@ -147,7 +171,6 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
         assertEquals(
                 java.util.Arrays.asList(
                         "mirrors",
-                        "hasPlayer",
                         "count",
                         "track:0:7"
                 ),
@@ -160,7 +183,6 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
         List<String> events = new ArrayList<>();
         BooleanSupplier matcher =
                 PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
-                        () -> true,
                         () -> true,
                         () -> 2,
                         () -> Collections.singletonList(track(7L)),
@@ -175,17 +197,13 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     }
 
     @Test
-    public void matcherReturnsFalseWhenMirrorStateOrPlayerIsMissing() {
+    public void matcherReturnsFalseWhenMirrorStateIsMissing() {
         List<String> events = new ArrayList<>();
         BooleanSupplier matcher =
                 PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
                         () -> {
                             events.add("mirrors");
                             return false;
-                        },
-                        () -> {
-                            events.add("hasPlayer");
-                            return true;
                         },
                         () -> {
                             events.add("count");
@@ -207,7 +225,6 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
         BooleanSupplier matcher =
                 PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
                         () -> true,
-                        () -> true,
                         () -> {
                             throw new IllegalStateException("released");
                         },
@@ -228,10 +245,6 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                             return true;
                         },
                         () -> {
-                            events.add("hasPlayer");
-                            return true;
-                        },
-                        () -> {
                             events.add("count");
                             return 1;
                         },
@@ -241,7 +254,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
 
         assertFalse(matcher.getAsBoolean());
         assertEquals(
-                java.util.Arrays.asList("mirrors", "hasPlayer"),
+                java.util.Collections.singletonList("mirrors"),
                 events
         );
     }

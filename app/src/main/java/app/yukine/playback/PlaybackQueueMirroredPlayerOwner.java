@@ -26,14 +26,12 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
 
     static BooleanSupplier mirroredQueueMatcher(
             BooleanSupplier mirrorStateProvider,
-            BooleanSupplier playerAvailability,
             IntSupplier playerMediaItemCountProvider,
             Supplier<List<Track>> queueSnapshotProvider,
             BiPredicate<Integer, Track> queueTrackMatcher
     ) {
         return new MirroredQueueSnapshotMatcher(
                 mirrorStateProvider,
-                playerAvailability,
                 playerMediaItemCountProvider,
                 queueSnapshotProvider,
                 queueTrackMatcher
@@ -68,12 +66,12 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
 
     @Override
     public boolean matchesCurrentQueue() {
-        return mirroredQueueMatcher.getAsBoolean();
+        return hasPlayer() && mirroredQueueMatcher != null && mirroredQueueMatcher.getAsBoolean();
     }
 
     @Override
     public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
-        if (!playerAvailability.getAsBoolean()) {
+        if (!hasPlayer()) {
             return false;
         }
         preparingStateController.accept(false);
@@ -100,22 +98,23 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
         return currentTrackSupplier == null ? null : currentTrackSupplier.get();
     }
 
+    private boolean hasPlayer() {
+        return playerAvailability != null && playerAvailability.getAsBoolean();
+    }
+
     private static final class MirroredQueueSnapshotMatcher implements BooleanSupplier {
         private final BooleanSupplier mirrorStateProvider;
-        private final BooleanSupplier playerAvailability;
         private final IntSupplier playerMediaItemCountProvider;
         private final Supplier<List<Track>> queueSnapshotProvider;
         private final BiPredicate<Integer, Track> queueTrackMatcher;
 
         private MirroredQueueSnapshotMatcher(
                 BooleanSupplier mirrorStateProvider,
-                BooleanSupplier playerAvailability,
                 IntSupplier playerMediaItemCountProvider,
                 Supplier<List<Track>> queueSnapshotProvider,
                 BiPredicate<Integer, Track> queueTrackMatcher
         ) {
             this.mirrorStateProvider = mirrorStateProvider;
-            this.playerAvailability = playerAvailability;
             this.playerMediaItemCountProvider = playerMediaItemCountProvider;
             this.queueSnapshotProvider = queueSnapshotProvider;
             this.queueTrackMatcher = queueTrackMatcher;
@@ -125,8 +124,6 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
         public boolean getAsBoolean() {
             if (mirrorStateProvider == null
                     || !mirrorStateProvider.getAsBoolean()
-                    || playerAvailability == null
-                    || !playerAvailability.getAsBoolean()
                     || playerMediaItemCountProvider == null
                     || queueSnapshotProvider == null
                     || queueTrackMatcher == null) {
