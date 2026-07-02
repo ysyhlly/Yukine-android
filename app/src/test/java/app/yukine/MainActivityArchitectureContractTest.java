@@ -5699,6 +5699,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("private PlaybackRecoveryDiagnosticsRecorderOwner playbackRecoveryDiagnosticsRecorderOwner;"));
         assertTrue(service.contains("PlaybackRecoveryDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider("));
         assertTrue(service.contains("mediaSourceProvider::streamingQualityForTrack"));
+        assertTrue(service.contains("playbackRecoveryDiagnosticsRecorderOwner.record(recovery)"));
+        assertTrue(service.contains("playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(playWhenReady)"));
+        assertFalse(service.contains("if (playbackRecoveryDiagnosticsRecorderOwner != null)"));
+        assertFalse(service.contains("if (playbackRecoveryScheduler != null)"));
         assertTrue(service.contains("acquireWifiLockIfStreamingAction.run();"));
         assertTrue(service.contains("private void onMirroredQueueReused(boolean playWhenReady)"));
         assertTrue(service.contains("startProgressUpdates();"));
@@ -5723,10 +5727,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("fun recordStreamingRecovery(track: Track, restoredPositionMs: Long)"));
         assertFalse(owner.contains("fun schedulePrepareCurrent(playWhenReady: Boolean)"));
         assertTrue(service.contains("private void onMirroredQueueReused(boolean playWhenReady)"));
-        assertTrue(service.contains("playbackRecoveryDiagnosticsRecorderOwner.record(recovery);"));
+        assertTrue(service.contains("playbackRecoveryDiagnosticsRecorderOwner.record(recovery)"));
         assertFalse(service.contains("streamingDiagnostics.recordRecovery("));
         assertTrue(service.contains("PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY"));
-        assertTrue(service.contains("playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(playWhenReady);"));
+        assertTrue(service.contains("playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(playWhenReady)"));
         assertTrue(currentReplacementOwner.contains(
                 "recoveryScheduler.accept(recovery.getPlayWhenReady());"));
         assertFalse(service.contains("() -> mainHandler.post(() -> prepareCurrent(recovery.getPlayWhenReady()))"));

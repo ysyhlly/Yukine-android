@@ -221,16 +221,8 @@ public final class EchoPlaybackService extends MediaLibraryService
     private final PlaybackCurrentTrackReplacementOwner playbackCurrentTrackReplacementOwner =
             new PlaybackCurrentTrackReplacementOwner(
                     () -> playbackQueueManager,
-                    recovery -> {
-                        if (playbackRecoveryDiagnosticsRecorderOwner != null) {
-                            playbackRecoveryDiagnosticsRecorderOwner.record(recovery);
-                        }
-                    },
-                    playWhenReady -> {
-                        if (playbackRecoveryScheduler != null) {
-                            playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(playWhenReady);
-                        }
-                    }
+                    recovery -> playbackRecoveryDiagnosticsRecorderOwner.record(recovery),
+                    playWhenReady -> playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(playWhenReady)
             );
     private PlaybackShutdownPlaybackResourcesOwner playbackShutdownPlaybackResourcesOwner;
     private PlaybackShutdownServiceResourcesOwner playbackShutdownServiceResourcesOwner;
