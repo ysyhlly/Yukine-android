@@ -42,6 +42,10 @@ final class PlaybackQueueStateOwner implements
         return queueStateSnapshot().getCurrentTrack();
     }
 
+    boolean hasMultipleTracks() {
+        return queueStateSnapshot().getHasMultipleTracks();
+    }
+
     private PlaybackQueueManager playbackQueueManager() {
         return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }

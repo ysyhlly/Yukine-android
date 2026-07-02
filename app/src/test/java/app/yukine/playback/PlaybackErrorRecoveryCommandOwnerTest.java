@@ -8,9 +8,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -20,7 +20,8 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
         List<String> events = new ArrayList<>();
         Track track = track(7L);
         PlaybackErrorRecoveryCommandOwner owner = new PlaybackErrorRecoveryCommandOwner(
-                () -> new PlaybackQueueManager.QueueStateSnapshot(track, 0, 2),
+                () -> track,
+                () -> true,
                 playWhenReady -> events.add("prepare:" + playWhenReady),
                 () -> events.add("next"),
                 message -> events.add("error:" + message),
@@ -50,6 +51,44 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
                 ),
                 events
         );
+    }
+
+    @Test
+    public void handlesMissingOrSingleTrackState() {
+        Track track = track(7L);
+        PlaybackErrorRecoveryCommandOwner missingStateOwner = new PlaybackErrorRecoveryCommandOwner(
+                null,
+                null,
+                playWhenReady -> {
+                },
+                () -> {
+                },
+                message -> {
+                },
+                () -> {
+                },
+                (message, error) -> {
+                }
+        );
+        PlaybackErrorRecoveryCommandOwner singleTrackOwner = new PlaybackErrorRecoveryCommandOwner(
+                () -> track,
+                () -> false,
+                playWhenReady -> {
+                },
+                () -> {
+                },
+                message -> {
+                },
+                () -> {
+                },
+                (message, error) -> {
+                }
+        );
+
+        assertEquals(null, missingStateOwner.currentTrack());
+        assertFalse(missingStateOwner.canSkipFailedTrack(track));
+        assertSame(track, singleTrackOwner.currentTrack());
+        assertFalse(singleTrackOwner.canSkipFailedTrack(track));
     }
 
     private static Track track(long id) {
