@@ -161,18 +161,6 @@ final class PlaybackPrecacheManager {
         }
     }
 
-    static Runnable audioCacheReleaseActionFromPrecacheManagerSupplier(
-            Supplier<PlaybackPrecacheManager> supplier
-    ) {
-        return () -> {
-            PlaybackPrecacheManager manager =
-                    supplier == null ? null : supplier.get();
-            if (manager != null) {
-                manager.releaseAudioCache();
-            }
-        };
-    }
-
     static Runnable audioCacheReleaseActionFromMediaSourceProvider(
             PlaybackMediaSourceProvider mediaSourceProvider
     ) {

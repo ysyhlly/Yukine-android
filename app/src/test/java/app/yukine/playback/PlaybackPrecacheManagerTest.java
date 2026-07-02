@@ -86,35 +86,6 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
-    public void audioCacheReleaseActionFromSupplierDelegatesThroughManagerOnce() {
-        FakeStateProvider stateProvider = new FakeStateProvider();
-        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        FakeAudioCacheReleaseAction audioCacheReleaseAction = new FakeAudioCacheReleaseAction();
-        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
-                stateProvider,
-                (IntFunction<List<Track>>) null,
-                PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider()),
-                scheduler,
-                audioCacheReleaseAction::releaseAudioCache
-        );
-        Runnable releaseAction =
-                PlaybackPrecacheManager.audioCacheReleaseActionFromPrecacheManagerSupplier(() -> manager);
-
-        releaseAction.run();
-        releaseAction.run();
-
-        assertEquals(1, audioCacheReleaseAction.releaseCalls);
-    }
-
-    @Test
-    public void audioCacheReleaseActionFromSupplierIgnoresMissingManager() {
-        Runnable releaseAction =
-                PlaybackPrecacheManager.audioCacheReleaseActionFromPrecacheManagerSupplier(() -> null);
-
-        releaseAction.run();
-    }
-
-    @Test
     public void cacheRangeDataSpecUsesTrackUriCacheKeyAndFragmentationFlag() {
         Track track = track(42L, "https://example.test/audio.flac");
 
