@@ -8,12 +8,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 final class PlaybackQueueMirroredTransitionOwner {
-    interface CurrentTrackVolumeApplier {
-        void applyCurrentTrackVolume();
-    }
-
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
-    private final CurrentTrackVolumeApplier currentTrackVolumeApplier;
+    private final Runnable currentTrackVolumeApplier;
     private final BooleanSupplier playerMirrorsQueue;
     private final BooleanSupplier queueEmpty;
 
@@ -25,7 +21,7 @@ final class PlaybackQueueMirroredTransitionOwner {
 
     static PlaybackQueueMirroredTransitionOwner fromPlaybackQueueManager(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            CurrentTrackVolumeApplier currentTrackVolumeApplier
+            Runnable currentTrackVolumeApplier
     ) {
         return fromPlaybackQueueManager(playbackQueueManagerSupplier, null, null, currentTrackVolumeApplier);
     }
@@ -34,7 +30,7 @@ final class PlaybackQueueMirroredTransitionOwner {
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             BooleanSupplier playerMirrorsQueue,
             BooleanSupplier queueEmpty,
-            CurrentTrackVolumeApplier currentTrackVolumeApplier
+            Runnable currentTrackVolumeApplier
     ) {
         return new PlaybackQueueMirroredTransitionOwner(
                 playbackQueueManagerSupplier,
@@ -52,14 +48,14 @@ final class PlaybackQueueMirroredTransitionOwner {
 
     PlaybackQueueMirroredTransitionOwner(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            CurrentTrackVolumeApplier currentTrackVolumeApplier
+            Runnable currentTrackVolumeApplier
     ) {
         this(playbackQueueManagerSupplier, currentTrackVolumeApplier, null, null);
     }
 
     PlaybackQueueMirroredTransitionOwner(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            CurrentTrackVolumeApplier currentTrackVolumeApplier,
+            Runnable currentTrackVolumeApplier,
             BooleanSupplier playerMirrorsQueue,
             BooleanSupplier queueEmpty
     ) {
@@ -103,7 +99,7 @@ final class PlaybackQueueMirroredTransitionOwner {
         }
         playbackQueueManager.prepareMirroredTransitionPlaybackState();
         if (currentTrackVolumeApplier != null) {
-            currentTrackVolumeApplier.applyCurrentTrackVolume();
+            currentTrackVolumeApplier.run();
         }
     }
 
