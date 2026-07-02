@@ -75,6 +75,12 @@ public final class MainActivityArchitectureContractTest {
         );
         assertFalse(exists("app/src/main/java/app/yukine/playback/PlaybackMediaSourceResolutionOwner.java"));
         assertFalse(exists("app/src/test/java/app/yukine/playback/PlaybackMediaSourceResolutionOwnerTest.java"));
+        assertFalse(exists(
+                "feature/playback/src/main/java/app/yukine/playback/PlaybackMediaSourceResolutionOwner.java"));
+        assertFalse(exists(
+                "feature/playback/src/main/java/app/yukine/playback/manager/PlaybackMediaSourceResolutionOwner.kt"));
+        assertFalse(exists(
+                "feature/playback/src/test/java/app/yukine/playback/PlaybackMediaSourceResolutionOwnerTest.kt"));
         assertFalse(service.contains("PlaybackMediaSourceResolutionOwner"));
         assertFalse(precacheManager.contains("PlaybackMediaSourceResolutionOwner"));
         assertTrue(service.contains("PlaybackPrecacheManager.fromMediaSourceProvider("));
@@ -90,6 +96,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mediaCacheOperations.contains("public interface PlaybackMediaCacheOperations"));
         assertTrue(mediaCacheOperations.contains(
                 "final class PlaybackMediaSourceProviderCacheOperations implements PlaybackMediaCacheOperations"));
+        assertFalse(mediaCacheOperations.contains("prepareTrackForPlayback("));
+        assertFalse(mediaCacheOperations.contains("mediaSourceForTrack("));
+        assertFalse(mediaCacheOperations.contains("mediaSourcesForTracks("));
+        assertFalse(mediaCacheOperations.contains("mediaItemForTrack("));
+        assertFalse(mediaCacheOperations.contains("playbackMediaItemForTrack("));
     }
 
     @Test
