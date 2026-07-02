@@ -6,20 +6,17 @@ import app.yukine.playback.manager.PlaybackCrossfadeAdvanceManager;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BooleanSupplier;
+import java.util.function.DoubleSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManager.StateProvider {
-    interface BaseVolumeProvider {
-        float baseVolume();
-    }
-
     private final BooleanSupplier transitionStateProvider;
     private final BooleanSupplier playerAvailabilityProvider;
     private final BooleanSupplier playbackStateProvider;
     private final IntSupplier repeatModeProvider;
     private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier;
-    private final BaseVolumeProvider baseVolumeProvider;
+    private final DoubleSupplier baseVolumeProvider;
 
     PlaybackCrossfadeStateOwner(
             BooleanSupplier transitionStateProvider,
@@ -27,7 +24,7 @@ final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManag
             BooleanSupplier playbackStateProvider,
             IntSupplier repeatModeProvider,
             Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier,
-            BaseVolumeProvider baseVolumeProvider
+            DoubleSupplier baseVolumeProvider
     ) {
         this.transitionStateProvider = transitionStateProvider;
         this.playerAvailabilityProvider = playerAvailabilityProvider;
@@ -63,7 +60,7 @@ final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManag
 
     @Override
     public float baseVolume() {
-        return baseVolumeProvider.baseVolume();
+        return baseVolumeProvider == null ? 1.0f : (float) baseVolumeProvider.getAsDouble();
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {

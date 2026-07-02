@@ -8002,11 +8002,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(stateOwner.contains("interface PlaybackStateProvider"));
         assertFalse(stateOwner.contains("interface RepeatModeProvider"));
         assertFalse(stateOwner.contains("interface QueueStateProvider"));
-        assertTrue(stateOwner.contains("interface BaseVolumeProvider"));
+        assertFalse(stateOwner.contains("interface BaseVolumeProvider"));
         assertTrue(stateOwner.contains("private final BooleanSupplier transitionStateProvider;"));
         assertTrue(stateOwner.contains("private final BooleanSupplier playerAvailabilityProvider;"));
         assertTrue(stateOwner.contains("private final BooleanSupplier playbackStateProvider;"));
         assertTrue(stateOwner.contains("private final IntSupplier repeatModeProvider;"));
+        assertTrue(stateOwner.contains("private final DoubleSupplier baseVolumeProvider;"));
+        assertTrue(stateOwner.contains("import java.util.function.DoubleSupplier;"));
         assertTrue(stateOwner.contains("import java.util.function.Supplier;"));
         assertFalse(stateOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
         assertFalse(stateOwner.contains("private final BooleanSupplier hasMultipleTracksProvider;"));
@@ -8023,7 +8025,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(stateOwner.contains("if (hasMultipleTracksProvider == null || !hasMultipleTracksProvider.getAsBoolean())"));
         assertFalse(stateOwner.contains("boolean atEndOfQueue = atEndOfQueueProvider != null && atEndOfQueueProvider.getAsBoolean();"));
         assertTrue(stateOwner.contains("return repeatModeProvider.getAsInt() != REPEAT_OFF || !queueStateSnapshot.isAtEndOfQueue();"));
-        assertTrue(stateOwner.contains("return baseVolumeProvider.baseVolume();"));
+        assertTrue(stateOwner.contains("return baseVolumeProvider == null ? 1.0f : (float) baseVolumeProvider.getAsDouble();"));
     }
 
     @Test
