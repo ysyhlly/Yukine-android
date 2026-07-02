@@ -7304,8 +7304,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playerMirrorsQueue = false"));
         assertFalse(service.contains("currentIndex = "));
         assertTrue(service.contains("private final PlaybackQueueMirrorStateOwner playbackQueueMirrorStateOwner"));
+        assertFalse(service.contains("private final PlaybackQueueRuntimeStateManager playbackQueueRuntimeStateManager"));
         assertTrue(service.contains(
-                "PlaybackQueueMirrorStateOwner.fromRuntimeStateManager(playbackQueueRuntimeStateManager)"));
+                "PlaybackQueueMirrorStateOwner.fromRuntimeStateManager(new PlaybackQueueRuntimeStateManager())"));
         assertTrue(service.contains("playbackQueueMirrorStateOwner::playerMirrorsQueue"));
         assertTrue(service.contains("playbackQueueMirrorStateOwner::setPlayerMirrorsQueue"));
         assertTrue(service.contains("playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(true)"));
