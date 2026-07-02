@@ -197,13 +197,8 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackRecoveryDiagnosticsRecorderOwner playbackRecoveryDiagnosticsRecorderOwner;
     private PlaybackErrorRecoveryCommandOwner playbackErrorRecoveryCommandOwner;
     private PlaybackErrorRecoveryManager playbackErrorRecoveryManager;
-    private PlaybackPlayHistoryRecorder playbackPlayHistoryRecorder;
-    private final Runnable recordPlaybackStartHistoryAction =
-            PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
-                    () -> playbackPlayHistoryRecorder,
-                    () -> player != null && player.getPlayWhenReady(),
-                    this::currentTrack
-            );
+    private Runnable recordPlaybackStartHistoryAction = () -> {
+    };
     private PlaybackQueueCommandOwner playbackQueueCommandOwner;
     private PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner;
     private PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner;
@@ -370,9 +365,14 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackModeSettingsStore.restoreInto(playbackRuntimeStateManager);
         playbackRuntimeSettingsStore = PlaybackRuntimeSettingsStore.fromRepository(repository);
         playbackRuntimeSettingsStore.restoreInto(playbackRuntimeStateManager);
-        playbackPlayHistoryRecorder = PlaybackPlayHistoryRecorder.fromRepository(
+        final PlaybackPlayHistoryRecorder playbackPlayHistoryRecorder = PlaybackPlayHistoryRecorder.fromRepository(
                 repository,
                 playbackTransitionStateManager
+        );
+        recordPlaybackStartHistoryAction = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
+                playbackPlayHistoryRecorder,
+                () -> player != null && player.getPlayWhenReady(),
+                this::currentTrack
         );
         playbackPositionManager = new PlaybackPositionManager(
                 queueStore,

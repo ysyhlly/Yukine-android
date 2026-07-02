@@ -49,19 +49,17 @@ public final class PlaybackPlayHistoryRecorderTest {
     }
 
     @Test
-    public void recordIfPlaybackStartedActionUsesLatestRecorderAndState() {
+    public void recordIfPlaybackStartedActionUsesRecorderAndLatestState() {
         FakeHistorySink historySink = new FakeHistorySink();
-        AtomicReference<PlaybackPlayHistoryRecorder> recorder = new AtomicReference<>();
         AtomicBoolean playWhenReady = new AtomicBoolean(false);
         AtomicReference<Track> currentTrack = new AtomicReference<>(track(1L));
+        PlaybackPlayHistoryRecorder recorder = recorder(historySink);
         Runnable action = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
-                recorder::get,
+                recorder,
                 playWhenReady::get,
                 currentTrack::get
         );
 
-        action.run();
-        recorder.set(recorder(historySink));
         action.run();
         playWhenReady.set(true);
         action.run();
@@ -69,6 +67,19 @@ public final class PlaybackPlayHistoryRecorderTest {
         action.run();
 
         assertEquals(list(1L, 2L), historySink.markedTrackIds);
+    }
+
+    @Test
+    public void recordIfPlaybackStartedActionIgnoresMissingRecorder() {
+        AtomicBoolean playWhenReady = new AtomicBoolean(true);
+        AtomicReference<Track> currentTrack = new AtomicReference<>(track(1L));
+        Runnable action = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
+                null,
+                playWhenReady::get,
+                currentTrack::get
+        );
+
+        action.run();
     }
 
     private static PlaybackPlayHistoryRecorder recorder(FakeHistorySink historySink) {

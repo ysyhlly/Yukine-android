@@ -6699,8 +6699,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("repository.markPlayed("));
         assertFalse(service.contains("playbackTransitionStateManager.lastMarkedTrack() == null"));
         assertFalse(service.contains("playbackTransitionStateManager.setLastMarkedTrack(track);"));
-        assertTrue(service.contains("private final Runnable recordPlaybackStartHistoryAction"));
+        assertFalse(service.contains("private PlaybackPlayHistoryRecorder playbackPlayHistoryRecorder;"));
+        assertTrue(service.contains("private Runnable recordPlaybackStartHistoryAction"));
         assertTrue(service.contains("PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction("));
+        assertTrue(service.contains("final PlaybackPlayHistoryRecorder playbackPlayHistoryRecorder = PlaybackPlayHistoryRecorder.fromRepository("));
+        assertFalse(service.contains("() -> playbackPlayHistoryRecorder"));
         assertTrue(service.contains("recordPlaybackStartHistoryAction.run();"));
         assertFalse(service.contains("playbackPlayHistoryRecorder.recordIfPlaybackStarted("));
         assertTrue(service.contains("PlaybackPlayHistoryRecorder.fromRepository("));

@@ -31,13 +31,11 @@ final class PlaybackPlayHistoryRecorder {
     }
 
     static Runnable recordIfPlaybackStartedAction(
-            Supplier<PlaybackPlayHistoryRecorder> recorderProvider,
+            PlaybackPlayHistoryRecorder recorder,
             BooleanSupplier playWhenReady,
             Supplier<Track> currentTrack
     ) {
         return () -> {
-            PlaybackPlayHistoryRecorder recorder =
-                    recorderProvider == null ? null : recorderProvider.get();
             if (recorder == null) {
                 return;
             }
