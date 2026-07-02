@@ -23,7 +23,7 @@ public class PlaybackQueuePersistenceOwnerTest {
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
         store.resetCounts();
         PlaybackQueuePersistenceOwner owner =
-                PlaybackQueuePersistenceOwner.fromPlaybackQueueManager(() -> queueManager);
+                new PlaybackQueuePersistenceOwner(() -> queueManager);
 
         owner.persistQueueState();
         owner.savePlaybackResumeRequested(true);
@@ -44,9 +44,9 @@ public class PlaybackQueuePersistenceOwnerTest {
     @Test
     public void ignoresMissingPlaybackQueueManager() {
         PlaybackQueuePersistenceOwner missingManagerProvider =
-                PlaybackQueuePersistenceOwner.fromPlaybackQueueManager(null);
+                new PlaybackQueuePersistenceOwner(null);
         PlaybackQueuePersistenceOwner missingManager =
-                PlaybackQueuePersistenceOwner.fromPlaybackQueueManager(() -> null);
+                new PlaybackQueuePersistenceOwner(() -> null);
 
         missingManagerProvider.persistQueueState();
         missingManagerProvider.savePlaybackResumeRequested(false);

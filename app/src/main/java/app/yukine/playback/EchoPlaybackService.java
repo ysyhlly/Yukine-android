@@ -136,7 +136,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                     EchoPlaybackService.this::publishState
             );
     private final PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner =
-            PlaybackQueuePersistenceOwner.fromPlaybackQueueManager(() -> playbackQueueManager);
+            new PlaybackQueuePersistenceOwner(() -> playbackQueueManager);
     private final PlaybackQueueCompletionOwner playbackQueueCompletionOwner =
             PlaybackQueueCompletionOwner.fromPlaybackQueueManager(
                     () -> playbackQueueManager,

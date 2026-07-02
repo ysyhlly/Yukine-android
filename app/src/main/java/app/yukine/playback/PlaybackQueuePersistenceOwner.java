@@ -8,12 +8,6 @@ final class PlaybackQueuePersistenceOwner
         implements PlaybackShutdownLifecycleResourcesOwner.PlaybackQueueLifecycleStore {
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
 
-    static PlaybackQueuePersistenceOwner fromPlaybackQueueManager(
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
-    ) {
-        return new PlaybackQueuePersistenceOwner(playbackQueueManagerSupplier);
-    }
-
     PlaybackQueuePersistenceOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
         this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
     }
