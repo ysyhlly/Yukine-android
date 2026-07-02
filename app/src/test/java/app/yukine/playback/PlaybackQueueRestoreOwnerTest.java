@@ -50,15 +50,13 @@ public class PlaybackQueueRestoreOwnerTest {
                 new PlaybackQueueRestoreOwner(
                         null,
                         () -> events.add("create"),
-                        playWhenReady -> events.add("prepare:" + playWhenReady),
-                        () -> events.add("publish")
+                        new FakeRestorePlaybackBoundary(events)
                 );
         PlaybackQueueRestoreOwner missingManager =
                 new PlaybackQueueRestoreOwner(
                         () -> null,
                         () -> events.add("create"),
-                        playWhenReady -> events.add("prepare:" + playWhenReady),
-                        () -> events.add("publish")
+                        new FakeRestorePlaybackBoundary(events)
                 );
 
         missingManagerProvider.restoreLastPlayback(false);
@@ -85,7 +83,7 @@ public class PlaybackQueueRestoreOwnerTest {
         FakeQueueStore store = new FakeQueueStore(new PlaybackQueueState(Collections.emptyList(), -1), false);
         PlaybackQueueRestoreOwner owner = owner(queueManager(store), null);
         PlaybackQueueRestoreOwner missingManager =
-                new PlaybackQueueRestoreOwner(null, null, null, null);
+                new PlaybackQueueRestoreOwner(null, null, null);
 
         owner.setPlaybackRestoreEnabled(true);
         missingManager.setPlaybackRestoreEnabled(false);
@@ -102,7 +100,7 @@ public class PlaybackQueueRestoreOwnerTest {
         );
         PlaybackQueueRestoreOwner owner = owner(queueManager(store), null);
         PlaybackQueueRestoreOwner missingManager =
-                new PlaybackQueueRestoreOwner(null, null, null, null);
+                new PlaybackQueueRestoreOwner(null, null, null);
 
         owner.restorePlaybackQueue();
         missingManager.restorePlaybackQueue();
@@ -117,8 +115,7 @@ public class PlaybackQueueRestoreOwnerTest {
         return new PlaybackQueueRestoreOwner(
                 () -> queueManager,
                 boundary == null ? null : boundary::createPlayerIfNeeded,
-                boundary == null ? null : boundary::prepareCurrent,
-                boundary == null ? null : boundary::publishState
+                boundary
         );
     }
 
@@ -205,7 +202,8 @@ public class PlaybackQueueRestoreOwnerTest {
         }
     }
 
-    private static final class FakeRestorePlaybackBoundary {
+    private static final class FakeRestorePlaybackBoundary
+            implements PlaybackQueueManager.QueuePlaybackActions {
         private final List<String> events;
 
         private FakeRestorePlaybackBoundary(List<String> events) {
@@ -216,10 +214,12 @@ public class PlaybackQueueRestoreOwnerTest {
             events.add("create");
         }
 
+        @Override
         public void prepareCurrent(boolean playWhenReady) {
             events.add("prepare:" + playWhenReady);
         }
 
+        @Override
         public void publishState() {
             events.add("publish");
         }

@@ -5587,6 +5587,7 @@ public final class MainActivityArchitectureContractTest {
         String currentPreparationQueueOwner = read(
                 "app/src/main/java/app/yukine/playback/PlaybackCurrentTrackPreparationQueueOwner.java"
         );
+        String normalizedService = service.replace("\r\n", "\n");
         String queuePlaybackActions = owner.substring(
                 owner.indexOf("interface QueuePlaybackActions"),
                 owner.indexOf("interface StreamingRestoreProvider"));
@@ -5789,7 +5790,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueRestoreOwner.contains("QueueRestoreOperations"));
         assertFalse(queueRestoreOwner.contains("interface RestorePlaybackBoundary"));
         assertFalse(service.contains("new PlaybackQueueRestoreOwner.RestorePlaybackBoundary()"));
-        assertTrue(queueRestoreOwner.contains("import java.util.function.Consumer;"));
+        assertFalse(queueRestoreOwner.contains("import java.util.function.Consumer;"));
         assertFalse(queueRestoreOwner.contains("import java.util.function.Function;"));
         assertFalse(queueRestoreOwner.contains("private final Runnable restorePlaybackQueue;"));
         assertFalse(queueRestoreOwner.contains("private final Function<Boolean, PlaybackQueueManager.RestorePlaybackResult> restoreLastPlayback;"));
@@ -5797,15 +5798,21 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueRestoreOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
         assertTrue(queueRestoreOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertTrue(queueRestoreOwner.contains("private final Runnable createPlayerIfNeeded;"));
-        assertTrue(queueRestoreOwner.contains("private final Consumer<Boolean> prepareCurrent;"));
-        assertTrue(queueRestoreOwner.contains("private final Runnable statePublisher;"));
+        assertFalse(queueRestoreOwner.contains("private final Consumer<Boolean> prepareCurrent;"));
+        assertFalse(queueRestoreOwner.contains("private final Runnable statePublisher;"));
+        assertTrue(queueRestoreOwner.contains("private final PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions;"));
         assertTrue(service.contains("EchoPlaybackService.this::createPlayerIfNeeded"));
-        assertTrue(service.contains("EchoPlaybackService.this::prepareCurrent"));
-        assertTrue(service.contains("EchoPlaybackService.this::publishState"));
+        String queueRestoreWiring = normalizedService.substring(
+                normalizedService.indexOf("private final PlaybackQueueRestoreOwner playbackQueueRestoreOwner"),
+                normalizedService.indexOf("    private final PlaybackQueueCompletionOwner")
+        );
+        assertTrue(queueRestoreWiring.contains("                playbackQueueCommandOwner"));
+        assertFalse(queueRestoreWiring.contains("EchoPlaybackService.this::prepareCurrent"));
+        assertFalse(queueRestoreWiring.contains("EchoPlaybackService.this::publishState"));
         assertFalse(queueRestoreOwner.contains("queueRestoreOperationsProvider"));
         assertTrue(queueRestoreOwner.contains("createPlayerIfNeeded.run();"));
-        assertTrue(queueRestoreOwner.contains("prepareCurrent.accept(playWhenReady);"));
-        assertTrue(queueRestoreOwner.contains("statePublisher.run();"));
+        assertTrue(queueRestoreOwner.contains("queuePlaybackActions.prepareCurrent(playWhenReady);"));
+        assertTrue(queueRestoreOwner.contains("queuePlaybackActions.publishState();"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackQueuePositionPersistenceOwner.java")));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackShutdownQueueLifecycleStoreOwner.java")));
         assertFalse(service.contains("PlaybackQueuePositionPersistenceOwner"));

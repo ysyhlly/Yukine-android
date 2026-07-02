@@ -113,6 +113,11 @@ public final class EchoPlaybackService extends MediaLibraryService
             new PlaybackQueueStateOwner(() -> playbackQueueManager);
     private final PlaybackQueueRuntimeStateManager playbackQueueRuntimeStateManager =
             new PlaybackQueueRuntimeStateManager();
+    private final PlaybackQueueCommandOwner playbackQueueCommandOwner =
+            new PlaybackQueueCommandOwner(
+                    EchoPlaybackService.this::prepareCurrent,
+                    EchoPlaybackService.this::publishState
+            );
     private final PlaybackQueueMutationOwner playbackQueueMutationOwner =
             new PlaybackQueueMutationOwner(
                     () -> playbackQueueManager,
@@ -134,8 +139,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             new PlaybackQueueRestoreOwner(
                     () -> playbackQueueManager,
                     EchoPlaybackService.this::createPlayerIfNeeded,
-                    EchoPlaybackService.this::prepareCurrent,
-                    EchoPlaybackService.this::publishState
+                    playbackQueueCommandOwner
             );
     private final PlaybackQueueCompletionOwner playbackQueueCompletionOwner =
             new PlaybackQueueCompletionOwner(
@@ -506,10 +510,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackNotificationManager.lyricsNotificationBridge(playbackSessionRefresher)
         );
         PlaybackLyricsSettingsStore.fromRepository(repository).restoreInto(playbackLyricsManager);
-        final PlaybackQueueCommandOwner playbackQueueCommandOwner = new PlaybackQueueCommandOwner(
-                EchoPlaybackService.this::prepareCurrent,
-                EchoPlaybackService.this::publishState
-        );
         final PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner =
                 PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(mediaSourceProvider);
         final PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner =

@@ -2,25 +2,21 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackQueueManager;
 
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 final class PlaybackQueueRestoreOwner {
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
     private final Runnable createPlayerIfNeeded;
-    private final Consumer<Boolean> prepareCurrent;
-    private final Runnable statePublisher;
+    private final PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions;
 
     PlaybackQueueRestoreOwner(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             Runnable createPlayerIfNeeded,
-            Consumer<Boolean> prepareCurrent,
-            Runnable statePublisher
+            PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions
     ) {
         this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
         this.createPlayerIfNeeded = createPlayerIfNeeded;
-        this.prepareCurrent = prepareCurrent;
-        this.statePublisher = statePublisher;
+        this.queuePlaybackActions = queuePlaybackActions;
     }
 
     void restoreLastPlayback(boolean playWhenRestored) {
@@ -62,14 +58,14 @@ final class PlaybackQueueRestoreOwner {
     }
 
     private void prepareCurrent(boolean playWhenReady) {
-        if (prepareCurrent != null) {
-            prepareCurrent.accept(playWhenReady);
+        if (queuePlaybackActions != null) {
+            queuePlaybackActions.prepareCurrent(playWhenReady);
         }
     }
 
     private void publishState() {
-        if (statePublisher != null) {
-            statePublisher.run();
+        if (queuePlaybackActions != null) {
+            queuePlaybackActions.publishState();
         }
     }
 
