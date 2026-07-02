@@ -5508,16 +5508,18 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueCompletionOwner.contains("interface QueueCompletionOperations"));
         assertFalse(queueCompletionOwner.contains("QueueCompletionOperations"));
         assertFalse(queueCompletionOwner.contains("PlaybackQueueManagerOperations"));
-        assertTrue(queueCompletionOwner.contains("import java.util.function.BooleanSupplier;"));
-        assertTrue(queueCompletionOwner.contains("import java.util.function.Consumer;"));
-        assertTrue(queueCompletionOwner.contains("import java.util.function.IntConsumer;"));
-        assertTrue(queueCompletionOwner.contains(
+        assertFalse(queueCompletionOwner.contains("import java.util.function.BooleanSupplier;"));
+        assertFalse(queueCompletionOwner.contains("import java.util.function.Consumer;"));
+        assertFalse(queueCompletionOwner.contains("import java.util.function.IntConsumer;"));
+        assertFalse(queueCompletionOwner.contains(
                 "private final Supplier<PlaybackQueueManager.PlaybackCompletionAction> playbackCompletionAction;"));
-        assertTrue(queueCompletionOwner.contains(
+        assertFalse(queueCompletionOwner.contains(
                 "private final Consumer<PlaybackQueueManager.PlaybackCompletionAction> preparePlaybackCompletion;"));
-        assertTrue(queueCompletionOwner.contains("private final BooleanSupplier prepareStopAndClearPlaybackState;"));
-        assertTrue(queueCompletionOwner.contains("private final BooleanSupplier prepareStopAtEndOfQueue;"));
-        assertTrue(queueCompletionOwner.contains("private final IntConsumer prepareStopAfterAutomaticAdvance;"));
+        assertFalse(queueCompletionOwner.contains("private final BooleanSupplier prepareStopAndClearPlaybackState;"));
+        assertFalse(queueCompletionOwner.contains("private final BooleanSupplier prepareStopAtEndOfQueue;"));
+        assertFalse(queueCompletionOwner.contains("private final IntConsumer prepareStopAfterAutomaticAdvance;"));
+        assertTrue(queueCompletionOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
+        assertTrue(queueCompletionOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertTrue(queueCompletionOwner.contains(
                 "Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
@@ -5644,7 +5646,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackQueueCompletionOwner.prepareStopAfterAutomaticAdvance(completedIndex);"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex)"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.playbackCompletionAction();"));
-        assertTrue(queueCompletionOwner.contains("playbackQueueManager.preparePlaybackCompletion(action);"));
+        assertTrue(queueCompletionOwner.contains("playbackQueueManager.preparePlaybackCompletion(completionAction);"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAtEndOfQueue();"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex);"));
         assertTrue(queueCompletionOwner.contains("completionBoundary.prepareCurrent(playWhenReady);"));

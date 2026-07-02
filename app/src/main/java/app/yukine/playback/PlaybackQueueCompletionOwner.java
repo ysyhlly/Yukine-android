@@ -2,9 +2,6 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackQueueManager;
 
-import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
-import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 final class PlaybackQueueCompletionOwner {
@@ -18,26 +15,14 @@ final class PlaybackQueueCompletionOwner {
         void skipToNext();
     }
 
-    private final Supplier<PlaybackQueueManager.PlaybackCompletionAction> playbackCompletionAction;
-    private final Consumer<PlaybackQueueManager.PlaybackCompletionAction> preparePlaybackCompletion;
-    private final BooleanSupplier prepareStopAndClearPlaybackState;
-    private final BooleanSupplier prepareStopAtEndOfQueue;
-    private final IntConsumer prepareStopAfterAutomaticAdvance;
+    private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
     private final CompletionBoundary completionBoundary;
 
     PlaybackQueueCompletionOwner(
-            Supplier<PlaybackQueueManager.PlaybackCompletionAction> playbackCompletionAction,
-            Consumer<PlaybackQueueManager.PlaybackCompletionAction> preparePlaybackCompletion,
-            BooleanSupplier prepareStopAndClearPlaybackState,
-            BooleanSupplier prepareStopAtEndOfQueue,
-            IntConsumer prepareStopAfterAutomaticAdvance,
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             CompletionBoundary completionBoundary
     ) {
-        this.playbackCompletionAction = playbackCompletionAction;
-        this.preparePlaybackCompletion = preparePlaybackCompletion;
-        this.prepareStopAndClearPlaybackState = prepareStopAndClearPlaybackState;
-        this.prepareStopAtEndOfQueue = prepareStopAtEndOfQueue;
-        this.prepareStopAfterAutomaticAdvance = prepareStopAfterAutomaticAdvance;
+        this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
         this.completionBoundary = completionBoundary;
     }
 
@@ -46,64 +31,22 @@ final class PlaybackQueueCompletionOwner {
             CompletionBoundary completionBoundary
     ) {
         return new PlaybackQueueCompletionOwner(
-                () -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
-                            ? null
-                            : playbackQueueManagerSupplier.get();
-                    return playbackQueueManager == null
-                            ? PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR
-                            : playbackQueueManager.playbackCompletionAction();
-                },
-                action -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
-                            ? null
-                            : playbackQueueManagerSupplier.get();
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.preparePlaybackCompletion(action);
-                    }
-                },
-                () -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
-                            ? null
-                            : playbackQueueManagerSupplier.get();
-                    if (playbackQueueManager == null) {
-                        return false;
-                    }
-                    playbackQueueManager.prepareStopAndClearPlaybackState();
-                    return true;
-                },
-                () -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
-                            ? null
-                            : playbackQueueManagerSupplier.get();
-                    if (playbackQueueManager == null) {
-                        return false;
-                    }
-                    playbackQueueManager.prepareStopAtEndOfQueue();
-                    return true;
-                },
-                completedIndex -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
-                            ? null
-                            : playbackQueueManagerSupplier.get();
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex);
-                    }
-                },
+                playbackQueueManagerSupplier,
                 completionBoundary
         );
     }
 
     void playAfterCompletion() {
-        PlaybackQueueManager.PlaybackCompletionAction completionAction = playbackCompletionAction == null
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        PlaybackQueueManager.PlaybackCompletionAction completionAction = playbackQueueManager == null
                 ? PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR
-                : playbackCompletionAction.get();
+                : playbackQueueManager.playbackCompletionAction();
         if (completionAction == PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR) {
             stopAndClear();
             return;
         }
-        if (preparePlaybackCompletion != null) {
-            preparePlaybackCompletion.accept(completionAction);
+        if (playbackQueueManager != null) {
+            playbackQueueManager.preparePlaybackCompletion(completionAction);
         }
         switch (completionAction) {
             case REPEAT_CURRENT:
@@ -122,18 +65,27 @@ final class PlaybackQueueCompletionOwner {
     }
 
     boolean prepareStopAndClearPlaybackState() {
-        return prepareStopAndClearPlaybackState != null
-                && prepareStopAndClearPlaybackState.getAsBoolean();
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager == null) {
+            return false;
+        }
+        playbackQueueManager.prepareStopAndClearPlaybackState();
+        return true;
     }
 
     boolean prepareStopAtEndOfQueue() {
-        return prepareStopAtEndOfQueue != null
-                && prepareStopAtEndOfQueue.getAsBoolean();
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager == null) {
+            return false;
+        }
+        playbackQueueManager.prepareStopAtEndOfQueue();
+        return true;
     }
 
     void prepareStopAfterAutomaticAdvance(int completedIndex) {
-        if (prepareStopAfterAutomaticAdvance != null) {
-            prepareStopAfterAutomaticAdvance.accept(completedIndex);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex);
         }
     }
 
@@ -159,5 +111,9 @@ final class PlaybackQueueCompletionOwner {
         if (completionBoundary != null) {
             completionBoundary.skipToNext();
         }
+    }
+
+    private PlaybackQueueManager playbackQueueManager() {
+        return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }
 }
