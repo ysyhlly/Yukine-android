@@ -217,7 +217,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackPrecacheManager playbackPrecacheManager;
     private PlaybackWarmupCoordinator playbackWarmupCoordinator;
     private PlaybackCrossfadeCommandOwner playbackCrossfadeCommandOwner;
-    private PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner;
     private PlaybackCrossfadeAdvanceManager playbackCrossfadeAdvanceManager;
     private PlaybackRecoveryScheduler playbackRecoveryScheduler;
     private final PlaybackCurrentTrackReplacementOwner playbackCurrentTrackReplacementOwner =
@@ -429,7 +428,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 },
                 () -> playbackCrossfadeAdvanceManager
         );
-        playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner(
+        final PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner(
                 playbackTransitionStateManager::fadeOutAdvancing,
                 () -> player != null,
                 playbackPlayerStateOwner::isPlaying,

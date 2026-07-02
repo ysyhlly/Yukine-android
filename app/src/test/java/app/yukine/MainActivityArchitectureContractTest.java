@@ -7590,8 +7590,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackCrossfadeCommandOwner.startFadeOutThenNext()"));
         assertTrue(service.contains("playbackCrossfadeCommandOwner.cancelCrossfadeAdvance();"));
         assertFalse(service.contains("new PlaybackCrossfadeAdvanceManager.StateProvider()"));
-        assertTrue(service.contains("private PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner;"));
-        assertTrue(service.contains("playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner("));
+        assertFalse(service.contains("private PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner;"));
+        assertTrue(service.contains("final PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner("));
         assertTrue(service.contains("                playbackPlayerStateOwner::isPlaying,"));
         assertTrue(service.contains("                playbackQueueStateOwner::queueStateSnapshot,"));
         assertFalse(service.contains("playbackQueueNavigationOwner,\r\n                () -> playbackRuntimeStateManager == null"));
