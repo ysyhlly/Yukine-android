@@ -2,7 +2,6 @@ package app.yukine.playback
 
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackRuntimeStateManager
-import app.yukine.playback.manager.PlaybackQueueManager
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -235,21 +234,21 @@ class PlaybackRuntimeStateManagerTest {
                 true
             },
             Supplier {
-                events += "queueState"
-                PlaybackQueueManager.QueueStateSnapshot(track, 0, 1)
+                events += "currentTrack"
+                track
             }
         )
 
         assertNull(provider.player())
         assertTrue(provider.playerMirrorsQueue())
         assertSame(track, provider.currentTrack())
-        assertEquals(listOf("player", "mirrors", "queueState"), events)
+        assertEquals(listOf("player", "mirrors", "currentTrack"), events)
     }
 
     @Test
-    fun stateProviderFromPlaybackStateHandlesMissingQueueState() {
+    fun stateProviderFromPlaybackStateHandlesMissingCurrentTrack() {
         val missingProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(null, null, null)
-        val nullSnapshotProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
+        val nullTrackProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
             null,
             null,
             Supplier { null }
@@ -257,7 +256,7 @@ class PlaybackRuntimeStateManagerTest {
 
         assertNull(missingProvider.currentTrack())
         assertEquals(false, missingProvider.playerMirrorsQueue())
-        assertNull(nullSnapshotProvider.currentTrack())
+        assertNull(nullTrackProvider.currentTrack())
     }
 
     @Test

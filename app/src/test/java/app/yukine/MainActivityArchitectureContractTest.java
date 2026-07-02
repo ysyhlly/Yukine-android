@@ -7109,8 +7109,8 @@ public final class MainActivityArchitectureContractTest {
                 normalizedService.indexOf("private final PlaybackRuntimeStateManager playbackRuntimeStateManager ="),
                 normalizedService.indexOf("    private final PlaybackCurrentTrackPreparationRuntimeOwner")
         );
-        assertTrue(runtimeStateProviderWiring.contains("                            playbackQueueStateOwner::queueStateSnapshot\n"));
-        assertFalse(runtimeStateProviderWiring.contains("playbackQueueStateOwner::currentTrack"));
+        assertTrue(runtimeStateProviderWiring.contains("                            playbackQueueStateOwner::currentTrack\n"));
+        assertFalse(runtimeStateProviderWiring.contains("playbackQueueStateOwner::queueStateSnapshot"));
         assertFalse(service.contains("new PlaybackRuntimeStateManager.StateProvider()"));
         assertTrue(owner.contains("private var shuffleEnabled"));
         assertTrue(owner.contains("private var repeatMode"));
@@ -7192,11 +7192,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun stateProviderFromPlaybackState("));
         assertTrue(owner.contains("playerSupplier: Supplier<ExoPlayer?>?"));
         assertTrue(owner.contains("mirroredQueueSupplier: BooleanSupplier?"));
-        assertFalse(owner.contains("currentTrackSupplier: Supplier<Track?>?"));
-        assertTrue(owner.contains("queueStateSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
+        assertTrue(owner.contains("currentTrackSupplier: Supplier<Track?>?"));
+        assertFalse(owner.contains("queueStateSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
         assertTrue(owner.contains("override fun player(): ExoPlayer? = playerSupplier?.get()"));
         assertTrue(owner.contains("override fun playerMirrorsQueue(): Boolean = mirroredQueueSupplier?.asBoolean == true"));
-        assertTrue(owner.contains("override fun currentTrack(): Track? = queueStateSupplier?.get()?.currentTrack"));
+        assertTrue(owner.contains("override fun currentTrack(): Track? = currentTrackSupplier?.get()"));
     }
 
     @Test
