@@ -7,11 +7,12 @@ import app.yukine.playback.manager.PlaybackQueueManager;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-final class PlaybackRecoveryDiagnosticsRecorderOwner {
+final class PlaybackStreamingDiagnosticsRecorderOwner
+        implements PlaybackStatePublisher.BufferingRecorder {
     private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider;
     private final Function<Track, String> streamingQualityProvider;
 
-    PlaybackRecoveryDiagnosticsRecorderOwner(
+    PlaybackStreamingDiagnosticsRecorderOwner(
             Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider,
             Function<Track, String> streamingQualityProvider
     ) {
@@ -19,10 +20,16 @@ final class PlaybackRecoveryDiagnosticsRecorderOwner {
         this.streamingQualityProvider = streamingQualityProvider;
     }
 
+    @Override
+    public void record(PlaybackStateSnapshot snapshot) {
+        PlaybackStreamingDiagnostics diagnostics = streamingDiagnostics();
+        if (diagnostics != null && snapshot != null) {
+            diagnostics.recordBuffering(snapshot.currentTrack, snapshot.positionMs);
+        }
+    }
+
     void record(PlaybackQueueManager.CurrentTrackReplacementRecovery recovery) {
-        PlaybackStreamingDiagnostics diagnostics = streamingDiagnosticsProvider == null
-                ? null
-                : streamingDiagnosticsProvider.get();
+        PlaybackStreamingDiagnostics diagnostics = streamingDiagnostics();
         if (diagnostics == null || recovery == null) {
             return;
         }
@@ -31,5 +38,11 @@ final class PlaybackRecoveryDiagnosticsRecorderOwner {
                 ? ""
                 : streamingQualityProvider.apply(track);
         diagnostics.recordRecovery(track, recovery.getRestoredPositionMs(), quality);
+    }
+
+    private PlaybackStreamingDiagnostics streamingDiagnostics() {
+        return streamingDiagnosticsProvider == null
+                ? null
+                : streamingDiagnosticsProvider.get();
     }
 }

@@ -9,12 +9,25 @@ import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import app.yukine.playback.manager.PlaybackQueueManager;
 import org.junit.Test;
 
-public class PlaybackRecoveryDiagnosticsRecorderOwnerTest {
+public class PlaybackStreamingDiagnosticsRecorderOwnerTest {
+    @Test
+    public void recordsBufferingFromSnapshot() {
+        PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
+        PlaybackStreamingDiagnosticsRecorderOwner owner =
+                new PlaybackStreamingDiagnosticsRecorderOwner(() -> diagnostics, track -> "");
+
+        owner.record(PlaybackStateSnapshot.empty());
+
+        PlaybackStreamingDiagnostics.Snapshot snapshot = diagnostics.snapshot();
+        assertEquals(1, snapshot.bufferingEvents);
+        assertEquals(0L, snapshot.recentEvents.get(0).positionMs);
+    }
+
     @Test
     public void recordsRecoveryWithStreamingQuality() {
         Track track = track();
         PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
-        PlaybackRecoveryDiagnosticsRecorderOwner owner = new PlaybackRecoveryDiagnosticsRecorderOwner(
+        PlaybackStreamingDiagnosticsRecorderOwner owner = new PlaybackStreamingDiagnosticsRecorderOwner(
                 () -> diagnostics,
                 requestedTrack -> requestedTrack == track ? "lossless" : ""
         );
@@ -31,26 +44,30 @@ public class PlaybackRecoveryDiagnosticsRecorderOwnerTest {
     @Test
     public void ignoresMissingDiagnosticsOrRecovery() {
         PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
-        PlaybackRecoveryDiagnosticsRecorderOwner nullProviderOwner =
-                new PlaybackRecoveryDiagnosticsRecorderOwner(null, track -> "high");
-        PlaybackRecoveryDiagnosticsRecorderOwner missingDiagnosticsOwner =
-                new PlaybackRecoveryDiagnosticsRecorderOwner(() -> null, track -> "high");
-        PlaybackRecoveryDiagnosticsRecorderOwner owner =
-                new PlaybackRecoveryDiagnosticsRecorderOwner(() -> diagnostics, track -> "high");
+        PlaybackStreamingDiagnosticsRecorderOwner nullProviderOwner =
+                new PlaybackStreamingDiagnosticsRecorderOwner(null, track -> "high");
+        PlaybackStreamingDiagnosticsRecorderOwner missingDiagnosticsOwner =
+                new PlaybackStreamingDiagnosticsRecorderOwner(() -> null, track -> "high");
+        PlaybackStreamingDiagnosticsRecorderOwner owner =
+                new PlaybackStreamingDiagnosticsRecorderOwner(() -> diagnostics, track -> "high");
 
         nullProviderOwner.record(new PlaybackQueueManager.CurrentTrackReplacementRecovery(track(), 1L, true));
+        nullProviderOwner.record(PlaybackStateSnapshot.empty());
         missingDiagnosticsOwner.record(new PlaybackQueueManager.CurrentTrackReplacementRecovery(track(), 1L, true));
-        owner.record(null);
+        missingDiagnosticsOwner.record(PlaybackStateSnapshot.empty());
+        owner.record((PlaybackQueueManager.CurrentTrackReplacementRecovery) null);
+        owner.record((PlaybackStateSnapshot) null);
 
         assertEquals(0, diagnostics.snapshot().recoveryEvents);
+        assertEquals(0, diagnostics.snapshot().bufferingEvents);
     }
 
     @Test
     public void recordsEmptyQualityWhenQualityProviderIsMissing() {
         Track track = track();
         PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
-        PlaybackRecoveryDiagnosticsRecorderOwner owner =
-                new PlaybackRecoveryDiagnosticsRecorderOwner(() -> diagnostics, null);
+        PlaybackStreamingDiagnosticsRecorderOwner owner =
+                new PlaybackStreamingDiagnosticsRecorderOwner(() -> diagnostics, null);
 
         owner.record(new PlaybackQueueManager.CurrentTrackReplacementRecovery(track, 1200L, true));
 

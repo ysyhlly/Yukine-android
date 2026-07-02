@@ -206,8 +206,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackModeSettingsStore playbackModeSettingsStore;
     private PlaybackStatePublisher playbackStatePublisher;
     private PlaybackStateSnapshotOwner playbackStateSnapshotOwner;
-    private PlaybackBufferingDiagnosticsRecorderOwner playbackBufferingDiagnosticsRecorderOwner;
-    private PlaybackRecoveryDiagnosticsRecorderOwner playbackRecoveryDiagnosticsRecorderOwner;
+    private PlaybackStreamingDiagnosticsRecorderOwner playbackStreamingDiagnosticsRecorderOwner;
     private PlaybackErrorRecoveryCommandOwner playbackErrorRecoveryCommandOwner;
     private PlaybackErrorRecoveryManager playbackErrorRecoveryManager;
     private Runnable recordPlaybackStartHistoryAction = () -> {
@@ -235,7 +234,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     private final PlaybackCurrentTrackReplacementOwner playbackCurrentTrackReplacementOwner =
             new PlaybackCurrentTrackReplacementOwner(
                     () -> playbackQueueManager,
-                    recovery -> playbackRecoveryDiagnosticsRecorderOwner.record(recovery),
+                    recovery -> playbackStreamingDiagnosticsRecorderOwner.record(recovery),
                     playWhenReady -> playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(playWhenReady)
             );
     private PlaybackShutdownPlaybackResourcesOwner playbackShutdownPlaybackResourcesOwner;
@@ -734,12 +733,8 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackNotificationArtworkSource,
                 PlaybackStatePublisherWidgetOwner.fromContextProvider(() -> this)
         );
-        playbackBufferingDiagnosticsRecorderOwner =
-                new PlaybackBufferingDiagnosticsRecorderOwner(
-                        () -> streamingDiagnostics
-                );
-        playbackRecoveryDiagnosticsRecorderOwner =
-                new PlaybackRecoveryDiagnosticsRecorderOwner(
+        playbackStreamingDiagnosticsRecorderOwner =
+                new PlaybackStreamingDiagnosticsRecorderOwner(
                         () -> streamingDiagnostics,
                         mediaSourceProvider::streamingQualityForTrack
                 );
@@ -1319,11 +1314,11 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     private void publishBufferingState() {
         if (playbackStatePublisher != null) {
-            playbackStatePublisher.publishBufferingState(playbackBufferingDiagnosticsRecorderOwner);
+            playbackStatePublisher.publishBufferingState(playbackStreamingDiagnosticsRecorderOwner);
             return;
         }
-        if (playbackBufferingDiagnosticsRecorderOwner != null) {
-            playbackBufferingDiagnosticsRecorderOwner.record(snapshot());
+        if (playbackStreamingDiagnosticsRecorderOwner != null) {
+            playbackStreamingDiagnosticsRecorderOwner.record(snapshot());
         }
     }
 
