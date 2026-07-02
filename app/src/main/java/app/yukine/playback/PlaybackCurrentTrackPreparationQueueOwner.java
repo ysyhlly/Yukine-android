@@ -8,9 +8,7 @@ import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 final class PlaybackCurrentTrackPreparationQueueOwner
@@ -47,52 +45,16 @@ final class PlaybackCurrentTrackPreparationQueueOwner
         }
     }
 
-    private final Consumer<Track> replaceCurrentQueueTrack;
-    private final Function<Track, Long> restoredPositionFor;
-    private final Supplier<PlaybackQueueManager.QueuePreparation> queuePreparationForNewPlayer;
+    private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
     private final Function<List<Track>, List<MediaSource>> mediaSourcesForTracks;
-    private final LongConsumer consumeRestoredPositionAfterPrepare;
 
     static PlaybackCurrentTrackPreparationQueueOwner fromPlaybackQueueManager(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             Function<List<Track>, List<MediaSource>> mediaSourcesForTracks
     ) {
         return new PlaybackCurrentTrackPreparationQueueOwner(
-                track -> {
-                    PlaybackQueueManager playbackQueueManager =
-                            playbackQueueManagerSupplier == null
-                                    ? null
-                                    : playbackQueueManagerSupplier.get();
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.replaceCurrentQueueTrack(track);
-                    }
-                },
-                track -> {
-                    PlaybackQueueManager playbackQueueManager =
-                            playbackQueueManagerSupplier == null
-                                    ? null
-                                    : playbackQueueManagerSupplier.get();
-                    return playbackQueueManager == null ? 0L : playbackQueueManager.restoredPositionFor(track);
-                },
-                () -> {
-                    PlaybackQueueManager playbackQueueManager =
-                            playbackQueueManagerSupplier == null
-                                    ? null
-                                    : playbackQueueManagerSupplier.get();
-                    return playbackQueueManager == null
-                            ? PlaybackQueueManager.QueuePreparation.empty()
-                            : playbackQueueManager.queuePreparationForNewPlayer();
-                },
-                mediaSourcesForTracks,
-                startPositionMs -> {
-                    PlaybackQueueManager playbackQueueManager =
-                            playbackQueueManagerSupplier == null
-                                    ? null
-                                    : playbackQueueManagerSupplier.get();
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.consumeRestoredPositionAfterPrepare(startPositionMs);
-                    }
-                }
+                playbackQueueManagerSupplier,
+                mediaSourcesForTracks
         );
     }
 
@@ -113,36 +75,32 @@ final class PlaybackCurrentTrackPreparationQueueOwner
     }
 
     PlaybackCurrentTrackPreparationQueueOwner(
-            Consumer<Track> replaceCurrentQueueTrack,
-            Function<Track, Long> restoredPositionFor,
-            Supplier<PlaybackQueueManager.QueuePreparation> queuePreparationForNewPlayer,
-            Function<List<Track>, List<MediaSource>> mediaSourcesForTracks,
-            LongConsumer consumeRestoredPositionAfterPrepare
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            Function<List<Track>, List<MediaSource>> mediaSourcesForTracks
     ) {
-        this.replaceCurrentQueueTrack = replaceCurrentQueueTrack;
-        this.restoredPositionFor = restoredPositionFor;
-        this.queuePreparationForNewPlayer = queuePreparationForNewPlayer;
+        this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
         this.mediaSourcesForTracks = mediaSourcesForTracks;
-        this.consumeRestoredPositionAfterPrepare = consumeRestoredPositionAfterPrepare;
     }
 
     @Override
     public void replaceCurrentQueueTrack(Track track) {
-        if (replaceCurrentQueueTrack != null) {
-            replaceCurrentQueueTrack.accept(track);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.replaceCurrentQueueTrack(track);
         }
     }
 
     @Override
     public long restoredPositionFor(Track track) {
-        Long positionMs = restoredPositionFor == null ? null : restoredPositionFor.apply(track);
-        return positionMs == null ? 0L : positionMs;
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        return playbackQueueManager == null ? 0L : playbackQueueManager.restoredPositionFor(track);
     }
 
     PreparedQueue queuePreparationForNewPlayer() {
-        PlaybackQueueManager.QueuePreparation queuePreparation = queuePreparationForNewPlayer == null
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        PlaybackQueueManager.QueuePreparation queuePreparation = playbackQueueManager == null
                 ? PlaybackQueueManager.QueuePreparation.empty()
-                : queuePreparationForNewPlayer.get();
+                : playbackQueueManager.queuePreparationForNewPlayer();
         if (queuePreparation == null || queuePreparation.getCurrentTrack() == null) {
             return PreparedQueue.empty();
         }
@@ -159,8 +117,13 @@ final class PlaybackCurrentTrackPreparationQueueOwner
     }
 
     void consumeRestoredPositionAfterPrepare(long startPositionMs) {
-        if (consumeRestoredPositionAfterPrepare != null) {
-            consumeRestoredPositionAfterPrepare.accept(startPositionMs);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.consumeRestoredPositionAfterPrepare(startPositionMs);
         }
+    }
+
+    private PlaybackQueueManager playbackQueueManager() {
+        return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }
 }

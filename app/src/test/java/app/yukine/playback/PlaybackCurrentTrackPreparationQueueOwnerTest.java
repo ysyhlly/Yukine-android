@@ -8,72 +8,71 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
+import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackPositionManager;
 import app.yukine.playback.manager.PlaybackQueueManager;
+import app.yukine.playback.manager.PlaybackQueueStore;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 
 public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     @Test
-    public void delegatesQueuePreparationToSuppliedActions() {
-        List<String> events = new ArrayList<>();
-        Track[] lastReplacedTrack = new Track[1];
-        PlaybackCurrentTrackPreparationQueueOwner owner = new PlaybackCurrentTrackPreparationQueueOwner(
-                track -> {
-                    events.add("replace:" + track.id);
-                    lastReplacedTrack[0] = track;
-                },
-                track -> {
-                    events.add("position:" + track.id);
-                    return 3200L;
-                },
-                () -> {
-                    events.add("queuePreparation");
-                    return new PlaybackQueueManager.QueuePreparation(
-                            lastReplacedTrack[0],
-                            2,
-                            Collections.singletonList(lastReplacedTrack[0])
-                    );
-                },
-                tracks -> {
-                    events.add("sources:" + tracks.size());
-                    return Collections.singletonList(null);
-                },
-                startPositionMs -> events.add("consume:" + startPositionMs)
-        );
-        Track track = track(7L);
+    public void delegatesQueuePreparationToPlaybackQueueManager() {
+        FakeQueueStore store = new FakeQueueStore();
+        PlaybackQueueManager[] queueManagerRef = new PlaybackQueueManager[1];
+        PlaybackPositionManager positionManager = new PlaybackPositionManager(
+                store,
+                new PlaybackPositionManager.StateProvider() {
+                    @Override
+                    public Track currentTrack() {
+                        return queueManagerRef[0] == null
+                                ? null
+                                : queueManagerRef[0].queueStateSnapshot().getCurrentTrack();
+                    }
 
-        owner.replaceCurrentQueueTrack(track);
-        long positionMs = owner.restoredPositionFor(track);
+                    @Override
+                    public long positionMs() {
+                        return 0L;
+                    }
+                }
+        );
+        PlaybackQueueManager queueManager = queueManager(store, positionManager);
+        queueManagerRef[0] = queueManager;
+        PlaybackCurrentTrackPreparationQueueOwner owner =
+                PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager(
+                        () -> queueManager,
+                        tracks -> Collections.singletonList(null)
+                );
+        Track currentTrack = track(7L);
+        Track replacement = track(7L);
+        Track nextTrack = track(8L);
+        queueManager.playQueue(Arrays.asList(currentTrack, nextTrack), 0, 3200L);
+
+        owner.replaceCurrentQueueTrack(replacement);
+        long positionMs = owner.restoredPositionFor(replacement);
         PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
                 owner.queuePreparationForNewPlayer();
         owner.consumeRestoredPositionAfterPrepare(4300L);
 
         assertEquals(3200L, positionMs);
-        assertEquals(track.id, queuePreparation.currentTrack().id);
-        assertEquals(2, queuePreparation.startIndex());
-        assertEquals(1, queuePreparation.mirroredQueueMediaSources().size());
-        assertEquals(
-                Arrays.asList(
-                        "replace:7",
-                        "position:7",
-                        "queuePreparation",
-                        "sources:1",
-                        "consume:4300"
-                ),
-                events
-        );
+        assertSame(replacement, queuePreparation.currentTrack());
+        assertEquals(0, queuePreparation.startIndex());
+        assertEquals(null, queuePreparation.mirroredQueueMediaSources());
+        assertEquals(0L, owner.restoredPositionFor(replacement));
+        assertEquals(1, store.savePlaybackPositionCalls);
     }
 
     @Test
-    public void ignoresMissingQueueActions() {
+    public void ignoresMissingPlaybackQueueManager() {
         PlaybackCurrentTrackPreparationQueueOwner owner = new PlaybackCurrentTrackPreparationQueueOwner(
                 null,
-                null,
-                null,
-                null,
-                null
+                tracks -> {
+                    throw new AssertionError("media sources should not be requested without a queue");
+                }
         );
 
         owner.replaceCurrentQueueTrack(track(8L));
@@ -107,7 +106,118 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
         assertEquals(null, owner.queuePreparationForNewPlayer().mirroredQueueMediaSources());
     }
 
+    private static PlaybackQueueManager queueManager(
+            FakeQueueStore store,
+            PlaybackPositionManager positionManager
+    ) {
+        return new PlaybackQueueManager(
+                store,
+                new ArrayList<>(),
+                new NoopQueuePlaybackActions(),
+                positionManager,
+                new NoopStreamingRestoreProvider(),
+                new NoopMirroredQueuePlayer(),
+                null,
+                null,
+                new Random(1L)
+        );
+    }
+
     private static Track track(long id) {
-        return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "streaming:netease:" + id);
+        return new Track(
+                id,
+                "Track " + id,
+                "Artist",
+                "Album",
+                10000L,
+                Uri.parse("content://test/" + id),
+                "/music/" + id
+        );
+    }
+
+    private static final class FakeQueueStore implements PlaybackQueueStore {
+        private int savePlaybackPositionCalls;
+
+        @Override
+        public PlaybackQueueState load() {
+            return new PlaybackQueueState(Collections.emptyList(), -1);
+        }
+
+        @Override
+        public void save(List<Track> tracks, int currentIndex) {
+        }
+
+        @Override
+        public boolean loadResumeRequested() {
+            return false;
+        }
+
+        @Override
+        public void saveResumeRequested(boolean requested) {
+        }
+
+        @Override
+        public boolean loadPlaybackRestoreEnabled() {
+            return true;
+        }
+
+        @Override
+        public void savePlaybackRestoreEnabled(boolean enabled) {
+        }
+
+        @Override
+        public long loadPlaybackPositionTrackId() {
+            return -1L;
+        }
+
+        @Override
+        public long loadPlaybackPositionMs() {
+            return 0L;
+        }
+
+        @Override
+        public void savePlaybackPosition(long trackId, long positionMs) {
+            savePlaybackPositionCalls++;
+        }
+    }
+
+    private static final class NoopQueuePlaybackActions
+            implements PlaybackQueueManager.QueuePlaybackActions {
+        @Override
+        public void prepareCurrent(boolean playWhenReady) {
+        }
+
+        @Override
+        public void publishState() {
+        }
+
+        @Override
+        public void stopAndClear() {
+        }
+    }
+
+    private static final class NoopStreamingRestoreProvider
+            implements PlaybackQueueManager.StreamingRestoreProvider {
+        @Override
+        public Track restoredTrackFor(Track track) {
+            return track;
+        }
+
+        @Override
+        public void restoreForDataPath(String dataPath) {
+        }
+    }
+
+    private static final class NoopMirroredQueuePlayer
+            implements PlaybackQueueManager.MirroredQueuePlayer {
+        @Override
+        public boolean matchesCurrentQueue() {
+            return false;
+        }
+
+        @Override
+        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
+            return false;
+        }
     }
 }
