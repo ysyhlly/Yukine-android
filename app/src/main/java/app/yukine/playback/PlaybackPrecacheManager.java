@@ -295,11 +295,6 @@ final class PlaybackPrecacheManager {
     }
 
     @OptIn(markerClass = UnstableApi.class)
-    private void precacheWithMediaCache(Track track, int generation, PrecacheMode mode) {
-        precacheWithMediaCache(track, generation, mode, false);
-    }
-
-    @OptIn(markerClass = UnstableApi.class)
     private void precacheWithMediaCache(
             Track track,
             int generation,

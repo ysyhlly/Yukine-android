@@ -2021,6 +2021,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("static PlaybackPrecacheManager fromMediaSourceProvider("));
         assertTrue(playbackPrecacheManager.contains("mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(playbackPrecacheManager.contains("audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)"));
+        assertFalse(playbackPrecacheManager.contains(
+                "private void precacheWithMediaCache(Track track, int generation, PrecacheMode mode)"));
         assertFalse(normalizedPlaybackService.contains(
                 "new PlaybackPrecacheManager(\n"
                         + "                playbackPrecacheStateOwner,\n"
