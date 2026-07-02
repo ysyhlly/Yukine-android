@@ -57,6 +57,26 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void playbackOwnerInventoryAndServiceWiringDoNotGrowWithoutAudit() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java")
+                .replace("\r\n", "\n");
+        String precacheManager = read("app/src/main/java/app/yukine/playback/PlaybackPrecacheManager.java");
+
+        assertEquals(44, countFiles("app/src/main/java/app/yukine/playback", "Playback*Owner.java"));
+        assertTrue(
+                "EchoPlaybackService should not add more Playback* fields without a narrower owner/interface slice",
+                countOccurrences(service, "\n    private Playback") <= 44
+        );
+        assertFalse(exists("app/src/main/java/app/yukine/playback/PlaybackMediaSourceResolutionOwner.java"));
+        assertFalse(exists("app/src/test/java/app/yukine/playback/PlaybackMediaSourceResolutionOwnerTest.java"));
+        assertFalse(service.contains("PlaybackMediaSourceResolutionOwner"));
+        assertFalse(precacheManager.contains("PlaybackMediaSourceResolutionOwner"));
+        assertTrue(service.contains("PlaybackPrecacheManager.fromMediaSourceProvider("));
+        assertFalse(service.contains("PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider("));
+        assertFalse(service.contains("PlaybackPrecacheManager.audioCacheReleaseActionFromMediaSourceProvider("));
+    }
+
+    @Test
     public void playbackServiceAndOwnersDoNotDependOnActivityClasses() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         assertPlaybackSourceDoesNotDependOnActivityUi("EchoPlaybackService", service);
