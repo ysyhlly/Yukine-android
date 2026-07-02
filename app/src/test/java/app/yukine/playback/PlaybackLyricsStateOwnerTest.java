@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -69,8 +68,8 @@ public class PlaybackLyricsStateOwnerTest {
         PlaybackLyricsStateOwner.PlaybackStateProvider provider =
                 PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState(
                         () -> {
-                            events.add("queueState");
-                            return queueStateSnapshot(track);
+                            events.add("currentTrack");
+                            return track;
                         },
                         () -> {
                             events.add("playing");
@@ -87,7 +86,7 @@ public class PlaybackLyricsStateOwnerTest {
         assertTrue(provider.isPreparing());
         assertEquals(
                 java.util.Arrays.asList(
-                        "queueState",
+                        "currentTrack",
                         "playing",
                         "preparing"
                 ),
@@ -103,9 +102,5 @@ public class PlaybackLyricsStateOwnerTest {
         assertNull(provider.currentTrack());
         assertFalse(provider.isPlaying());
         assertFalse(provider.isPreparing());
-    }
-
-    private static PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot(Track track) {
-        return new PlaybackQueueManager.QueueStateSnapshot(track, 0, track == null ? 0 : 1);
     }
 }
