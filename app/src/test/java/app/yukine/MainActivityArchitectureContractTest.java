@@ -5505,7 +5505,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("new PlaybackQueuePersistenceOwner("));
         assertFalse(service.contains("PlaybackQueuePersistenceOwner.fromPlaybackQueueManager("));
         assertFalse(queuePersistenceOwner.contains("static PlaybackQueuePersistenceOwner fromPlaybackQueueManager("));
-        assertTrue(service.contains("playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(force);"));
+        assertFalse(service.contains("private void persistPlaybackPositionThrottled(boolean force)"));
+        assertFalse(service.contains("EchoPlaybackService.this::persistPlaybackPositionThrottled"));
+        assertFalse(service.contains("persistPlaybackPositionThrottled(true);"));
+        assertTrue(service.contains("playbackQueuePersistenceOwner::persistCurrentPlaybackPosition"));
+        assertTrue(service.contains("playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(true);"));
         assertFalse(service.contains("playbackQueueManager.persistCurrentPlaybackPosition(force)"));
         assertTrue(queuePersistenceOwner.contains("playbackQueueManager.persistCurrentPlaybackPosition(force);"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackPositionStateOwner.java")));

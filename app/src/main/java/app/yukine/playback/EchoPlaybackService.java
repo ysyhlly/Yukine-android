@@ -397,7 +397,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackProgressUpdateCommandOwner = new PlaybackProgressUpdateCommandOwner(
                 EchoPlaybackService.this::publishState,
-                EchoPlaybackService.this::persistPlaybackPositionThrottled,
+                playbackQueuePersistenceOwner::persistCurrentPlaybackPosition,
                 () -> playbackProgressUpdateManager
         );
         playbackProgressUpdateManager = new PlaybackProgressUpdateManager(
@@ -671,7 +671,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 )
         );
         playbackShutdownLifecycleResourcesOwner = new PlaybackShutdownLifecycleResourcesOwner(
-                () -> EchoPlaybackService.this.persistPlaybackPositionThrottled(true),
+                () -> playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(true),
                 playbackQueuePersistenceOwner,
                 PlaybackShutdownLifecycleResourcesOwner.playbackStateProviderFromPlaybackState(
                         playbackPlayerStateOwner::isPlaying,
@@ -816,7 +816,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackShutdownCoordinator != null) {
             playbackShutdownCoordinator.handleTaskRemoved();
         } else {
-            persistPlaybackPositionThrottled(true);
+            playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(true);
             playbackQueuePersistenceOwner.persistQueueState();
             playbackQueuePersistenceOwner.savePlaybackResumeRequested(
                     isPlaying() || playbackCurrentTrackPreparationRuntimeOwner.preparing()
@@ -833,7 +833,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackShutdownCoordinator != null) {
             playbackShutdownCoordinator.handleServiceDestroyed();
         } else {
-            persistPlaybackPositionThrottled(true);
+            playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(true);
         }
         super.onDestroy();
     }
@@ -909,7 +909,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
         playbackQueuePersistenceOwner.clearPlaybackResumeRequest();
         releaseWifiLockAction.run();
-        persistPlaybackPositionThrottled(true);
+        playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(true);
         publishState();
     }
 
@@ -919,7 +919,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
         try {
             player.seekTo(Math.max(0L, positionMs));
-            persistPlaybackPositionThrottled(true);
+            playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(true);
             publishState();
         } catch (IllegalStateException ignored) {
             playbackErrorRecoveryCommandOwner.setErrorMessage("Playback is not ready.");
@@ -1339,10 +1339,6 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackSessionManager != null) {
             playbackSessionManager.bind();
         }
-    }
-
-    private void persistPlaybackPositionThrottled(boolean force) {
-        playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(force);
     }
 
     private boolean seekExistingMirroredQueue(boolean playWhenReady, long startPositionMs) {
