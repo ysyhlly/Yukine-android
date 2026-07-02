@@ -8,8 +8,6 @@ final class PlaybackQueueCompletionOwner {
     interface CompletionBoundary {
         void stopAndClear();
 
-        void prepareCurrent(boolean playWhenReady);
-
         void stopAtEndOfQueue();
 
         void skipToNext();
@@ -18,13 +16,16 @@ final class PlaybackQueueCompletionOwner {
     }
 
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
+    private final PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions;
     private final CompletionBoundary completionBoundary;
 
     PlaybackQueueCompletionOwner(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions,
             CompletionBoundary completionBoundary
     ) {
         this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
+        this.queuePlaybackActions = queuePlaybackActions;
         this.completionBoundary = completionBoundary;
     }
 
@@ -85,8 +86,8 @@ final class PlaybackQueueCompletionOwner {
     }
 
     private void prepareCurrent(boolean playWhenReady) {
-        if (completionBoundary != null) {
-            completionBoundary.prepareCurrent(playWhenReady);
+        if (queuePlaybackActions != null) {
+            queuePlaybackActions.prepareCurrent(playWhenReady);
         }
     }
 

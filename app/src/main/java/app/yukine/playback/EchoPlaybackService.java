@@ -144,15 +144,11 @@ public final class EchoPlaybackService extends MediaLibraryService
     private final PlaybackQueueCompletionOwner playbackQueueCompletionOwner =
             new PlaybackQueueCompletionOwner(
                     () -> playbackQueueManager,
+                    playbackQueueCommandOwner,
                     new PlaybackQueueCompletionOwner.CompletionBoundary() {
                         @Override
                         public void stopAndClear() {
                             EchoPlaybackService.this.stopAndClear();
-                        }
-
-                        @Override
-                        public void prepareCurrent(boolean playWhenReady) {
-                            EchoPlaybackService.this.prepareCurrent(playWhenReady);
                         }
 
                         @Override
