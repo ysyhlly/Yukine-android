@@ -5741,7 +5741,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackRuntimeStateManager::setPreparing"));
         assertFalse(service.contains("private boolean mirroredQueueMatchesCurrentPlayer()"));
         assertFalse(service.contains("playbackQueueManager.matchesMirroredQueue("));
-        assertTrue(service.contains("private PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner;"));
+        assertFalse(service.contains("private PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner;"));
+        assertTrue(service.contains("final PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner ="));
         assertTrue(service.contains("PlaybackMirroredQueueTrackMatcherOwner.fromMediaSourceProvider("));
         assertTrue(service.contains("                playbackMirroredQueueTrackMatcherOwner"));
         assertFalse(service.contains("new PlaybackQueueManager.QueueTrackMatcher()"));

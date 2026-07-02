@@ -199,7 +199,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackErrorRecoveryManager playbackErrorRecoveryManager;
     private Runnable recordPlaybackStartHistoryAction = () -> {
     };
-    private PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner;
     private PlaybackPositionManager playbackPositionManager;
     private PlaybackNotificationManager playbackNotificationManager;
     private PlaybackNotificationForegroundOwner playbackNotificationForegroundOwner;
@@ -521,7 +520,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         final PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner =
                 PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(mediaSourceProvider);
-        playbackMirroredQueueTrackMatcherOwner =
+        final PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner =
                 PlaybackMirroredQueueTrackMatcherOwner.fromMediaSourceProvider(
                         () -> player,
                         mediaSourceProvider
