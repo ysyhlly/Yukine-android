@@ -199,9 +199,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackErrorRecoveryManager playbackErrorRecoveryManager;
     private Runnable recordPlaybackStartHistoryAction = () -> {
     };
-    private PlaybackQueueCommandOwner playbackQueueCommandOwner;
-    private PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner;
-    private PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner;
     private PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner;
     private PlaybackPositionManager playbackPositionManager;
     private PlaybackNotificationManager playbackNotificationManager;
@@ -517,37 +514,38 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackNotificationManager.lyricsNotificationBridge(playbackSessionRefresher)
         );
         PlaybackLyricsSettingsStore.fromRepository(repository).restoreInto(playbackLyricsManager);
-        playbackQueueCommandOwner = new PlaybackQueueCommandOwner(
+        final PlaybackQueueCommandOwner playbackQueueCommandOwner = new PlaybackQueueCommandOwner(
                 EchoPlaybackService.this::prepareCurrent,
                 EchoPlaybackService.this::publishState,
                 EchoPlaybackService.this::stopAndClear
         );
-        playbackQueueStreamingRestoreOwner =
+        final PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner =
                 PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(mediaSourceProvider);
         playbackMirroredQueueTrackMatcherOwner =
                 PlaybackMirroredQueueTrackMatcherOwner.fromMediaSourceProvider(
                         () -> player,
                         mediaSourceProvider
         );
-        playbackQueueMirroredPlayerOwner = new PlaybackQueueMirroredPlayerOwner(
-                PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
-                        playbackQueueMirrorStateOwner::playerMirrorsQueue,
+        final PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner =
+                new PlaybackQueueMirroredPlayerOwner(
+                        PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
+                                playbackQueueMirrorStateOwner::playerMirrorsQueue,
+                                () -> player != null,
+                                () -> player == null ? -1 : player.getMediaItemCount(),
+                                () -> playbackQueueManager,
+                                playbackMirroredQueueTrackMatcherOwner
+                        ),
                         () -> player != null,
-                        () -> player == null ? -1 : player.getMediaItemCount(),
-                        () -> playbackQueueManager,
-                        playbackMirroredQueueTrackMatcherOwner
-                ),
-                () -> player != null,
-                playbackCurrentTrackPreparationRuntimeOwner::setPreparing,
-                playbackQueueStateOwner::currentTrack,
-                EchoPlaybackService.this::resetWaveformIfTrackChanged,
-                EchoPlaybackService.this::applyPlaybackModeAndParametersToPlayer,
-                (index, positionMs) -> player.seekTo(index, positionMs),
-                playWhenReady -> player.setPlayWhenReady(playWhenReady),
-                () -> player.play(),
-                playbackQueueMirrorStateOwner::setPlayerMirrorsQueue,
-                error -> Log.w(TAG, "Unable to reuse mirrored queue", error)
-        );
+                        playbackCurrentTrackPreparationRuntimeOwner::setPreparing,
+                        playbackQueueStateOwner::currentTrack,
+                        EchoPlaybackService.this::resetWaveformIfTrackChanged,
+                        EchoPlaybackService.this::applyPlaybackModeAndParametersToPlayer,
+                        (index, positionMs) -> player.seekTo(index, positionMs),
+                        playWhenReady -> player.setPlayWhenReady(playWhenReady),
+                        () -> player.play(),
+                        playbackQueueMirrorStateOwner::setPlayerMirrorsQueue,
+                        error -> Log.w(TAG, "Unable to reuse mirrored queue", error)
+                );
         playbackQueueManager = new PlaybackQueueManager(
                 queueStore,
                 playbackQueueCommandOwner,

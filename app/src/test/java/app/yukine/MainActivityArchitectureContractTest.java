@@ -5730,7 +5730,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(currentReplacementOwner.contains(
                 "recoveryScheduler.accept(recovery.getPlayWhenReady());"));
         assertFalse(service.contains("() -> mainHandler.post(() -> prepareCurrent(recovery.getPlayWhenReady()))"));
-        assertTrue(service.contains("playbackQueueMirroredPlayerOwner = new PlaybackQueueMirroredPlayerOwner("));
+        assertFalse(service.contains("private PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner;"));
+        assertTrue(service.contains("final PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner ="));
+        assertTrue(service.contains("new PlaybackQueueMirroredPlayerOwner("));
         assertTrue(service.contains("PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher("));
         assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManager("));
         assertFalse(owner.contains("static BooleanSupplier fromPlaybackQueueManager("));
@@ -6086,12 +6088,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mediaSourceProvider.contains("File(path).exists()"));
         assertTrue(owner.contains("mirroredQueuePlayer.matchesCurrentQueue()"));
         assertTrue(owner.contains("mirroredQueuePlayer.seekTo(targetIndex, startAtMs, playWhenReady)"));
-        assertTrue(service.contains("private PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner;"));
-        assertTrue(service.contains("playbackQueueMirroredPlayerOwner = new PlaybackQueueMirroredPlayerOwner("));
+        assertFalse(service.contains("private PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner;"));
+        assertTrue(service.contains("final PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner ="));
+        assertTrue(service.contains("new PlaybackQueueMirroredPlayerOwner("));
         assertTrue(service.contains("                playbackQueueMirroredPlayerOwner,"));
         assertFalse(service.contains("new PlaybackQueueManager.MirroredQueuePlayer()"));
         assertTrue(owner.contains("streamingRestoreProvider.restoreForDataPath(track.dataPath)"));
-        assertTrue(service.contains("private PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner;"));
+        assertFalse(service.contains("private PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner;"));
+        assertTrue(service.contains("final PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner ="));
         assertTrue(service.contains(
                 "PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(service.contains("                playbackQueueStreamingRestoreOwner,"));
@@ -6121,8 +6125,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("queueProvider.isPlaying()"));
         assertFalse(owner.contains("queuePlaybackActions.isPlaying()"));
         assertFalse(service.contains("new PlaybackQueueManager.QueuePlaybackActions()"));
-        assertTrue(service.contains("private PlaybackQueueCommandOwner playbackQueueCommandOwner;"));
-        assertTrue(service.contains("playbackQueueCommandOwner = new PlaybackQueueCommandOwner("));
+        assertFalse(service.contains("private PlaybackQueueCommandOwner playbackQueueCommandOwner;"));
+        assertTrue(service.contains("final PlaybackQueueCommandOwner playbackQueueCommandOwner ="));
+        assertTrue(service.contains("new PlaybackQueueCommandOwner("));
         assertTrue(service.contains("EchoPlaybackService.this::stopAndClear"));
         assertTrue(service.contains("playbackQueueCommandOwner"));
         assertTrue(commandOwner.contains("final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlaybackActions"));
