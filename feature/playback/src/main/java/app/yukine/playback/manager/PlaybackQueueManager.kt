@@ -627,7 +627,7 @@ internal class PlaybackQueueManager(
         val track = currentTrack() ?: return QueuePreparation.empty()
         return QueuePreparation(
             currentTrack = track,
-            startIndex = safeCurrentIndex(),
+            startIndex = clampCurrentIndex(),
             mirroredQueueTracks = mirroredQueueTracksForPreparation()
         )
     }
@@ -883,10 +883,6 @@ internal class PlaybackQueueManager(
             tracks.add(queue[index])
         }
         return Collections.unmodifiableList(tracks)
-    }
-
-    private fun safeCurrentIndex(): Int {
-        return clampCurrentIndex()
     }
 
     private object NoopQueuePlaybackActions : QueuePlaybackActions {

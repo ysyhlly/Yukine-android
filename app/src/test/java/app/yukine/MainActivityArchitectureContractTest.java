@@ -6138,7 +6138,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueStateOwner.contains("default List<Track> upcomingTracksForPrecache(int maxCount)"));
         assertTrue(queueStateOwner.contains("return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;"));
         assertFalse(owner.contains("fun canCrossfadeAdvance(repeatMode: Int): Boolean"));
-        assertTrue(owner.contains("private fun safeCurrentIndex(): Int"));
+        assertFalse(owner.contains("private fun safeCurrentIndex(): Int"));
+        assertTrue(owner.contains("startIndex = clampCurrentIndex()"));
         assertFalse(owner.contains("\n    fun safeCurrentIndex(): Int"));
         assertTrue(owner.contains("fun replaceCurrentQueueTrack(replacement: Track?): Boolean"));
         assertFalse(owner.contains("interface QueueTrackMatcher"));
@@ -6158,7 +6159,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("EchoPlaybackService.this.queueStateSnapshot()"));
         assertFalse(service.contains("return queueStateSnapshot().getHasMultipleTracks();"));
         assertTrue(owner.contains("val startIndex: Int"));
-        assertTrue(owner.contains("startIndex = safeCurrentIndex()"));
+        assertTrue(owner.contains("startIndex = clampCurrentIndex()"));
+        assertFalse(owner.contains("private fun safeCurrentIndex(): Int"));
         assertFalse(service.contains("queuePreparation.getStartIndex()"));
         assertTrue(service.contains("queuePreparation.startIndex()"));
         assertFalse(service.contains("return playbackQueueManager == null ? 0 : playbackQueueManager.safeCurrentIndex();"));
@@ -7601,7 +7603,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueOwner.contains("\n    fun setCurrentIndex(index: Int)"));
         assertTrue(queueOwner.contains("private fun clampCurrentIndex(): Int"));
         assertFalse(queueOwner.contains("\n    fun clampCurrentIndex(): Int"));
-        assertTrue(queueOwner.contains("private fun safeCurrentIndex(): Int"));
+        assertFalse(queueOwner.contains("private fun safeCurrentIndex(): Int"));
+        assertTrue(queueOwner.contains("startIndex = clampCurrentIndex()"));
         assertFalse(queueOwner.contains("\n    fun safeCurrentIndex(): Int"));
         assertTrue(queueOwner.contains("private fun setClampedCurrentIndex(index: Int)"));
         assertFalse(queueOwner.contains("\n    fun setClampedCurrentIndex(index: Int)"));
