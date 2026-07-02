@@ -1,19 +1,16 @@
 package app.yukine.playback;
 
 import java.util.function.BooleanSupplier;
+import java.util.function.LongToDoubleFunction;
 
 final class PlaybackVisualizationStateOwner implements PlaybackVisualizationAnalyzer.StateProvider {
-    interface BufferedProgressProvider {
-        float bufferedProgress(long durationMs);
-    }
-
     private final BooleanSupplier appVisibilityProvider;
-    private final BufferedProgressProvider bufferedProgressProvider;
+    private final LongToDoubleFunction bufferedProgressProvider;
     private final Runnable statePublisher;
 
     PlaybackVisualizationStateOwner(
             BooleanSupplier appVisibilityProvider,
-            BufferedProgressProvider bufferedProgressProvider,
+            LongToDoubleFunction bufferedProgressProvider,
             Runnable statePublisher
     ) {
         this.appVisibilityProvider = appVisibilityProvider;
@@ -28,7 +25,7 @@ final class PlaybackVisualizationStateOwner implements PlaybackVisualizationAnal
 
     @Override
     public float bufferedProgress(long durationMs) {
-        return bufferedProgressProvider.bufferedProgress(durationMs);
+        return bufferedProgressProvider == null ? 0f : (float) bufferedProgressProvider.applyAsDouble(durationMs);
     }
 
     @Override

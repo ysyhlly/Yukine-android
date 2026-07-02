@@ -1863,15 +1863,17 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(visualizationAnalyzer.contains("return@Runnable"));
         assertTrue(visualizationStateOwner.contains("final class PlaybackVisualizationStateOwner implements PlaybackVisualizationAnalyzer.StateProvider"));
         assertFalse(visualizationStateOwner.contains("interface AppVisibilityProvider"));
-        assertTrue(visualizationStateOwner.contains("interface BufferedProgressProvider"));
+        assertFalse(visualizationStateOwner.contains("interface BufferedProgressProvider"));
         assertFalse(visualizationStateOwner.contains("interface StatePublisher"));
+        assertTrue(visualizationStateOwner.contains("import java.util.function.LongToDoubleFunction;"));
         assertTrue(visualizationStateOwner.contains("private final BooleanSupplier appVisibilityProvider;"));
+        assertTrue(visualizationStateOwner.contains("private final LongToDoubleFunction bufferedProgressProvider;"));
         assertTrue(visualizationStateOwner.contains("private final Runnable statePublisher;"));
         assertTrue(visualizationStateOwner.contains("return appVisibilityProvider.getAsBoolean();"));
         assertTrue(bufferedProgressOwner.contains(
                 "final class PlaybackBufferedProgressOwner"));
-        assertTrue(bufferedProgressOwner.contains(
-                "implements PlaybackVisualizationStateOwner.BufferedProgressProvider"));
+        assertTrue(bufferedProgressOwner.contains("implements LongToDoubleFunction"));
+        assertTrue(bufferedProgressOwner.contains("import java.util.function.LongToDoubleFunction;"));
         assertFalse(bufferedProgressOwner.contains("interface PlaybackPositionProvider"));
         assertFalse(bufferedProgressOwner.contains("interface PlayerProvider"));
         assertFalse(bufferedProgressOwner.contains("interface PlayerBufferProvider"));
@@ -1885,8 +1887,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(bufferedProgressOwner.contains("player.getBufferedPosition()"));
         assertTrue(bufferedProgressOwner.contains("bufferedPositionProvider.getAsLong();"));
         assertTrue(bufferedProgressOwner.contains("Math.max(positionMs, bufferedPositionMs)"));
-        assertTrue(bufferedProgressOwner.contains("Math.max(0.0f, Math.min(1.0f, bufferedMs / (float) durationMs))"));
-        assertTrue(visualizationStateOwner.contains("return bufferedProgressProvider.bufferedProgress(durationMs);"));
+        assertTrue(bufferedProgressOwner.contains("Math.max(0.0, Math.min(1.0, bufferedMs / (double) durationMs))"));
+        assertTrue(visualizationStateOwner.contains(
+                "return bufferedProgressProvider == null ? 0f : (float) bufferedProgressProvider.applyAsDouble(durationMs);"));
         assertTrue(visualizationStateOwner.contains("statePublisher.run();"));
         assertTrue(visualizationAnalyzer.contains("PlaybackWaveformMergePolicy.merge("));
         assertTrue(visualizationAnalyzer.contains("private fun maybeGenerateSpectrum("));
