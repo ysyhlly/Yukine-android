@@ -378,7 +378,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 )
         );
         playbackSleepTimerCommandOwner = new PlaybackSleepTimerCommandOwner(
-                EchoPlaybackService.this,
+                EchoPlaybackService.this::pause,
                 EchoPlaybackService.this::publishState,
                 () -> playbackSleepTimerManager
         );

@@ -11,30 +11,30 @@ final class PlaybackSleepTimerCommandOwner implements PlaybackSleepTimerManager.
         PlaybackSleepTimerManager playbackSleepTimerManager();
     }
 
-    private final PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands;
+    private final Runnable pauseCommand;
     private final StatePublisher statePublisher;
     private final SleepTimerManagerProvider sleepTimerManagerProvider;
 
     PlaybackSleepTimerCommandOwner(
-            PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands,
+            Runnable pauseCommand,
             StatePublisher statePublisher
     ) {
-        this(playbackCommands, statePublisher, null);
+        this(pauseCommand, statePublisher, null);
     }
 
     PlaybackSleepTimerCommandOwner(
-            PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands,
+            Runnable pauseCommand,
             StatePublisher statePublisher,
             SleepTimerManagerProvider sleepTimerManagerProvider
     ) {
-        this.playbackCommands = playbackCommands;
+        this.pauseCommand = pauseCommand;
         this.statePublisher = statePublisher;
         this.sleepTimerManagerProvider = sleepTimerManagerProvider;
     }
 
     @Override
     public void pausePlayback() {
-        playbackCommands.pause();
+        pauseCommand.run();
     }
 
     @Override
