@@ -5338,7 +5338,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueRestoreOwner.contains("playbackQueueManager.restorePlaybackQueue();"));
         assertTrue(service.contains("playbackQueueRestoreOwner.restoreLastPlayback(playWhenRestored);"));
         assertFalse(service.contains("playbackQueueManager.restoreLastPlayback(playWhenRestored)"));
-        assertTrue(queueRestoreOwner.contains("playbackQueueManager.restoreLastPlayback(playWhenRestored);"));
+        assertTrue(queueRestoreOwner.contains("playbackQueueManager.restoreLastPlayback(playWhenRestored)"));
         assertFalse(service.contains("repository.loadPlaybackResumeRequested()"));
         assertFalse(service.contains("boolean shouldPlay = playWhenRestored ||"));
         assertFalse(service.contains("prepareCurrent(shouldPlay)"));
@@ -5605,10 +5605,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueRestoreOwner.contains("interface RestorePlaybackBoundary"));
         assertFalse(service.contains("new PlaybackQueueRestoreOwner.RestorePlaybackBoundary()"));
         assertTrue(queueRestoreOwner.contains("import java.util.function.Consumer;"));
-        assertTrue(queueRestoreOwner.contains("import java.util.function.Function;"));
-        assertTrue(queueRestoreOwner.contains("private final Runnable restorePlaybackQueue;"));
-        assertTrue(queueRestoreOwner.contains("private final Function<Boolean, PlaybackQueueManager.RestorePlaybackResult> restoreLastPlayback;"));
-        assertTrue(queueRestoreOwner.contains("private final Consumer<Boolean> setPlaybackRestoreEnabled;"));
+        assertFalse(queueRestoreOwner.contains("import java.util.function.Function;"));
+        assertFalse(queueRestoreOwner.contains("private final Runnable restorePlaybackQueue;"));
+        assertFalse(queueRestoreOwner.contains("private final Function<Boolean, PlaybackQueueManager.RestorePlaybackResult> restoreLastPlayback;"));
+        assertFalse(queueRestoreOwner.contains("private final Consumer<Boolean> setPlaybackRestoreEnabled;"));
+        assertTrue(queueRestoreOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
+        assertTrue(queueRestoreOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertTrue(queueRestoreOwner.contains("private final Runnable createPlayerIfNeeded;"));
         assertTrue(queueRestoreOwner.contains("private final Consumer<Boolean> prepareCurrent;"));
         assertTrue(queueRestoreOwner.contains("private final Runnable statePublisher;"));
