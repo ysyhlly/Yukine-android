@@ -443,8 +443,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 () -> playbackModeSettingsStore == null
                         ? REPEAT_ALL
                         : playbackModeSettingsStore.repeatMode(playbackRuntimeStateManager),
-                playbackQueueStateOwner::hasMultipleTracks,
-                playbackQueueStateOwner::isAtEndOfQueue,
+                playbackQueueStateOwner::queueStateSnapshot,
                 () -> playbackRuntimeSettingsStore == null
                         ? 1.0f
                         : playbackRuntimeSettingsStore.currentTrackVolume(playbackRuntimeStateManager)

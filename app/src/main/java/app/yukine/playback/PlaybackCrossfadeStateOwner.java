@@ -3,9 +3,11 @@ package app.yukine.playback;
 import static app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF;
 
 import app.yukine.playback.manager.PlaybackCrossfadeAdvanceManager;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 
 final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManager.StateProvider {
     interface BaseVolumeProvider {
@@ -16,8 +18,7 @@ final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManag
     private final BooleanSupplier playerAvailabilityProvider;
     private final BooleanSupplier playbackStateProvider;
     private final IntSupplier repeatModeProvider;
-    private final BooleanSupplier hasMultipleTracksProvider;
-    private final BooleanSupplier atEndOfQueueProvider;
+    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier;
     private final BaseVolumeProvider baseVolumeProvider;
 
     PlaybackCrossfadeStateOwner(
@@ -25,16 +26,14 @@ final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManag
             BooleanSupplier playerAvailabilityProvider,
             BooleanSupplier playbackStateProvider,
             IntSupplier repeatModeProvider,
-            BooleanSupplier hasMultipleTracksProvider,
-            BooleanSupplier atEndOfQueueProvider,
+            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier,
             BaseVolumeProvider baseVolumeProvider
     ) {
         this.transitionStateProvider = transitionStateProvider;
         this.playerAvailabilityProvider = playerAvailabilityProvider;
         this.playbackStateProvider = playbackStateProvider;
         this.repeatModeProvider = repeatModeProvider;
-        this.hasMultipleTracksProvider = hasMultipleTracksProvider;
-        this.atEndOfQueueProvider = atEndOfQueueProvider;
+        this.queueStateSupplier = queueStateSupplier;
         this.baseVolumeProvider = baseVolumeProvider;
     }
 
@@ -55,15 +54,22 @@ final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManag
 
     @Override
     public boolean canCrossfadeAdvance() {
-        if (hasMultipleTracksProvider == null || !hasMultipleTracksProvider.getAsBoolean()) {
+        PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();
+        if (!queueStateSnapshot.getHasMultipleTracks()) {
             return false;
         }
-        boolean atEndOfQueue = atEndOfQueueProvider != null && atEndOfQueueProvider.getAsBoolean();
-        return repeatModeProvider.getAsInt() != REPEAT_OFF || !atEndOfQueue;
+        return repeatModeProvider.getAsInt() != REPEAT_OFF || !queueStateSnapshot.isAtEndOfQueue();
     }
 
     @Override
     public float baseVolume() {
         return baseVolumeProvider.baseVolume();
+    }
+
+    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSupplier == null
+                ? null
+                : queueStateSupplier.get();
+        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 }
