@@ -26,9 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 import java.util.function.IntFunction;
-import java.util.function.Supplier;
 
 import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
@@ -147,17 +145,6 @@ final class PlaybackPrecacheManager {
         if (audioCacheReleaseAction != null && audioCacheReleased.compareAndSet(false, true)) {
             audioCacheReleaseAction.run();
         }
-    }
-
-    static Consumer<Track> precacheTrackActionFromSupplier(
-            Supplier<PlaybackPrecacheManager> supplier
-    ) {
-        return track -> {
-            PlaybackPrecacheManager manager = supplier == null ? null : supplier.get();
-            if (manager != null) {
-                manager.precacheTrack(track);
-            }
-        };
     }
 
     void precacheTrack(Track track) {

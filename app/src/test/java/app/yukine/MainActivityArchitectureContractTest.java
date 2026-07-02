@@ -1984,12 +1984,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("playbackWarmupActionsOwner"));
         assertTrue(playbackService.contains("private PlaybackWarmupCoordinator playbackWarmupCoordinator;"));
         assertTrue(playbackService.contains("playbackWarmupCoordinator = new PlaybackWarmupCoordinator("));
-        assertTrue(playbackService.contains("PlaybackPrecacheManager.precacheTrackActionFromSupplier(() -> playbackPrecacheManager)"));
+        assertFalse(playbackService.contains("PlaybackPrecacheManager.precacheTrackActionFromSupplier("));
         assertFalse(playbackService.contains("PlaybackVisualizationCacheManager.scheduleVisualizationCacheActionFromSupplier("));
-        assertTrue(playbackPrecacheManager.contains("static Consumer<Track> precacheTrackActionFromSupplier("));
+        assertFalse(playbackPrecacheManager.contains("static Consumer<Track> precacheTrackActionFromSupplier("));
         assertFalse(playbackVisualizationCacheManager.contains(
                 "static Consumer<Track> scheduleVisualizationCacheActionFromSupplier("));
-        assertFalse(playbackService.contains("playbackPrecacheManager.precacheTrack(track);"));
+        assertTrue(playbackService.contains("playbackPrecacheManager.precacheTrack(track);"));
         assertTrue(playbackService.contains("playbackVisualizationCacheManager.scheduleVisualizationCache(track);"));
         assertTrue(playbackService.contains("PlaybackPrecacheManager::release"));
         assertFalse(playbackService.contains("playbackPrecacheManager.release();"));
@@ -2066,7 +2066,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("upcomingTracksProvider.apply(SEGMENTED_PRECACHE_CONCURRENCY)"));
         assertFalse(playbackPrecacheManager.contains("interface AudioCacheReleaser"));
         assertFalse(playbackPrecacheManager.contains("interface PrecacheManagerProvider"));
-        assertTrue(playbackPrecacheManager.contains("import java.util.function.Supplier;"));
+        assertFalse(playbackPrecacheManager.contains("import java.util.function.Supplier;"));
+        assertFalse(playbackPrecacheManager.contains("import java.util.function.Consumer;"));
         assertFalse(playbackPrecacheManager.contains("static Runnable audioCacheReleaseActionFromPrecacheManagerSupplier("));
         assertTrue(playbackPrecacheManager.contains("private final Runnable audioCacheReleaseAction;"));
         assertFalse(playbackPrecacheManager.contains("implements MediaCacheOperations, AudioCacheReleaser"));

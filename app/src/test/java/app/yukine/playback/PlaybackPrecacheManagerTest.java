@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.function.IntFunction;
 
 @RunWith(RobolectricTestRunner.class)
@@ -111,29 +110,6 @@ public final class PlaybackPrecacheManagerTest {
         assertEquals(null, PlaybackPrecacheManager.cacheRangeDataSpec(null, "key", 0L, 1L));
         assertEquals(null, PlaybackPrecacheManager.cacheRangeDataSpec(track, "", 0L, 1L));
         assertEquals(null, PlaybackPrecacheManager.cacheRangeDataSpec(track, "key", 0L, 0L));
-    }
-
-    @Test
-    public void precacheTrackActionFromSupplierDelegatesThroughManager() {
-        FakeStateProvider stateProvider = new FakeStateProvider();
-        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        PlaybackPrecacheManager manager = precacheManager(stateProvider, scheduler);
-        Track track = track(1L, "https://example.test/one.mp3");
-        Consumer<Track> precacheAction =
-                PlaybackPrecacheManager.precacheTrackActionFromSupplier(() -> manager);
-
-        stateProvider.currentTrack = track;
-        precacheAction.accept(track);
-
-        assertEquals(1, stateProvider.diagnostics.snapshot().precacheAttempts);
-    }
-
-    @Test
-    public void precacheTrackActionFromSupplierIgnoresMissingManager() {
-        Consumer<Track> precacheAction =
-                PlaybackPrecacheManager.precacheTrackActionFromSupplier(() -> null);
-
-        precacheAction.accept(track(1L, "https://example.test/one.mp3"));
     }
 
     @Test
