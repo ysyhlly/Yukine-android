@@ -43,7 +43,7 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
         PlaybackQueueManager queueManager = queueManager(store, positionManager);
         queueManagerRef[0] = queueManager;
         PlaybackCurrentTrackPreparationQueueOwner owner =
-                PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager(
+                new PlaybackCurrentTrackPreparationQueueOwner(
                         () -> queueManager,
                         tracks -> Collections.singletonList(null)
                 );
@@ -85,7 +85,7 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     @Test
     public void missingPlaybackQueueManagerSupplierSkipsQueueActions() {
         PlaybackCurrentTrackPreparationQueueOwner owner =
-                PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager(null, null);
+                new PlaybackCurrentTrackPreparationQueueOwner(null, null);
 
         owner.replaceCurrentQueueTrack(track(10L));
 
@@ -97,7 +97,7 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     @Test
     public void mediaSourceProviderFactoryFallsBackWhenProviderIsMissing() {
         PlaybackCurrentTrackPreparationQueueOwner owner =
-                PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager(
+                PlaybackCurrentTrackPreparationQueueOwner.fromMediaSourceProvider(
                         null,
                         null,
                         track -> null

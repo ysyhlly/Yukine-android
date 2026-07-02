@@ -351,7 +351,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         super.onCreate();
         mediaSourceProvider = new PlaybackMediaSourceProvider(this, repository, streamingPlaybackHeaderStore);
         playbackCurrentTrackPreparationQueueOwner =
-                PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager(
+                PlaybackCurrentTrackPreparationQueueOwner.fromMediaSourceProvider(
                         () -> playbackQueueManager,
                         mediaSourceProvider,
                         playbackNotificationManager::mediaMetadataForTrack

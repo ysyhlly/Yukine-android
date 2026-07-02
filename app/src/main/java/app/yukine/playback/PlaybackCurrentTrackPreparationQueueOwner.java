@@ -48,22 +48,12 @@ final class PlaybackCurrentTrackPreparationQueueOwner
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
     private final Function<List<Track>, List<MediaSource>> mediaSourcesForTracks;
 
-    static PlaybackCurrentTrackPreparationQueueOwner fromPlaybackQueueManager(
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            Function<List<Track>, List<MediaSource>> mediaSourcesForTracks
-    ) {
-        return new PlaybackCurrentTrackPreparationQueueOwner(
-                playbackQueueManagerSupplier,
-                mediaSourcesForTracks
-        );
-    }
-
-    static PlaybackCurrentTrackPreparationQueueOwner fromPlaybackQueueManager(
+    static PlaybackCurrentTrackPreparationQueueOwner fromMediaSourceProvider(
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             PlaybackMediaSourceProvider mediaSourceProvider,
             Function<Track, MediaMetadata> metadataProvider
     ) {
-        return fromPlaybackQueueManager(
+        return new PlaybackCurrentTrackPreparationQueueOwner(
                 playbackQueueManagerSupplier,
                 tracks -> mediaSourceProvider == null
                         ? null
