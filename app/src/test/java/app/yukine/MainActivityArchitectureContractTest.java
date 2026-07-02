@@ -92,8 +92,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(precacheManager.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)"));
         assertFalse(precacheManager.contains("mediaCacheOperationsFromMediaSourceProvider("));
         assertFalse(precacheManager.contains("audioCacheReleaseActionFromMediaSourceProvider("));
-        assertTrue(visualizationCacheManager.contains("private final PlaybackMediaCacheOperations mediaCacheOperations;"));
+        assertTrue(visualizationCacheManager.contains("interface MediaCacheOperations"));
+        assertTrue(visualizationCacheManager.contains("private final MediaCacheOperations mediaCacheOperations;"));
         assertFalse(visualizationCacheManager.contains("private final PlaybackMediaSourceProvider"));
+        assertTrue(visualizationCacheManager.contains("mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(visualizationCacheManager.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(mediaCacheOperations.contains("public interface PlaybackMediaCacheOperations"));
         assertTrue(mediaCacheOperations.contains(
@@ -1862,9 +1864,20 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(visualizationCacheManager.contains("writer.cancel();"));
         assertTrue(visualizationCacheManager.contains("private boolean isCurrentCacheGeneration(int generation)"));
         assertTrue(visualizationCacheManager.contains("VISUALIZATION_CACHE_BYTES"));
+        assertTrue(visualizationCacheManager.contains("interface MediaCacheOperations"));
+        assertTrue(visualizationCacheManager.contains("private final MediaCacheOperations mediaCacheOperations;"));
+        assertTrue(visualizationCacheManager.contains("String cacheKeyForPrecache(Track track);"));
         assertTrue(visualizationCacheManager.contains(
-                "private final PlaybackMediaCacheOperations mediaCacheOperations;"));
+                "boolean tracksShareResolvedUriForReuse(Track current, Track candidate);"));
+        assertTrue(visualizationCacheManager.contains(
+                "long cachedBytesInRange(String cacheKey, long position, long length);"));
+        assertTrue(visualizationCacheManager.contains("CacheDataSource cacheDataSourceForTrack(Track track);"));
+        assertFalse(visualizationCacheManager.contains("long contentLengthForCacheKey(String cacheKey);"));
+        assertFalse(visualizationCacheManager.contains("Map<String, String> headersForTrack(Track track);"));
+        assertFalse(visualizationCacheManager.contains("boolean mediaItemMatchesTrackForReuse("));
         assertTrue(visualizationCacheManager.contains("static PlaybackVisualizationCacheManager fromMediaSourceProvider("));
+        assertTrue(visualizationCacheManager.contains(
+                "mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(visualizationCacheManager.contains(
                 "PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(visualizationCacheManager.contains("mediaCacheOperations.cacheKeyForPrecache(track)"));
