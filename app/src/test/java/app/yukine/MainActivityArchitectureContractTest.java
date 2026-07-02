@@ -7447,6 +7447,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private String debugTrack(Track track)"));
         assertTrue(service.contains("private PlaybackErrorRecoveryCommandOwner playbackErrorRecoveryCommandOwner;"));
         assertTrue(service.contains("playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner("));
+        assertTrue(service.contains("EchoPlaybackService.this::skipToNext"));
         assertTrue(service.contains("playbackErrorRecoveryCommandOwner"));
         assertTrue(service.contains("playbackCurrentTrackPreparationRuntimeOwner::setErrorMessage"));
         assertFalse(service.contains("playbackRuntimeStateManager::setErrorMessage"));
@@ -7460,9 +7461,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(commandOwner.contains("interface TrackDebugger"));
         assertTrue(commandOwner.contains("interface PlaybackPreparer"));
         assertTrue(commandOwner.contains("interface ErrorMessageStore"));
+        assertFalse(commandOwner.contains("PlaybackNotificationCommandOwner.PlaybackCommands"));
+        assertFalse(commandOwner.contains("private final PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands;"));
+        assertTrue(commandOwner.contains("private final Runnable skipToNextCommand;"));
         assertTrue(commandOwner.contains("return \"track=<null>\";"));
         assertTrue(commandOwner.contains("\"trackId=\" + track.id"));
-        assertTrue(commandOwner.contains("playbackCommands.skipToNext();"));
+        assertTrue(commandOwner.contains("skipToNextCommand.run();"));
         assertTrue(commandOwner.contains("errorMessageStore.setErrorMessage(message);"));
         assertTrue(commandOwner.contains("warningLogger.logWarning(message, error);"));
     }

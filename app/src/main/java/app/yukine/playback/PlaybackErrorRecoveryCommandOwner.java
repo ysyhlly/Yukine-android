@@ -31,7 +31,7 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
     private final CurrentTrackProvider currentTrackProvider;
     private final FailedTrackPolicy failedTrackPolicy;
     private final PlaybackPreparer playbackPreparer;
-    private final PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands;
+    private final Runnable skipToNextCommand;
     private final ErrorMessageStore errorMessageStore;
     private final StatePublisher statePublisher;
     private final WarningLogger warningLogger;
@@ -40,7 +40,7 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
             CurrentTrackProvider currentTrackProvider,
             FailedTrackPolicy failedTrackPolicy,
             PlaybackPreparer playbackPreparer,
-            PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands,
+            Runnable skipToNextCommand,
             ErrorMessageStore errorMessageStore,
             StatePublisher statePublisher,
             WarningLogger warningLogger
@@ -48,7 +48,7 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
         this.currentTrackProvider = currentTrackProvider;
         this.failedTrackPolicy = failedTrackPolicy;
         this.playbackPreparer = playbackPreparer;
-        this.playbackCommands = playbackCommands;
+        this.skipToNextCommand = skipToNextCommand;
         this.errorMessageStore = errorMessageStore;
         this.statePublisher = statePublisher;
         this.warningLogger = warningLogger;
@@ -82,7 +82,7 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
 
     @Override
     public void skipToNext() {
-        playbackCommands.skipToNext();
+        skipToNextCommand.run();
     }
 
     @Override

@@ -25,7 +25,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
                     return true;
                 },
                 playWhenReady -> events.add("prepare:" + playWhenReady),
-                new FakePlaybackCommands(events),
+                () -> events.add("next"),
                 message -> events.add("error:" + message),
                 () -> events.add("publish"),
                 (message, error) -> events.add("warn:" + message + ":" + error.getMessage())
@@ -56,48 +56,5 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
 
     private static Track track(long id) {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "file:" + id);
-    }
-
-    private static final class FakePlaybackCommands implements PlaybackNotificationCommandOwner.PlaybackCommands {
-        private final List<String> events;
-
-        FakePlaybackCommands(List<String> events) {
-            this.events = events;
-        }
-
-        @Override
-        public void play() {
-            events.add("play");
-        }
-
-        @Override
-        public void pause() {
-            events.add("pause");
-        }
-
-        @Override
-        public void skipToPrevious() {
-            events.add("previous");
-        }
-
-        @Override
-        public void skipToNext() {
-            events.add("next");
-        }
-
-        @Override
-        public void toggleCurrentFavorite() {
-            events.add("favorite");
-        }
-
-        @Override
-        public void restoreLastPlayback(boolean playWhenReady) {
-            events.add("restore:" + playWhenReady);
-        }
-
-        @Override
-        public void stopAndClear() {
-            events.add("stopAndClear");
-        }
     }
 }

@@ -390,7 +390,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackQueueStateOwner::currentTrack,
                 playbackQueueStateOwner,
                 EchoPlaybackService.this::prepareCurrent,
-                EchoPlaybackService.this,
+                EchoPlaybackService.this::skipToNext,
                 playbackCurrentTrackPreparationRuntimeOwner::setErrorMessage,
                 EchoPlaybackService.this::publishState,
                 (message, error) -> Log.w(TAG, message, error)
