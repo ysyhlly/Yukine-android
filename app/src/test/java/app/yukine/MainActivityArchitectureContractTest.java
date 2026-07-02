@@ -5711,7 +5711,9 @@ public final class MainActivityArchitectureContractTest {
                 "recoveryScheduler.accept(recovery.getPlayWhenReady());"));
         assertFalse(service.contains("() -> mainHandler.post(() -> prepareCurrent(recovery.getPlayWhenReady()))"));
         assertTrue(service.contains("playbackQueueMirroredPlayerOwner = new PlaybackQueueMirroredPlayerOwner("));
-        assertTrue(service.contains("PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManager("));
+        assertTrue(service.contains("PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher("));
+        assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManager("));
+        assertFalse(owner.contains("static BooleanSupplier fromPlaybackQueueManager("));
         assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManagerProvider("));
         assertTrue(service.contains("playbackCurrentTrackPreparationRuntimeOwner::setPreparing"));
         assertFalse(service.contains("playbackRuntimeStateManager::setPreparing"));

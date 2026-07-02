@@ -22,22 +22,6 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     private final Consumer<Boolean> mirrorStateController;
     private final Consumer<IllegalStateException> failureLogger;
 
-    static BooleanSupplier fromPlaybackQueueManager(
-            BooleanSupplier mirrorStateProvider,
-            BooleanSupplier playerAvailability,
-            IntSupplier playerMediaItemCountProvider,
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            PlaybackQueueManager.QueueTrackMatcher queueTrackMatcher
-    ) {
-        return mirroredQueueMatcher(
-                mirrorStateProvider,
-                playerAvailability,
-                playerMediaItemCountProvider,
-                playbackQueueManagerSupplier,
-                queueTrackMatcher
-        );
-    }
-
     static BooleanSupplier mirroredQueueMatcher(
             BooleanSupplier mirrorStateProvider,
             BooleanSupplier playerAvailability,

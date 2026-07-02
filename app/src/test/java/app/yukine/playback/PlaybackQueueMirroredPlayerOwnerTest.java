@@ -208,7 +208,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     public void matcherReturnsFalseWhenPlaybackQueueManagerSupplierIsMissing() {
         List<String> events = new ArrayList<>();
         BooleanSupplier matcher =
-                PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManager(
+                PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
                         () -> {
                             events.add("mirrors");
                             return true;
