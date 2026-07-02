@@ -7438,11 +7438,16 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackProgressUpdateStateOwnerTest.java")));
         assertTrue(service.contains("PlaybackProgressUpdateManager.stateProviderFromPlaybackState("));
         assertTrue(commandOwner.contains("final class PlaybackProgressUpdateCommandOwner implements PlaybackProgressUpdateManager.Actions"));
-        assertTrue(commandOwner.contains("interface StatePublisher"));
-        assertTrue(commandOwner.contains("interface PositionPersister"));
-        assertTrue(commandOwner.contains("statePublisher.publishState();"));
-        assertTrue(commandOwner.contains("positionPersister.persistPlaybackPosition(false);"));
-        assertTrue(commandOwner.contains("interface ProgressUpdateManagerProvider"));
+        assertFalse(commandOwner.contains("interface StatePublisher"));
+        assertFalse(commandOwner.contains("interface PositionPersister"));
+        assertFalse(commandOwner.contains("interface ProgressUpdateManagerProvider"));
+        assertTrue(commandOwner.contains("private final Runnable statePublisher;"));
+        assertTrue(commandOwner.contains("private final Consumer<Boolean> positionPersister;"));
+        assertTrue(commandOwner.contains(
+                "private final Supplier<PlaybackProgressUpdateManager> progressUpdateManagerProvider;"));
+        assertTrue(commandOwner.contains("statePublisher.run();"));
+        assertTrue(commandOwner.contains("positionPersister.accept(false);"));
+        assertTrue(commandOwner.contains("progressUpdateManagerProvider.get();"));
         assertTrue(commandOwner.contains("void startProgressUpdates()"));
         assertTrue(commandOwner.contains("void stopProgressUpdates()"));
         assertTrue(commandOwner.contains("manager.startIfNeeded();"));

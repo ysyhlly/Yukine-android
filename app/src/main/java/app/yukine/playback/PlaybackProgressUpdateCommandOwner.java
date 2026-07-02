@@ -2,34 +2,25 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackProgressUpdateManager;
 
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+
 final class PlaybackProgressUpdateCommandOwner implements PlaybackProgressUpdateManager.Actions {
-    interface StatePublisher {
-        void publishState();
-    }
-
-    interface PositionPersister {
-        void persistPlaybackPosition(boolean force);
-    }
-
-    interface ProgressUpdateManagerProvider {
-        PlaybackProgressUpdateManager playbackProgressUpdateManager();
-    }
-
-    private final StatePublisher statePublisher;
-    private final PositionPersister positionPersister;
-    private final ProgressUpdateManagerProvider progressUpdateManagerProvider;
+    private final Runnable statePublisher;
+    private final Consumer<Boolean> positionPersister;
+    private final Supplier<PlaybackProgressUpdateManager> progressUpdateManagerProvider;
 
     PlaybackProgressUpdateCommandOwner(
-            StatePublisher statePublisher,
-            PositionPersister positionPersister
+            Runnable statePublisher,
+            Consumer<Boolean> positionPersister
     ) {
         this(statePublisher, positionPersister, null);
     }
 
     PlaybackProgressUpdateCommandOwner(
-            StatePublisher statePublisher,
-            PositionPersister positionPersister,
-            ProgressUpdateManagerProvider progressUpdateManagerProvider
+            Runnable statePublisher,
+            Consumer<Boolean> positionPersister,
+            Supplier<PlaybackProgressUpdateManager> progressUpdateManagerProvider
     ) {
         this.statePublisher = statePublisher;
         this.positionPersister = positionPersister;
@@ -38,12 +29,12 @@ final class PlaybackProgressUpdateCommandOwner implements PlaybackProgressUpdate
 
     @Override
     public void publishState() {
-        statePublisher.publishState();
+        statePublisher.run();
     }
 
     @Override
     public void persistPlaybackPosition() {
-        positionPersister.persistPlaybackPosition(false);
+        positionPersister.accept(false);
     }
 
     void startProgressUpdates() {
@@ -63,6 +54,6 @@ final class PlaybackProgressUpdateCommandOwner implements PlaybackProgressUpdate
     private PlaybackProgressUpdateManager progressUpdateManager() {
         return progressUpdateManagerProvider == null
                 ? null
-                : progressUpdateManagerProvider.playbackProgressUpdateManager();
+                : progressUpdateManagerProvider.get();
     }
 }
