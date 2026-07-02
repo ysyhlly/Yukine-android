@@ -114,7 +114,10 @@ public final class EchoPlaybackService extends MediaLibraryService
     private final PlaybackQueueMirrorStateOwner playbackQueueMirrorStateOwner =
             PlaybackQueueMirrorStateOwner.fromRuntimeStateManager(new PlaybackQueueRuntimeStateManager());
     private final PlaybackQueueMutationOwner playbackQueueMutationOwner =
-            new PlaybackQueueMutationOwner(() -> playbackQueueManager);
+            new PlaybackQueueMutationOwner(
+                    () -> playbackQueueManager,
+                    EchoPlaybackService.this::stopAndClear
+            );
     private final PlaybackQueueNavigationOwner playbackQueueNavigationOwner =
             new PlaybackQueueNavigationOwner(
                     () -> playbackQueueManager,
@@ -505,8 +508,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         PlaybackLyricsSettingsStore.fromRepository(repository).restoreInto(playbackLyricsManager);
         final PlaybackQueueCommandOwner playbackQueueCommandOwner = new PlaybackQueueCommandOwner(
                 EchoPlaybackService.this::prepareCurrent,
-                EchoPlaybackService.this::publishState,
-                EchoPlaybackService.this::stopAndClear
+                EchoPlaybackService.this::publishState
         );
         final PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner =
                 PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(mediaSourceProvider);

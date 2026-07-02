@@ -28,7 +28,6 @@ internal class PlaybackQueueManager(
     interface QueuePlaybackActions {
         fun prepareCurrent(playWhenReady: Boolean)
         fun publishState()
-        fun stopAndClear()
     }
 
     interface StreamingRestoreProvider {
@@ -402,10 +401,10 @@ internal class PlaybackQueueManager(
         queuePlaybackActions.publishState()
     }
 
-    fun removeTracksById(trackIds: Set<Long>) {
+    fun removeTracksById(trackIds: Set<Long>): Boolean {
         val queue = this.queue
         if (trackIds.isEmpty() || queue.isEmpty()) {
-            return
+            return false
         }
         val current = currentTrack()
         val removedCurrent = current != null && trackIds.contains(current.id)
@@ -421,8 +420,7 @@ internal class PlaybackQueueManager(
             }
         }
         if (queue.isEmpty()) {
-            queuePlaybackActions.stopAndClear()
-            return
+            return true
         }
         if (currentIndex() >= 0) {
             setCurrentIndex(maxOf(0, currentIndex() - removedBeforeCurrent))
@@ -441,11 +439,12 @@ internal class PlaybackQueueManager(
             persistPlaybackPosition()
             queuePlaybackActions.publishState()
         }
+        return false
     }
 
-    fun retainTracksById(trackIdsToKeep: Set<Long>) {
+    fun retainTracksById(trackIdsToKeep: Set<Long>): Boolean {
         if (trackIdsToKeep.isEmpty() || queue.isEmpty()) {
-            return
+            return false
         }
         val trackIdsToRemove = HashSet<Long>()
         for (track in queue) {
@@ -453,7 +452,7 @@ internal class PlaybackQueueManager(
                 trackIdsToRemove.add(track.id)
             }
         }
-        removeTracksById(trackIdsToRemove)
+        return removeTracksById(trackIdsToRemove)
     }
 
     private fun replaceQueuedTrack(replacement: Track) {
@@ -486,13 +485,13 @@ internal class PlaybackQueueManager(
         }
     }
 
-    fun replaceQueuedTrackById(oldTrackId: Long, replacement: Track) {
+    fun replaceQueuedTrackById(oldTrackId: Long, replacement: Track): Boolean {
         if (queue.isEmpty()) {
-            return
+            return false
         }
         if (oldTrackId == replacement.id) {
             replaceQueuedTrack(replacement)
-            return
+            return false
         }
         val queue = this.queue
         var targetAlreadyQueued = false
@@ -503,8 +502,7 @@ internal class PlaybackQueueManager(
             }
         }
         if (targetAlreadyQueued) {
-            replaceAndCollapseQueuedTrack(oldTrackId, replacement)
-            return
+            return replaceAndCollapseQueuedTrack(oldTrackId, replacement)
         }
         var replaced = false
         var replacedCurrent = false
@@ -519,7 +517,7 @@ internal class PlaybackQueueManager(
         }
         if (!replaced) {
             replaceQueuedTrack(replacement)
-            return
+            return false
         }
         clearErrorMessage()
         clearLastMarkedTrack()
@@ -532,6 +530,7 @@ internal class PlaybackQueueManager(
             persistPlaybackPosition()
             queuePlaybackActions.publishState()
         }
+        return false
     }
 
     fun replaceCurrentTrackAndResume(replacement: Track?, positionMs: Long): CurrentTrackReplacementRecovery? {
@@ -633,7 +632,7 @@ internal class PlaybackQueueManager(
         )
     }
 
-    private fun replaceAndCollapseQueuedTrack(oldTrackId: Long, replacement: Track) {
+    private fun replaceAndCollapseQueuedTrack(oldTrackId: Long, replacement: Track): Boolean {
         val queue = this.queue
         var preferredIndex = -1
         if (currentIndex() >= 0 && currentIndex() < queue.size) {
@@ -652,7 +651,7 @@ internal class PlaybackQueueManager(
             }
         }
         if (preferredIndex < 0) {
-            return
+            return false
         }
 
         var replaced = false
@@ -682,13 +681,12 @@ internal class PlaybackQueueManager(
             collapsedQueue.add(track)
         }
         if (!replaced) {
-            return
+            return false
         }
         queue.clear()
         queue.addAll(collapsedQueue)
         if (queue.isEmpty()) {
-            queuePlaybackActions.stopAndClear()
-            return
+            return true
         }
         if (collapsedCurrentIndex >= 0) {
             setCurrentIndex(collapsedCurrentIndex)
@@ -708,13 +706,14 @@ internal class PlaybackQueueManager(
             persistPlaybackPosition()
             queuePlaybackActions.publishState()
         }
+        return false
     }
 
-    fun clearQueue() {
+    fun clearQueue(): Boolean {
         if (queue.isEmpty()) {
-            return
+            return false
         }
-        queuePlaybackActions.stopAndClear()
+        return true
     }
 
     private fun clearQueueState() {
@@ -898,7 +897,6 @@ internal class PlaybackQueueManager(
     private object NoopQueuePlaybackActions : QueuePlaybackActions {
         override fun prepareCurrent(playWhenReady: Boolean) {}
         override fun publishState() {}
-        override fun stopAndClear() {}
     }
 
     private object NoopStreamingRestoreProvider : StreamingRestoreProvider {

@@ -322,10 +322,6 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         @Override
         public void publishState() {
         }
-
-        @Override
-        public void stopAndClear() {
-        }
     }
 
     private static final class RecordingStreamingRestoreProvider

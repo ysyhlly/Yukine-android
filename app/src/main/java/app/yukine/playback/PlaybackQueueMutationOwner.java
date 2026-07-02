@@ -9,9 +9,14 @@ import app.yukine.playback.manager.PlaybackQueueManager;
 
 final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOwner.QueuePlayer {
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
+    private final Runnable stopAndClearAction;
 
-    PlaybackQueueMutationOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
+    PlaybackQueueMutationOwner(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            Runnable stopAndClearAction
+    ) {
         this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
+        this.stopAndClearAction = stopAndClearAction;
     }
 
     @Override
@@ -40,8 +45,8 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
             return;
         }
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
-        if (playbackQueueManager != null) {
-            playbackQueueManager.removeTracksById(trackIds);
+        if (playbackQueueManager != null && playbackQueueManager.removeTracksById(trackIds)) {
+            stopAndClear();
         }
     }
 
@@ -50,15 +55,15 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
             return;
         }
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
-        if (playbackQueueManager != null) {
-            playbackQueueManager.retainTracksById(trackIdsToKeep);
+        if (playbackQueueManager != null && playbackQueueManager.retainTracksById(trackIdsToKeep)) {
+            stopAndClear();
         }
     }
 
     void clearQueue() {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
-        if (playbackQueueManager != null) {
-            playbackQueueManager.clearQueue();
+        if (playbackQueueManager != null && playbackQueueManager.clearQueue()) {
+            stopAndClear();
         }
     }
 
@@ -71,12 +76,20 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
 
     void replaceQueuedTrackById(long oldTrackId, Track replacement) {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
-        if (playbackQueueManager != null) {
-            playbackQueueManager.replaceQueuedTrackById(oldTrackId, replacement);
+        if (playbackQueueManager != null
+                && replacement != null
+                && playbackQueueManager.replaceQueuedTrackById(oldTrackId, replacement)) {
+            stopAndClear();
         }
     }
 
     private PlaybackQueueManager playbackQueueManager() {
         return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
+    }
+
+    private void stopAndClear() {
+        if (stopAndClearAction != null) {
+            stopAndClearAction.run();
+        }
     }
 }

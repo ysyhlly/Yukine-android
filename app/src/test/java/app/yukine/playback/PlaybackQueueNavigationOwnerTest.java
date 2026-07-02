@@ -201,11 +201,6 @@ public class PlaybackQueueNavigationOwnerTest {
         public void publishState() {
             events.add("publish");
         }
-
-        @Override
-        public void stopAndClear() {
-            events.add("stop");
-        }
     }
 
     private static final class NoopStreamingRestoreProvider

@@ -13,19 +13,16 @@ public class PlaybackQueueCommandOwnerTest {
         List<String> events = new ArrayList<>();
         PlaybackQueueCommandOwner owner = new PlaybackQueueCommandOwner(
                 playWhenReady -> events.add("prepare:" + playWhenReady),
-                () -> events.add("publish"),
-                () -> events.add("stopAndClear")
+                () -> events.add("publish")
         );
 
         owner.prepareCurrent(true);
         owner.publishState();
-        owner.stopAndClear();
 
         assertEquals(
                 java.util.Arrays.asList(
                         "prepare:true",
-                        "publish",
-                        "stopAndClear"
+                        "publish"
                 ),
                 events
         );

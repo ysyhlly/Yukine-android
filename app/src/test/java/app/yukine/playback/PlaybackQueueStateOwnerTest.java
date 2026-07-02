@@ -230,10 +230,6 @@ public class PlaybackQueueStateOwnerTest {
         @Override
         public void publishState() {
         }
-
-        @Override
-        public void stopAndClear() {
-        }
     }
 
     private static final class NoopStreamingRestoreProvider

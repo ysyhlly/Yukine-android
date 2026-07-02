@@ -970,7 +970,20 @@ class PlaybackQueueManagerTest {
         assertTrue(provider.queue.isEmpty())
         assertEquals(-1, manager.queueStateSnapshot().currentIndex)
         assertFalse(provider.queuePlaybackActions.published)
-        assertFalse(provider.queuePlaybackActions.stoppedAndCleared)
+    }
+
+    @Test
+    fun queueMutationReturnsStopRequestWhenQueueBecomesEmpty() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(track(1L)), 0)
+
+        assertTrue(manager.removeTracksById(setOf(1L)))
+
+        assertTrue(provider.queue.isEmpty())
+        assertFalse(provider.queuePlaybackActions.prepareCurrentCalled)
+        assertFalse(provider.queuePlaybackActions.published)
     }
 
     @Test
@@ -1195,15 +1208,11 @@ class PlaybackQueueManagerTest {
     private class FakeQueuePlaybackActions : PlaybackQueueManager.QueuePlaybackActions {
         var prepareCurrentCalled = false
         var published = false
-        var stoppedAndCleared = false
         override fun prepareCurrent(playWhenReady: Boolean) {
             prepareCurrentCalled = playWhenReady
         }
         override fun publishState() {
             published = true
-        }
-        override fun stopAndClear() {
-            stoppedAndCleared = true
         }
     }
 
