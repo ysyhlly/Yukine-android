@@ -18,7 +18,7 @@ public class PlaybackStateSnapshotOwnerTest {
         FakePlaybackPositionProvider playback = new FakePlaybackPositionProvider(321L, 7000L, true);
         FakeVisualizationProvider visualization = new FakeVisualizationProvider(waveform, spectrum, true);
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
-                () -> new PlaybackQueueManager.QueueStateSnapshot(track, 2, 5, false, true, true, false),
+                () -> new PlaybackQueueManager.QueueStateSnapshot(track, 2, 5),
                 playback,
                 new FakeRuntimeStateProvider(true, "buffering", true, 1, 1.25f, 0.75f),
                 () -> 9000L,

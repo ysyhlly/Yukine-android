@@ -34,7 +34,7 @@ public class PlaybackCrossfadeStateOwnerTest {
                 },
                 () -> {
                     events.add("queue");
-                    return queueStateSnapshot(1, 2, false);
+                    return queueStateSnapshot(1, 3);
                 },
                 () -> {
                     events.add("volume");
@@ -63,17 +63,17 @@ public class PlaybackCrossfadeStateOwnerTest {
     @Test
     public void crossfadeAdvancePolicyUsesQueueSnapshotAndRepeatMode() {
         PlaybackCrossfadeStateOwner missingQueue = owner(null, PlaybackRepeatMode.REPEAT_ALL);
-        PlaybackCrossfadeStateOwner singleTrack = owner(queueStateSnapshot(0, 1, true), PlaybackRepeatMode.REPEAT_ALL);
+        PlaybackCrossfadeStateOwner singleTrack = owner(queueStateSnapshot(0, 1), PlaybackRepeatMode.REPEAT_ALL);
         PlaybackCrossfadeStateOwner repeatOffBeforeEnd = owner(
-                queueStateSnapshot(0, 2, false),
+                queueStateSnapshot(0, 2),
                 PlaybackRepeatMode.REPEAT_OFF
         );
         PlaybackCrossfadeStateOwner repeatOffAtEnd = owner(
-                queueStateSnapshot(1, 2, true),
+                queueStateSnapshot(1, 2),
                 PlaybackRepeatMode.REPEAT_OFF
         );
         PlaybackCrossfadeStateOwner repeatAllAtEnd = owner(
-                queueStateSnapshot(1, 2, true),
+                queueStateSnapshot(1, 2),
                 PlaybackRepeatMode.REPEAT_ALL
         );
 
@@ -100,17 +100,12 @@ public class PlaybackCrossfadeStateOwnerTest {
 
     private static PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot(
             int currentIndex,
-            int queueSize,
-            boolean atEnd
+            int queueSize
     ) {
         return new PlaybackQueueManager.QueueStateSnapshot(
                 null,
                 currentIndex,
-                queueSize,
-                queueSize == 0,
-                false,
-                queueSize > 1,
-                atEnd
+                queueSize
         );
     }
 }

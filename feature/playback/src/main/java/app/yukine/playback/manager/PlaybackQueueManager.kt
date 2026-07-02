@@ -74,22 +74,26 @@ internal class PlaybackQueueManager(
     data class QueueStateSnapshot(
         val currentTrack: Track?,
         val currentIndex: Int,
-        val queueSize: Int,
-        val isQueueEmpty: Boolean,
-        val hasCurrentTrack: Boolean,
-        val hasMultipleTracks: Boolean,
-        val isAtEndOfQueue: Boolean
+        val queueSize: Int
     ) {
+        val isQueueEmpty: Boolean
+            get() = queueSize <= 0
+
+        val hasCurrentTrack: Boolean
+            get() = currentTrack != null
+
+        val hasMultipleTracks: Boolean
+            get() = queueSize >= 2
+
+        val isAtEndOfQueue: Boolean
+            get() = currentIndex >= queueSize - 1
+
         companion object {
             @JvmStatic
             fun empty(): QueueStateSnapshot = QueueStateSnapshot(
                 currentTrack = null,
                 currentIndex = -1,
-                queueSize = 0,
-                isQueueEmpty = true,
-                hasCurrentTrack = false,
-                hasMultipleTracks = false,
-                isAtEndOfQueue = true
+                queueSize = 0
             )
         }
     }
@@ -858,11 +862,7 @@ internal class PlaybackQueueManager(
         return QueueStateSnapshot(
             currentTrack = currentTrack,
             currentIndex = index,
-            queueSize = queue.size,
-            isQueueEmpty = queue.isEmpty(),
-            hasCurrentTrack = currentTrack != null,
-            hasMultipleTracks = queue.size >= 2,
-            isAtEndOfQueue = index >= queue.size - 1
+            queueSize = queue.size
         )
     }
 
