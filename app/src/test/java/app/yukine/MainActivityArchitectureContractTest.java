@@ -1783,7 +1783,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackService.contains("postponePlaybackVisualizationWarmup();"));
         assertTrue(playbackService.contains("private PlaybackStateSnapshotOwner playbackStateSnapshotOwner;"));
         assertTrue(playbackService.contains("playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner("));
-        assertTrue(playbackService.contains("                playbackQueueStateOwner::queueStateSnapshot,"));
+        assertTrue(playbackService.contains("                queueStateSupplier::get,"));
         assertTrue(playbackService.contains("PlaybackStateSnapshotOwner.fromRuntimeStateManagerProvider("));
         assertTrue(playbackService.contains("PlaybackStateSnapshotOwner.fromVisualizationAnalyzerProvider("));
         assertTrue(playbackService.contains("return playbackStateSnapshotOwner == null"));
@@ -5841,6 +5841,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("private fun prepareMirroredTransitionPlaybackState()"));
         assertTrue(mirroredTransitionOwner.contains("playbackQueueManager.applyMirroredTransitionIndex("));
         assertTrue(service.contains("playbackQueueStateOwner::queueStateSnapshot"));
+        assertEquals(1, countOccurrences(service, "playbackQueueStateOwner::queueStateSnapshot"));
+        assertTrue(service.contains(
+                "final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier =\n"
+                        + "                playbackQueueStateOwner::queueStateSnapshot;"));
         assertFalse(service.contains("playbackQueueManager.canSkipFailedTrack(failed)"));
         assertFalse(service.contains("playbackQueueManager.canCrossfadeAdvance(repeatMode)"));
         assertFalse(queueNavigationOwner.contains("playbackQueueManager.canSkipFailedTrack(failed);"));
@@ -6162,7 +6166,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackNotificationStateOwner = new PlaybackNotificationStateOwner("));
         assertTrue(service.contains("playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner("));
         assertFalse(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
-        assertTrue(service.contains("                playbackQueueStateOwner::queueStateSnapshot,"));
+        assertTrue(service.contains("                queueStateSupplier,"));
         assertFalse(service.contains("                playbackQueueStateOwner::canSkipFailedTrack,"));
         assertFalse(service.contains("playbackQueueManager.queueStateSnapshot()"));
         assertFalse(queueStateOwner.contains("final class PlaybackQueueStateOwner implements"));
@@ -6953,7 +6957,7 @@ public final class MainActivityArchitectureContractTest {
                 service.indexOf("playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner("),
                 service.indexOf("        playbackErrorRecoveryManager = new PlaybackErrorRecoveryManager(")
         );
-        assertTrue(errorRecoveryCommandWiring.contains("playbackQueueStateOwner::queueStateSnapshot"));
+        assertTrue(errorRecoveryCommandWiring.contains("queueStateSupplier"));
         assertFalse(errorRecoveryCommandWiring.contains("playbackQueueStateOwner::currentTrack"));
         assertFalse(errorRecoveryCommandWiring.contains("playbackQueueStateOwner::hasMultipleTracks"));
         assertFalse(errorRecoveryCommandWiring.contains("                playbackQueueStateOwner,"));
@@ -7870,7 +7874,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("private PlaybackErrorRecoveryCommandOwner playbackErrorRecoveryCommandOwner;"));
         assertTrue(service.contains("playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner("));
         assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner,"));
-        assertTrue(errorRecoveryWiring.contains("playbackQueueStateOwner::queueStateSnapshot"));
+        assertTrue(errorRecoveryWiring.contains("queueStateSupplier"));
         assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner::currentTrack"));
         assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner::hasMultipleTracks"));
         assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner::canSkipFailedTrack"));
@@ -7938,7 +7942,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner;"));
         assertTrue(service.contains("final PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner("));
         assertTrue(service.contains("                playbackPlayerStateOwner::isPlaying,"));
-        assertTrue(service.contains("                playbackQueueStateOwner::queueStateSnapshot,"));
+        assertTrue(service.contains("                queueStateSupplier,"));
         assertFalse(service.contains(
                 "                () -> playbackModeSettingsStore == null\n"
                         + "                        ? REPEAT_ALL\n"
@@ -8085,7 +8089,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("new PlaybackNotificationManager.ForegroundController()"));
         assertTrue(service.contains("private PlaybackNotificationStateOwner playbackNotificationStateOwner;"));
         assertTrue(service.contains("playbackNotificationStateOwner = new PlaybackNotificationStateOwner("));
-        assertTrue(service.contains("                playbackQueueStateOwner::queueStateSnapshot,"));
+        assertTrue(service.contains("                queueStateSupplier,"));
         assertFalse(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
         assertTrue(service.contains("                playbackNotificationStateOwner,"));
         assertTrue(service.contains("PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState("));
@@ -8110,7 +8114,7 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(\n"
                         + "                        playbackQueueStateOwner::currentTrack,"
         ));
-        assertTrue(service.contains("                playbackQueueStateOwner::queueStateSnapshot,"));
+        assertTrue(service.contains("                queueStateSupplier,"));
         assertFalse(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
         assertTrue(stateOwner.contains("static PlaybackStateProvider playbackStateProviderFromPlaybackState("));
         assertFalse(stateOwner.contains("final class PlaybackActiveStateOwner"));

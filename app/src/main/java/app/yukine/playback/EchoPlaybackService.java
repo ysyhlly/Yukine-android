@@ -375,6 +375,8 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackTransitionStateManager
         );
         final Supplier<Track> currentTrackSupplier = playbackQueueStateOwner::currentTrack;
+        final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier =
+                playbackQueueStateOwner::queueStateSnapshot;
         recordPlaybackStartHistoryAction = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 playbackPlayHistoryRecorder,
                 () -> player != null && player.getPlayWhenReady(),
@@ -397,7 +399,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackSleepTimerCommandOwner
         );
         playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner(
-                playbackQueueStateOwner::queueStateSnapshot,
+                queueStateSupplier,
                 EchoPlaybackService.this::prepareCurrent,
                 EchoPlaybackService.this::skipToNext,
                 playbackCurrentTrackPreparationRuntimeOwner::setErrorMessage,
@@ -445,7 +447,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 () -> playbackModeSettingsStore == null
                         ? REPEAT_ALL
                         : playbackModeSettingsStore.repeatMode(playbackRuntimeStateManager),
-                playbackQueueStateOwner::queueStateSnapshot,
+                queueStateSupplier,
                 () -> playbackRuntimeSettingsStore == null
                         ? 1.0f
                         : playbackRuntimeSettingsStore.currentTrackVolume(playbackRuntimeStateManager)
@@ -482,7 +484,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackNotificationForegroundOwner::stopForegroundAndSelf
         );
         playbackNotificationStateOwner = new PlaybackNotificationStateOwner(
-                playbackQueueStateOwner::queueStateSnapshot,
+                queueStateSupplier,
                 PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(
                         playbackPlayerStateOwner::isPlaying,
                         playbackCurrentTrackPreparationRuntimeOwner::preparing
@@ -603,7 +605,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                         realtimeBassDetector
                 );
         playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner(
-                playbackQueueStateOwner::queueStateSnapshot,
+                queueStateSupplier::get,
                 playbackPlayerStateOwner,
                 PlaybackStateSnapshotOwner.fromRuntimeStateManagerProvider(() -> playbackRuntimeStateManager),
                 playbackSleepTimerCommandOwner::sleepTimerRemainingMs,
