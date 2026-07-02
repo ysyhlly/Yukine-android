@@ -5960,8 +5960,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mirroredPlayerOwner.contains("private final Consumer<Boolean> preparingStateController;"));
         assertFalse(mirroredPlayerOwner.contains("private final Supplier<Track> currentTrackProvider;"));
         assertFalse(mirroredPlayerOwner.contains("currentTrackProvider.get()"));
-        assertTrue(mirroredPlayerOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;"));
-        assertTrue(mirroredPlayerOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.get();"));
+        assertTrue(mirroredPlayerOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
+        assertTrue(mirroredPlayerOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.queueStateSnapshot();"));
         assertTrue(mirroredPlayerOwner.contains("return snapshot == null ? null : snapshot.getCurrentTrack();"));
         assertTrue(mirroredPlayerOwner.contains("private final Consumer<Track> waveformResetter;"));
         assertTrue(mirroredPlayerOwner.contains("private final Runnable playbackParameterApplier;"));
