@@ -9,7 +9,6 @@ import java.util.function.Supplier;
 
 final class PlaybackQueueStateOwner implements
         PlaybackStateSnapshotOwner.QueueStateProvider,
-        PlaybackCrossfadeStateOwner.QueueStateProvider,
         PlaybackErrorRecoveryCommandOwner.FailedTrackPolicy {
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
 

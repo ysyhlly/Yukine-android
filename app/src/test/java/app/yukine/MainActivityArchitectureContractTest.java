@@ -1617,7 +1617,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playerStateOwner.contains("PlaybackBufferedProgressOwner.PlaybackPositionProvider"));
         assertFalse(playerStateOwner.contains("PlaybackActiveStateOwner.PlayingStateProvider"));
         assertFalse(playerStateOwner.contains("PlaybackProgressUpdateStateOwner.PlaybackStateProvider"));
-        assertTrue(playerStateOwner.contains("PlaybackCrossfadeStateOwner.PlaybackStateProvider"));
+        assertFalse(playerStateOwner.contains("PlaybackCrossfadeStateOwner.PlaybackStateProvider"));
         assertTrue(playerStateOwner.contains("PlaybackRealtimeVisualizationOwner.PlaybackStateProvider"));
         assertFalse(playerStateOwner.contains("PlaybackPositionStateOwner.PlaybackPositionProvider"));
         assertFalse(playerStateOwner.contains("PlaybackNoisyReceiverActionsOwner.PlaybackStateProvider"));
@@ -5860,7 +5860,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueStateOwner.contains("final class PlaybackQueueStateOwner implements"));
         assertFalse(queueStateOwner.contains("PlaybackNotificationStateOwner.QueueStateProvider"));
         assertTrue(queueStateOwner.contains("PlaybackStateSnapshotOwner.QueueStateProvider"));
-        assertTrue(queueStateOwner.contains("PlaybackCrossfadeStateOwner.QueueStateProvider"));
+        assertFalse(queueStateOwner.contains("PlaybackCrossfadeStateOwner.QueueStateProvider"));
         assertFalse(queueStateOwner.contains("interface PlaybackQueueManagerProvider"));
         assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier"));
         assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot> fallbackQueueStateSnapshotSupplier"));
@@ -7515,7 +7515,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("new PlaybackCrossfadeAdvanceManager.StateProvider()"));
         assertTrue(service.contains("private PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner;"));
         assertTrue(service.contains("playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner("));
-        assertTrue(service.contains("                playbackQueueStateOwner,"));
+        assertTrue(service.contains("                playbackPlayerStateOwner::isPlaying,"));
+        assertTrue(service.contains("                playbackQueueStateOwner::queueStateSnapshot,"));
         assertFalse(service.contains("playbackQueueNavigationOwner,\r\n                () -> playbackRuntimeStateManager == null"));
         assertTrue(service.contains("                playbackCrossfadeStateOwner,"));
         assertTrue(commandOwner.contains("final class PlaybackCrossfadeCommandOwner implements PlaybackCrossfadeAdvanceManager.Actions"));
@@ -7532,18 +7533,23 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("void cancelCrossfadeAdvance()"));
         assertTrue(commandOwner.contains("manager.cancel();"));
         assertTrue(stateOwner.contains("final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManager.StateProvider"));
-        assertTrue(stateOwner.contains("interface TransitionStateProvider"));
-        assertTrue(stateOwner.contains("interface PlayerAvailabilityProvider"));
-        assertTrue(stateOwner.contains("interface PlaybackStateProvider"));
-        assertTrue(stateOwner.contains("interface RepeatModeProvider"));
-        assertTrue(stateOwner.contains("interface QueueStateProvider"));
+        assertFalse(stateOwner.contains("interface TransitionStateProvider"));
+        assertFalse(stateOwner.contains("interface PlayerAvailabilityProvider"));
+        assertFalse(stateOwner.contains("interface PlaybackStateProvider"));
+        assertFalse(stateOwner.contains("interface RepeatModeProvider"));
+        assertFalse(stateOwner.contains("interface QueueStateProvider"));
         assertTrue(stateOwner.contains("interface BaseVolumeProvider"));
-        assertTrue(stateOwner.contains("return transitionStateProvider.fadeOutAdvancing();"));
-        assertTrue(stateOwner.contains("return playerAvailabilityProvider.playerAvailable();"));
-        assertTrue(stateOwner.contains("return playbackStateProvider.isPlaying();"));
+        assertTrue(stateOwner.contains("private final BooleanSupplier transitionStateProvider;"));
+        assertTrue(stateOwner.contains("private final BooleanSupplier playerAvailabilityProvider;"));
+        assertTrue(stateOwner.contains("private final BooleanSupplier playbackStateProvider;"));
+        assertTrue(stateOwner.contains("private final IntSupplier repeatModeProvider;"));
+        assertTrue(stateOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;"));
+        assertTrue(stateOwner.contains("return transitionStateProvider.getAsBoolean();"));
+        assertTrue(stateOwner.contains("return playerAvailabilityProvider.getAsBoolean();"));
+        assertTrue(stateOwner.contains("return playbackStateProvider.getAsBoolean();"));
         assertTrue(stateOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider == null"));
         assertTrue(stateOwner.contains("if (!snapshot.getHasMultipleTracks())"));
-        assertTrue(stateOwner.contains("return repeatModeProvider.repeatMode() != REPEAT_OFF || !snapshot.isAtEndOfQueue();"));
+        assertTrue(stateOwner.contains("return repeatModeProvider.getAsInt() != REPEAT_OFF || !snapshot.isAtEndOfQueue();"));
         assertTrue(stateOwner.contains("return baseVolumeProvider.baseVolume();"));
     }
 

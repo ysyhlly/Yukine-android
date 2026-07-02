@@ -5,44 +5,28 @@ import static app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF;
 import app.yukine.playback.manager.PlaybackCrossfadeAdvanceManager;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
+import java.util.function.Supplier;
+
 final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManager.StateProvider {
-    interface TransitionStateProvider {
-        boolean fadeOutAdvancing();
-    }
-
-    interface PlayerAvailabilityProvider {
-        boolean playerAvailable();
-    }
-
-    interface PlaybackStateProvider {
-        boolean isPlaying();
-    }
-
-    interface RepeatModeProvider {
-        int repeatMode();
-    }
-
-    interface QueueStateProvider {
-        PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot();
-    }
-
     interface BaseVolumeProvider {
         float baseVolume();
     }
 
-    private final TransitionStateProvider transitionStateProvider;
-    private final PlayerAvailabilityProvider playerAvailabilityProvider;
-    private final PlaybackStateProvider playbackStateProvider;
-    private final RepeatModeProvider repeatModeProvider;
-    private final QueueStateProvider queueStateProvider;
+    private final BooleanSupplier transitionStateProvider;
+    private final BooleanSupplier playerAvailabilityProvider;
+    private final BooleanSupplier playbackStateProvider;
+    private final IntSupplier repeatModeProvider;
+    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;
     private final BaseVolumeProvider baseVolumeProvider;
 
     PlaybackCrossfadeStateOwner(
-            TransitionStateProvider transitionStateProvider,
-            PlayerAvailabilityProvider playerAvailabilityProvider,
-            PlaybackStateProvider playbackStateProvider,
-            RepeatModeProvider repeatModeProvider,
-            QueueStateProvider queueStateProvider,
+            BooleanSupplier transitionStateProvider,
+            BooleanSupplier playerAvailabilityProvider,
+            BooleanSupplier playbackStateProvider,
+            IntSupplier repeatModeProvider,
+            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider,
             BaseVolumeProvider baseVolumeProvider
     ) {
         this.transitionStateProvider = transitionStateProvider;
@@ -55,31 +39,31 @@ final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManag
 
     @Override
     public boolean fadeOutAdvancing() {
-        return transitionStateProvider.fadeOutAdvancing();
+        return transitionStateProvider.getAsBoolean();
     }
 
     @Override
     public boolean playerAvailable() {
-        return playerAvailabilityProvider.playerAvailable();
+        return playerAvailabilityProvider.getAsBoolean();
     }
 
     @Override
     public boolean isPlaying() {
-        return playbackStateProvider.isPlaying();
+        return playbackStateProvider.getAsBoolean();
     }
 
     @Override
     public boolean canCrossfadeAdvance() {
         PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider == null
                 ? PlaybackQueueManager.QueueStateSnapshot.empty()
-                : queueStateProvider.queueStateSnapshot();
+                : queueStateProvider.get();
         if (snapshot == null) {
             snapshot = PlaybackQueueManager.QueueStateSnapshot.empty();
         }
         if (!snapshot.getHasMultipleTracks()) {
             return false;
         }
-        return repeatModeProvider.repeatMode() != REPEAT_OFF || !snapshot.isAtEndOfQueue();
+        return repeatModeProvider.getAsInt() != REPEAT_OFF || !snapshot.isAtEndOfQueue();
     }
 
     @Override

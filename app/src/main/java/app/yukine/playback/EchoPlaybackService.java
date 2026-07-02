@@ -432,11 +432,11 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner(
                 playbackTransitionStateManager::fadeOutAdvancing,
                 () -> player != null,
-                playbackPlayerStateOwner,
+                playbackPlayerStateOwner::isPlaying,
                 () -> playbackModeSettingsStore == null
                         ? REPEAT_ALL
                         : playbackModeSettingsStore.repeatMode(playbackRuntimeStateManager),
-                playbackQueueStateOwner,
+                playbackQueueStateOwner::queueStateSnapshot,
                 () -> playbackRuntimeSettingsStore == null
                         ? 1.0f
                         : playbackRuntimeSettingsStore.currentTrackVolume(playbackRuntimeStateManager)
