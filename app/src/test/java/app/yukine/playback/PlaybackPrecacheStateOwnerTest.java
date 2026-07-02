@@ -6,7 +6,6 @@ import androidx.media3.common.MediaItem;
 
 import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import org.junit.Test;
 
@@ -26,8 +25,8 @@ public class PlaybackPrecacheStateOwnerTest {
         PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
         PlaybackPrecacheStateOwner owner = new PlaybackPrecacheStateOwner(
                 () -> {
-                    events.add("queueState");
-                    return new PlaybackQueueManager.QueueStateSnapshot(track, 0, 1);
+                    events.add("currentTrack");
+                    return track;
                 },
                 () -> {
                     events.add("mediaItem");
@@ -44,7 +43,7 @@ public class PlaybackPrecacheStateOwnerTest {
         assertSame(diagnostics, owner.streamingDiagnostics());
         assertEquals(
                 java.util.Arrays.asList(
-                        "queueState",
+                        "currentTrack",
                         "mediaItem",
                         "diagnostics"
                 ),
@@ -53,20 +52,20 @@ public class PlaybackPrecacheStateOwnerTest {
     }
 
     @Test
-    public void returnsNullCurrentTrackWhenQueueStateIsMissing() {
+    public void returnsNullCurrentTrackWhenSupplierIsMissing() {
         PlaybackPrecacheStateOwner missingProviderOwner = new PlaybackPrecacheStateOwner(
                 null,
                 () -> null,
                 PlaybackStreamingDiagnostics::new
         );
-        PlaybackPrecacheStateOwner nullSnapshotOwner = new PlaybackPrecacheStateOwner(
+        PlaybackPrecacheStateOwner nullTrackOwner = new PlaybackPrecacheStateOwner(
                 () -> null,
                 () -> null,
                 PlaybackStreamingDiagnostics::new
         );
 
         assertNull(missingProviderOwner.currentTrack());
-        assertNull(nullSnapshotOwner.currentTrack());
+        assertNull(nullTrackOwner.currentTrack());
     }
 
     private static Track track(long id) {

@@ -744,7 +744,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                         mediaSourceProvider::streamingQualityForTrack
                 );
         PlaybackPrecacheStateOwner playbackPrecacheStateOwner = new PlaybackPrecacheStateOwner(
-                playbackQueueStateOwner,
+                playbackQueueStateOwner::currentTrack,
                 PlaybackPrecacheStateOwner.playerMediaItemSupplierFromPlayerSupplier(() -> player),
                 () -> streamingDiagnostics
         );
