@@ -8,6 +8,7 @@ import androidx.media3.common.Player;
 
 import org.junit.Test;
 
+import java.lang.reflect.Proxy;
 import java.util.function.Supplier;
 
 public class PlaybackPrecacheStateOwnerPlayerMediaItemTest {
@@ -21,7 +22,22 @@ public class PlaybackPrecacheStateOwnerPlayerMediaItemTest {
     }
 
     @Test
+    public void returnsCurrentMediaItemFromPlayerSupplier() {
+        MediaItem mediaItem = MediaItem.fromUri("https://example.test/player.mp3");
+        Supplier<MediaItem> supplier =
+                PlaybackPrecacheStateOwner.playerMediaItemSupplierFromPlayerSupplier(
+                        () -> player(Player.STATE_READY, 1, mediaItem)
+                );
+
+        assertSame(mediaItem, supplier.get());
+    }
+
+    @Test
     public void returnsNullForMissingIdleOrEmptyPlayer() {
+        assertNull(PlaybackPrecacheStateOwner.playerMediaItemSupplierFromPlayerSupplier(null)
+                .get());
+        assertNull(PlaybackPrecacheStateOwner.playerMediaItemSupplierFromPlayerSupplier(() -> null)
+                .get());
         assertNull(PlaybackPrecacheStateOwner.playerMediaItemSupplierFromStateSuppliers(null, null, null)
                 .get());
         assertNull(supplierFromState(new FakePlayerState(
@@ -44,11 +60,59 @@ public class PlaybackPrecacheStateOwnerPlayerMediaItemTest {
         assertNull(supplier.get());
     }
 
+    @Test
+    public void returnsNullWhenPlayerSupplierStateCannotBeRead() {
+        Supplier<MediaItem> supplier =
+                PlaybackPrecacheStateOwner.playerMediaItemSupplierFromPlayerSupplier(
+                        () -> throwingPlayer()
+                );
+
+        assertNull(supplier.get());
+    }
+
     private static Supplier<MediaItem> supplierFromState(FakePlayerState state) {
         return PlaybackPrecacheStateOwner.playerMediaItemSupplierFromStateSuppliers(
                 state::playbackState,
                 state::mediaItemCount,
                 state::currentMediaItem
+        );
+    }
+
+    private static Player player(int playbackState, int mediaItemCount, MediaItem currentMediaItem) {
+        return (Player) Proxy.newProxyInstance(
+                Player.class.getClassLoader(),
+                new Class<?>[]{Player.class},
+                (proxy, method, args) -> {
+                    switch (method.getName()) {
+                        case "getPlaybackState":
+                            return playbackState;
+                        case "getMediaItemCount":
+                            return mediaItemCount;
+                        case "getCurrentMediaItem":
+                            return currentMediaItem;
+                        case "toString":
+                            return "FakePlayer";
+                        case "hashCode":
+                            return System.identityHashCode(proxy);
+                        case "equals":
+                            return proxy == args[0];
+                        default:
+                            throw new AssertionError("Unexpected Player call: " + method.getName());
+                    }
+                }
+        );
+    }
+
+    private static Player throwingPlayer() {
+        return (Player) Proxy.newProxyInstance(
+                Player.class.getClassLoader(),
+                new Class<?>[]{Player.class},
+                (proxy, method, args) -> {
+                    if ("getPlaybackState".equals(method.getName())) {
+                        throw new IllegalStateException("player released");
+                    }
+                    throw new AssertionError("Unexpected Player call: " + method.getName());
+                }
         );
     }
 
