@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -22,12 +23,8 @@ public class PlaybackNotificationStateOwnerTest {
         Track track = new Track(7L, "Track", "Artist", "Album", 1000L, Uri.EMPTY, "file:7");
         PlaybackNotificationStateOwner owner = new PlaybackNotificationStateOwner(
                 () -> {
-                    events.add("queueEmpty");
-                    return false;
-                },
-                () -> {
-                    events.add("currentTrack");
-                    return track;
+                    events.add("queueState");
+                    return new PlaybackQueueManager.QueueStateSnapshot(track, 0, 2);
                 },
                 new PlaybackNotificationStateOwner.PlaybackStateProvider() {
                     @Override
@@ -61,10 +58,10 @@ public class PlaybackNotificationStateOwnerTest {
 
         assertEquals(
                 java.util.Arrays.asList(
-                        "queueEmpty",
+                        "queueState",
                         "playing",
                         "preparing",
-                        "currentTrack",
+                        "queueState",
                         "favorite:7",
                         "token"
                 ),
@@ -110,7 +107,6 @@ public class PlaybackNotificationStateOwnerTest {
     @Test
     public void returnsEmptyQueueStateWhenQueueSuppliersAreMissing() {
         PlaybackNotificationStateOwner owner = new PlaybackNotificationStateOwner(
-                null,
                 null,
                 PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(null, null),
                 track -> false,

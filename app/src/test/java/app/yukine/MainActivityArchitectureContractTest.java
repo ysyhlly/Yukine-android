@@ -6161,7 +6161,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueStateOwner.queueStateSnapshot().isQueueEmpty()"));
         assertTrue(service.contains("playbackNotificationStateOwner = new PlaybackNotificationStateOwner("));
         assertTrue(service.contains("playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner("));
-        assertTrue(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
+        assertFalse(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
         assertTrue(service.contains("                playbackQueueStateOwner::queueStateSnapshot,"));
         assertFalse(service.contains("                playbackQueueStateOwner::canSkipFailedTrack,"));
         assertFalse(service.contains("playbackQueueManager.queueStateSnapshot()"));
@@ -8078,8 +8078,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("new PlaybackNotificationManager.ForegroundController()"));
         assertTrue(service.contains("private PlaybackNotificationStateOwner playbackNotificationStateOwner;"));
         assertTrue(service.contains("playbackNotificationStateOwner = new PlaybackNotificationStateOwner("));
-        assertTrue(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
-        assertTrue(service.contains("                playbackQueueStateOwner::currentTrack,"));
+        assertTrue(service.contains("                playbackQueueStateOwner::queueStateSnapshot,"));
+        assertFalse(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
         assertTrue(service.contains("                playbackNotificationStateOwner,"));
         assertTrue(service.contains("PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState("));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackActiveStateOwner.java")));
@@ -8103,8 +8103,8 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(\n"
                         + "                        playbackQueueStateOwner::currentTrack,"
         ));
-        assertTrue(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
-        assertTrue(service.contains("                playbackQueueStateOwner::currentTrack,"));
+        assertTrue(service.contains("                playbackQueueStateOwner::queueStateSnapshot,"));
+        assertFalse(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
         assertTrue(stateOwner.contains("static PlaybackStateProvider playbackStateProviderFromPlaybackState("));
         assertFalse(stateOwner.contains("final class PlaybackActiveStateOwner"));
         assertFalse(service.contains("new PlaybackNotificationArtworkManager.StateProvider()"));
@@ -8179,16 +8179,19 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(stateOwner.contains("import java.util.function.BooleanSupplier;"));
         assertTrue(stateOwner.contains("import java.util.function.Predicate;"));
         assertTrue(stateOwner.contains("import java.util.function.Supplier;"));
-        assertTrue(stateOwner.contains("private final BooleanSupplier queueEmptySupplier;"));
-        assertTrue(stateOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
+        assertFalse(stateOwner.contains("private final BooleanSupplier queueEmptySupplier;"));
+        assertFalse(stateOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
+        assertTrue(stateOwner.contains(
+                "private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier;"
+        ));
         assertFalse(stateOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
-        assertFalse(stateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
+        assertTrue(stateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertTrue(stateOwner.contains("private final Predicate<Track> favoriteStateProvider;"));
         assertTrue(stateOwner.contains("private final Supplier<MediaSession.Token> sessionTokenSupplier;"));
-        assertFalse(stateOwner.contains("return queueStateSnapshot().isQueueEmpty();"));
-        assertFalse(stateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
-        assertTrue(stateOwner.contains("return queueEmptySupplier == null || queueEmptySupplier.getAsBoolean();"));
-        assertTrue(stateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
+        assertTrue(stateOwner.contains("return queueStateSnapshot().isQueueEmpty();"));
+        assertTrue(stateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertFalse(stateOwner.contains("return queueEmptySupplier == null || queueEmptySupplier.getAsBoolean();"));
+        assertFalse(stateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertFalse(stateOwner.contains("return playbackStateProvider.currentTrack();"));
         assertTrue(stateOwner.contains("return favoriteStateProvider.test(track);"));
         assertTrue(stateOwner.contains("return sessionTokenSupplier.get();"));
