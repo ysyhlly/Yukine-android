@@ -376,8 +376,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackSleepTimerCommandOwner
         );
         playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner(
-                playbackQueueStateOwner::currentTrack,
-                playbackQueueStateOwner::canSkipFailedTrack,
+                playbackQueueStateOwner,
                 EchoPlaybackService.this::prepareCurrent,
                 EchoPlaybackService.this::skipToNext,
                 playbackCurrentTrackPreparationRuntimeOwner::setErrorMessage,

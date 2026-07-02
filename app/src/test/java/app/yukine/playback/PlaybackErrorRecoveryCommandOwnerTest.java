@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
@@ -19,11 +20,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
         List<String> events = new ArrayList<>();
         Track track = track(7L);
         PlaybackErrorRecoveryCommandOwner owner = new PlaybackErrorRecoveryCommandOwner(
-                () -> track,
-                failed -> {
-                    events.add("canSkip:" + (failed == track));
-                    return true;
-                },
+                () -> new PlaybackQueueManager.QueueStateSnapshot(track, 0, 2),
                 playWhenReady -> events.add("prepare:" + playWhenReady),
                 () -> events.add("next"),
                 message -> events.add("error:" + message),
@@ -33,6 +30,8 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
 
         assertSame(track, owner.currentTrack());
         assertTrue(owner.canSkipFailedTrack(track));
+        assertEquals(false, owner.canSkipFailedTrack(null));
+        assertEquals(false, owner.canSkipFailedTrack(track(-1L)));
         assertEquals("trackId=7, title=Track 7, dataPath=file:7, uri=null", owner.debugTrack(track));
         assertEquals("track=<null>", owner.debugTrack(null));
         owner.prepareCurrent(true);
@@ -43,7 +42,6 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
 
         assertEquals(
                 java.util.Arrays.asList(
-                        "canSkip:true",
                         "prepare:true",
                         "next",
                         "error:Unable",

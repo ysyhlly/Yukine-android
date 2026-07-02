@@ -5940,7 +5940,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackNotificationStateOwner = new PlaybackNotificationStateOwner("));
         assertTrue(service.contains("playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner("));
         assertTrue(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
-        assertTrue(service.contains("                playbackQueueStateOwner::canSkipFailedTrack,"));
+        assertFalse(service.contains("                playbackQueueStateOwner::canSkipFailedTrack,"));
         assertFalse(service.contains("playbackQueueManager.queueStateSnapshot()"));
         assertTrue(queueStateOwner.contains("final class PlaybackQueueStateOwner implements"));
         assertFalse(queueStateOwner.contains("PlaybackNotificationStateOwner.QueueStateProvider"));
@@ -7583,12 +7583,19 @@ public final class MainActivityArchitectureContractTest {
     public void playbackErrorRecoveryCommandsAreOwnedOutsideEchoPlaybackService() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String commandOwner = read("app/src/main/java/app/yukine/playback/PlaybackErrorRecoveryCommandOwner.java");
+        String errorRecoveryWiring = service.substring(
+                service.indexOf("playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner("),
+                service.indexOf("playbackErrorRecoveryManager = new PlaybackErrorRecoveryManager(")
+        );
 
         assertFalse(service.contains("new PlaybackErrorRecoveryManager.Actions()"));
         assertFalse(service.contains("private String debugTrack(Track track)"));
         assertTrue(service.contains("private PlaybackErrorRecoveryCommandOwner playbackErrorRecoveryCommandOwner;"));
         assertTrue(service.contains("playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner("));
-        assertTrue(service.contains("EchoPlaybackService.this::skipToNext"));
+        assertTrue(errorRecoveryWiring.contains("playbackQueueStateOwner,"));
+        assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner::currentTrack"));
+        assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner::canSkipFailedTrack"));
+        assertTrue(errorRecoveryWiring.contains("EchoPlaybackService.this::skipToNext"));
         assertTrue(service.contains("playbackErrorRecoveryCommandOwner"));
         assertTrue(service.contains("playbackCurrentTrackPreparationRuntimeOwner::setErrorMessage"));
         assertFalse(service.contains("playbackRuntimeStateManager::setErrorMessage"));
@@ -7607,8 +7614,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(commandOwner.contains("interface WarningLogger"));
         assertFalse(commandOwner.contains("PlaybackNotificationCommandOwner.PlaybackCommands"));
         assertFalse(commandOwner.contains("private final PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands;"));
-        assertTrue(commandOwner.contains("private final Supplier<Track> currentTrackProvider;"));
-        assertTrue(commandOwner.contains("private final Predicate<Track> failedTrackPolicy;"));
+        assertFalse(commandOwner.contains("private final Supplier<Track> currentTrackProvider;"));
+        assertFalse(commandOwner.contains("private final Predicate<Track> failedTrackPolicy;"));
+        assertTrue(commandOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
+        assertTrue(commandOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertTrue(commandOwner.contains("return failed != null && failed.id != -1L && queueStateSnapshot().getHasMultipleTracks();"));
         assertTrue(commandOwner.contains("private final Consumer<Boolean> playbackPreparer;"));
         assertTrue(commandOwner.contains("private final Runnable skipToNextCommand;"));
         assertTrue(commandOwner.contains("private final Consumer<String> errorMessageStore;"));
@@ -7616,7 +7626,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("private final BiConsumer<String, Exception> warningLogger;"));
         assertTrue(commandOwner.contains("return \"track=<null>\";"));
         assertTrue(commandOwner.contains("\"trackId=\" + track.id"));
-        assertTrue(commandOwner.contains("return failedTrackPolicy.test(failed);"));
+        assertFalse(commandOwner.contains("return failedTrackPolicy.test(failed);"));
         assertTrue(commandOwner.contains("playbackPreparer.accept(playWhenReady);"));
         assertTrue(commandOwner.contains("skipToNextCommand.run();"));
         assertTrue(commandOwner.contains("errorMessageStore.accept(message);"));
