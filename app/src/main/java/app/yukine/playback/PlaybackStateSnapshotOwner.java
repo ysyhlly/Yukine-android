@@ -4,11 +4,9 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 
-final class PlaybackStateSnapshotOwner {
-    interface QueueStateProvider {
-        PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot();
-    }
+import java.util.function.Supplier;
 
+final class PlaybackStateSnapshotOwner {
     interface PlaybackPositionProvider {
         long positionMs();
 
@@ -55,7 +53,7 @@ final class PlaybackStateSnapshotOwner {
         float beat();
     }
 
-    private final QueueStateProvider queueStateProvider;
+    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;
     private final PlaybackPositionProvider playbackPositionProvider;
     private final RuntimeStateProvider runtimeStateProvider;
     private final SleepTimerProvider sleepTimerProvider;
@@ -64,7 +62,7 @@ final class PlaybackStateSnapshotOwner {
     private final int defaultRepeatMode;
 
     PlaybackStateSnapshotOwner(
-            QueueStateProvider queueStateProvider,
+            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider,
             PlaybackPositionProvider playbackPositionProvider,
             RuntimeStateProvider runtimeStateProvider,
             SleepTimerProvider sleepTimerProvider,
@@ -172,7 +170,7 @@ final class PlaybackStateSnapshotOwner {
     PlaybackStateSnapshot snapshot() {
         PlaybackQueueManager.QueueStateSnapshot queueState = queueStateProvider == null
                 ? PlaybackQueueManager.QueueStateSnapshot.empty()
-                : queueStateProvider.queueStateSnapshot();
+                : queueStateProvider.get();
         if (queueState == null) {
             queueState = PlaybackQueueManager.QueueStateSnapshot.empty();
         }

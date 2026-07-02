@@ -1797,7 +1797,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackService.contains("postponePlaybackVisualizationWarmup();"));
         assertTrue(playbackService.contains("private PlaybackStateSnapshotOwner playbackStateSnapshotOwner;"));
         assertTrue(playbackService.contains("playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner("));
-        assertTrue(playbackService.contains("                queueStateSupplier::get,"));
+        assertTrue(playbackService.contains("                queueStateSupplier,"));
         assertTrue(playbackService.contains("PlaybackStateSnapshotOwner.fromRuntimeStateManagerProvider("));
         assertTrue(playbackService.contains("PlaybackStateSnapshotOwner.fromVisualizationAnalyzerProvider("));
         assertTrue(playbackService.contains("return playbackStateSnapshotOwner == null"));
@@ -1808,7 +1808,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("private PlaybackSpectrumSnapshot spectrumSnapshotFor("));
         assertFalse(playbackService.contains("private boolean shouldDeferPlaybackVisualization()"));
         assertTrue(stateSnapshotOwner.contains("final class PlaybackStateSnapshotOwner"));
-        assertTrue(stateSnapshotOwner.contains("interface QueueStateProvider"));
+        assertFalse(stateSnapshotOwner.contains("interface QueueStateProvider"));
+        assertTrue(stateSnapshotOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;"));
         assertTrue(stateSnapshotOwner.contains("interface RuntimeStateProvider"));
         assertTrue(stateSnapshotOwner.contains("interface VisualizationProvider"));
         assertTrue(stateSnapshotOwner.contains("boolean deferVisualGeneration = visualizationProvider != null"));
