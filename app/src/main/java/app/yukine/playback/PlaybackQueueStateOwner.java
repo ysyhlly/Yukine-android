@@ -46,6 +46,10 @@ final class PlaybackQueueStateOwner implements
         return tracks == null ? Collections.emptyList() : tracks;
     }
 
+    Track currentTrack() {
+        return queueStateSnapshot().getCurrentTrack();
+    }
+
     @Override
     public boolean canSkipFailedTrack(Track failed) {
         return failed != null && failed.id != -1L && queueStateSnapshot().getHasMultipleTracks();
