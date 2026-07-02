@@ -1751,7 +1751,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(normalizedPlaybackService.contains(
                 "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
                         + "                this,\n"
-                        + "                playbackQueueStateOwner,"
+                        + "                playbackQueueStateOwner::queueStateSnapshot,"
         ));
         assertFalse(normalizedPlaybackService.contains(
                 "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
@@ -5539,7 +5539,7 @@ public final class MainActivityArchitectureContractTest {
                         "                )\n        );\n        playbackSleepTimerCommandOwner"
                 )
         );
-        assertTrue(positionStateProviderWiring.contains("                        playbackQueueStateOwner,\n"));
+        assertTrue(positionStateProviderWiring.contains("                        playbackQueueStateOwner::queueStateSnapshot,\n"));
         assertFalse(positionStateProviderWiring.contains("playbackQueueStateOwner::currentTrack"));
         assertTrue(service.contains("                        playbackPlayerStateOwner::positionMs"));
         assertFalse(service.contains("new PlaybackPositionManager.StateProvider()"));
@@ -5579,9 +5579,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(positionOwner.contains("playbackPositionSupplier: LongSupplier?"));
         assertTrue(positionOwner.contains("override fun currentTrack(): Track? = queueStateSupplier?.get()?.currentTrack"));
         assertTrue(positionOwner.contains("override fun positionMs(): Long = playbackPositionSupplier?.asLong ?: 0L"));
-        assertTrue(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot>"));
-        assertTrue(queueStateOwner.contains("public PlaybackQueueManager.QueueStateSnapshot get()"));
-        assertTrue(queueStateOwner.contains("return queueStateSnapshot();"));
+        assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot>"));
+        assertFalse(queueStateOwner.contains("public PlaybackQueueManager.QueueStateSnapshot get()"));
+        assertFalse(queueStateOwner.contains("return queueStateSnapshot();"));
     }
 
     @Test
@@ -6722,7 +6722,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackWifiLockStreamingTrackOwnerTest.java")));
         assertFalse(service.contains("PlaybackWifiLockStreamingTrackOwner"));
         assertTrue(service.contains(
-                "                playbackQueueStateOwner,\n" +
+                "                playbackQueueStateOwner::queueStateSnapshot,\n" +
                         "                mediaSourceProvider::isHttpTrack"));
         assertFalse(service.contains(
                 "                playbackQueueStateOwner::currentTrack,\n" +
@@ -7104,7 +7104,7 @@ public final class MainActivityArchitectureContractTest {
                 normalizedService.indexOf("private final PlaybackRuntimeStateManager playbackRuntimeStateManager ="),
                 normalizedService.indexOf("    private final PlaybackCurrentTrackPreparationRuntimeOwner")
         );
-        assertTrue(runtimeStateProviderWiring.contains("                            playbackQueueStateOwner\n"));
+        assertTrue(runtimeStateProviderWiring.contains("                            playbackQueueStateOwner::queueStateSnapshot\n"));
         assertFalse(runtimeStateProviderWiring.contains("playbackQueueStateOwner::currentTrack"));
         assertFalse(service.contains("new PlaybackRuntimeStateManager.StateProvider()"));
         assertTrue(owner.contains("private var shuffleEnabled"));
@@ -7849,7 +7849,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner;"));
         assertTrue(service.contains("final PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner("));
         assertTrue(service.contains("                playbackPlayerStateOwner::isPlaying,"));
-        assertFalse(service.contains("                playbackQueueStateOwner::queueStateSnapshot,"));
+        assertFalse(service.contains(
+                "new PlaybackCrossfadeStateOwner(\n"
+                        + "                playbackPlayerStateOwner::isPlaying,\n"
+                        + "                playbackQueueStateOwner::queueStateSnapshot,"));
         assertTrue(service.contains("                playbackQueueStateOwner,"));
         assertFalse(service.contains("playbackQueueNavigationOwner,\r\n                () -> playbackRuntimeStateManager == null"));
         assertTrue(service.contains("                playbackCrossfadeStateOwner,"));

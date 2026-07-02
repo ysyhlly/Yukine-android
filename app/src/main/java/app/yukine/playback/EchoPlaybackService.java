@@ -177,7 +177,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                     PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
                             () -> player,
                             playbackQueueRuntimeStateManager::playerMirrorsQueue,
-                            playbackQueueStateOwner
+                            playbackQueueStateOwner::queueStateSnapshot
                     )
             );
     private final PlaybackCurrentTrackPreparationRuntimeOwner playbackCurrentTrackPreparationRuntimeOwner =
@@ -368,7 +368,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackPositionManager = new PlaybackPositionManager(
                 queueStore,
                 PlaybackPositionManager.stateProviderFromPlaybackState(
-                        playbackQueueStateOwner,
+                        playbackQueueStateOwner::queueStateSnapshot,
                         playbackPlayerStateOwner::positionMs
                 )
         );
@@ -700,7 +700,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(
                 this,
-                playbackQueueStateOwner,
+                playbackQueueStateOwner::queueStateSnapshot,
                 new PlaybackNotificationArtworkBridgeOwner(
                         playbackSessionRefresher,
                         playbackNotificationCommandOwner::publishPlaybackNotification
@@ -755,7 +755,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
         playbackWifiLockManager = new PlaybackWifiLockManager(
                 PlaybackWifiLockOwner.fromWifiLock(wifiLock),
-                playbackQueueStateOwner,
+                playbackQueueStateOwner::queueStateSnapshot,
                 mediaSourceProvider::isHttpTrack
         );
         publishState();
