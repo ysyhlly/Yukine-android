@@ -1708,10 +1708,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(visualizationAnalyzer.contains("taskScheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_WAVEFORM, Runnable {"));
         assertTrue(visualizationAnalyzer.contains("return@Runnable"));
         assertTrue(visualizationStateOwner.contains("final class PlaybackVisualizationStateOwner implements PlaybackVisualizationAnalyzer.StateProvider"));
-        assertTrue(visualizationStateOwner.contains("interface AppVisibilityProvider"));
+        assertFalse(visualizationStateOwner.contains("interface AppVisibilityProvider"));
         assertTrue(visualizationStateOwner.contains("interface BufferedProgressProvider"));
-        assertTrue(visualizationStateOwner.contains("interface StatePublisher"));
-        assertTrue(visualizationStateOwner.contains("return appVisibilityProvider.isAppVisible();"));
+        assertFalse(visualizationStateOwner.contains("interface StatePublisher"));
+        assertTrue(visualizationStateOwner.contains("private final BooleanSupplier appVisibilityProvider;"));
+        assertTrue(visualizationStateOwner.contains("private final Runnable statePublisher;"));
+        assertTrue(visualizationStateOwner.contains("return appVisibilityProvider.getAsBoolean();"));
         assertTrue(bufferedProgressOwner.contains(
                 "final class PlaybackBufferedProgressOwner"));
         assertTrue(bufferedProgressOwner.contains(
@@ -1724,7 +1726,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(bufferedProgressOwner.contains("Math.max(positionMs, player.getBufferedPosition())"));
         assertTrue(bufferedProgressOwner.contains("Math.max(0.0f, Math.min(1.0f, bufferedMs / (float) durationMs))"));
         assertTrue(visualizationStateOwner.contains("return bufferedProgressProvider.bufferedProgress(durationMs);"));
-        assertTrue(visualizationStateOwner.contains("statePublisher.publishState();"));
+        assertTrue(visualizationStateOwner.contains("statePublisher.run();"));
         assertTrue(visualizationAnalyzer.contains("PlaybackWaveformMergePolicy.merge("));
         assertTrue(visualizationAnalyzer.contains("private fun maybeGenerateSpectrum("));
         assertTrue(visualizationAnalyzer.contains("private fun maybeGenerateStreamingWaveform("));

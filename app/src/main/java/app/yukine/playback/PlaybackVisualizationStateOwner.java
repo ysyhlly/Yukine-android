@@ -1,26 +1,20 @@
 package app.yukine.playback;
 
-final class PlaybackVisualizationStateOwner implements PlaybackVisualizationAnalyzer.StateProvider {
-    interface AppVisibilityProvider {
-        boolean isAppVisible();
-    }
+import java.util.function.BooleanSupplier;
 
+final class PlaybackVisualizationStateOwner implements PlaybackVisualizationAnalyzer.StateProvider {
     interface BufferedProgressProvider {
         float bufferedProgress(long durationMs);
     }
 
-    interface StatePublisher {
-        void publishState();
-    }
-
-    private final AppVisibilityProvider appVisibilityProvider;
+    private final BooleanSupplier appVisibilityProvider;
     private final BufferedProgressProvider bufferedProgressProvider;
-    private final StatePublisher statePublisher;
+    private final Runnable statePublisher;
 
     PlaybackVisualizationStateOwner(
-            AppVisibilityProvider appVisibilityProvider,
+            BooleanSupplier appVisibilityProvider,
             BufferedProgressProvider bufferedProgressProvider,
-            StatePublisher statePublisher
+            Runnable statePublisher
     ) {
         this.appVisibilityProvider = appVisibilityProvider;
         this.bufferedProgressProvider = bufferedProgressProvider;
@@ -29,7 +23,7 @@ final class PlaybackVisualizationStateOwner implements PlaybackVisualizationAnal
 
     @Override
     public boolean isAppVisible() {
-        return appVisibilityProvider.isAppVisible();
+        return appVisibilityProvider.getAsBoolean();
     }
 
     @Override
@@ -39,6 +33,6 @@ final class PlaybackVisualizationStateOwner implements PlaybackVisualizationAnal
 
     @Override
     public void publishState() {
-        statePublisher.publishState();
+        statePublisher.run();
     }
 }
