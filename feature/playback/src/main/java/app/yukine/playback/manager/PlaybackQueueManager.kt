@@ -299,7 +299,7 @@ internal class PlaybackQueueManager(
         if (repeatMode() == REPEAT_ONE) {
             return PlaybackCompletionAction.REPEAT_CURRENT
         }
-        if (repeatMode() == REPEAT_OFF && isAtEndOfQueue()) {
+        if (repeatMode() == REPEAT_OFF && queueStateSnapshot().isAtEndOfQueue) {
             return PlaybackCompletionAction.STOP_AT_END
         }
         return PlaybackCompletionAction.ADVANCE_TO_NEXT
@@ -887,11 +887,6 @@ internal class PlaybackQueueManager(
 
     private fun safeCurrentIndex(): Int {
         return clampCurrentIndex()
-    }
-
-    private fun isAtEndOfQueue(): Boolean {
-        val queue = this.queue
-        return currentIndex() >= queue.size - 1
     }
 
     private object NoopQueuePlaybackActions : QueuePlaybackActions {

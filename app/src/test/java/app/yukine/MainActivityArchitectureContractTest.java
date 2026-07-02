@@ -6146,7 +6146,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("private fun clearQueueState()"));
         assertFalse(owner.contains("\n    fun clearQueueState()"));
         assertTrue(owner.contains("fun persistQueueState()"));
-        assertTrue(owner.contains("private fun isAtEndOfQueue(): Boolean"));
+        assertFalse(owner.contains("private fun isAtEndOfQueue(): Boolean"));
+        assertTrue(owner.contains("repeatMode() == REPEAT_OFF && queueStateSnapshot().isAtEndOfQueue"));
         assertTrue(owner.contains("data class MirroredTransitionResult"));
         assertTrue(owner.contains("fun applyMirroredTransitionIndex(nextIndex: Int, automaticAdvance: Boolean): MirroredTransitionResult?"));
         assertFalse(service.contains("private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
