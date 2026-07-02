@@ -5749,12 +5749,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredPlayerOwner.contains("MirroredQueueOperations"));
         assertFalse(mirroredPlayerOwner.contains("PlaybackQueueManagerOperations"));
         assertTrue(mirroredPlayerOwner.contains("import java.util.function.BiConsumer;"));
-        assertTrue(mirroredPlayerOwner.contains("import java.util.function.BiPredicate;"));
+        assertFalse(mirroredPlayerOwner.contains("import java.util.function.BiPredicate;"));
         assertTrue(mirroredPlayerOwner.contains("import java.util.function.BooleanSupplier;"));
         assertTrue(mirroredPlayerOwner.contains("import java.util.function.Consumer;"));
         assertTrue(mirroredPlayerOwner.contains("import java.util.function.IntSupplier;"));
-        assertTrue(mirroredPlayerOwner.contains(
+        assertFalse(mirroredPlayerOwner.contains(
                 "Supplier<BiPredicate<Integer, PlaybackQueueManager.QueueTrackMatcher>> mirroredQueueMatcherSupplier"));
+        assertFalse(mirroredPlayerOwner.contains("mirroredQueueMatcherSupplier"));
         assertFalse(mirroredPlayerOwner.contains("interface PreparingStateController"));
         assertFalse(mirroredPlayerOwner.contains("interface CurrentTrackProvider"));
         assertFalse(mirroredPlayerOwner.contains("interface WaveformResetter"));
@@ -5783,7 +5784,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mirroredPlayerOwner.contains("playerStarter.run();"));
         assertTrue(mirroredPlayerOwner.contains("mirrorStateController.accept(false);"));
         assertTrue(mirroredPlayerOwner.contains("failureLogger.accept(error);"));
-        assertTrue(mirroredPlayerOwner.contains("playbackQueueManager::matchesMirroredQueue"));
+        assertTrue(mirroredPlayerOwner.contains("playbackQueueManager.matchesMirroredQueue("));
+        assertFalse(mirroredPlayerOwner.contains("playbackQueueManager::matchesMirroredQueue"));
         assertFalse(owner.contains("\n        fun currentTrack(): Track?"));
         assertFalse(owner.contains("\n        fun currentIndex(): Int"));
         assertFalse(owner.contains("\n        fun setCurrentIndex(index: Int)"));
@@ -5985,7 +5987,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(currentPreparationQueueOwner.contains("playbackQueueManager.queuePreparationForNewPlayer();"));
         assertFalse(service.contains("playbackQueueManager.mirroredQueueTracksForPreparation()"));
         assertFalse(service.contains("return playbackQueueManager.matchesMirroredQueue("));
-        assertTrue(mirroredPlayerOwner.contains("playbackQueueManager::matchesMirroredQueue"));
+        assertTrue(mirroredPlayerOwner.contains("playbackQueueManager.matchesMirroredQueue("));
+        assertFalse(mirroredPlayerOwner.contains("playbackQueueManager::matchesMirroredQueue"));
         assertFalse(service.contains("new PlaybackQueueManager.QueueTrackMatcher()"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
         assertFalse(service.contains("playbackQueueManager.clearQueueState();"));

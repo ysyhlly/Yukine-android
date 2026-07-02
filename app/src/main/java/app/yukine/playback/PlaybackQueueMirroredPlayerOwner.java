@@ -4,7 +4,6 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BiConsumer;
-import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
@@ -34,15 +33,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
                 mirrorStateProvider,
                 playerAvailability,
                 playerMediaItemCountProvider,
-                () -> {
-                    PlaybackQueueManager playbackQueueManager =
-                            playbackQueueManagerSupplier == null
-                                    ? null
-                                    : playbackQueueManagerSupplier.get();
-                    return playbackQueueManager != null
-                            ? playbackQueueManager::matchesMirroredQueue
-                            : null;
-                },
+                playbackQueueManagerSupplier,
                 queueTrackMatcher
         );
     }
@@ -51,14 +42,14 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
             BooleanSupplier mirrorStateProvider,
             BooleanSupplier playerAvailability,
             IntSupplier playerMediaItemCountProvider,
-            Supplier<BiPredicate<Integer, PlaybackQueueManager.QueueTrackMatcher>> mirroredQueueMatcherSupplier,
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             PlaybackQueueManager.QueueTrackMatcher queueTrackMatcher
     ) {
         return new PlaybackQueueManagerMatcher(
                 mirrorStateProvider,
                 playerAvailability,
                 playerMediaItemCountProvider,
-                mirroredQueueMatcherSupplier,
+                playbackQueueManagerSupplier,
                 queueTrackMatcher
         );
     }
@@ -123,20 +114,20 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
         private final BooleanSupplier mirrorStateProvider;
         private final BooleanSupplier playerAvailability;
         private final IntSupplier playerMediaItemCountProvider;
-        private final Supplier<BiPredicate<Integer, PlaybackQueueManager.QueueTrackMatcher>> mirroredQueueMatcherSupplier;
+        private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
         private final PlaybackQueueManager.QueueTrackMatcher queueTrackMatcher;
 
         private PlaybackQueueManagerMatcher(
                 BooleanSupplier mirrorStateProvider,
                 BooleanSupplier playerAvailability,
                 IntSupplier playerMediaItemCountProvider,
-                Supplier<BiPredicate<Integer, PlaybackQueueManager.QueueTrackMatcher>> mirroredQueueMatcherSupplier,
+                Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
                 PlaybackQueueManager.QueueTrackMatcher queueTrackMatcher
         ) {
             this.mirrorStateProvider = mirrorStateProvider;
             this.playerAvailability = playerAvailability;
             this.playerMediaItemCountProvider = playerMediaItemCountProvider;
-            this.mirroredQueueMatcherSupplier = mirroredQueueMatcherSupplier;
+            this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
             this.queueTrackMatcher = queueTrackMatcher;
         }
 
@@ -147,17 +138,16 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
                     || playerAvailability == null
                     || !playerAvailability.getAsBoolean()
                     || playerMediaItemCountProvider == null
-                    || mirroredQueueMatcherSupplier == null
+                    || playbackQueueManagerSupplier == null
                     || queueTrackMatcher == null) {
                 return false;
             }
-            BiPredicate<Integer, PlaybackQueueManager.QueueTrackMatcher> mirroredQueueMatcher =
-                    mirroredQueueMatcherSupplier.get();
-            if (mirroredQueueMatcher == null) {
+            PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier.get();
+            if (playbackQueueManager == null) {
                 return false;
             }
             try {
-                return mirroredQueueMatcher.test(
+                return playbackQueueManager.matchesMirroredQueue(
                         playerMediaItemCountProvider.getAsInt(),
                         queueTrackMatcher
                 );
