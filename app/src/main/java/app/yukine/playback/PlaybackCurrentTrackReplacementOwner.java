@@ -21,18 +21,6 @@ final class PlaybackCurrentTrackReplacementOwner {
         this.recoveryScheduler = recoveryScheduler;
     }
 
-    static PlaybackCurrentTrackReplacementOwner fromPlaybackQueueManager(
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            Consumer<PlaybackQueueManager.CurrentTrackReplacementRecovery> recoveryDiagnosticsRecorder,
-            Consumer<Boolean> recoveryScheduler
-    ) {
-        return new PlaybackCurrentTrackReplacementOwner(
-                playbackQueueManagerSupplier,
-                recoveryDiagnosticsRecorder,
-                recoveryScheduler
-        );
-    }
-
     void replaceCurrentTrackAndResume(Track replacement, long positionMs) {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         if (playbackQueueManager == null) {

@@ -20,7 +20,7 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
         List<String> events = new ArrayList<>();
         PlaybackQueueManager queueManager = queueManagerWithCurrent(track(1L, "original"));
         PlaybackCurrentTrackReplacementOwner owner =
-                PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager(
+                new PlaybackCurrentTrackReplacementOwner(
                         () -> queueManager,
                         recovery -> events.add("record:" + recovery.getRestoredPositionMs()),
                         playWhenReady -> events.add("schedule:" + playWhenReady)
@@ -44,7 +44,7 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
         Track current = track(8L, "same");
         PlaybackQueueManager queueManager = queueManagerWithCurrent(current);
         PlaybackCurrentTrackReplacementOwner owner =
-                PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager(
+                new PlaybackCurrentTrackReplacementOwner(
                         () -> queueManager,
                         recorded -> events.add("record"),
                         playWhenReady -> events.add("schedule")
@@ -61,7 +61,7 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
         List<String> events = new ArrayList<>();
         PlaybackQueueManager queueManager = queueManagerWithCurrent(track(9L, "original"));
         PlaybackCurrentTrackReplacementOwner missingRecoveryHandlers =
-                PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager(
+                new PlaybackCurrentTrackReplacementOwner(
                         () -> queueManager,
                         null,
                         null
@@ -77,13 +77,13 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
     public void missingPlaybackQueueManagerSupplierSkipsReplacement() {
         List<String> events = new ArrayList<>();
         PlaybackCurrentTrackReplacementOwner missingManagerProvider =
-                PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager(
+                new PlaybackCurrentTrackReplacementOwner(
                         null,
                         recorded -> events.add("record"),
                         playWhenReady -> events.add("schedule")
                 );
         PlaybackCurrentTrackReplacementOwner missingManager =
-                PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager(
+                new PlaybackCurrentTrackReplacementOwner(
                         () -> null,
                         recorded -> events.add("record"),
                         playWhenReady -> events.add("schedule")

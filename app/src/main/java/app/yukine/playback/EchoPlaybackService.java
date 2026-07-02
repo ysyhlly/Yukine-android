@@ -226,7 +226,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackCrossfadeAdvanceManager playbackCrossfadeAdvanceManager;
     private PlaybackRecoveryScheduler playbackRecoveryScheduler;
     private final PlaybackCurrentTrackReplacementOwner playbackCurrentTrackReplacementOwner =
-            PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager(
+            new PlaybackCurrentTrackReplacementOwner(
                     () -> playbackQueueManager,
                     recovery -> {
                         if (playbackRecoveryDiagnosticsRecorderOwner != null) {
