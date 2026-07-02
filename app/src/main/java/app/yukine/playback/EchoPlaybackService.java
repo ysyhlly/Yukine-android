@@ -580,7 +580,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         final PlaybackBufferedProgressOwner playbackBufferedProgressOwner =
                 new PlaybackBufferedProgressOwner(
                         playbackPlayerStateOwner::positionMs,
-                        () -> player
+                        playbackPlayerStateOwner::bufferedPositionMs
                 );
         final PlaybackVisualizationStateOwner playbackVisualizationStateOwner =
                 new PlaybackVisualizationStateOwner(

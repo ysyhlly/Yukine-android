@@ -55,6 +55,18 @@ final class PlaybackPlayerStateOwner implements
         }
     }
 
+    long bufferedPositionMs() {
+        Player player = player();
+        if (player == null) {
+            return 0L;
+        }
+        try {
+            return Math.max(0L, player.getBufferedPosition());
+        } catch (IllegalStateException ignored) {
+            return 0L;
+        }
+    }
+
     private Player player() {
         return playerProvider == null ? null : playerProvider.get();
     }
