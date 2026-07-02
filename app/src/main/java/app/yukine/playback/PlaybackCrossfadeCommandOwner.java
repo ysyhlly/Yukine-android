@@ -2,48 +2,31 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackCrossfadeAdvanceManager;
 
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+
 final class PlaybackCrossfadeCommandOwner implements PlaybackCrossfadeAdvanceManager.Actions {
-    interface TransitionState {
-        void setFadeOutAdvancing(boolean enabled);
-    }
-
-    interface PlayerVolumeController {
-        void setPlayerVolume(float volume);
-    }
-
-    interface ImmediateSkipCommand {
-        void skipToNextImmediately();
-    }
-
-    interface AppVolumeApplier {
-        void applyAppVolume();
-    }
-
-    interface CrossfadeAdvanceManagerProvider {
-        PlaybackCrossfadeAdvanceManager playbackCrossfadeAdvanceManager();
-    }
-
-    private final TransitionState transitionState;
-    private final PlayerVolumeController playerVolumeController;
-    private final ImmediateSkipCommand immediateSkipCommand;
-    private final AppVolumeApplier appVolumeApplier;
-    private final CrossfadeAdvanceManagerProvider crossfadeAdvanceManagerProvider;
+    private final Consumer<Boolean> transitionState;
+    private final Consumer<Float> playerVolumeController;
+    private final Runnable immediateSkipCommand;
+    private final Runnable appVolumeApplier;
+    private final Supplier<PlaybackCrossfadeAdvanceManager> crossfadeAdvanceManagerProvider;
 
     PlaybackCrossfadeCommandOwner(
-            TransitionState transitionState,
-            PlayerVolumeController playerVolumeController,
-            ImmediateSkipCommand immediateSkipCommand,
-            AppVolumeApplier appVolumeApplier
+            Consumer<Boolean> transitionState,
+            Consumer<Float> playerVolumeController,
+            Runnable immediateSkipCommand,
+            Runnable appVolumeApplier
     ) {
         this(transitionState, playerVolumeController, immediateSkipCommand, appVolumeApplier, null);
     }
 
     PlaybackCrossfadeCommandOwner(
-            TransitionState transitionState,
-            PlayerVolumeController playerVolumeController,
-            ImmediateSkipCommand immediateSkipCommand,
-            AppVolumeApplier appVolumeApplier,
-            CrossfadeAdvanceManagerProvider crossfadeAdvanceManagerProvider
+            Consumer<Boolean> transitionState,
+            Consumer<Float> playerVolumeController,
+            Runnable immediateSkipCommand,
+            Runnable appVolumeApplier,
+            Supplier<PlaybackCrossfadeAdvanceManager> crossfadeAdvanceManagerProvider
     ) {
         this.transitionState = transitionState;
         this.playerVolumeController = playerVolumeController;
@@ -54,22 +37,22 @@ final class PlaybackCrossfadeCommandOwner implements PlaybackCrossfadeAdvanceMan
 
     @Override
     public void setFadeOutAdvancing(boolean enabled) {
-        transitionState.setFadeOutAdvancing(enabled);
+        transitionState.accept(enabled);
     }
 
     @Override
     public void setPlayerVolume(float volume) {
-        playerVolumeController.setPlayerVolume(volume);
+        playerVolumeController.accept(volume);
     }
 
     @Override
     public void skipToNextImmediately() {
-        immediateSkipCommand.skipToNextImmediately();
+        immediateSkipCommand.run();
     }
 
     @Override
     public void applyAppVolume() {
-        appVolumeApplier.applyAppVolume();
+        appVolumeApplier.run();
     }
 
     void cancelCrossfadeAdvance() {
@@ -87,6 +70,6 @@ final class PlaybackCrossfadeCommandOwner implements PlaybackCrossfadeAdvanceMan
     private PlaybackCrossfadeAdvanceManager crossfadeAdvanceManager() {
         return crossfadeAdvanceManagerProvider == null
                 ? null
-                : crossfadeAdvanceManagerProvider.playbackCrossfadeAdvanceManager();
+                : crossfadeAdvanceManagerProvider.get();
     }
 }
