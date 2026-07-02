@@ -5654,6 +5654,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueNavigationOwner.contains(
                 "playbackQueueManager != null && playbackQueueManager.skipToPrevious()"
         ));
+        assertFalse(service.contains("playbackQueueMirroredTransitionOwner.prepareMirroredTransitionPlaybackState()"));
+        assertFalse(mirroredTransitionOwner.contains("void prepareMirroredTransitionPlaybackState()"));
+        assertFalse(owner.contains("\n    fun prepareMirroredTransitionPlaybackState()"));
+        assertTrue(owner.contains("private fun prepareMirroredTransitionPlaybackState()"));
+        assertTrue(mirroredTransitionOwner.contains("playbackQueueManager.applyMirroredTransitionIndex("));
         assertTrue(service.contains("playbackQueueStateOwner,"));
         assertFalse(service.contains("playbackQueueManager.canSkipFailedTrack(failed)"));
         assertFalse(service.contains("playbackQueueManager.canCrossfadeAdvance(repeatMode)"));
@@ -6001,7 +6006,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("isAutomaticMediaItemAdvance(reason)"));
         assertFalse(service.contains("static boolean isAutomaticMediaItemAdvance(int reason)"));
         assertFalse(service.contains("playbackQueueManager.applyMirroredTransitionIndex(nextIndex, isAutomaticMediaItemAdvance(reason))"));
-        assertTrue(service.contains("playbackQueueMirroredTransitionOwner.prepareMirroredTransitionPlaybackState();"));
+        assertFalse(service.contains("playbackQueueMirroredTransitionOwner.prepareMirroredTransitionPlaybackState();"));
         assertFalse(service.contains("playbackQueueManager.prepareMirroredTransitionPlaybackState();"));
         assertFalse(service.contains("playbackRuntimeStateManager.applyCurrentTrackVolumeToPlayer();"));
         assertTrue(service.contains("new PlaybackQueueMirroredTransitionOwner("));
@@ -6047,8 +6052,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredTransitionOwner.contains("playbackQueueManagerProvider"));
         assertFalse(mirroredTransitionOwner.contains("PlaybackRuntimeStateManager"));
         assertFalse(mirroredTransitionOwner.contains("interface RuntimeStateManagerProvider"));
-        assertTrue(mirroredTransitionOwner.contains("playbackQueueManager.applyMirroredTransitionIndex(nextIndex, automaticAdvance);"));
-        assertTrue(mirroredTransitionOwner.contains("playbackQueueManager.prepareMirroredTransitionPlaybackState();"));
+        assertTrue(mirroredTransitionOwner.contains("playbackQueueManager.applyMirroredTransitionIndex("));
+        assertFalse(mirroredTransitionOwner.contains("playbackQueueManager.prepareMirroredTransitionPlaybackState();"));
         assertTrue(mirroredTransitionOwner.contains("currentTrackVolumeApplier.run();"));
         assertFalse(mirroredTransitionOwner.contains("manager.applyCurrentTrackVolumeToPlayer();"));
         assertTrue(currentPreparationOwner.contains("queuePreparationController.replaceCurrentQueueTrack(restoredTrack);"));
@@ -6249,7 +6254,6 @@ public final class MainActivityArchitectureContractTest {
                 "consumeRestoredPositionAfterPrepare",
                 "persistCurrentPlaybackPosition",
                 "persistQueueState",
-                "prepareMirroredTransitionPlaybackState",
                 "preparePlaybackCompletionAction",
                 "prepareStopAfterAutomaticAdvance",
                 "prepareStopAndClearPlaybackState",

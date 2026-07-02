@@ -288,7 +288,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                 return;
             }
             Track track = currentTrack();
-            playbackQueueMirroredTransitionOwner.prepareMirroredTransitionPlaybackState();
             if (track != null) {
                 resetWaveformIfTrackChanged(track);
             }

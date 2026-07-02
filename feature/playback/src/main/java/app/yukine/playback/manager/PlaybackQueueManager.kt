@@ -176,6 +176,7 @@ internal class PlaybackQueueManager(
             return MirroredTransitionResult(completedIndex, stopAfterAutomaticAdvance = true)
         }
         setCurrentIndex(nextIndex)
+        prepareMirroredTransitionPlaybackState()
         return MirroredTransitionResult(completedIndex, stopAfterAutomaticAdvance = false)
     }
 
@@ -319,7 +320,7 @@ internal class PlaybackQueueManager(
         resetCurrentPlaybackPosition()
     }
 
-    fun prepareMirroredTransitionPlaybackState() {
+    private fun prepareMirroredTransitionPlaybackState() {
         persistPlaybackPosition()
         clearErrorMessage()
         clearLastMarkedTrack()

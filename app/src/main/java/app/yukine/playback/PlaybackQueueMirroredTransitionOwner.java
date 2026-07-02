@@ -31,36 +31,29 @@ final class PlaybackQueueMirroredTransitionOwner {
         return mirrorsQueue && !emptyQueue;
     }
 
-    PlaybackQueueManager.MirroredTransitionResult applyMirroredTransitionIndex(
-            int nextIndex,
-            boolean automaticAdvance
-    ) {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
-        return playbackQueueManager == null
-                ? null
-                : playbackQueueManager.applyMirroredTransitionIndex(nextIndex, automaticAdvance);
-    }
-
     PlaybackQueueManager.MirroredTransitionResult applyMirroredTransitionReason(
             int nextIndex,
             int reason
     ) {
-        return applyMirroredTransitionIndex(nextIndex, isAutomaticMediaItemAdvance(reason));
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager == null) {
+            return null;
+        }
+        PlaybackQueueManager.MirroredTransitionResult result =
+                playbackQueueManager.applyMirroredTransitionIndex(
+                        nextIndex,
+                        isAutomaticMediaItemAdvance(reason)
+                );
+        if (result != null
+                && !result.getStopAfterAutomaticAdvance()
+                && currentTrackVolumeApplier != null) {
+            currentTrackVolumeApplier.run();
+        }
+        return result;
     }
 
     static boolean isAutomaticMediaItemAdvance(int reason) {
         return reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO;
-    }
-
-    void prepareMirroredTransitionPlaybackState() {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
-        if (playbackQueueManager == null) {
-            return;
-        }
-        playbackQueueManager.prepareMirroredTransitionPlaybackState();
-        if (currentTrackVolumeApplier != null) {
-            currentTrackVolumeApplier.run();
-        }
     }
 
     private PlaybackQueueManager playbackQueueManager() {

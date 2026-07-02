@@ -1051,7 +1051,7 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun prepareMirroredTransitionPlaybackStatePersistsAndResetsNewCurrentTrack() {
+    fun mirroredTransitionPersistsAndResetsNewCurrentTrack() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val first = track(1L, durationMs = 10_000L)
@@ -1065,7 +1065,6 @@ class PlaybackQueueManagerTest {
         provider.positionManager.setRestoredPosition(second.id, 1200L, explicit = true)
 
         manager.applyMirroredTransitionIndex(1, automaticAdvance = false)
-        manager.prepareMirroredTransitionPlaybackState()
 
         assertEquals(1, manager.queueStateSnapshot().currentIndex)
         assertEquals(listOf(2L to 4200L, 2L to 0L), store.savedPositions)
