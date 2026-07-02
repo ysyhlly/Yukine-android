@@ -5861,7 +5861,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackNotificationStateOwner = new PlaybackNotificationStateOwner("));
         assertTrue(service.contains("playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner("));
         assertTrue(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
-        assertTrue(service.contains("                playbackQueueStateOwner,"));
+        assertTrue(service.contains("                playbackQueueStateOwner::canSkipFailedTrack,"));
         assertFalse(service.contains("playbackQueueManager.queueStateSnapshot()"));
         assertTrue(queueStateOwner.contains("final class PlaybackQueueStateOwner implements"));
         assertFalse(queueStateOwner.contains("PlaybackNotificationStateOwner.QueueStateProvider"));
@@ -6614,7 +6614,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("fun hasMultipleQueueTracks(): Boolean"));
         assertFalse(owner.contains("actions.hasMultipleQueueTracks()"));
         assertFalse(queueOwner.contains("fun canSkipFailedTrack(failed: Track?): Boolean"));
-        assertTrue(queueStateOwner.contains("PlaybackErrorRecoveryCommandOwner.FailedTrackPolicy"));
+        assertFalse(queueStateOwner.contains("PlaybackErrorRecoveryCommandOwner.FailedTrackPolicy"));
         assertTrue(queueStateOwner.contains("failed != null && failed.id != -1L && queueStateSnapshot().getHasMultipleTracks()"));
         assertFalse(owner.contains("fun queueSize(): Int"));
         assertFalse(owner.contains("actions.queueSize() > 1"));
@@ -7491,18 +7491,30 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackRuntimeStateManager.setErrorMessage(\"Playback is not ready.\")"));
         assertTrue(service.contains("playbackErrorRecoveryCommandOwner.debugTrack(track)"));
         assertTrue(commandOwner.contains("final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryManager.Actions"));
-        assertTrue(commandOwner.contains("interface FailedTrackPolicy"));
+        assertFalse(commandOwner.contains("interface CurrentTrackProvider"));
+        assertFalse(commandOwner.contains("interface FailedTrackPolicy"));
         assertFalse(commandOwner.contains("interface TrackDebugger"));
-        assertTrue(commandOwner.contains("interface PlaybackPreparer"));
-        assertTrue(commandOwner.contains("interface ErrorMessageStore"));
+        assertFalse(commandOwner.contains("interface PlaybackPreparer"));
+        assertFalse(commandOwner.contains("interface ErrorMessageStore"));
+        assertFalse(commandOwner.contains("interface StatePublisher"));
+        assertFalse(commandOwner.contains("interface WarningLogger"));
         assertFalse(commandOwner.contains("PlaybackNotificationCommandOwner.PlaybackCommands"));
         assertFalse(commandOwner.contains("private final PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands;"));
+        assertTrue(commandOwner.contains("private final Supplier<Track> currentTrackProvider;"));
+        assertTrue(commandOwner.contains("private final Predicate<Track> failedTrackPolicy;"));
+        assertTrue(commandOwner.contains("private final Consumer<Boolean> playbackPreparer;"));
         assertTrue(commandOwner.contains("private final Runnable skipToNextCommand;"));
+        assertTrue(commandOwner.contains("private final Consumer<String> errorMessageStore;"));
+        assertTrue(commandOwner.contains("private final Runnable statePublisher;"));
+        assertTrue(commandOwner.contains("private final BiConsumer<String, Exception> warningLogger;"));
         assertTrue(commandOwner.contains("return \"track=<null>\";"));
         assertTrue(commandOwner.contains("\"trackId=\" + track.id"));
+        assertTrue(commandOwner.contains("return failedTrackPolicy.test(failed);"));
+        assertTrue(commandOwner.contains("playbackPreparer.accept(playWhenReady);"));
         assertTrue(commandOwner.contains("skipToNextCommand.run();"));
-        assertTrue(commandOwner.contains("errorMessageStore.setErrorMessage(message);"));
-        assertTrue(commandOwner.contains("warningLogger.logWarning(message, error);"));
+        assertTrue(commandOwner.contains("errorMessageStore.accept(message);"));
+        assertTrue(commandOwner.contains("statePublisher.run();"));
+        assertTrue(commandOwner.contains("warningLogger.accept(message, error);"));
     }
 
     @Test

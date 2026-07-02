@@ -8,8 +8,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 final class PlaybackQueueStateOwner implements
-        PlaybackStateSnapshotOwner.QueueStateProvider,
-        PlaybackErrorRecoveryCommandOwner.FailedTrackPolicy {
+        PlaybackStateSnapshotOwner.QueueStateProvider {
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
 
     private PlaybackQueueStateOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
@@ -53,7 +52,6 @@ final class PlaybackQueueStateOwner implements
         return queueStateSnapshot().isQueueEmpty();
     }
 
-    @Override
     public boolean canSkipFailedTrack(Track failed) {
         return failed != null && failed.id != -1L && queueStateSnapshot().getHasMultipleTracks();
     }

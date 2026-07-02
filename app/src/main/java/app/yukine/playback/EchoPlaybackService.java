@@ -388,7 +388,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner(
                 playbackQueueStateOwner::currentTrack,
-                playbackQueueStateOwner,
+                playbackQueueStateOwner::canSkipFailedTrack,
                 EchoPlaybackService.this::prepareCurrent,
                 EchoPlaybackService.this::skipToNext,
                 playbackCurrentTrackPreparationRuntimeOwner::setErrorMessage,

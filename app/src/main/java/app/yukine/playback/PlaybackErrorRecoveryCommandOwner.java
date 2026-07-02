@@ -3,47 +3,28 @@ package app.yukine.playback;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackErrorRecoveryManager;
 
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+
 final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryManager.Actions {
-    interface CurrentTrackProvider {
-        Track currentTrack();
-    }
-
-    interface FailedTrackPolicy {
-        boolean canSkipFailedTrack(Track failed);
-    }
-
-    interface PlaybackPreparer {
-        void prepareCurrent(boolean playWhenReady);
-    }
-
-    interface ErrorMessageStore {
-        void setErrorMessage(String message);
-    }
-
-    interface StatePublisher {
-        void publishState();
-    }
-
-    interface WarningLogger {
-        void logWarning(String message, Exception error);
-    }
-
-    private final CurrentTrackProvider currentTrackProvider;
-    private final FailedTrackPolicy failedTrackPolicy;
-    private final PlaybackPreparer playbackPreparer;
+    private final Supplier<Track> currentTrackProvider;
+    private final Predicate<Track> failedTrackPolicy;
+    private final Consumer<Boolean> playbackPreparer;
     private final Runnable skipToNextCommand;
-    private final ErrorMessageStore errorMessageStore;
-    private final StatePublisher statePublisher;
-    private final WarningLogger warningLogger;
+    private final Consumer<String> errorMessageStore;
+    private final Runnable statePublisher;
+    private final BiConsumer<String, Exception> warningLogger;
 
     PlaybackErrorRecoveryCommandOwner(
-            CurrentTrackProvider currentTrackProvider,
-            FailedTrackPolicy failedTrackPolicy,
-            PlaybackPreparer playbackPreparer,
+            Supplier<Track> currentTrackProvider,
+            Predicate<Track> failedTrackPolicy,
+            Consumer<Boolean> playbackPreparer,
             Runnable skipToNextCommand,
-            ErrorMessageStore errorMessageStore,
-            StatePublisher statePublisher,
-            WarningLogger warningLogger
+            Consumer<String> errorMessageStore,
+            Runnable statePublisher,
+            BiConsumer<String, Exception> warningLogger
     ) {
         this.currentTrackProvider = currentTrackProvider;
         this.failedTrackPolicy = failedTrackPolicy;
@@ -56,12 +37,12 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
 
     @Override
     public Track currentTrack() {
-        return currentTrackProvider.currentTrack();
+        return currentTrackProvider.get();
     }
 
     @Override
     public boolean canSkipFailedTrack(Track failed) {
-        return failedTrackPolicy.canSkipFailedTrack(failed);
+        return failedTrackPolicy.test(failed);
     }
 
     @Override
@@ -77,7 +58,7 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
 
     @Override
     public void prepareCurrent(boolean playWhenReady) {
-        playbackPreparer.prepareCurrent(playWhenReady);
+        playbackPreparer.accept(playWhenReady);
     }
 
     @Override
@@ -87,16 +68,16 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
 
     @Override
     public void setErrorMessage(String message) {
-        errorMessageStore.setErrorMessage(message);
+        errorMessageStore.accept(message);
     }
 
     @Override
     public void publishState() {
-        statePublisher.publishState();
+        statePublisher.run();
     }
 
     @Override
     public void logWarning(String message, Exception error) {
-        warningLogger.logWarning(message, error);
+        warningLogger.accept(message, error);
     }
 }
