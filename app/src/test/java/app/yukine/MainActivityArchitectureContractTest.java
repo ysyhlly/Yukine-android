@@ -7836,7 +7836,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(notificationArtworkBridgeOwner.contains("manager::refreshPlayer"));
         assertTrue(notificationArtworkBridgeOwner.contains("sessionOperations.refreshPlayer();"));
         assertTrue(commandOwner.contains("final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegate"));
+        assertFalse(commandOwner.contains("interface SeekController"));
+        assertFalse(commandOwner.contains("interface RepeatModeController"));
+        assertFalse(commandOwner.contains("interface MetadataProvider"));
         assertTrue(commandOwner.contains("interface ControllerMediaItems"));
+        assertTrue(commandOwner.contains("import java.util.function.LongConsumer;"));
+        assertTrue(commandOwner.contains("import java.util.function.IntConsumer;"));
+        assertTrue(commandOwner.contains("import java.util.function.Function;"));
+        assertTrue(commandOwner.contains("private final LongConsumer seekController;"));
+        assertTrue(commandOwner.contains("private final IntConsumer repeatModeController;"));
+        assertTrue(commandOwner.contains("private final Function<Track, MediaMetadata> metadataProvider;"));
         assertFalse(commandOwner.contains("interface StateProvider"));
         assertFalse(commandOwner.contains("stateProvider.currentTrack()"));
         assertFalse(commandOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
@@ -7846,7 +7855,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertTrue(commandOwner.contains("playbackCommands.skipToNext();"));
         assertTrue(commandOwner.contains("controllerMediaItems.setControllerMediaItems(mediaItems, startIndex, startPositionMs)"));
-        assertTrue(commandOwner.contains("metadataProvider.mediaMetadataForTrack(track)"));
+        assertTrue(commandOwner.contains("seekController.accept(positionMs);"));
+        assertTrue(commandOwner.contains("repeatModeController.accept(appRepeatMode);"));
+        assertTrue(commandOwner.contains("metadataProvider.apply(track)"));
         assertTrue(controllerMediaItemsOwner.contains(
                 "final class PlaybackControllerMediaItemsOwner implements PlaybackSessionCommandOwner.ControllerMediaItems"));
         assertTrue(controllerMediaItemsOwner.contains("interface ControllerQueueResolver"));
