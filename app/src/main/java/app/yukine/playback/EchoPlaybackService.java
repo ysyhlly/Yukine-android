@@ -110,7 +110,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             PlaybackPlayerStateOwner.fromPlayerProvider(() -> player);
     private PlaybackQueueManager playbackQueueManager;
     private final PlaybackQueueStateOwner playbackQueueStateOwner =
-            PlaybackQueueStateOwner.fromPlaybackQueueManager(() -> playbackQueueManager);
+            new PlaybackQueueStateOwner(() -> playbackQueueManager);
     private final PlaybackQueueRuntimeStateManager playbackQueueRuntimeStateManager = new PlaybackQueueRuntimeStateManager();
     private final PlaybackQueueMirrorStateOwner playbackQueueMirrorStateOwner =
             PlaybackQueueMirrorStateOwner.fromRuntimeStateManager(playbackQueueRuntimeStateManager);

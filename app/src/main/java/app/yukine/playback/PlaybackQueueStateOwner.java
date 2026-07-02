@@ -11,14 +11,8 @@ final class PlaybackQueueStateOwner implements
         PlaybackStateSnapshotOwner.QueueStateProvider {
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
 
-    private PlaybackQueueStateOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
+    PlaybackQueueStateOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
         this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
-    }
-
-    static PlaybackQueueStateOwner fromPlaybackQueueManager(
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
-    ) {
-        return new PlaybackQueueStateOwner(playbackQueueManagerSupplier);
     }
 
     @Override
