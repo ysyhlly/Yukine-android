@@ -15,7 +15,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     private final BooleanSupplier mirroredQueueMatcher;
     private final BooleanSupplier playerAvailability;
     private final Consumer<Boolean> preparingStateController;
-    private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;
+    private final Supplier<Track> currentTrackSupplier;
     private final Consumer<Track> waveformResetter;
     private final Runnable playbackParameterApplier;
     private final BiConsumer<Integer, Long> playerSeeker;
@@ -44,7 +44,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
             BooleanSupplier mirroredQueueMatcher,
             BooleanSupplier playerAvailability,
             Consumer<Boolean> preparingStateController,
-            PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider,
+            Supplier<Track> currentTrackSupplier,
             Consumer<Track> waveformResetter,
             Runnable playbackParameterApplier,
             BiConsumer<Integer, Long> playerSeeker,
@@ -56,7 +56,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
         this.mirroredQueueMatcher = mirroredQueueMatcher;
         this.playerAvailability = playerAvailability;
         this.preparingStateController = preparingStateController;
-        this.queueStateProvider = queueStateProvider;
+        this.currentTrackSupplier = currentTrackSupplier;
         this.waveformResetter = waveformResetter;
         this.playbackParameterApplier = playbackParameterApplier;
         this.playerSeeker = playerSeeker;
@@ -97,11 +97,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     }
 
     private Track currentTrack() {
-        if (queueStateProvider == null) {
-            return null;
-        }
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.queueStateSnapshot();
-        return snapshot == null ? null : snapshot.getCurrentTrack();
+        return currentTrackSupplier == null ? null : currentTrackSupplier.get();
     }
 
     private static final class MirroredQueueSnapshotMatcher implements BooleanSupplier {

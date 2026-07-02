@@ -3,7 +3,6 @@ package app.yukine.playback;
 import android.net.Uri;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import org.junit.Test;
 
@@ -32,8 +31,8 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 },
                 preparing -> events.add("preparing:" + preparing),
                 () -> {
-                    events.add("queueState");
-                    return queueStateSnapshot(track);
+                    events.add("currentTrack");
+                    return track;
                 },
                 resetTrack -> events.add("waveform:" + resetTrack.id),
                 () -> events.add("apply"),
@@ -52,7 +51,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                         "matches",
                         "hasPlayer",
                         "preparing:false",
-                        "queueState",
+                        "currentTrack",
                         "waveform:1",
                         "apply",
                         "seek:2:3000",
@@ -70,7 +69,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 () -> true,
                 () -> false,
                 preparing -> events.add("preparing"),
-                () -> queueStateSnapshot(track(1L)),
+                () -> track(1L),
                 track -> events.add("waveform"),
                 () -> events.add("apply"),
                 (index, positionMs) -> events.add("seek"),
@@ -259,7 +258,4 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
         );
     }
 
-    private static PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot(Track track) {
-        return new PlaybackQueueManager.QueueStateSnapshot(track, 0, 1);
-    }
 }
