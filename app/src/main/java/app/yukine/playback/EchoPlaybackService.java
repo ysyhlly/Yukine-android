@@ -1126,7 +1126,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             PlaybackCurrentTrackPreparationOwner.PreparedTrack preparedTrack
     ) {
         final long startPositionMs = preparedTrack.startPositionMs();
-        if (seekExistingMirroredQueue(playWhenReady, startPositionMs)) {
+        if (playbackQueueNavigationOwner.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs)) {
             return;
         }
         PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
@@ -1339,10 +1339,6 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackSessionManager != null) {
             playbackSessionManager.bind();
         }
-    }
-
-    private boolean seekExistingMirroredQueue(boolean playWhenReady, long startPositionMs) {
-        return playbackQueueNavigationOwner.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs);
     }
 
     private void onMirroredQueueReused(boolean playWhenReady) {

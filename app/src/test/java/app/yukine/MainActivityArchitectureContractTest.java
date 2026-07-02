@@ -5866,7 +5866,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(currentReplacementOwner.contains("playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs);"));
         assertTrue(currentReplacementOwner.contains("recoveryDiagnosticsRecorder.accept(recovery);"));
         assertTrue(currentReplacementOwner.contains("recoveryScheduler.accept(recovery.getPlayWhenReady());"));
-        assertTrue(service.contains("playbackQueueNavigationOwner.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs);"));
+        assertTrue(service.contains(
+                "if (playbackQueueNavigationOwner.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs))"));
+        assertFalse(service.contains("private boolean seekExistingMirroredQueue(boolean playWhenReady, long startPositionMs)"));
+        assertFalse(service.contains("if (seekExistingMirroredQueue(playWhenReady, startPositionMs))"));
         assertFalse(service.contains("playbackQueueManager.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs)"));
         assertTrue(queueNavigationOwner.contains(
                 "playbackQueueManager.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs);"));
