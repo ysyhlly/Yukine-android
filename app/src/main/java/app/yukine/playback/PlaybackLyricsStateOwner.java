@@ -2,9 +2,9 @@ package app.yukine.playback;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackLyricsManager;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BooleanSupplier;
-import java.util.function.Supplier;
 
 final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvider {
     interface PlaybackStateProvider {
@@ -16,14 +16,14 @@ final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvi
     }
 
     static PlaybackStateProvider playbackStateProviderFromPlaybackState(
-            Supplier<Track> currentTrackProvider,
+            PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider,
             BooleanSupplier playingStateProvider,
             BooleanSupplier preparingStateProvider
     ) {
         return new PlaybackStateProvider() {
             @Override
             public Track currentTrack() {
-                return currentTrackProvider == null ? null : currentTrackProvider.get();
+                return queueStateSnapshot().getCurrentTrack();
             }
 
             @Override
@@ -34,6 +34,14 @@ final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvi
             @Override
             public boolean isPreparing() {
                 return preparingStateProvider != null && preparingStateProvider.getAsBoolean();
+            }
+
+            private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
+                if (queueStateProvider == null) {
+                    return PlaybackQueueManager.QueueStateSnapshot.empty();
+                }
+                PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.queueStateSnapshot();
+                return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
             }
         };
     }

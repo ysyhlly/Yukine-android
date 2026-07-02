@@ -5245,6 +5245,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackService.contains("playbackLyricsStateOwner = new PlaybackLyricsStateOwner("));
         assertTrue(playbackService.contains("                playbackLyricsStateOwner,"));
         assertTrue(playbackService.contains("PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState("));
+        assertTrue(playbackService.contains(
+                "                        playbackQueueStateOwner,\n" +
+                        "                        playbackPlayerStateOwner::isPlaying,"));
+        assertFalse(playbackService.contains(
+                "                        playbackQueueStateOwner::currentTrack,\n" +
+                        "                        playbackPlayerStateOwner::isPlaying,"));
         assertFalse(playbackService.contains("new PlaybackLyricsManager.StateProvider()"));
         assertFalse(playbackService.contains("new PlaybackLyricsStateOwner.PlaybackStateProvider()"));
         assertTrue(lyricsOwner.contains("interface NotificationBridge"));
@@ -5261,8 +5267,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(lyricsStateOwner.contains("interface AppVisibilityProvider"));
         assertTrue(lyricsStateOwner.contains("interface PlaybackStateProvider"));
         assertTrue(lyricsStateOwner.contains("import java.util.function.BooleanSupplier;"));
+        assertFalse(lyricsStateOwner.contains("import java.util.function.Supplier;"));
         assertTrue(lyricsStateOwner.contains("private final BooleanSupplier appVisibilitySupplier;"));
         assertTrue(lyricsStateOwner.contains("return appVisibilitySupplier.getAsBoolean();"));
+        assertTrue(lyricsStateOwner.contains("PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider"));
+        assertTrue(lyricsStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertTrue(lyricsStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.queueStateSnapshot();"));
         assertTrue(lyricsStateOwner.contains("return playbackStateProvider.currentTrack();"));
         assertTrue(lyricsStateOwner.contains("return playbackStateProvider.isPlaying();"));
         assertTrue(lyricsStateOwner.contains("return playbackStateProvider.isPreparing();"));

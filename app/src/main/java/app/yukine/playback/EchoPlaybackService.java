@@ -489,7 +489,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackLyricsStateOwner = new PlaybackLyricsStateOwner(
                 () -> appVisible,
                 PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState(
-                        playbackQueueStateOwner::currentTrack,
+                        playbackQueueStateOwner,
                         playbackPlayerStateOwner::isPlaying,
                         playbackCurrentTrackPreparationRuntimeOwner::preparing
                 )
