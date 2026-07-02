@@ -41,6 +41,27 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     @Test
+    public void queueStateSnapshotDerivedFlagsUseMinimalQueueState() {
+        PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
+        Track first = track(1L);
+        Track second = track(2L);
+        Track third = track(3L);
+        queueManager.playQueue(Arrays.asList(first, second, third), 1, -1L);
+        PlaybackQueueStateOwner owner =
+                new PlaybackQueueStateOwner(() -> queueManager);
+
+        PlaybackQueueManager.QueueStateSnapshot snapshot = owner.queueStateSnapshot();
+
+        assertSame(second, snapshot.getCurrentTrack());
+        assertEquals(1, snapshot.getCurrentIndex());
+        assertEquals(3, snapshot.getQueueSize());
+        assertFalse(snapshot.isQueueEmpty());
+        assertTrue(snapshot.getHasCurrentTrack());
+        assertTrue(snapshot.getHasMultipleTracks());
+        assertFalse(snapshot.isAtEndOfQueue());
+    }
+
+    @Test
     public void returnsEmptyQueueStateWhenManagerSupplierOrManagerAreMissing() {
         PlaybackQueueStateOwner missingManagerProvider =
                 new PlaybackQueueStateOwner(null);
