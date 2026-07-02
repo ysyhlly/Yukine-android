@@ -77,6 +77,21 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void playbackOwnersDoNotExposePublicMethodsUnlessImplementingInterfaces() throws Exception {
+        for (Path source : sourceFiles("app/src/main/java/app/yukine/playback")) {
+            String fileName = source.getFileName().toString();
+            if (!fileName.startsWith("Playback") || !fileName.endsWith("Owner.java")) {
+                continue;
+            }
+            java.util.List<String> violations = nonOverridePublicMethodLines(source);
+            assertTrue(
+                    source + " must keep public methods limited to interface overrides: " + violations,
+                    violations.isEmpty()
+            );
+        }
+    }
+
+    @Test
     public void playbackServiceAndOwnersDoNotDependOnActivityClasses() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         assertPlaybackSourceDoesNotDependOnActivityUi("EchoPlaybackService", service);
@@ -8184,6 +8199,31 @@ public final class MainActivityArchitectureContractTest {
             index += value.length();
         }
         return count;
+    }
+
+    private static java.util.List<String> nonOverridePublicMethodLines(Path source) throws Exception {
+        String[] lines = new String(Files.readAllBytes(source), StandardCharsets.UTF_8).split("\\R", -1);
+        java.util.List<String> violations = new java.util.ArrayList<>();
+        for (int index = 0; index < lines.length; index++) {
+            String line = lines[index];
+            if (!line.startsWith("    public ") || !line.contains("(")) {
+                continue;
+            }
+            int previous = previousNonBlankLine(lines, index);
+            if (previous < 0 || !"@Override".equals(lines[previous].trim())) {
+                violations.add((index + 1) + ": " + line.trim());
+            }
+        }
+        return violations;
+    }
+
+    private static int previousNonBlankLine(String[] lines, int index) {
+        for (int previous = index - 1; previous >= 0; previous--) {
+            if (!lines[previous].trim().isEmpty()) {
+                return previous;
+            }
+        }
+        return -1;
     }
 
     private static java.util.Set<String> kotlinClassLevelFunNames(String source) {
