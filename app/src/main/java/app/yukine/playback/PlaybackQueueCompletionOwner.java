@@ -32,13 +32,10 @@ final class PlaybackQueueCompletionOwner {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         PlaybackQueueManager.PlaybackCompletionAction completionAction = playbackQueueManager == null
                 ? PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR
-                : playbackQueueManager.playbackCompletionAction();
+                : playbackQueueManager.preparePlaybackCompletionAction();
         if (completionAction == PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR) {
             stopAndClear();
             return;
-        }
-        if (playbackQueueManager != null) {
-            playbackQueueManager.preparePlaybackCompletion(completionAction);
         }
         switch (completionAction) {
             case REPEAT_CURRENT:

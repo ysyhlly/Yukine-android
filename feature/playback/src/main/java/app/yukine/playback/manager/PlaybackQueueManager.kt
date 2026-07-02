@@ -285,7 +285,18 @@ internal class PlaybackQueueManager(
         return false
     }
 
-    fun playbackCompletionAction(): PlaybackCompletionAction {
+    fun preparePlaybackCompletionAction(): PlaybackCompletionAction {
+        val action = playbackCompletionAction()
+        if (action != PlaybackCompletionAction.STOP_AND_CLEAR) {
+            saveCurrentTrackPlaybackPosition(0L)
+            if (action == PlaybackCompletionAction.REPEAT_CURRENT) {
+                clearRestoredPosition()
+            }
+        }
+        return action
+    }
+
+    private fun playbackCompletionAction(): PlaybackCompletionAction {
         if (queue.isEmpty()) {
             return PlaybackCompletionAction.STOP_AND_CLEAR
         }
@@ -296,16 +307,6 @@ internal class PlaybackQueueManager(
             return PlaybackCompletionAction.STOP_AT_END
         }
         return PlaybackCompletionAction.ADVANCE_TO_NEXT
-    }
-
-    fun preparePlaybackCompletion(action: PlaybackCompletionAction) {
-        if (action == PlaybackCompletionAction.STOP_AND_CLEAR) {
-            return
-        }
-        saveCurrentTrackPlaybackPosition(0L)
-        if (action == PlaybackCompletionAction.REPEAT_CURRENT) {
-            clearRestoredPosition()
-        }
     }
 
     fun prepareStopAtEndOfQueue() {

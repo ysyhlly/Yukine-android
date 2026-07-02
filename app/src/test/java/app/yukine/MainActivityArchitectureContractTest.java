@@ -5712,13 +5712,15 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueCompletionOwner.contains("completionBoundary.prepareStopAndClearFallbackState();"));
         assertTrue(service.contains("playbackQueueCompletionOwner.playAfterCompletion();"));
         assertFalse(service.contains("playbackQueueManager.playbackCompletionAction()"));
+        assertFalse(service.contains("playbackQueueManager.preparePlaybackCompletionAction()"));
         assertFalse(service.contains("playbackQueueManager.preparePlaybackCompletion(completionAction)"));
         assertTrue(service.contains("playbackQueueCompletionOwner.prepareStopAtEndOfQueue()"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAtEndOfQueue()"));
         assertTrue(service.contains("playbackQueueCompletionOwner.prepareStopAfterAutomaticAdvance(completedIndex);"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex)"));
-        assertTrue(queueCompletionOwner.contains("playbackQueueManager.playbackCompletionAction();"));
-        assertTrue(queueCompletionOwner.contains("playbackQueueManager.preparePlaybackCompletion(completionAction);"));
+        assertTrue(queueCompletionOwner.contains("playbackQueueManager.preparePlaybackCompletionAction();"));
+        assertFalse(queueCompletionOwner.contains("playbackQueueManager.playbackCompletionAction();"));
+        assertFalse(queueCompletionOwner.contains("playbackQueueManager.preparePlaybackCompletion(completionAction);"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAtEndOfQueue();"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex);"));
         assertTrue(queueCompletionOwner.contains("completionBoundary.prepareCurrent(playWhenReady);"));
@@ -6244,7 +6246,7 @@ public final class MainActivityArchitectureContractTest {
                 "persistCurrentPlaybackPosition",
                 "persistQueueState",
                 "prepareMirroredTransitionPlaybackState",
-                "preparePlaybackCompletion",
+                "preparePlaybackCompletionAction",
                 "prepareStopAfterAutomaticAdvance",
                 "prepareStopAndClearPlaybackState",
                 "prepareStopAtEndOfQueue",
@@ -6257,7 +6259,6 @@ public final class MainActivityArchitectureContractTest {
                 "reuseMirroredQueueIfAvailable"
         ));
         java.util.Set<String> queueDerivedReadApi = new java.util.TreeSet<>(java.util.Arrays.asList(
-                "playbackCompletionAction",
                 "queuePreparationForNewPlayer",
                 "queueSnapshot",
                 "queueStateSnapshot",
@@ -6272,7 +6273,6 @@ public final class MainActivityArchitectureContractTest {
 
         assertEquals(expectedPublicApi, kotlinClassLevelFunNames(owner));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
-                "playbackCompletionAction",
                 "queuePreparationForNewPlayer",
                 "queueSnapshot",
                 "queueStateSnapshot",

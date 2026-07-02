@@ -128,7 +128,7 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun completionActionRepeatsCurrentWhenRepeatOne() {
+    fun preparePlaybackCompletionActionRepeatsCurrentWhenRepeatOne() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
@@ -137,24 +137,24 @@ class PlaybackQueueManagerTest {
 
         assertEquals(
             PlaybackQueueManager.PlaybackCompletionAction.REPEAT_CURRENT,
-            manager.playbackCompletionAction()
+            manager.preparePlaybackCompletionAction()
         )
     }
 
     @Test
-    fun completionActionStopsAndClearsWhenQueueIsEmpty() {
+    fun preparePlaybackCompletionActionStopsAndClearsWhenQueueIsEmpty() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
 
         assertEquals(
             PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR,
-            manager.playbackCompletionAction()
+            manager.preparePlaybackCompletionAction()
         )
     }
 
     @Test
-    fun completionActionStopsAtEndWhenRepeatOff() {
+    fun preparePlaybackCompletionActionStopsAtEndWhenRepeatOff() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
@@ -163,12 +163,12 @@ class PlaybackQueueManagerTest {
 
         assertEquals(
             PlaybackQueueManager.PlaybackCompletionAction.STOP_AT_END,
-            manager.playbackCompletionAction()
+            manager.preparePlaybackCompletionAction()
         )
     }
 
     @Test
-    fun completionActionAdvancesWhenQueueCanContinue() {
+    fun preparePlaybackCompletionActionAdvancesWhenQueueCanContinue() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
@@ -177,7 +177,7 @@ class PlaybackQueueManagerTest {
 
         assertEquals(
             PlaybackQueueManager.PlaybackCompletionAction.ADVANCE_TO_NEXT,
-            manager.playbackCompletionAction()
+            manager.preparePlaybackCompletionAction()
         )
     }
 
@@ -210,30 +210,38 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun preparePlaybackCompletionResetsCompletedTrackAndClearsRepeatRestore() {
+    fun preparePlaybackCompletionActionResetsCompletedTrackAndClearsRepeatRestore() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val current = track(1L, durationMs = 10_000L)
         val manager = queueManager(store, provider)
         restoreQueue(manager, store, listOf(current), 0)
+        provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_ONE)
         provider.positionManager.setRestoredPosition(current.id, 4500L, explicit = true)
 
-        manager.preparePlaybackCompletion(PlaybackQueueManager.PlaybackCompletionAction.REPEAT_CURRENT)
+        assertEquals(
+            PlaybackQueueManager.PlaybackCompletionAction.REPEAT_CURRENT,
+            manager.preparePlaybackCompletionAction()
+        )
 
         assertEquals(listOf(1L to 0L), store.savedPositions)
         assertEquals(0L, provider.positionManager.restoredPositionFor(current))
     }
 
     @Test
-    fun preparePlaybackCompletionKeepsRestoreForAdvanceAction() {
+    fun preparePlaybackCompletionActionKeepsRestoreForAdvanceAction() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val current = track(1L, durationMs = 10_000L)
         val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(current), 0)
+        restoreQueue(manager, store, listOf(current, track(2L)), 0)
+        provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF)
         provider.positionManager.setRestoredPosition(current.id, 4500L, explicit = true)
 
-        manager.preparePlaybackCompletion(PlaybackQueueManager.PlaybackCompletionAction.ADVANCE_TO_NEXT)
+        assertEquals(
+            PlaybackQueueManager.PlaybackCompletionAction.ADVANCE_TO_NEXT,
+            manager.preparePlaybackCompletionAction()
+        )
 
         assertEquals(listOf(1L to 0L), store.savedPositions)
         assertEquals(4500L, provider.positionManager.restoredPositionFor(current))
