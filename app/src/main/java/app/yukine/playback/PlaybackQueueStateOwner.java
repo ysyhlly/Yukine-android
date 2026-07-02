@@ -7,16 +7,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-final class PlaybackQueueStateOwner implements
-        PlaybackStateSnapshotOwner.QueueStateProvider {
+final class PlaybackQueueStateOwner {
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
 
     PlaybackQueueStateOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
         this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
     }
 
-    @Override
-    public PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
+    PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
                 ? null
