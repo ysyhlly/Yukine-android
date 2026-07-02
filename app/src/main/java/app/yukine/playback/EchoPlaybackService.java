@@ -17,6 +17,7 @@ import android.util.Log;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import app.yukine.R;
 import app.yukine.common.EmbeddedArtwork;
@@ -373,15 +374,16 @@ public final class EchoPlaybackService extends MediaLibraryService
                 repository,
                 playbackTransitionStateManager
         );
+        final Supplier<Track> currentTrackSupplier = playbackQueueStateOwner::currentTrack;
         recordPlaybackStartHistoryAction = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 playbackPlayHistoryRecorder,
                 () -> player != null && player.getPlayWhenReady(),
-                playbackQueueStateOwner::currentTrack
+                currentTrackSupplier
         );
         playbackPositionManager = new PlaybackPositionManager(
                 queueStore,
                 PlaybackPositionManager.stateProviderFromPlaybackState(
-                        playbackQueueStateOwner::currentTrack,
+                        currentTrackSupplier,
                         playbackPlayerStateOwner::positionMs
                 )
         );
@@ -508,7 +510,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackLyricsStateOwner = new PlaybackLyricsStateOwner(
                 () -> appVisible,
                 PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState(
-                        playbackQueueStateOwner::currentTrack,
+                        currentTrackSupplier,
                         playbackPlayerStateOwner::isPlaying,
                         playbackCurrentTrackPreparationRuntimeOwner::preparing
                 )
@@ -537,7 +539,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                         ),
                         () -> player != null,
                         playbackCurrentTrackPreparationRuntimeOwner::setPreparing,
-                        playbackQueueStateOwner::currentTrack,
+                        currentTrackSupplier,
                         EchoPlaybackService.this::resetWaveformIfTrackChanged,
                         EchoPlaybackService.this::applyPlaybackModeAndParametersToPlayer,
                         (index, positionMs) -> player.seekTo(index, positionMs),
@@ -612,7 +614,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         PlaybackVisualizationCacheStateOwner playbackVisualizationCacheStateOwner =
                 new PlaybackVisualizationCacheStateOwner(
                         () -> mainHandler,
-                        playbackQueueStateOwner::currentTrack,
+                        currentTrackSupplier,
                         task -> visualizationTaskScheduler.schedule(PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE, task)
                 );
         playbackVisualizationCacheManager = PlaybackVisualizationCacheManager.fromMediaSourceProvider(
@@ -719,7 +721,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(
                 this,
-                playbackQueueStateOwner::currentTrack,
+                currentTrackSupplier,
                 new PlaybackNotificationArtworkBridgeOwner(
                         playbackSessionRefresher,
                         playbackNotificationCommandOwner::publishPlaybackNotification
@@ -740,7 +742,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                         mediaSourceProvider::streamingQualityForTrack
                 );
         PlaybackPrecacheStateOwner playbackPrecacheStateOwner = new PlaybackPrecacheStateOwner(
-                playbackQueueStateOwner::currentTrack,
+                currentTrackSupplier,
                 PlaybackPrecacheStateOwner.playerMediaItemSupplierFromPlayerSupplier(() -> player),
                 () -> streamingDiagnostics
         );
@@ -770,7 +772,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
         playbackWifiLockManager = new PlaybackWifiLockManager(
                 PlaybackWifiLockOwner.fromWifiLock(wifiLock),
-                playbackQueueStateOwner::currentTrack,
+                currentTrackSupplier,
                 mediaSourceProvider::isHttpTrack
         );
         publishState();
