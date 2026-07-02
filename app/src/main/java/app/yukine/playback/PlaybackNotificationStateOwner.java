@@ -4,7 +4,6 @@ import android.media.session.MediaSession;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackNotificationManager;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
@@ -33,18 +32,21 @@ final class PlaybackNotificationStateOwner implements PlaybackNotificationManage
         };
     }
 
-    private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;
+    private final BooleanSupplier queueEmptySupplier;
+    private final Supplier<Track> currentTrackSupplier;
     private final PlaybackStateProvider playbackStateProvider;
     private final Predicate<Track> favoriteStateProvider;
     private final Supplier<MediaSession.Token> sessionTokenSupplier;
 
     PlaybackNotificationStateOwner(
-            PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider,
+            BooleanSupplier queueEmptySupplier,
+            Supplier<Track> currentTrackSupplier,
             PlaybackStateProvider playbackStateProvider,
             Predicate<Track> favoriteStateProvider,
             Supplier<MediaSession.Token> sessionTokenSupplier
     ) {
-        this.queueStateProvider = queueStateProvider;
+        this.queueEmptySupplier = queueEmptySupplier;
+        this.currentTrackSupplier = currentTrackSupplier;
         this.playbackStateProvider = playbackStateProvider;
         this.favoriteStateProvider = favoriteStateProvider;
         this.sessionTokenSupplier = sessionTokenSupplier;
@@ -52,7 +54,7 @@ final class PlaybackNotificationStateOwner implements PlaybackNotificationManage
 
     @Override
     public boolean isQueueEmpty() {
-        return queueStateSnapshot().isQueueEmpty();
+        return queueEmptySupplier == null || queueEmptySupplier.getAsBoolean();
     }
 
     @Override
@@ -67,7 +69,7 @@ final class PlaybackNotificationStateOwner implements PlaybackNotificationManage
 
     @Override
     public Track currentTrack() {
-        return queueStateSnapshot().getCurrentTrack();
+        return currentTrackSupplier == null ? null : currentTrackSupplier.get();
     }
 
     @Override
@@ -80,11 +82,4 @@ final class PlaybackNotificationStateOwner implements PlaybackNotificationManage
         return sessionTokenSupplier.get();
     }
 
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        if (queueStateProvider == null) {
-            return PlaybackQueueManager.QueueStateSnapshot.empty();
-        }
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
-    }
 }
