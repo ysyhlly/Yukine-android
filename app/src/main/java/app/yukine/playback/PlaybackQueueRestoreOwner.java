@@ -23,20 +23,6 @@ final class PlaybackQueueRestoreOwner {
         this.statePublisher = statePublisher;
     }
 
-    static PlaybackQueueRestoreOwner fromPlaybackQueueManager(
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
-            Runnable createPlayerIfNeeded,
-            Consumer<Boolean> prepareCurrent,
-            Runnable statePublisher
-    ) {
-        return new PlaybackQueueRestoreOwner(
-                playbackQueueManagerSupplier,
-                createPlayerIfNeeded,
-                prepareCurrent,
-                statePublisher
-        );
-    }
-
     void restoreLastPlayback(boolean playWhenRestored) {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         PlaybackQueueManager.RestorePlaybackResult restoreResult = playbackQueueManager == null

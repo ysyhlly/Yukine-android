@@ -5472,7 +5472,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("PlaybackQueueNavigationOwner.fromPlaybackQueueManager("));
         assertTrue(service.contains("this::onMirroredQueueReused"));
         assertTrue(service.contains("private final PlaybackQueueRestoreOwner playbackQueueRestoreOwner"));
-        assertTrue(service.contains("PlaybackQueueRestoreOwner.fromPlaybackQueueManager("));
+        assertTrue(service.contains("new PlaybackQueueRestoreOwner("));
+        assertFalse(service.contains("PlaybackQueueRestoreOwner.fromPlaybackQueueManager("));
+        assertFalse(queueRestoreOwner.contains("static PlaybackQueueRestoreOwner fromPlaybackQueueManager("));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackQueueResumeRequestOwner.java")));
         assertFalse(service.contains("PlaybackQueueResumeRequestOwner"));
         assertFalse(service.contains("playbackQueueResumeRequestOwner"));

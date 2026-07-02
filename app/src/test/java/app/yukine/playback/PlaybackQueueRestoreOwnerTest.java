@@ -47,14 +47,14 @@ public class PlaybackQueueRestoreOwnerTest {
     public void missingPlaybackQueueManagerSupplierPublishesEmptyRestoreState() {
         List<String> events = new ArrayList<>();
         PlaybackQueueRestoreOwner missingManagerProvider =
-                PlaybackQueueRestoreOwner.fromPlaybackQueueManager(
+                new PlaybackQueueRestoreOwner(
                         null,
                         () -> events.add("create"),
                         playWhenReady -> events.add("prepare:" + playWhenReady),
                         () -> events.add("publish")
                 );
         PlaybackQueueRestoreOwner missingManager =
-                PlaybackQueueRestoreOwner.fromPlaybackQueueManager(
+                new PlaybackQueueRestoreOwner(
                         () -> null,
                         () -> events.add("create"),
                         playWhenReady -> events.add("prepare:" + playWhenReady),
@@ -85,7 +85,7 @@ public class PlaybackQueueRestoreOwnerTest {
         FakeQueueStore store = new FakeQueueStore(new PlaybackQueueState(Collections.emptyList(), -1), false);
         PlaybackQueueRestoreOwner owner = owner(queueManager(store), null);
         PlaybackQueueRestoreOwner missingManager =
-                PlaybackQueueRestoreOwner.fromPlaybackQueueManager(null, null, null, null);
+                new PlaybackQueueRestoreOwner(null, null, null, null);
 
         owner.setPlaybackRestoreEnabled(true);
         missingManager.setPlaybackRestoreEnabled(false);
@@ -102,7 +102,7 @@ public class PlaybackQueueRestoreOwnerTest {
         );
         PlaybackQueueRestoreOwner owner = owner(queueManager(store), null);
         PlaybackQueueRestoreOwner missingManager =
-                PlaybackQueueRestoreOwner.fromPlaybackQueueManager(null, null, null, null);
+                new PlaybackQueueRestoreOwner(null, null, null, null);
 
         owner.restorePlaybackQueue();
         missingManager.restorePlaybackQueue();
@@ -114,7 +114,7 @@ public class PlaybackQueueRestoreOwnerTest {
             PlaybackQueueManager queueManager,
             FakeRestorePlaybackBoundary boundary
     ) {
-        return PlaybackQueueRestoreOwner.fromPlaybackQueueManager(
+        return new PlaybackQueueRestoreOwner(
                 () -> queueManager,
                 boundary == null ? null : boundary::createPlayerIfNeeded,
                 boundary == null ? null : boundary::prepareCurrent,
