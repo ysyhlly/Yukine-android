@@ -6160,12 +6160,14 @@ public final class MainActivityArchitectureContractTest {
             assertSourceDoesNotContain(source, "PlaybackQueueManager.QueueProvider");
             assertSourceDoesNotContain(source, "interface PlaybackQueueManagerProvider");
             assertSourceDoesNotContain(source, "queueProvider.");
+            assertSourceDoesNotContain(source, "fromPlaybackQueueManager(");
         }
         for (Path source : sourceFiles("feature/playback/src/main/java")) {
             assertSourceDoesNotContain(source, "interface QueueProvider");
             assertSourceDoesNotContain(source, "PlaybackQueueManager.QueueProvider");
             assertSourceDoesNotContain(source, "interface PlaybackQueueManagerProvider");
             assertSourceDoesNotContain(source, "queueProvider.");
+            assertSourceDoesNotContain(source, "fromPlaybackQueueManager(");
         }
         java.util.Set<String> queueMutationApi = new java.util.TreeSet<>(java.util.Arrays.asList(
                 "appendToQueue",
