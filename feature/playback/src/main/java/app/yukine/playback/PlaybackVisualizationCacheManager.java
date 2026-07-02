@@ -5,7 +5,6 @@ import android.os.Handler;
 import androidx.annotation.OptIn;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DataSpec;
-import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.datasource.cache.CacheWriter;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaCacheOperations;
@@ -34,15 +33,8 @@ final class PlaybackVisualizationCacheManager {
         VisualizationCacheWriter create(Track track, DataSpec dataSpec);
     }
 
-    interface MediaCacheOperations {
-        String cacheKeyForPrecache(Track track);
-        boolean tracksShareResolvedUriForReuse(Track current, Track candidate);
-        long cachedBytesInRange(String cacheKey, long position, long length);
-        CacheDataSource cacheDataSourceForTrack(Track track);
-    }
-
     private final StateProvider stateProvider;
-    private final MediaCacheOperations mediaCacheOperations;
+    private final PlaybackMediaCacheOperations mediaCacheOperations;
     private final VisualizationCacheWriterFactory cacheWriterFactory;
     private final Set<VisualizationCacheWriter> activeCacheWriters = Collections.synchronizedSet(new HashSet<>());
     private final AtomicInteger cacheGeneration = new AtomicInteger();
@@ -54,48 +46,20 @@ final class PlaybackVisualizationCacheManager {
     ) {
         return new PlaybackVisualizationCacheManager(
                 stateProvider,
-                mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)
+                PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)
         );
-    }
-
-    private static MediaCacheOperations mediaCacheOperationsFromMediaSourceProvider(
-            PlaybackMediaSourceProvider mediaSourceProvider
-    ) {
-        PlaybackMediaCacheOperations operations =
-                PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider);
-        return new MediaCacheOperations() {
-            @Override
-            public String cacheKeyForPrecache(Track track) {
-                return operations.cacheKeyForPrecache(track);
-            }
-
-            @Override
-            public boolean tracksShareResolvedUriForReuse(Track current, Track candidate) {
-                return operations.tracksShareResolvedUriForReuse(current, candidate);
-            }
-
-            @Override
-            public long cachedBytesInRange(String cacheKey, long position, long length) {
-                return operations.cachedBytesInRange(cacheKey, position, length);
-            }
-
-            @Override
-            public CacheDataSource cacheDataSourceForTrack(Track track) {
-                return operations.cacheDataSourceForTrack(track);
-            }
-        };
     }
 
     PlaybackVisualizationCacheManager(
             StateProvider stateProvider,
-            MediaCacheOperations mediaCacheOperations
+            PlaybackMediaCacheOperations mediaCacheOperations
     ) {
         this(stateProvider, mediaCacheOperations, null);
     }
 
     PlaybackVisualizationCacheManager(
             StateProvider stateProvider,
-            MediaCacheOperations mediaCacheOperations,
+            PlaybackMediaCacheOperations mediaCacheOperations,
             VisualizationCacheWriterFactory cacheWriterFactory
     ) {
         this.stateProvider = stateProvider;

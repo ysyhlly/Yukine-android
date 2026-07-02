@@ -104,10 +104,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(precacheManager.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)"));
         assertFalse(precacheManager.contains("mediaCacheOperationsFromMediaSourceProvider("));
         assertFalse(precacheManager.contains("audioCacheReleaseActionFromMediaSourceProvider("));
-        assertTrue(visualizationCacheManager.contains("interface MediaCacheOperations"));
-        assertTrue(visualizationCacheManager.contains("private final MediaCacheOperations mediaCacheOperations;"));
+        assertFalse(visualizationCacheManager.contains("interface MediaCacheOperations"));
+        assertTrue(visualizationCacheManager.contains("private final PlaybackMediaCacheOperations mediaCacheOperations;"));
         assertFalse(visualizationCacheManager.contains("private final PlaybackMediaSourceProvider"));
-        assertTrue(visualizationCacheManager.contains("mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
+        assertFalse(visualizationCacheManager.contains("mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(visualizationCacheManager.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(mediaCacheOperations.contains("public interface PlaybackMediaCacheOperations"));
         assertTrue(mediaCacheOperations.contains(
@@ -1876,19 +1876,19 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(visualizationCacheManager.contains("writer.cancel();"));
         assertTrue(visualizationCacheManager.contains("private boolean isCurrentCacheGeneration(int generation)"));
         assertTrue(visualizationCacheManager.contains("VISUALIZATION_CACHE_BYTES"));
-        assertTrue(visualizationCacheManager.contains("interface MediaCacheOperations"));
-        assertTrue(visualizationCacheManager.contains("private final MediaCacheOperations mediaCacheOperations;"));
-        assertTrue(visualizationCacheManager.contains("String cacheKeyForPrecache(Track track);"));
-        assertTrue(visualizationCacheManager.contains(
+        assertFalse(visualizationCacheManager.contains("interface MediaCacheOperations"));
+        assertTrue(visualizationCacheManager.contains("private final PlaybackMediaCacheOperations mediaCacheOperations;"));
+        assertFalse(visualizationCacheManager.contains("String cacheKeyForPrecache(Track track);"));
+        assertFalse(visualizationCacheManager.contains(
                 "boolean tracksShareResolvedUriForReuse(Track current, Track candidate);"));
-        assertTrue(visualizationCacheManager.contains(
+        assertFalse(visualizationCacheManager.contains(
                 "long cachedBytesInRange(String cacheKey, long position, long length);"));
-        assertTrue(visualizationCacheManager.contains("CacheDataSource cacheDataSourceForTrack(Track track);"));
+        assertFalse(visualizationCacheManager.contains("CacheDataSource cacheDataSourceForTrack(Track track);"));
         assertFalse(visualizationCacheManager.contains("long contentLengthForCacheKey(String cacheKey);"));
         assertFalse(visualizationCacheManager.contains("Map<String, String> headersForTrack(Track track);"));
         assertFalse(visualizationCacheManager.contains("boolean mediaItemMatchesTrackForReuse("));
         assertTrue(visualizationCacheManager.contains("static PlaybackVisualizationCacheManager fromMediaSourceProvider("));
-        assertTrue(visualizationCacheManager.contains(
+        assertFalse(visualizationCacheManager.contains(
                 "mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(visualizationCacheManager.contains(
                 "PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)"));
@@ -5357,7 +5357,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackService.contains("playbackLyricsStateOwner = new PlaybackLyricsStateOwner("));
         assertTrue(playbackService.contains("                playbackLyricsStateOwner,"));
         assertTrue(playbackService.contains("PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState("));
-        assertTrue(playbackService.contains(
+        assertTrue(normalizedPlaybackService.contains(
                 "                        currentTrackSupplier,\n" +
                         "                        playbackPlayerStateOwner::isPlaying,"));
         assertFalse(playbackService.contains(
@@ -5854,7 +5854,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mirroredTransitionOwner.contains("playbackQueueManager.applyMirroredTransitionIndex("));
         assertTrue(service.contains("playbackQueueStateOwner::queueStateSnapshot"));
         assertEquals(1, countOccurrences(service, "playbackQueueStateOwner::queueStateSnapshot"));
-        assertTrue(service.contains(
+        assertTrue(normalizedService.contains(
                 "final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier =\n"
                         + "                playbackQueueStateOwner::queueStateSnapshot;"));
         assertFalse(service.contains("playbackQueueManager.canSkipFailedTrack(failed)"));
@@ -6008,7 +6008,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManager("));
         assertFalse(owner.contains("static BooleanSupplier fromPlaybackQueueManager("));
         assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManagerProvider("));
-        assertTrue(service.contains(
+        assertTrue(normalizedService.contains(
                 "                        currentTrackSupplier,\n" +
                         "                        EchoPlaybackService.this::resetWaveformIfTrackChanged,"));
         assertFalse(service.contains(
@@ -6791,6 +6791,7 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void playbackWifiLockIsOwnedOutsideEchoPlaybackService() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String normalizedService = service.replace("\r\n", "\n");
         String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackWifiLockManager.kt");
         String lockOwner = read("app/src/main/java/app/yukine/playback/PlaybackWifiLockOwner.java");
 
@@ -6803,7 +6804,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackWifiLockStreamingTrackOwner.java")));
         assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackWifiLockStreamingTrackOwnerTest.java")));
         assertFalse(service.contains("PlaybackWifiLockStreamingTrackOwner"));
-        assertTrue(service.contains(
+        assertTrue(normalizedService.contains(
                 "                currentTrackSupplier,\n" +
                         "                mediaSourceProvider::isHttpTrack"));
         assertFalse(service.contains(
@@ -7730,6 +7731,7 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void playbackSessionLifecycleIsOwnedOutsideEchoPlaybackService() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String normalizedService = service.replace("\r\n", "\n");
         String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackSessionManager.kt");
         String commandOwner = read("app/src/main/java/app/yukine/playback/PlaybackSessionCommandOwner.java");
         String controllerMediaItemsOwner = read("app/src/main/java/app/yukine/playback/PlaybackControllerMediaItemsOwner.java");
@@ -7755,7 +7757,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("private PlaybackSessionCommandOwner playbackSessionCommandOwner;"));
         assertTrue(service.contains("playbackSessionCommandOwner = new PlaybackSessionCommandOwner("));
         assertTrue(service.contains("return new PlaybackSessionPlayer(player, playbackSessionCommandOwner);"));
-        assertTrue(service.contains(
+        assertTrue(normalizedService.contains(
                 "                    playbackQueueStateOwner::currentTrack,\n" +
                         "                    playbackNotificationManager::mediaMetadataForTrack"));
         assertFalse(service.contains(

@@ -8,15 +8,19 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 
+import androidx.media3.common.MediaItem;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.cache.CacheDataSource;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackMediaCacheOperations;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
@@ -278,7 +282,7 @@ public final class PlaybackVisualizationCacheManagerTest {
     }
 
     private static final class FakeMediaCacheOperations
-            implements PlaybackVisualizationCacheManager.MediaCacheOperations {
+            implements PlaybackMediaCacheOperations {
         private int cacheKeyForPrecacheCalls;
 
         @Override
@@ -310,6 +314,21 @@ public final class PlaybackVisualizationCacheManagerTest {
         @Override
         public CacheDataSource cacheDataSourceForTrack(Track track) {
             return null;
+        }
+
+        @Override
+        public long contentLengthForCacheKey(String cacheKey) {
+            return -1L;
+        }
+
+        @Override
+        public Map<String, String> headersForTrack(Track track) {
+            return Collections.emptyMap();
+        }
+
+        @Override
+        public boolean mediaItemMatchesTrackForReuse(MediaItem mediaItem, Track track) {
+            return false;
         }
     }
 }
