@@ -8,7 +8,6 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 
-import androidx.media3.common.MediaItem;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.cache.CacheDataSource;
@@ -326,9 +325,5 @@ public final class PlaybackVisualizationCacheManagerTest {
             return Collections.emptyMap();
         }
 
-        @Override
-        public boolean mediaItemMatchesTrackForReuse(MediaItem mediaItem, Track track) {
-            return false;
-        }
     }
 }

@@ -25,6 +25,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
 
 import app.yukine.model.Track;
@@ -59,6 +60,7 @@ final class PlaybackPrecacheManager {
 
     private final StateProvider stateProvider;
     private final PlaybackMediaCacheOperations mediaCacheOperations;
+    private final BiPredicate<MediaItem, Track> mediaItemTrackMatcher;
     private final CallbackScheduler callbackScheduler;
     private final Runnable audioCacheReleaseAction;
     private final ThreadPoolExecutor playbackCacheExecutor;
@@ -82,6 +84,7 @@ final class PlaybackPrecacheManager {
         this(
                 stateProvider,
                 mediaCacheOperations,
+                null,
                 callbackScheduler,
                 audioCacheReleaseAction,
                 newPlaybackCacheExecutor()
@@ -91,12 +94,31 @@ final class PlaybackPrecacheManager {
     PlaybackPrecacheManager(
             StateProvider stateProvider,
             PlaybackMediaCacheOperations mediaCacheOperations,
+            BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
+            CallbackScheduler callbackScheduler,
+            Runnable audioCacheReleaseAction
+    ) {
+        this(
+                stateProvider,
+                mediaCacheOperations,
+                mediaItemTrackMatcher,
+                callbackScheduler,
+                audioCacheReleaseAction,
+                newPlaybackCacheExecutor()
+        );
+    }
+
+    PlaybackPrecacheManager(
+            StateProvider stateProvider,
+            PlaybackMediaCacheOperations mediaCacheOperations,
+            BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
             CallbackScheduler callbackScheduler,
             Runnable audioCacheReleaseAction,
             ThreadPoolExecutor playbackCacheExecutor
     ) {
         this.stateProvider = stateProvider;
         this.mediaCacheOperations = mediaCacheOperations;
+        this.mediaItemTrackMatcher = mediaItemTrackMatcher;
         this.callbackScheduler = callbackScheduler;
         this.audioCacheReleaseAction = audioCacheReleaseAction;
         this.playbackCacheExecutor = playbackCacheExecutor == null
@@ -112,6 +134,8 @@ final class PlaybackPrecacheManager {
         return new PlaybackPrecacheManager(
                 stateProvider,
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider),
+                (mediaItem, track) -> mediaSourceProvider != null
+                        && mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track),
                 callbackScheduler,
                 () -> {
                     if (mediaSourceProvider != null) {
@@ -546,10 +570,8 @@ final class PlaybackPrecacheManager {
     }
 
     private boolean currentPlayerLoadsTrack(Track track) {
-        return mediaCacheOperations.mediaItemMatchesTrackForReuse(
-                stateProvider.currentPlayerMediaItem(),
-                track
-        );
+        return mediaItemTrackMatcher != null
+                && mediaItemTrackMatcher.test(stateProvider.currentPlayerMediaItem(), track);
     }
 
     @OptIn(markerClass = UnstableApi.class)

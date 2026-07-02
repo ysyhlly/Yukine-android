@@ -1,6 +1,5 @@
 package app.yukine.playback.manager;
 
-import androidx.media3.common.MediaItem;
 import androidx.media3.datasource.cache.CacheDataSource;
 
 import java.util.Collections;
@@ -26,8 +25,6 @@ public interface PlaybackMediaCacheOperations {
     long cachedBytesInRange(String cacheKey, long position, long length);
 
     CacheDataSource cacheDataSourceForTrack(Track track);
-
-    boolean mediaItemMatchesTrackForReuse(MediaItem mediaItem, Track track);
 }
 
 final class PlaybackMediaSourceProviderCacheOperations implements PlaybackMediaCacheOperations {
@@ -82,9 +79,4 @@ final class PlaybackMediaSourceProviderCacheOperations implements PlaybackMediaC
         return mediaSourceProvider.cacheDataSourceForTrack(track);
     }
 
-    @Override
-    public boolean mediaItemMatchesTrackForReuse(MediaItem mediaItem, Track track) {
-        return mediaSourceProvider != null
-                && mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track);
-    }
 }

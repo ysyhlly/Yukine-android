@@ -170,6 +170,7 @@ public final class PlaybackPrecacheManagerTest {
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 mediaCacheOperations,
+                null,
                 scheduler,
                 new FakeAudioCacheReleaseAction()::releaseAudioCache,
                 executor
@@ -256,6 +257,7 @@ public final class PlaybackPrecacheManagerTest {
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 mediaCacheOperations,
+                (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
                 new FakeAudioCacheReleaseAction()::releaseAudioCache,
                 executor
@@ -283,6 +285,7 @@ public final class PlaybackPrecacheManagerTest {
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 mediaCacheOperations,
+                (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
                 new FakeAudioCacheReleaseAction()::releaseAudioCache,
                 executor
@@ -325,6 +328,7 @@ public final class PlaybackPrecacheManagerTest {
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 mediaCacheOperations,
+                (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
                 new FakeAudioCacheReleaseAction()::releaseAudioCache
         );
@@ -599,10 +603,6 @@ public final class PlaybackPrecacheManagerTest {
             return null;
         }
 
-        @Override
-        public boolean mediaItemMatchesTrackForReuse(MediaItem mediaItem, Track track) {
-            return mediaItemMatchesForReuse;
-        }
     }
 
     private static final class CapturingPlaybackCacheExecutor extends ThreadPoolExecutor {

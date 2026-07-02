@@ -117,8 +117,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackPrecacheManager.audioCacheReleaseActionFromMediaSourceProvider("));
         assertFalse(service.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider("));
         assertTrue(precacheManager.contains("private final PlaybackMediaCacheOperations mediaCacheOperations;"));
+        assertTrue(precacheManager.contains("private final BiPredicate<MediaItem, Track> mediaItemTrackMatcher;"));
         assertFalse(precacheManager.contains("private final PlaybackMediaSourceProvider"));
         assertTrue(precacheManager.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)"));
+        assertTrue(precacheManager.contains("mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track)"));
         assertFalse(precacheManager.contains("prepareTrackForPlayback("));
         assertFalse(precacheManager.contains("mediaSourceForTrack("));
         assertFalse(precacheManager.contains("mediaSourcesForTracks("));
@@ -134,6 +136,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mediaCacheOperations.contains("public interface PlaybackMediaCacheOperations"));
         assertTrue(mediaCacheOperations.contains(
                 "final class PlaybackMediaSourceProviderCacheOperations implements PlaybackMediaCacheOperations"));
+        assertFalse(mediaCacheOperations.contains("mediaItemMatchesTrackForReuse("));
         assertFalse(mediaCacheOperations.contains("prepareTrackForPlayback("));
         assertFalse(mediaCacheOperations.contains("mediaSourceForTrack("));
         assertFalse(mediaCacheOperations.contains("mediaSourcesForTracks("));

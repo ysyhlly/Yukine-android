@@ -6,8 +6,6 @@ import static org.junit.Assert.assertNull;
 
 import android.net.Uri;
 
-import androidx.media3.common.MediaItem;
-
 import org.junit.Test;
 
 import java.util.Collections;
@@ -28,10 +26,6 @@ public final class PlaybackMediaCacheOperationsTest {
         assertEquals(0L, operations.cachedBytesInRange("cache-key", 0L, 512L));
         assertEquals(0L, operations.cachedBytesInRange("", 0L, 512L));
         assertEquals(0L, operations.cachedBytesInRange("cache-key", 0L, 0L));
-        assertFalse(operations.mediaItemMatchesTrackForReuse(
-                new MediaItem.Builder().setUri(track.contentUri).build(),
-                track
-        ));
     }
 
     @Test
