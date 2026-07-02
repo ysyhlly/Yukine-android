@@ -5779,7 +5779,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueMutationOwner.contains("playbackQueueManager.retainTracksById(trackIdsToKeep)"));
         assertTrue(service.contains("playbackQueueMutationOwner.clearQueue();"));
         assertFalse(service.contains("playbackQueueManager.clearQueue()"));
-        assertTrue(queueMutationOwner.contains("playbackQueueManager.queueStateSnapshot().isQueueEmpty()"));
+        assertFalse(queueMutationOwner.contains("playbackQueueManager.queueStateSnapshot().isQueueEmpty()"));
+        assertTrue(queueMutationOwner.contains("!playbackQueueManager.queueSnapshot().isEmpty()"));
         assertTrue(queueMutationOwner.contains("stopAndClear();"));
         assertFalse(service.contains("public void replaceQueuedTrack(Track replacement)"));
         assertFalse(service.contains("playbackQueueMutationOwner.replaceQueuedTrack(replacement);"));

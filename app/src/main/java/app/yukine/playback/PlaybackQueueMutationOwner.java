@@ -63,7 +63,7 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
     void clearQueue() {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         if (playbackQueueManager != null
-                && !playbackQueueManager.queueStateSnapshot().isQueueEmpty()) {
+                && !playbackQueueManager.queueSnapshot().isEmpty()) {
             stopAndClear();
         }
     }
