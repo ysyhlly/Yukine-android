@@ -51,7 +51,7 @@ final class PlaybackNotificationForegroundOwner
         foregroundStarter.accept(notification);
     }
 
-    public void stopForegroundAndSelf() {
+    void stopForegroundAndSelf() {
         if (foregroundStopper != null) {
             foregroundStopper.run();
         }

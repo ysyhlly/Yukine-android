@@ -7813,6 +7813,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(foregroundOwner.contains("return activityPendingIntentProvider.get();"));
         assertTrue(foregroundOwner.contains("return serviceActionPendingIntentProvider.apply(action, requestCode);"));
         assertTrue(foregroundOwner.contains("foregroundStarter.accept(notification);"));
+        assertFalse(foregroundOwner.contains("public void stopForegroundAndSelf("));
+        assertTrue(foregroundOwner.contains("void stopForegroundAndSelf("));
         assertTrue(foregroundOwner.contains("foregroundStopper.run();"));
         assertTrue(commandOwner.contains("final class PlaybackNotificationCommandOwner implements PlaybackNotificationManager.ActionCallbacks"));
         assertTrue(commandOwner.contains("interface PlaybackCommands"));
