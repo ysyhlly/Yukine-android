@@ -22,7 +22,7 @@ public class PlaybackStatePublisherWidgetOwnerTest {
         FakeWidgetOperations widgetOperations = new FakeWidgetOperations();
         PlaybackStatePublisherWidgetOwner owner = new PlaybackStatePublisherWidgetOwner(
                 () -> context,
-                () -> widgetOperations
+                widgetOperations
         );
 
         owner.update(snapshot, null);
@@ -37,11 +37,11 @@ public class PlaybackStatePublisherWidgetOwnerTest {
         FakeWidgetOperations widgetOperations = new FakeWidgetOperations();
         PlaybackStatePublisherWidgetOwner missingContextOwner = new PlaybackStatePublisherWidgetOwner(
                 () -> null,
-                () -> widgetOperations
+                widgetOperations
         );
         PlaybackStatePublisherWidgetOwner missingOperationsOwner = new PlaybackStatePublisherWidgetOwner(
                 RuntimeEnvironment::getApplication,
-                () -> null
+                null
         );
         PlaybackStatePublisherWidgetOwner nullProvidersOwner =
                 new PlaybackStatePublisherWidgetOwner(null, null);

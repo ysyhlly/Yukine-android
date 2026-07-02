@@ -11,38 +11,28 @@ final class PlaybackStatePublisherWidgetOwner implements PlaybackStatePublisher.
     }
 
     private final Supplier<Context> contextProvider;
-    private final Supplier<WidgetOperations> widgetOperationsProvider;
+    private final WidgetOperations widgetOperations;
 
     PlaybackStatePublisherWidgetOwner(
             Supplier<Context> contextProvider,
-            Supplier<WidgetOperations> widgetOperationsProvider
+            WidgetOperations widgetOperations
     ) {
         this.contextProvider = contextProvider;
-        this.widgetOperationsProvider = widgetOperationsProvider;
+        this.widgetOperations = widgetOperations;
     }
 
     static PlaybackStatePublisherWidgetOwner fromContextProvider(Supplier<Context> contextProvider) {
         return new PlaybackStatePublisherWidgetOwner(
                 contextProvider,
-                EchoPlaybackWidgetOperations::new
+                EchoPlaybackWidgetProvider::update
         );
     }
 
     @Override
     public void update(PlaybackStateSnapshot snapshot, Bitmap artwork) {
         Context context = contextProvider == null ? null : contextProvider.get();
-        WidgetOperations widgetOperations = widgetOperationsProvider == null
-                ? null
-                : widgetOperationsProvider.get();
         if (context != null && widgetOperations != null) {
             widgetOperations.update(context, snapshot, artwork);
-        }
-    }
-
-    private static final class EchoPlaybackWidgetOperations implements WidgetOperations {
-        @Override
-        public void update(Context context, PlaybackStateSnapshot snapshot, Bitmap artwork) {
-            EchoPlaybackWidgetProvider.update(context, snapshot, artwork);
         }
     }
 }

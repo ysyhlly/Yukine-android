@@ -6995,8 +6995,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(widgetOwner.contains("interface ContextProvider"));
         assertFalse(widgetOwner.contains("interface WidgetOperationsProvider"));
         assertTrue(widgetOwner.contains("Supplier<Context>"));
-        assertTrue(widgetOwner.contains("Supplier<WidgetOperations>"));
-        assertTrue(widgetOwner.contains("EchoPlaybackWidgetProvider.update(context, snapshot, artwork);"));
+        assertFalse(widgetOwner.contains("Supplier<WidgetOperations>"));
+        assertFalse(widgetOwner.contains("widgetOperationsProvider"));
+        assertFalse(widgetOwner.contains("EchoPlaybackWidgetOperations"));
+        assertTrue(widgetOwner.contains("private final WidgetOperations widgetOperations;"));
+        assertTrue(widgetOwner.contains("EchoPlaybackWidgetProvider::update"));
+        assertTrue(widgetOwner.contains("widgetOperations.update(context, snapshot, artwork);"));
         assertTrue(streamingDiagnosticsOwner.contains(
                 "final class PlaybackStreamingDiagnosticsRecorderOwner"));
         assertTrue(streamingDiagnosticsOwner.contains(
