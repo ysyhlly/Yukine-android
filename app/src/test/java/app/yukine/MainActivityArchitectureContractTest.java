@@ -5877,6 +5877,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueCompletionOwner.contains("playbackQueueManager.preparePlaybackCompletion(completionAction);"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAtEndOfQueue();"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex);"));
+        assertFalse(queueCompletionOwner.contains("private void stopAndClear()"));
+        assertFalse(queueCompletionOwner.contains("private void stopAtEndOfQueue()"));
+        assertFalse(queueCompletionOwner.contains("private void skipToNext()"));
+        assertFalse(queueCompletionOwner.contains("private void prepareStopAndClearFallbackState()"));
         assertTrue(queueCompletionOwner.contains("queuePlaybackActions.prepareCurrent(playWhenReady);"));
         assertFalse(queueCompletionOwner.contains("completionBoundary.prepareCurrent(playWhenReady);"));
         assertTrue(queueCompletionOwner.contains("completionBoundary.stopAtEndOfQueue();"));

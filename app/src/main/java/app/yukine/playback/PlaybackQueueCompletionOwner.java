@@ -35,7 +35,9 @@ final class PlaybackQueueCompletionOwner {
                 ? PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR
                 : playbackQueueManager.preparePlaybackCompletionAction();
         if (completionAction == PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR) {
-            stopAndClear();
+            if (completionBoundary != null) {
+                completionBoundary.stopAndClear();
+            }
             return;
         }
         switch (completionAction) {
@@ -43,13 +45,19 @@ final class PlaybackQueueCompletionOwner {
                 prepareCurrent(true);
                 break;
             case STOP_AT_END:
-                stopAtEndOfQueue();
+                if (completionBoundary != null) {
+                    completionBoundary.stopAtEndOfQueue();
+                }
                 break;
             case ADVANCE_TO_NEXT:
-                skipToNext();
+                if (completionBoundary != null) {
+                    completionBoundary.skipToNext();
+                }
                 break;
             default:
-                stopAndClear();
+                if (completionBoundary != null) {
+                    completionBoundary.stopAndClear();
+                }
                 break;
         }
     }
@@ -57,7 +65,9 @@ final class PlaybackQueueCompletionOwner {
     void prepareStopAndClearPlaybackState() {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         if (playbackQueueManager == null) {
-            prepareStopAndClearFallbackState();
+            if (completionBoundary != null) {
+                completionBoundary.prepareStopAndClearFallbackState();
+            }
             return;
         }
         playbackQueueManager.prepareStopAndClearPlaybackState();
@@ -79,33 +89,9 @@ final class PlaybackQueueCompletionOwner {
         }
     }
 
-    private void stopAndClear() {
-        if (completionBoundary != null) {
-            completionBoundary.stopAndClear();
-        }
-    }
-
     private void prepareCurrent(boolean playWhenReady) {
         if (queuePlaybackActions != null) {
             queuePlaybackActions.prepareCurrent(playWhenReady);
-        }
-    }
-
-    private void stopAtEndOfQueue() {
-        if (completionBoundary != null) {
-            completionBoundary.stopAtEndOfQueue();
-        }
-    }
-
-    private void skipToNext() {
-        if (completionBoundary != null) {
-            completionBoundary.skipToNext();
-        }
-    }
-
-    private void prepareStopAndClearFallbackState() {
-        if (completionBoundary != null) {
-            completionBoundary.prepareStopAndClearFallbackState();
         }
     }
 
