@@ -1664,6 +1664,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("player.isPlaying()"));
         assertFalse(playbackService.contains("player.getCurrentPosition()"));
         assertFalse(playbackService.contains("player.getDuration()"));
+        assertFalse(playbackService.contains("private boolean isPlaying()"));
+        assertFalse(playbackService.contains("private long positionMs()"));
+        assertFalse(playbackService.contains("private long durationMs()"));
+        assertTrue(playbackService.contains("playbackPlayerStateOwner.isPlaying()"));
+        assertTrue(playbackService.contains("playbackPlayerStateOwner.positionMs() > 3000L"));
         assertTrue(playerStateOwner.contains("final class PlaybackPlayerStateOwner implements"));
         assertTrue(playerStateOwner.contains("PlaybackStateSnapshotOwner.PlaybackPositionProvider"));
         assertFalse(playerStateOwner.contains("PlaybackBufferedProgressOwner.PlaybackPositionProvider"));

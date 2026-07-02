@@ -819,7 +819,8 @@ public final class EchoPlaybackService extends MediaLibraryService
             playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(true);
             playbackQueuePersistenceOwner.persistQueueState();
             playbackQueuePersistenceOwner.savePlaybackResumeRequested(
-                    isPlaying() || playbackCurrentTrackPreparationRuntimeOwner.preparing()
+                    playbackPlayerStateOwner.isPlaying()
+                            || playbackCurrentTrackPreparationRuntimeOwner.preparing()
             );
             if (playbackNotificationCommandOwner != null) {
                 playbackNotificationCommandOwner.publishPlaybackNotificationIfWorthy();
@@ -904,7 +905,7 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     public void pause() {
         playbackCrossfadeCommandOwner.cancelCrossfadeAdvance();
-        if (player != null && isPlaying()) {
+        if (player != null && playbackPlayerStateOwner.isPlaying()) {
             player.pause();
         }
         playbackQueuePersistenceOwner.clearPlaybackResumeRequest();
@@ -935,7 +936,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void skipToPrevious() {
-        if (positionMs() > 3000L) {
+        if (playbackPlayerStateOwner.positionMs() > 3000L) {
             seekTo(0L);
             return;
         }
@@ -1394,18 +1395,6 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     private int pendingIntentFlags() {
         return PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
-    }
-
-    private boolean isPlaying() {
-        return playbackPlayerStateOwner.isPlaying();
-    }
-
-    private long positionMs() {
-        return playbackPlayerStateOwner.positionMs();
-    }
-
-    private long durationMs() {
-        return playbackPlayerStateOwner.durationMs();
     }
 }
 
