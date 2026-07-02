@@ -9,7 +9,6 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -169,7 +168,7 @@ public final class PlaybackNotificationArtworkManagerTest {
     }
 
     private static PlaybackNotificationArtworkManager manager(
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider,
+            Supplier<Track> currentTrackProvider,
             PlaybackNotificationArtworkManager.NotificationBridge notificationBridge,
             List<Runnable> pending,
             PlaybackNotificationArtworkManager.ArtworkLoader artworkLoader,
@@ -177,7 +176,7 @@ public final class PlaybackNotificationArtworkManagerTest {
     ) {
         return new PlaybackNotificationArtworkManager(
                 RuntimeEnvironment.getApplication(),
-                queueStateProvider,
+                currentTrackProvider,
                 notificationBridge,
                 pending::add,
                 artworkLoader,
@@ -205,15 +204,12 @@ public final class PlaybackNotificationArtworkManagerTest {
         );
     }
 
-    private static final class FakeStateProvider implements Supplier<PlaybackQueueManager.QueueStateSnapshot> {
+    private static final class FakeStateProvider implements Supplier<Track> {
         private Track currentTrack;
 
         @Override
-        public PlaybackQueueManager.QueueStateSnapshot get() {
-            if (currentTrack == null) {
-                return PlaybackQueueManager.QueueStateSnapshot.empty();
-            }
-            return new PlaybackQueueManager.QueueStateSnapshot(currentTrack, 0, 1);
+        public Track get() {
+            return currentTrack;
         }
     }
 

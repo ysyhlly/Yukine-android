@@ -1751,12 +1751,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(normalizedPlaybackService.contains(
                 "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
                         + "                this,\n"
-                        + "                playbackQueueStateOwner::queueStateSnapshot,"
+                        + "                playbackQueueStateOwner::currentTrack,"
         ));
         assertFalse(normalizedPlaybackService.contains(
                 "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
                         + "                this,\n"
-                        + "                playbackQueueStateOwner::currentTrack,"
+                        + "                playbackQueueStateOwner::queueStateSnapshot,"
         ));
         assertFalse(playbackService.contains("new PlaybackNotificationArtworkManager.NotificationBridge()"));
         assertTrue(playbackService.contains("new PlaybackNotificationArtworkBridgeOwner("));
@@ -1902,6 +1902,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(notificationArtworkManager.contains("interface ArtworkLoader"));
         assertTrue(notificationArtworkManager.contains("interface ArtworkEncoder"));
         assertTrue(notificationArtworkManager.contains("private final NotificationBridge notificationBridge;"));
+        assertTrue(notificationArtworkManager.contains("private final Supplier<Track> currentTrackProvider;"));
+        assertFalse(notificationArtworkManager.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot>"));
+        assertFalse(notificationArtworkManager.contains("PlaybackQueueManager.QueueStateSnapshot snapshot"));
         assertTrue(notificationArtworkManager.contains("private final AtomicInteger artworkGeneration"));
         assertTrue(notificationArtworkManager.contains("artworkGeneration.incrementAndGet();"));
         assertTrue(notificationArtworkManager.contains("notificationBridge.refreshPlaybackSession();"));
