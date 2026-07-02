@@ -176,7 +176,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                     PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
                             () -> player,
                             playbackQueueMirrorStateOwner::playerMirrorsQueue,
-                            playbackQueueStateOwner::currentTrack
+                            playbackQueueStateOwner
                     )
             );
     private final PlaybackCurrentTrackPreparationRuntimeOwner playbackCurrentTrackPreparationRuntimeOwner =
