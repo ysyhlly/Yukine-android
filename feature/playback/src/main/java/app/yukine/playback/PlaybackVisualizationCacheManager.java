@@ -7,6 +7,7 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.cache.CacheWriter;
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackMediaCacheOperations;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
 import java.util.Collections;
@@ -35,26 +36,36 @@ final class PlaybackVisualizationCacheManager {
     }
 
     private final StateProvider stateProvider;
-    private final PlaybackMediaSourceProvider mediaSourceProvider;
+    private final PlaybackMediaCacheOperations mediaCacheOperations;
     private final VisualizationCacheWriterFactory cacheWriterFactory;
     private final Set<VisualizationCacheWriter> activeCacheWriters = Collections.synchronizedSet(new HashSet<>());
     private final AtomicInteger cacheGeneration = new AtomicInteger();
     private volatile boolean released;
 
-    PlaybackVisualizationCacheManager(
+    static PlaybackVisualizationCacheManager fromMediaSourceProvider(
             StateProvider stateProvider,
             PlaybackMediaSourceProvider mediaSourceProvider
     ) {
-        this(stateProvider, mediaSourceProvider, null);
+        return new PlaybackVisualizationCacheManager(
+                stateProvider,
+                PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)
+        );
     }
 
     PlaybackVisualizationCacheManager(
             StateProvider stateProvider,
-            PlaybackMediaSourceProvider mediaSourceProvider,
+            PlaybackMediaCacheOperations mediaCacheOperations
+    ) {
+        this(stateProvider, mediaCacheOperations, null);
+    }
+
+    PlaybackVisualizationCacheManager(
+            StateProvider stateProvider,
+            PlaybackMediaCacheOperations mediaCacheOperations,
             VisualizationCacheWriterFactory cacheWriterFactory
     ) {
         this.stateProvider = stateProvider;
-        this.mediaSourceProvider = mediaSourceProvider;
+        this.mediaCacheOperations = mediaCacheOperations;
         this.cacheWriterFactory = cacheWriterFactory == null ? this::createCacheWriter : cacheWriterFactory;
     }
 
@@ -86,7 +97,11 @@ final class PlaybackVisualizationCacheManager {
     }
 
     void scheduleVisualizationCache(Track track) {
-        if (released || !mediaSourceProvider.isHttpTrack(track)) {
+        if (released) {
+            return;
+        }
+        String cacheKey = cacheKeyForVisualization(track);
+        if (cacheKey == null) {
             return;
         }
         int generation = cacheGeneration.get();
@@ -96,7 +111,7 @@ final class PlaybackVisualizationCacheManager {
                 return;
             }
             Track active = stateProvider.currentTrack();
-            if (!mediaSourceProvider.tracksShareMediaIdentityForReuse(active, visualTrack)) {
+            if (!tracksShareMediaIdentityForReuse(active, visualTrack)) {
                 return;
             }
             stateProvider.scheduleVisualizationCacheTask(() -> cacheVisualizationWindow(visualTrack, generation));
@@ -105,14 +120,14 @@ final class PlaybackVisualizationCacheManager {
 
     @OptIn(markerClass = UnstableApi.class)
     private void cacheVisualizationWindow(Track track, int generation) {
-        if (!isCurrentCacheGeneration(generation) || !mediaSourceProvider.isHttpTrack(track)) {
+        if (!isCurrentCacheGeneration(generation)) {
             return;
         }
-        String cacheKey = mediaSourceProvider.cacheKeyForTrack(track);
-        if (cacheKey == null || cacheKey.isEmpty()) {
+        String cacheKey = cacheKeyForVisualization(track);
+        if (cacheKey == null) {
             return;
         }
-        long cached = mediaSourceProvider.continuousCachedBytes(cacheKey);
+        long cached = mediaCacheOperations.cachedBytesInRange(cacheKey, 0L, Long.MAX_VALUE);
         if (cached >= VISUALIZATION_CACHE_BYTES) {
             return;
         }
@@ -144,9 +159,25 @@ final class PlaybackVisualizationCacheManager {
         return !released && cacheGeneration.get() == generation;
     }
 
+    private String cacheKeyForVisualization(Track track) {
+        if (mediaCacheOperations == null) {
+            return null;
+        }
+        String cacheKey = mediaCacheOperations.cacheKeyForPrecache(track);
+        return cacheKey == null || cacheKey.isEmpty() ? null : cacheKey;
+    }
+
+    private boolean tracksShareMediaIdentityForReuse(Track current, Track candidate) {
+        return current != null
+                && candidate != null
+                && current.id == candidate.id
+                && mediaCacheOperations != null
+                && mediaCacheOperations.tracksShareResolvedUriForReuse(current, candidate);
+    }
+
     private VisualizationCacheWriter createCacheWriter(Track track, DataSpec dataSpec) {
         CacheWriter writer = new CacheWriter(
-                mediaSourceProvider.cacheDataSourceForTrack(track),
+                mediaCacheOperations.cacheDataSourceForTrack(track),
                 dataSpec,
                 new byte[16 * 1024],
                 null

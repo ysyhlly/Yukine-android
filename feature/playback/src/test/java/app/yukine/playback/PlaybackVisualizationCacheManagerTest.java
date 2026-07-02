@@ -4,19 +4,17 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.robolectric.Shadows.shadowOf;
 
-import android.content.Context;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 
+import androidx.media3.common.MediaItem;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DataSpec;
+import androidx.media3.datasource.cache.CacheDataSource;
 
-import app.yukine.common.StreamingDataPathParser;
-import app.yukine.data.MusicLibraryRepository;
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackMediaSourceProvider;
-import app.yukine.streaming.StreamingPlaybackHeaderStore;
+import app.yukine.playback.manager.PlaybackMediaCacheOperations;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -28,7 +26,6 @@ import java.util.function.Consumer;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.robolectric.RuntimeEnvironment;
 import org.robolectric.RobolectricTestRunner;
 
 @UnstableApi
@@ -73,12 +70,15 @@ public final class PlaybackVisualizationCacheManagerTest {
         Track track = track(8L);
         stateProvider.currentTrack = track;
         FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
-        PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        PlaybackVisualizationCacheManager manager =
+                manager(stateProvider, mediaCacheOperations, writerFactory);
 
         manager.release();
         manager.scheduleVisualizationCache(track);
         shadowOf(Looper.getMainLooper()).idle();
 
+        assertEquals(0, mediaCacheOperations.cacheKeyForPrecacheCalls);
         assertEquals(0, stateProvider.scheduledTasks.size());
         assertEquals(0, writerFactory.createCalls);
     }
@@ -202,9 +202,17 @@ public final class PlaybackVisualizationCacheManagerTest {
             FakeStateProvider stateProvider,
             PlaybackVisualizationCacheManager.VisualizationCacheWriterFactory writerFactory
     ) {
+        return manager(stateProvider, new FakeMediaCacheOperations(), writerFactory);
+    }
+
+    private static PlaybackVisualizationCacheManager manager(
+            FakeStateProvider stateProvider,
+            FakeMediaCacheOperations mediaCacheOperations,
+            PlaybackVisualizationCacheManager.VisualizationCacheWriterFactory writerFactory
+    ) {
         return new PlaybackVisualizationCacheManager(
                 stateProvider,
-                mediaSourceProvider(),
+                mediaCacheOperations,
                 writerFactory
         );
     }
@@ -213,15 +221,6 @@ public final class PlaybackVisualizationCacheManagerTest {
         Field field = PlaybackVisualizationCacheManager.class.getDeclaredField("cacheGeneration");
         field.setAccessible(true);
         return ((AtomicInteger) field.get(manager)).get();
-    }
-
-    private static PlaybackMediaSourceProvider mediaSourceProvider() {
-        Context context = RuntimeEnvironment.getApplication();
-        return new PlaybackMediaSourceProvider(
-                context,
-                new MusicLibraryRepository(context, new FakeStreamingDataPathParser()),
-                new FakeStreamingPlaybackHeaderStore()
-        );
     }
 
     private static Track track(long id) {
@@ -307,41 +306,53 @@ public final class PlaybackVisualizationCacheManagerTest {
         }
     }
 
-    private static final class FakeStreamingDataPathParser implements StreamingDataPathParser {
+    private static final class FakeMediaCacheOperations implements PlaybackMediaCacheOperations {
+        private int cacheKeyForPrecacheCalls;
+
         @Override
-        public boolean isStreamingTrack(String dataPath) {
-            return dataPath != null && dataPath.startsWith("streaming:");
+        public boolean tracksShareResolvedUriForReuse(Track current, Track candidate) {
+            return current != null
+                    && candidate != null
+                    && current.contentUri != null
+                    && current.contentUri.equals(candidate.contentUri);
         }
 
         @Override
-        public String providerName(String dataPath) {
-            return "test";
+        public long contentLengthForCacheKey(String cacheKey) {
+            return -1L;
         }
 
         @Override
-        public String providerTrackId(String dataPath) {
-            return dataPath == null ? "" : dataPath.substring(dataPath.lastIndexOf(':') + 1);
+        public String cacheKeyForPrecache(Track track) {
+            cacheKeyForPrecacheCalls++;
+            String scheme = track == null || track.contentUri == null ? null : track.contentUri.getScheme();
+            if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
+                return null;
+            }
+            if (track.dataPath == null || track.dataPath.isEmpty()) {
+                return null;
+            }
+            return track.dataPath + "|url=" + track.contentUri;
         }
-    }
-
-    private static final class FakeStreamingPlaybackHeaderStore implements StreamingPlaybackHeaderStore {
-        @Override
-        public void register(String dataPath, Map<String, String> headers) {
-        }
 
         @Override
-        public Map<String, String> forDataPath(String dataPath) {
+        public Map<String, String> headersForTrack(Track track) {
             return Collections.emptyMap();
         }
 
         @Override
-        public boolean restoreForDataPath(String dataPath) {
-            return false;
+        public long cachedBytesInRange(String cacheKey, long position, long length) {
+            return 0L;
         }
 
         @Override
-        public Track restoredTrackFor(Track track) {
+        public CacheDataSource cacheDataSourceForTrack(Track track) {
             return null;
+        }
+
+        @Override
+        public boolean mediaItemMatchesTrackForReuse(MediaItem mediaItem, Track track) {
+            return false;
         }
     }
 }

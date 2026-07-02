@@ -13,6 +13,7 @@ import app.yukine.common.StreamingDataPathParser;
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
+import app.yukine.playback.manager.PlaybackMediaCacheOperations;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.streaming.StreamingPlaybackHeaderStore;
 
@@ -243,7 +244,7 @@ public final class PlaybackPrecacheManagerTest {
     @Test
     public void providerBackedMediaCacheOperationsOwnCacheKeyAndHeaders() {
         Map<String, String> headers = Collections.singletonMap("Cookie", "token=abc");
-        PlaybackPrecacheManager.MediaCacheOperations operations =
+        PlaybackMediaCacheOperations operations =
                 PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(
                         mediaSourceProvider(new FakeStreamingPlaybackHeaderStore(headers))
                 );
@@ -575,7 +576,7 @@ public final class PlaybackPrecacheManagerTest {
         }
     }
 
-    private static final class FakeMediaCacheOperations implements PlaybackPrecacheManager.MediaCacheOperations {
+    private static final class FakeMediaCacheOperations implements PlaybackMediaCacheOperations {
         private long contentLength = -1L;
         private long cachedBytes;
         private boolean mediaItemMatchesForReuse = true;

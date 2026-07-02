@@ -1706,12 +1706,13 @@ public final class MainActivityArchitectureContractTest {
                         "PlaybackVisualizationCacheStateOwner playbackVisualizationCacheStateOwner ="
                 ),
                 normalizedPlaybackService.indexOf(
-                        "        playbackVisualizationCacheManager = new PlaybackVisualizationCacheManager("
+                        "        playbackVisualizationCacheManager = PlaybackVisualizationCacheManager.fromMediaSourceProvider("
                 )
         );
         assertTrue(normalizedVisualizationCacheStateWiring.contains("                        playbackQueueStateOwner,\n"));
         assertFalse(normalizedVisualizationCacheStateWiring.contains("playbackQueueStateOwner::currentTrack"));
-        assertTrue(playbackService.contains("playbackVisualizationCacheManager = new PlaybackVisualizationCacheManager("));
+        assertTrue(playbackService.contains(
+                "playbackVisualizationCacheManager = PlaybackVisualizationCacheManager.fromMediaSourceProvider("));
         assertTrue(playbackService.contains("                playbackVisualizationCacheStateOwner,"));
         assertFalse(playbackService.contains("new PlaybackVisualizationCacheManager.StateProvider()"));
         assertTrue(playbackService.contains("playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager("));
@@ -1818,11 +1819,23 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(visualizationCacheManager.contains("writer.cancel();"));
         assertTrue(visualizationCacheManager.contains("private boolean isCurrentCacheGeneration(int generation)"));
         assertTrue(visualizationCacheManager.contains("VISUALIZATION_CACHE_BYTES"));
-        assertTrue(visualizationCacheManager.contains("private final PlaybackMediaSourceProvider mediaSourceProvider;"));
-        assertTrue(visualizationCacheManager.contains("mediaSourceProvider.isHttpTrack(track)"));
-        assertTrue(visualizationCacheManager.contains("mediaSourceProvider.cacheKeyForTrack(track)"));
-        assertTrue(visualizationCacheManager.contains("mediaSourceProvider.continuousCachedBytes(cacheKey)"));
-        assertTrue(visualizationCacheManager.contains("mediaSourceProvider.cacheDataSourceForTrack(track)"));
+        assertTrue(visualizationCacheManager.contains(
+                "private final PlaybackMediaCacheOperations mediaCacheOperations;"));
+        assertTrue(visualizationCacheManager.contains("static PlaybackVisualizationCacheManager fromMediaSourceProvider("));
+        assertTrue(visualizationCacheManager.contains(
+                "PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)"));
+        assertTrue(visualizationCacheManager.contains("mediaCacheOperations.cacheKeyForPrecache(track)"));
+        assertTrue(visualizationCacheManager.contains(
+                "mediaCacheOperations.cachedBytesInRange(cacheKey, 0L, Long.MAX_VALUE)"));
+        assertTrue(visualizationCacheManager.contains("mediaCacheOperations.cacheDataSourceForTrack(track)"));
+        assertTrue(visualizationCacheManager.contains("current.id == candidate.id"));
+        assertTrue(visualizationCacheManager.contains(
+                "mediaCacheOperations.tracksShareResolvedUriForReuse(current, candidate)"));
+        assertFalse(visualizationCacheManager.contains("private final PlaybackMediaSourceProvider mediaSourceProvider;"));
+        assertFalse(visualizationCacheManager.contains("mediaSourceProvider.isHttpTrack(track)"));
+        assertFalse(visualizationCacheManager.contains("mediaSourceProvider.cacheKeyForTrack(track)"));
+        assertFalse(visualizationCacheManager.contains("mediaSourceProvider.continuousCachedBytes(cacheKey)"));
+        assertFalse(visualizationCacheManager.contains("mediaSourceProvider.cacheDataSourceForTrack(track)"));
         assertTrue(visualizationCacheStateOwner.contains("final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizationCacheManager.StateProvider"));
         assertTrue(visualizationCacheStateOwner.contains("interface MainHandlerProvider"));
         assertFalse(visualizationCacheStateOwner.contains("interface CurrentTrackProvider"));
@@ -1957,8 +1970,20 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("private volatile String lastPrecacheKey"));
 
         assertTrue(playbackPrecacheManager.contains("final class PlaybackPrecacheManager"));
-        assertTrue(playbackPrecacheManager.contains("interface MediaCacheOperations"));
-        assertTrue(playbackPrecacheManager.contains("private final MediaCacheOperations mediaCacheOperations;"));
+        String playbackMediaCacheOperations = read(
+                "feature/playback/src/main/java/app/yukine/playback/manager/PlaybackMediaCacheOperations.java"
+        );
+        assertFalse(playbackPrecacheManager.contains("interface MediaCacheOperations"));
+        assertTrue(playbackPrecacheManager.contains("private final PlaybackMediaCacheOperations mediaCacheOperations;"));
+        assertTrue(playbackPrecacheManager.contains(
+                "import app.yukine.playback.manager.PlaybackMediaCacheOperations;"));
+        assertTrue(playbackMediaCacheOperations.contains("public interface PlaybackMediaCacheOperations"));
+        assertTrue(playbackMediaCacheOperations.contains("final class PlaybackMediaSourceProviderCacheOperations"));
+        assertTrue(playbackMediaCacheOperations.contains("String cacheKeyForPrecache(Track track);"));
+        assertTrue(playbackMediaCacheOperations.contains("CacheDataSource cacheDataSourceForTrack(Track track);"));
+        assertTrue(playbackMediaCacheOperations.contains("long contentLengthForCacheKey(String cacheKey);"));
+        assertTrue(playbackMediaCacheOperations.contains("mediaSourceProvider.cacheKeyForTrack(track)"));
+        assertTrue(playbackMediaCacheOperations.contains("mediaSourceProvider.cacheDataSourceForTrack(track)"));
         assertFalse(playbackService.contains("PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
         assertFalse(playbackService.contains("PlaybackPrecacheManager.audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(playbackPrecacheManager.contains("static PlaybackPrecacheManager fromMediaSourceProvider("));
@@ -1975,7 +2000,7 @@ public final class MainActivityArchitectureContractTest {
                 playbackPrecacheManager.substring(
                         0,
                         playbackPrecacheManager.indexOf(
-                                "private static final class PlaybackMediaSourceProviderCacheOperations"
+                                "private static ThreadPoolExecutor newPlaybackCacheExecutor"
                         )
                 );
         assertFalse(playbackPrecacheManagerBody.contains("private final PlaybackMediaSourceProvider mediaSourceProvider;"));
@@ -2010,11 +2035,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("PlaybackPrecacheManager("));
         assertTrue(playbackPrecacheManager.contains("CallbackScheduler callbackScheduler"));
         assertFalse(playbackPrecacheManager.contains("Handler mainHandler();"));
-        assertTrue(playbackPrecacheManager.contains("Map<String, String> headersForTrack(Track track);"));
+        assertFalse(playbackPrecacheManager.contains("Map<String, String> headersForTrack(Track track);"));
+        assertTrue(playbackMediaCacheOperations.contains("Map<String, String> headersForTrack(Track track);"));
         assertFalse(playbackPrecacheManager.contains("SimpleCache audioCache();"));
-        assertTrue(playbackPrecacheManager.contains("private static final class PlaybackMediaSourceProviderCacheOperations"));
-        assertTrue(playbackPrecacheManager.contains("CacheDataSource cacheDataSourceForTrack(Track track);"));
-        assertTrue(playbackPrecacheManager.contains("long contentLengthForCacheKey(String cacheKey);"));
+        assertFalse(playbackPrecacheManager.contains("private static final class PlaybackMediaSourceProviderCacheOperations"));
         assertFalse(playbackPrecacheManager.contains("PlaybackMediaSourceResolutionOwner"));
         assertTrue(playbackPrecacheStateOwner.contains("final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateProvider"));
         assertFalse(playbackPrecacheStateOwner.contains("interface CurrentTrackProvider"));
@@ -2083,7 +2107,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("private static final class PrecacheSupersededException extends RuntimeException"));
         assertTrue(playbackPrecacheManager.contains("private enum PrecachePriority"));
         assertTrue(playbackPrecacheManager.contains("private enum PrecacheMode"));
-        assertTrue(playbackPrecacheManager.contains("private final PlaybackMediaSourceProvider mediaSourceProvider;"));
+        assertFalse(playbackPrecacheManager.contains("private final PlaybackMediaSourceProvider mediaSourceProvider;"));
         assertTrue(playbackPrecacheManager.contains("private String cacheKeyForPrecache(Track track)"));
         assertTrue(playbackPrecacheManager.contains("cacheKeyForPrecache(upcomingTrack)"));
         assertTrue(playbackPrecacheManager.contains("String cacheKey = cacheKeyForPrecache(track);"));
@@ -2092,7 +2116,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackPrecacheManager.contains("boolean isHttpUri(Uri uri);"));
         assertFalse(playbackPrecacheManager.contains("boolean isHttpTrack(Track track);"));
         assertFalse(playbackPrecacheManager.contains("String cacheKeyForTrack(Track track);"));
-        assertTrue(playbackPrecacheManager.contains("String cacheKeyForPrecache(Track track);"));
+        assertTrue(playbackMediaCacheOperations.contains("String cacheKeyForPrecache(Track track);"));
         assertTrue(playbackPrecacheManager.contains("mediaCacheOperations.cacheKeyForPrecache(track)"));
         assertFalse(playbackService.contains("private boolean isHttpUri(Uri uri)"));
         assertFalse(playbackService.contains("private String cacheKeyForTrack(Track track)"));
@@ -7363,7 +7387,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(visualizationCacheManager.contains("private volatile boolean released;"));
         assertTrue(visualizationCacheManager.contains("released = true;"));
         assertTrue(normalizedVisualizationCacheManager.contains("void release() {\n        if (released) {\n            return;\n        }\n        released = true;\n        cacheGeneration.incrementAndGet();"));
-        assertTrue(visualizationCacheManager.contains("if (released || !mediaSourceProvider.isHttpTrack(track))"));
+        assertTrue(visualizationCacheManager.contains("if (released)"));
+        assertTrue(visualizationCacheManager.contains("if (cacheKey == null)"));
         assertTrue(visualizationCacheManager.contains("return !released && cacheGeneration.get() == generation;"));
         assertTrue(notificationArtworkManager.contains("private volatile boolean released;"));
         assertTrue(notificationArtworkManager.contains("released = true;"));
