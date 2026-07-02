@@ -61,6 +61,12 @@ public final class MainActivityArchitectureContractTest {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java")
                 .replace("\r\n", "\n");
         String precacheManager = read("app/src/main/java/app/yukine/playback/PlaybackPrecacheManager.java");
+        String visualizationCacheManager = read(
+                "feature/playback/src/main/java/app/yukine/playback/PlaybackVisualizationCacheManager.java"
+        );
+        String mediaCacheOperations = read(
+                "feature/playback/src/main/java/app/yukine/playback/manager/PlaybackMediaCacheOperations.java"
+        );
 
         assertEquals(43, countFiles("app/src/main/java/app/yukine/playback", "Playback*Owner.java"));
         assertTrue(
@@ -74,6 +80,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("PlaybackPrecacheManager.fromMediaSourceProvider("));
         assertFalse(service.contains("PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider("));
         assertFalse(service.contains("PlaybackPrecacheManager.audioCacheReleaseActionFromMediaSourceProvider("));
+        assertFalse(service.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider("));
+        assertTrue(precacheManager.contains("private final PlaybackMediaCacheOperations mediaCacheOperations;"));
+        assertFalse(precacheManager.contains("private final PlaybackMediaSourceProvider"));
+        assertTrue(precacheManager.contains("mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
+        assertTrue(visualizationCacheManager.contains("private final PlaybackMediaCacheOperations mediaCacheOperations;"));
+        assertFalse(visualizationCacheManager.contains("private final PlaybackMediaSourceProvider"));
+        assertTrue(visualizationCacheManager.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)"));
+        assertTrue(mediaCacheOperations.contains("public interface PlaybackMediaCacheOperations"));
+        assertTrue(mediaCacheOperations.contains(
+                "final class PlaybackMediaSourceProviderCacheOperations implements PlaybackMediaCacheOperations"));
     }
 
     @Test
