@@ -2,29 +2,18 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackQueueManager;
 
-import java.util.function.BiPredicate;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 final class PlaybackQueueNavigationOwner {
-    private final Runnable playFirstQueuedTrack;
-    private final BooleanSupplier skipToNextImmediately;
-    private final BooleanSupplier skipToPrevious;
-    private final BiPredicate<Boolean, Long> reuseMirroredQueueIfAvailable;
+    private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
     private final Consumer<Boolean> mirroredQueueReuseHandler;
 
     PlaybackQueueNavigationOwner(
-            Runnable playFirstQueuedTrack,
-            BooleanSupplier skipToNextImmediately,
-            BooleanSupplier skipToPrevious,
-            BiPredicate<Boolean, Long> reuseMirroredQueueIfAvailable,
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             Consumer<Boolean> mirroredQueueReuseHandler
     ) {
-        this.playFirstQueuedTrack = playFirstQueuedTrack;
-        this.skipToNextImmediately = skipToNextImmediately;
-        this.skipToPrevious = skipToPrevious;
-        this.reuseMirroredQueueIfAvailable = reuseMirroredQueueIfAvailable;
+        this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
         this.mirroredQueueReuseHandler = mirroredQueueReuseHandler;
     }
 
@@ -32,60 +21,41 @@ final class PlaybackQueueNavigationOwner {
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             Consumer<Boolean> mirroredQueueReuseHandler
     ) {
-        return new PlaybackQueueNavigationOwner(
-                () -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
-                    if (playbackQueueManager != null) {
-                        playbackQueueManager.playFirstQueuedTrack();
-                    }
-                },
-                () -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
-                    return playbackQueueManager != null
-                            && playbackQueueManager.skipToNextImmediately();
-                },
-                () -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
-                    return playbackQueueManager != null
-                            && playbackQueueManager.skipToPrevious();
-                },
-                (playWhenReady, startPositionMs) -> {
-                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
-                    return playbackQueueManager != null
-                            && playbackQueueManager.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs);
-                },
-                mirroredQueueReuseHandler
-        );
+        return new PlaybackQueueNavigationOwner(playbackQueueManagerSupplier, mirroredQueueReuseHandler);
     }
 
     void playFirstQueuedTrack() {
-        if (playFirstQueuedTrack != null) {
-            playFirstQueuedTrack.run();
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.playFirstQueuedTrack();
         }
     }
 
     void skipToNextImmediately() {
-        if (skipToNextImmediately != null && skipToNextImmediately.getAsBoolean()) {
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null && playbackQueueManager.skipToNextImmediately()) {
             notifyMirroredQueueReused(true);
         }
     }
 
     void skipToPrevious() {
-        if (skipToPrevious != null && skipToPrevious.getAsBoolean()) {
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null && playbackQueueManager.skipToPrevious()) {
             notifyMirroredQueueReused(true);
         }
     }
 
     boolean reuseMirroredQueueIfAvailable(boolean playWhenReady, long startPositionMs) {
-        boolean reused = reuseMirroredQueueIfAvailable != null
-                && reuseMirroredQueueIfAvailable.test(playWhenReady, startPositionMs);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        boolean reused = playbackQueueManager != null
+                && playbackQueueManager.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs);
         if (reused) {
             notifyMirroredQueueReused(playWhenReady);
         }
         return reused;
     }
 
-    private static PlaybackQueueManager playbackQueueManager(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
+    private PlaybackQueueManager playbackQueueManager() {
         return playbackQueueManagerSupplier == null
                 ? null
                 : playbackQueueManagerSupplier.get();

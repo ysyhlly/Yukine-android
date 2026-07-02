@@ -5553,7 +5553,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueMutationOwner.contains("playbackQueueManager.replaceQueuedTrackById(oldTrackId, replacement);"));
         assertTrue(service.contains("playbackQueueNavigationOwner.skipToNextImmediately();"));
         assertFalse(service.contains("playbackQueueManager.skipToNextImmediately()"));
-        assertTrue(queueNavigationOwner.contains("playbackQueueManager.skipToNextImmediately();"));
+        assertTrue(queueNavigationOwner.contains(
+                "playbackQueueManager != null && playbackQueueManager.skipToNextImmediately()"
+        ));
         assertTrue(service.contains("playbackQueueNavigationOwner.playFirstQueuedTrack();"));
         assertFalse(service.contains("playbackQueueManager.playFirstQueuedTrack()"));
         assertTrue(queueNavigationOwner.contains("playbackQueueManager.playFirstQueuedTrack();"));
@@ -5563,19 +5565,23 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueNavigationOwner.contains("QueueNavigationOperations"));
         assertFalse(queueNavigationOwner.contains("PlaybackQueueManagerOperations"));
         assertFalse(queueNavigationOwner.contains("interface MirroredQueueReuseHandler"));
-        assertTrue(queueNavigationOwner.contains("import java.util.function.BiPredicate;"));
-        assertTrue(queueNavigationOwner.contains("import java.util.function.BooleanSupplier;"));
+        assertFalse(queueNavigationOwner.contains("import java.util.function.BiPredicate;"));
+        assertFalse(queueNavigationOwner.contains("import java.util.function.BooleanSupplier;"));
         assertTrue(queueNavigationOwner.contains("import java.util.function.Consumer;"));
-        assertTrue(queueNavigationOwner.contains("private final Runnable playFirstQueuedTrack;"));
-        assertTrue(queueNavigationOwner.contains("private final BooleanSupplier skipToNextImmediately;"));
-        assertTrue(queueNavigationOwner.contains("private final BooleanSupplier skipToPrevious;"));
-        assertTrue(queueNavigationOwner.contains("private final BiPredicate<Boolean, Long> reuseMirroredQueueIfAvailable;"));
+        assertFalse(queueNavigationOwner.contains("private final Runnable playFirstQueuedTrack;"));
+        assertFalse(queueNavigationOwner.contains("private final BooleanSupplier skipToNextImmediately;"));
+        assertFalse(queueNavigationOwner.contains("private final BooleanSupplier skipToPrevious;"));
+        assertFalse(queueNavigationOwner.contains("private final BiPredicate<Boolean, Long> reuseMirroredQueueIfAvailable;"));
+        assertTrue(queueNavigationOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
+        assertTrue(queueNavigationOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertTrue(queueNavigationOwner.contains("private final Consumer<Boolean> mirroredQueueReuseHandler;"));
         assertTrue(queueNavigationOwner.contains("mirroredQueueReuseHandler.accept(playWhenReady);"));
         assertFalse(queueNavigationOwner.contains("queueNavigationOperationsProvider"));
         assertTrue(service.contains("playbackQueueNavigationOwner.skipToPrevious();"));
         assertFalse(service.contains("playbackQueueManager.skipToPrevious()"));
-        assertTrue(queueNavigationOwner.contains("playbackQueueManager.skipToPrevious();"));
+        assertTrue(queueNavigationOwner.contains(
+                "playbackQueueManager != null && playbackQueueManager.skipToPrevious()"
+        ));
         assertTrue(service.contains("playbackQueueStateOwner,"));
         assertFalse(service.contains("playbackQueueManager.canSkipFailedTrack(failed)"));
         assertFalse(service.contains("playbackQueueManager.canCrossfadeAdvance(repeatMode)"));
