@@ -5472,7 +5472,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("private final PlaybackCurrentTrackReplacementOwner playbackCurrentTrackReplacementOwner"));
         assertTrue(service.contains("PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager("));
         assertFalse(service.contains("PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManagerProvider("));
-        assertTrue(service.contains("playbackQueueMutationOwner.playQueue(tracks, startIndex);"));
+        assertTrue(service.contains("playbackQueueMutationOwner.playQueue(tracks, startIndex, C.TIME_UNSET);"));
+        assertFalse(queueMutationOwner.contains("void playQueue(List<Track> tracks, int startIndex)"));
         assertFalse(service.contains("playbackQueueManager.playQueue(tracks, startIndex, startPositionMs)"));
         assertFalse(service.contains("playbackQueueManager.advanceQueueIndexToNext()"));
         assertFalse(service.contains("private void advanceQueueIndexToNext()"));

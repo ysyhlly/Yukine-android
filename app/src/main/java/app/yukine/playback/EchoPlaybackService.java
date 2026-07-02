@@ -53,6 +53,7 @@ import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
 import app.yukine.streaming.StreamingPlaybackHeaderStore;
 import androidx.annotation.OptIn;
+import androidx.media3.common.C;
 import androidx.media3.common.ForwardingPlayer;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
@@ -871,7 +872,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void playQueue(List<Track> tracks, int startIndex) {
-        playbackQueueMutationOwner.playQueue(tracks, startIndex);
+        playbackQueueMutationOwner.playQueue(tracks, startIndex, C.TIME_UNSET);
     }
 
     public void appendToQueue(List<Track> tracks) {

@@ -5,6 +5,8 @@ import static org.junit.Assert.assertSame;
 
 import android.net.Uri;
 
+import androidx.media3.common.C;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -92,7 +94,7 @@ public class PlaybackQueueMutationOwnerTest {
     }
 
     @Test
-    public void twoArgumentPlayQueueUsesUnsetStartPosition() {
+    public void playQueueWithUnsetStartPositionDoesNotRestoreSavedPosition() {
         FakeQueueStore store = new FakeQueueStore();
         Track track = track(5L, 10_000L);
         PlaybackQueueManager[] queueManagerRef = new PlaybackQueueManager[1];
@@ -117,7 +119,7 @@ public class PlaybackQueueMutationOwnerTest {
         queueManagerRef[0] = queueManager;
         PlaybackQueueMutationOwner owner = owner(queueManager);
 
-        owner.playQueue(Collections.singletonList(track), 0);
+        owner.playQueue(Collections.singletonList(track), 0, C.TIME_UNSET);
 
         assertTrackIds(Collections.singletonList(5L), queueManager.queueSnapshot());
         assertEquals(0L, positionManager.restoredPositionFor(track));

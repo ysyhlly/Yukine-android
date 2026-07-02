@@ -1,7 +1,5 @@
 package app.yukine.playback;
 
-import androidx.media3.common.C;
-
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -20,10 +18,6 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
             Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
     ) {
         return new PlaybackQueueMutationOwner(playbackQueueManagerSupplier);
-    }
-
-    void playQueue(List<Track> tracks, int startIndex) {
-        playQueue(tracks, startIndex, C.TIME_UNSET);
     }
 
     @Override
