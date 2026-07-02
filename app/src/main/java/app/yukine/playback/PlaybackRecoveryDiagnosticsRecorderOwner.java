@@ -4,29 +4,24 @@ import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.function.Function;
+import java.util.function.Supplier;
+
 final class PlaybackRecoveryDiagnosticsRecorderOwner {
-    interface StreamingDiagnosticsProvider {
-        PlaybackStreamingDiagnostics streamingDiagnostics();
-    }
-
-    interface StreamingQualityProvider {
-        String streamingQualityForTrack(Track track);
-    }
-
-    private final StreamingDiagnosticsProvider streamingDiagnosticsProvider;
-    private final StreamingQualityProvider streamingQualityProvider;
+    private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider;
+    private final Function<Track, String> streamingQualityProvider;
 
     PlaybackRecoveryDiagnosticsRecorderOwner(
-            StreamingDiagnosticsProvider streamingDiagnosticsProvider,
-            StreamingQualityProvider streamingQualityProvider
+            Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider,
+            Function<Track, String> streamingQualityProvider
     ) {
         this.streamingDiagnosticsProvider = streamingDiagnosticsProvider;
         this.streamingQualityProvider = streamingQualityProvider;
     }
 
     static PlaybackRecoveryDiagnosticsRecorderOwner fromStreamingDiagnosticsProvider(
-            StreamingDiagnosticsProvider streamingDiagnosticsProvider,
-            StreamingQualityProvider streamingQualityProvider
+            Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider,
+            Function<Track, String> streamingQualityProvider
     ) {
         return new PlaybackRecoveryDiagnosticsRecorderOwner(streamingDiagnosticsProvider, streamingQualityProvider);
     }
@@ -34,14 +29,14 @@ final class PlaybackRecoveryDiagnosticsRecorderOwner {
     void record(PlaybackQueueManager.CurrentTrackReplacementRecovery recovery) {
         PlaybackStreamingDiagnostics diagnostics = streamingDiagnosticsProvider == null
                 ? null
-                : streamingDiagnosticsProvider.streamingDiagnostics();
+                : streamingDiagnosticsProvider.get();
         if (diagnostics == null || recovery == null) {
             return;
         }
         Track track = recovery.getTrack();
         String quality = streamingQualityProvider == null
                 ? ""
-                : streamingQualityProvider.streamingQualityForTrack(track);
+                : streamingQualityProvider.apply(track);
         diagnostics.recordRecovery(track, recovery.getRestoredPositionMs(), quality);
     }
 }

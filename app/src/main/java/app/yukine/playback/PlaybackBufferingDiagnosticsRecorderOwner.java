@@ -2,22 +2,20 @@ package app.yukine.playback;
 
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 
+import java.util.function.Supplier;
+
 final class PlaybackBufferingDiagnosticsRecorderOwner
         implements PlaybackStatePublisher.BufferingRecorder {
-    interface StreamingDiagnosticsProvider {
-        PlaybackStreamingDiagnostics streamingDiagnostics();
-    }
-
-    private final StreamingDiagnosticsProvider streamingDiagnosticsProvider;
+    private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider;
 
     PlaybackBufferingDiagnosticsRecorderOwner(
-            StreamingDiagnosticsProvider streamingDiagnosticsProvider
+            Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider
     ) {
         this.streamingDiagnosticsProvider = streamingDiagnosticsProvider;
     }
 
     static PlaybackBufferingDiagnosticsRecorderOwner fromStreamingDiagnosticsProvider(
-            StreamingDiagnosticsProvider streamingDiagnosticsProvider
+            Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider
     ) {
         return new PlaybackBufferingDiagnosticsRecorderOwner(streamingDiagnosticsProvider);
     }
@@ -26,7 +24,7 @@ final class PlaybackBufferingDiagnosticsRecorderOwner
     public void record(PlaybackStateSnapshot snapshot) {
         PlaybackStreamingDiagnostics diagnostics = streamingDiagnosticsProvider == null
                 ? null
-                : streamingDiagnosticsProvider.streamingDiagnostics();
+                : streamingDiagnosticsProvider.get();
         if (diagnostics != null && snapshot != null) {
             diagnostics.recordBuffering(snapshot.currentTrack, snapshot.positionMs);
         }

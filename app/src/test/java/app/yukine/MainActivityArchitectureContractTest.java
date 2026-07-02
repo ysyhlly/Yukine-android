@@ -5735,11 +5735,15 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mirroredTrackMatcherOwner.contains("mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track)"));
         assertTrue(mirroredTrackMatcherOwner.contains("player.getMediaItemAt(index)"));
         assertTrue(recoveryDiagnosticsOwner.contains("final class PlaybackRecoveryDiagnosticsRecorderOwner"));
-        assertTrue(recoveryDiagnosticsOwner.contains("interface StreamingDiagnosticsProvider"));
-        assertTrue(recoveryDiagnosticsOwner.contains("interface StreamingQualityProvider"));
+        assertFalse(recoveryDiagnosticsOwner.contains("interface StreamingDiagnosticsProvider"));
+        assertFalse(recoveryDiagnosticsOwner.contains("interface StreamingQualityProvider"));
+        assertTrue(recoveryDiagnosticsOwner.contains(
+                "private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider;"));
+        assertTrue(recoveryDiagnosticsOwner.contains("private final Function<Track, String> streamingQualityProvider;"));
         assertFalse(recoveryDiagnosticsOwner.contains("interface StreamingDiagnosticsOperations"));
         assertFalse(recoveryDiagnosticsOwner.contains("StreamingDiagnosticsOperationsProvider"));
-        assertTrue(recoveryDiagnosticsOwner.contains("streamingQualityProvider.streamingQualityForTrack(track)"));
+        assertTrue(recoveryDiagnosticsOwner.contains("streamingDiagnosticsProvider.get()"));
+        assertTrue(recoveryDiagnosticsOwner.contains("streamingQualityProvider.apply(track)"));
         assertTrue(recoveryDiagnosticsOwner.contains(
                 "diagnostics.recordRecovery(track, recovery.getRestoredPositionMs(), quality);"));
         assertTrue(mirroredPlayerOwner.contains("final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.MirroredQueuePlayer"));
@@ -6563,7 +6567,10 @@ public final class MainActivityArchitectureContractTest {
                 "final class PlaybackBufferingDiagnosticsRecorderOwner"));
         assertTrue(bufferingRecorderOwner.contains(
                 "implements PlaybackStatePublisher.BufferingRecorder"));
-        assertTrue(bufferingRecorderOwner.contains("interface StreamingDiagnosticsProvider"));
+        assertFalse(bufferingRecorderOwner.contains("interface StreamingDiagnosticsProvider"));
+        assertTrue(bufferingRecorderOwner.contains(
+                "private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider;"));
+        assertTrue(bufferingRecorderOwner.contains("streamingDiagnosticsProvider.get()"));
         assertFalse(bufferingRecorderOwner.contains("interface StreamingDiagnosticsOperations"));
         assertFalse(bufferingRecorderOwner.contains("StreamingDiagnosticsOperationsProvider"));
         assertTrue(bufferingRecorderOwner.contains("diagnostics.recordBuffering(snapshot.currentTrack, snapshot.positionMs);"));
