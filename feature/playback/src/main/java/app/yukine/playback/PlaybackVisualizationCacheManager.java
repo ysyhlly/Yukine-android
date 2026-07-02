@@ -14,8 +14,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 final class PlaybackVisualizationCacheManager {
     private static final long VISUALIZATION_CACHE_BYTES = 64L * 1024L * 1024L;
@@ -67,17 +65,6 @@ final class PlaybackVisualizationCacheManager {
         this.stateProvider = stateProvider;
         this.mediaCacheOperations = mediaCacheOperations;
         this.cacheWriterFactory = cacheWriterFactory == null ? this::createCacheWriter : cacheWriterFactory;
-    }
-
-    static Consumer<Track> scheduleVisualizationCacheActionFromSupplier(
-            Supplier<PlaybackVisualizationCacheManager> supplier
-    ) {
-        return track -> {
-            PlaybackVisualizationCacheManager manager = supplier == null ? null : supplier.get();
-            if (manager != null) {
-                manager.scheduleVisualizationCache(track);
-            }
-        };
     }
 
     void release() {

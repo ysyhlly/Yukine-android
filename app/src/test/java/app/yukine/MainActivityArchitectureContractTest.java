@@ -1985,12 +1985,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackService.contains("private PlaybackWarmupCoordinator playbackWarmupCoordinator;"));
         assertTrue(playbackService.contains("playbackWarmupCoordinator = new PlaybackWarmupCoordinator("));
         assertTrue(playbackService.contains("PlaybackPrecacheManager.precacheTrackActionFromSupplier(() -> playbackPrecacheManager)"));
-        assertTrue(playbackService.contains("PlaybackVisualizationCacheManager.scheduleVisualizationCacheActionFromSupplier("));
+        assertFalse(playbackService.contains("PlaybackVisualizationCacheManager.scheduleVisualizationCacheActionFromSupplier("));
         assertTrue(playbackPrecacheManager.contains("static Consumer<Track> precacheTrackActionFromSupplier("));
-        assertTrue(playbackVisualizationCacheManager.contains(
+        assertFalse(playbackVisualizationCacheManager.contains(
                 "static Consumer<Track> scheduleVisualizationCacheActionFromSupplier("));
         assertFalse(playbackService.contains("playbackPrecacheManager.precacheTrack(track);"));
-        assertFalse(playbackService.contains("playbackVisualizationCacheManager.scheduleVisualizationCache(track);"));
+        assertTrue(playbackService.contains("playbackVisualizationCacheManager.scheduleVisualizationCache(track);"));
         assertTrue(playbackService.contains("PlaybackPrecacheManager::release"));
         assertFalse(playbackService.contains("playbackPrecacheManager.release();"));
         assertFalse(playbackService.contains("private void precacheUpcomingTracks("));
