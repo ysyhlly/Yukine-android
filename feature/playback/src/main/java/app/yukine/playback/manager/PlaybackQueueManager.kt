@@ -791,7 +791,7 @@ internal class PlaybackQueueManager(
         playbackPositionManager?.saveTrackPosition(currentTrack(), positionMs)
     }
 
-    fun savePlaybackResumeRequested(requested: Boolean) {
+    private fun savePlaybackResumeRequested(requested: Boolean) {
         queueStore.saveResumeRequested(requested)
     }
 

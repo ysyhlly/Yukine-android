@@ -1,15 +1,21 @@
 package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackQueueManager;
+import app.yukine.playback.manager.PlaybackQueueStore;
 
 import java.util.function.Supplier;
 
 final class PlaybackQueuePersistenceOwner
         implements PlaybackShutdownLifecycleResourcesOwner.PlaybackQueueLifecycleStore {
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
+    private final Supplier<PlaybackQueueStore> queueStoreSupplier;
 
-    PlaybackQueuePersistenceOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
+    PlaybackQueuePersistenceOwner(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            Supplier<PlaybackQueueStore> queueStoreSupplier
+    ) {
         this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
+        this.queueStoreSupplier = queueStoreSupplier;
     }
 
     @Override
@@ -22,9 +28,9 @@ final class PlaybackQueuePersistenceOwner
 
     @Override
     public void savePlaybackResumeRequested(boolean requested) {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
-        if (playbackQueueManager != null) {
-            playbackQueueManager.savePlaybackResumeRequested(requested);
+        PlaybackQueueStore queueStore = queueStore();
+        if (queueStore != null) {
+            queueStore.saveResumeRequested(requested);
         }
     }
 
@@ -45,5 +51,9 @@ final class PlaybackQueuePersistenceOwner
 
     private PlaybackQueueManager playbackQueueManager() {
         return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
+    }
+
+    private PlaybackQueueStore queueStore() {
+        return queueStoreSupplier == null ? null : queueStoreSupplier.get();
     }
 }

@@ -23,7 +23,7 @@ public class PlaybackQueuePersistenceOwnerTest {
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
         store.resetCounts();
         PlaybackQueuePersistenceOwner owner =
-                new PlaybackQueuePersistenceOwner(() -> queueManager);
+                new PlaybackQueuePersistenceOwner(() -> queueManager, () -> store);
 
         owner.persistQueueState();
         owner.savePlaybackResumeRequested(true);
@@ -43,10 +43,11 @@ public class PlaybackQueuePersistenceOwnerTest {
 
     @Test
     public void ignoresMissingPlaybackQueueManager() {
+        FakeQueueStore store = new FakeQueueStore();
         PlaybackQueuePersistenceOwner missingManagerProvider =
-                new PlaybackQueuePersistenceOwner(null);
+                new PlaybackQueuePersistenceOwner(null, () -> store);
         PlaybackQueuePersistenceOwner missingManager =
-                new PlaybackQueuePersistenceOwner(() -> null);
+                new PlaybackQueuePersistenceOwner(() -> null, () -> store);
 
         missingManagerProvider.persistQueueState();
         missingManagerProvider.savePlaybackResumeRequested(false);
@@ -58,6 +59,18 @@ public class PlaybackQueuePersistenceOwnerTest {
         missingManager.requestPlaybackResume();
         missingManager.clearPlaybackResumeRequest();
         missingManager.persistCurrentPlaybackPosition(false);
+
+        assertEquals(6, store.resumeCalls);
+    }
+
+    @Test
+    public void ignoresMissingQueueStoreForResumeRequests() {
+        PlaybackQueuePersistenceOwner owner =
+                new PlaybackQueuePersistenceOwner(() -> null, null);
+
+        owner.savePlaybackResumeRequested(true);
+        owner.requestPlaybackResume();
+        owner.clearPlaybackResumeRequest();
     }
 
     private static PlaybackQueueManager queueManager(FakeQueueStore store) {

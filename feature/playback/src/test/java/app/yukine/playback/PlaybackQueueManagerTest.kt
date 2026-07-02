@@ -71,19 +71,6 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun serviceBoundaryResumeRequestPersistsThroughQueueOwner() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        val manager = queueManager(store, provider)
-
-        manager.savePlaybackResumeRequested(true)
-        assertTrue(store.resumeRequested)
-
-        manager.savePlaybackResumeRequested(false)
-        assertFalse(store.resumeRequested)
-    }
-
-    @Test
     fun serviceBoundaryPlaybackPositionPersistsThroughQueueOwner() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()

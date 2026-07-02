@@ -134,8 +134,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                     EchoPlaybackService.this::prepareCurrent,
                     EchoPlaybackService.this::publishState
             );
-    private final PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner =
-            new PlaybackQueuePersistenceOwner(() -> playbackQueueManager);
     private final PlaybackQueueCompletionOwner playbackQueueCompletionOwner =
             new PlaybackQueueCompletionOwner(
                     () -> playbackQueueManager,
@@ -242,6 +240,11 @@ public final class EchoPlaybackService extends MediaLibraryService
     StreamingPlaybackHeaderStore streamingPlaybackHeaderStore;
     @Inject
     ToggleFavoriteUseCase toggleFavoriteUseCase;
+    private final PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner =
+            new PlaybackQueuePersistenceOwner(
+                    () -> playbackQueueManager,
+                    () -> new PlaybackQueueStoreImpl(repository)
+            );
     private PlaybackAudioEffectSettingsStore playbackAudioEffectSettingsStore;
     private PlaybackMediaSourceProvider mediaSourceProvider;
     private PlaybackPlayerFactory playerFactory;
