@@ -523,7 +523,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                         ),
                         () -> player != null,
                         playbackCurrentTrackPreparationRuntimeOwner::setPreparing,
-                        playbackQueueStateOwner::currentTrack,
+                        playbackQueueStateOwner,
                         EchoPlaybackService.this::resetWaveformIfTrackChanged,
                         EchoPlaybackService.this::applyPlaybackModeAndParametersToPlayer,
                         (index, positionMs) -> player.seekTo(index, positionMs),

@@ -15,7 +15,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     private final BooleanSupplier mirroredQueueMatcher;
     private final BooleanSupplier playerAvailability;
     private final Consumer<Boolean> preparingStateController;
-    private final Supplier<Track> currentTrackProvider;
+    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;
     private final Consumer<Track> waveformResetter;
     private final Runnable playbackParameterApplier;
     private final BiConsumer<Integer, Long> playerSeeker;
@@ -44,7 +44,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
             BooleanSupplier mirroredQueueMatcher,
             BooleanSupplier playerAvailability,
             Consumer<Boolean> preparingStateController,
-            Supplier<Track> currentTrackProvider,
+            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider,
             Consumer<Track> waveformResetter,
             Runnable playbackParameterApplier,
             BiConsumer<Integer, Long> playerSeeker,
@@ -56,7 +56,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
         this.mirroredQueueMatcher = mirroredQueueMatcher;
         this.playerAvailability = playerAvailability;
         this.preparingStateController = preparingStateController;
-        this.currentTrackProvider = currentTrackProvider;
+        this.queueStateProvider = queueStateProvider;
         this.waveformResetter = waveformResetter;
         this.playbackParameterApplier = playbackParameterApplier;
         this.playerSeeker = playerSeeker;
@@ -78,7 +78,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
         }
         preparingStateController.accept(false);
         try {
-            Track track = currentTrackProvider.get();
+            Track track = currentTrack();
             if (track != null) {
                 waveformResetter.accept(track);
             }
@@ -94,6 +94,14 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
             failureLogger.accept(error);
             return false;
         }
+    }
+
+    private Track currentTrack() {
+        if (queueStateProvider == null) {
+            return null;
+        }
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.get();
+        return snapshot == null ? null : snapshot.getCurrentTrack();
     }
 
     private static final class MirroredQueueSnapshotMatcher implements BooleanSupplier {

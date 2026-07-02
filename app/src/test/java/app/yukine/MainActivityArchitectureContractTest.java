@@ -5828,6 +5828,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManager("));
         assertFalse(owner.contains("static BooleanSupplier fromPlaybackQueueManager("));
         assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManagerProvider("));
+        assertTrue(service.contains(
+                "                        playbackQueueStateOwner,\n" +
+                        "                        EchoPlaybackService.this::resetWaveformIfTrackChanged,"));
+        assertFalse(service.contains(
+                "                        playbackQueueStateOwner::currentTrack,\n" +
+                        "                        EchoPlaybackService.this::resetWaveformIfTrackChanged,"));
         assertTrue(service.contains("playbackCurrentTrackPreparationRuntimeOwner::setPreparing"));
         assertFalse(service.contains("playbackRuntimeStateManager::setPreparing"));
         assertFalse(service.contains("private boolean mirroredQueueMatchesCurrentPlayer()"));
@@ -5903,7 +5909,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mirroredPlayerOwner.contains("private final BooleanSupplier mirroredQueueMatcher;"));
         assertTrue(mirroredPlayerOwner.contains("private final BooleanSupplier playerAvailability;"));
         assertTrue(mirroredPlayerOwner.contains("private final Consumer<Boolean> preparingStateController;"));
-        assertTrue(mirroredPlayerOwner.contains("private final Supplier<Track> currentTrackProvider;"));
+        assertFalse(mirroredPlayerOwner.contains("private final Supplier<Track> currentTrackProvider;"));
+        assertFalse(mirroredPlayerOwner.contains("currentTrackProvider.get()"));
+        assertTrue(mirroredPlayerOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;"));
+        assertTrue(mirroredPlayerOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.get();"));
+        assertTrue(mirroredPlayerOwner.contains("return snapshot == null ? null : snapshot.getCurrentTrack();"));
         assertTrue(mirroredPlayerOwner.contains("private final Consumer<Track> waveformResetter;"));
         assertTrue(mirroredPlayerOwner.contains("private final Runnable playbackParameterApplier;"));
         assertTrue(mirroredPlayerOwner.contains("private final BiConsumer<Integer, Long> playerSeeker;"));
