@@ -336,7 +336,8 @@ internal class PlaybackQueueManager(
         playbackRuntimeStateManager?.setPreparing(false)
         clearErrorMessage()
         playbackTransitionStateManager?.clear()
-        clearQueueState()
+        queue.clear()
+        setCurrentIndex(-1)
         persistQueue()
         savePlaybackResumeRequested(false)
     }
@@ -714,11 +715,6 @@ internal class PlaybackQueueManager(
             return false
         }
         return true
-    }
-
-    private fun clearQueueState() {
-        queue.clear()
-        setCurrentIndex(-1)
     }
 
     fun persistQueueState() {

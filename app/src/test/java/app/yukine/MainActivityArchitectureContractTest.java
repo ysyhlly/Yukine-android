@@ -6144,8 +6144,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun replaceCurrentQueueTrack(replacement: Track?): Boolean"));
         assertFalse(owner.contains("interface QueueTrackMatcher"));
         assertFalse(owner.contains("fun matchesMirroredQueue(itemCount: Int, matcher: QueueTrackMatcher): Boolean"));
-        assertTrue(owner.contains("private fun clearQueueState()"));
+        assertFalse(owner.contains("private fun clearQueueState()"));
         assertFalse(owner.contains("\n    fun clearQueueState()"));
+        assertTrue(owner.contains("queue.clear()"));
+        assertTrue(owner.contains("setCurrentIndex(-1)"));
         assertTrue(owner.contains("fun persistQueueState()"));
         assertFalse(owner.contains("private fun isAtEndOfQueue(): Boolean"));
         assertTrue(owner.contains("repeatMode() == REPEAT_OFF && queueStateSnapshot().isAtEndOfQueue"));
