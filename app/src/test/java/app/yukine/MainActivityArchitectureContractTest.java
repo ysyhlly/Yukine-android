@@ -7406,8 +7406,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(exists("app/src/main/java/app/yukine/playback/PlaybackSessionGateway.kt"));
         assertFalse(service.contains("PlaybackSessionGateway"));
         assertFalse(service.contains("playbackSessionGateway"));
-        assertTrue(service.contains("private PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner;"));
-        assertTrue(service.contains("playbackControllerMediaItemsOwner = new PlaybackControllerMediaItemsOwner("));
+        assertFalse(service.contains("private PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner;"));
+        assertTrue(service.contains("final PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner ="));
+        assertTrue(service.contains("new PlaybackControllerMediaItemsOwner("));
         assertTrue(service.contains("                    playbackQueueMutationOwner"));
         assertTrue(service.contains("                    playbackControllerMediaItemsOwner,"));
         assertTrue(service.contains("private PlaybackSessionCommandOwner playbackSessionCommandOwner;"));

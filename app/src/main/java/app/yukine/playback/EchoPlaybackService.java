@@ -214,7 +214,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackNotificationCommandOwner playbackNotificationCommandOwner;
     private PlaybackNotificationStateOwner playbackNotificationStateOwner;
     private PlaybackNotificationArtworkSource playbackNotificationArtworkSource;
-    private PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner;
     private PlaybackSessionCommandOwner playbackSessionCommandOwner;
     private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner;
     private PlaybackCurrentTrackPreparationOwner playbackCurrentTrackPreparationOwner;
@@ -780,16 +779,17 @@ public final class EchoPlaybackService extends MediaLibraryService
     @UnstableApi
     private Player createSessionPlayer() {
         if (playbackSessionCommandOwner == null) {
-            playbackControllerMediaItemsOwner = new PlaybackControllerMediaItemsOwner(
-                    (mediaItems, startIndex, startPositionMs) -> playbackMediaLibraryCallback == null
-                            ? null
-                            : playbackMediaLibraryCallback.controllerQueueForMediaItems(
-                            mediaItems,
-                            startIndex,
-                            startPositionMs
-                    ),
-                    playbackQueueMutationOwner
-            );
+            final PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner =
+                    new PlaybackControllerMediaItemsOwner(
+                            (mediaItems, startIndex, startPositionMs) -> playbackMediaLibraryCallback == null
+                                    ? null
+                                    : playbackMediaLibraryCallback.controllerQueueForMediaItems(
+                                            mediaItems,
+                                            startIndex,
+                                            startPositionMs
+                                    ),
+                            playbackQueueMutationOwner
+                    );
             playbackSessionCommandOwner = new PlaybackSessionCommandOwner(
                     EchoPlaybackService.this,
                     EchoPlaybackService.this::seekTo,
