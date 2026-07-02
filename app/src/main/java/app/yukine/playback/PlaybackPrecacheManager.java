@@ -26,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
-import java.util.function.IntFunction;
 
 import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
@@ -49,6 +48,7 @@ final class PlaybackPrecacheManager {
     interface StateProvider {
         Track currentTrack();
         MediaItem currentPlayerMediaItem();
+        List<Track> upcomingTracksForPrecache(int maxCount);
         PlaybackStreamingDiagnostics streamingDiagnostics();
     }
 
@@ -58,7 +58,6 @@ final class PlaybackPrecacheManager {
     }
 
     private final StateProvider stateProvider;
-    private final IntFunction<List<Track>> upcomingTracksProvider;
     private final PlaybackMediaCacheOperations mediaCacheOperations;
     private final CallbackScheduler callbackScheduler;
     private final Runnable audioCacheReleaseAction;
@@ -76,14 +75,12 @@ final class PlaybackPrecacheManager {
 
     PlaybackPrecacheManager(
             StateProvider stateProvider,
-            IntFunction<List<Track>> upcomingTracksProvider,
             PlaybackMediaCacheOperations mediaCacheOperations,
             CallbackScheduler callbackScheduler,
             Runnable audioCacheReleaseAction
     ) {
         this(
                 stateProvider,
-                upcomingTracksProvider,
                 mediaCacheOperations,
                 callbackScheduler,
                 audioCacheReleaseAction,
@@ -93,14 +90,12 @@ final class PlaybackPrecacheManager {
 
     PlaybackPrecacheManager(
             StateProvider stateProvider,
-            IntFunction<List<Track>> upcomingTracksProvider,
             PlaybackMediaCacheOperations mediaCacheOperations,
             CallbackScheduler callbackScheduler,
             Runnable audioCacheReleaseAction,
             ThreadPoolExecutor playbackCacheExecutor
     ) {
         this.stateProvider = stateProvider;
-        this.upcomingTracksProvider = upcomingTracksProvider;
         this.mediaCacheOperations = mediaCacheOperations;
         this.callbackScheduler = callbackScheduler;
         this.audioCacheReleaseAction = audioCacheReleaseAction;
@@ -111,13 +106,11 @@ final class PlaybackPrecacheManager {
 
     static PlaybackPrecacheManager fromMediaSourceProvider(
             StateProvider stateProvider,
-            IntFunction<List<Track>> upcomingTracksProvider,
             PlaybackMediaSourceProvider mediaSourceProvider,
             CallbackScheduler callbackScheduler
     ) {
         return new PlaybackPrecacheManager(
                 stateProvider,
-                upcomingTracksProvider,
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider),
                 callbackScheduler,
                 () -> {
@@ -264,9 +257,9 @@ final class PlaybackPrecacheManager {
     }
 
     private List<Track> upcomingTracksForPrecache() {
-        return upcomingTracksProvider == null
+        return stateProvider == null
                 ? Collections.emptyList()
-                : upcomingTracksProvider.apply(SEGMENTED_PRECACHE_CONCURRENCY);
+                : stateProvider.upcomingTracksForPrecache(SEGMENTED_PRECACHE_CONCURRENCY);
     }
 
     @OptIn(markerClass = UnstableApi.class)

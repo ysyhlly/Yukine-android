@@ -10,6 +10,7 @@ import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -23,6 +24,7 @@ public class PlaybackPrecacheStateOwnerTest {
         Track track = track(1L);
         MediaItem mediaItem = MediaItem.fromUri("https://example.test/one.mp3");
         PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
+        List<Track> upcomingTracks = Collections.singletonList(track(2L));
         PlaybackPrecacheStateOwner owner = new PlaybackPrecacheStateOwner(
                 () -> {
                     events.add("currentTrack");
@@ -32,6 +34,10 @@ public class PlaybackPrecacheStateOwnerTest {
                     events.add("mediaItem");
                     return mediaItem;
                 },
+                maxCount -> {
+                    events.add("upcoming:" + maxCount);
+                    return upcomingTracks;
+                },
                 () -> {
                     events.add("diagnostics");
                     return diagnostics;
@@ -40,11 +46,13 @@ public class PlaybackPrecacheStateOwnerTest {
 
         assertSame(track, owner.currentTrack());
         assertSame(mediaItem, owner.currentPlayerMediaItem());
+        assertSame(upcomingTracks, owner.upcomingTracksForPrecache(4));
         assertSame(diagnostics, owner.streamingDiagnostics());
         assertEquals(
                 java.util.Arrays.asList(
                         "currentTrack",
                         "mediaItem",
+                        "upcoming:4",
                         "diagnostics"
                 ),
                 events
@@ -56,16 +64,20 @@ public class PlaybackPrecacheStateOwnerTest {
         PlaybackPrecacheStateOwner missingProviderOwner = new PlaybackPrecacheStateOwner(
                 null,
                 () -> null,
+                null,
                 PlaybackStreamingDiagnostics::new
         );
         PlaybackPrecacheStateOwner nullTrackOwner = new PlaybackPrecacheStateOwner(
                 () -> null,
                 () -> null,
+                maxCount -> null,
                 PlaybackStreamingDiagnostics::new
         );
 
         assertNull(missingProviderOwner.currentTrack());
         assertNull(nullTrackOwner.currentTrack());
+        assertEquals(Collections.emptyList(), missingProviderOwner.upcomingTracksForPrecache(3));
+        assertEquals(Collections.emptyList(), nullTrackOwner.upcomingTracksForPrecache(3));
     }
 
     private static Track track(long id) {

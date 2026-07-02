@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.IntFunction;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 33)
@@ -71,7 +70,6 @@ public final class PlaybackPrecacheManagerTest {
         FakeAudioCacheReleaseAction audioCacheReleaseAction = new FakeAudioCacheReleaseAction();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
-                (IntFunction<List<Track>>) null,
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider()),
                 scheduler,
                 audioCacheReleaseAction::releaseAudioCache
@@ -171,7 +169,6 @@ public final class PlaybackPrecacheManagerTest {
         CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
-                (IntFunction<List<Track>>) null,
                 mediaCacheOperations,
                 scheduler,
                 new FakeAudioCacheReleaseAction()::releaseAudioCache,
@@ -258,7 +255,6 @@ public final class PlaybackPrecacheManagerTest {
         CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
-                (IntFunction<List<Track>>) null,
                 mediaCacheOperations,
                 scheduler,
                 new FakeAudioCacheReleaseAction()::releaseAudioCache,
@@ -286,7 +282,6 @@ public final class PlaybackPrecacheManagerTest {
         CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
-                (IntFunction<List<Track>>) null,
                 mediaCacheOperations,
                 scheduler,
                 new FakeAudioCacheReleaseAction()::releaseAudioCache,
@@ -329,7 +324,6 @@ public final class PlaybackPrecacheManagerTest {
         FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
-                (IntFunction<List<Track>>) null,
                 mediaCacheOperations,
                 scheduler,
                 new FakeAudioCacheReleaseAction()::releaseAudioCache
@@ -358,10 +352,9 @@ public final class PlaybackPrecacheManagerTest {
     public void upcomingPrecacheReadsTracksThroughNarrowProvider() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        FakeUpcomingTracksProvider upcomingTracksProvider = new FakeUpcomingTracksProvider();
-        PlaybackPrecacheManager manager = precacheManager(stateProvider, upcomingTracksProvider, scheduler);
+        PlaybackPrecacheManager manager = precacheManager(stateProvider, scheduler);
         Track current = track(1L, "https://example.test/current.mp3");
-        upcomingTracksProvider.tracks.add(track(2L, "https://example.test/upcoming.mp3"));
+        stateProvider.upcomingTracks.add(track(2L, "https://example.test/upcoming.mp3"));
 
         stateProvider.currentTrack = current;
         manager.precacheTrack(current);
@@ -369,8 +362,8 @@ public final class PlaybackPrecacheManagerTest {
         scheduler.runNext();
         manager.release();
 
-        assertEquals(PlaybackPrecacheManager.SEGMENTED_PRECACHE_CONCURRENCY, upcomingTracksProvider.lastMaxCount);
-        assertEquals(1, upcomingTracksProvider.calls);
+        assertEquals(PlaybackPrecacheManager.SEGMENTED_PRECACHE_CONCURRENCY, stateProvider.lastUpcomingMaxCount);
+        assertEquals(1, stateProvider.upcomingTracksCalls);
     }
 
     private static Track track(long id, String uri) {
@@ -393,18 +386,9 @@ public final class PlaybackPrecacheManagerTest {
             FakeStateProvider stateProvider,
             FakeCallbackScheduler scheduler
     ) {
-        return precacheManager(stateProvider, null, scheduler);
-    }
-
-    private static PlaybackPrecacheManager precacheManager(
-            FakeStateProvider stateProvider,
-            IntFunction<List<Track>> upcomingTracksProvider,
-            FakeCallbackScheduler scheduler
-    ) {
         PlaybackMediaSourceProvider mediaSourceProvider = mediaSourceProvider();
         return PlaybackPrecacheManager.fromMediaSourceProvider(
                 stateProvider,
-                upcomingTracksProvider,
                 mediaSourceProvider,
                 scheduler
         );
@@ -444,9 +428,12 @@ public final class PlaybackPrecacheManagerTest {
 
     private static final class FakeStateProvider implements PlaybackPrecacheManager.StateProvider {
         private final PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
+        private final List<Track> upcomingTracks = new ArrayList<>();
         private Track currentTrack;
         private MediaItem currentPlayerMediaItem;
         private int currentTrackCalls;
+        private int upcomingTracksCalls;
+        private int lastUpcomingMaxCount;
 
         @Override
         public Track currentTrack() {
@@ -462,6 +449,13 @@ public final class PlaybackPrecacheManagerTest {
             return currentTrack == null
                     ? null
                     : PlaybackMediaSourceProvider.playbackMediaItemForTrack(currentTrack, null);
+        }
+
+        @Override
+        public List<Track> upcomingTracksForPrecache(int maxCount) {
+            upcomingTracksCalls++;
+            lastUpcomingMaxCount = maxCount;
+            return upcomingTracks;
         }
 
         @Override
@@ -641,16 +635,4 @@ public final class PlaybackPrecacheManagerTest {
         }
     }
 
-    private static final class FakeUpcomingTracksProvider implements IntFunction<List<Track>> {
-        private final List<Track> tracks = new ArrayList<>();
-        private int calls;
-        private int lastMaxCount;
-
-        @Override
-        public List<Track> apply(int maxCount) {
-            calls++;
-            lastMaxCount = maxCount;
-            return tracks;
-        }
-    }
 }

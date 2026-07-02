@@ -6,21 +6,27 @@ import androidx.media3.common.Player;
 import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.function.IntFunction;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateProvider {
     private final Supplier<Track> currentTrackSupplier;
     private final Supplier<MediaItem> playerMediaItemSupplier;
+    private final IntFunction<List<Track>> upcomingTracksProvider;
     private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsSupplier;
 
     PlaybackPrecacheStateOwner(
             Supplier<Track> currentTrackSupplier,
             Supplier<MediaItem> playerMediaItemSupplier,
+            IntFunction<List<Track>> upcomingTracksProvider,
             Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsSupplier
     ) {
         this.currentTrackSupplier = currentTrackSupplier;
         this.playerMediaItemSupplier = playerMediaItemSupplier;
+        this.upcomingTracksProvider = upcomingTracksProvider;
         this.streamingDiagnosticsSupplier = streamingDiagnosticsSupplier;
     }
 
@@ -79,6 +85,14 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
     @Override
     public MediaItem currentPlayerMediaItem() {
         return playerMediaItemSupplier.get();
+    }
+
+    @Override
+    public List<Track> upcomingTracksForPrecache(int maxCount) {
+        List<Track> tracks = upcomingTracksProvider == null
+                ? null
+                : upcomingTracksProvider.apply(maxCount);
+        return tracks == null ? Collections.emptyList() : tracks;
     }
 
     @Override
