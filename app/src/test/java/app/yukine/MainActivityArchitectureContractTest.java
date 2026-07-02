@@ -5939,7 +5939,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueStateOwner.queueStateSnapshot().isQueueEmpty()"));
         assertTrue(service.contains("playbackNotificationStateOwner = new PlaybackNotificationStateOwner("));
         assertTrue(service.contains("playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner("));
-        assertTrue(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
+        assertFalse(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
+        assertTrue(service.contains("                playbackQueueStateOwner,"));
         assertFalse(service.contains("                playbackQueueStateOwner::canSkipFailedTrack,"));
         assertFalse(service.contains("playbackQueueManager.queueStateSnapshot()"));
         assertTrue(queueStateOwner.contains("final class PlaybackQueueStateOwner implements"));
@@ -7802,7 +7803,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkStateOwner.java")));
         assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackNotificationArtworkStateOwnerTest.java")));
         assertFalse(service.contains("PlaybackNotificationArtworkStateOwner"));
-        assertTrue(service.contains("                playbackQueueStateOwner::currentTrack,"));
+        assertFalse(normalizedService.contains(
+                "PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(\n"
+                        + "                        playbackQueueStateOwner::currentTrack,"
+        ));
+        assertTrue(service.contains("                playbackQueueStateOwner,"));
         assertTrue(stateOwner.contains("static PlaybackStateProvider playbackStateProviderFromPlaybackState("));
         assertFalse(stateOwner.contains("final class PlaybackActiveStateOwner"));
         assertFalse(service.contains("new PlaybackNotificationArtworkManager.StateProvider()"));
@@ -7877,11 +7882,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(stateOwner.contains("import java.util.function.BooleanSupplier;"));
         assertTrue(stateOwner.contains("import java.util.function.Predicate;"));
         assertTrue(stateOwner.contains("import java.util.function.Supplier;"));
-        assertTrue(stateOwner.contains("private final BooleanSupplier queueEmptySupplier;"));
+        assertFalse(stateOwner.contains("private final BooleanSupplier queueEmptySupplier;"));
+        assertTrue(stateOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
         assertTrue(stateOwner.contains("private final Predicate<Track> favoriteStateProvider;"));
         assertTrue(stateOwner.contains("private final Supplier<MediaSession.Token> sessionTokenSupplier;"));
-        assertTrue(stateOwner.contains("return queueEmptySupplier.getAsBoolean();"));
-        assertTrue(stateOwner.contains("return playbackStateProvider.currentTrack();"));
+        assertTrue(stateOwner.contains("return queueStateSnapshot().isQueueEmpty();"));
+        assertTrue(stateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertFalse(stateOwner.contains("return playbackStateProvider.currentTrack();"));
         assertTrue(stateOwner.contains("return favoriteStateProvider.test(track);"));
         assertTrue(stateOwner.contains("return sessionTokenSupplier.get();"));
         assertFalse(owner.contains("interface LyricsTextProvider"));

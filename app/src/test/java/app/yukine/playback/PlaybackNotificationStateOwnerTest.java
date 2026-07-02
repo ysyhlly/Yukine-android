@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -22,8 +23,8 @@ public class PlaybackNotificationStateOwnerTest {
         Track track = new Track(7L, "Track", "Artist", "Album", 1000L, Uri.EMPTY, "file:7");
         PlaybackNotificationStateOwner owner = new PlaybackNotificationStateOwner(
                 () -> {
-                    events.add("queueEmpty");
-                    return true;
+                    events.add("queueState");
+                    return new PlaybackQueueManager.QueueStateSnapshot(track, 0, 1);
                 },
                 new PlaybackNotificationStateOwner.PlaybackStateProvider() {
                     @Override
@@ -37,12 +38,6 @@ public class PlaybackNotificationStateOwnerTest {
                         events.add("preparing");
                         return false;
                     }
-
-                    @Override
-                    public Track currentTrack() {
-                        events.add("track");
-                        return track;
-                    }
                 },
                 favoriteTrack -> {
                     events.add("favorite:" + (favoriteTrack == null ? -1L : favoriteTrack.id));
@@ -54,7 +49,7 @@ public class PlaybackNotificationStateOwnerTest {
                 }
         );
 
-        assertTrue(owner.isQueueEmpty());
+        assertFalse(owner.isQueueEmpty());
         assertTrue(owner.isPlaying());
         assertFalse(owner.isPreparing());
         assertSame(track, owner.currentTrack());
@@ -63,10 +58,10 @@ public class PlaybackNotificationStateOwnerTest {
 
         assertEquals(
                 java.util.Arrays.asList(
-                        "queueEmpty",
+                        "queueState",
                         "playing",
                         "preparing",
-                        "track",
+                        "queueState",
                         "favorite:7",
                         "token"
                 ),
@@ -77,13 +72,8 @@ public class PlaybackNotificationStateOwnerTest {
     @Test
     public void playbackStateProviderFromPlaybackStateDelegatesPlaybackSuppliers() {
         List<String> events = new ArrayList<>();
-        Track track = new Track(8L, "Track", "Artist", "Album", 1000L, Uri.EMPTY, "file:8");
         PlaybackNotificationStateOwner.PlaybackStateProvider provider =
                 PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(
-                        () -> {
-                            events.add("track");
-                            return track;
-                        },
                         () -> {
                             events.add("playing");
                             return true;
@@ -94,12 +84,10 @@ public class PlaybackNotificationStateOwnerTest {
                         }
                 );
 
-        assertSame(track, provider.currentTrack());
         assertTrue(provider.isPlaying());
         assertFalse(provider.isPreparing());
         assertEquals(
                 java.util.Arrays.asList(
-                        "track",
                         "playing",
                         "preparing"
                 ),
@@ -110,10 +98,22 @@ public class PlaybackNotificationStateOwnerTest {
     @Test
     public void playbackStateProviderFromPlaybackStateReturnsInactiveForMissingSuppliers() {
         PlaybackNotificationStateOwner.PlaybackStateProvider provider =
-                PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(null, null, null);
+                PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(null, null);
 
-        assertNull(provider.currentTrack());
         assertFalse(provider.isPlaying());
         assertFalse(provider.isPreparing());
+    }
+
+    @Test
+    public void returnsEmptyQueueStateWhenQueueProviderIsMissing() {
+        PlaybackNotificationStateOwner owner = new PlaybackNotificationStateOwner(
+                null,
+                PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(null, null),
+                track -> false,
+                () -> null
+        );
+
+        assertTrue(owner.isQueueEmpty());
+        assertNull(owner.currentTrack());
     }
 }
