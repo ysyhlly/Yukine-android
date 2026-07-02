@@ -28,7 +28,7 @@ class NetworkMenuEventControllerPlaybackTest {
             },
             labels = { it },
             statusSink = { calls += "status:$it" },
-            contentSink = { _, _, _ -> }
+            networkMenuViewModel = NetworkMenuViewModel()
         )
 
         controller.playAllStreams()

@@ -1,18 +1,14 @@
 package app.yukine
 
+import android.content.Context
 import app.yukine.playback.AudioEffectSettings
 
 internal fun interface SettingsThemeSurfaceApplier {
     fun apply()
 }
 
-internal fun interface SettingsRuntimeLanguageUpdater {
-    fun update(languageMode: String)
-}
-
 sealed interface SettingsRuntimeEffect {
     data object ApplyThemeSurface : SettingsRuntimeEffect
-    data class UpdateLanguage(val languageMode: String) : SettingsRuntimeEffect
     data class ApplyPlaybackSpeed(val speed: Float) : SettingsRuntimeEffect
     data class ApplyAppVolume(val volume: Float) : SettingsRuntimeEffect
     data class SetConcurrentPlaybackEnabled(val enabled: Boolean) : SettingsRuntimeEffect
@@ -26,9 +22,65 @@ sealed interface SettingsRuntimeEffect {
     data class SetLyricsOffsetMs(val offsetMs: Long) : SettingsRuntimeEffect
 }
 
+internal class MainSettingsRuntimeApplierFactory(
+    private val context: Context
+) {
+    fun create(
+        applyThemeSurfaceAction: SettingsThemeSurfaceApplier,
+        playbackServiceControlsProvider: SettingsPlaybackServiceControlsProvider,
+        lyricsViewModelProvider: () -> LyricsViewModel?,
+        permissionControllerProvider: () -> MainPermissionController?
+    ): SettingsRuntimeApplier =
+        SettingsRuntimeApplier(
+            applyThemeSurfaceAction,
+            playbackServiceControlsProvider,
+            SettingsLyricsControlsProvider {
+                lyricsViewModelProvider()?.let(::MainSettingsLyricsControls)
+            },
+            SettingsFloatingLyricsControlsProvider {
+                MainSettingsFloatingLyricsControls(context, permissionControllerProvider)
+            }
+        )
+}
+
+internal class MainSettingsLyricsControls(
+    private val viewModel: LyricsViewModel
+) : SettingsLyricsControls {
+    override fun setOnlineEnabled(enabled: Boolean) {
+        viewModel.setOnlineEnabled(enabled)
+    }
+
+    override fun setOffsetMs(offsetMs: Long) {
+        viewModel.setOffsetMs(offsetMs)
+    }
+}
+
+internal class MainSettingsFloatingLyricsControls(
+    private val context: Context,
+    private val permissionControllerProvider: () -> MainPermissionController?
+) : SettingsFloatingLyricsControls {
+    override fun apply(enabled: Boolean): Boolean {
+        if (!enabled) {
+            FloatingLyricsService.stop(context)
+            return true
+        }
+        val permissionController = permissionControllerProvider() ?: return false
+        if (!permissionController.hasOverlayPermission()) {
+            FloatingLyricsService.stop(context)
+            permissionController.openOverlayPermissionSettings()
+            return false
+        }
+        FloatingLyricsService.start(context)
+        return true
+    }
+
+    override fun openPermissionSettings() {
+        permissionControllerProvider()?.openOverlayPermissionSettings()
+    }
+}
+
 internal class SettingsRuntimeApplier(
     private val applyThemeSurfaceAction: SettingsThemeSurfaceApplier,
-    private val updateLanguageAction: SettingsRuntimeLanguageUpdater,
     private val playbackServiceControlsProvider: SettingsPlaybackServiceControlsProvider,
     private val lyricsControlsProvider: SettingsLyricsControlsProvider,
     private val floatingLyricsControlsProvider: SettingsFloatingLyricsControlsProvider
@@ -37,10 +89,6 @@ internal class SettingsRuntimeApplier(
         return when (effect) {
             SettingsRuntimeEffect.ApplyThemeSurface -> {
                 applyThemeSurfaceAction.apply()
-                true
-            }
-            is SettingsRuntimeEffect.UpdateLanguage -> {
-                updateLanguageAction.update(effect.languageMode)
                 true
             }
             is SettingsRuntimeEffect.ApplyPlaybackSpeed -> {
@@ -91,10 +139,6 @@ internal class SettingsRuntimeApplier(
 
     fun applyThemeSurface() {
         apply(SettingsRuntimeEffect.ApplyThemeSurface)
-    }
-
-    fun updateLanguage(languageMode: String) {
-        apply(SettingsRuntimeEffect.UpdateLanguage(languageMode))
     }
 
     fun applyPlaybackSpeed(speed: Float) {

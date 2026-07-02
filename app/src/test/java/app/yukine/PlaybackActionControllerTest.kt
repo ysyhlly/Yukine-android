@@ -5,9 +5,13 @@ import app.yukine.model.Track
 import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.PlaybackStateSnapshot
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
 
 class PlaybackActionControllerTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     @Test
     fun forwardsPlaybackButtonsThroughNowPlayingViewModel() {
         val playbackGateway = FakePlaybackGateway()
@@ -89,7 +93,6 @@ class PlaybackActionControllerTest {
         private var snapshot = PlaybackStateSnapshot.empty()
 
         override fun serviceConnected(): Boolean = true
-        override fun startPlaybackService(action: String?) {}
         override fun snapshot(): PlaybackStateSnapshot? = snapshot
         override fun queueSnapshot(): List<Track> = emptyList()
         override fun skipToPrevious() {
@@ -105,7 +108,7 @@ class PlaybackActionControllerTest {
         override fun replaceQueuedTrack(updated: Track) {}
         override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) {}
         override fun retainTracksById(trackIds: Set<Long>) {}
-        override fun precacheTrack(track: Track) {}
+        override fun warmPlaybackTrack(track: Track) {}
         override fun appendToQueue(tracks: List<Track>) {}
         override fun replaceCurrentTrackAndResume(track: Track, positionMs: Long) {}
         override fun startSleepTimerMinutes(minutes: Int) {}

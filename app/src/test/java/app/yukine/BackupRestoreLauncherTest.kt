@@ -22,7 +22,7 @@ class BackupRestoreLauncherTest {
         val launcher = RecordingBackupActivityResultLauncher()
         val owner = BackupRestoreLauncher(
             activity = activity(),
-            statusSink = RecordingStatusSink(),
+            statusSink = {},
             activityResultLauncher = launcher
         )
 
@@ -40,7 +40,7 @@ class BackupRestoreLauncherTest {
         val launcher = RecordingBackupActivityResultLauncher()
         val owner = BackupRestoreLauncher(
             activity = activity(),
-            statusSink = RecordingStatusSink(),
+            statusSink = {},
             activityResultLauncher = launcher
         )
 
@@ -55,10 +55,10 @@ class BackupRestoreLauncherTest {
     @Test
     fun canceledOrMissingUriResultsDoNotEmitStatus() {
         val launcher = RecordingBackupActivityResultLauncher()
-        val statusSink = RecordingStatusSink()
+        val statuses = mutableListOf<String>()
         val owner = BackupRestoreLauncher(
             activity = activity(),
-            statusSink = statusSink,
+            statusSink = { statuses += it },
             activityResultLauncher = launcher
         )
 
@@ -67,17 +67,17 @@ class BackupRestoreLauncherTest {
         owner.importBackup()
         launcher.emit(ActivityResult(Activity.RESULT_CANCELED, null))
 
-        assertEquals(emptyList<String>(), statusSink.statuses)
+        assertEquals(emptyList<String>(), statuses)
     }
 
     @Test
     fun exportAndImportResultsEmitMappedStatusKeys() {
         val launcher = RecordingBackupActivityResultLauncher()
-        val statusSink = RecordingStatusSink()
+        val statuses = mutableListOf<String>()
         val operations = RecordingBackupOperations(exportOk = true, restoreOk = false)
         val owner = BackupRestoreLauncher(
             activity = activity(),
-            statusSink = statusSink,
+            statusSink = { statuses += it },
             activityResultLauncher = launcher,
             operations = operations
         )
@@ -89,7 +89,7 @@ class BackupRestoreLauncherTest {
         owner.importBackup()
         launcher.emit(ActivityResult(Activity.RESULT_OK, Intent().setData(importUri)))
 
-        assertEquals(listOf("backup.export.success", "backup.import.failed"), statusSink.statuses)
+        assertEquals(listOf("backup.export.success", "backup.import.failed"), statuses)
         assertEquals(listOf(exportUri), operations.exported)
         assertEquals(listOf(importUri), operations.restored)
     }
@@ -129,11 +129,4 @@ class BackupRestoreLauncherTest {
         }
     }
 
-    private class RecordingStatusSink : BackupStatusSink {
-        val statuses = mutableListOf<String>()
-
-        override fun setStatusKey(statusKey: String) {
-            statuses += statusKey
-        }
-    }
 }

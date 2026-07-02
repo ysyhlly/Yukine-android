@@ -6,6 +6,7 @@ import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
 import app.yukine.ui.StreamingSearchActions
 import app.yukine.ui.StreamingSearchLabels
+import app.yukine.ui.StreamingUsageNoticeLabels
 
 internal class StreamingSearchRenderController(
     private val languageProvider: LanguageProvider,
@@ -78,6 +79,10 @@ internal class StreamingSearchRenderController(
         val languageMode = languageProvider.languageMode()
         return StreamingSearchLabels(
             languageMode = languageMode,
+            usageNotice = StreamingUsageNoticeLabels(
+                title = text(languageMode, "streaming.usage.notice.title"),
+                body = text(languageMode, "streaming.usage.notice.body")
+            ),
             title = text(languageMode, "streaming.title"),
             back = text(languageMode, "back"),
             searchPrefix = text(languageMode, "streaming.search.prefix"),

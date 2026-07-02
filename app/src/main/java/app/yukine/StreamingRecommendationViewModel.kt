@@ -28,15 +28,6 @@ data class StreamingRecommendationState(
     val diagnostics: StreamingGatewayDiagnostics = StreamingGatewayDiagnostics()
 )
 
-internal interface DailyRecommendationPlayer {
-    fun playDailyRecommendations(
-        provider: StreamingProviderName?,
-        languageMode: String,
-        onStatus: (String) -> Unit,
-        onPresentation: (StreamingRecommendationPresentation) -> Unit
-    ): Job
-}
-
 internal interface HeartbeatRecommendationPlayer {
     fun stopHeartbeatRecommendationMode()
 
@@ -85,7 +76,7 @@ internal interface HeartbeatRecommendationPlayer {
 @HiltViewModel
 class StreamingRecommendationViewModel @Inject constructor(
     private val streamingRepositorySource: StreamingRepositorySource
-) : ViewModel(), DailyRecommendationPlayer, HeartbeatRecommendationPlayer, RecommendationActionHandler {
+) : ViewModel(), HeartbeatRecommendationPlayer {
     constructor() : this(EmptyStreamingRepositorySource)
 
     private val dailyRecommendationUseCase = StreamingDailyRecommendationUseCase(streamingRepositorySource)
@@ -104,7 +95,7 @@ class StreamingRecommendationViewModel @Inject constructor(
         streamingTrackMatchStore = store
     }
 
-    override fun onAction(
+    fun onAction(
         action: RecommendationAction,
         languageMode: String,
         callbacks: RecommendationActionCallbacks
@@ -124,7 +115,7 @@ class StreamingRecommendationViewModel @Inject constructor(
         }
     }
 
-    override fun playDailyRecommendations(
+    fun playDailyRecommendations(
         provider: StreamingProviderName?,
         languageMode: String,
         onStatus: (String) -> Unit,

@@ -2,12 +2,16 @@ package app.yukine
 
 import android.net.Uri
 import app.yukine.model.Track
-import app.yukine.playback.EchoPlaybackService
+import app.yukine.playback.PlaybackRepeatMode
 import app.yukine.playback.PlaybackStateSnapshot
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
 
 class NowPlayingStateControllerTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     @Test
     fun publishUpdatesViewModelAndFloatingLyrics() {
         val viewModel = NowPlayingViewModel()
@@ -75,7 +79,7 @@ class NowPlayingStateControllerTest {
                 false,
                 "",
                 false,
-                EchoPlaybackService.REPEAT_ALL,
+                PlaybackRepeatMode.REPEAT_ALL,
                 1.0f,
                 1.0f,
                 0L

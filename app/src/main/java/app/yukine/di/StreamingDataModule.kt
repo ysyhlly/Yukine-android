@@ -1,6 +1,7 @@
 package app.yukine.di
 
 import android.content.Context
+import app.yukine.common.StreamingDataPathParser
 import app.yukine.StreamingGatewaySettingsStore
 import app.yukine.StreamingRepositoryProvider
 import app.yukine.StreamingRepositorySource
@@ -10,6 +11,7 @@ import app.yukine.streaming.LuoxueSourceStore
 import app.yukine.streaming.PersistentStreamingPlaybackHeaders
 import app.yukine.streaming.RemoteStreamingGatewayFactory
 import app.yukine.streaming.StreamingGatewayFactory
+import app.yukine.streaming.StreamingPlaybackAdapter
 import app.yukine.streaming.StreamingPlaybackHeaderStore
 import app.yukine.streaming.StreamingPlaybackTrackAdapter
 import app.yukine.streaming.cache.StreamingCachePolicy
@@ -103,5 +105,11 @@ object StreamingDataModule {
     @Provides
     fun provideStreamingRepositorySource(provider: StreamingRepositoryProvider): StreamingRepositorySource {
         return provider
+    }
+
+    @Provides
+    @Singleton
+    fun provideStreamingDataPathParser(): StreamingDataPathParser {
+        return StreamingPlaybackAdapter
     }
 }

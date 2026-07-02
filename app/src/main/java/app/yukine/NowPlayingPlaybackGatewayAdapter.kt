@@ -1,38 +1,68 @@
 package app.yukine
 
 import app.yukine.model.Track
-import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.PlaybackStateSnapshot
-import java.util.ArrayList
+import app.yukine.playback.service.PlaybackServiceActions
 
-internal fun interface PlaybackServiceProvider {
-    fun service(): EchoPlaybackService?
+interface NowPlayingPlaybackServicePort {
+    fun snapshot(): PlaybackStateSnapshot?
+    fun queueSnapshot(): List<Track>
+    fun skipToPrevious()
+    fun skipToNext()
+    fun seekTo(positionMs: Long)
+    fun removeTracksById(trackIds: Set<Long>)
+    fun clearQueue()
+    fun moveQueueTrack(fromIndex: Int, toIndex: Int)
+    fun replaceQueuedTrack(updated: Track)
+    fun replaceQueuedTrackById(oldTrackId: Long, updated: Track)
+    fun retainTracksById(trackIds: Set<Long>)
+    fun warmPlaybackTrack(track: Track)
+    fun appendToQueue(tracks: List<Track>)
+    fun replaceCurrentTrackAndResume(track: Track, positionMs: Long)
+    fun startSleepTimerMinutes(minutes: Int)
+    fun cancelSleepTimer()
+    fun playQueue(tracks: List<Track>, index: Int)
+    fun pause()
+    fun play()
+    fun setShuffleEnabled(enabled: Boolean)
+    fun cycleRepeatMode()
+    fun setRepeatMode(repeatMode: Int)
 }
 
-internal fun interface PlaybackServiceStarter {
-    fun start(action: String?)
+internal class MainNowPlayingPlaybackGatewayFactory(
+    private val serviceStarter: (String?) -> Unit
+) {
+    fun create(serviceProvider: () -> NowPlayingPlaybackServicePort?): NowPlayingPlaybackGateway {
+        return NowPlayingPlaybackGatewayAdapter(serviceProvider, serviceStarter)
+    }
 }
 
 internal class NowPlayingPlaybackGatewayAdapter(
-    private val serviceProvider: PlaybackServiceProvider,
-    private val serviceStarter: PlaybackServiceStarter
+    private val serviceProvider: () -> NowPlayingPlaybackServicePort?,
+    private val serviceStarter: (String?) -> Unit
 ) : NowPlayingPlaybackGateway {
     override fun serviceConnected(): Boolean = service() != null
-
-    override fun startPlaybackService(action: String?) {
-        serviceStarter.start(action)
-    }
 
     override fun snapshot(): PlaybackStateSnapshot? = service()?.snapshot()
 
     override fun queueSnapshot(): List<Track> = service()?.queueSnapshot().orEmpty()
 
     override fun skipToPrevious() {
-        service()?.skipToPrevious()
+        val service = service()
+        if (service != null) {
+            service.skipToPrevious()
+        } else {
+            serviceStarter(PlaybackServiceActions.PREVIOUS)
+        }
     }
 
     override fun skipToNext() {
-        service()?.skipToNext()
+        val service = service()
+        if (service != null) {
+            service.skipToNext()
+        } else {
+            serviceStarter(PlaybackServiceActions.NEXT)
+        }
     }
 
     override fun seekTo(positionMs: Long) {
@@ -63,8 +93,8 @@ internal class NowPlayingPlaybackGatewayAdapter(
         service()?.retainTracksById(trackIds)
     }
 
-    override fun precacheTrack(track: Track) {
-        service()?.precacheTrack(track)
+    override fun warmPlaybackTrack(track: Track) {
+        service()?.warmPlaybackTrack(track)
     }
 
     override fun appendToQueue(tracks: List<Track>) {
@@ -84,7 +114,8 @@ internal class NowPlayingPlaybackGatewayAdapter(
     }
 
     override fun playQueue(tracks: List<Track>, index: Int) {
-        service()?.playQueue(ArrayList(tracks), index)
+        serviceStarter(null)
+        service()?.playQueue(tracks, index)
     }
 
     override fun pause() {
@@ -92,6 +123,7 @@ internal class NowPlayingPlaybackGatewayAdapter(
     }
 
     override fun play() {
+        serviceStarter(null)
         service()?.play()
     }
 
@@ -107,5 +139,5 @@ internal class NowPlayingPlaybackGatewayAdapter(
         service()?.setRepeatMode(repeatMode)
     }
 
-    private fun service(): EchoPlaybackService? = serviceProvider.service()
+    private fun service(): NowPlayingPlaybackServicePort? = serviceProvider()
 }

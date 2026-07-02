@@ -9,13 +9,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlaybackStateUpdateControllerTest {
-    private val controller = PlaybackStateUpdateController()
-
     @Test
     fun resolveRefreshesLyricsAndCollectionsWhenPlayingTrackChanges() {
         val next = snapshot(track = track(42L), playing = true)
 
-        val result = controller.resolve(
+        val result = PlaybackStateUpdateController.resolve(
             MainRoutes.TAB_QUEUE,
             PlaybackStateSnapshot.empty(),
             next,
@@ -35,7 +33,7 @@ class PlaybackStateUpdateControllerTest {
     fun resolveDoesNotRefreshCollectionsForSameHistoryTrack() {
         val next = snapshot(track = track(42L), playing = true)
 
-        val result = controller.resolve(
+        val result = PlaybackStateUpdateController.resolve(
             MainRoutes.TAB_LIBRARY,
             PlaybackStateSnapshot.empty(),
             next,
@@ -55,7 +53,7 @@ class PlaybackStateUpdateControllerTest {
         val previous = snapshot(track = track(42L), playing = true)
         val next = snapshot(track = track(42L), playing = true)
 
-        val result = controller.resolve(
+        val result = PlaybackStateUpdateController.resolve(
             MainRoutes.TAB_NOW,
             previous,
             next,
@@ -69,7 +67,7 @@ class PlaybackStateUpdateControllerTest {
 
     @Test
     fun resolveShowsErrorWhenSnapshotHasErrorMessage() {
-        val result = controller.resolve(
+        val result = PlaybackStateUpdateController.resolve(
             MainRoutes.TAB_LIBRARY,
             PlaybackStateSnapshot.empty(),
             snapshot(errorMessage = "Playback failed"),

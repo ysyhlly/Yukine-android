@@ -2,6 +2,15 @@
 
 本文档用于 P1-06 播放服务稳定性验收。它不是替代自动化测试，而是给每个候选发布提供可复跑、可记录证据的人工/半自动矩阵。执行时请把结果、设备、构建号、日志和截图/录屏路径同步回发布清单。
 
+## 2026-06-29 P0 Playback Baseline
+
+Current playback refactor baseline evidence is captured in
+`docs/PLAYBACK_P0_BASELINE_2026-06-29.md`. Automated compile and focused
+playback-adjacent tests passed with default Gradle daemon/workers. Device
+smoke for local playback, background playback, notification controls, queue
+restore, lyrics, and streaming playback was not executed for that checkpoint;
+record those rows before claiming runtime smoke coverage for a playback slice.
+
 ## 0. 执行记录
 
 | 项目 | 记录 |

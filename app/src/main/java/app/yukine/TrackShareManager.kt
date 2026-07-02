@@ -12,8 +12,8 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.net.Uri
 import androidx.core.content.FileProvider
+import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.model.Track
-import app.yukine.streaming.StreamingPlaybackAdapter
 import app.yukine.streaming.StreamingProviderName
 import java.io.File
 import javax.inject.Inject
@@ -228,9 +228,9 @@ class TrackShareManager @Inject constructor() {
     }
 
     private fun streamingSource(track: Track): StreamingShareSource? {
-        val provider = StreamingPlaybackAdapter.providerName(track.dataPath) ?: return null
+        val provider = StreamingDataPathMetadata.provider(track.dataPath) ?: return null
         val providerTrackId = providerTrackIdForShare(track.dataPath).takeIf { it.isNotBlank() }
-            ?: StreamingPlaybackAdapter.providerTrackId(track.dataPath).takeIf { it.isNotBlank() }
+            ?: StreamingDataPathMetadata.providerTrackId(track.dataPath).takeIf { it.isNotBlank() }
             ?: return null
         return StreamingShareSource(provider, providerTrackId)
     }

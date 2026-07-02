@@ -5,7 +5,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import app.yukine.MainActivityTrackListUiState
+import app.yukine.LibraryTrackListDestinationState
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.TrackRowActions
 import app.yukine.ui.TrackRowUiState
@@ -46,7 +46,7 @@ class LibraryTrackListDestinationTest {
     @Test
     fun rendersTitleAndRows() {
         val state = MutableStateFlow(
-            MainActivityTrackListUiState(
+            LibraryTrackListDestinationState(
                 title = "Songs",
                 rows = listOf(row(1L, "First"), row(2L, "Second")),
                 actions = actions(2)
@@ -67,7 +67,7 @@ class LibraryTrackListDestinationTest {
     @Test
     fun rendersRowsWithDuplicateTrackIds() {
         val state = MutableStateFlow(
-            MainActivityTrackListUiState(
+            LibraryTrackListDestinationState(
                 title = "Songs",
                 rows = listOf(row(7L, "Echo", "7:1"), row(7L, "Echo", "7:2")),
                 actions = actions(2)

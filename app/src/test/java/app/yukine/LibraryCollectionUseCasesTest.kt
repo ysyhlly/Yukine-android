@@ -59,21 +59,29 @@ class LibraryCollectionUseCasesTest {
     }
 
     @Test
-    fun setFavoriteIgnoresInvalidTrackId() {
-        val operations = FakeLibraryCollectionOperations()
+    fun mainLibraryCollectionGatewayMapsUseCaseSnapshotToViewModelResult() {
+        val operations = FakeLibraryCollectionOperations(removedHistory = 3)
+        operations.playlists = listOf(playlist(4L))
+        operations.playlistTracks[4L] = listOf(track(40L))
+        operations.favoriteIds = setOf(40L)
+        operations.favoriteTracks = listOf(track(40L))
+        operations.recentlyPlayed = listOf(playRecord(40L))
+        operations.mostPlayed = listOf(playRecord(41L))
+        operations.remoteSources = listOf(remoteSource(9L))
+        val gateway = MainLibraryCollectionGateway(operations)
 
-        SetLibraryFavoriteUseCase(operations).execute(-1L, true)
+        val loaded = gateway.loadCollections(4L)
+        val removed = gateway.clearPlayHistory()
 
-        assertEquals(emptyList<String>(), operations.events)
-    }
-
-    @Test
-    fun setFavoriteDelegatesValidTrackId() {
-        val operations = FakeLibraryCollectionOperations()
-
-        SetLibraryFavoriteUseCase(operations).execute(7L, true)
-
-        assertEquals(listOf("favorite:7:true"), operations.events)
+        assertEquals(4L, loaded.selectedPlaylistId)
+        assertEquals(setOf(40L), loaded.favoriteIds)
+        assertEquals(listOf(40L), loaded.favoriteTracks.map { it.id })
+        assertEquals(listOf(40L), loaded.recentRecords.map { it.track.id })
+        assertEquals(listOf(41L), loaded.mostPlayedRecords.map { it.track.id })
+        assertEquals(listOf(4L), loaded.playlists.map { it.id })
+        assertEquals(listOf(9L), loaded.remoteSources.map { it.id })
+        assertEquals(listOf(40L), loaded.selectedPlaylistTracks.map { it.id })
+        assertEquals(3, removed)
     }
 
     private class FakeLibraryCollectionOperations(
@@ -140,9 +148,6 @@ class LibraryCollectionUseCasesTest {
             return removedHistory
         }
 
-        override fun setFavorite(trackId: Long, favorite: Boolean) {
-            events.add("favorite:$trackId:$favorite")
-        }
     }
 
     private fun playlist(id: Long): Playlist = Playlist(id, "Playlist $id", 1, 0L, 0L)

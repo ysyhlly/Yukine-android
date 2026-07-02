@@ -1,0 +1,69 @@
+package app.yukine
+
+import app.yukine.playback.PlaybackStateSnapshot
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
+import org.junit.Test
+
+class MainQueueActionListenerTest {
+    @Test
+    fun delegatesQueueActionCallbacksToInjectedOwners() {
+        val result = PlaybackActionResultUi(PlaybackStateSnapshot.empty(), "moved", true, true, true, false)
+        val appliedResults = mutableListOf<PlaybackActionResultUi?>()
+        val moves = mutableListOf<Pair<Int, Int>>()
+        val calls = mutableListOf<String>()
+        val statuses = mutableListOf<String>()
+        val listener = MainQueueActionListener(
+            resultApplier = QueuePlaybackActionResultApplier { appliedResults += it },
+            serviceAvailability = QueuePlaybackServiceAvailability { true },
+            trackMoveSink = QueueTrackMoveSink { fromIndex, toIndex -> moves += fromIndex to toIndex },
+            nowBarRenderer = QueueNowBarRenderer { calls += "nowBar" },
+            selectedTabRenderer = QueueSelectedTabRenderer { calls += "tab" },
+            clearQueueConfirmer = QueueClearQueueConfirmer { calls += "confirmClear" },
+            emptyStatusProvider = QueueEmptyStatusProvider { "Queue empty" },
+            statusSink = QueueStatusSink { statuses += it }
+        )
+
+        listener.applyPlaybackActionResult(result)
+        listener.moveQueueTrack(1, 3)
+        listener.renderNowBar()
+        listener.renderSelectedTab()
+        listener.confirmClearQueue()
+        listener.setStatus(listener.queueEmptyStatus())
+
+        assertEquals(true, listener.hasPlaybackService())
+        assertSame(result, appliedResults.single())
+        assertEquals(listOf(1 to 3), moves)
+        assertEquals(listOf("nowBar", "tab", "confirmClear"), calls)
+        assertEquals(listOf("Queue empty"), statuses)
+    }
+
+    @Test
+    fun factoryCreatesQueueActionControllerListener() {
+        val factory = PlaybackUiModule.provideMainQueueActionListenerFactory()
+        val appliedResults = mutableListOf<PlaybackActionResultUi?>()
+        val calls = mutableListOf<String>()
+        val listener = factory.create(
+            QueuePlaybackActionResultApplier { appliedResults += it },
+            QueuePlaybackServiceAvailability { false },
+            QueueTrackMoveSink { fromIndex, toIndex -> calls += "move:$fromIndex:$toIndex" },
+            QueueNowBarRenderer { calls += "nowBar" },
+            QueueSelectedTabRenderer { calls += "tab" },
+            QueueClearQueueConfirmer { calls += "confirmClear" },
+            QueueEmptyStatusProvider { "Queue empty" },
+            QueueStatusSink { calls += "status:$it" }
+        )
+        val result = PlaybackActionResultUi(null, null, false, false, false, false)
+
+        listener.applyPlaybackActionResult(result)
+        listener.moveQueueTrack(0, 2)
+        listener.renderNowBar()
+        listener.renderSelectedTab()
+        listener.confirmClearQueue()
+        listener.setStatus(listener.queueEmptyStatus())
+
+        assertEquals(false, listener.hasPlaybackService())
+        assertSame(result, appliedResults.single())
+        assertEquals(listOf("move:0:2", "nowBar", "tab", "confirmClear", "status:Queue empty"), calls)
+    }
+}

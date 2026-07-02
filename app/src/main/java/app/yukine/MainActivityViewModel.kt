@@ -23,16 +23,6 @@ import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingSearchResult
 import app.yukine.streaming.StreamingPlaylistSyncStore
 import app.yukine.streaming.StreamingTrack
-import app.yukine.ui.LibraryGroupActions
-import app.yukine.ui.LibraryGroupUiState
-import app.yukine.ui.QueueTrackUiState
-import app.yukine.ui.TrackListHeaderAction
-import app.yukine.ui.TrackListHeaderMetric
-import app.yukine.ui.TrackListAlbumCardUiState
-import app.yukine.ui.TrackListLabels
-import app.yukine.ui.TrackListModeAction
-import app.yukine.ui.TrackRowUiState
-import app.yukine.ui.TrackRowActions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,19 +35,7 @@ import javax.inject.Inject
 
 internal const val STREAMING_AUTH_REDIRECT_URI = "echo-next://streaming-auth"
 
-data class MainActivityRouteState(
-    val selectedTab: String = MainRoutes.TAB_HOME,
-    val libraryMode: String = LibraryGrouping.SONGS,
-    val selectedLibraryGroupKey: String = "",
-    val selectedLibraryGroupTitle: String = "",
-    val selectedPlaylistId: Long = -1L,
-    val searchQuery: String = "",
-    val networkPage: String = MainRoutes.NETWORK_HOME,
-    val settingsPage: String = MainRoutes.SETTINGS_HOME,
-    val selectedRemoteSourceId: Long = -1L
-)
-
-data class MainActivityLibraryState(
+data class LibraryStoreState(
     val allTracks: List<Track> = emptyList(),
     val visibleTracks: List<Track> = emptyList(),
     val favoriteTrackIds: Set<Long> = emptySet(),
@@ -67,30 +45,6 @@ data class MainActivityLibraryState(
     val playlists: List<Playlist> = emptyList(),
     val selectedPlaylistTracks: List<Track> = emptyList(),
     val remoteSources: List<RemoteSource> = emptyList()
-)
-
-data class MainActivityTrackListUiState(
-    val title: String = "",
-    val rows: List<TrackRowUiState> = emptyList(),
-    val footerAlbums: List<TrackListAlbumCardUiState> = emptyList(),
-    val actions: List<TrackRowActions> = emptyList(),
-    val headerMetrics: List<TrackListHeaderMetric> = emptyList(),
-    val headerActions: List<TrackListHeaderAction> = emptyList(),
-    val emptyText: String = "",
-    val modeActions: List<TrackListModeAction> = emptyList(),
-    val labels: TrackListLabels = TrackListLabels()
-)
-
-data class MainActivityLibraryGroupsUiState(
-    val title: String = "",
-    val rows: List<LibraryGroupUiState> = emptyList(),
-    val actions: List<LibraryGroupActions> = emptyList(),
-    val emptyText: String = "",
-    val modeActions: List<TrackListModeAction> = emptyList()
-)
-
-data class MainActivityQueueUiState(
-    val rows: List<QueueTrackUiState> = emptyList()
 )
 
 data class StreamingManualCookieDialogState(
@@ -377,11 +331,11 @@ interface StreamingTrackMatchStore {
 class MainActivityViewModel @Inject constructor(
     @Suppress("UNUSED_PARAMETER") savedStateHandle: SavedStateHandle
 ) : ViewModel() {
-    private val libraryState = MutableStateFlow(MainActivityLibraryState())
+    private val libraryState = MutableStateFlow(LibraryStoreState())
 
-    val library: StateFlow<MainActivityLibraryState> = libraryState.asStateFlow()
+    val library: StateFlow<LibraryStoreState> = libraryState.asStateFlow()
 
-    fun updateLibrary(snapshot: MainActivityLibraryState) {
+    fun updateLibrary(snapshot: LibraryStoreState) {
         libraryState.value = snapshot
     }
 
@@ -464,7 +418,7 @@ class MainActivityViewModel @Inject constructor(
     }
 
     private fun updateFavoriteTracks(
-        current: MainActivityLibraryState,
+        current: LibraryStoreState,
         trackId: Long,
         favorite: Boolean
     ): List<Track> {
@@ -483,7 +437,7 @@ class MainActivityViewModel @Inject constructor(
 
     /**
      * Loads the playlists saved on the user's account for the given provider (requires the
-     * gateway's userPlaylists endpoint). Results are kept on [MainActivityStreamingState.userPlaylists].
+     * gateway's userPlaylists endpoint). Results are kept on [StreamingSearchState.userPlaylists].
      */
     /**
      * Fetches the user's liked/saved tracks from the provider and delivers them via callback.
@@ -503,7 +457,7 @@ class MainActivityViewModel @Inject constructor(
      */
 }
 
-object MainActivityRouteStateStore {
+object NavigationRouteStateStore {
     private const val SELECTED_TAB = "selectedTab"
     private const val LIBRARY_MODE = "libraryMode"
     private const val SELECTED_LIBRARY_GROUP_KEY = "selectedLibraryGroupKey"
@@ -514,7 +468,7 @@ object MainActivityRouteStateStore {
     private const val SETTINGS_PAGE = "settingsPage"
     private const val SELECTED_REMOTE_SOURCE_ID = "selectedRemoteSourceId"
 
-    fun restore(savedStateHandle: SavedStateHandle): MainActivityRouteState {
+    fun restore(savedStateHandle: SavedStateHandle): NavigationRouteState {
         val restoredTab = savedStateHandle[SELECTED_TAB] ?: MainRoutes.TAB_HOME
         val restoredLibraryMode = savedStateHandle[LIBRARY_MODE] ?: LibraryGrouping.SONGS
         val selectedTab = when {
@@ -527,7 +481,7 @@ object MainActivityRouteStateStore {
         } else {
             restoredLibraryMode
         }
-        return MainActivityRouteState(
+        return NavigationRouteState(
             selectedTab = selectedTab,
             libraryMode = libraryMode,
             selectedLibraryGroupKey = savedStateHandle[SELECTED_LIBRARY_GROUP_KEY] ?: "",
@@ -540,7 +494,7 @@ object MainActivityRouteStateStore {
         )
     }
 
-    fun save(savedStateHandle: SavedStateHandle, state: MainActivityRouteState) {
+    fun save(savedStateHandle: SavedStateHandle, state: NavigationRouteState) {
         savedStateHandle[SELECTED_TAB] = state.selectedTab
         savedStateHandle[LIBRARY_MODE] = state.libraryMode
         savedStateHandle[SELECTED_LIBRARY_GROUP_KEY] = state.selectedLibraryGroupKey

@@ -1,4 +1,5 @@
 package app.yukine
+import app.yukine.streaming.StreamingQualityPreference
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,6 +13,7 @@ import app.yukine.streaming.StreamingMediaType
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingCookieHeaderParser
 import app.yukine.streaming.StreamingPlaylist
+import app.yukine.streaming.StreamingPlaylistImportSummary
 import app.yukine.streaming.StreamingPlaylistLinkParser
 import app.yukine.streaming.StreamingPlaybackCandidate
 import app.yukine.streaming.StreamingPlaybackSource
@@ -43,51 +45,21 @@ import javax.inject.Inject
 private const val STREAMING_QUEUE_PRE_RESOLVE_LIMIT = 3
 private const val CROSS_SOURCE_DURATION_TOLERANCE_MS = 3_000L
 
-data class MainActivityStreamingState(
-    val providers: List<StreamingProviderDescriptor> = emptyList(),
-    val providerCapabilities: List<StreamingProviderCapability> = emptyList(),
-    val providerHealth: List<StreamingProviderHealth> = emptyList(),
-    val diagnostics: StreamingGatewayDiagnostics = StreamingGatewayDiagnostics(),
-    val selectedProvider: StreamingProviderName = StreamingProviderName.MOCK,
-    val searchQuery: String = "",
-    val searchMediaTypes: Set<StreamingMediaType> = setOf(StreamingMediaType.TRACK),
-    val searchResult: StreamingSearchResult? = null,
-    val resolvedPlaybackSource: StreamingPlaybackSource? = null,
-    val resolvedPlaybackTrack: Track? = null,
-    val authStates: Map<StreamingProviderName, StreamingAuthState> = emptyMap(),
-    val pendingAuthLaunch: MainActivityStreamingAuthLaunch? = null,
-    val loading: Boolean = false,
-    val loadingMore: Boolean = false,
-    val errorMessage: String? = null,
-    val playlistImportSummary: app.yukine.streaming.StreamingPlaylistImporter.StreamingPlaylistImportSummary? = null,
-    val playlistImporting: Boolean = false,
-    val userPlaylists: List<app.yukine.streaming.StreamingPlaylist> = emptyList(),
-    val userPlaylistsLoading: Boolean = false,
-    val searchChromeLabels: StreamingSearchLabels = StreamingSearchLabels.empty(),
-    val searchChromeActions: StreamingSearchActions = StreamingSearchActions.empty()
-)
-
-data class MainActivityStreamingAuthLaunch(
-    val provider: StreamingProviderName,
-    val launchUrl: String,
-    val kind: StreamingAuthKind
-)
-
 @HiltViewModel
 class StreamingViewModel @Inject constructor(
     private val streamingRepositorySource: StreamingRepositorySource
 ) : ViewModel() {
     constructor() : this(EmptyStreamingRepositorySource)
 
-    private val streamingState = MutableStateFlow(MainActivityStreamingState())
+    private val streamingState = MutableStateFlow(StreamingSearchState())
     private var streamingRepository: StreamingRepository = streamingRepositorySource.current()
     private var streamingPlaybackPlanner: StreamingPlaybackResolvePlanner? = null
     private var streamingPlaybackTaskQueue: StreamingPlaybackTaskQueue? = null
     private var streamingLocalPlaylistOperations: StreamingLocalPlaylistOperations? = null
     private var streamingTrackMatchStore: StreamingTrackMatchStore? = null
     private var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
-    val streaming: StateFlow<MainActivityStreamingState> = streamingState.asStateFlow()
-    var state: MainActivityStreamingState
+    val streaming: StateFlow<StreamingSearchState> = streamingState.asStateFlow()
+    var state: StreamingSearchState
         get() = streamingState.value
         set(value) {
             streamingState.value = value
@@ -988,7 +960,7 @@ class StreamingViewModel @Inject constructor(
             .filter { StreamingPlaybackAdapter.isUnresolvedStreamingTrack(it) }
             .distinctBy { it.dataPath }
             .mapNotNull { track ->
-                val provider = StreamingPlaybackAdapter.providerName(track.dataPath) ?: return@mapNotNull null
+                val provider = StreamingPlaybackAdapter.streamingProviderName(track.dataPath) ?: return@mapNotNull null
                 val providerTrackId = StreamingPlaybackAdapter.providerTrackId(track.dataPath)
                     .takeIf { it.isNotBlank() }
                     ?: return@mapNotNull null
@@ -1123,7 +1095,7 @@ class StreamingViewModel @Inject constructor(
         quality: StreamingAudioQuality? = null
     ): StreamingPlaybackStatusText {
         val qualityLabel = quality?.let {
-            SettingsPageRenderController.streamingQualityLabel(
+            SettingsLabelFormatter.streamingQualityLabel(
                 StreamingQualityPreference.valueFor(it),
                 languageMode
             )
@@ -1141,7 +1113,7 @@ class StreamingViewModel @Inject constructor(
         qualityPreference: String? = null
     ): StreamingStatusText {
         val qualityLabel = qualityPreference?.let {
-            SettingsPageRenderController.streamingQualityLabel(it, languageMode)
+            SettingsLabelFormatter.streamingQualityLabel(it, languageMode)
         }.orEmpty()
         return StreamingStatusText(
             streamingQualityApplied = text(languageMode, "streaming.quality.applied") + qualityLabel
@@ -1247,7 +1219,7 @@ class StreamingViewModel @Inject constructor(
     }
 
     fun streamingPlaylistImportStatus(
-        summary: app.yukine.streaming.StreamingPlaylistImporter.StreamingPlaylistImportSummary?
+        summary: StreamingPlaylistImportSummary?
     ): StreamingPlaylistImportStatus {
         if (summary == null) {
             return StreamingPlaylistImportStatus()
@@ -1916,7 +1888,7 @@ class StreamingViewModel @Inject constructor(
         provider: StreamingProviderName,
         playlistName: String,
         localTracks: List<Track>,
-        onComplete: ((app.yukine.streaming.StreamingPlaylistImporter.StreamingPlaylistImportSummary) -> Unit)? = null
+        onComplete: ((StreamingPlaylistImportSummary) -> Unit)? = null
     ): Job {
         streamingState.value = streamingState.value.copy(
             playlistImporting = true,
@@ -2009,7 +1981,7 @@ class StreamingViewModel @Inject constructor(
         streamingState.value = streamingState.value.copy(
             authStates = streamingState.value.authStates + (provider to authState),
             pendingAuthLaunch = cleanLaunchUrl?.let {
-                MainActivityStreamingAuthLaunch(provider, it, authState.kind)
+                StreamingSearchAuthLaunch(provider, it, authState.kind)
             },
             loading = false,
             loadingMore = false,

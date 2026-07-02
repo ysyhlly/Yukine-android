@@ -3,7 +3,7 @@ package app.yukine
 import app.yukine.model.LyricsLine
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
-import app.yukine.streaming.StreamingPlaybackAdapter
+import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.ui.LyricUiLine
 import app.yukine.ui.NowPlayingUiState
 import java.net.URLDecoder
@@ -76,7 +76,7 @@ internal object NowPlayingStateFactory {
     }
 
     private fun sourceInfo(track: Track): String {
-        val provider = StreamingPlaybackAdapter.providerName(track.dataPath)
+        val provider = StreamingDataPathMetadata.provider(track.dataPath)
         val source = provider?.wireName?.let { "播放源：$it" }
         val lyricSources = encodedMeta(track, "lyrics")
             ?.takeIf { it.isNotBlank() }

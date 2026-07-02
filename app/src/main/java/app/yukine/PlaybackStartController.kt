@@ -2,7 +2,18 @@ package app.yukine
 
 import app.yukine.model.Track
 
+internal fun interface StreamingTrackListResolver {
+    fun resolve(tracks: List<Track>?, index: Int): Boolean
+}
+
+internal fun interface PlaybackTrackListPlayer {
+    fun play(tracks: List<Track>?, index: Int): PlaybackActionResultUi?
+}
+
 internal class PlaybackStartController(
+    private val streamingTrackListResolver: StreamingTrackListResolver,
+    private val playbackTrackListPlayer: PlaybackTrackListPlayer,
+    private val playbackActionResultApplier: QueuePlaybackActionResultApplier,
     private val listener: Listener
 ) {
     interface Listener {
@@ -23,8 +34,6 @@ internal class PlaybackStartController(
         fun resolvingStatus(): String
 
         fun setStatus(status: String)
-
-        fun playbackController(): PlaybackController
 
         fun openQueue()
     }
@@ -74,6 +83,10 @@ internal class PlaybackStartController(
             listener.setStatus(listener.resolvingStatus())
             return
         }
-        listener.playbackController().playTrackList(tracks, index)
+        if (streamingTrackListResolver.resolve(tracks, index)) {
+            return
+        }
+        val result = playbackTrackListPlayer.play(tracks, index)
+        playbackActionResultApplier.apply(result)
     }
 }

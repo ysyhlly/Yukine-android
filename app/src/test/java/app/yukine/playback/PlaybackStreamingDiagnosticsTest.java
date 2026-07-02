@@ -7,6 +7,7 @@ import android.net.Uri;
 import org.junit.Test;
 
 import app.yukine.model.Track;
+import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 
 public class PlaybackStreamingDiagnosticsTest {
     @Test

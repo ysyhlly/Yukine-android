@@ -2,16 +2,14 @@ package app.yukine
 
 import android.os.Handler
 import app.yukine.model.Track
-import app.yukine.playback.EchoPlaybackService
-import app.yukine.playback.PlaybackStateListener
 import app.yukine.playback.PlaybackStateSnapshot
+import app.yukine.playback.state.PlaybackStateListener
 import app.yukine.streaming.StreamingPlaybackAdapter
 
 internal class PlaybackStateEventController(
     private val mainHandler: Handler,
     private val playbackStore: MainPlaybackStore,
-    private val updateController: PlaybackStateUpdateController,
-    private val serviceQueueSource: ServiceQueueSource,
+    private val queueSnapshotSource: QueueSnapshotSource,
     private val listener: Listener
 ) : PlaybackStateListener {
     private var lastAutoResolveTrackId = -1L
@@ -49,8 +47,8 @@ internal class PlaybackStateEventController(
         fun setStatus(status: String)
     }
 
-    interface ServiceQueueSource {
-        fun service(): EchoPlaybackService?
+    interface QueueSnapshotSource {
+        fun queueSnapshot(): List<Track>
     }
 
     override fun onPlaybackStateChanged(snapshot: PlaybackStateSnapshot) {
@@ -68,7 +66,7 @@ internal class PlaybackStateEventController(
     private fun handlePlaybackState(snapshot: PlaybackStateSnapshot) {
         val previous = playbackStore.replaceSnapshot(snapshot)
         listener.savePlaybackSettings(snapshot.playbackSpeed, snapshot.appVolume)
-        val result = updateController.resolve(
+        val result = PlaybackStateUpdateController.resolve(
             listener.selectedTab(),
             previous,
             snapshot,
@@ -82,7 +80,7 @@ internal class PlaybackStateEventController(
         if (result.refreshCollections) {
             listener.loadCollections()
         }
-        playbackStore.publish(serviceQueueSource.service())
+        playbackStore.publish(queueSnapshotSource.queueSnapshot())
         listener.renderNowBar()
         listener.updateHomeDashboardPlayback(snapshot)
         listener.preResolveNextStreamingTrack(snapshot)

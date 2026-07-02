@@ -38,10 +38,6 @@ sealed interface LibraryEvent {
     data object ScanLibrary : LibraryEvent
 }
 
-internal fun interface LibraryEventSink {
-    fun send(event: LibraryEvent)
-}
-
 interface LibraryGateway {
     fun playTrackList(tracks: List<Track>, index: Int)
     fun showStatusKey(key: String)
@@ -83,8 +79,6 @@ interface LibraryCollectionGateway {
     fun loadCollections(selectedPlaylistId: Long): LibraryCollectionsResult
 
     fun clearPlayHistory(): Int
-
-    fun setFavorite(trackId: Long, favorite: Boolean)
 }
 
 data class LibraryLoadResultUi(
@@ -122,10 +116,6 @@ fun interface LibraryPlaylistImportCallback {
     fun onImported(result: LibraryPlaylistImportResultUi)
 }
 
-fun interface LibraryPlaylistExportCallback {
-    fun onExported(exported: Boolean)
-}
-
 interface LibraryDocumentGateway {
     fun importStreamM3u(playlistUri: Uri?): LibraryLoadResultUi
 
@@ -134,37 +124,8 @@ interface LibraryDocumentGateway {
     fun exportPlaylist(exportUri: Uri?, playlistId: Long, playlistName: String): Boolean
 }
 
-data class LibraryDefaultPlaylistAddResultUi(
-    val playlistId: Long = -1L,
-    val added: Boolean = false
-)
-
-data class LibraryPlaylistActionPresentation(
-    val status: String = ""
-)
-
-interface LibraryPlaylistActionGateway {
-    fun addToDefaultPlaylist(track: Track?): LibraryDefaultPlaylistAddResultUi?
-
-    fun createPlaylist(name: String): Long
-
-    fun renamePlaylist(playlistId: Long, name: String): Boolean
-
-    fun deletePlaylist(playlistId: Long): Boolean
-
-    fun removeTrackFromPlaylist(playlistId: Long, track: Track?): Boolean
-
-    fun movePlaylistTrack(playlistId: Long, track: Track?, trackIndex: Int, direction: Int): Boolean
-
-    fun addTrackToPlaylist(playlistId: Long, trackId: Long): Boolean
-}
-
 fun interface LibraryCollectionsCallback {
     fun onLoaded(result: LibraryCollectionsResult)
-}
-
-fun interface LibraryPlayHistoryClearedCallback {
-    fun onCleared(removed: Int)
 }
 
 fun interface LibraryLoadCallback {
@@ -210,11 +171,11 @@ fun interface LibraryTrackAddedToPlaylistCallback {
 class LibraryViewModel @JvmOverloads constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
-    private val trackListState = MutableStateFlow(MainActivityTrackListUiState())
-    val trackList: StateFlow<MainActivityTrackListUiState> = trackListState.asStateFlow()
+    private val trackListState = MutableStateFlow(LibraryTrackListDestinationState())
+    val trackList: StateFlow<LibraryTrackListDestinationState> = trackListState.asStateFlow()
 
-    private val libraryGroupsState = MutableStateFlow(MainActivityLibraryGroupsUiState())
-    val libraryGroups: StateFlow<MainActivityLibraryGroupsUiState> = libraryGroupsState.asStateFlow()
+    private val libraryGroupsState = MutableStateFlow(LibraryGroupsDestinationState())
+    val libraryGroups: StateFlow<LibraryGroupsDestinationState> = libraryGroupsState.asStateFlow()
 
     private var gateway: LibraryGateway? = null
     private var playlistTrackLoader: LibraryPlaylistTrackLoader? = null
@@ -350,26 +311,6 @@ class LibraryViewModel @JvmOverloads constructor(
         }
     }
 
-    fun clearPlayHistoryJava(onCleared: LibraryPlayHistoryClearedCallback?) {
-        clearPlayHistory { removed -> onCleared?.onCleared(removed) }
-    }
-
-    fun saveLibraryFavorite(trackId: Long, favorite: Boolean, onSaved: (() -> Unit)? = null) {
-        if (trackId < 0L) {
-            return
-        }
-        val gateway = collectionGateway ?: return
-        viewModelScope.launch {
-            withContext(ioDispatcher) {
-                gateway.setFavorite(trackId, favorite)
-            }
-            onSaved?.invoke()
-        }
-    }
-
-    fun saveLibraryFavoriteJava(trackId: Long, favorite: Boolean, onSaved: Runnable?) {
-        saveLibraryFavorite(trackId, favorite) { onSaved?.run() }
-    }
     fun loadLibrary(
         allowCachedFirst: Boolean,
         canScan: Boolean,
@@ -504,10 +445,9 @@ class LibraryViewModel @JvmOverloads constructor(
     fun exportPlaylistJava(
         exportUri: Uri?,
         playlistId: Long,
-        playlistName: String,
-        onExported: LibraryPlaylistExportCallback?
+        playlistName: String
     ) {
-        exportPlaylist(exportUri, playlistId, playlistName) { exported -> onExported?.onExported(exported) }
+        exportPlaylist(exportUri, playlistId, playlistName)
     }
 
     fun addToDefaultPlaylist(
@@ -738,7 +678,7 @@ class LibraryViewModel @JvmOverloads constructor(
     }
 
     fun clearTrackList() {
-        trackListState.value = MainActivityTrackListUiState()
+        trackListState.value = LibraryTrackListDestinationState()
     }
 
     fun updateLibraryGroups(title: String, rows: List<LibraryGroupUiState>) {
@@ -749,7 +689,7 @@ class LibraryViewModel @JvmOverloads constructor(
     }
 
     fun clearLibraryGroups() {
-        libraryGroupsState.value = MainActivityLibraryGroupsUiState()
+        libraryGroupsState.value = LibraryGroupsDestinationState()
     }
 
     fun updateTrackListChrome(
@@ -770,7 +710,7 @@ class LibraryViewModel @JvmOverloads constructor(
         )
     }
 
-    fun updateTrackListChrome(state: MainActivityTrackListUiState) {
+    fun updateTrackListChrome(state: LibraryTrackListDestinationState) {
         // Chrome publish carries only chrome fields; the title/rows/footerAlbums are placeholders
         // (built empty by the host). Preserve the content set by updateTrackList(...) instead of
         // letting the blank placeholders wipe it, which would render an empty track list.
@@ -796,7 +736,7 @@ class LibraryViewModel @JvmOverloads constructor(
         )
     }
 
-    fun updateLibraryGroupsChrome(state: MainActivityLibraryGroupsUiState) {
+    fun updateLibraryGroupsChrome(state: LibraryGroupsDestinationState) {
         // Chrome publish carries only chrome fields; title/rows are blank placeholders. Preserve
         // the content set by updateLibraryGroups(...) so the group list does not get wiped.
         libraryGroupsState.value = libraryGroupsState.value.copy(

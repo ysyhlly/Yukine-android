@@ -7,13 +7,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-data class UnifiedSearchUiState(
-    val query: String = "",
-    val localTracks: List<Track> = emptyList(),
-    val searched: Boolean = false,
-    val actions: UnifiedSearchActions = UnifiedSearchActions.empty()
-)
-
 class SearchViewModel : ViewModel() {
     private val searchState = MutableStateFlow(UnifiedSearchUiState())
 

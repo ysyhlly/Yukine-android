@@ -2,7 +2,7 @@ package app.yukine
 
 import app.yukine.playback.PlaybackStateSnapshot
 
-internal class PlaybackStateUpdateController {
+internal object PlaybackStateUpdateController {
     data class Result(
         val loadLyrics: Boolean,
         val refreshCollections: Boolean,

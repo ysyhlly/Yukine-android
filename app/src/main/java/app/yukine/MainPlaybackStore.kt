@@ -1,8 +1,11 @@
 package app.yukine
 
 import app.yukine.model.Track
-import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.PlaybackStateSnapshot
+
+internal fun interface MainPlaybackStoreFactory {
+    fun create(viewModel: PlaybackViewModel): MainPlaybackStore
+}
 
 internal class MainPlaybackStore(
     private val viewModel: PlaybackViewModel
@@ -27,8 +30,7 @@ internal class MainPlaybackStore(
         viewModel.setLastHistoryRefreshTrackId(trackId)
     }
 
-    fun publish(playbackService: EchoPlaybackService?) {
-        val queue: List<Track> = playbackService?.queueSnapshot().orEmpty()
+    fun publish(queue: List<Track>) {
         viewModel.updatePlayback(snapshot(), queue)
     }
 }

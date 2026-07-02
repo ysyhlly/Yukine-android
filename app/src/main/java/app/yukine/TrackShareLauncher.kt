@@ -6,14 +6,6 @@ import android.content.Intent
 import android.util.Log
 import app.yukine.model.Track
 
-internal fun interface TrackShareLanguageProvider {
-    fun languageMode(): String
-}
-
-internal fun interface TrackShareStyleProvider {
-    fun shareStyle(): String
-}
-
 internal fun interface TrackShareActivityStarter {
     fun startActivity(intent: Intent)
 }
@@ -54,8 +46,8 @@ internal class TrackShareManagerOperations(
 internal class TrackShareLauncher @JvmOverloads constructor(
     private val activity: Activity,
     private val operations: TrackShareOperations,
-    private val languageProvider: TrackShareLanguageProvider,
-    private val shareStyleProvider: TrackShareStyleProvider,
+    private val languageProvider: () -> String,
+    private val shareStyleProvider: () -> String,
     private val statusSink: TrackShareStatusSink,
     private val activityStarter: TrackShareActivityStarter = TrackShareActivityStarter { intent ->
         activity.startActivity(intent)
@@ -63,7 +55,7 @@ internal class TrackShareLauncher @JvmOverloads constructor(
 ) {
     fun share(track: Track?) {
         if (track == null) {
-            statusSink.showFeedback(AppLanguage.text(languageProvider.languageMode(), "no.track.selected"))
+            statusSink.showFeedback(AppLanguage.text(languageProvider(), "no.track.selected"))
             return
         }
         if (!operations.isShareAvailable()) {
@@ -71,7 +63,7 @@ internal class TrackShareLauncher @JvmOverloads constructor(
             return
         }
         try {
-            val shareStyle = TrackShareStyle.normalize(shareStyleProvider.shareStyle())
+            val shareStyle = TrackShareStyle.normalize(shareStyleProvider())
             statusSink.showFeedback("正在打开分享面板：${track.title}")
             if (shareStyle == TrackShareStyle.PLATFORM_CARD &&
                 operations.shareNative(activity, track, operations.musicSharePayload(track))

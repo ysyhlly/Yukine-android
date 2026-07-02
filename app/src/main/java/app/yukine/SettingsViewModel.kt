@@ -1,4 +1,5 @@
 package app.yukine
+import app.yukine.streaming.StreamingQualityPreference
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -66,7 +67,14 @@ data class SettingsState(
     val runtime: RuntimeSettingsStatus = RuntimeSettingsStatus(),
     val actions: List<SettingsAction> = emptyList(),
     val ui: SettingsUiState = SettingsUiState()
-)
+) : SettingsDestinationState {
+    override val destinationTitle: String
+        get() = ui.title
+    override val destinationMetrics: List<SettingsMetric>
+        get() = ui.metrics
+    override val destinationActions: List<SettingsAction>
+        get() = actions
+}
 
 data class SettingsAppliedStatusText(
     val themeApplied: String = "",
@@ -169,6 +177,8 @@ class SettingsViewModel @JvmOverloads constructor(
     val scrollState = SettingsListScrollState()
     private val _state = MutableStateFlow(SettingsState())
     val state: StateFlow<SettingsState> = _state.asStateFlow()
+    private val _chromeState = MutableStateFlow(SettingsChromeState())
+    val chromeState: StateFlow<SettingsChromeState> = _chromeState.asStateFlow()
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
     private val pendingEffects = java.util.ArrayDeque<SettingsEffect>()
@@ -206,6 +216,7 @@ class SettingsViewModel @JvmOverloads constructor(
             preferences = preferences,
             runtime = runtime
         )
+        syncChromeState(preferences)
     }
 
     internal fun renderCurrentPage(
@@ -221,6 +232,7 @@ class SettingsViewModel @JvmOverloads constructor(
             actions = content.actions,
             ui = content.uiState
         )
+        syncChromeState(preferences)
         _uiState.value = content.uiState
         return content
     }
@@ -559,13 +571,13 @@ class SettingsViewModel @JvmOverloads constructor(
     private fun streamingQualityAppliedStatus(quality: String): String {
         val languageMode = _state.value.preferences.languageMode
         return AppLanguage.text(languageMode, "streaming.quality.applied") +
-            SettingsPageRenderController.streamingQualityLabel(quality, languageMode)
+            SettingsLabelFormatter.streamingQualityLabel(quality, languageMode)
     }
 
     private fun shareStyleAppliedStatus(style: String): String {
         val languageMode = _state.value.preferences.languageMode
         return currentAppliedStatusText().shareStyleApplied +
-            SettingsPageRenderController.shareStyleLabel(style, languageMode)
+            SettingsLabelFormatter.shareStyleLabel(style, languageMode)
     }
 
     private fun pageBackgroundAppliedStatus(page: String, cleared: Boolean): String {
@@ -576,7 +588,7 @@ class SettingsViewModel @JvmOverloads constructor(
         } else {
             statusText.pageBackgroundApplied
         }
-        return prefix + SettingsPageRenderController.pageBackgroundPageLabel(page, languageMode)
+        return prefix + SettingsLabelFormatter.pageBackgroundPageLabel(page, languageMode)
     }
 
     private fun updatePreferences(transform: (SettingsPreferencesSnapshot) -> SettingsPreferencesSnapshot) {
@@ -584,6 +596,13 @@ class SettingsViewModel @JvmOverloads constructor(
         val nextPreferences = transform(current.preferences)
         storeMirror?.sync(nextPreferences)
         renderCurrentPage(current.page, nextPreferences, current.runtime)
+    }
+
+    private fun syncChromeState(preferences: SettingsPreferencesSnapshot) {
+        _chromeState.value = SettingsChromeState(
+            pageBackgrounds = preferences.pageBackgrounds,
+            nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled
+        )
     }
 
     private fun updateRuntime(transform: (RuntimeSettingsStatus) -> RuntimeSettingsStatus) {
@@ -610,7 +629,6 @@ class SettingsViewModel @JvmOverloads constructor(
 
     fun applyLanguageMode(nextLanguageMode: String) {
         val languageMode = AppLanguage.normalizeMode(nextLanguageMode)
-        applyRuntimeEffect(SettingsRuntimeEffect.UpdateLanguage(languageMode))
         updatePreferences { it.copy(languageMode = languageMode) }
         emitAppliedStatus(currentAppliedStatusText().languageApplied)
         savePreference(SettingsPreferenceKey.LanguageMode, languageMode)
@@ -763,15 +781,15 @@ class SettingsViewModel @JvmOverloads constructor(
             languageApplied = AppLanguage.text(normalizedLanguageMode, "language.applied") +
                     AppLanguage.labelFor(normalizedLanguageMode),
             playbackSpeedApplied = AppLanguage.text(normalizedLanguageMode, "speed.applied") +
-                    SettingsPageRenderController.playbackSpeedLabel(playbackSpeed),
+                    SettingsLabelFormatter.playbackSpeedLabel(playbackSpeed),
             appVolumeApplied = AppLanguage.text(normalizedLanguageMode, "volume.applied") +
-                    SettingsPageRenderController.appVolumeLabel(appVolume),
+                    SettingsLabelFormatter.appVolumeLabel(appVolume),
             onlineLyricsEnabled = AppLanguage.text(normalizedLanguageMode, "online.lyrics.enabled"),
             onlineLyricsDisabled = AppLanguage.text(normalizedLanguageMode, "online.lyrics.disabled"),
             concurrentPlaybackEnabled = AppLanguage.text(normalizedLanguageMode, "concurrent.playback.enabled"),
             concurrentPlaybackDisabled = AppLanguage.text(normalizedLanguageMode, "concurrent.playback.disabled"),
             lyricsOffsetApplied = AppLanguage.text(normalizedLanguageMode, "lyrics.offset.applied") +
-                    SettingsPageRenderController.lyricsOffsetLabel(lyricsOffsetMs),
+                    SettingsLabelFormatter.lyricsOffsetLabel(lyricsOffsetMs),
             audioEffectsApplied = AppLanguage.text(normalizedLanguageMode, "audio.effects.applied"),
             statusBarLyricsEnabled = AppLanguage.text(normalizedLanguageMode, "status.bar.lyrics.enabled"),
             statusBarLyricsDisabled = AppLanguage.text(normalizedLanguageMode, "status.bar.lyrics.disabled"),

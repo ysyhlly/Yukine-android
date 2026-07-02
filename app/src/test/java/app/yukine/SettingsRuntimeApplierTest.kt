@@ -1,11 +1,18 @@
 package app.yukine
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import app.yukine.playback.AudioEffectSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
 class SettingsRuntimeApplierTest {
     @Test
     fun appliesRuntimeSettingsThroughDedicatedControls() {
@@ -61,14 +68,12 @@ class SettingsRuntimeApplierTest {
         }
         val applier = SettingsRuntimeApplier(
             applyThemeSurfaceAction = SettingsThemeSurfaceApplier { calls += "theme" },
-            updateLanguageAction = SettingsRuntimeLanguageUpdater { language -> calls += "language:$language" },
             playbackServiceControlsProvider = SettingsPlaybackServiceControlsProvider { playbackControls },
             lyricsControlsProvider = SettingsLyricsControlsProvider { lyricsControls },
             floatingLyricsControlsProvider = SettingsFloatingLyricsControlsProvider { floatingControls }
         )
 
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyThemeSurface))
-        assertTrue(applier.apply(SettingsRuntimeEffect.UpdateLanguage(AppLanguage.MODE_ENGLISH)))
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyPlaybackSpeed(1.25f)))
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyAppVolume(0.75f)))
         assertTrue(applier.apply(SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(true)))
@@ -86,7 +91,6 @@ class SettingsRuntimeApplierTest {
         assertEquals(
             listOf(
                 "theme",
-                "language:en",
                 "speed:1.25",
                 "volume:0.75",
                 "concurrent:true",
@@ -102,5 +106,25 @@ class SettingsRuntimeApplierTest {
             ),
             calls
         )
+    }
+
+    @Test
+    fun factoryCreatesApplierWithOptionalRuntimeOwners() {
+        val calls = mutableListOf<String>()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val applier = MainSettingsRuntimeApplierFactory(context).create(
+            applyThemeSurfaceAction = SettingsThemeSurfaceApplier { calls += "theme" },
+            playbackServiceControlsProvider = SettingsPlaybackServiceControlsProvider { null },
+            lyricsViewModelProvider = { null },
+            permissionControllerProvider = { null }
+        )
+
+        assertTrue(applier.apply(SettingsRuntimeEffect.ApplyThemeSurface))
+        assertTrue(applier.apply(SettingsRuntimeEffect.ApplyPlaybackSpeed(1.1f)))
+        assertTrue(applier.apply(SettingsRuntimeEffect.SetOnlineLyricsEnabled(true)))
+        assertFalse(applier.apply(SettingsRuntimeEffect.ApplyFloatingLyrics(true)))
+        assertTrue(applier.apply(SettingsRuntimeEffect.OpenFloatingLyricsPermissionSettings))
+
+        assertEquals(listOf("theme"), calls)
     }
 }

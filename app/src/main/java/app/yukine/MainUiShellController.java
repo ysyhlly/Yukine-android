@@ -3,7 +3,6 @@ package app.yukine;
 import android.os.Build;
 import android.view.View;
 import android.view.Window;
-import android.widget.ScrollView;
 import android.widget.Toast;
 
 import androidx.activity.ComponentActivity;
@@ -48,40 +47,6 @@ final class MainUiShellController {
         window.getDecorView().setSystemUiVisibility(flags);
     }
 
-    boolean hasContentHost() {
-        return false;
-    }
-
-    boolean navigateContentRoute(String route) {
-        return false;
-    }
-
-    void updateSelectedContentRoute(String route) {
-    }
-
-    void useScrollingContentContainer() {
-    }
-
-    void useFixedContentContainer(java.util.List<View> existingChildren) {
-    }
-
-    void prepareHorizontalContentTransition(boolean next) {
-    }
-
-    ScrollView getScrollView() {
-        return null;
-    }
-
-    void updateTabBar(String selectedTab) {
-    }
-
-    void updateLanguage(String languageMode) {
-    }
-
-    boolean hasTabBar() {
-        return false;
-    }
-
     void updateStatus(String status) {
         if (status == null) {
             return;
@@ -102,16 +67,6 @@ final class MainUiShellController {
     private boolean shouldSuppressToast(String message) {
         return "正在加载曲库".equals(message)
                 || "Loading library".equals(message);
-    }
-
-    void setHeaderExpanded(boolean expanded) {
-    }
-
-    void setSearchBarVisible(boolean visible) {
-    }
-
-    boolean hasHeader() {
-        return false;
     }
 
 }

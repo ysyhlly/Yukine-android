@@ -150,3 +150,31 @@ internal class LoadPlaylistExportTracksUseCase(
 
 private fun LibraryImportOperations.cachedSnapshot(): LibraryLoadResult =
     LibraryLoadResult(loadCachedTracks(), loadFavoriteIds())
+
+internal class MainLibraryImportGateway(
+    private val operations: LibraryImportOperations
+) : LibraryImportGateway {
+    override fun loadCached(): LibraryLoadResultUi =
+        LoadLibraryUseCase(operations).cached().toUi()
+
+    override fun refresh(): LibraryLoadResultUi =
+        LoadLibraryUseCase(operations).refresh().toUi()
+
+    override fun importAudioUris(uris: List<Uri>): LibraryLoadResultUi =
+        ImportAudioUrisUseCase(operations).execute(uris).toUi()
+
+    override fun importAudioTree(treeUri: Uri): LibraryLoadResultUi =
+        ImportAudioTreeUseCase(operations).execute(treeUri).toUi()
+
+    override fun parseMissingAudioSpecs(): LibraryAudioSpecsResultUi {
+        val result = ParseMissingAudioSpecsUseCase(operations).execute()
+        return LibraryAudioSpecsResultUi(
+            updatedCount = result.updatedCount,
+            tracks = result.tracks,
+            favorites = result.favorites
+        )
+    }
+
+    private fun LibraryLoadResult.toUi(): LibraryLoadResultUi =
+        LibraryLoadResultUi(tracks, favorites, "Library updated")
+}

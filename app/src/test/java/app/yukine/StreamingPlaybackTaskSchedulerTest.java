@@ -1,35 +1,83 @@
 package app.yukine;
 
-import static org.junit.Assert.assertEquals;
-
+import org.junit.Assert;
 import org.junit.Test;
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class StreamingPlaybackTaskSchedulerTest {
     @Test
-    public void currentPlaybackWorkDoesNotWaitForActiveNextTrackResolve() {
+    public void currentPlaybackTasksDoNotWaitForActiveNextTrackResolve() {
         StreamingPlaybackTaskScheduler scheduler = new StreamingPlaybackTaskScheduler();
         StringBuilder order = new StringBuilder();
-        final StreamingPlaybackTaskScheduler.Completion[] nextCompletion = new StreamingPlaybackTaskScheduler.Completion[1];
+        final Runnable[] nextCompletion = new Runnable[1];
 
-        scheduler.schedule(StreamingPlaybackTaskScheduler.Priority.NEXT_URL_RESOLVE, completion -> {
+        scheduler.scheduleNextUrlResolve(completion -> {
             order.append("next-start,");
             nextCompletion[0] = completion;
         });
-        scheduler.schedule(StreamingPlaybackTaskScheduler.Priority.NEXT_URL_RESOLVE, completion -> {
+        scheduler.scheduleNextUrlResolve(completion -> {
             order.append("next-queued,");
-            completion.complete();
+            completion.run();
         });
-        scheduler.schedule(StreamingPlaybackTaskScheduler.Priority.CURRENT_URL_RESOLVE, completion -> {
+        scheduler.scheduleCurrentUrlResolve(completion -> {
             order.append("current,");
-            completion.complete();
+            completion.run();
         });
-        scheduler.schedule(StreamingPlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY, completion -> {
+        scheduler.scheduleCurrentPlaybackRecovery(completion -> {
             order.append("recovery,");
-            completion.complete();
+            completion.run();
         });
 
-        nextCompletion[0].complete();
+        if (nextCompletion[0] != null) {
+            nextCompletion[0].run();
+        }
 
-        assertEquals("next-start,current,recovery,next-queued,", order.toString());
+        Assert.assertEquals("next-start,current,recovery,next-queued,", order.toString());
+    }
+
+    @Test
+    public void shutdownClearsQueuedWorkAndIgnoresLateCompletion() {
+        StreamingPlaybackTaskScheduler scheduler = new StreamingPlaybackTaskScheduler();
+        StringBuilder order = new StringBuilder();
+        final Runnable[] firstCompletion = new Runnable[1];
+
+        scheduler.scheduleCurrentUrlResolve(completion -> {
+            order.append("first,");
+            firstCompletion[0] = completion;
+        });
+        scheduler.scheduleCurrentUrlResolve(completion -> {
+            order.append("queued,");
+            completion.run();
+        });
+
+        scheduler.shutdownNow();
+        if (firstCompletion[0] != null) {
+            firstCompletion[0].run();
+        }
+
+        Assert.assertEquals("first,", order.toString());
+    }
+
+    @Test
+    public void shutdownIgnoresNewWork() {
+        StreamingPlaybackTaskScheduler scheduler = new StreamingPlaybackTaskScheduler();
+        AtomicInteger calls = new AtomicInteger();
+
+        scheduler.shutdownNow();
+        scheduler.scheduleCurrentPlaybackRecovery(completion -> {
+            calls.incrementAndGet();
+            completion.run();
+        });
+        scheduler.scheduleCurrentUrlResolve(completion -> {
+            calls.incrementAndGet();
+            completion.run();
+        });
+        scheduler.scheduleNextUrlResolve(completion -> {
+            calls.incrementAndGet();
+            completion.run();
+        });
+
+        Assert.assertEquals(0, calls.get());
     }
 }

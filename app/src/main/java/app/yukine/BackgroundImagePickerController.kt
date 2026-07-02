@@ -14,14 +14,6 @@ internal fun interface BackgroundMainPoster {
     fun post(task: Runnable)
 }
 
-internal fun interface BackgroundLanguageModeProvider {
-    fun languageMode(): String
-}
-
-internal fun interface BackgroundTransformProvider {
-    fun transformFor(page: String): BackgroundTransform
-}
-
 internal fun interface BackgroundDocumentPickerLauncher {
     fun launch(intent: Intent, onResult: (ActivityResult) -> Unit)
 }
@@ -35,10 +27,8 @@ internal class BackgroundImagePickerController @JvmOverloads constructor(
     private val listener: Listener,
     private val ioRunner: BackgroundTaskRunner = BackgroundTaskRunner { task -> task.run() },
     private val mainPoster: BackgroundMainPoster = BackgroundMainPoster { task -> task.run() },
-    private val languageModeProvider: BackgroundLanguageModeProvider =
-        BackgroundLanguageModeProvider { AppLanguage.MODE_SYSTEM },
-    private val transformProvider: BackgroundTransformProvider =
-        BackgroundTransformProvider { BackgroundTransform.IDENTITY },
+    private val languageModeProvider: () -> String = { AppLanguage.MODE_SYSTEM },
+    private val transformProvider: (String) -> BackgroundTransform = { BackgroundTransform.IDENTITY },
     private val imageStore: BackgroundImageCopyStore = BackgroundImageStore(),
     documentPickerLauncher: BackgroundDocumentPickerLauncher? = null,
     previewResultLauncher: BackgroundPreviewResultLauncher? = null
@@ -102,8 +92,8 @@ internal class BackgroundImagePickerController @JvmOverloads constructor(
                 BackgroundPreviewActivity.intent(
                     activity,
                     source,
-                    languageModeProvider.languageMode(),
-                    transformProvider.transformFor(page)
+                    languageModeProvider(),
+                    transformProvider(page)
                 )
             ) { result ->
                 handlePreviewResult(result)

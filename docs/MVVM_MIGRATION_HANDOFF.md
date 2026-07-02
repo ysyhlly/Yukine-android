@@ -6,6 +6,508 @@
 
 ---
 
+## 2026-06-29 Codex continuation note
+
+- Launcher component `.MainActivity` now resolves to Kotlin `MainActivity.kt`;
+  the deleted Java `MainActivity.java` is guarded by
+  `MainActivityArchitectureContractTest`.
+- `MainActivityBase` is now a public legacy base behind the Kotlin shell.
+  ViewModel acquisition moved to Kotlin `by viewModels()` delegates and
+  `MainActivityViewModels`, so the Java base no longer calls
+  `ViewModelProvider`.
+- The provisional `ShellViewModel` / `ShellState` / `ShellAction` line was
+  removed after review because it was not consumed by `MainActivityBase`,
+  `NavigationViewModel`, `MainRouteController`, or `EchoNavHostState`. The
+  active shell path remains Kotlin `MainActivity.kt` delegating into the
+  existing route/nav owners until a future slice can make `ShellState` the
+  single runtime state source instead of a parallel model.
+- Hilt Activity-scoped modules now own several stable Activity dependencies:
+  `ShellModule` provides `MainExecutors`, `PlatformModule` provides the main
+  `Handler`, `StreamingModule` provides streaming playback scheduling,
+  streaming playback resolution, and streaming track matching, and
+  `LibraryModule` provides favorite toggling and playlist-track loading use
+  cases.
+- `PlaybackUiModule` now provides `MainPlaybackStoreFactory`; the Java base
+  no longer constructs `MainPlaybackStore` directly and only passes the
+  Kotlin-shell-owned `PlaybackViewModel` into the injected factory.
+- Now-playing transport/favorite/status gateway policy moved out of the Java
+  base anonymous `NowPlayingGateway` block into `MainNowPlayingGateway`, which
+  is created through `PlaybackUiModule` and covered by
+  `MainNowPlayingGatewayTest`.
+- Playback action listener policy moved out of the Java base anonymous
+  `PlaybackActionController.Listener` block into `MainPlaybackActionListener`,
+  which is created through `PlaybackUiModule` and covered by
+  `MainPlaybackActionListenerTest`.
+- Queue action listener policy moved out of the Java base anonymous
+  `QueueActionController.Listener` block into `MainQueueActionListener`, which
+  is created through `PlaybackUiModule` and covered by
+  `MainQueueActionListenerTest`.
+- Queue render listener policy moved out of the Java base anonymous
+  `QueueRenderController.Listener` block into `MainQueueRenderListener`, which
+  is created through `PlaybackUiModule` and covered by
+  `MainQueueRenderListenerTest`.
+- Home dashboard render listener policy moved out of the Java base anonymous
+  `HomeDashboardRenderController.Listener` block into
+  `MainHomeDashboardRenderListener`, which is created through `ShellModule` and
+  covered by `MainHomeDashboardRenderListenerTest`.
+- Now-playing state listener policy moved out of the Java base anonymous
+  `NowPlayingStateController.Listener` block into `MainNowPlayingStateListener`,
+  which is created through `PlaybackUiModule` and covered by
+  `MainNowPlayingStateListenerTest`.
+- Recommendation action callbacks moved out of the Java base anonymous
+  `RecommendationActionCallbacks` block into `MainRecommendationActionCallbacks`,
+  which is created through `StreamingModule` and covered by
+  `MainRecommendationActionCallbacksTest`.
+- Streaming playlist dialog callbacks moved out of the Java base anonymous
+  `StreamingPlaylistDialogController.Listener` block into
+  `MainStreamingPlaylistDialogListener`, which is created through
+  `StreamingModule` and covered by `MainStreamingPlaylistDialogListenerTest`.
+- Streaming playlist controller listener policy moved out of the Java base
+  anonymous `StreamingPlaylistController.Listener` block into
+  `MainStreamingPlaylistListener`, which is created through `StreamingModule`
+  and covered by `MainStreamingPlaylistListenerTest`.
+- Streaming playlist import dialog callbacks moved out of the Java base
+  anonymous `StreamingPlaylistImportDialogController.Listener` block into
+  `MainStreamingPlaylistImportDialogListener`, which is created through
+  `StreamingModule` and covered by
+  `MainStreamingPlaylistImportDialogListenerTest`.
+- Streaming manual cookie listener callbacks moved out of the Java base
+  anonymous `StreamingManualCookieController.Listener` block into
+  `MainStreamingManualCookieListener`, which is created through
+  `StreamingModule` and covered by `MainStreamingManualCookieListenerTest`.
+- Streaming search render listener policy moved out of the Java base anonymous
+  `StreamingSearchRenderController.Listener` block into
+  `MainStreamingSearchRenderListener`, which is created through
+  `StreamingModule` and covered by `MainStreamingSearchRenderListenerTest`.
+- Migration direction update: pause mechanical listener extraction after this
+  high-value streaming search listener slice. Next architecture slices should
+  run in two lanes but land in small batches: first record a checkpoint, then
+  prefer Hilt construction migration in `initializeStoresAndDataGateways()`
+  for `LibraryPlaylistActionGateway`, `StreamingLocalPlaylistOperations`,
+  `LoadSettingsPreferencesUseCase`, `ImportStreamingPlaylistUseCase`,
+  `SyncStreamingPlaylistUseCase`, `EnsureStreamingLoginPlaylistUseCase`, and
+  `GetStreamingPlaylistLinkUseCase` before adding more one-hop listener
+  factories.
+- New owner acceptance is now stricter: a new owner must delete a Java
+  anonymous business callback, reduce Activity manual construction, shorten a
+  call chain, split a large interface, or add real behavior coverage. Listener
+  delegation tests can remain, but every 2-3 listener slices need a behavior
+  test for a real streaming/playback/data flow.
+- Hilt construction migration has started for
+  `initializeStoresAndDataGateways()`: `StreamingPlaylistSyncStore`,
+  `ImportStreamingPlaylistUseCase`, `SyncStreamingPlaylistUseCase`,
+  `EnsureStreamingLoginPlaylistUseCase`, `GetStreamingPlaylistLinkUseCase`,
+  and `StreamingLocalPlaylistOperations` are now provided by
+  `StreamingModule`. `MainActivityBase` only binds the injected
+  `StreamingLocalPlaylistOperations` into `StreamingViewModel`; the previous
+  Java anonymous `StreamingLocalPlaylistOperations` block and four manual
+  use case constructors were removed. `MainStreamingLocalPlaylistOperations`
+  covers the owner behavior with `MainStreamingLocalPlaylistOperationsTest`.
+- The download directory picker unavailable message now uses
+  `AppLanguage.text(..., "download.directory.picker.unavailable")` instead of
+  a hard-coded Chinese string, preserving English parity.
+- P0 baseline freeze recheck (2026-06-29): `git status --short` currently
+  reports four modified entries:
+  `M docs/ARCHITECTURE_REMEDIATION_PLAN_2026-06-26.md`,
+  `M docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md`,
+  `M docs/MVVM_MIGRATION_HANDOFF.md`, and `M gradle.properties`; there are no
+  current deleted test files under `app/src/test` or `app/src/androidTest`,
+  so the deleted-test replacement map is empty for this checkpoint. Current
+  counts are `MainActivityBase.java` 2968 lines,
+  `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 170, and root-package Java files 15.
+  `ShellViewModel` / `ShellState` / `ShellAction` source files are absent;
+  remaining mentions are historical correction notes or contract-test guards.
+  Serial verification passed with default Gradle settings:
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`
+  and
+  `.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain`.
+  Do not default to `--no-daemon` or `--max-workers=1`; use them only after a
+  reproducible daemon, KSP, or lock issue.
+- P1 `initializeStoresAndDataGateways()` playlist action gateway slice
+  (2026-06-29): `LibraryModule` now provides `LibraryPlaylistActionGateway`
+  as `MainLibraryPlaylistActionGateway`, backed by
+  `MusicLibraryPlaylistActionOperations(repository, syncStore)`. The playlist
+  action contracts moved from the large `LibraryViewModel.kt` file into
+  `LibraryPlaylistActionContracts.kt`, while `LibraryViewModel` remains the UI
+  state/action owner. `MainActivityBase` now only calls
+  `libraryViewModel.bindPlaylistActionGateway(libraryPlaylistActionGateway)`;
+  the previous anonymous `new LibraryPlaylistActionGateway() { ... }`, the
+  local `MusicLibraryPlaylistActionOperations`, seven playlist action use case
+  constructors, and the Activity-owned `StreamingPlaylistSyncStore` field were
+  removed from the host. This lowers `MainActivityBase.java` to 2927 lines and
+  keeps root-package `*Bindings*` at 0 and root-package `*Controller*` at 44;
+  root-package files are now 172 after adding the focused gateway and contract
+  files. Guarded by `MainLibraryPlaylistActionGatewayTest` and
+  `MainActivityArchitectureContractTest`. Focused tests passed with
+  `.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainLibraryPlaylistActionGatewayTest --tests app.yukine.MainActivityArchitectureContractTest --rerun-tasks --console=plain`
+  after a default cached run exposed stale transformed class output; compile
+  passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 library collection/import gateway slice (2026-06-29):
+  `LibraryModule` now provides `LibraryCollectionGateway` through
+  `MainLibraryCollectionGateway` and `LibraryImportGateway` through
+  `MainLibraryImportGateway`. The concrete owners live beside the existing
+  library collection/import use cases, so no new root-package files or root
+  `*Bindings*` / `*Controller*` files were added. `MainActivityBase` now binds
+  the injected collection/import gateways directly; the previous anonymous
+  `new LibraryCollectionGateway() { ... }` and
+  `new LibraryImportGateway() { ... }` blocks, the host-owned
+  `MusicLibraryCollectionOperations`, the repeated import use case
+  constructors, and the private `toLibraryLoadResultUi(...)` helper were
+  removed.
+  Current recheck: `MainActivityBase.java` 2873 lines,
+  `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 172, and root-package Java files 15. Guarded by
+  `LibraryCollectionUseCasesTest`,
+  `LibraryImportUseCasesTest`, and `MainActivityArchitectureContractTest`.
+  Verification passed with
+  `.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.LibraryCollectionUseCasesTest --tests app.yukine.LibraryImportUseCasesTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain`
+  and
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 library document gateway provider slice (2026-06-29):
+  `LibraryModule` now provides `LibraryDocumentGateway` through
+  `ContentResolverLibraryDocumentGateway` with an application `ContentResolver`
+  and `MusicLibraryImportOperations(repository)`. `MainActivityBase` now binds
+  the injected `libraryDocumentGateway` and no longer constructs
+  `MusicLibraryImportOperations` or
+  `ContentResolverLibraryDocumentGateway(getContentResolver(), ...)` locally.
+  This finishes the current library import/document assembly path in Hilt
+  without adding root `*Bindings*` or `*Controller*` files. Current recheck:
+  `MainActivityBase.java` 2872 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 172, and root-package
+  Java files 15. This slice reduces Activity manual construction and call-chain
+  length; Activity field count is not claimed as a P1 exit win because the
+  injected document gateway replaces local assembly. Guarded by
+  `ContentResolverLibraryDocumentGatewayTest` and
+  `MainActivityArchitectureContractTest`. Verification passed with
+  `.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.ContentResolverLibraryDocumentGatewayTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain`
+  and
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 settings preference provider slice (2026-06-29):
+  `SettingsModule` now provides `LoadSettingsPreferencesUseCase` and
+  `ApplySettingsPreferenceUseCase` from the existing settings preference
+  operations. `MainActivityBase` now loads settings through the injected
+  `loadSettingsPreferencesUseCase` and binds persistence through
+  `applySettingsPreferenceUseCase::execute`; the host no longer constructs
+  `MusicLibrarySettingsPreferenceLoadOperations`,
+  `LoadSettingsPreferencesUseCase`, `MusicLibrarySettingsPreferenceOperations`,
+  or `ApplySettingsPreferenceUseCase`. This keeps the Settings path as
+  `SettingsViewModel -> preference/runtime applier` and does not add a settings
+  gateway, coordinator, controller, or bindings layer. Current recheck:
+  `MainActivityBase.java` 2866 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 173, and root-package
+  Java files 15. The root file count increases by one for the feature-specific
+  Hilt module; the Activity manual-construction count and call-chain length
+  decrease. Guarded by `LoadSettingsPreferencesUseCaseTest`,
+  `ApplySettingsPreferenceUseCaseTest`, and
+  `MainActivityArchitectureContractTest`. Verification passed with
+  `.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.LoadSettingsPreferencesUseCaseTest --tests app.yukine.ApplySettingsPreferenceUseCaseTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain`
+  and
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 library store factory slice (2026-06-29):
+  `MainLibraryStore` now has `MainLibraryStoreFactory`, mirroring the existing
+  `MainPlaybackStoreFactory` pattern for ViewModel-bound stores. `LibraryModule`
+  now provides `LibrarySearchUseCase` and `MainLibraryStoreFactory`, so
+  `MainActivityBase` only calls `libraryStoreFactory.create(viewModel)`.
+  The host no longer constructs `MainLibraryStore`, `LibrarySearchUseCase`, or
+  `MusicLibrarySearchOperations` directly. Current recheck:
+  `MainActivityBase.java` 2864 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 173, and root-package
+  Java files 15. This slice reduces Activity store/search manual construction;
+  Activity field count is not claimed as a win because the injected factory
+  replaces local assembly. Guarded by `LibrarySearchUseCaseTest`,
+  `NetworkLibraryStoreDirectAccessTest`, `PlayHistoryActionControllerTest`,
+  and `MainActivityArchitectureContractTest`. The first focused-test attempt
+  hit the tool timeout at 120s; a process check showed only Gradle/Kotlin
+  daemons, then the same command passed with a longer timeout:
+  `.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.LibrarySearchUseCaseTest --tests app.yukine.NetworkLibraryStoreDirectAccessTest --tests app.yukine.PlayHistoryActionControllerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain`.
+  Compile passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 streaming search action handler factory slice (2026-06-29):
+  `DefaultStreamingSearchActionHandler` now exposes
+  `MainStreamingSearchActionHandlerFactory`, provided by `StreamingModule`.
+  `MainActivityBase` now calls
+  `streamingSearchActionHandlerFactory.create(streamingViewModel, streamingActionGateway)`
+  and no longer directly constructs `DefaultStreamingSearchActionHandler` in
+  production code. Current recheck: `MainActivityBase.java` 2865 lines,
+  `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 173, and root-package Java files 15. This slice reduces
+  one Activity streaming search manual-construction point; line count and field
+  count are not claimed as wins because the injected factory replaces local
+  construction. Guarded by `DefaultStreamingSearchActionHandlerTest` and
+  `MainActivityArchitectureContractTest`; compile passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 track share operations provider slice (2026-06-29):
+  `ShellModule` now provides `TrackShareOperations` through the existing
+  `TrackShareManagerOperations(trackShareManager, nativeMusicShareManager)`.
+  `MainActivityBase` injects `TrackShareOperations` and no longer holds
+  `TrackShareManager` / `NativeMusicShareManager` fields or constructs
+  `TrackShareManagerOperations` locally when creating `TrackShareLauncher`.
+  Current recheck: `MainActivityBase.java` 2862 lines,
+  `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 173, and root-package Java files 15. This slice reduces
+  Activity fields and share operations manual construction without adding root
+  files, bindings, or controllers. Guarded by `TrackShareLauncherTest` and
+  `MainActivityArchitectureContractTest`; compile passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 settings store provider slice (2026-06-29):
+  `SettingsModule` now provides the Activity-scoped `MainSettingsStore`.
+  `MainActivityBase` injects `settingsStore` directly and no longer constructs
+  `new MainSettingsStore()` inside `initializeStoresAndDataGateways()`.
+  Current recheck: `MainActivityBase.java` 2861 lines,
+  `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 173, and root-package Java files 15. This slice reduces
+  Activity manual construction without adding root files, bindings, or
+  controllers. Guarded by `LoadSettingsPreferencesUseCaseTest`,
+  `ApplySettingsPreferenceUseCaseTest`, and `MainActivityArchitectureContractTest`;
+  compile passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 lyrics settings use-case provider slice (2026-06-29):
+  `SettingsModule` now provides `LoadLyricsSettingsUseCase` through the
+  existing `MusicLibraryLyricsSettingsOperations(repository)`. `MainActivityBase`
+  injects `loadLyricsSettingsUseCase` and no longer constructs
+  `LoadLyricsSettingsUseCase` or `MusicLibraryLyricsSettingsOperations` locally
+  while configuring `LyricsViewModel`. Current recheck:
+  `MainActivityBase.java` 2858 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 173, and root-package
+  Java files 15. This slice reduces Activity manual construction without adding
+  root files, bindings, or controllers. Guarded by
+  `LoadLyricsSettingsUseCaseTest` and `MainActivityArchitectureContractTest`;
+  compile passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 lyrics loader provider slice (2026-06-29):
+  `SettingsModule` now provides the `LyricsLoader` used by `LyricsViewModel`
+  through the existing `LoadTrackLyricsUseCaseLyricsLoader`,
+  `LoadTrackLyricsUseCase`, and `LyricsRepositoryLoadOperations` chain.
+  `MainActivityBase` injects `lyricsLoader` and no longer constructs
+  `LoadTrackLyricsUseCaseLyricsLoader`,
+  `LoadTrackLyricsUseCase`, or `LyricsRepositoryLoadOperations` while
+  configuring `LyricsViewModel`. Current recheck:
+  `MainActivityBase.java` 2857 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 173, and root-package
+  Java files 15. This slice reduces Activity manual construction without
+  adding root files, bindings, controllers, or a new lyrics manager. Guarded by
+  `LoadTrackLyricsUseCaseTest`, `LyricsViewModelTest`, and
+  `MainActivityArchitectureContractTest`; compile passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 network action use-case provider slice (2026-06-29):
+  `LibraryModule` now provides `NetworkActionUseCases` from the existing
+  `MusicLibraryWebDavSourceOperations(repository)` and
+  `MusicLibraryNetworkLibraryOperations(repository)` owners. `MainActivityBase`
+  injects `networkActionUseCases` and no longer constructs
+  `NetworkActionUseCases`, `MusicLibraryWebDavSourceOperations`,
+  `MusicLibraryNetworkLibraryOperations`, or the 11 WebDAV/network library use
+  cases in `initializeNetworkOwners()`. Current recheck:
+  `MainActivityBase.java` 2840 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 173, and root-package
+  Java files 15. This slice reduces Activity manual construction without
+  adding root files, bindings, controllers, or a network gateway. Guarded by
+  `NetworkActionsViewModelTest`, `NetworkLibraryUseCasesTest`,
+  `WebDavSourceUseCasesTest`, and `MainActivityArchitectureContractTest`;
+  compile passed with
+  `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+- P1 library gateway policy owner slice (2026-06-29):
+  `LibraryModule` now provides `MainLibraryGatewayFactory`, and
+  `MainLibraryGateway` owns the former `LibraryGateway` host policy for
+  track-list play, status key resolution, favorite refresh, playlist add,
+  library group routing, search, import, and scan commands. `MainRouteController`
+  implements the narrow `LibraryRouteActions` interface so Activity does not
+  need a replacement anonymous routing block. `MainActivityBase` now only wires
+  existing host/platform capabilities into the factory and no longer contains
+  `libraryViewModel.bindGateway(new LibraryGateway() { ... })`. Current recheck:
+  `MainActivityBase.java` 2789 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 174, and root-package
+  Java files 15. Root files increase by one for a behavior owner, while the
+  Activity anonymous policy block and call-chain policy move into focused
+  coverage. Guarded by `MainLibraryGatewayTest`, `LibraryViewModelTest`,
+  `MainRouteControllerTest`, and `MainActivityArchitectureContractTest`;
+  focused tests and compile passed with default daemon/workers.
+- P1 streaming action gateway policy owner slice (2026-06-29):
+  `StreamingModule` now provides `MainStreamingActionGatewayFactory`, and
+  `MainStreamingActionGateway` owns the former Java anonymous
+  `MainActivityStreamingActionGateway` policy for selected quality, language,
+  auth launch delegation, resolved-track playback, login-success playlist
+  handling, and manual cookie import ordering. `MainActivityBase` now wires
+  existing host/platform capabilities into the factory and no longer contains
+  `new MainActivityStreamingActionGateway()`. Current recheck:
+  `MainActivityBase.java` 2769 lines, `EchoPlaybackService.java` 2469 lines,
+  `feature:data` `EchoDatabaseHelper.java` 2117 lines,
+  `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0,
+  root-package `*Controller*` 44, root-package files 175, and root-package
+  Java files 15. Root files increase by one for a behavior owner, while the
+  Activity anonymous streaming policy block moves into focused coverage.
+  Guarded by `MainStreamingActionGatewayTest`,
+  `DefaultStreamingSearchActionHandlerTest`, and
+  `MainActivityArchitectureContractTest`; focused tests and compile passed
+  with default daemon/workers.
+- P1 now-playing playback gateway service-start slice (2026-06-29):
+  `PlaybackUiModule` now provides `MainNowPlayingPlaybackGatewayFactory`, and
+  `NowPlayingPlaybackServiceStarter` owns the Android
+  `Intent(context, EchoPlaybackService::class.java)` start path. `MainActivityBase`
+  now only binds `nowPlayingPlaybackGatewayFactory.create(() -> playbackService)`
+  and no longer constructs `NowPlayingPlaybackGatewayAdapter` or the playback
+  service start `Intent` locally. Current recheck: `MainActivityBase.java` 2762
+  lines, `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 175, and root-package Java files 15. Guarded by
+  `NowPlayingPlaybackGatewayAdapterTest`, `MainNowPlayingGatewayTest`,
+  `NowPlayingViewModelTest`, and `MainActivityArchitectureContractTest`;
+  focused tests and compile passed with default daemon/workers.
+- P1 play-history action controller factory slice (2026-06-29):
+  `LibraryModule` now provides `MainPlayHistoryActionControllerFactory`, and
+  `MainActivityBase.initializeStoresAndDataGateways()` creates the existing
+  `PlayHistoryActionController` through that injected factory instead of
+  `new PlayHistoryActionController(...)`. The real owner and behavior stay in
+  `PlayHistoryActionController`: it still clears through `LibraryViewModel`,
+  updates `PlayHistoryStateStore`, publishes localized status, and reloads
+  collections. Current recheck: `MainActivityBase.java` 2760 lines,
+  `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 175, and root-package Java files 15. Guarded by
+  `PlayHistoryActionControllerTest` and `MainActivityArchitectureContractTest`;
+  focused tests and compile passed with default daemon/workers.
+- P1 network actions listener policy slice (2026-06-29):
+  The long `NetworkActionsViewModel.Listener` anonymous block moved out of
+  `MainActivityBase.initializeNetworkOwners()` into `MainNetworkActionsListener`,
+  provided by `LibraryModule` through `MainNetworkActionsListenerFactory`.
+  `NetworkActionsViewModel` still owns use-case execution; the new listener
+  only maps action results to library replacement, now-playing queue retain or
+  replace, network navigation, collections reload, and status publication.
+  `MainActivityBase` now only binds the injected listener factory with existing
+  host callbacks. Current recheck: `MainActivityBase.java` 2697 lines,
+  `EchoPlaybackService.java` 2469 lines, `feature:data`
+  `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines,
+  root-package `*Bindings*` 0, root-package `*Controller*` 44,
+  root-package files 175, and root-package Java files 15. Guarded by
+  `MainNetworkActionsListenerTest`, `NetworkActionsViewModelTest`, and
+  `MainActivityArchitectureContractTest`; focused tests and compile passed
+  with default daemon/workers.
+- Streaming playback listener policy moved out of the Java base anonymous
+  `StreamingPlaybackController.Listener` block into
+  `MainStreamingPlaybackListener`, which is created through `PlaybackUiModule`
+  and covered by `MainStreamingPlaybackListenerTest`.
+- Playback start listener policy and pending playback state moved out of the
+  Java base anonymous `PlaybackStartController.Listener` block into
+  `MainPlaybackStartListener`, which is created through `PlaybackUiModule` and
+  covered by `MainPlaybackStartListenerTest`.
+- Playback state event listener policy moved out of the Java base anonymous
+  `PlaybackStateEventController.Listener` block into
+  `MainPlaybackStateEventListener`, which is created through
+  `PlaybackUiModule` and covered by `MainPlaybackStateEventListenerTest`.
+- Playback service host policy moved out of the Java base anonymous
+  `PlaybackServiceHostController.Host` block into `MainPlaybackServiceHost`,
+  which is created through `PlaybackUiModule` and covered by
+  `MainPlaybackServiceHostTest`.
+- Track-list render listener policy moved out of the Java base anonymous
+  `TrackListRenderController.Listener` block into
+  `MainTrackListRenderListener`, which is created through `LibraryModule` and
+  covered by `MainTrackListRenderListenerTest`.
+- Heartbeat recommendation listener policy moved out of the Java base
+  anonymous `HeartbeatRecommendationController.Listener` block into
+  `MainHeartbeatRecommendationListener`, which is created through
+  `StreamingModule` and covered by `MainHeartbeatRecommendationListenerTest`.
+- Document picker platform listener policy moved out of the Java base
+  anonymous `DocumentPickerController.Listener` block into
+  `MainDocumentPickerListener`, which is created through `PlatformModule` and
+  covered by `MainDocumentPickerListenerTest`.
+- Background image picker listener policy moved out of the Java base
+  anonymous `BackgroundImagePickerController.Listener` block into
+  `MainBackgroundImagePickerListener`, which is created through
+  `PlatformModule` and covered by `MainBackgroundImagePickerListenerTest`.
+- Permission result listener policy moved out of the Java base anonymous
+  `MainPermissionController.Listener` block into `MainPermissionListener`,
+  which is created through `PlatformModule` and covered by
+  `MainPermissionListenerTest`.
+- `MainActivityBase` no longer hand-constructs those dependencies; it only
+  binds the injected owners into the existing feature ViewModels/controllers.
+- Phase 5.6 active-download host boundary was tightened without changing
+  download behavior.
+- `TrackDownloadController` and `TrackDownloadActionResult` now live in
+  `feature/navigation/src/main/java/app/yukine/DownloadsDestinationContracts.kt`.
+- `TrackDownloadManager` stays in `:app` as the concrete download queue,
+  directory, Android `DownloadManager`, and app-managed segmented download
+  owner through `TrackDownloadRequestQueue`.
+- `EchoNavHostState` still consumes `TrackDownloadController?`, but no longer
+  depends on an app-owned contract definition for active download snapshots.
+- Guarded by `MainActivityArchitectureContractTest` plus focused downloads and
+  navigation tests.
+- The remaining navigation shell files have now moved to `:feature:navigation`:
+  `EchoNavGraph.kt`, `EchoNavHostState.kt`, and `EchoNavHostBridge.kt`.
+- `:app` still owns ViewModels, platform launchers, and state/action
+  production, while `EchoAppHost` wires those contracts into the feature
+  navigation shell.
+- Phase 6 has started as stabilization-first coordinator reduction rather than
+  new event-bus expansion: forwarding-only `DownloadsCoordinator` and
+  behaviorless `FileIOCoordinator` were deleted, with download track requests
+  wired directly to the existing `DownloadRequestController`.
+- The unused `NetworkCoordinator` has also been deleted; the live network
+  request/menu/source/render wiring was already owned directly by
+  `MainActivityBase` and guarded by `MainActivityArchitectureContractTest`.
+- The unused `LibraryCoordinator` and `NavigationCoordinator` were deleted as
+  dead assembly layers: both were constructed in `MainActivityBase` but never
+  called. The active library and route/search/back/swipe paths remain in the
+  existing host methods until a later slice can move behavior to a true owner.
+- `SettingsCoordinator` was deleted as a duplicate runtime binding layer:
+  `MainActivityBase` already constructs `SettingsRuntimeApplier` and binds it
+  directly to `SettingsViewModel`; the coordinator only rebound the same
+  listener and its render method had no caller.
+- `PlaybackCoordinator` was narrowed to playback-start delegation plus service
+  connection lifecycle. It no longer owns action/result application, ViewModel
+  or store dependencies, state controllers, or its own pending playback cache;
+  pending playback remains owned by `PlaybackStartController`.
+- `PlaybackCoordinator` was then deleted after becoming pure forwarding:
+  `MainActivityBase` now calls `PlaybackStartController`,
+  `PlaybackServiceConnectionController`, and
+  `EchoPlaybackService.setAppVisible(...)` directly.
+- `NowPlayingQueueCoordinator` was narrowed to the live queue intent listener
+  binding. It no longer owns unused Now Playing effect handling, queue render
+  helpers, queue input binding, store/settings/status dependencies, or
+  render/state controller constructor parameters.
+- `NowPlayingQueueCoordinator` was then deleted after confirming
+  `mountNavHostShell()` already installs the actual
+  `queueViewModel.bindIntentListener(...)` path and overwrote the coordinator
+  binding. Queue intents remain handled through the existing NavHost shell path
+  and `QueueActionController`.
+- `StreamingCoordinator` was deleted after its only live production use was
+  forwarding initial/new intents to `StreamingAuthCallbackController`. The host
+  now calls that controller directly, while the existing `MainActivityBase`
+  streaming refresh, gateway endpoint, playback, quality, and source-switch
+  methods remain the active implementations.
+- `NetworkMenuRenderController`, `NetworkTrackListRenderController`,
+  `NetworkSourcesRenderController`, and `StreamingSearchRenderController`
+  remain focused render owners consumed by `NetworkRenderCoordinator`, but
+  `MainActivityBase` now constructs them as local assembly values instead of
+  retaining Activity fields.
+
+---
+
 ## 0. 迁移原则
 
 ### 0.1 目标架构
@@ -162,7 +664,7 @@ MainActivity
   -> DocumentPickerController
   -> BackupRestoreLauncher
   -> BackgroundImagePickerController
-  -> DownloadDirectoryPickerController
+  -> DocumentPickerController.openDownloadFolderPicker
 ```
 
 #### 具体任务
@@ -474,7 +976,15 @@ data class EchoNavHostState(
 
 ### 6.3 具体任务
 
-#### 6.3.1 建立 AppShellViewModel
+#### 6.3.1 Shell typed state 暂缓（不要恢复 AppShellViewModel）
+
+2026-06-29 correction: the provisional `ShellViewModel` / `ShellState` /
+`ShellAction` line has been deleted and is guarded by
+`MainActivityArchitectureContractTest`. The old sketch below is historical
+context only, not an active migration step. Do not reintroduce an
+`AppShellViewModel` unless it replaces the current `NavigationViewModel` /
+`MainRouteController` / `EchoNavHostState` path as the single shell state
+source.
 
 职责�?
 - 当前 tab�?- 是否显示 onboarding�?- bottom nav labels�?- NowBar 是否显示�?- 页面背景选择�?- 全局状态消息�?
@@ -498,7 +1008,7 @@ data class AppShellUiState(
 
 验证结论：以下所有 nav* 字段均已从 `MainActivity.java` 删除，grep 无匹配。曲库 action 已类型化为 `LibraryEvent`，队列为 `QueueIntent`，各页面 ViewModel 直接持有 UiState。
 
-补充记录：`QueueIntentBindings` 已移除，`MainActivity` 直接实现 `QueueIntentController.Listener` 并把 `QueueIntent` 分发到 `LibraryEvent`、`QueueActionController` 和页面 owner，避免队列意图再经过一层纯转发绑定。
+补充记录：`QueueIntentBindings` 已移除；2026-06-28 进一步删除 `QueueIntentController`，`QueueViewModel.bindIntentListener(...)` 现在直接把 `QueueIntent` 分发到 `LibraryEvent`、`QueueActionController` 和页面 owner，避免队列意图再经过一层纯转发 controller。
 
 补充记录：`StreamingTrackMatchStoreBindings` 已移除，`StreamingTrackMatchUseCase` 直接实现 `StreamingTrackMatchStore`，`StreamingViewModel`、`StreamingRecommendationViewModel` 和心跳推荐 seed resolver 共享同一个 use case/store 实例，减少 use case -> bindings -> store 的纯转发层。
 
@@ -578,6 +1088,9 @@ sealed interface AppRoute {
 - `QueueViewModel`
 - `NowPlayingStateController`
 - `PlaybackStateUpdateController`
+- `PlaybackStateUpdateController` is now a stateless `object`; `MainActivityBase`
+  no longer keeps or constructs it, and `PlaybackStateEventController` calls the
+  policy directly.
 - `PlaybackActionController`
 - `PlaybackStartController`
 - Activity 手动 publish/render
@@ -610,11 +1123,14 @@ EchoPlaybackService
 
 ### 7.3 具体任务
 
-#### 7.3.1 建立 PlaybackController facade
+#### 7.3.1 PlaybackController facade（已退役）
 
-1. 新增 `PlaybackController.kt`�?2. 新增 `PlaybackServiceController.kt`，内部绑定或代理 `EchoPlaybackService`�?3. Activity 持有 `PlaybackController`，不再直接把 service 传给各处�?4. `NowPlayingViewModel`、`QueueViewModel`、`PlaybackViewModel` 依赖 `PlaybackController` �?`PlaybackRepository`�?
-验收�?
-- UI/ViewModel 不直�?import `EchoPlaybackService`�?- 单测可用 fake `PlaybackController`�?
+1. 2026-06-28：`app.yukine.playback.PlaybackController`、`PlaybackServiceController`、`FakePlaybackController` 已删除。
+2. 当前生产树继续使用根包 `app.yukine.PlaybackController` 及其现行调用链。
+3. 旧的 7.3.1 只保留为历史记录，不再作为当前迁移目标。
+验收：
+- UI/ViewModel 不再引用已退役的 playback facade。
+- 播放路径继续以当前 service/adapter 边界为准。
 #### 7.3.2 统一播放 UiState
 
 目标�?
@@ -694,10 +1210,10 @@ data class LibraryState(
 验收：切换曲库模式不需要 `routeController.setLibraryMode` 后再 `renderSelectedTab`；收藏状态更新自动刷新列表和 NowBar。
 
 迁移进展（2026-06-25）：
-- ✅ `MainLibraryStore` 写接口已收敛：`setFavorite` / `toggleFavorite` / `clearPlayHistory` 等写方法移出，`MainLibraryStore` 退化为只读兼容 facade，所有读取都从 `MainActivityViewModel.library` 这一份 `MutableStateFlow<MainActivityLibraryState>` 派生。
+- ✅ `MainLibraryStore` 写接口已收敛：`setFavorite` / `toggleFavorite` / `clearPlayHistory` 等写方法移出，`MainLibraryStore` 退化为只读兼容 facade，所有读取都从 `MainActivityViewModel.library` 这一份 `MutableStateFlow<LibraryStoreState>` 派生。
 - ✅ 收藏写路径改走 `MainActivityViewModel.setFavorite(...)`，播放历史清空改走 `MainActivityViewModel.clearPlayHistory()`，`PlayHistoryActionController` 通过 `PlayHistoryStateStore { viewModel.clearPlayHistory() }` 单向同步，不再回写 store。
 - ✅ 契约测试 `MainActivityArchitectureContractTest` 已更新断言为 `libraryStateStore.clearPlayHistory()`，`PlayHistoryActionControllerTest` 已对齐到 `libraryStateStore` 装配。
-- 🔲 仍待迁移：`replaceLibrary` / `loadCollections` / `refreshLibraryAfterStreamingImport` 仍经 store 转发到 ViewModel；完整 `LibraryState`（mode / selectedGroup / searchQuery 等）尚未独立成型，仍由 `MainActivityLibraryState` + 外部 store 共担。
+- 🔲 仍待迁移：`replaceLibrary` / `loadCollections` / `refreshLibraryAfterStreamingImport` 仍经 store 转发到 ViewModel；完整 `LibraryState`（mode / selectedGroup / searchQuery 等）尚未独立成型，仍由 `LibraryStoreState` + 外部 store 共担。
 
 #### 8.3.2 曲库 action typed �?
 当前 action 是多�?`Runnable` / actions list�?
@@ -864,7 +1380,7 @@ sealed interface RecommendationAction {
 - `heartbeatRecommendationSeedRequest` 不在 Activity�?- 推荐失败、空结果、成功播放可单测�?
 迁移进展�?026-06-24）：
 
-- 每日推荐已先拆到 `StreamingRecommendationViewModel` + `StreamingDailyRecommendationUseCase`：provider 选择、loading/empty/ready 状态、仓库拉取和 presentation 生成不再�?`DailyRecommendationController` 直接调用 `StreamingViewModel`�?- `DailyRecommendationController` / `DailyRecommendationBindings` 兼容壳已删除；`DailyRecommendationPlayer` 接口归入 `StreamingRecommendationViewModel.kt`，`DailyRecommendationTrackListPlayer` 归入 `RecommendationActionController.kt`，每日推荐入口只�?typed `RecommendationAction.PlayDaily` -> `StreamingRecommendationViewModel.onAction(...)` -> presentation callback�?- `MainActivity` 仅保�?ViewModel 接线与播�?presentation 的平台尾部；provider 刷新后同步给 `StreamingRecommendationViewModel.updateProviders(...)`�?- 已补 `StreamingRecommendationViewModelTest`、`RecommendationActionControllerTest` 和架构契约；�?`DailyRecommendationControllerTest` / `DailyRecommendationBindingsTest` 已随兼容壳删除。下一步继续收敛心动推荐续�?refill，或�?dialog/settings 切片继续减少 `MainActivity` UI/platform 细节�?- 心动推荐种子请求已拆�?`HeartbeatRecommendationSeedResolver` / `HeartbeatRecommendationSeedResolverBindings`：候选队列合并、随机候选、direct seed、miss 诊断不再�?`StreamingViewModel.prepareHeartbeatRecommendationSeedRequest(...)` �?`MainActivity.heartbeatRecommendationSeedRequest(...)` 承担；`MainActivity` 只提�?service/store/viewModel/library context 快照来源�?- 心动推荐 owner 已继续迁�?`StreamingRecommendationViewModel` / `HeartbeatRecommendationPlayer`：`HeartbeatRecommendationController` 不再依赖整颗 `StreamingViewModel`，`resolveHeartbeatRecommendationSeed(...)`、`fetchHeartbeatRecommendations(...)`、refill/loading 状态、playlist/append presentation �?track-match store 绑定均由推荐 VM 持有；推荐播放尾部已收敛�?`PlaybackStartController.playRecommendation(...)` / `playHeartbeatRecommendation(...)` �?presentation 边界，`MainActivity` 不再保留 `playHeartbeatRecommendationTracks(...)` �?`openRecommendationPlaylist(...)` 兼容 helper�?- 推荐入口已整理为 typed `RecommendationAction` 并下沉到 `StreamingRecommendationViewModel.onAction(...)`：首页与流媒体页发�?`PlayDaily(provider)` / `PlayHeartbeat(provider)` action，`RecommendationActionController` 只保留语言�?status/seed/playback presentation 平台边界适配，不再分发到 `DailyRecommendationController` / `HeartbeatRecommendationController`；`MainActivity` 不再持有 `DailyRecommendationController`�?- 推荐播放启动边界已先引入小型 `PlaybackController` facade：`PlaybackStartController` 不再直接持有 `resolveAndPlayStreamingTrack` / `playTrackList` / `applyPlaybackActionResult` 三段 listener 回调，而是通过 `PlaybackController.playTrackList(...)` 进入 `PlaybackStartControllerAdapter`；`MainActivity` 只装�?adapter �?`StreamingPlaybackController` + `NowPlayingViewModel` + result applier。下一步可继续把该 adapter 下沉到播�?ViewModel/完整 `PlaybackController` 实现，并收敛心动续播 refill 入口�?- 播放缓存已改为当前播放优先的并发切片调度：当前歌曲首段缓存使用最高优先级并立即启动，当前歌曲后续切片其次，下一首轻量预取最低；切换当前歌曲时会取消�?`CacheWriter`，下一�?URL 预解析使用独立低优先级通道，不再挡住用户刚点击的当前歌曲解析�?- now-playing 状态发布入口再收一层：`MainActivity` 已不再保�?`publishNowPlayingState(...)` 这类�?wrapper，事件回放时直接交给 `NowPlayingStateController.publish(snapshot)`；`NowPlayingStateController` 继续作为 UI state/floating lyrics 的事实源�?
+- 每日推荐已先拆到 `StreamingRecommendationViewModel` + `StreamingDailyRecommendationUseCase`：provider 选择、loading/empty/ready 状态、仓库拉取和 presentation 生成不再�?`DailyRecommendationController` 直接调用 `StreamingViewModel`�?- `DailyRecommendationController` / `DailyRecommendationBindings` 兼容壳已删除；每日推荐入口只�?typed `RecommendationAction.PlayDaily` -> `StreamingRecommendationViewModel.onAction(...)` -> presentation callback，且 `DailyRecommendationPlayer` 已由 NOTE 63 删除�?- `MainActivity` 仅保�?ViewModel 接线与播�?presentation 的平台尾部；provider 刷新后同步给 `StreamingRecommendationViewModel.updateProviders(...)`�?- 已补 `StreamingRecommendationViewModelTest`、`RecommendationActionControllerTest` 和架构契约；�?`DailyRecommendationControllerTest` / `DailyRecommendationBindingsTest` 已随兼容壳删除。下一步继续收敛心动推荐续�?refill，或�?dialog/settings 切片继续减少 `MainActivity` UI/platform 细节�?- 心动推荐种子请求已拆�?`HeartbeatRecommendationSeedResolver` / `HeartbeatRecommendationSeedResolverBindings`：候选队列合并、随机候选、direct seed、miss 诊断不再�?`StreamingViewModel.prepareHeartbeatRecommendationSeedRequest(...)` �?`MainActivity.heartbeatRecommendationSeedRequest(...)` 承担；`MainActivity` 只提�?service/store/viewModel/library context 快照来源�?- 心动推荐 owner 已继续迁�?`StreamingRecommendationViewModel` / `HeartbeatRecommendationPlayer`：`HeartbeatRecommendationController` 不再依赖整颗 `StreamingViewModel`，`resolveHeartbeatRecommendationSeed(...)`、`fetchHeartbeatRecommendations(...)`、refill/loading 状态、playlist/append presentation �?track-match store 绑定均由推荐 VM 持有；推荐播放尾部已收敛�?`PlaybackStartController.playRecommendation(...)` / `playHeartbeatRecommendation(...)` �?presentation 边界，`MainActivity` 不再保留 `playHeartbeatRecommendationTracks(...)` �?`openRecommendationPlaylist(...)` 兼容 helper�?- 推荐入口已整理为 typed `RecommendationAction` 并下沉到 `StreamingRecommendationViewModel.onAction(...)`：首页与流媒体页发�?`PlayDaily(provider)` / `PlayHeartbeat(provider)` action；`MainActivity` 不再持有 `DailyRecommendationController`�?- 推荐播放启动边界已先引入小型 `PlaybackController` facade：`PlaybackStartController` 不再直接持有 `resolveAndPlayStreamingTrack` / `playTrackList` / `applyPlaybackActionResult` 三段 listener 回调，而是通过 `PlaybackController.playTrackList(...)` 进入 `PlaybackStartControllerAdapter`；MainActivity 只装�?adapter �?`StreamingPlaybackController` + `NowPlayingViewModel` + result applier。该 facade 已由 NOTE 47 删除�?- 播放缓存已改为当前播放优先的并发切片调度：当前歌曲首段缓存使用最高优先级并立即启动，当前歌曲后续切片其次，下一首轻量预取最低；切换当前歌曲时会取消�?`CacheWriter`，下一�?URL 预解析使用独立低优先级通道，不再挡住用户刚点击的当前歌曲解析�?- now-playing 状态发布入口再收一层：`MainActivity` 已不再保�?`publishNowPlayingState(...)` 这类�?wrapper，事件回放时直接交给 `NowPlayingStateController.publish(snapshot)`；`NowPlayingStateController` 继续作为 UI state/floating lyrics 的事实源�?
 ---
 
 ## 13. 数据层迁移清�?
@@ -920,23 +1436,23 @@ interface LibraryRepository { ... }
 
 轻量编译�?
 ```powershell
-.\gradlew.bat --no-daemon :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
 
 单测�?
 ```powershell
-.\gradlew.bat --no-daemon :app:testDebugUnitTest --console=plain
+.\gradlew.bat :app:testDebugUnitTest --console=plain
 ```
 
 打包�?
 ```powershell
-.\gradlew.bat --no-daemon :app:assembleDebug --console=plain
+.\gradlew.bat :app:assembleDebug --console=plain
 ```
 
 完整检查：
 
 ```powershell
-.\gradlew.bat --no-daemon :app:check --console=plain
+.\gradlew.bat :app:check --console=plain
 ```
 
 ### 14.4 关键手动回归
@@ -972,6 +1488,12 @@ interface LibraryRepository { ... }
 - `StreamingViewModel` 不再是第二个上帝 ViewModel�?
 ### 15.6 第六批：导航独立
 
+2026-06-29 correction: this old navigation batch is not the current next
+step. `AppShellViewModel` was removed after review because it would create a
+parallel shell model. Keep the current route/nav owners until a future slice
+can make typed shell state the single runtime source and update the
+architecture contract in the same slice.
+
 1. `AppShellViewModel`�?2. typed `AppRoute`�?3. 删除 `MainRouteController` 或降级为兼容 adapter�?4. 删除 `EchoNavHostState` 大状态包�?
 预期结果�?
 - Compose shell 真正�?ViewModel/Navigation state 驱动�?
@@ -1001,7 +1523,7 @@ interface LibraryRepository { ... }
 2026-06-25 note: openLibraryModeFromHome/openCollectionsFromHome/openSearchFromHome/openFavoritesCollectionFromLibrary thin wrappers were removed from MainActivity; call sites now enter route/navigation or library event paths directly.
 2026-06-25 note: syncRouteFieldsFromViewModel was removed; MainRouteController already restores its initial state, so MainActivity no longer keeps a one-off route restoration wrapper.
 2026-06-25 note: selectPlaylistFromCollections was removed; the collections binding now writes the selected playlist and reloads collections inline instead of going through a one-off MainActivity helper.
-2026-06-25 note: openSelectedPlaylistExportDocument was removed; the collections binding now calls PlaylistExportController directly with the selected playlist snapshot.
+2026-06-25 note: openSelectedPlaylistExportDocument was removed; the collections binding now called PlaylistExportController directly with the selected playlist snapshot. This was later simplified by NOTE 64.
 2026-06-25 note: finishOnboarding/openStreamingFromOnboarding now share completeOnboarding as the common shell tail, reducing repeated onboarding cleanup in MainActivity.
 2026-06-25 note: searchViewModel was removed from EchoNavHostState; EchoAppHost now provides it as a direct NavHost bridge parameter, keeping the shell state focused on shared navigation state only.
 2026-06-25 note: openNowPlayingImmersive was moved out of EchoNavHostState and now lives as local state inside EchoNavGraph, since it only serves the current shell session's immersive handoff.
@@ -1022,34 +1544,42 @@ interface LibraryRepository { ... }
 2026-06-25 note: fixed two stale test seams left by the write-path move — PlayHistoryActionControllerTest now wires libraryStateStore = PlayHistoryStateStore { viewModel.clearPlayHistory() }, and MainActivityArchitectureContractTest asserts libraryStateStore.clearPlayHistory(). Full :app:testDebugUnitTest --rerun-tasks is green (690 tests).
 2026-06-25 note: observed two flaky tests on the first full-suite pass (LyricsViewModelTest.loadPublishesLoadedLyricsState, StreamingViewModelTest.preResolveStreamingQueueWindowResolvesUpcomingTracksAfterNextTrack); both pass in isolation and on clean rerun, tracked as a separate follow-up (coroutine dispatcher timing / shared-state sensitivity), not caused by this session's changes.
 2026-06-25 verification note: compileDebugKotlin+Java BUILD SUCCESSFUL; :app:testDebugUnitTest --rerun-tasks BUILD SUCCESSFUL (690 tests) on the current working tree, re-verified per the handoff requirement rather than relying on earlier reports.
-2026-06-26 note: BackgroundImagePickerController was refined into a clearer two-stage platform owner. The preview screen now always uses the original picked image for zoom/pan fidelity, while persistence still happens only after Apply via an app-private compressed copy plus BackgroundTransform. This keeps the Activity free of picker/preview/save orchestration detail, preserves restart-safe backgrounds, and avoids regressing the user-visible preview quality.
+2026-06-26 note: BackgroundImagePickerController was refined into a clearer two-stage platform owner. The preview screen now always uses the original picked image for zoom/pan fidelity, while persistence still happens only after Apply via an app-private compressed copy plus BackgroundTransform. This keeps the Activity free of picker/preview/save orchestration detail, preserves restart-safe backgrounds, and avoids regressing the user-visible preview quality. 2026-06-28 update: `BackgroundLanguageModeProvider` and `BackgroundTransformProvider` were removed; the controller now receives direct `() -> String` and `(String) -> BackgroundTransform` dependencies for preview language and transform lookup.
 2026-06-26 note: DocumentPickerController now owns its Activity Result launcher instead of using request codes through MainActivity.onActivityResult. Audio import, folder import, download directory, M3U import/export, playlist M3U import, and Luoxue source import still share the same focused picker owner, while MainActivity no longer overrides onActivityResult for document picking. DocumentPickerControllerTest covers launch intents, selected URI dispatch, export URI dispatch, and canceled results.
-2026-06-26 note: Track sharing now has a platform owner in TrackShareLauncher. NowPlaying effects call trackShareLauncher.share(track), while chooser creation, native QQ/WeChat music-card attempts, share-style lookup, and share failure/status mapping are no longer implemented in MainActivity. TrackShareLauncherTest covers null track feedback, missing share service, native platform-card success, chooser launch, and startActivity failure fallback.
+2026-06-26 note: Track sharing now has a platform owner in TrackShareLauncher. NowPlaying effects call trackShareLauncher.share(track), while chooser creation, native QQ/WeChat music-card attempts, share-style lookup, and share failure/status mapping are no longer implemented in MainActivity. 2026-06-28 update: `TrackShareLanguageProvider` and `TrackShareStyleProvider` were removed; `TrackShareLauncher` now receives direct `() -> String` dependencies for language and share style. TrackShareLauncherTest covers null track feedback, missing share service, native platform-card success, chooser launch, and startActivity failure fallback.
 2026-06-26 note: MainPermissionController now owns permission requests through ActivityResultContracts.RequestMultiplePermissions. AppPermissions only computes missing audio/notification permissions, and MainActivity handles the load-library/onboarding remount result tail inline without a separate permission-result adapter. MainPermissionControllerTest covers launch/no-launch behavior and callback dispatch.
 2026-06-27 note: CollectionsReloader was removed as a one-hop shim. PlayHistoryActionController now takes a direct reload Runnable, so play-history clearing flows viewModel -> store -> reload without a dedicated forwarding owner.
 2026-06-27 note: StreamingAuthCallbackBindings was removed. StreamingAuthCallbackController now owns URI parsing, manual-cookie routing, and auth completion directly from MainActivity wiring, so streaming auth callback handling no longer passes through a forwarding-only adapter.
-2026-06-26 note: BackupRestoreBindings was removed as a forwarding-only adapter. BackupRestoreLauncher now accepts BackupStatusSink directly, so backup result status keys go from the launcher to StatusMessageController without an extra binding layer.
+2026-06-26 note: BackupRestoreBindings was removed as a forwarding-only adapter. 2026-06-28 update: BackupRestoreLauncher now accepts a direct `(String) -> Unit` status-key dependency, so backup result status keys go from the launcher to StatusMessageController without an extra binding or sink wrapper.
 2026-06-26 note: DialogLanguageProviderBindings was removed. NetworkDialogController, PlaylistDialogController, and ConfirmationDialogController now share the same DialogLanguageProvider contract, so MainActivity can pass one language lambda directly instead of adapting it through a binding class.
-2026-06-26 note: NetworkMenuChromeBindings was removed. NetworkMenuEventController now accepts a narrow NetworkMenuContentSink, and MainActivity wires NetworkMenuViewModel.updateMenu directly instead of routing network menu chrome state through a forwarding binding.
+2026-06-26 note: NetworkMenuChromeBindings was removed. Superseded on 2026-06-28 by NOTE 59: NetworkMenuContentSink is also gone, and NetworkMenuEventController updates NetworkMenuViewModel directly instead of routing network menu chrome state through a forwarding binding or sink.
 2026-06-26 note: StreamingSearchChromeBindings was removed. StreamingSearchEventController now accepts a narrow StreamingSearchContentSink, and MainActivity wires StreamingViewModel.updateStreamingSearchChrome directly instead of routing streaming search chrome state through a forwarding binding.
 2026-06-26 note: MainTabRendererBindings was removed. MainTabRenderDispatcher now owns the tab-to-render-callback mapping directly through Runnable callbacks, so MainActivity no longer constructs a forwarding renderer adapter for selected-tab rendering.
-2026-06-26 note: StatusMessageHostBindings was removed. StatusMessageController now accepts StatusLanguageModeProvider and RawStatusUpdater directly, while the shared status callback contracts live in StatusMessageContracts.kt for the remaining feature bindings that still need them.
+2026-06-26 note: StatusMessageHostBindings was removed. StatusMessageController now accepts a direct language-mode supplier and RawStatusUpdater, while the remaining raw status callback contract lives in StatusMessageContracts.kt for feature paths that still need it.
 2026-06-26 note: StreamingGatewayHostBindings was removed. StreamingGatewayEventController now accepts its language provider, selected-tab render action, and status sink directly, so gateway endpoint apply/refresh no longer route through a forwarding host adapter.
 2026-06-26 note: NetworkMenuPlayerBindings and NetworkSourcesPlayerBindings were removed. NetworkMenuEventController and NetworkSourcesEventController now receive the shared TrackListPlaybackAction directly, so network playback no longer routes through tiny rename-only adapters.
 2026-06-26 note: NetworkMenuDialogBindings was removed. NetworkMenuEventController now receives the add stream, import M3U, and add WebDAV dialog launchers directly as Runnable callbacks from MainActivity, so the network dialog path no longer depends on a forwarding adapter.
 2026-06-26 note: NetworkLibrarySourceBindings was removed. NetworkMenuEventController now reads stream tracks, stream counts, WebDAV tracks, and remote sources directly from MainLibraryStore method references, while NetworkSourcesEventController now reads remote source names and source tracks directly from MainLibraryStore method references.
 2026-06-26 note: NetworkSourcesRenderBindings was removed. MainActivity now passes NetworkSourcesEventController directly into NetworkSourcesRenderController, so the network sources render path no longer needs an extra one-hop listener wrapper.
 2026-06-26 note: PlaybackServiceHostBindings was removed. MainActivity now builds PlaybackServiceHostController with an anonymous Host implementation inline, so playback service attachment, store reset, and post-connect render hooks stay owned by the activity boundary without a forwarding binding.
-2026-06-26 note: PermissionResultBindings was removed. MainActivity now handles permission result loading inline through an anonymous MainPermissionController.Listener, so the audio permission success path no longer depends on a rename-only adapter.
+2026-06-29 note: PlaybackServiceHostController remains the service connect/disconnect policy owner, but MainActivityBase no longer retains it as a field; it is constructed locally and passed directly into PlaybackServiceConnectionController. Later 2026-06-29 update: the anonymous `PlaybackServiceHostController.Host` block moved into `MainPlaybackServiceHost`, provided by `PlaybackUiModule`; MainActivityBase only supplies service/store/render lambdas.
+2026-06-29 note: Network render controllers remain real render owners under NetworkRenderCoordinator, but MainActivityBase no longer keeps NetworkMenuRenderController, NetworkTrackListRenderController, NetworkSourcesRenderController, or StreamingSearchRenderController as fields.
+2026-06-26 note: PermissionResultBindings was removed. 2026-06-29 update: permission result loading no longer lives inline in an anonymous `MainPermissionController.Listener`; `MainPermissionListener` now owns the permission success path and is provided by `PlatformModule`.
+2026-06-29 note: Playback state event listener policy moved out of the Java base anonymous `PlaybackStateEventController.Listener` block into `MainPlaybackStateEventListener`. `MainActivityBase` now injects `MainPlaybackStateEventListenerFactory`, passes a lambda `ServiceQueueSource`, and leaves playback snapshot handling in `PlaybackStateEventController`.
+2026-06-29 note: Track-list render listener policy moved out of the Java base anonymous `TrackListRenderController.Listener` block into `MainTrackListRenderListener`, provided by `LibraryModule`. Track-list play/favorite/playlist/download/edit/delete actions and chrome-state copying are now covered by `MainTrackListRenderListenerTest`.
+2026-06-29 note: Queue render listener policy moved out of the Java base anonymous `QueueRenderController.Listener` block into `MainQueueRenderListener`, provided by `PlaybackUiModule`. Queue playback/favorite/add/remove/clear/back delegates are now covered by `MainQueueRenderListenerTest`, and the legacy no-op queue chrome callback is preserved in the Kotlin owner.
+2026-06-29 note: Recommendation action callback policy moved out of the Java base anonymous `RecommendationActionCallbacks` block into `MainRecommendationActionCallbacks`, provided by `StreamingModule`. Daily recommendation playback, heartbeat seed lookup, heartbeat playback, seed-miss logging, and status routing now have focused `MainRecommendationActionCallbacksTest` coverage.
+2026-06-29 note: Home dashboard render listener policy moved out of the Java base anonymous `HomeDashboardRenderController.Listener` block into `MainHomeDashboardRenderListener`, provided by `ShellModule`. Home dashboard navigation, playback continuation, recent-track play, shuffle-all queue creation, recommendation triggers, and action publication are now covered by `MainHomeDashboardRenderListenerTest`.
+2026-06-29 note: Now-playing state listener policy moved out of the Java base anonymous `NowPlayingStateController.Listener` block into `MainNowPlayingStateListener`, provided by `PlaybackUiModule`. Store readiness, playback snapshot, favorite ids, lyrics state, language mode, floating-lyrics publication, active lyric selection, and queue input sync are now covered by `MainNowPlayingStateListenerTest`.
 2026-06-26 note: LibrarySmallGatewayBindings was removed. MainActivity now binds favorite writing and playlist-track loading directly with lambdas, so the library toggle/load paths no longer need a two-method forwarding wrapper.
-2026-06-26 note: NowPlayingStateBindings was removed. MainActivity now wires NowPlayingStateController with an anonymous Listener inline, so now-playing state publication and floating-lyrics sync stay at the activity boundary without a forwarding shim.
+2026-06-26 note: NowPlayingStateBindings was removed. Superseded on 2026-06-29: MainActivity no longer wires NowPlayingStateController with an anonymous Listener inline; now-playing state publication inputs, floating-lyrics sync, and active lyric selection now go through `MainNowPlayingStateListener`.
 2026-06-26 note: NetworkRequestBindings was removed. MainActivity now supplies NetworkRequestController labels and status callbacks directly with lambdas, so request status localization no longer needs a dedicated forwarding adapter.
 2026-06-27 note: NetworkActionsResultBindings was removed. MainActivity now wires NetworkActionsViewModel.Listener inline, so network stream import/update/delete, WebDAV save/sync/test, playback track retention, network page navigation, status updates, and collections reload all stay at the host boundary without a forwarding result adapter.
-2026-06-27 note: HomeDashboardRenderBindings was removed. MainActivity now wires HomeDashboardRenderController.Listener inline, so home mode switching, continue playback, now-playing refresh, per-track playback, library refresh, queue navigation, shuffle-all, streaming navigation, collections open, search refresh, and recommendation actions all stay at the host boundary without a forwarding dashboard adapter.
-2026-06-26 note: PlaylistExportBindings was removed. MainActivity now wires PlaylistExportController with an anonymous Listener inline, so playlist export document opening and result status handling stay in the shell boundary without a forwarding wrapper.
+2026-06-27 note: HomeDashboardRenderBindings was removed. Superseded on 2026-06-29: MainActivity no longer wires HomeDashboardRenderController.Listener inline; home mode switching, continue playback, now-playing refresh, per-track playback, library refresh, queue navigation, shuffle-all, streaming navigation, collections open, search refresh, and recommendation actions now go through `MainHomeDashboardRenderListener`.
+2026-06-26 note: PlaylistExportBindings was removed. MainActivity wired PlaylistExportController with an anonymous Listener inline at that point; NOTE 64 later folded that pending export state into DocumentPickerController and removed the controller.
 2026-06-26 note: BackNavigationBindings was removed. MainActivity now installs its OnBackPressedCallback inline, so the back-handler shell logic stays at the activity boundary without a forwarding adapter.
 2026-06-26 note: SettingsControlsBindings was removed. MainActivity now supplies SettingsPlaybackServiceControls and SettingsLyricsControls inline via anonymous objects, so settings runtime setters stay at the shell boundary without a forwarding adapter.
-2026-06-26 note: NowPlayingEffectBindings was removed. MainActivity now wires NowPlayingEffectController with an anonymous Listener inline, so now-playing effect dispatch stays at the shell boundary without a forwarding adapter.
+2026-06-26 note: NowPlayingEffectBindings was removed. Superseded on 2026-06-28 by NOTE 48: the temporary `NowPlayingEffectController` shell dispatcher is also gone, and now-playing effects are drained directly in `MainActivity.handleNowPlayingEffects()` to call the existing platform owners.
 2026-06-26 note: DocumentPickerBindings was removed. DocumentPickerController now receives a direct Listener from MainActivity, so audio import, folder import, download folder selection, playlist/M3U import-export, and Luoxue source import no longer pass through a one-hop binding.
 2026-06-26 note: BackgroundImagePickerBindings was removed. BackgroundImagePickerController now reports picked page backgrounds directly to SettingsViewModel.applyPageBackgrounds and StatusMessageController, keeping preview/save ownership in the picker controller without a forwarding adapter.
 2026-06-26 note: SettingsEffectBindings was removed. MainActivity now binds SettingsViewModel effects with an inline effect dispatcher, so settings navigation, platform launchers, lyrics reload, sleep timer, backup/restore, page background, and streaming gateway endpoint effects are explicit shell-boundary calls instead of a separate forwarding class.
@@ -1058,22 +1588,22 @@ interface LibraryRepository { ... }
 2026-06-26 note: StreamingManualCookieBindings was removed. StreamingManualCookieController now receives a direct Listener for selected provider, dialog display, login-success refresh, and status updates, so the manual cookie auth path no longer depends on a forwarding binding.
 2026-06-26 note: PlaybackActionBindings and PlaybackActionResultBindings were removed. MainActivity now wires PlaybackActionController with an inline anonymous Listener implementation, and playback result publication is handled directly inside MainActivity, so playback decision inputs and result commits stay at the shell boundary without an extra forwarding layer.
 2026-06-26 note: StreamingSearchNavigatorBindings was removed. MainActivity now wires StreamingSearchEventController.Navigator inline, so network-home navigation, streaming playlist import, account playlist sync, liked-track import, recommendation actions, and import/cookie dialogs no longer pass through a one-hop navigator binding.
-2026-06-26 note: StreamingSearchEventController now receives its Navigator inline from MainActivity, while recommendation actions continue to flow through RecommendationActionController with the shared recommendation bindings; the streaming search shell no longer needs a separate navigator wrapper.
+2026-06-26 note: StreamingSearchEventController now receives its Navigator inline from MainActivity. Superseded on 2026-06-28 by NOTE 50: recommendation actions no longer flow through `RecommendationActionController`; `MainActivity` calls `StreamingRecommendationViewModel.onAction(...)` directly with the shared callbacks.
 2026-06-26 note: StreamingActionGatewayBindings was removed. MainActivity now wires MainActivityStreamingActionGateway inline, so streaming auth launch, playback quality, resolved-track playback, login-success handoff, and manual cookie import stay on the activity shell boundary without a forwarding adapter.
 2026-06-26 note: MainActivityStreamingActionGateway is now provided inline by MainActivity, so the streaming auth and playback bridge no longer depends on a standalone gateway binding class.
 2026-06-26 note: NowPlayingGatewayBindings, QueueActionBindings, LibraryGatewayBindings, and LibraryPlaylistActionGatewayBindings were removed. MainActivity now wires NowPlayingGateway, QueueActionController.Listener, LibraryGateway, and LibraryPlaylistActionGateway inline, so now-playing, queue, library, and playlist-action shells no longer depend on thin forwarding adapters.
 2026-06-26 note: PlaybackServiceQueueSourceBindings was removed. MainActivity now provides PlaybackStateEventController.ServiceQueueSource inline, so playback state publishing no longer depends on a one-method queue-source adapter.
-2026-06-26 note: RecommendationActionBindings was removed. MainActivity now provides RecommendationActionCallbacks inline, so daily recommendations, heartbeat recommendations, seed lookup, seed-miss logging, and status routing no longer depend on a separate forwarding adapter.
+2026-06-26 note: RecommendationActionBindings was removed. Superseded on 2026-06-29: MainActivity no longer provides RecommendationActionCallbacks inline; daily recommendations, heartbeat recommendations, seed lookup, seed-miss logging, and status routing now go through `MainRecommendationActionCallbacks`.
 2026-06-26 note: LibraryCollectionGatewayBindings was removed. MainActivity now provides LibraryCollectionGateway inline, so collection loading, play-history clearing, and favorite writes no longer depend on a separate forwarding adapter.
 2026-06-26 note: LibraryImportGatewayBindings was removed. MainActivity now provides LibraryImportGateway inline, so cached refresh, audio tree import, URI import, and missing-spec parsing no longer depend on a separate forwarding adapter.
 2026-06-26 note: StreamingPlaybackBindings was removed. MainActivity now provides StreamingPlaybackController.Listener inline, so streaming playback quality, queue snapshots, heartbeat append checks, playback result application, and status routing no longer pass through a pure forwarding binding.
 2026-06-26 note: HeartbeatRecommendationBindings was removed. HeartbeatSeedRequestProvider now lives with HeartbeatRecommendationSeedResolver, and MainActivity provides HeartbeatRecommendationController.Listener inline, so service availability, queue append/playback, seed-miss logging, and status routing no longer pass through a separate heartbeat forwarding binding.
 2026-06-26 note: PlaybackStateEventBindings was removed. MainActivity now provides PlaybackStateEventController.Listener inline, while the shared SettingsSelectedTabProvider contract moved to SettingsControls.kt for LyricsStateRefreshListener. Playback state updates now flow from PlaybackStateEventController directly to the shell listener without a forwarding binding layer.
-2026-06-26 note: NetworkTrackListRenderBindings was removed. NetworkTrackListRequest and NetworkPageAction now live beside NetworkTrackListRenderController, and MainActivity provides the render listener inline, so network stream/WebDAV track-list actions no longer pass through a one-hop binding while the request model remains owned by the render boundary.
-2026-06-26 note: QueueRenderBindings was removed. TrackListPlaybackAction and QueueTrackAction now live beside QueueRenderController for the remaining render owners, while MainActivity provides QueueRenderController.Listener inline for queue playback, favorite toggles, add-to-playlist, remove, clear, and back actions.
+2026-06-26 note: NetworkTrackListRenderBindings was removed. NetworkTrackListRequest lives beside NetworkTrackListRenderController, and MainActivity provides the render listener inline, so network stream/WebDAV track-list actions no longer pass through a one-hop binding while the request model remains owned by the render boundary. Superseded on 2026-06-28 by NOTE 62: the unused NetworkPageAction wrapper was removed.
+2026-06-26 note: QueueRenderBindings was removed. TrackListPlaybackAction remains available for shared network playback actions. Superseded on 2026-06-28 by NOTE 62: the unused QueueTrackAction wrapper was removed. Superseded again on 2026-06-29: MainActivity no longer provides QueueRenderController.Listener inline; queue playback, favorite toggles, add-to-playlist, remove, clear, and back actions now go through `MainQueueRenderListener`.
 2026-06-26 note: LibraryPlaylistsRenderBindings was removed. MainActivity now provides LibraryPlaylistsRenderController.Listener inline, keeping playlist/favorites/history events, delete confirmation, chrome publication, and playlist track-list rendering connected directly to LibraryViewModel/dialog/render methods without a forwarding binding.
-2026-06-26 note: PlaybackStartBindings was removed. StreamingTrackListResolver and PlaybackTrackListPlayer now live with PlaybackController.kt, while MainActivity provides PlaybackStartController.Listener inline for service start, pending playback, resolving status, playback controller lookup, and queue navigation, so playback start no longer passes through a pure forwarding binding.
-2026-06-26 note: TrackListRenderBindings was removed. TrackListChromeState now lives beside TrackListRenderController, LibraryEventSink lives beside LibraryEvent in LibraryViewModel.kt for the remaining render adapters, and MainActivity provides TrackListRenderController.Listener inline for track playback, favorite/add/download/edit/delete actions and chrome publication.
+2026-06-26 note: PlaybackStartBindings was removed. Superseded on 2026-06-28 by NOTE 47: `PlaybackController.kt` and `PlaybackStartControllerAdapter` are now gone; `StreamingTrackListResolver` and `PlaybackTrackListPlayer` live beside `PlaybackStartController.kt`, and playback start uses direct function dependencies rather than a pure forwarding facade.
+2026-06-26 note: TrackListRenderBindings was removed. TrackListChromeState now lives beside TrackListRenderController, and MainActivity provides TrackListRenderController.Listener inline for track playback, favorite/add/download/edit/delete actions and chrome publication. Superseded on 2026-06-28 by NOTE 61: the unused LibraryEventSink compatibility type was removed.
 2026-06-26 note: LibraryGroupsRenderBindings was removed. LibraryGroupsChromeState and LibraryGroupTrackListRequest now live beside LibraryGroupsRenderController, and MainActivity provides LibraryGroupsRenderController.Listener inline for group selection, favorites, playback, delete confirmation, chrome publication, and group track-list rendering.
 2026-06-26 note: CollectionsRenderBindings was removed. CollectionsRenderController now owns the remaining collections action wiring directly, while MainActivity provides CollectionsRenderController.Listener inline for playlist creation/import/export, history clearing, track playback, favorite, download, playlist selection, rename/delete, streaming sync, move/remove, and collections action publication.
 2026-06-27 note: PlaybackShutdownCoordinator now separates playback-level stop cleanup from service-level destruction. `stopAndClear()` calls `releasePlaybackResources()` for lyrics, Wi-Fi lock, and player only; `onDestroy()` calls `releaseServiceResources()` for receiver, schedulers, notification artwork, precache, Wi-Fi lock, and player. Do not collapse these paths back together; `PlaybackShutdownCoordinatorTest` guards the distinction. Verified with serial `:app:compileDebugKotlin :app:compileDebugJavaWithJavac` and targeted `:app:testDebugUnitTest --tests app.yukine.playback.PlaybackShutdownCoordinatorTest`.2026-06-27 note: PlaybackPositionManager now owns restored playback position, explicit resume position, clamping, throttled save, reset, and stop/clear position cleanup. EchoPlaybackService no longer keeps restored/last-saved position mutable fields or directly calls queueStore().savePlaybackPosition/loadPlaybackPosition; PlaybackQueueManager.playQueue(..., startPositionMs) now sets the in-memory restored position so immediate prepare honors explicit starts. Verified with serial compile and targeted PlaybackPositionManagerTest, PlaybackQueueManagerTest, and playback queue persistence/mutation contract tests.
@@ -1136,3 +1666,262 @@ interface LibraryRepository { ... }
 - EchoPlaybackService.prepareMirroredQueue(...) now consumes PlaybackQueueManager.mirroredQueueTracksForPreparation() and keeps only MediaSource construction plus ExoPlayer calls.
 - PlaybackQueueManagerTest covers snapshot/header restore and unplayable-track rejection; the architecture contract rejects the old queueTrack Uri/header loop in EchoPlaybackService.
 - Verified serially with focused PlaybackQueueManagerTest / architecture contract and compileDebugKotlin/compileDebugJavaWithJavac using --max-workers=1.
+
+## NOTE 38 - Streaming task queue owner collapse (2026-06-27)
+- `StreamingPlaybackTaskScheduler` now implements `StreamingPlaybackTaskQueue` directly; the thin `StreamingPlaybackTaskQueueAdapter` was removed.
+- `MainActivity` now binds the scheduler directly, keeping the streaming task path one hop shorter.
+- The former adapter test was renamed into `StreamingPlaybackTaskSchedulerTest` so the queue ordering behavior still has coverage.
+- Verified serially with `:app:compileDebugKotlin :app:compileDebugJavaWithJavac` and focused scheduler / architecture contract tests.
+
+## NOTE 39 - Playback service boundary cleanup (2026-06-27)
+- `EchoPlaybackService` no longer imports `MainActivity`; launch intent creation now uses the package launch intent path.
+- `PlaybackQueueManager` owns the queue recovery comparison directly, and the cache owners compare `contentUri` locally instead of routing through the service.
+- `PlaybackQueueManagerTest` remains Robolectric-backed with `sdk = [34]` to keep the URI behavior faithful.
+- Verified serially with focused playback tests and the architecture contract after the cleanup.
+
+## NOTE 40 - Playback start controller dependency shortcut (2026-06-27)
+- Superseded by NOTE 47 on 2026-06-28.
+- This slice first removed `PlaybackStartController.Listener.playbackController()` by injecting the temporary `PlaybackController` facade.
+- NOTE 47 then removed that facade and the adapter as well, leaving `PlaybackStartController` with direct function dependencies for streaming resolution, local playback, and result application.
+
+## NOTE 41 - Retired playback facade history (2026-06-28)
+- The old `app.yukine.playback.PlaybackController` / `PlaybackServiceController` facade is deleted and kept only as history in the migration ledger.
+- The test-only fake facade pair is also deleted.
+- Do not treat the old 7.3.1 facade plan as active migration work anymore.
+## NOTE 42 - Network dialog forwarding bridge removed (2026-06-28)
+- `NetworkRequestController` now implements `NetworkDialogController.Listener` directly.
+- `MainActivity` passes `networkRequestController` directly into `NetworkDialogController`; the forwarding-only `NetworkDialogEventController` and its standalone test were deleted.
+- Dialog-driven add stream, import M3U, update stream, and WebDAV save still publish status before delegating to `NetworkOperationSink`, now covered by `NetworkRequestControllerTest`.
+- Verified serially with focused `NetworkRequestControllerTest` and `MainActivityArchitectureContractTest.mainActivityDelegatesNetworkOperationsThroughRequestController`.
+## NOTE 43 - Streaming gateway event bridge removed (2026-06-28)
+- Superseded by NOTE 49: `StreamingGatewayController` has also been removed.
+- The intermediate slice made `StreamingGatewayController` own repository configure, provider refresh completion rendering, and applied-endpoint status publication directly.
+- `StreamingGatewayEventController` and its standalone test were deleted because it only adapted controller callback interfaces to `StreamingViewModel`, render, and status sinks.
+- `MainActivity` no longer keeps a streaming gateway field; current startup/auth-refresh paths use `refreshStreamingProviders()` directly.
+- Current verification lives in NOTE 49; the old focused `StreamingGatewayControllerTest` was removed with the controller.
+## NOTE 46 - Streaming repository configure call moved back to direct owner (2026-06-28)
+- `MainActivity` now calls `streamingViewModel.configureStreamingRepository()` directly instead of routing through `StreamingGatewayController.configureRepository()`.
+- Superseded by NOTE 49: the remaining refresh/render/status wrapper has also been folded into direct host helpers.
+- Current verification lives in NOTE 49.
+## NOTE 47 - Playback start adapter folded into controller (2026-06-28)
+- `PlaybackStartControllerAdapter` and the single-method `PlaybackController` interface were removed.
+- `PlaybackStartController` now directly owns the streaming-resolver -> local-player -> result-applier start path through narrow function dependencies.
+- `MainActivity` constructs `PlaybackStartController` with `streamingPlaybackController::resolveAndPlayStreamingTrack`, `nowPlayingViewModel::playTrackList`, and `this::applyPlaybackActionResult`, removing one playback-start hop.
+- Verified serially with `PlaybackStartControllerTest`, the playback architecture contract, and compile `:app:compileDebugKotlin :app:compileDebugJavaWithJavac`.
+## NOTE 48 - Now-playing effect dispatcher inlined (2026-06-28)
+- `NowPlayingEffectController` and `NowPlayingEffectControllerTest` were removed because the controller only forwarded drained effects back to `MainActivity` platform actions.
+- `MainActivity.handleNowPlayingEffects()` now drains `NowPlayingViewModel` effects directly and calls the existing owners: tab navigation, `PlaylistDialogController`, `TrackShareLauncher`, `DownloadRequestController`, source switching, and `StatusMessageController`.
+- Guarded by `MainActivityArchitectureContractTest`, which rejects the old effect controller and adapter while preserving the direct platform-owner calls.
+## NOTE 49 - Streaming gateway controller folded into direct helpers (2026-06-28)
+- `StreamingGatewayController` and `StreamingGatewayControllerTest` were removed after its remaining responsibilities shrank to provider refresh completion rendering and endpoint apply status.
+- `MainActivity.refreshStreamingProviders()` now calls `StreamingViewModel.refreshStreamingProviders()` directly and syncs recommendation providers when the job completes.
+- `MainActivity.applyStreamingGatewayEndpoint(...)` now saves the normalized endpoint through `StreamingGatewaySettingsStore`, reconfigures `StreamingViewModel`, refreshes providers, renders immediately, and publishes the applied-endpoint status without a controller hop.
+- Guarded by `MainActivityArchitectureContractTest`, which rejects the old controller/test and protects the direct refresh/apply helper path.
+## NOTE 50 - Recommendation action runner folded into direct ViewModel call (2026-06-28)
+- The `RecommendationActionController` class and `RecommendationActionRunner` / `RecommendationLanguageProvider` interfaces were removed because they only forwarded typed recommendation actions to `StreamingRecommendationViewModel.onAction(...)`.
+- `RecommendationAction` and `RecommendationActionCallbacks` remain as the typed recommendation boundary in `RecommendationAction.kt`; `RecommendationActionHandler` was later removed by NOTE 63 after direct ViewModel calls became the only production path.
+- `MainActivity.runRecommendationAction(...)` now passes the action, current language mode, and shared callbacks directly to `StreamingRecommendationViewModel`, preserving daily/heartbeat presentation playback, seed lookup, miss logging, and status routing without a runner hop.
+- Guarded by `MainActivityArchitectureContractTest`, which rejects the old runner class while preserving the typed action and handler contracts.
+## NOTE 51 - Download directory picker shell folded into DocumentPickerController (2026-06-28)
+- `DownloadDirectoryPickerController` and `DownloadDirectoryPickerControllerTest` were removed because the controller only checked for a document picker, published a fixed fallback message, and called `openDownloadFolderPicker()`.
+- `DocumentPickerController.openDownloadFolderPicker()` is now the direct owner for the download directory picker launch.
+- `MainActivity.openDownloadDirectoryPickerAction()` keeps only the null-guard fallback (`目录选择暂不可用`) before calling the document picker directly.
+- Guarded by `MainActivityArchitectureContractTest.downloadRequestsAreOwnedOutsideMainActivity`, which rejects the old controller and preserves the direct picker path.
+## NOTE 44 - Now playing stale render bridge removed (2026-06-28)
+- `NowPlayingRenderController` was deleted because it no longer published UI state; the active Now page is driven by `NowPlayingViewModel.uiState` through `NowPlayingDestination`.
+- `MainActivity.updateNowPlayingContent()` now keeps only the current-track existence check used by the lyrics refresh fallback.
+- The unused `renderNowPlaying()` host method was removed.
+- Guarded by `MainActivityArchitectureContractTest`, which now rejects the stale render controller and host entry point.
+## NOTE 45 - MainActivity one-hop wrappers collapsed (2026-06-28)
+- Queue render/intent listeners now call `QueueActionController.removeQueueTrack(...)` and `moveQueueTrack(...)` directly; the private `removeQueueTrack` / `moveQueueTrack` host wrappers were removed.
+- Network action result listeners now call `NowPlayingViewModel.replaceQueuedTrack(...)` and `retainTracks(...)` directly; the private queue sync/retention wrappers were removed.
+- Collections streaming sync now calls `StreamingPlaylistController.syncSelectedPlaylistFromStreaming()` directly.
+- WebDAV source sync now reads `libraryStore.remoteSourceName(sourceId)` inline instead of through a host helper.
+- WebDAV source playback now reads `libraryStore.webDavTracksForSource(source.id)` inline, and the unused `streamingProviderTrackId(...)` / `syncStreamingPlaylists(...)` host helpers were removed.
+- Playlist dialog and collections row actions now call `LibraryViewModel.*Java(...)` directly and keep only the result handlers in `MainActivity`; the private playlist CRUD/move/add forwarding helpers were removed.
+- Unified search load-more now calls `StreamingSearchActionHandler.loadNextPage()` from the action lambda directly; the private host wrapper was removed.
+- `StreamingSearchEventController` was removed as a pure forwarding layer. `MainActivity` wires `StreamingSearchRenderController.Listener` inline to the strategy-bearing `DefaultStreamingSearchActionHandler`, playlist/recommendation/dialog owners, and `StreamingViewModel.updateStreamingSearchChrome(...)`.
+## NOTE 52 - Streaming search action handler renamed away from Bindings (2026-06-28)
+- `StreamingSearchActionHandlerBindings` was renamed to `DefaultStreamingSearchActionHandler` because it is a strategy-bearing handler, not a pure forwarding binding.
+- The handler still owns provider selection, search dispatch, auth capability checks, playback capability checks, auth launch clearing, resolved-track playback handoff, and load-more validation.
+- `DefaultStreamingSearchActionHandlerTest` keeps the previous behavior coverage under the new owner name.
+- Guarded by `MainActivityArchitectureContractTest`, which rejects the old `*Bindings` file and preserves the handler's direct `StreamingViewModel` / action-gateway path.
+## NOTE 53 - Library document gateway renamed away from Bindings (2026-06-28)
+- `LibraryDocumentGatewayBindings` was renamed to `ContentResolverLibraryDocumentGateway` because it owns document I/O strategy, M3U import fallback, playlist import result mapping, and playlist export text writing.
+- `ContentResolverLibraryDocumentGatewayTest` keeps the previous import/export fallback coverage under the new owner name.
+- Current P1 follow-up moved that document gateway assembly into `LibraryModule`; `MainActivityBase` now binds the injected `LibraryDocumentGateway`.
+- Root-package `*Bindings` count is now zero; the remaining library document behavior is a real gateway owner, not a temporary binding shell.
+- WebDAV remote-source playback now reuses `NetworkSourcesEventController.playRemoteSourceTracks(...)` from both sources rows and source track-list actions; the duplicate `MainActivity.playRemoteSourceTracks(...)` helper was removed.
+- Onboarding actions now call `OnboardingController` directly from `OnboardingActions`; the private `finish/openStreaming/scanLibrary/importPlaylistFromOnboarding` host wrappers were removed.
+- Streaming playlist import refresh now calls `loadLibrary(true)` directly from `StreamingPlaylistController.Listener`; the private `refreshLibraryAfterStreamingImport()` host wrapper was removed.
+- Additional host-only wrappers were inlined: manual streaming cookie import now calls `StreamingViewModel` / `StreamingManualCookieController` directly, playback state pre-resolve calls `StreamingPlaybackController` directly, network track-list remote-source clearing calls `RouteController` plus `navigateNetworkPage(...)` directly, and render content now calls `UiShellController` scrolling/tab APIs directly.
+- Startup library loading now performs the permission branch inline in the startup path; the private `loadLibraryOnStartup()` wrapper was removed.
+- Lyrics state refresh now reads the `LyricsViewModel` snapshot directly in the listener, and the unused `ensureLyricsLoaded(...)` host method was removed.
+- `QueueIntentController` was deleted as a pure `QueueIntent -> listener` forwarding layer. `QueueViewModel.bindIntentListener(...)` now dispatches sealed `QueueIntent` values directly to `LibraryViewModel`, `PlaylistDialogController`, `QueueActionController`, and back handling.
+- The no-op language bridge was removed completely: `SettingsRuntimeEffect.UpdateLanguage`, `SettingsRuntimeApplier.updateLanguage(...)`, `SettingsRuntimeLanguageUpdater`, and `MainUiShellController.updateLanguage(...)` are gone; language mode still persists through `SettingsViewModel` and is consumed where it actually matters.
+- Guarded by `MainActivityArchitectureContractTest` direct-call and no-wrapper assertions.
+## NOTE 54 - Playback session forwarding gateway removed (2026-06-28)
+- `PlaybackSessionGateway` was removed because it only forwarded `session()`, `bind()`, `refresh()`, and `release()` to `PlaybackSessionManager`.
+- `EchoPlaybackService` now holds `PlaybackSessionManager` directly and calls `bind()`, `refreshPlayer()`, `release()`, and `session()` without the extra service-internal gateway hop.
+- The media notification platform token now reads from `playbackSessionManager.session()` directly, preserving notification/session behavior while shortening the service path.
+- Guarded by `MainActivityArchitectureContractTest.playbackSessionLifecycleIsOwnedOutsideEchoPlaybackService`, which rejects `PlaybackSessionGateway` and preserves the direct manager calls.
+## NOTE 55 - Settings render controller collapsed into label formatter (2026-06-28)
+- `SettingsPageRenderController` was removed because it no longer rendered settings pages; it only forwarded scroll-to-top to `SettingsViewModel` and hosted static label formatting helpers.
+- `MainActivity.requestCurrentDirectoryScrollToTop()` now calls `SettingsViewModel.scrollToTopOnNextRender()` directly when the settings tab is active.
+- The remaining label helpers now live in `SettingsLabelFormatter`, which has no `SettingsViewModel`, listener, scroll state, or page render dependency.
+- Guarded by `MainActivityArchitectureContractTest`, which rejects the old controller/field and preserves direct `SettingsViewModel` scrolling plus formatter ownership.
+## NOTE 56 - Playback queue provider current-track method removed (2026-06-28)
+- `PlaybackQueueManager.QueueProvider.currentTrack()` was removed from the large provider interface.
+- `PlaybackQueueManager` now derives the current track from its existing `queue()` and `currentIndex()` provider methods, reducing one service/fake implementation method without changing queue behavior.
+- `EchoPlaybackService` no longer implements this provider method for the queue manager, and `PlaybackQueueManagerTest` uses the same manager-side current-track calculation as production.
+- Guarded by `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`, which rejects the provider interface method and preserves the private manager helper.
+## NOTE 57 - Download quality callback wrapper removed (2026-06-28)
+- `DownloadQualitySelectedCallback` was removed because it only wrapped a single Kotlin callback for download-quality selection.
+- `DownloadQualityChooser.choose(...)` now accepts `(StreamingAudioQuality) -> Unit` directly, while `DownloadQualityDialogController` remains the platform dialog owner.
+- `DownloadRequestControllerTest` keeps the quality selection flow coverage with the simpler function callback.
+- Guarded by `MainActivityArchitectureContractTest.downloadRequestsAreOwnedOutsideMainActivity`, which rejects the old callback wrapper.
+## NOTE 58 - Download manager provider wrapper removed (2026-06-28)
+- `DownloadManagerProvider` was removed because it only returned the current `TrackDownloadRequestQueue`.
+- `DownloadRequestController` now receives `() -> TrackDownloadRequestQueue?` directly, preserving late access to the manager while removing one named compatibility interface.
+- `MainActivity` still supplies the current `trackDownloadManager` lazily through the constructor lambda, and `DownloadRequestControllerTest` keeps the queue/enqueue coverage.
+- Guarded by `MainActivityArchitectureContractTest.downloadRequestsAreOwnedOutsideMainActivity`, which rejects the old provider wrapper and preserves the direct function dependency.
+## NOTE 59 - Network menu content sink removed (2026-06-28)
+- `NetworkMenuContentSink` was removed because it only forwarded `title + metrics + actions` into `NetworkMenuViewModel.updateMenu(...)`.
+- `NetworkMenuEventController` now receives `NetworkMenuViewModel` directly and updates the true network-menu UI state owner from `publishNetworkMenu(...)`.
+- `MainActivity` no longer constructs a three-argument menu chrome lambda for this path; it passes the existing `networkMenuViewModel` to the event controller.
+- Guarded by `NetworkMenuEventControllerTest.publishNetworkMenuUpdatesViewModelDirectly` plus `MainActivityArchitectureContractTest`, which rejects the old sink and preserves the direct ViewModel update.
+## NOTE 60 - Collections action dead callback removed (2026-06-28)
+- `CollectionsActionsSink` was removed because it had no remaining production call sites after `CollectionsRenderController` started updating `CollectionsViewModel` directly.
+- The unused `CollectionsRenderController.Listener.publishCollectionsActions(...)` callback and matching `MainActivity` override were removed.
+- Collections action state now stays on the direct `CollectionsRenderController -> CollectionsViewModel.updateActions(...)` path.
+- Guarded by `MainActivityArchitectureContractTest.collectionsRenderControllerIsKotlinUiStateBoundary`, which rejects the old sink, listener call, and Activity override.
+## NOTE 61 - Unused migration callback types removed (2026-06-28)
+- Dead compatibility types with no production call sites were removed: `PlaylistIdAction`, `PlaylistAction`, `SelectedPlaylistExportOpener`, `SelectedPlaylistTrackMover`, `SelectedPlaylistTrackRemover`, `LibraryEventSink`, `NowPlayingEventHandler`, and `QueueNoArgAction`.
+- These types no longer represented active Java/Kotlin interop boundaries or testable policy; the remaining flows already call their ViewModel/controller owners directly.
+- Guarded by `MainActivityArchitectureContractTest` assertions in the collections, playback/queue, and library boundary checks.
+## NOTE 62 - More unused action contracts removed (2026-06-28)
+- Additional production-dead action contracts were removed after exact reference checks: `QueuePlaybackServiceAvailability`, `QueueStatusProvider`, `QueueStatusSink`, `NetworkPageAction`, `TrackListDownloadAction`, `SettingsStatusSink`, and `QueueTrackAction`.
+- `QueueActionContracts.kt` now keeps only `QueuePlaybackActionResultApplier`, the one remaining contract used by `PlaybackStartController`.
+- Network track-list header actions and collections download actions already use direct `Runnable` / listener paths, so these named action wrappers no longer represented active boundaries.
+- Guarded by `MainActivityArchitectureContractTest`, which now rejects these removed contracts in the playback/queue, collections, and network render checks.
+## NOTE 63 - Recommendation self-interfaces removed (2026-06-28)
+- `DailyRecommendationPlayer` and `RecommendationActionHandler` were removed because production code no longer holds recommendations through those interfaces.
+- `StreamingRecommendationViewModel` keeps the same `onAction(...)` and `playDailyRecommendations(...)` methods directly, while `HeartbeatRecommendationPlayer` remains because `HeartbeatRecommendationController` still depends on that smaller behavior boundary.
+- `RecommendationAction.kt` now contains only the typed action model and platform callback contract.
+- Guarded by `MainActivityArchitectureContractTest`, which rejects the removed self-interfaces while preserving the direct ViewModel action path and heartbeat player boundary.
+## NOTE 64 - Playlist export controller folded into document picker (2026-06-28)
+- `PlaylistExportController` was removed because it only stored pending playlist id/name and forwarded the export URI back to `LibraryViewModel`.
+- `DocumentPickerController.openPlaylistExportDocument(playlistId, playlistName)` now owns the create-document launch and pending export context, and emits `exportPlaylist(exportUri, playlistId, playlistName)` directly from the result callback.
+- `MainActivity` keeps only the selected-playlist empty guard before launching the picker, then calls `LibraryViewModel.exportPlaylistJava(...)` from the existing document picker listener.
+- Guarded by `DocumentPickerControllerTest` and `MainActivityArchitectureContractTest.mainSettingsStoreIsKotlinStateHolder`, which reject the removed controller while preserving playlist export document creation and export context delivery.
+## NOTE 65 - Empty playlist export callback removed (2026-06-28)
+- `LibraryPlaylistExportCallback` was removed because the only production caller passed an empty callback after playlist export.
+- `LibraryViewModel.exportPlaylistJava(...)` now exposes the Java shell entry without a callback parameter and delegates to the existing coroutine export path.
+- `MainActivity` calls the no-callback export method directly from `DocumentPickerController.Listener.exportPlaylist(...)`, reducing one Java/Kotlin interop interface without changing document export behavior.
+- Guarded by `MainActivityArchitectureContractTest.mainSettingsStoreIsKotlinStateHolder`, which rejects the removed callback interface and the old four-argument Activity call.
+## NOTE 66 - Root Bindings zero-count guard added (2026-06-28)
+- Root-package main/test `*Bindings*` files are now guarded by a directory-level architecture contract instead of only many per-file string checks.
+- `MainActivityArchitectureContractTest.rootPackageHasNoMigrationBindingsFiles` counts `app/src/main/java/app/yukine/*Bindings*` and `app/src/test/java/app/yukine/*Bindings*` and requires both to stay at zero.
+- This turns the current zero-Bindings state into a structural regression guard for the stabilization pivot: new migration shells must justify themselves outside the old root-package bridge pattern.
+## NOTE 67 - Dead play-history Java callback removed (2026-06-28)
+- `LibraryPlayHistoryClearedCallback` and `LibraryViewModel.clearPlayHistoryJava(...)` were removed because play-history clearing now flows through `PlayHistoryActionController -> LibraryViewModel.clearPlayHistory { ... }`.
+- The active path still updates the collection gateway, clears the `MainActivityViewModel` play-history snapshot via `PlayHistoryStateStore`, publishes status, and reloads collections.
+- Guarded by `PlayHistoryActionControllerTest` plus `MainActivityArchitectureContractTest.mainSettingsStoreIsKotlinStateHolder`, which rejects the dead Java callback while preserving the direct Kotlin clear path.
+## NOTE 68 - Duplicate collection favorite write path removed (2026-06-28)
+- `LibraryViewModel.saveLibraryFavorite(...)`, `saveLibraryFavoriteJava(...)`, `LibraryCollectionGateway.setFavorite(...)`, and `SetLibraryFavoriteUseCase` were removed because production favorite toggles already use `LibraryEvent.ToggleFavorite -> LibraryFavoriteWriter -> ToggleFavoriteUseCase`.
+- `LibraryCollectionGateway` now stays focused on loading collections and clearing play history; favorite mutation no longer has a second collection gateway path.
+- Guarded by `LibraryViewModelTest` / `ToggleFavoriteUseCaseTest` for the active favorite path and `MainActivityArchitectureContractTest.mainSettingsStoreIsKotlinStateHolder`, which rejects the removed collection favorite write path.
+## NOTE 69 - Now-playing playback service function wrappers removed (2026-06-28)
+- `PlaybackServiceProvider` and `PlaybackServiceStarter` were removed from `NowPlayingPlaybackGatewayAdapter` because they only wrapped function dependencies.
+- `NowPlayingPlaybackGatewayAdapter` now receives `() -> EchoPlaybackService?` and `(String?) -> Unit` directly, preserving the existing `NowPlayingPlaybackGateway` service boundary while reducing two named interop interfaces.
+- Guarded by `MainActivityArchitectureContractTest`, which rejects the removed function wrappers and preserves the direct service dependencies.
+## NOTE 70 - Backup status sink wrapper removed (2026-06-28)
+- `BackupStatusSink` was removed from `BackupRestoreLauncher` because it only wrapped a status-key function.
+- `BackupRestoreLauncher` now receives `(String) -> Unit` directly; backup export/import still maps results to `backup.*` status keys and lets `StatusMessageController` localize/publish them.
+- Guarded by `BackupRestoreLauncherTest` plus `MainActivityArchitectureContractTest.backupRestoreLauncherIsOwnedOutsideMainActivity`, which rejects the removed sink wrapper and preserves the launcher-owned document intents.
+## NOTE 71 - Download status sink wrapper removed (2026-06-28)
+- `DownloadStatusSink` was removed from `DownloadRequestController` because it only wrapped a raw status-message function.
+- `DownloadRequestController` now receives `(String) -> Unit` directly while keeping download quality selection, streaming download URL resolution, queue enqueue, and `DownloadsViewModel.refresh(...)` ownership unchanged.
+- Guarded by `DownloadRequestControllerTest` plus `MainActivityArchitectureContractTest.downloadRequestsAreOwnedOutsideMainActivity`, which rejects the removed sink wrapper and preserves the download owner path.
+## NOTE 72 - Track share provider wrappers removed (2026-06-28)
+- `TrackShareLanguageProvider` and `TrackShareStyleProvider` were removed from `TrackShareLauncher` because they only wrapped zero-argument string providers.
+- `TrackShareLauncher` now receives direct `() -> String` dependencies for language mode and share style while keeping `TrackShareStatusSink` for the two-channel feedback/status boundary.
+- Guarded by `TrackShareLauncherTest` plus `MainActivityArchitectureContractTest`, which rejects the removed provider wrappers and preserves chooser/native-share behavior.
+## NOTE 73 - Play-history function wrappers removed (2026-06-28)
+- `PlayHistoryLanguageModeProvider` and `PlayHistoryStatusSink` were removed from `PlayHistoryActionController` because they only wrapped language-mode and status functions.
+- `PlayHistoryActionController` now receives direct `() -> String` and `(String) -> Unit` dependencies while keeping `PlayHistoryStateStore` as the explicit state-clearing boundary.
+- Guarded by `PlayHistoryActionControllerTest` plus `MainActivityArchitectureContractTest`, which rejects the removed wrappers and preserves the direct clear-history path.
+## NOTE 74 - Background picker provider wrappers removed (2026-06-28)
+- `BackgroundLanguageModeProvider` and `BackgroundTransformProvider` were removed from `BackgroundImagePickerController` because they only wrapped preview language and transform lookup functions.
+- `BackgroundImagePickerController` now receives direct `() -> String` and `(String) -> BackgroundTransform` dependencies while keeping document/preview activity-result launchers as the real platform boundaries.
+- Guarded by `BackgroundImagePickerControllerTest` plus `MainActivityArchitectureContractTest.backgroundImagePickerIsOwnedOutsideMainActivity`, which rejects the removed provider wrappers and preserves picker/preview/save ownership.
+## NOTE 75 - Status message language provider wrappers removed (2026-06-28)
+- `StatusLanguageModeProvider` and `MessageLanguageModeProvider` were removed because they only wrapped language-mode lookup for status localization.
+- `StatusMessageController` and `MessageTextResolver` now share a direct `Supplier<String>` language dependency while keeping `RawStatusUpdater` as the status-output boundary.
+- Guarded by `StatusMessageControllerTest`, `MessageTextResolverTest`, and `MainActivityArchitectureContractTest.mainActivityDelegatesStatusLocalizationToStatusMessageController`, which rejects the removed provider wrappers and preserves localized status publishing.
+## NOTE 76 - Root-cause audit correction applied (2026-06-28)
+- The latest review changes the migration default from "continue deleting wrapper layers" to "reduce the three root hotspots first": `MainActivity` assembly/anonymous callback policy, `EchoPlaybackService` playback policy residue, and `EchoDatabaseHelper` migration risk.
+- A controller deletion is no longer accepted if behavior moves back into `MainActivity` private helpers, anonymous listeners, or `onCreate` construction. Host assembly density must go down, or the slice is not net architecture progress.
+- Deleted controller tests must be mapped to replacement behavior tests under the new owner; string-based architecture contracts remain useful alarms but are not behavior coverage.
+- Database work now starts with migration/transaction tests before Room or repository split work, and concurrency work starts with an inventory of raw Thread/ExecutorService/scheduler ownership and shutdown.
+- Reflected in `docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md`, `docs/ARCHITECTURE_REMEDIATION_PLAN_2026-06-26.md`, and the `yukine-android-maintenance` skill.
+## NOTE 77 - Settings runtime controls moved behind factory (2026-06-29)
+- `SettingsModule` now provides `MainSettingsRuntimeApplierFactory`, and the concrete runtime controls live beside `SettingsRuntimeApplier` as `MainSettingsPlaybackServiceControls`, `MainSettingsLyricsControls`, and `MainSettingsFloatingLyricsControls`.
+- `MainActivityBase` now only passes the existing theme, playback service, lyrics ViewModel, and permission-controller providers to `settingsRuntimeApplierFactory.create(...)`; it no longer constructs anonymous settings control implementations or calls `FloatingLyricsService` directly from settings runtime setup.
+- The Settings path remains `SettingsViewModel -> preference/runtime applier`; no settings gateway, coordinator, controller, event bus, or root `*Bindings*` file was added. Current recheck: `MainActivityBase.java` 2632 lines, `EchoPlaybackService.java` 2469 lines, `feature:data` `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0, root-package `*Controller*` 44, root-package files 175, and root-package Java files 15.
+- Guarded by `SettingsRuntimeApplierTest`, `SettingsViewModelTest`, and `MainActivityArchitectureContractTest`; compile passed with `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+## NOTE 78 - Collections render listener policy moved out of Activity (2026-06-29)
+- `LibraryModule` now provides `MainCollectionsRenderListenerFactory`, and `MainCollectionsRenderListener` owns the collections render action routing that was previously an anonymous `CollectionsRenderController.Listener` in `MainActivityBase`.
+- `MainActivityBase` now creates `CollectionsRenderController` with `collectionsRenderListenerFactory.create(...)`; Activity only supplies existing host capabilities such as playlist dialogs, document pickers, download requests, selected-playlist state sources, streaming import actions, and selected-playlist mutation callbacks.
+- The selected-playlist export guard moved with the listener: empty or missing selected playlists publish `no.tracks.in.playlist`, while valid exports call `openPlaylistExportDocument(playlistId, playlistName)`. No root `*Bindings*` or root `*Controller*` file was added. Current recheck: `MainActivityBase.java` 2562 lines, `EchoPlaybackService.java` 2469 lines, `feature:data` `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0, root-package `*Controller*` 44, root-package files 176, and root-package Java files 15.
+- Guarded by `MainCollectionsRenderListenerTest` and `MainActivityArchitectureContractTest`; compile passed with `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+## NOTE 79 - Library groups render listener policy moved out of Activity (2026-06-29)
+- `LibraryModule` now provides `MainLibraryGroupsRenderListenerFactory` and `ArtistInfoRepository`. `MainLibraryGroupsRenderListener` owns the library-groups render action routing that was previously an anonymous `LibraryGroupsRenderController.Listener` in `MainActivityBase`.
+- `MainActivityBase` now creates `LibraryGroupsRenderController` with `libraryGroupsRenderListenerFactory.create(...)` and the injected `artistInfoRepository`; Activity no longer constructs `new ArtistInfoRepository()` or the library-groups listener inline.
+- The listener owns favorite-collection title resolution, chrome state copy construction, and library group track-list request construction, while Activity only supplies existing host callbacks for group open/clear/close, track playback, deletion confirmation, chrome publishing, and track-list rendering. Current recheck: `MainActivityBase.java` 2517 lines, `EchoPlaybackService.java` 2469 lines, `feature:data` `EchoDatabaseHelper.java` 2117 lines, `StreamingViewModel.kt` 2013 lines, root-package `*Bindings*` 0, root-package `*Controller*` 44, root-package files 177, and root-package Java files 15.
+- Guarded by `MainLibraryGroupsRenderListenerTest` and `MainActivityArchitectureContractTest`; compile passed with `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`.
+## NOTE 80 - Playback P0 baseline freeze captured (2026-06-29)
+- New controlling checkpoint: `docs/PLAYBACK_P0_BASELINE_2026-06-29.md`.
+- Baseline facts at capture: `EchoPlaybackService.java` was 2469 lines, `PlaybackQueueManager.QueueProvider` had 33 methods, and the dirty worktree already contained the ongoing MainActivity/library-listener migration entries listed in that checkpoint. Those entries are preserved as user-owned migration work.
+- Verification passed with default Gradle daemon/workers: `.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain` and focused playback tests via `.\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest --tests "app.yukine.playback.*" --tests "app.yukine.*Playback*" --tests "app.yukine.*Queue*" --tests "app.yukine.*NowPlaying*" --tests "app.yukine.*Lyrics*" --tests "app.yukine.*Media*" --tests "app.yukine.*Notification*" --console=plain`.
+- Device smoke for local playback, background playback, notification controls, queue restore, lyrics, and streaming playback is explicitly recorded as not run. The next playback implementation slice should start with a small queue-authority change and must not expand `QueueProvider`.
+## NOTE 81 - Playback target architecture clarified (2026-06-29)
+- Controlling target: `UI / Compose -> ViewModel / UI State -> playback command owner -> PlaybackService boundary -> playback engine managers -> ExoPlayer / MediaSession / Notification`.
+- `EchoPlaybackService` should converge toward an Android/Media3 shell for lifecycle, MediaSession, foreground notification, service binding, external intents/media buttons, and ExoPlayer ownership. Queue strategy, playable URI/media item resolution, cache policy, notification action mapping, and lyrics sync should move into small real owners.
+- Preferred owners for upcoming slices are `PlaybackQueueManager`, `PlaybackItemResolver`, `PlaybackCachePolicy`, `PlaybackNotificationController`, and `LyricsPlaybackBridge` or existing equivalents. Do not introduce a universal `PlaybackServiceFacade`.
+- Queue/current-index/current-track must have one authority, preferably `PlaybackQueueManager`, with Service and UI consuming snapshots instead of mirroring mutable state across Service fields, ViewModels, manager state, and MediaSession queue.
+- Large playback interfaces default to reduction. `PlaybackQueueManager.QueueProvider` should lose derivable methods, split by responsibility, or be replaced with a direct state owner dependency; do not add methods without a prior split/merge/inline plan.
+- Playback validation priority is queue restore, skip next/previous, replace current track, local vs streaming URI resolution, notification action, background playback, service restart recovery, and cache partial failure cleanup.
+## NOTE 82 - Playback queue restore filter moved into queue manager (2026-06-29)
+- P1 queue-authority slice: `PlaybackQueueManager` now owns the restored-queue track eligibility rule that was previously exposed through `PlaybackQueueManager.QueueProvider.isRestorableQueueTrack(...)` and implemented by `EchoPlaybackService`.
+- `QueueProvider` shrank from 33 to 32 methods. `EchoPlaybackService` no longer implements the provider method or carries the private `isRestorableQueueTrack(Track)` helper; the Service now delegates queue restore to `playbackQueueManager.restorePlaybackQueue()` without providing that policy.
+- Behavior preserved: restore still rejects negative ids, blank data paths, missing local URIs, missing file targets, and empty URI strings, while allowing streaming placeholders and valid non-file URIs. `PlaybackQueueManagerTest.restorePlaybackQueueFiltersInvalidTracksInsideManager` covers that boundary.
+- Guarded by `PlaybackQueueManagerTest` and `MainActivityArchitectureContractTest`, with app compile passing under default Gradle daemon/workers via `.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`. Current recheck: `EchoPlaybackService.java` 2442 lines and `PlaybackQueueManager.QueueProvider` 32 methods.
+## NOTE 83 - Playback queue current index moved into queue manager (2026-06-29)
+- P1 queue-authority slice: `PlaybackQueueManager` now owns current-index state and clamping. `PlaybackQueueRuntimeStateManager` only owns `playerMirrorsQueue`; it no longer stores or clamps current index.
+- `QueueProvider` shrank from 32 to 30 methods by deleting `currentIndex()` and `setCurrentIndex(index)`. `EchoPlaybackService` now reads/writes the queue cursor through `playbackQueueManager.currentIndex()`, `setCurrentIndex(...)`, `clampCurrentIndex(...)`, and `setClampedCurrentIndex(...)`.
+- The queue owner now owns index updates for restore, append, next/previous, move, remove, replace, mirrored-queue reuse, and persistence. `PlaybackQueueManagerTest.currentIndexStateIsOwnedByQueueManager` covers set/clamp behavior, while the existing queue tests cover restore, previous, replace-current recovery, and mirrored queue reuse.
+- Guarded by `PlaybackQueueManagerTest`, `PlaybackQueueRuntimeStateManagerTest`, and `MainActivityArchitectureContractTest`, with app compile passing under default Gradle daemon/workers via `.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackQueueRuntimeStateManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`. Current recheck: `EchoPlaybackService.java` 2436 lines and `PlaybackQueueManager.QueueProvider` 30 methods.
+## NOTE 84 - Playback queue resume-request persistence moved into queue manager (2026-06-29)
+- P1 queue-authority slice: queue-driven resume-request writes now go directly through `PlaybackQueueManager -> PlaybackQueueStore.saveResumeRequested(...)` instead of `PlaybackQueueManager.QueueProvider.savePlaybackResumeRequested(...)`.
+- `QueueProvider` shrank from 30 to 29 methods. `EchoPlaybackService` still keeps its private `savePlaybackResumeRequested(...)` helper for service-owned pause/stop/Media3 boundary events, but it no longer supplies that persistence callback to the queue manager.
+- `PlaybackQueueManagerTest.queuePlaybackStartPersistsResumeRequestThroughStore` and the mirrored-queue reuse tests cover the queue-owned resume-request path. `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster` guards against the provider method returning.
+- Verification passed with default Gradle daemon/workers via `.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain`. Current recheck: `EchoPlaybackService.java` 2431 lines and `PlaybackQueueManager.QueueProvider` 29 methods.
+## 2026-06-27 DIRECTION PIVOT: stabilization before more extraction
+
+- New controlling doc: `docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md`.
+- This pivot supersedes the previous default of continuing fast owner/manager extraction when the two conflict.
+- Freeze broad architecture expansion first: do not add new `Manager`, `Coordinator`, `Controller`, `Bindings`, or `Gateway` layers by default.
+- Stabilize the dirty migration surface, record current counts, and prefer reviewable commits/checkpoints before more migration.
+- Reduce existing over-abstraction: merge/delete forwarding-only owners, shrink oversized provider/listener interfaces, and shorten UI -> service/data call chains.
+- Do not expand `PlaybackQueueManager.QueueProvider` or similar large interfaces without a prior split/merge/inline plan.
+- String-based architecture contracts are not enough for fragile flows; pair them with behavior tests, dependency-direction checks, integration smoke, or device evidence.
+- For Windows/KSP verification, run Gradle invocations serially with project defaults first; use `--no-daemon` or `--max-workers=1` only after a reproducible daemon, KSP, or lock issue.
+- Continue P1/P2 only after a slice demonstrably reduces net files, methods, state sources, dependencies, or call-chain length.
+## 2026-06-27 ????
+
+- ???????????/????????????? owner ????
+- `EchoPlaybackService` ???? `MainActivity` ???????????/???????? launcher intent?
+- `PlaybackQueueManager.QueueProvider` ??????????????????????????????
+- ?????????????????????????????
+- ???????? `docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md`???? P1/P2 ????????????????

@@ -2,39 +2,23 @@ package app.yukine
 
 import androidx.lifecycle.ViewModel
 import app.yukine.model.Track
-import app.yukine.playback.EchoPlaybackService
+import app.yukine.playback.PlaybackRepeatMode
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingProviderName
-import app.yukine.ui.LyricUiLine
 import app.yukine.ui.NowBarState
 import app.yukine.ui.nowBarEmptyState
 import java.util.ArrayDeque
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-
-sealed interface NowPlayingEvent {
-    data object PlayPause : NowPlayingEvent
-    data object Next : NowPlayingEvent
-    data object Previous : NowPlayingEvent
-    data class SeekTo(val positionMs: Long) : NowPlayingEvent
-    data object ToggleLyrics : NowPlayingEvent
-    data object OpenQueue : NowPlayingEvent
-    data object ToggleFavorite : NowPlayingEvent
-    data object AddToPlaylist : NowPlayingEvent
-    data object ShareCurrentTrack : NowPlayingEvent
-    data object DownloadCurrentTrack : NowPlayingEvent
-    data object ToggleShuffle : NowPlayingEvent
-    data object CycleRepeatMode : NowPlayingEvent
-}
-
-fun interface NowPlayingEventHandler {
-    fun onEvent(event: NowPlayingEvent)
-}
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 
 sealed interface NowPlayingEffect {
     data object OpenQueue : NowPlayingEffect
@@ -49,38 +33,6 @@ sealed interface NowPlayingEffect {
     ) : NowPlayingEffect
     data class ShowMessage(val message: String) : NowPlayingEffect
 }
-
-enum class RepeatModeUi {
-    Off,
-    All,
-    One
-}
-
-data class LyricsUiState(
-    val title: String = "",
-    val status: String = "",
-    val lines: List<LyricUiLine> = emptyList()
-)
-
-data class NowPlayingUiState @JvmOverloads constructor(
-    val trackTitle: String = "",
-    val artist: String = "",
-    val album: String? = null,
-    val coverUri: String? = null,
-    val isPlaying: Boolean = false,
-    val positionMs: Long = 0L,
-    val durationMs: Long = 0L,
-    val isFavorite: Boolean = false,
-    val lyricsVisible: Boolean = false,
-    val lyrics: LyricsUiState = LyricsUiState(),
-    val shuffleEnabled: Boolean = false,
-    val repeatMode: RepeatModeUi = RepeatModeUi.All,
-    val errorMessage: String? = null,
-    val trackId: Long = -1L,
-    val currentTrack: Track? = null,
-    val overlayState: NowBarState = nowBarEmptyState(),
-    val appVolume: Float = 1.0f
-)
 
 interface NowPlayingGateway {
     fun playPause()
@@ -104,7 +56,6 @@ data class PlaybackActionResultUi(
 
 interface NowPlayingPlaybackGateway {
     fun serviceConnected(): Boolean
-    fun startPlaybackService(action: String?)
     fun snapshot(): PlaybackStateSnapshot?
     fun queueSnapshot(): List<Track>
     fun skipToPrevious()
@@ -116,7 +67,7 @@ interface NowPlayingPlaybackGateway {
     fun replaceQueuedTrack(updated: Track)
     fun replaceQueuedTrackById(oldTrackId: Long, updated: Track)
     fun retainTracksById(trackIds: Set<Long>)
-    fun precacheTrack(track: Track)
+    fun warmPlaybackTrack(track: Track)
     fun appendToQueue(tracks: List<Track>)
     fun replaceCurrentTrackAndResume(track: Track, positionMs: Long)
     fun startSleepTimerMinutes(minutes: Int)
@@ -129,9 +80,12 @@ interface NowPlayingPlaybackGateway {
     fun setRepeatMode(repeatMode: Int)
 }
 
-class NowPlayingViewModel : ViewModel() {
+class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
     private val _uiState = MutableStateFlow(NowPlayingUiState())
-    val uiState: StateFlow<NowPlayingUiState> = _uiState.asStateFlow()
+    override val uiState: StateFlow<NowPlayingUiState> = _uiState.asStateFlow()
+    override val nowBarState: StateFlow<NowBarState> = _uiState
+        .map { it.overlayState }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, nowBarEmptyState())
 
     private val _effects = MutableSharedFlow<NowPlayingEffect>(extraBufferCapacity = 8)
     val effects: SharedFlow<NowPlayingEffect> = _effects.asSharedFlow()
@@ -241,7 +195,7 @@ class NowPlayingViewModel : ViewModel() {
         return drained
     }
 
-    fun switchSource(
+    override fun switchSource(
         track: Track?,
         provider: StreamingProviderName?,
         providerTrackId: String?,
@@ -258,21 +212,11 @@ class NowPlayingViewModel : ViewModel() {
     }
 
     fun skipToPrevious() {
-        val player = playbackGateway ?: return
-        if (player.serviceConnected()) {
-            player.skipToPrevious()
-        } else {
-            player.startPlaybackService(EchoPlaybackService.ACTION_PREVIOUS)
-        }
+        playbackGateway?.skipToPrevious()
     }
 
     fun skipToNext() {
-        val player = playbackGateway ?: return
-        if (player.serviceConnected()) {
-            player.skipToNext()
-        } else {
-            player.startPlaybackService(EchoPlaybackService.ACTION_NEXT)
-        }
+        playbackGateway?.skipToNext()
     }
 
     fun seekTo(positionMs: Long) {
@@ -307,7 +251,7 @@ class NowPlayingViewModel : ViewModel() {
 
     fun replaceQueuedTrack(oldTrackId: Long, updated: Track?) {
         val player = playbackGateway ?: return
-        if (!player.serviceConnected() || updated == null) {
+        if (updated == null) {
             return
         }
         if (oldTrackId == updated.id) {
@@ -317,17 +261,17 @@ class NowPlayingViewModel : ViewModel() {
         }
     }
 
-    fun precacheTrack(track: Track?) {
+    fun warmPlaybackTrack(track: Track?) {
         val player = playbackGateway ?: return
-        if (!player.serviceConnected() || track == null) {
+        if (track == null) {
             return
         }
-        player.precacheTrack(track)
+        player.warmPlaybackTrack(track)
     }
 
     fun appendToQueue(tracks: List<Track>?) {
         val player = playbackGateway ?: return
-        if (!player.serviceConnected() || tracks.isNullOrEmpty()) {
+        if (tracks.isNullOrEmpty()) {
             return
         }
         player.appendToQueue(tracks)
@@ -335,7 +279,7 @@ class NowPlayingViewModel : ViewModel() {
 
     fun replaceCurrentTrackAndResume(track: Track?, positionMs: Long) {
         val player = playbackGateway ?: return
-        if (!player.serviceConnected() || track == null) {
+        if (track == null) {
             return
         }
         player.replaceCurrentTrackAndResume(track, positionMs)
@@ -343,7 +287,7 @@ class NowPlayingViewModel : ViewModel() {
 
     fun retainTracks(tracksToKeep: List<Track>?) {
         val player = playbackGateway ?: return
-        if (!player.serviceConnected() || tracksToKeep == null) {
+        if (tracksToKeep == null) {
             return
         }
         player.retainTracksById(tracksToKeep.map { track -> track.id }.toSet())
@@ -404,10 +348,8 @@ class NowPlayingViewModel : ViewModel() {
         if (playbackState != null && playbackState.playing) {
             player.pause()
         } else if (playbackState != null && playbackState.currentTrack != null) {
-            player.startPlaybackService(null)
             player.play()
         } else if (!fallbackTracks.isNullOrEmpty()) {
-            player.startPlaybackService(null)
             player.playQueue(fallbackTracks, 0)
         }
         return PlaybackActionResultUi(player.snapshot(), null, false, false, true, false)
@@ -437,23 +379,23 @@ class NowPlayingViewModel : ViewModel() {
             return statusOnly("Playback service is not connected")
         }
         val shuffleEnabled = playbackState?.shuffleEnabled == true
-        val repeatMode = playbackState?.repeatMode ?: EchoPlaybackService.REPEAT_ALL
+        val repeatMode = playbackState?.repeatMode ?: PlaybackRepeatMode.REPEAT_ALL
         when {
             shuffleEnabled -> {
                 player.setShuffleEnabled(false)
-                player.setRepeatMode(EchoPlaybackService.REPEAT_ALL)
+                player.setRepeatMode(PlaybackRepeatMode.REPEAT_ALL)
             }
-            repeatMode == EchoPlaybackService.REPEAT_ALL -> {
-                player.setRepeatMode(EchoPlaybackService.REPEAT_ONE)
+            repeatMode == PlaybackRepeatMode.REPEAT_ALL -> {
+                player.setRepeatMode(PlaybackRepeatMode.REPEAT_ONE)
             }
-            repeatMode == EchoPlaybackService.REPEAT_ONE -> {
-                player.setRepeatMode(EchoPlaybackService.REPEAT_OFF)
+            repeatMode == PlaybackRepeatMode.REPEAT_ONE -> {
+                player.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF)
             }
-            repeatMode == EchoPlaybackService.REPEAT_OFF -> {
-                player.setRepeatMode(EchoPlaybackService.REPEAT_ALL)
+            repeatMode == PlaybackRepeatMode.REPEAT_OFF -> {
+                player.setRepeatMode(PlaybackRepeatMode.REPEAT_ALL)
             }
             else -> {
-                player.setRepeatMode(EchoPlaybackService.REPEAT_ALL)
+                player.setRepeatMode(PlaybackRepeatMode.REPEAT_ALL)
             }
         }
         return PlaybackActionResultUi(player.snapshot(), null, false, false, true, false)
@@ -478,8 +420,8 @@ class NowPlayingViewModel : ViewModel() {
 
     private fun repeatModeUi(repeatMode: Int): RepeatModeUi {
         return when (repeatMode) {
-            EchoPlaybackService.REPEAT_ONE -> RepeatModeUi.One
-            EchoPlaybackService.REPEAT_OFF -> RepeatModeUi.Off
+            PlaybackRepeatMode.REPEAT_ONE -> RepeatModeUi.One
+            PlaybackRepeatMode.REPEAT_OFF -> RepeatModeUi.Off
             else -> RepeatModeUi.All
         }
     }

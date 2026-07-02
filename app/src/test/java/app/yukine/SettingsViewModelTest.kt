@@ -3,6 +3,7 @@ package app.yukine
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.SettingsMetric
+import app.yukine.streaming.StreamingQualityPreference
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -67,7 +68,7 @@ class SettingsViewModelTest {
                 SettingsEffect.ReloadCurrentLyrics,
                 SettingsEffect.ShowStatus(
                     AppLanguage.text(AppLanguage.MODE_SYSTEM, "lyrics.offset.applied") +
-                        SettingsPageRenderController.lyricsOffsetLabel(500L)
+                        SettingsLabelFormatter.lyricsOffsetLabel(500L)
                 ),
                 SettingsEffect.StartSleepTimer(30),
                 SettingsEffect.CancelSleepTimer,
@@ -77,7 +78,7 @@ class SettingsViewModelTest {
                 SettingsEffect.ChoosePageBackground(PageBackgrounds.PAGE_HOME),
                 SettingsEffect.ShowStatus(
                     AppLanguage.text(AppLanguage.MODE_SYSTEM, "page.background.cleared") +
-                        SettingsPageRenderController.pageBackgroundPageLabel(PageBackgrounds.PAGE_SETTINGS, AppLanguage.MODE_SYSTEM)
+                        SettingsLabelFormatter.pageBackgroundPageLabel(PageBackgrounds.PAGE_SETTINGS, AppLanguage.MODE_SYSTEM)
                 ),
                 SettingsEffect.ApplyStreamingGatewayEndpoint("http://127.0.0.1:3000"),
                 SettingsEffect.ExportBackup,
@@ -204,6 +205,8 @@ class SettingsViewModelTest {
 
         assertEquals(preferences, viewModel.state.value.preferences)
         assertEquals(runtime, viewModel.state.value.runtime)
+        assertEquals(preferences.pageBackgrounds, viewModel.chromeState.value.pageBackgrounds)
+        assertEquals(false, viewModel.chromeState.value.nowPlayingGesturesEnabled)
         assertEquals(SettingsUiState(), viewModel.uiState.value)
     }
 
@@ -240,7 +243,6 @@ class SettingsViewModelTest {
         assertEquals(
             listOf(
                 "theme",
-                "language:en",
                 "speed:2.0",
                 "volume:0.0",
                 "concurrent:false",
@@ -255,7 +257,6 @@ class SettingsViewModelTest {
             runtimeEffects.map { effect ->
                 when (effect) {
                     SettingsRuntimeEffect.ApplyThemeSurface -> "theme"
-                    is SettingsRuntimeEffect.UpdateLanguage -> "language:${effect.languageMode}"
                     is SettingsRuntimeEffect.ApplyPlaybackSpeed -> "speed:${effect.speed}"
                     is SettingsRuntimeEffect.ApplyAppVolume -> "volume:${effect.volume}"
                     is SettingsRuntimeEffect.SetConcurrentPlaybackEnabled -> "concurrent:${effect.enabled}"
@@ -335,7 +336,7 @@ class SettingsViewModelTest {
             listOf(
                 SettingsEffect.ShowStatus(
                     AppLanguage.text(AppLanguage.MODE_SYSTEM, "page.background.cleared") +
-                        SettingsPageRenderController.pageBackgroundPageLabel(PageBackgrounds.PAGE_SETTINGS, AppLanguage.MODE_SYSTEM)
+                        SettingsLabelFormatter.pageBackgroundPageLabel(PageBackgrounds.PAGE_SETTINGS, AppLanguage.MODE_SYSTEM)
                 )
             ),
             viewModel.drainEffects()
@@ -467,12 +468,12 @@ class SettingsViewModelTest {
         )
         assertEquals(
             AppLanguage.text(AppLanguage.MODE_ENGLISH, "speed.applied") +
-                    SettingsPageRenderController.playbackSpeedLabel(1.25f),
+                    SettingsLabelFormatter.playbackSpeedLabel(1.25f),
             status.playbackSpeedApplied
         )
         assertEquals(
             AppLanguage.text(AppLanguage.MODE_ENGLISH, "volume.applied") +
-                    SettingsPageRenderController.appVolumeLabel(0.8f),
+                    SettingsLabelFormatter.appVolumeLabel(0.8f),
             status.appVolumeApplied
         )
         assertEquals(
@@ -493,7 +494,7 @@ class SettingsViewModelTest {
         )
         assertEquals(
             AppLanguage.text(AppLanguage.MODE_ENGLISH, "lyrics.offset.applied") +
-                    SettingsPageRenderController.lyricsOffsetLabel(-300L),
+                    SettingsLabelFormatter.lyricsOffsetLabel(-300L),
             status.lyricsOffsetApplied
         )
         assertEquals(

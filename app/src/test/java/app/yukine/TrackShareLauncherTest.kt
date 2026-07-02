@@ -105,8 +105,8 @@ class TrackShareLauncherTest {
         TrackShareLauncher(
             activity = Robolectric.buildActivity(Activity::class.java).setup().get(),
             operations = operations,
-            languageProvider = TrackShareLanguageProvider { AppLanguage.MODE_CHINESE },
-            shareStyleProvider = TrackShareStyleProvider { style },
+            languageProvider = { AppLanguage.MODE_CHINESE },
+            shareStyleProvider = { style },
             statusSink = statusSink,
             activityStarter = starter
         )

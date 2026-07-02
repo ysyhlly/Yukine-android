@@ -1,9 +1,9 @@
 package app.yukine
 
+import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
-import app.yukine.streaming.StreamingPlaybackAdapter
 import app.yukine.streaming.StreamingProviderName
 import java.util.Locale
 
@@ -35,11 +35,11 @@ internal class StreamingTrackMatchUseCase(
         if (track == null || provider == null) {
             return ""
         }
-        val trackProvider = StreamingPlaybackAdapter.providerName(track.dataPath)
+        val trackProvider = StreamingDataPathMetadata.provider(track.dataPath)
         if (trackProvider != provider) {
             return providerTrackIdFromLocation(track, provider)
         }
-        val directTrackId = StreamingPlaybackAdapter.providerTrackId(track.dataPath).trim()
+        val directTrackId = StreamingDataPathMetadata.providerTrackId(track.dataPath).trim()
         if (directTrackId.isNotEmpty()) {
             return directTrackId
         }

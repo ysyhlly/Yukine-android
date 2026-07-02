@@ -229,7 +229,7 @@ class MainRouteControllerTest {
         val viewModel = NavigationViewModel(SavedStateHandle())
         val controller = MainRouteController(viewModel)
         controller.persist(
-            MainActivityRouteState(
+            NavigationRouteState(
                 selectedTab = selectedTab,
                 libraryMode = libraryMode,
                 selectedLibraryGroupKey = selectedLibraryGroupKey,

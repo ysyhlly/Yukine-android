@@ -16,28 +16,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-data class MainActivityHomeDashboardUiState(
-    val content: HomeDashboardUiState = HomeDashboardUiState(),
-    val actions: HomeDashboardActions = emptyHomeDashboardActions()
-)
-
-fun emptyHomeDashboardActions(): HomeDashboardActions = HomeDashboardActions(
-    onOpenStat = emptyList(),
-    onContinue = Runnable { },
-    onOpenNowPlaying = Runnable { },
-    onPlayRecent = emptyList(),
-    onRefresh = Runnable { },
-    onViewQueue = Runnable { },
-    onShuffleAll = Runnable { },
-    onRecentTabChanged = { }
-)
-
 @HiltViewModel
 class HomeDashboardViewModel @Inject constructor(
     private val dashboardRepository: DashboardRepository?
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(MainActivityHomeDashboardUiState())
-    val uiState: StateFlow<MainActivityHomeDashboardUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(HomeDashboardDestinationState())
+    val uiState: StateFlow<HomeDashboardDestinationState> = _uiState.asStateFlow()
 
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()

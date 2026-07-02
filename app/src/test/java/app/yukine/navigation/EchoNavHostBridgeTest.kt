@@ -12,14 +12,12 @@ import androidx.lifecycle.SavedStateHandle
 import app.yukine.CollectionsViewModel
 import app.yukine.HomeDashboardViewModel
 import app.yukine.LibraryViewModel
-import app.yukine.MainActivityViewModel
 import app.yukine.NavigationViewModel
 import app.yukine.NetworkMenuViewModel
 import app.yukine.NetworkSourcesViewModel
 import app.yukine.NowPlayingViewModel
 import app.yukine.SettingsViewModel
 import app.yukine.StreamingViewModel
-import app.yukine.queue.QueueViewModel
 import app.yukine.ui.CollectionsActions
 import app.yukine.ui.CollectionsUiState
 import app.yukine.ui.emptyCollectionsActions
@@ -44,8 +42,6 @@ class EchoNavHostBridgeTest {
         EchoTabItem(QueueTab, "Playing"),
         EchoTabItem(SettingsTab, "Settings")
     )
-
-    private fun emptyQueueVm() = QueueViewModel().also { it.bind(emptyList(), null, emptySet(), "en") }
 
     private fun hostState(): EchoNavHostState {
         val homeDashboard = HomeDashboardViewModel(null).also {
@@ -74,18 +70,25 @@ class EchoNavHostBridgeTest {
                 )
             )
         }
+        val library = LibraryViewModel()
+        val networkMenu = NetworkMenuViewModel()
+        val networkSources = NetworkSourcesViewModel()
+        val streaming = StreamingViewModel()
+        val settings = SettingsViewModel()
         return EchoNavHostState(
-            mainViewModel = MainActivityViewModel(SavedStateHandle()),
-            navigationViewModel = NavigationViewModel(SavedStateHandle()),
-            homeDashboardViewModel = homeDashboard,
-            nowPlayingViewModel = NowPlayingViewModel(),
-            libraryViewModel = LibraryViewModel(),
-            collectionsViewModel = collections,
-            settingsViewModel = SettingsViewModel(),
-            networkMenuViewModel = NetworkMenuViewModel(),
-            networkSourcesViewModel = NetworkSourcesViewModel(),
-            streamingViewModel = StreamingViewModel(),
-            playbackViewModel = app.yukine.PlaybackViewModel(),
+            routeState = NavigationViewModel(SavedStateHandle()).state,
+            homeDashboardState = homeDashboard.uiState,
+            nowPlayingStateProvider = NowPlayingViewModel(),
+            libraryGroupsState = library.libraryGroups,
+            libraryTrackListState = library.trackList,
+            collectionsStateProvider = collections,
+            settingsState = settings.state,
+            settingsChromeState = settings.chromeState,
+            settingsScrollState = settings.scrollState,
+            networkMenuState = networkMenu.uiState,
+            networkSourcesState = networkSources.uiState,
+            streamingState = streaming.streaming,
+            playbackSnapshotProvider = app.yukine.PlaybackViewModel(),
             visualMotionEnabled = false
         )
     }
@@ -96,7 +99,6 @@ class EchoNavHostBridgeTest {
             EchoTheme.EchoTheme {
                 EchoNavHostBridge(
                     tabs = tabs,
-                    queueViewModel = emptyQueueVm(),
                     hostState = hostState()
                 )
             }
@@ -112,7 +114,6 @@ class EchoNavHostBridgeTest {
             EchoTheme.EchoTheme {
                 EchoNavHostBridge(
                     tabs = tabs,
-                    queueViewModel = emptyQueueVm(),
                     hostState = state
                 )
             }
@@ -131,7 +132,6 @@ class EchoNavHostBridgeTest {
             EchoTheme.EchoTheme {
                 EchoNavHostBridge(
                     tabs = tabs,
-                    queueViewModel = emptyQueueVm(),
                     hostState = hostState(),
                     onTabChanged = { changed.add(it) }
                 )

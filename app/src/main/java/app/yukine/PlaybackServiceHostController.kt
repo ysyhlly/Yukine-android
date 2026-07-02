@@ -1,7 +1,5 @@
 package app.yukine
 
-import app.yukine.playback.EchoPlaybackService
-
 internal class PlaybackServiceHostController(
     private val host: Host
 ) : PlaybackServiceConnectionController.Listener {
@@ -18,7 +16,7 @@ internal class PlaybackServiceHostController(
 
         fun replayGainEnabled(): Boolean
 
-        fun attachPlaybackService(service: EchoPlaybackService)
+        fun attachPlaybackService(service: PlaybackServiceHostPort)
 
         fun clearPlaybackService()
 
@@ -31,7 +29,7 @@ internal class PlaybackServiceHostController(
         fun renderNowBar()
     }
 
-    override fun onPlaybackServiceConnected(service: EchoPlaybackService) {
+    override fun onPlaybackServiceConnected(service: PlaybackServiceHostPort) {
         host.attachPlaybackService(service)
         service.setPlaybackSpeed(host.playbackSpeed())
         service.setAppVolume(host.appVolume())

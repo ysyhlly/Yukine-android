@@ -9,10 +9,17 @@ app/build/
 # Local Android SDK and machine-specific config
 android-sdk/
 local.properties
+/androidx/
 
 # IDE state
 .idea/
 *.iml
+
+# Local AI/agent tooling state
+.agents/
+.claude/
+.codex/
+.codex-logs/
 
 # Release signing material
 *.jks
@@ -27,5 +34,10 @@ captures/
 tmp-m3u/
 echo_next_*.db
 screen-*.png
+screenshot_*.png
 window.xml
 window-*.xml
+ui_layout_*.xml
+
+# Generated reports and rendered artifacts
+output/

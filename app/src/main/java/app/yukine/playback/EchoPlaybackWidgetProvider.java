@@ -14,6 +14,7 @@ import android.widget.RemoteViews;
 import app.yukine.MainActivity;
 import app.yukine.R;
 import app.yukine.model.Track;
+import app.yukine.playback.service.PlaybackServiceActions;
 
 public final class EchoPlaybackWidgetProvider extends AppWidgetProvider {
     private static PlaybackStateSnapshot lastSnapshot = PlaybackStateSnapshot.empty();
@@ -67,12 +68,12 @@ public final class EchoPlaybackWidgetProvider extends AppWidgetProvider {
             views.setImageViewResource(R.id.widget_artwork, R.drawable.ic_stat_echo);
         }
         views.setOnClickPendingIntent(R.id.widget_root, activityIntent(context));
-        views.setOnClickPendingIntent(R.id.widget_previous, serviceIntent(context, EchoPlaybackService.ACTION_PREVIOUS, 21));
+        views.setOnClickPendingIntent(R.id.widget_previous, serviceIntent(context, PlaybackServiceActions.PREVIOUS, 21));
         views.setOnClickPendingIntent(
                 R.id.widget_play_pause,
-                serviceIntent(context, playing ? EchoPlaybackService.ACTION_PAUSE : EchoPlaybackService.ACTION_RESTORE_AND_PLAY, 22)
+                serviceIntent(context, playing ? PlaybackServiceActions.PAUSE : PlaybackServiceActions.RESTORE_AND_PLAY, 22)
         );
-        views.setOnClickPendingIntent(R.id.widget_next, serviceIntent(context, EchoPlaybackService.ACTION_NEXT, 23));
+        views.setOnClickPendingIntent(R.id.widget_next, serviceIntent(context, PlaybackServiceActions.NEXT, 23));
         return views;
     }
 

@@ -3,6 +3,8 @@ package app.yukine
 import android.net.Uri
 import app.yukine.model.RemoteSource
 import app.yukine.model.Track
+import app.yukine.ui.SettingsAction
+import app.yukine.ui.SettingsMetric
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.util.ArrayList
@@ -79,11 +81,26 @@ class NetworkMenuEventControllerTest {
         )
     }
 
+    @Test
+    fun publishNetworkMenuUpdatesViewModelDirectly() {
+        val fakes = Fakes()
+        val controller = fakes.controller()
+        val metric = SettingsMetric("title", "value")
+        val action = SettingsAction("Open", Runnable { fakes.events.add("action:open") })
+
+        controller.publishNetworkMenu("Network", listOf(metric), listOf(action))
+
+        assertEquals("Network", fakes.networkMenuViewModel.uiState.value.title)
+        assertEquals(listOf(metric), fakes.networkMenuViewModel.uiState.value.metrics)
+        assertEquals(listOf(action), fakes.networkMenuViewModel.uiState.value.actions)
+    }
+
     private class Fakes {
         val events = ArrayList<String>()
         val streamTracks = ArrayList<Track>()
         val webDavTracks = ArrayList<Track>()
         val remoteSources = ArrayList<RemoteSource>()
+        val networkMenuViewModel = NetworkMenuViewModel()
 
         fun controller(): NetworkMenuEventController =
             NetworkMenuEventController(
@@ -101,7 +118,7 @@ class NetworkMenuEventControllerTest {
                 { tracks, index -> events.add("play:${tracks.first().id}@$index") },
                 { key -> "label:$key" },
                 { status -> events.add("status:$status") },
-                { _, _, _ -> }
+                networkMenuViewModel
             )
     }
 

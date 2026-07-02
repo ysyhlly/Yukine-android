@@ -31,7 +31,6 @@ internal interface LibraryCollectionOperations {
     fun loadRemoteSources(): List<RemoteSource>
     fun loadPlaylistTracks(playlistId: Long): List<Track>
     fun clearPlayHistory(): Int
-    fun setFavorite(trackId: Long, favorite: Boolean)
 }
 
 internal class MusicLibraryCollectionOperations(
@@ -60,10 +59,6 @@ internal class MusicLibraryCollectionOperations(
         repository.loadPlaylistTracks(playlistId)
 
     override fun clearPlayHistory(): Int = repository.clearPlayHistory()
-
-    override fun setFavorite(trackId: Long, favorite: Boolean) {
-        repository.setFavorite(trackId, favorite)
-    }
 }
 
 internal class LoadLibraryCollectionsUseCase @JvmOverloads constructor(
@@ -114,13 +109,22 @@ internal class ClearPlayHistoryUseCase(
     fun execute(): Int = operations.clearPlayHistory()
 }
 
-internal class SetLibraryFavoriteUseCase(
+internal class MainLibraryCollectionGateway(
     private val operations: LibraryCollectionOperations
-) {
-    fun execute(trackId: Long, favorite: Boolean) {
-        if (trackId < 0L) {
-            return
-        }
-        operations.setFavorite(trackId, favorite)
+) : LibraryCollectionGateway {
+    override fun loadCollections(selectedPlaylistId: Long): LibraryCollectionsResult {
+        val loaded = LoadLibraryCollectionsUseCase(operations).execute(selectedPlaylistId)
+        return LibraryCollectionsResult(
+            selectedPlaylistId = loaded.selectedPlaylistId,
+            favoriteIds = loaded.favoriteIds,
+            favoriteTracks = loaded.favoriteTracks,
+            recentRecords = loaded.recentRecords,
+            mostPlayedRecords = loaded.mostPlayedRecords,
+            playlists = loaded.playlists,
+            remoteSources = loaded.remoteSources,
+            selectedPlaylistTracks = loaded.selectedPlaylistTracks
+        )
     }
+
+    override fun clearPlayHistory(): Int = ClearPlayHistoryUseCase(operations).execute()
 }

@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.playback.AudioEffectSettings
+import app.yukine.streaming.StreamingQualityPreference
 import app.yukine.ui.EchoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

@@ -3,20 +3,29 @@ package app.yukine
 import androidx.lifecycle.ViewModel
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
+import app.yukine.navigation.PlaybackSnapshotProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.SharingStarted
 
-data class MainActivityPlaybackState(
+data class PlaybackViewState(
     val snapshot: PlaybackStateSnapshot = PlaybackStateSnapshot.empty(),
     val queue: List<Track> = emptyList()
 )
 
-class PlaybackViewModel : ViewModel() {
-    private val playbackState = MutableStateFlow(MainActivityPlaybackState())
+class PlaybackViewModel : ViewModel(), PlaybackSnapshotProvider {
+    private val playbackState = MutableStateFlow(PlaybackViewState())
     private var lastHistoryRefreshTrackId = -1L
 
-    val playback: StateFlow<MainActivityPlaybackState> = playbackState.asStateFlow()
+    val playback: StateFlow<PlaybackViewState> = playbackState.asStateFlow()
+
+    override val playbackSnapshot: StateFlow<PlaybackStateSnapshot> = playbackState
+        .map { it.snapshot }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, PlaybackStateSnapshot.empty())
 
     fun replacePlaybackSnapshot(snapshot: PlaybackStateSnapshot?): PlaybackStateSnapshot {
         val previous = playbackState.value.snapshot
@@ -27,12 +36,12 @@ class PlaybackViewModel : ViewModel() {
     }
 
     fun resetPlayback() {
-        playbackState.value = MainActivityPlaybackState()
+        playbackState.value = PlaybackViewState()
         lastHistoryRefreshTrackId = -1L
     }
 
     fun updatePlayback(snapshot: PlaybackStateSnapshot?, queue: List<Track>) {
-        playbackState.value = MainActivityPlaybackState(
+        playbackState.value = PlaybackViewState(
             snapshot = snapshot ?: PlaybackStateSnapshot.empty(),
             queue = queue.toList()
         )

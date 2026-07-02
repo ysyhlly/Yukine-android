@@ -4,9 +4,13 @@ import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
 
 class QueueActionControllerTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     @Test
     fun removeAndClearQueueApplyViewModelResults() {
         val player = FakePlaybackGateway()
@@ -108,7 +112,6 @@ class QueueActionControllerTest {
         val calls = mutableListOf<String>()
 
         override fun serviceConnected(): Boolean = connected
-        override fun startPlaybackService(action: String?) {}
         override fun snapshot(): PlaybackStateSnapshot? = PlaybackStateSnapshot.empty()
         override fun queueSnapshot(): List<Track> = queue
         override fun skipToPrevious() {}
@@ -124,7 +127,7 @@ class QueueActionControllerTest {
         override fun replaceQueuedTrack(updated: Track) {}
         override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) {}
         override fun retainTracksById(trackIds: Set<Long>) {}
-        override fun precacheTrack(track: Track) {}
+        override fun warmPlaybackTrack(track: Track) {}
         override fun appendToQueue(tracks: List<Track>) {}
         override fun replaceCurrentTrackAndResume(track: Track, positionMs: Long) {}
         override fun startSleepTimerMinutes(minutes: Int) {}

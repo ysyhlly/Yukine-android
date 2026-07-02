@@ -8,49 +8,118 @@ import android.os.Bundle
 import android.media.session.MediaSession
 import app.yukine.R
 import app.yukine.model.Track
+import app.yukine.playback.PlaybackNotificationArtworkSource
+import app.yukine.playback.service.PlaybackServiceActions
 import androidx.media3.common.MediaMetadata
+import java.util.function.Supplier
 
 internal class PlaybackNotificationManager(
     private val context: Context,
-    private val foregroundPresenter: ForegroundPresenter,
-    private val lyricsTextProvider: LyricsTextProvider?,
-    private val artworkProvider: ArtworkProvider
+    private val foregroundController: ForegroundController,
+    private val stateProvider: StateProvider,
+    private val lyricsPublisherSupplier: Supplier<out LyricsPublisher?>?,
+    private val artworkProvider: PlaybackNotificationArtworkSource,
+    private val actionCallbacks: ActionCallbacks? = null
 ) : NotificationManager {
-    interface LyricsTextProvider {
-        fun currentNotificationLyric(track: Track?): String
-        fun sanitizeNotificationLyric(value: String?): String
-    }
-
-    interface ForegroundPresenter {
+    interface ForegroundController {
         fun activityPendingIntent(): android.app.PendingIntent
         fun serviceActionPendingIntent(action: String, requestCode: Int): android.app.PendingIntent
         fun startPlaybackForeground(notification: Notification)
-        fun hasNotificationWorthyState(): Boolean
+    }
+
+    interface StateProvider {
+        fun isQueueEmpty(): Boolean
         fun isPlaying(): Boolean
         fun isPreparing(): Boolean
         fun currentTrack(): Track?
+        fun isFavorite(track: Track?): Boolean
         fun playbackSessionPlatformToken(): MediaSession.Token?
     }
 
-    interface ArtworkProvider {
-        fun notificationArtworkFor(track: Track?): Bitmap?
-        fun notificationArtworkDataFor(track: Track?): ByteArray?
+    interface ActionCallbacks {
+        fun publishPlaybackNotification(force: Boolean)
+        fun play()
+        fun pause()
+        fun skipToPrevious()
+        fun skipToNext()
+        fun toggleCurrentFavorite()
+        fun restoreLastPlayback(playWhenReady: Boolean)
+        fun stopAndClear()
+        fun stopForegroundAndSelf()
+    }
+
+    fun interface SessionRefresher {
+        fun refreshPlaybackSession()
     }
 
     fun updateMediaNotification(force: Boolean) {
-        val track = foregroundPresenter.currentTrack()
-        if (track == null && !foregroundPresenter.hasNotificationWorthyState()) {
+        val track = stateProvider.currentTrack()
+        if (track == null && !hasNotificationWorthyState()) {
             return
         }
         val notification = playbackNotification(track)
-        foregroundPresenter.startPlaybackForeground(notification)
+        foregroundController.startPlaybackForeground(notification)
+    }
+
+    fun hasNotificationWorthyState(): Boolean {
+        return isNotificationWorthy(
+            currentTrack = stateProvider.currentTrack(),
+            queueEmpty = stateProvider.isQueueEmpty(),
+            preparing = stateProvider.isPreparing(),
+            playing = stateProvider.isPlaying()
+        )
+    }
+
+    fun handleServiceAction(action: String?): Boolean {
+        if (!PlaybackServiceActions.isPlaybackServiceAction(action)) {
+            return false
+        }
+        val callbacks = actionCallbacks ?: return false
+        callbacks.publishPlaybackNotification(true)
+        when (action) {
+            PlaybackServiceActions.PLAY -> callbacks.play()
+            PlaybackServiceActions.PAUSE -> callbacks.pause()
+            PlaybackServiceActions.PREVIOUS -> callbacks.skipToPrevious()
+            PlaybackServiceActions.NEXT -> callbacks.skipToNext()
+            PlaybackServiceActions.TOGGLE_FAVORITE -> callbacks.toggleCurrentFavorite()
+            PlaybackServiceActions.RESTORE -> callbacks.restoreLastPlayback(false)
+            PlaybackServiceActions.RESTORE_AND_PLAY -> callbacks.restoreLastPlayback(true)
+            PlaybackServiceActions.STOP -> callbacks.stopAndClear()
+        }
+        if (hasNotificationWorthyState()) {
+            callbacks.publishPlaybackNotification(true)
+        } else if (action != PlaybackServiceActions.STOP) {
+            callbacks.stopForegroundAndSelf()
+        }
+        return true
+    }
+
+    fun lyricsNotificationBridge(sessionRefresher: SessionRefresher): PlaybackLyricsManager.NotificationBridge {
+        return object : PlaybackLyricsManager.NotificationBridge {
+            override fun hasNotificationWorthyState(): Boolean {
+                return this@PlaybackNotificationManager.hasNotificationWorthyState()
+            }
+
+            override fun notifyMediaNotification(force: Boolean) {
+                val callbacks = actionCallbacks
+                if (callbacks != null) {
+                    callbacks.publishPlaybackNotification(force)
+                } else {
+                    updateMediaNotification(force)
+                }
+            }
+
+            override fun refreshPlaybackSession() {
+                sessionRefresher.refreshPlaybackSession()
+            }
+        }
     }
 
     fun playbackNotification(track: Track?): Notification {
-        val playing = foregroundPresenter.isPlaying() || foregroundPresenter.isPreparing()
+        val playing = stateProvider.isPlaying() || stateProvider.isPreparing()
         val hasTrack = track != null
-        val isFavorite = false
-        val lyricText = if (lyricsTextProvider == null) "" else lyricsTextProvider.currentNotificationLyric(track)
+        val isFavorite = stateProvider.isFavorite(track)
+        val lyricText = currentNotificationLyric(track)
         val contentText = if (lyricText.isNotEmpty()) lyricText else if (hasTrack) track!!.subtitle() else EMPTY_NOTIFICATION_TEXT
         val titleText = if (hasTrack) track!!.title else EMPTY_NOTIFICATION_TITLE
         val capsuleText = if (lyricText.isNotEmpty()) shortCriticalText(lyricText) else if (hasTrack) shortCriticalText(track!!.title) else "Yukine"
@@ -65,7 +134,7 @@ internal class PlaybackNotificationManager(
         builder.setSmallIcon(R.drawable.ic_stat_echo)
             .setContentTitle(titleText)
             .setContentText(contentText)
-            .setContentIntent(foregroundPresenter.activityPendingIntent())
+            .setContentIntent(foregroundController.activityPendingIntent())
             .setTicker(contentText)
             .setSubText(if (hasTrack) track!!.subtitle() else "Yukine")
             .setCategory(Notification.CATEGORY_TRANSPORT)
@@ -75,11 +144,11 @@ internal class PlaybackNotificationManager(
             .setOnlyAlertOnce(true)
             .setPriority(Notification.PRIORITY_LOW)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
-            .addAction(R.drawable.ic_notif_previous, "Previous", foregroundPresenter.serviceActionPendingIntent("app.yukine.action.PREVIOUS", 1))
-            .addAction(if (playing) R.drawable.ic_notif_pause else R.drawable.ic_notif_play, if (playing) "Pause" else "Play", foregroundPresenter.serviceActionPendingIntent(if (playing) "app.yukine.action.PAUSE" else "app.yukine.action.RESTORE_AND_PLAY", 2))
-            .addAction(R.drawable.ic_notif_next, "Next", foregroundPresenter.serviceActionPendingIntent("app.yukine.action.NEXT", 3))
-            .addAction(favoriteIcon, favoriteTitle, foregroundPresenter.serviceActionPendingIntent("app.yukine.action.TOGGLE_FAVORITE", 4))
-            .addAction(R.drawable.ic_notif_stop, "Stop", foregroundPresenter.serviceActionPendingIntent("app.yukine.action.STOP", 5))
+            .addAction(R.drawable.ic_notif_previous, "Previous", foregroundController.serviceActionPendingIntent(PlaybackServiceActions.PREVIOUS, 1))
+            .addAction(if (playing) R.drawable.ic_notif_pause else R.drawable.ic_notif_play, if (playing) "Pause" else "Play", foregroundController.serviceActionPendingIntent(if (playing) PlaybackServiceActions.PAUSE else PlaybackServiceActions.RESTORE_AND_PLAY, 2))
+            .addAction(R.drawable.ic_notif_next, "Next", foregroundController.serviceActionPendingIntent(PlaybackServiceActions.NEXT, 3))
+            .addAction(favoriteIcon, favoriteTitle, foregroundController.serviceActionPendingIntent(PlaybackServiceActions.TOGGLE_FAVORITE, 4))
+            .addAction(R.drawable.ic_notif_stop, "Stop", foregroundController.serviceActionPendingIntent(PlaybackServiceActions.STOP, 5))
         if (hasTrack) {
             val extras = Bundle()
             extras.putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
@@ -94,7 +163,7 @@ internal class PlaybackNotificationManager(
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             val style = Notification.MediaStyle().setShowActionsInCompactView(0, 1, 2)
-            val token = foregroundPresenter.playbackSessionPlatformToken()
+            val token = stateProvider.playbackSessionPlatformToken()
             if (token != null) {
                 style.setMediaSession(token)
             }
@@ -106,7 +175,7 @@ internal class PlaybackNotificationManager(
     }
 
     fun mediaMetadataForTrack(track: Track): MediaMetadata {
-        val lyricText = lyricsTextProvider?.currentNotificationLyric(track).orEmpty()
+        val lyricText = currentNotificationLyric(track)
         val metadata = MediaMetadata.Builder()
             .setTitle(track.title)
             .setArtist(track.artist)
@@ -132,14 +201,32 @@ internal class PlaybackNotificationManager(
     }
 
     fun shortCriticalText(value: String): String {
-        val compact = if (lyricsTextProvider == null) "" else lyricsTextProvider.sanitizeNotificationLyric(value).replace('\n', ' ')
+        val compact = sanitizeNotificationLyric(value).replace('\n', ' ')
         if (compact.isEmpty()) return "Yukine"
         if (compact.length <= 9) return "\u266A $compact"
         if (compact.length <= 14) return "\u266A ${compact.substring(0, 9)}"
         return "\u266A ${compact.substring(0, 8)}..."
     }
 
+    private fun currentNotificationLyric(track: Track?): String {
+        return lyricsPublisherSupplier?.get()?.notificationLyricText(track).orEmpty()
+    }
+
+    private fun sanitizeNotificationLyric(value: String?): String {
+        return lyricsPublisherSupplier?.get()?.sanitizeNotificationLyric(value).orEmpty()
+    }
+
     companion object {
+        @JvmStatic
+        fun isNotificationWorthy(
+            currentTrack: Track?,
+            queueEmpty: Boolean,
+            preparing: Boolean,
+            playing: Boolean
+        ): Boolean {
+            return currentTrack != null || !queueEmpty || preparing || playing
+        }
+
         private const val CHANNEL_ID = "echo_next_playback"
         private const val EMPTY_NOTIFICATION_TITLE = "Yukine"
         private const val EMPTY_NOTIFICATION_TEXT = ""

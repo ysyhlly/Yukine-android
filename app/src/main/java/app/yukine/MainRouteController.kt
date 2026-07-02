@@ -2,14 +2,14 @@ package app.yukine
 
 internal class MainRouteController(
     private val viewModel: NavigationViewModel
-) {
-    private var state: MainActivityRouteState = MainActivityRouteState()
+) : LibraryRouteActions {
+    private var state: NavigationRouteState = NavigationRouteState()
 
     init {
         restoreFromViewModel()
     }
 
-    fun current(): MainActivityRouteState {
+    fun current(): NavigationRouteState {
         return state
     }
 
@@ -27,8 +27,8 @@ internal class MainRouteController(
         networkPage: String,
         settingsPage: String,
         selectedRemoteSourceId: Long
-    ): MainActivityRouteState {
-        return MainActivityRouteState(
+    ): NavigationRouteState {
+        return NavigationRouteState(
             selectedTab,
             libraryMode,
             selectedLibraryGroupKey,
@@ -41,7 +41,7 @@ internal class MainRouteController(
         )
     }
 
-    fun persist(state: MainActivityRouteState) {
+    fun persist(state: NavigationRouteState) {
         this.state = state
         viewModel.updateRoute(state)
     }
@@ -155,7 +155,7 @@ internal class MainRouteController(
         return sameTab
     }
 
-    fun setLibraryMode(libraryMode: String) {
+    override fun setLibraryMode(libraryMode: String) {
         update(
             selectedTab(),
             normalizeLibraryMode(libraryMode),
@@ -169,7 +169,7 @@ internal class MainRouteController(
         )
     }
 
-    fun selectLibraryGroup(key: String, title: String) {
+    override fun selectLibraryGroup(key: String, title: String) {
         update(
             selectedTab(),
             libraryMode(),
@@ -183,11 +183,11 @@ internal class MainRouteController(
         )
     }
 
-    fun clearLibraryGroup() {
+    override fun clearLibraryGroup() {
         selectLibraryGroup("", "")
     }
 
-    fun setSelectedPlaylistId(selectedPlaylistId: Long) {
+    override fun setSelectedPlaylistId(selectedPlaylistId: Long) {
         update(
             selectedTab(),
             libraryMode(),
@@ -201,7 +201,7 @@ internal class MainRouteController(
         )
     }
 
-    fun setSearchQuery(searchQuery: String) {
+    override fun setSearchQuery(searchQuery: String) {
         update(
             selectedTab(),
             libraryMode(),

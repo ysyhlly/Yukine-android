@@ -5,7 +5,7 @@ import java.util.Queue;
 import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicLong;
 
-final class StreamingPlaybackTaskScheduler {
+final class StreamingPlaybackTaskScheduler implements StreamingPlaybackTaskQueue {
     enum Priority {
         CURRENT_PLAYBACK_RECOVERY,
         CURRENT_URL_RESOLVE,
@@ -20,14 +20,37 @@ final class StreamingPlaybackTaskScheduler {
         void complete();
     }
 
+    @Override
+    public void scheduleCurrentPlaybackRecovery(StreamingPlaybackTask task) {
+        schedule(Priority.CURRENT_PLAYBACK_RECOVERY, taskFrom(task));
+    }
+
+    @Override
+    public void scheduleCurrentUrlResolve(StreamingPlaybackTask task) {
+        schedule(Priority.CURRENT_URL_RESOLVE, taskFrom(task));
+    }
+
+    @Override
+    public void scheduleNextUrlResolve(StreamingPlaybackTask task) {
+        schedule(Priority.NEXT_URL_RESOLVE, taskFrom(task));
+    }
+
+    private Task taskFrom(StreamingPlaybackTask task) {
+        if (task == null) {
+            return null;
+        }
+        return completion -> task.run(completion::complete);
+    }
+
     private final PriorityQueue<ScheduledTask> criticalQueue = new PriorityQueue<>();
     private final Queue<ScheduledTask> nextResolveQueue = new ArrayDeque<>();
     private final AtomicLong sequence = new AtomicLong();
     private boolean criticalActive;
     private boolean nextResolveActive;
+    private boolean shutdown;
 
     synchronized void schedule(Priority priority, Task task) {
-        if (task == null) {
+        if (shutdown || task == null) {
             return;
         }
         ScheduledTask scheduledTask = new ScheduledTask(priority, sequence.getAndIncrement(), task);
@@ -40,8 +63,16 @@ final class StreamingPlaybackTaskScheduler {
         }
     }
 
+    synchronized void shutdownNow() {
+        shutdown = true;
+        criticalQueue.clear();
+        nextResolveQueue.clear();
+        criticalActive = false;
+        nextResolveActive = false;
+    }
+
     private synchronized void drainCritical() {
-        if (criticalActive) {
+        if (shutdown || criticalActive) {
             return;
         }
         ScheduledTask next = criticalQueue.poll();
@@ -50,13 +81,18 @@ final class StreamingPlaybackTaskScheduler {
         }
         criticalActive = true;
         next.task.run(() -> {
-            criticalActive = false;
-            drainCritical();
+            synchronized (StreamingPlaybackTaskScheduler.this) {
+                if (shutdown) {
+                    return;
+                }
+                criticalActive = false;
+                drainCritical();
+            }
         });
     }
 
     private synchronized void drainNextResolve() {
-        if (nextResolveActive) {
+        if (shutdown || nextResolveActive) {
             return;
         }
         ScheduledTask next = nextResolveQueue.poll();
@@ -65,8 +101,13 @@ final class StreamingPlaybackTaskScheduler {
         }
         nextResolveActive = true;
         next.task.run(() -> {
-            nextResolveActive = false;
-            drainNextResolve();
+            synchronized (StreamingPlaybackTaskScheduler.this) {
+                if (shutdown) {
+                    return;
+                }
+                nextResolveActive = false;
+                drainNextResolve();
+            }
         });
     }
 

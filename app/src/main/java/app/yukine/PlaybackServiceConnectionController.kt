@@ -6,7 +6,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
 import app.yukine.playback.EchoPlaybackService
-import app.yukine.playback.PlaybackStateListener
+import app.yukine.playback.state.PlaybackStateListener
 
 internal class PlaybackServiceConnectionController(
     private val context: Context,
@@ -14,17 +14,17 @@ internal class PlaybackServiceConnectionController(
     private val listener: Listener
 ) {
     interface Listener {
-        fun onPlaybackServiceConnected(service: EchoPlaybackService)
+        fun onPlaybackServiceConnected(service: PlaybackServiceHostPort)
 
         fun onPlaybackServiceDisconnected()
     }
 
-    private var service: EchoPlaybackService? = null
+    private var service: PlaybackServiceHostPort? = null
     private var bound: Boolean = false
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
-            val nextService = (binder as EchoPlaybackService.LocalBinder).service
+            val nextService: PlaybackServiceHostPort = (binder as EchoPlaybackService.LocalBinder).service
             if (service != null && service !== nextService) {
                 service?.unregisterListener(playbackStateListener)
             }

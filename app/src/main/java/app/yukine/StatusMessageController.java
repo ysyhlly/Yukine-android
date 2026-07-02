@@ -1,24 +1,26 @@
 package app.yukine;
 
+import java.util.function.Supplier;
+
 final class StatusMessageController {
     private final StatusMessageViewModel viewModel;
-    private final StatusLanguageModeProvider languageModeProvider;
+    private final Supplier<String> languageModeProvider;
     private final RawStatusUpdater rawStatusUpdater;
     private final MessageTextResolver textResolver;
 
     StatusMessageController(
             StatusMessageViewModel viewModel,
-            StatusLanguageModeProvider languageModeProvider,
+            Supplier<String> languageModeProvider,
             RawStatusUpdater rawStatusUpdater
     ) {
         this(viewModel, languageModeProvider, rawStatusUpdater, new MessageTextResolver(
-                languageModeProvider == null ? () -> AppLanguage.MODE_SYSTEM : languageModeProvider::languageMode
+                languageModeProvider == null ? () -> AppLanguage.MODE_SYSTEM : languageModeProvider
         ));
     }
 
     StatusMessageController(
             StatusMessageViewModel viewModel,
-            StatusLanguageModeProvider languageModeProvider,
+            Supplier<String> languageModeProvider,
             RawStatusUpdater rawStatusUpdater,
             MessageTextResolver textResolver
     ) {
@@ -32,7 +34,7 @@ final class StatusMessageController {
         if (languageModeProvider == null || rawStatusUpdater == null) {
             return;
         }
-        rawStatusUpdater.update(viewModel.applyStatus(status, languageModeProvider.languageMode()));
+        rawStatusUpdater.update(viewModel.applyStatus(status, languageModeProvider.get()));
     }
 
     void showFeedback(String message) {
