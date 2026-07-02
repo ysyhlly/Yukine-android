@@ -7663,6 +7663,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("return repository.loadPlaylists();"));
         assertFalse(service.contains("return repository.loadRecentlyPlayed(limit);"));
         assertFalse(service.contains("return repository.loadPlaylistTracks(playlistId);"));
+        assertFalse(service.contains("private PlaybackMediaLibraryCallback playbackMediaLibraryCallback;"));
+        assertTrue(service.contains("final PlaybackMediaLibraryCallback playbackMediaLibraryCallback = new PlaybackMediaLibraryCallback("));
+        assertTrue(service.contains("() -> createSessionPlayer(playbackMediaLibraryCallback)"));
         assertTrue(service.contains("PlaybackMediaLibraryDataSource.fromRepository("));
         assertFalse(service.contains("private static final String AUTO_ROOT"));
         assertFalse(service.contains("private static final String AUTO_ALL"));

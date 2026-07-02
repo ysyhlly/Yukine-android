@@ -189,7 +189,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private final Consumer<Boolean> statusBarLyricsEnabledAction =
             PlaybackLyricsSettingsStore.statusBarLyricsEnabledActionFromSupplier(() -> playbackLyricsManager);
     private PlaybackLyricsStateOwner playbackLyricsStateOwner;
-    private PlaybackMediaLibraryCallback playbackMediaLibraryCallback;
     private PlaybackModeSettingsStore playbackModeSettingsStore;
     private PlaybackStatePublisher playbackStatePublisher;
     private PlaybackStateSnapshotOwner playbackStateSnapshotOwner;
@@ -562,7 +561,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 track -> Log.w(TAG, "Refusing to prepare empty uri for "
                         + playbackErrorRecoveryCommandOwner.debugTrack(track))
         );
-        playbackMediaLibraryCallback = new PlaybackMediaLibraryCallback(
+        final PlaybackMediaLibraryCallback playbackMediaLibraryCallback = new PlaybackMediaLibraryCallback(
                 PlaybackMediaLibraryDataSource.fromRepository(
                         getString(R.string.app_name),
                         repository,
@@ -572,7 +571,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackSessionManager = new PlaybackSessionManager(
                 this,
-                this::createSessionPlayer,
+                () -> createSessionPlayer(playbackMediaLibraryCallback),
                 playbackMediaLibraryCallback,
                 this::activityPendingIntent
         );
@@ -773,13 +772,12 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     @UnstableApi
-    private Player createSessionPlayer() {
+    private Player createSessionPlayer(PlaybackMediaLibraryCallback playbackMediaLibraryCallback) {
         if (playbackSessionCommandOwner == null) {
             final PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner =
                     new PlaybackControllerMediaItemsOwner(
-                            (mediaItems, startIndex, startPositionMs) -> playbackMediaLibraryCallback == null
-                                    ? null
-                                    : playbackMediaLibraryCallback.controllerQueueForMediaItems(
+                            (mediaItems, startIndex, startPositionMs) ->
+                                    playbackMediaLibraryCallback.controllerQueueForMediaItems(
                                             mediaItems,
                                             startIndex,
                                             startPositionMs
