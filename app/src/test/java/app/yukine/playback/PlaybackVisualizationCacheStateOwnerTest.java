@@ -1,6 +1,7 @@
 package app.yukine.playback;
 
 import android.net.Uri;
+import android.os.Handler;
 
 import org.junit.Test;
 
@@ -19,11 +20,9 @@ public class PlaybackVisualizationCacheStateOwnerTest {
         List<String> events = new ArrayList<>();
         Track track = new Track(41L, "Track", "Artist", "Album", 1000L, Uri.EMPTY, "file:41");
         Runnable task = () -> events.add("task");
+        Handler handler = new Handler();
         PlaybackVisualizationCacheStateOwner owner = new PlaybackVisualizationCacheStateOwner(
-                () -> {
-                    events.add("handler");
-                    return null;
-                },
+                handler,
                 () -> {
                     events.add("currentTrack");
                     return track;
@@ -34,12 +33,11 @@ public class PlaybackVisualizationCacheStateOwnerTest {
                 }
         );
 
-        assertNull(owner.mainHandler());
+        assertSame(handler, owner.mainHandler());
         assertSame(track, owner.currentTrack());
         owner.scheduleVisualizationCacheTask(task);
         assertEquals(
                 java.util.Arrays.asList(
-                        "handler",
                         "currentTrack",
                         "schedule"
                 ),
@@ -50,13 +48,13 @@ public class PlaybackVisualizationCacheStateOwnerTest {
     @Test
     public void returnsNullCurrentTrackWhenSupplierIsMissing() {
         PlaybackVisualizationCacheStateOwner missingProviderOwner = new PlaybackVisualizationCacheStateOwner(
-                () -> null,
+                null,
                 null,
                 task -> {
                 }
         );
         PlaybackVisualizationCacheStateOwner nullTrackOwner = new PlaybackVisualizationCacheStateOwner(
-                () -> null,
+                null,
                 () -> null,
                 task -> {
                 }

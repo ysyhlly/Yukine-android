@@ -8,23 +8,23 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizationCacheManager.StateProvider {
-    private final Supplier<Handler> mainHandlerProvider;
+    private final Handler mainHandler;
     private final Supplier<Track> currentTrackSupplier;
     private final Consumer<Runnable> cacheTaskScheduler;
 
     PlaybackVisualizationCacheStateOwner(
-            Supplier<Handler> mainHandlerProvider,
+            Handler mainHandler,
             Supplier<Track> currentTrackSupplier,
             Consumer<Runnable> cacheTaskScheduler
     ) {
-        this.mainHandlerProvider = mainHandlerProvider;
+        this.mainHandler = mainHandler;
         this.currentTrackSupplier = currentTrackSupplier;
         this.cacheTaskScheduler = cacheTaskScheduler;
     }
 
     @Override
     public Handler mainHandler() {
-        return mainHandlerProvider == null ? null : mainHandlerProvider.get();
+        return mainHandler;
     }
 
     @Override

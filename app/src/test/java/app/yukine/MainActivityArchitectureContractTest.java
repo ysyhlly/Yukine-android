@@ -1952,12 +1952,14 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(visualizationCacheStateOwner.contains("interface MainHandlerProvider"));
         assertFalse(visualizationCacheStateOwner.contains("interface CurrentTrackProvider"));
         assertFalse(visualizationCacheStateOwner.contains("interface CacheTaskScheduler"));
-        assertTrue(visualizationCacheStateOwner.contains("private final Supplier<Handler> mainHandlerProvider;"));
+        assertTrue(visualizationCacheStateOwner.contains("private final Handler mainHandler;"));
+        assertFalse(visualizationCacheStateOwner.contains("private final Supplier<Handler> mainHandlerProvider;"));
         assertTrue(visualizationCacheStateOwner.contains("private final Consumer<Runnable> cacheTaskScheduler;"));
         assertFalse(visualizationCacheStateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertFalse(visualizationCacheStateOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
         assertTrue(visualizationCacheStateOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
-        assertTrue(visualizationCacheStateOwner.contains("return mainHandlerProvider == null ? null : mainHandlerProvider.get();"));
+        assertTrue(visualizationCacheStateOwner.contains("return mainHandler;"));
+        assertFalse(visualizationCacheStateOwner.contains("return mainHandlerProvider == null ? null : mainHandlerProvider.get();"));
         assertFalse(visualizationCacheStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
         assertFalse(visualizationCacheStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
         assertTrue(visualizationCacheStateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
