@@ -164,26 +164,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                         public void repeatCurrent() {
                             playbackQueueCommandOwner.prepareCurrent(true);
                         }
-
-                        @Override
-                        public void prepareStopAndClearFallbackState() {
-                            if (playbackPositionManager != null) {
-                                playbackPositionManager.clearPlaybackPosition();
-                            }
-                            playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false);
-                            playbackErrorRecoveryCommandOwner.setErrorMessage("");
-                            playbackTransitionStateManager.clear();
-                        }
-
-                        @Override
-                        public void prepareStopAtEndFallbackState() {
-                            if (playbackPositionManager != null) {
-                                playbackPositionManager.clearRestoredPosition();
-                            }
-                            playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false);
-                            playbackErrorRecoveryCommandOwner.setErrorMessage("");
-                            playbackTransitionStateManager.setLastMarkedTrack(null);
-                        }
                     }
             );
     private final PlaybackRuntimeStateManager playbackRuntimeStateManager =

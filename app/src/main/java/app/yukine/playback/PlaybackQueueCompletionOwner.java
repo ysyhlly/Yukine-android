@@ -13,10 +13,6 @@ final class PlaybackQueueCompletionOwner {
         void skipToNext();
 
         void repeatCurrent();
-
-        void prepareStopAndClearFallbackState();
-
-        void prepareStopAtEndFallbackState();
     }
 
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
@@ -68,9 +64,6 @@ final class PlaybackQueueCompletionOwner {
     void prepareStopAndClearPlaybackState() {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         if (playbackQueueManager == null) {
-            if (completionBoundary != null) {
-                completionBoundary.prepareStopAndClearFallbackState();
-            }
             return;
         }
         playbackQueueManager.prepareStopAndClearPlaybackState();
@@ -79,9 +72,6 @@ final class PlaybackQueueCompletionOwner {
     void prepareStopAtEndOfQueue() {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         if (playbackQueueManager == null) {
-            if (completionBoundary != null) {
-                completionBoundary.prepareStopAtEndFallbackState();
-            }
             return;
         }
         playbackQueueManager.prepareStopAtEndOfQueue();

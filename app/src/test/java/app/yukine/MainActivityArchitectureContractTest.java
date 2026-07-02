@@ -5917,7 +5917,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("queueStopPrepared"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAndClearPlaybackState()"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
-        assertTrue(queueCompletionOwner.contains("completionBoundary.prepareStopAndClearFallbackState();"));
+        assertFalse(queueCompletionOwner.contains("completionBoundary.prepareStopAndClearFallbackState();"));
+        assertFalse(service.contains("prepareStopAndClearFallbackState()"));
         assertTrue(service.contains("playbackQueueCompletionOwner.playAfterCompletion();"));
         assertFalse(service.contains("private void playAfterCompletion()"));
         assertFalse(service.contains("\n                playAfterCompletion();"));
@@ -5934,7 +5935,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueCompletionOwner.contains("playbackQueueManager.preparePlaybackCompletion(completionAction);"));
         assertFalse(queueCompletionOwner.contains("boolean prepareStopAtEndOfQueue()"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAtEndOfQueue();"));
-        assertTrue(queueCompletionOwner.contains("completionBoundary.prepareStopAtEndFallbackState();"));
+        assertFalse(queueCompletionOwner.contains("completionBoundary.prepareStopAtEndFallbackState();"));
+        assertFalse(service.contains("prepareStopAtEndFallbackState()"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex);"));
         assertFalse(queueCompletionOwner.contains("private void stopAndClear()"));
         assertFalse(queueCompletionOwner.contains("private void stopAtEndOfQueue()"));
@@ -7184,7 +7186,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false)"));
         assertFalse(service.contains("playbackRuntimeStateManager.setPreparing(false)"));
         assertFalse(service.contains("playbackRuntimeStateManager.setErrorMessage("));
-        assertTrue(service.contains("playbackErrorRecoveryCommandOwner.setErrorMessage(\"\")"));
+        assertFalse(service.contains("playbackErrorRecoveryCommandOwner.setErrorMessage(\"\")"));
         assertTrue(service.contains("playbackCurrentTrackPreparationRuntimeOwner.preparing()"));
         assertFalse(service.contains("playbackRuntimeStateManager.preparing()"));
         assertFalse(service.contains("playbackRuntimeStateManager::preparing"));
@@ -7623,7 +7625,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackCrossfadeCommandOwner.startFadeOutThenNext()"));
         assertFalse(service.contains("playbackCrossfadeAdvanceManager.cancel();"));
         assertTrue(service.contains("playbackCrossfadeCommandOwner.cancelCrossfadeAdvance();"));
-        assertTrue(service.contains("playbackTransitionStateManager.clear()"));
+        assertFalse(service.contains("playbackTransitionStateManager.clear()"));
         assertTrue(commandOwner.contains("transitionState.setFadeOutAdvancing(enabled);"));
         assertTrue(owner.contains("private var lastMarkedTrack"));
         assertTrue(owner.contains("private var fadeOutAdvancing"));

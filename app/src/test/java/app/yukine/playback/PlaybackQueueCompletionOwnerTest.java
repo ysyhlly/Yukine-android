@@ -140,7 +140,7 @@ public class PlaybackQueueCompletionOwnerTest {
     }
 
     @Test
-    public void missingPlaybackQueueManagerSupplierUsesStopAndClearBoundary() {
+    public void missingPlaybackQueueManagerSupplierUsesStopAndClearBoundaryOnlyForCompletion() {
         List<String> events = new ArrayList<>();
         PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
                 null,
@@ -152,11 +152,7 @@ public class PlaybackQueueCompletionOwnerTest {
         owner.prepareStopAndClearPlaybackState();
         owner.prepareStopAtEndOfQueue();
         owner.prepareStopAfterAutomaticAdvance(7);
-        assertEquals(Arrays.asList(
-                "stopAndClear",
-                "prepareStopAndClearFallback",
-                "prepareStopAtEndFallback"
-        ), events);
+        assertEquals(Collections.singletonList("stopAndClear"), events);
     }
 
     @Test
@@ -372,16 +368,6 @@ public class PlaybackQueueCompletionOwnerTest {
         @Override
         public void repeatCurrent() {
             events.add("repeatCurrent");
-        }
-
-        @Override
-        public void prepareStopAndClearFallbackState() {
-            events.add("prepareStopAndClearFallback");
-        }
-
-        @Override
-        public void prepareStopAtEndFallbackState() {
-            events.add("prepareStopAtEndFallback");
         }
     }
 }
