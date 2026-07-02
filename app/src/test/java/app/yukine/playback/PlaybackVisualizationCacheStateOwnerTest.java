@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -26,8 +25,8 @@ public class PlaybackVisualizationCacheStateOwnerTest {
                     return null;
                 },
                 () -> {
-                    events.add("queueState");
-                    return new PlaybackQueueManager.QueueStateSnapshot(track, 0, 1);
+                    events.add("currentTrack");
+                    return track;
                 },
                 scheduled -> {
                     events.add("schedule");
@@ -41,7 +40,7 @@ public class PlaybackVisualizationCacheStateOwnerTest {
         assertEquals(
                 java.util.Arrays.asList(
                         "handler",
-                        "queueState",
+                        "currentTrack",
                         "schedule"
                 ),
                 events
@@ -49,14 +48,14 @@ public class PlaybackVisualizationCacheStateOwnerTest {
     }
 
     @Test
-    public void returnsNullCurrentTrackWhenQueueStateIsMissing() {
+    public void returnsNullCurrentTrackWhenSupplierIsMissing() {
         PlaybackVisualizationCacheStateOwner missingProviderOwner = new PlaybackVisualizationCacheStateOwner(
                 () -> null,
                 null,
                 task -> {
                 }
         );
-        PlaybackVisualizationCacheStateOwner nullSnapshotOwner = new PlaybackVisualizationCacheStateOwner(
+        PlaybackVisualizationCacheStateOwner nullTrackOwner = new PlaybackVisualizationCacheStateOwner(
                 () -> null,
                 () -> null,
                 task -> {
@@ -64,6 +63,6 @@ public class PlaybackVisualizationCacheStateOwnerTest {
         );
 
         assertNull(missingProviderOwner.currentTrack());
-        assertNull(nullSnapshotOwner.currentTrack());
+        assertNull(nullTrackOwner.currentTrack());
     }
 }

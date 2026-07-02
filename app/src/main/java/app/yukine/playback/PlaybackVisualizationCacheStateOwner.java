@@ -3,7 +3,8 @@ package app.yukine.playback;
 import android.os.Handler;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
+
+import java.util.function.Supplier;
 
 final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizationCacheManager.StateProvider {
     interface MainHandlerProvider {
@@ -15,16 +16,16 @@ final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizatio
     }
 
     private final MainHandlerProvider mainHandlerProvider;
-    private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;
+    private final Supplier<Track> currentTrackSupplier;
     private final CacheTaskScheduler cacheTaskScheduler;
 
     PlaybackVisualizationCacheStateOwner(
             MainHandlerProvider mainHandlerProvider,
-            PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider,
+            Supplier<Track> currentTrackSupplier,
             CacheTaskScheduler cacheTaskScheduler
     ) {
         this.mainHandlerProvider = mainHandlerProvider;
-        this.queueStateProvider = queueStateProvider;
+        this.currentTrackSupplier = currentTrackSupplier;
         this.cacheTaskScheduler = cacheTaskScheduler;
     }
 
@@ -35,19 +36,11 @@ final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizatio
 
     @Override
     public Track currentTrack() {
-        return queueStateSnapshot().getCurrentTrack();
+        return currentTrackSupplier == null ? null : currentTrackSupplier.get();
     }
 
     @Override
     public void scheduleVisualizationCacheTask(Runnable task) {
         cacheTaskScheduler.scheduleVisualizationCacheTask(task);
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        if (queueStateProvider == null) {
-            return PlaybackQueueManager.QueueStateSnapshot.empty();
-        }
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 }
