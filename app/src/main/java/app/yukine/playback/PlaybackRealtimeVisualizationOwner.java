@@ -1,12 +1,10 @@
 package app.yukine.playback;
 
+import java.util.function.BooleanSupplier;
+
 final class PlaybackRealtimeVisualizationOwner
         implements PlaybackStateSnapshotOwner.RealtimeBeatProvider {
     private static final float[] EMPTY_BANDS = new float[0];
-
-    interface PlaybackStateProvider {
-        boolean isPlaying();
-    }
 
     interface RealtimeDataProvider {
         float beat();
@@ -14,11 +12,11 @@ final class PlaybackRealtimeVisualizationOwner
         float[] bands();
     }
 
-    private final PlaybackStateProvider playbackStateProvider;
+    private final BooleanSupplier playbackStateProvider;
     private final RealtimeDataProvider realtimeDataProvider;
 
     PlaybackRealtimeVisualizationOwner(
-            PlaybackStateProvider playbackStateProvider,
+            BooleanSupplier playbackStateProvider,
             RealtimeDataProvider realtimeDataProvider
     ) {
         this.playbackStateProvider = playbackStateProvider;
@@ -26,7 +24,7 @@ final class PlaybackRealtimeVisualizationOwner
     }
 
     static PlaybackRealtimeVisualizationOwner fromRealtimeBassDetector(
-            PlaybackStateProvider playbackStateProvider,
+            BooleanSupplier playbackStateProvider,
             RealtimeBassDetector realtimeBassDetector
     ) {
         return new PlaybackRealtimeVisualizationOwner(
@@ -61,6 +59,6 @@ final class PlaybackRealtimeVisualizationOwner
     private boolean canReadRealtimeData() {
         return playbackStateProvider != null
                 && realtimeDataProvider != null
-                && playbackStateProvider.isPlaying();
+                && playbackStateProvider.getAsBoolean();
     }
 }

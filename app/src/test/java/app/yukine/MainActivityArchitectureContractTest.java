@@ -1707,7 +1707,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playerStateOwner.contains("PlaybackActiveStateOwner.PlayingStateProvider"));
         assertFalse(playerStateOwner.contains("PlaybackProgressUpdateStateOwner.PlaybackStateProvider"));
         assertFalse(playerStateOwner.contains("PlaybackCrossfadeStateOwner.PlaybackStateProvider"));
-        assertTrue(playerStateOwner.contains("PlaybackRealtimeVisualizationOwner.PlaybackStateProvider"));
+        assertFalse(playerStateOwner.contains("PlaybackRealtimeVisualizationOwner.PlaybackStateProvider"));
         assertFalse(playerStateOwner.contains("PlaybackPositionStateOwner.PlaybackPositionProvider"));
         assertFalse(playerStateOwner.contains("PlaybackNoisyReceiverActionsOwner.PlaybackStateProvider"));
         assertFalse(playerStateOwner.contains("PlaybackShutdownPlaybackStateOwner.PlaybackStateProvider"));
@@ -1723,6 +1723,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("() -> realtimeBassDetector.beat()"));
         assertTrue(playbackService.contains("private PlaybackRealtimeVisualizationOwner playbackRealtimeVisualizationOwner;"));
         assertTrue(playbackService.contains("PlaybackRealtimeVisualizationOwner.fromRealtimeBassDetector("));
+        assertTrue(playbackService.contains("playbackPlayerStateOwner::isPlaying"));
         assertTrue(playbackService.contains("playbackRealtimeVisualizationOwner == null ? 0f : playbackRealtimeVisualizationOwner.beat()"));
         assertTrue(playbackService.contains("playbackRealtimeVisualizationOwner == null ? new float[0] : playbackRealtimeVisualizationOwner.bands()"));
         assertTrue(playbackService.contains("                playbackRealtimeVisualizationOwner,"));
@@ -1730,12 +1731,13 @@ public final class MainActivityArchitectureContractTest {
                 "final class PlaybackRealtimeVisualizationOwner"));
         assertTrue(realtimeVisualizationOwner.contains(
                 "implements PlaybackStateSnapshotOwner.RealtimeBeatProvider"));
-        assertTrue(realtimeVisualizationOwner.contains("interface PlaybackStateProvider"));
+        assertFalse(realtimeVisualizationOwner.contains("interface PlaybackStateProvider"));
+        assertTrue(realtimeVisualizationOwner.contains("private final BooleanSupplier playbackStateProvider;"));
         assertTrue(realtimeVisualizationOwner.contains("interface RealtimeDataProvider"));
         assertTrue(realtimeVisualizationOwner.contains("private static final float[] EMPTY_BANDS = new float[0];"));
         assertTrue(realtimeVisualizationOwner.contains("realtimeBassDetector.beat();"));
         assertTrue(realtimeVisualizationOwner.contains("realtimeBassDetector.bands();"));
-        assertTrue(realtimeVisualizationOwner.contains("playbackStateProvider.isPlaying()"));
+        assertTrue(realtimeVisualizationOwner.contains("playbackStateProvider.getAsBoolean()"));
         assertFalse(playbackService.contains("private PlaybackVisualizationStateOwner playbackVisualizationStateOwner;"));
         assertFalse(playbackService.contains("private PlaybackBufferedProgressOwner playbackBufferedProgressOwner;"));
         assertTrue(playbackService.contains("final PlaybackBufferedProgressOwner playbackBufferedProgressOwner ="));

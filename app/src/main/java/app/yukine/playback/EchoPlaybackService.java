@@ -580,7 +580,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackRealtimeVisualizationOwner =
                 PlaybackRealtimeVisualizationOwner.fromRealtimeBassDetector(
-                        playbackPlayerStateOwner,
+                        playbackPlayerStateOwner::isPlaying,
                         realtimeBassDetector
                 );
         playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner(

@@ -6,7 +6,6 @@ import androidx.media3.common.Player;
 import java.util.function.Supplier;
 
 final class PlaybackPlayerStateOwner implements
-        PlaybackRealtimeVisualizationOwner.PlaybackStateProvider,
         PlaybackStateSnapshotOwner.PlaybackPositionProvider {
 
     private final Supplier<Player> playerProvider;
