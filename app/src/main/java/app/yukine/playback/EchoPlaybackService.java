@@ -268,7 +268,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 }
                 recordPlaybackStartHistoryAction.run();
             } else if (playbackState == Player.STATE_ENDED) {
-                playAfterCompletion();
+                playbackQueueCompletionOwner.playAfterCompletion();
                 return;
             }
             publishState();
@@ -1237,10 +1237,6 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackProgressUpdateCommandOwner.stopProgressUpdates();
         playbackNotificationCommandOwner.stopForegroundAndSelf();
         publishState();
-    }
-
-    private void playAfterCompletion() {
-        playbackQueueCompletionOwner.playAfterCompletion();
     }
 
     private void stopAtEndOfQueue() {
