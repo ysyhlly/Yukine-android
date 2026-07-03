@@ -44,7 +44,7 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
         queueManagerRef[0] = queueManager;
         PlaybackCurrentTrackPreparationQueueOwner owner =
                 new PlaybackCurrentTrackPreparationQueueOwner(
-                        () -> queueManager,
+                        queueManager,
                         tracks -> Collections.singletonList(null)
                 );
         Track currentTrack = track(7L);
@@ -83,7 +83,7 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     }
 
     @Test
-    public void missingPlaybackQueueManagerSupplierSkipsQueueActions() {
+    public void missingQueueManagerAndMediaResolverSkipsQueueActions() {
         PlaybackCurrentTrackPreparationQueueOwner owner =
                 new PlaybackCurrentTrackPreparationQueueOwner(null, null);
 

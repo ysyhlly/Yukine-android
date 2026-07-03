@@ -6421,7 +6421,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(currentPreparationQueueOwner.contains(
                 "implements PlaybackCurrentTrackPreparationOwner.QueuePreparationController"));
         assertFalse(currentPreparationQueueOwner.contains("interface PlaybackQueueManagerProvider"));
-        assertTrue(currentPreparationQueueOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
+        assertTrue(currentPreparationQueueOwner.contains("private final PlaybackQueueManager playbackQueueManager;"));
+        assertFalse(currentPreparationQueueOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
+        assertFalse(currentPreparationQueueOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertFalse(currentPreparationQueueOwner.contains("Supplier<QueueOperations> queueOperationsSupplier"));
         assertFalse(currentPreparationQueueOwner.contains("playbackQueueManagerProvider"));
         assertFalse(currentPreparationQueueOwner.contains("queueOperationsProvider"));
@@ -6429,7 +6431,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(currentPreparationQueueOwner.contains("import java.util.function.Function;"));
         assertFalse(currentPreparationQueueOwner.contains("import java.util.function.Consumer;"));
         assertFalse(currentPreparationQueueOwner.contains("import java.util.function.LongConsumer;"));
-        assertTrue(currentPreparationQueueOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
+        assertFalse(currentPreparationQueueOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
         assertFalse(currentPreparationQueueOwner.contains("private final Consumer<Track> replaceCurrentQueueTrack;"));
         assertFalse(currentPreparationQueueOwner.contains("private final Function<Track, Long> restoredPositionFor;"));
         assertFalse(currentPreparationQueueOwner.contains("private final Supplier<PlaybackQueueManager.QueuePreparation> queuePreparationForNewPlayer;"));

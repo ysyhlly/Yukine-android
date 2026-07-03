@@ -311,12 +311,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     public void onCreate() {
         super.onCreate();
         mediaSourceProvider = new PlaybackMediaSourceProvider(this, repository, streamingPlaybackHeaderStore);
-        playbackCurrentTrackPreparationQueueOwner =
-                PlaybackCurrentTrackPreparationQueueOwner.fromMediaSourceProvider(
-                        () -> playbackQueueManager,
-                        mediaSourceProvider,
-                        playbackNotificationManager::mediaMetadataForTrack
-                );
         playerFactory = new PlaybackPlayerFactory(this, realtimeBassAudioProcessor);
         playbackAudioEffectSettingsStore = PlaybackAudioEffectSettingsStore.fromRepository(repository);
         playbackAudioEffectSettingsStore.restore();
@@ -513,6 +507,12 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackRuntimeStateManager,
                 playbackTransitionStateManager
         );
+        playbackCurrentTrackPreparationQueueOwner =
+                PlaybackCurrentTrackPreparationQueueOwner.fromMediaSourceProvider(
+                        playbackQueueManager,
+                        mediaSourceProvider,
+                        playbackNotificationManager::mediaMetadataForTrack
+                );
         playbackCurrentTrackPreparationOwner = PlaybackCurrentTrackPreparationOwner.fromMediaSourceProvider(
                 mediaSourceProvider,
                 playbackNotificationManager::mediaMetadataForTrack,
