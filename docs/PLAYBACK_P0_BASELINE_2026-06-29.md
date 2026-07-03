@@ -2387,6 +2387,48 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P1 Owner/Interface Audit - PlaybackQueueManager API
+
+Current audit date: 2026-07-03.
+
+- Stop/clear preparation merge status: complete before this audit. There is no
+  `PlaybackQueueStopClearOwner` production or test file, and
+  `EchoPlaybackService.stopAndClear()` routes preparation through
+  `withPlaybackQueueCompletionOwner(PlaybackQueueCompletionOwner::prepareStopAndClearPlaybackState)`.
+- True queue commands still owned by `PlaybackQueueManager`: `playQueue`,
+  `appendToQueue`, `playFirstQueuedTrack`, `skipToNextImmediately`,
+  `skipToPrevious`, `moveQueueTrack`, `removeTracksById`, `retainTracksById`,
+  `replaceQueuedTrackById`, `replaceCurrentTrackAndResume`,
+  `replaceCurrentQueueTrack`, `reuseMirroredQueueIfAvailable`, and
+  `applyMirroredTransitionIndex`.
+- Completion and stop-state commands: `preparePlaybackCompletionAction`,
+  `prepareStopAtEndOfQueue`, `prepareStopAfterAutomaticAdvance`, and
+  `prepareStopAndClearPlaybackState`.
+- Persistence/restore inputs: `setPlaybackRestoreEnabled`,
+  `persistQueueState`, `restorePlaybackQueue`, and `restoreLastPlayback`.
+- Read/snapshot outputs: `queuePreparationForNewPlayer`, `queueSnapshot`,
+  `queueStateSnapshot`, and `upcomingTracksForPrecache`.
+- Derived state should continue to come from `QueueStateSnapshot` rather than
+  new public booleans. Current snapshot source values remain `currentTrack`,
+  `currentIndex`, and `queueSize`.
+- Next low-risk candidate: audit `PlaybackQueueMutationOwner.clearQueue()`,
+  which currently reads `playbackQueueManager.queueStateSnapshot().isQueueEmpty()`
+  only to avoid `stopAndClear()` on an empty queue. Do not add a new
+  `QueueManager` boolean just for this; either preserve the behavior with a
+  narrower existing state owner or leave it until a mutation-owner slice can
+  prove the stop/clear behavior with focused tests.
+- Boundary risk left for later: notification state remains the only direct
+  service wiring consumer of `playbackQueueStateOwner::queueStateSnapshot`;
+  avoid changing it until a notification-focused smoke slice is justified.
+- Verification for this audit was read-only evidence plus diff hygiene:
+
+```powershell
+codegraph explore "PlaybackQueueManager public methods QueueStateSnapshot QueuePreparation RestorePlaybackResult PlaybackCompletionAction callers tests API audit"
+rg -n "^    fun |^    (data class|enum class|interface) " feature/playback/src/main/java/app/yukine/playback/manager/PlaybackQueueManager.kt
+rg -n "playbackQueueManager\.([A-Za-z0-9_]+)\(" app/src/main/java/app/yukine/playback app/src/test/java/app/yukine/playback feature/playback/src/test/java/app/yukine/playback
+git diff --check
+```
+
 ## P1 Wiring Note - Runtime Current Track Adapter
 
 Current audit date: 2026-07-03.
