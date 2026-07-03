@@ -82,7 +82,13 @@ public final class MainActivityArchitectureContractTest {
         int routeControllerAssignment = routeStoresAndStatus.indexOf(
                 "routeController = new MainRouteController(navigationViewModel);"
         );
+        int statusMessageControllerAssignment = routeStoresAndStatus.indexOf(
+                "statusMessageController = new StatusMessageController("
+        );
         int libraryRouteActionsArgument = libraryGateway.indexOf("                routeController,\n");
+        int libraryStatusCallbackArgument = libraryGateway.indexOf(
+                "                status -> statusMessageController.setStatus(status),\n"
+        );
 
         assertTrue(streamingGatewayStep >= 0);
         assertTrue(streamingOwnersStep >= 0);
@@ -106,6 +112,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(routeControllerAssignment >= 0);
         assertTrue(routeStoresAndStatus.contains("playbackStore = playbackStoreFactory.create(playbackViewModel);"));
         assertTrue(routeStoresAndStatus.contains("statusMessageController = new StatusMessageController("));
+        assertTrue(statusMessageControllerAssignment >= 0);
         assertTrue(streamingActionGateway.contains(
                 "                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),\n"));
         assertTrue(streamingActionGateway.contains("                    if (streamingPlaylistController != null) {"));
@@ -121,12 +128,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(libraryGateway.contains("libraryViewModel.bindGateway(libraryGatewayFactory.create("));
         assertTrue(libraryGateway.contains(
                 "                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),\n"));
+        assertTrue(libraryGateway.contains(
+                "                status -> statusMessageController.setStatus(status),\n"));
+        assertTrue(libraryStatusCallbackArgument >= 0);
         assertTrue(libraryGateway.contains("                    if (MainActivityBase.this.playlistDialogController != null) {"));
         assertTrue(libraryGateway.contains(
                 "                        MainActivityBase.this.playlistDialogController.showAddToPlaylist(track);\n"));
         assertTrue(libraryGateway.contains("                routeController,\n"));
         assertTrue(libraryRouteActionsArgument >= 0);
         assertFalse(libraryGateway.contains("                () -> settingsStore.languageMode(),\n"));
+        assertFalse(libraryGateway.contains("                statusMessageController,\n"));
         assertFalse(libraryGateway.contains(
                 "                track -> MainActivityBase.this.playlistDialogController.showAddToPlaylist(track),\n"));
         assertTrue(nowPlayingGateway.contains("                () -> playbackActionController,\n"));
