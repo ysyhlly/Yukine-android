@@ -87,6 +87,22 @@ public class PlaybackSessionCommandOwnerTest {
         assertNull(owner.currentTrack());
     }
 
+    @Test
+    public void missingQueueManagerReturnsNoCurrentTrack() {
+        PlaybackSessionCommandOwner owner = new PlaybackSessionCommandOwner(
+                new FakePlaybackCommands(new ArrayList<>()),
+                positionMs -> {
+                },
+                repeatMode -> {
+                },
+                (mediaItems, startIndex, startPositionMs) -> false,
+                new PlaybackQueueStateOwner(() -> null),
+                track -> null
+        );
+
+        assertNull(owner.currentTrack());
+    }
+
     private static Track track(long id) {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "file:" + id);
     }

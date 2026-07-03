@@ -8076,8 +8076,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(commandOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertTrue(commandOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
         assertTrue(commandOwner.contains("return queueStateOwner == null ? null"));
-        assertTrue(commandOwner.contains(": queueStateOwner.queueStateSnapshot().getCurrentTrack();"));
-        assertFalse(commandOwner.contains("queueStateOwner.currentTrack()"));
+        assertTrue(commandOwner.contains(": queueStateOwner.currentTrack();"));
+        assertFalse(commandOwner.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertTrue(commandOwner.contains("playbackCommands.skipToNext();"));
         assertTrue(commandOwner.contains("controllerMediaItems.setControllerMediaItems(mediaItems, startIndex, startPositionMs)"));
         assertTrue(commandOwner.contains("seekController.accept(positionMs);"));

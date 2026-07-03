@@ -3867,3 +3867,27 @@ Current audit date: 2026-07-03.
   `MainActivityArchitectureContractTest`.
 - Deferred risk remains unchanged: notification, lyrics, shutdown, and
   background playback are not touched by this batch.
+
+## P1 Wiring Note - Session Command Current Track Source
+
+Current audit date: 2026-07-03.
+
+- `PlaybackSessionCommandOwner.currentTrack()` no longer unwraps
+  `queueStateOwner.queueStateSnapshot().getCurrentTrack()` directly for
+  `PlaybackSessionPlayer.Delegate`.
+- The existing session command owner now reads the current track through
+  `PlaybackQueueStateOwner.currentTrack()` while keeping MediaSession command
+  mapping and metadata lookup behavior unchanged.
+- No owner, facade, field, constructor parameter, or Service wiring was added.
+  The real reduction is the final production direct snapshot-current
+  dereference in playback owners.
+- `PlaybackSessionCommandOwnerTest` covers command delegation, metadata lookup,
+  current track, missing queue state owner, and missing queue manager. The
+  architecture contract now blocks the old direct snapshot read from returning.
+- Remaining production direct
+  `queueStateOwner.queueStateSnapshot().getCurrentTrack()` reads are now 0.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackSessionCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
