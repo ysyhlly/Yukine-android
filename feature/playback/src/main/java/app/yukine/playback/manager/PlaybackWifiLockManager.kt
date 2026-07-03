@@ -6,7 +6,7 @@ import java.util.function.Supplier
 
 internal class PlaybackWifiLockManager(
     private val lock: Lock?,
-    private val playbackQueueManager: PlaybackQueueManager?,
+    private val currentTrackSupplier: Supplier<Track?>?,
     private val streamingTrackPredicate: Predicate<Track?>
 ) {
     interface Lock {
@@ -29,7 +29,7 @@ internal class PlaybackWifiLockManager(
     }
 
     private fun currentTrack(): Track? {
-        return playbackQueueManager?.queueStateSnapshot()?.currentTrack
+        return currentTrackSupplier?.get()
     }
 
     companion object {

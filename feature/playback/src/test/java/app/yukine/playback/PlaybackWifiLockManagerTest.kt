@@ -1,16 +1,14 @@
 package app.yukine.playback
 
 import android.net.Uri
-import app.yukine.model.PlaybackQueueState
 import app.yukine.model.Track
-import app.yukine.playback.manager.PlaybackQueueManager
-import app.yukine.playback.manager.PlaybackQueueStore
 import app.yukine.playback.manager.PlaybackWifiLockManager
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.util.function.Predicate
+import java.util.function.Supplier
 
 @RunWith(RobolectricTestRunner::class)
 class PlaybackWifiLockManagerTest {
@@ -19,7 +17,7 @@ class PlaybackWifiLockManagerTest {
         val lock = FakeLock()
         val manager = PlaybackWifiLockManager(
             lock,
-            queueManagerWithCurrent(track("https://example.com/song.mp3")),
+            currentTrack(track("https://example.com/song.mp3")),
             httpTrackPredicate()
         )
 
@@ -32,14 +30,14 @@ class PlaybackWifiLockManagerTest {
     @Test
     fun acquireIfStreamingSkipsNonStreamingOrUnavailableLock() {
         val fileLock = FakeLock()
-        PlaybackWifiLockManager(fileLock, queueManagerWithCurrent(track("file:///music/song.mp3")), httpTrackPredicate())
+        PlaybackWifiLockManager(fileLock, currentTrack(track("file:///music/song.mp3")), httpTrackPredicate())
             .acquireIfStreaming()
 
         val noTrackLock = FakeLock()
-        PlaybackWifiLockManager(noTrackLock, queueManagerWithCurrent(null), httpTrackPredicate())
+        PlaybackWifiLockManager(noTrackLock, currentTrack(null), httpTrackPredicate())
             .acquireIfStreaming()
 
-        PlaybackWifiLockManager(null, queueManagerWithCurrent(track("https://example.com/song.mp3")), httpTrackPredicate())
+        PlaybackWifiLockManager(null, currentTrack(track("https://example.com/song.mp3")), httpTrackPredicate())
             .acquireIfStreaming()
 
         assertEquals(0, fileLock.acquireCalls)
@@ -51,7 +49,7 @@ class PlaybackWifiLockManagerTest {
         val lock = FakeLock(held = true)
         val manager = PlaybackWifiLockManager(
             lock,
-            queueManagerWithCurrent(track("https://example.com/song.mp3")),
+            currentTrack(track("https://example.com/song.mp3")),
             httpTrackPredicate()
         )
 
@@ -71,10 +69,10 @@ class PlaybackWifiLockManagerTest {
     @Test
     fun releaseOnlyReleasesHeldLock() {
         val heldLock = FakeLock(held = true)
-        PlaybackWifiLockManager(heldLock, queueManagerWithCurrent(null), httpTrackPredicate()).release()
+        PlaybackWifiLockManager(heldLock, currentTrack(null), httpTrackPredicate()).release()
 
         val releasedLock = FakeLock(held = false)
-        PlaybackWifiLockManager(releasedLock, queueManagerWithCurrent(null), httpTrackPredicate()).release()
+        PlaybackWifiLockManager(releasedLock, currentTrack(null), httpTrackPredicate()).release()
 
         assertEquals(1, heldLock.releaseCalls)
         assertEquals(false, heldLock.held)
@@ -90,7 +88,7 @@ class PlaybackWifiLockManagerTest {
         action.run()
         manager = PlaybackWifiLockManager(
             lock,
-            queueManagerWithCurrent(track("https://example.com/song.mp3")),
+            currentTrack(track("https://example.com/song.mp3")),
             httpTrackPredicate()
         )
         action.run()
@@ -106,7 +104,7 @@ class PlaybackWifiLockManagerTest {
         val action = PlaybackWifiLockManager.releaseAction { manager }
 
         action.run()
-        manager = PlaybackWifiLockManager(lock, queueManagerWithCurrent(null), httpTrackPredicate())
+        manager = PlaybackWifiLockManager(lock, currentTrack(null), httpTrackPredicate())
         action.run()
 
         assertEquals(1, lock.releaseCalls)
@@ -142,57 +140,9 @@ class PlaybackWifiLockManagerTest {
             return Track(1L, "Track", "Artist", "Album", 180000L, Uri.parse(uri), uri)
         }
 
-        fun queueManagerWithCurrent(track: Track?): PlaybackQueueManager {
-            val manager = PlaybackQueueManager(
-                FakeQueueStore(),
-                NoopQueuePlaybackActions,
-                null,
-                NoopStreamingRestoreProvider,
-                NoopMirroredQueuePlayer,
-                null,
-                null
-            )
-            if (track != null) {
-                manager.playQueue(listOf(track), 0, -1L)
-            }
-            return manager
+        fun currentTrack(track: Track?): Supplier<Track?> {
+            return Supplier { track }
         }
-    }
-
-    private object NoopQueuePlaybackActions : PlaybackQueueManager.QueuePlaybackActions {
-        override fun prepareCurrent(playWhenReady: Boolean) = Unit
-
-        override fun publishState() = Unit
-    }
-
-    private object NoopStreamingRestoreProvider : PlaybackQueueManager.StreamingRestoreProvider {
-        override fun restoreTrackForPlayback(track: Track): Track = track
-    }
-
-    private object NoopMirroredQueuePlayer : PlaybackQueueManager.MirroredQueuePlayer {
-        override fun matchesCurrentQueue(): Boolean = false
-
-        override fun seekTo(index: Int, positionMs: Long, playWhenReady: Boolean): Boolean = false
-    }
-
-    private class FakeQueueStore : PlaybackQueueStore {
-        override fun load(): PlaybackQueueState = PlaybackQueueState(emptyList(), -1)
-
-        override fun save(tracks: List<Track>, currentIndex: Int) = Unit
-
-        override fun loadResumeRequested(): Boolean = false
-
-        override fun saveResumeRequested(requested: Boolean) = Unit
-
-        override fun loadPlaybackRestoreEnabled(): Boolean = true
-
-        override fun savePlaybackRestoreEnabled(enabled: Boolean) = Unit
-
-        override fun loadPlaybackPositionTrackId(): Long = -1L
-
-        override fun loadPlaybackPositionMs(): Long = 0L
-
-        override fun savePlaybackPosition(trackId: Long, positionMs: Long) = Unit
     }
 
 }

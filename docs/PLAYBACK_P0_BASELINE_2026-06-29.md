@@ -4366,3 +4366,29 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackPositionManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 .\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1 Wiring Note - Wifi Lock Current Track Source
+
+Current audit date: 2026-07-03.
+
+- `PlaybackWifiLockManager` no longer receives `PlaybackQueueManager` or reads
+  `queueStateSnapshot()?.currentTrack` to decide whether the current track is
+  streaming. It now receives only a current-track supplier.
+- `EchoPlaybackService` wires that supplier from
+  `playbackQueueStateOwner::currentTrack`, keeping the queue/current-track
+  semantic source consistent with the other recent queue-state slices.
+- The behavior surface did not change: Wi-Fi lock acquire/release timing,
+  `PlaybackWifiLockOwner`, and the streaming predicate stay in their existing
+  owners. No owner, facade, Service field, or package move was added.
+- The old `PlaybackWifiLockManagerTest` queue-manager fixture was deleted, so
+  the focused test now protects the narrower supplier contract directly.
+- Remaining direct current-track snapshot read in `feature:playback`:
+  `PlaybackRuntimeStateManager.stateProviderFromPlaybackState()` still uses a
+  late-bound queue-manager supplier for replay gain and should stay that way
+  unless its existing late-bound replay-gain test is replaced with equivalent
+  evidence.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackWifiLockManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
