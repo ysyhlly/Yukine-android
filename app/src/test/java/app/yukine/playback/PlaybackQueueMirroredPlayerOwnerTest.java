@@ -89,6 +89,36 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     }
 
     @Test
+    public void seekSkipsWaveformResetWhenCurrentTrackIsMissing() {
+        List<String> events = new ArrayList<>();
+        PlaybackQueueMirroredPlayerOwner owner = new PlaybackQueueMirroredPlayerOwner(
+                () -> true,
+                () -> true,
+                preparing -> events.add("preparing:" + preparing),
+                null,
+                track -> events.add("waveform"),
+                () -> events.add("apply"),
+                (index, positionMs) -> events.add("seek:" + index + ":" + positionMs),
+                playWhenReady -> events.add("ready:" + playWhenReady),
+                () -> events.add("play"),
+                enabled -> events.add("mirror"),
+                error -> events.add("log")
+        );
+
+        assertTrue(owner.seekTo(1, 1200L, false));
+
+        assertEquals(
+                java.util.Arrays.asList(
+                        "preparing:false",
+                        "apply",
+                        "seek:1:1200",
+                        "ready:false"
+                ),
+                events
+        );
+    }
+
+    @Test
     public void matchesCurrentQueueFailsWithoutPlayer() {
         List<String> events = new ArrayList<>();
         PlaybackQueueMirroredPlayerOwner owner = new PlaybackQueueMirroredPlayerOwner(

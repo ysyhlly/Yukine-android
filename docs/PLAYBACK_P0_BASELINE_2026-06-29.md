@@ -3812,3 +3812,58 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackVisualizationCacheStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## P1 Wiring Note - Mirrored Player Current Track Source
+
+Current audit date: 2026-07-03.
+
+- `PlaybackQueueMirroredPlayerOwner.currentTrack()` no longer unwraps
+  `queueStateOwner.queueStateSnapshot().getCurrentTrack()` directly when
+  mirrored queue seek resets waveform state.
+- The existing mirrored player owner now reads the current track through
+  `PlaybackQueueStateOwner.currentTrack()`; mirror matching still uses an
+  explicit queue snapshot because it compares the full player queue.
+- No owner, facade, field, constructor parameter, or Service wiring was added.
+  The real reduction is one fewer direct snapshot-current dereference in the
+  mirrored queue player boundary.
+- `PlaybackQueueMirroredPlayerOwnerTest` now covers both the successful
+  waveform reset path and the missing-current-track seek path. The architecture
+  contract now blocks the old direct snapshot read from returning.
+- Remaining production direct
+  `queueStateOwner.queueStateSnapshot().getCurrentTrack()` reads are now 1:
+  session command.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMirroredPlayerOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1/P3 Batch Audit - Cache And Mirrored Current Track Semantic Reads
+
+Current audit date: 2026-07-03.
+
+- This checkpoint follows three current-track semantic read slices:
+  - `PlaybackPrecacheStateOwner.currentTrack()` now uses
+    `PlaybackQueueStateOwner.currentTrack()`.
+  - `PlaybackVisualizationCacheStateOwner.currentTrack()` now uses
+    `PlaybackQueueStateOwner.currentTrack()`.
+  - `PlaybackQueueMirroredPlayerOwner.currentTrack()` now uses
+    `PlaybackQueueStateOwner.currentTrack()`.
+- Real reduction in this batch: three fewer direct snapshot-current
+  dereference chains in playback owners. No owner, facade, constructor
+  parameter, or Service wiring was added.
+- Current metrics after this batch:
+  - `EchoPlaybackService.java` is 1424 lines.
+  - `private Playback*` field count is 55 by the current field metric.
+  - Production `fromPlaybackQueueManager(...)` count is 0.
+  - Service `playbackQueueStateOwner::queueStateSnapshot` supplier count is 1.
+  - `Playback*Owner` production file count is 43.
+  - Remaining production direct
+    `queueStateOwner.queueStateSnapshot().getCurrentTrack()` reads are now 1:
+    session command.
+- Focused tests covering this batch:
+  `PlaybackPrecacheStateOwnerTest`, `PlaybackVisualizationCacheStateOwnerTest`,
+  `PlaybackQueueMirroredPlayerOwnerTest`, and
+  `MainActivityArchitectureContractTest`.
+- Deferred risk remains unchanged: notification, lyrics, shutdown, and
+  background playback are not touched by this batch.

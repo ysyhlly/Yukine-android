@@ -96,7 +96,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
 
     private Track currentTrack() {
         return queueStateOwner == null ? null
-                : queueStateOwner.queueStateSnapshot().getCurrentTrack();
+                : queueStateOwner.currentTrack();
     }
 
     private boolean hasPlayer() {
