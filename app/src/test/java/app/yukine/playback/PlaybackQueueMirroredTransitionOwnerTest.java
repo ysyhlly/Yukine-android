@@ -128,6 +128,44 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
     }
 
     @Test
+    public void appliesTransitionWithMissingQueueStateOwner() {
+        List<String> events = new ArrayList<>();
+        PlaybackQueueManager queueManager = queueManager(
+                new FakeQueueStore(events),
+                new RecordingStreamingRestoreProvider(events),
+                REPEAT_OFF
+        );
+        queueManager.playQueue(Arrays.asList(track(1L), track(2L)), 0, 0L);
+        events.clear();
+        PlaybackQueueMirroredTransitionOwner owner =
+                new PlaybackQueueMirroredTransitionOwner(
+                        queueManager,
+                        null,
+                        () -> events.add("applyVolume"),
+                        null
+                );
+
+        PlaybackQueueMirroredTransitionOwner.Transition result =
+                owner.applyMirroredTransitionReason(
+                        1,
+                        Player.MEDIA_ITEM_TRANSITION_REASON_SEEK
+                );
+
+        assertEquals(0, result.completedIndex());
+        assertEquals(false, result.stopAfterAutomaticAdvance());
+        assertNull(result.currentTrack());
+        assertEquals(
+                Arrays.asList(
+                        "position:2:0",
+                        "restore:streaming:netease:2",
+                        "save:1",
+                        "applyVolume"
+                ),
+                events
+        );
+    }
+
+    @Test
     public void mediaItemTransitionReasonIsConvertedInsideOwner() {
         PlaybackQueueManager queueManager = queueManager(
                 new FakeQueueStore(new ArrayList<>()),

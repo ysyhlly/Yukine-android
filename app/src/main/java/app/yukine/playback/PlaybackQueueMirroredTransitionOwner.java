@@ -55,7 +55,7 @@ final class PlaybackQueueMirroredTransitionOwner {
 
     boolean canApplyMirroredTransition() {
         boolean mirrorsQueue = playerMirrorsQueue == null || playerMirrorsQueue.getAsBoolean();
-        boolean emptyQueue = queueStateSnapshot().isQueueEmpty();
+        boolean emptyQueue = queueStateOwner == null || queueStateOwner.isQueueEmpty();
         return mirrorsQueue && !emptyQueue;
     }
 
@@ -76,7 +76,7 @@ final class PlaybackQueueMirroredTransitionOwner {
         }
         Track currentTrack = null;
         if (!result.getStopAfterAutomaticAdvance()) {
-            currentTrack = queueStateSnapshot().getCurrentTrack();
+            currentTrack = queueStateOwner == null ? null : queueStateOwner.currentTrack();
             if (currentTrackVolumeApplier != null) {
                 currentTrackVolumeApplier.run();
             }
@@ -90,13 +90,6 @@ final class PlaybackQueueMirroredTransitionOwner {
 
     static boolean isAutomaticMediaItemAdvance(int reason) {
         return reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO;
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null
-                ? null
-                : queueStateOwner.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 
 }

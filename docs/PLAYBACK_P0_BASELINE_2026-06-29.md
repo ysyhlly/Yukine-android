@@ -3942,6 +3942,32 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackErrorRecoveryCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
 
+## P1 Wiring Note - Mirrored Transition Semantic Queue State
+
+Current audit date: 2026-07-03.
+
+- `PlaybackQueueMirroredTransitionOwner` no longer owns a private
+  `queueStateSnapshot()` helper.
+- `canApplyMirroredTransition()` now reads empty-queue state through
+  `PlaybackQueueStateOwner.isQueueEmpty()`.
+- `applyMirroredTransitionReason(...)` now reads the post-transition current
+  track through `PlaybackQueueStateOwner.currentTrack()`.
+- `PlaybackQueueManager.applyMirroredTransitionIndex(...)` remains the owner of
+  mirrored transition index mutation and repeat/off stop semantics; this slice
+  does not move policy into Service or add a new transition facade.
+- No owner, facade, field, constructor parameter, or Service wiring was added.
+  The real reduction is one fewer private snapshot helper and two fewer direct
+  snapshot-derived reads in a playback owner.
+- `PlaybackQueueMirroredTransitionOwnerTest` covers apply order, current track
+  after transition, missing manager, missing queue state owner, automatic
+  advance conversion, and mirrored/non-empty queue gating. The architecture
+  contract blocks the helper from returning.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMirroredTransitionOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
 ## P1/P4-Adjacent Batch Audit - Queue State Semantic Wiring
 
 Current audit date: 2026-07-03.
