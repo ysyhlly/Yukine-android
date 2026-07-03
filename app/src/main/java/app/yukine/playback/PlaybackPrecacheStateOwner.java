@@ -6,7 +6,7 @@ import androidx.media3.common.Player;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
-final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateProvider {
+final class PlaybackPrecacheStateOwner implements Supplier<MediaItem> {
     private final Supplier<MediaItem> playerMediaItemSupplier;
 
     PlaybackPrecacheStateOwner(
@@ -63,7 +63,7 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
     }
 
     @Override
-    public MediaItem currentPlayerMediaItem() {
+    public MediaItem get() {
         return playerMediaItemSupplier == null ? null : playerMediaItemSupplier.get();
     }
 

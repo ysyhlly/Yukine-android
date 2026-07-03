@@ -23,7 +23,7 @@ public class PlaybackPrecacheStateOwnerTest {
                 }
         );
 
-        assertSame(mediaItem, owner.currentPlayerMediaItem());
+        assertSame(mediaItem, owner.get());
         assertEquals(
                 java.util.Collections.singletonList("mediaItem"),
                 events
@@ -36,7 +36,7 @@ public class PlaybackPrecacheStateOwnerTest {
                 null
         );
 
-        assertNull(owner.currentPlayerMediaItem());
+        assertNull(owner.get());
     }
 
 }

@@ -2202,6 +2202,14 @@ public final class MainActivityArchitectureContractTest {
                         + "            StateProvider stateProvider,\n"
                         + "            PlaybackMediaSourceProvider mediaSourceProvider"
         ));
+        assertFalse(playbackPrecacheManager.contains("interface StateProvider"));
+        assertFalse(playbackPrecacheManager.contains("MediaItem currentPlayerMediaItem();"));
+        assertFalse(playbackPrecacheManager.contains("private final StateProvider stateProvider;"));
+        assertTrue(playbackPrecacheManager.contains(
+                "private final Supplier<MediaItem> currentPlayerMediaItemSupplier;"));
+        assertTrue(normalizedPlaybackPrecacheManager.contains(
+                "PlaybackPrecacheManager(\n"
+                        + "            Supplier<MediaItem> currentPlayerMediaItemSupplier,"));
         assertFalse(normalizedPlaybackPrecacheManager.contains(
                 "PlaybackPrecacheManager(\n"
                         + "            StateProvider stateProvider,\n"
@@ -2228,7 +2236,7 @@ public final class MainActivityArchitectureContractTest {
                 "stateProvider.upcomingTracksForPrecache(SEGMENTED_PRECACHE_CONCURRENCY)"));
         assertFalse(playbackPrecacheManager.contains("interface AudioCacheReleaser"));
         assertFalse(playbackPrecacheManager.contains("interface PrecacheManagerProvider"));
-        assertFalse(playbackPrecacheManager.contains("import java.util.function.Supplier;"));
+        assertTrue(playbackPrecacheManager.contains("import java.util.function.Supplier;"));
         assertFalse(playbackPrecacheManager.contains("import java.util.function.Consumer;"));
         assertFalse(playbackPrecacheManager.contains("static Runnable audioCacheReleaseActionFromPrecacheManagerSupplier("));
         assertTrue(playbackPrecacheManager.contains("private final Runnable audioCacheReleaseAction;"));
@@ -2244,7 +2252,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackPrecacheManager.contains("SimpleCache audioCache();"));
         assertFalse(playbackPrecacheManager.contains("private static final class PlaybackMediaSourceProviderCacheOperations"));
         assertFalse(playbackPrecacheManager.contains("PlaybackMediaSourceResolutionOwner"));
-        assertTrue(playbackPrecacheStateOwner.contains("final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateProvider"));
+        assertFalse(playbackPrecacheStateOwner.contains("PlaybackPrecacheManager.StateProvider"));
+        assertTrue(playbackPrecacheStateOwner.contains("final class PlaybackPrecacheStateOwner implements Supplier<MediaItem>"));
         assertFalse(playbackPrecacheStateOwner.contains("interface CurrentTrackProvider"));
         assertFalse(playbackPrecacheStateOwner.contains("interface PlayerMediaItemProvider"));
         assertFalse(playbackPrecacheStateOwner.contains("interface StreamingDiagnosticsProvider"));

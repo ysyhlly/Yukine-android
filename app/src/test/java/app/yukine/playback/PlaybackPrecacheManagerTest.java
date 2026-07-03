@@ -36,6 +36,7 @@ import java.util.Random;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 33)
@@ -655,13 +656,13 @@ public final class PlaybackPrecacheManagerTest {
         );
     }
 
-    private static final class FakeStateProvider implements PlaybackPrecacheManager.StateProvider {
+    private static final class FakeStateProvider implements Supplier<MediaItem> {
         private final PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
         private Track currentTrack;
         private MediaItem currentPlayerMediaItem;
 
         @Override
-        public MediaItem currentPlayerMediaItem() {
+        public MediaItem get() {
             if (currentPlayerMediaItem != null) {
                 return currentPlayerMediaItem;
             }

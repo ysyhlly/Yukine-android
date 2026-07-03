@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
@@ -47,16 +48,12 @@ final class PlaybackPrecacheManager {
     static final long CURRENT_TRACK_SEGMENTED_PRECACHE_DELAY_MS = 250L;
     static final long UPCOMING_TRACK_PRECACHE_DELAY_MS = 5500L;
 
-    interface StateProvider {
-        MediaItem currentPlayerMediaItem();
-    }
-
     interface CallbackScheduler {
         void postDelayed(Runnable runnable, long delayMs);
         void removeCallbacks(Runnable runnable);
     }
 
-    private final StateProvider stateProvider;
+    private final Supplier<MediaItem> currentPlayerMediaItemSupplier;
     private final PlaybackQueueManager playbackQueueManager;
     private final PlaybackMediaCacheOperations mediaCacheOperations;
     private final PlaybackStreamingDiagnostics streamingDiagnostics;
@@ -76,7 +73,7 @@ final class PlaybackPrecacheManager {
     private volatile String lastPrecacheKey = "";
 
     PlaybackPrecacheManager(
-            StateProvider stateProvider,
+            Supplier<MediaItem> currentPlayerMediaItemSupplier,
             PlaybackStreamingDiagnostics streamingDiagnostics,
             PlaybackQueueManager playbackQueueManager,
             PlaybackMediaCacheOperations mediaCacheOperations,
@@ -84,7 +81,7 @@ final class PlaybackPrecacheManager {
             Runnable audioCacheReleaseAction
     ) {
         this(
-                stateProvider,
+                currentPlayerMediaItemSupplier,
                 streamingDiagnostics,
                 playbackQueueManager,
                 mediaCacheOperations,
@@ -96,7 +93,7 @@ final class PlaybackPrecacheManager {
     }
 
     PlaybackPrecacheManager(
-            StateProvider stateProvider,
+            Supplier<MediaItem> currentPlayerMediaItemSupplier,
             PlaybackStreamingDiagnostics streamingDiagnostics,
             PlaybackQueueManager playbackQueueManager,
             PlaybackMediaCacheOperations mediaCacheOperations,
@@ -105,7 +102,7 @@ final class PlaybackPrecacheManager {
             Runnable audioCacheReleaseAction
     ) {
         this(
-                stateProvider,
+                currentPlayerMediaItemSupplier,
                 streamingDiagnostics,
                 playbackQueueManager,
                 mediaCacheOperations,
@@ -117,7 +114,7 @@ final class PlaybackPrecacheManager {
     }
 
     PlaybackPrecacheManager(
-            StateProvider stateProvider,
+            Supplier<MediaItem> currentPlayerMediaItemSupplier,
             PlaybackStreamingDiagnostics streamingDiagnostics,
             PlaybackQueueManager playbackQueueManager,
             PlaybackMediaCacheOperations mediaCacheOperations,
@@ -126,7 +123,7 @@ final class PlaybackPrecacheManager {
             Runnable audioCacheReleaseAction,
             ThreadPoolExecutor playbackCacheExecutor
     ) {
-        this.stateProvider = stateProvider;
+        this.currentPlayerMediaItemSupplier = currentPlayerMediaItemSupplier;
         this.streamingDiagnostics = streamingDiagnostics == null
                 ? new PlaybackStreamingDiagnostics()
                 : streamingDiagnostics;
@@ -141,14 +138,14 @@ final class PlaybackPrecacheManager {
     }
 
     static PlaybackPrecacheManager fromMediaSourceProvider(
-            StateProvider stateProvider,
+            Supplier<MediaItem> currentPlayerMediaItemSupplier,
             PlaybackStreamingDiagnostics streamingDiagnostics,
             PlaybackQueueManager playbackQueueManager,
             PlaybackMediaSourceProvider mediaSourceProvider,
             CallbackScheduler callbackScheduler
     ) {
         return new PlaybackPrecacheManager(
-                stateProvider,
+                currentPlayerMediaItemSupplier,
                 streamingDiagnostics,
                 playbackQueueManager,
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider),
@@ -594,8 +591,11 @@ final class PlaybackPrecacheManager {
     }
 
     private boolean currentPlayerLoadsTrack(Track track) {
+        MediaItem currentPlayerMediaItem = currentPlayerMediaItemSupplier == null
+                ? null
+                : currentPlayerMediaItemSupplier.get();
         return mediaItemTrackMatcher != null
-                && mediaItemTrackMatcher.test(stateProvider.currentPlayerMediaItem(), track);
+                && mediaItemTrackMatcher.test(currentPlayerMediaItem, track);
     }
 
     @OptIn(markerClass = UnstableApi.class)
