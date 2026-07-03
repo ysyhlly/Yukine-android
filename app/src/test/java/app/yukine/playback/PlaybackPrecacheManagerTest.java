@@ -82,6 +82,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider.diagnostics,
                 null,
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider()),
+                (mediaItem, track) -> false,
                 scheduler,
                 audioCacheReleaseAction::releaseAudioCache
         );

@@ -2206,6 +2206,9 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackPrecacheManager(\n"
                         + "            Supplier<MediaItem> currentPlayerMediaItemSupplier,"));
         assertFalse(normalizedPlaybackPrecacheManager.contains(
+                "            PlaybackMediaCacheOperations mediaCacheOperations,\n"
+                        + "            CallbackScheduler callbackScheduler,"));
+        assertFalse(normalizedPlaybackPrecacheManager.contains(
                 "PlaybackPrecacheManager(\n"
                         + "            StateProvider stateProvider,\n"
                         + "            IntFunction<List<Track>> upcomingTracksProvider,\n"

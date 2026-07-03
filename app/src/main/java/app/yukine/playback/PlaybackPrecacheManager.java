@@ -77,26 +77,6 @@ final class PlaybackPrecacheManager {
             PlaybackStreamingDiagnostics streamingDiagnostics,
             PlaybackQueueManager playbackQueueManager,
             PlaybackMediaCacheOperations mediaCacheOperations,
-            CallbackScheduler callbackScheduler,
-            Runnable audioCacheReleaseAction
-    ) {
-        this(
-                currentPlayerMediaItemSupplier,
-                streamingDiagnostics,
-                playbackQueueManager,
-                mediaCacheOperations,
-                null,
-                callbackScheduler,
-                audioCacheReleaseAction,
-                newPlaybackCacheExecutor()
-        );
-    }
-
-    PlaybackPrecacheManager(
-            Supplier<MediaItem> currentPlayerMediaItemSupplier,
-            PlaybackStreamingDiagnostics streamingDiagnostics,
-            PlaybackQueueManager playbackQueueManager,
-            PlaybackMediaCacheOperations mediaCacheOperations,
             BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
             CallbackScheduler callbackScheduler,
             Runnable audioCacheReleaseAction
