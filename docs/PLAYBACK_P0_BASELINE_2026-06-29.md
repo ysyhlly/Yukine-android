@@ -2422,6 +2422,48 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.manager.PlaybackMediaCacheOperationsTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## Batch Verification - Queue State And Cache Boundary Slices
+
+Current audit date: 2026-07-03.
+
+- This checkpoint covers the recent small slices:
+  `EchoPlaybackService.play()` current-track reuse,
+  `PlaybackQueueMirroredTransitionOwner` queue-state source, and
+  `PlaybackMediaCacheOperations` provider-backed cache boundary coverage.
+- Batch gains:
+  - One fewer repeated service current-track snapshot read during a single
+    `play()` command.
+  - One fewer app owner directly reading
+    `PlaybackQueueManager.queueStateSnapshot()`.
+  - Stronger focused behavior coverage for HTTP/streaming versus local/content
+    precache cache-key policy.
+- Batch metrics: `EchoPlaybackService.java` is 1428 lines,
+  `private Playback*` field count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, direct
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.currentTrack()` calls in the service are
+  4, and `Playback*Owner` production file count is 44.
+- Focused and T1 verification already passed for this batch:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMirroredTransitionOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.manager.PlaybackMediaCacheOperationsTest --console=plain
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.manager.PlaybackMediaCacheOperationsTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
+- T2 verification passed:
+
+```powershell
+.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+- Next safe candidates remain queue/state/interface focused: reduce the
+  remaining service queue snapshot supplier only outside notification scope, or
+  continue `PlaybackQueueManager` public API grouping for real migration
+  leftovers. P4/P5 notification, lyrics, shutdown, and background playback stay
+  deferred until smoke evidence is stable.
+
 ## P1 Wiring Note - Mirrored Transition Queue State Source
 
 Current audit date: 2026-07-03.
