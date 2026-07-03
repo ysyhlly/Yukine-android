@@ -55,9 +55,9 @@ public class PlaybackCrossfadeCommandOwnerTest {
                 enabled -> events.add("ownerFade:" + enabled),
                 volume -> events.add("ownerVolume:" + volume),
                 () -> events.add("ownerNextImmediately"),
-                () -> events.add("ownerApplyAppVolume"),
-                () -> manager
+                () -> events.add("ownerApplyAppVolume")
         );
+        owner.bindPlaybackCrossfadeAdvanceManager(manager);
 
         owner.cancelCrossfadeAdvance();
 
@@ -79,9 +79,9 @@ public class PlaybackCrossfadeCommandOwnerTest {
                 enabled -> events.add("ownerFade:" + enabled),
                 volume -> events.add("ownerVolume:" + volume),
                 () -> events.add("ownerNextImmediately"),
-                () -> events.add("ownerApplyAppVolume"),
-                () -> manager
+                () -> events.add("ownerApplyAppVolume")
         );
+        owner.bindPlaybackCrossfadeAdvanceManager(manager);
 
         assertTrue(owner.startFadeOutThenNext());
 
@@ -95,7 +95,7 @@ public class PlaybackCrossfadeCommandOwnerTest {
     }
 
     @Test
-    public void toleratesMissingCrossfadeAdvanceManagerProvider() {
+    public void toleratesMissingBoundCrossfadeAdvanceManager() {
         PlaybackCrossfadeCommandOwner owner = new PlaybackCrossfadeCommandOwner(
                 enabled -> {
                 },

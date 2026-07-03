@@ -7922,6 +7922,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackCrossfadeAdvanceManager.cancel();"));
         assertTrue(service.contains("playbackCrossfadeCommandOwner.cancelCrossfadeAdvance();"));
         assertFalse(service.contains("playbackTransitionStateManager.clear()"));
+        assertTrue(service.contains("playbackCrossfadeCommandOwner.bindPlaybackCrossfadeAdvanceManager(playbackCrossfadeAdvanceManager);"));
         assertTrue(commandOwner.contains("transitionState.accept(enabled);"));
         assertTrue(owner.contains("private var lastMarkedTrack"));
         assertTrue(owner.contains("private var fadeOutAdvancing"));
@@ -8323,11 +8324,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("private final Consumer<Float> playerVolumeController;"));
         assertTrue(commandOwner.contains("private final Runnable immediateSkipCommand;"));
         assertTrue(commandOwner.contains("private final Runnable appVolumeApplier;"));
-        assertTrue(commandOwner.contains("private final Supplier<PlaybackCrossfadeAdvanceManager> crossfadeAdvanceManagerProvider;"));
+        assertFalse(commandOwner.contains("Supplier<PlaybackCrossfadeAdvanceManager>"));
+        assertFalse(commandOwner.contains("crossfadeAdvanceManagerProvider"));
+        assertTrue(commandOwner.contains("private PlaybackCrossfadeAdvanceManager crossfadeAdvanceManager;"));
+        assertTrue(commandOwner.contains(
+                "void bindPlaybackCrossfadeAdvanceManager(PlaybackCrossfadeAdvanceManager crossfadeAdvanceManager)"));
         assertTrue(commandOwner.contains("transitionState.accept(enabled);"));
         assertTrue(commandOwner.contains("playerVolumeController.accept(volume);"));
         assertTrue(commandOwner.contains("immediateSkipCommand.run();"));
         assertTrue(commandOwner.contains("appVolumeApplier.run();"));
+        assertTrue(service.contains("playbackCrossfadeCommandOwner.bindPlaybackCrossfadeAdvanceManager(playbackCrossfadeAdvanceManager);"));
         assertTrue(commandOwner.contains("boolean startFadeOutThenNext()"));
         assertTrue(commandOwner.contains("manager.startFadeOutThenNext();"));
         assertTrue(commandOwner.contains("void cancelCrossfadeAdvance()"));

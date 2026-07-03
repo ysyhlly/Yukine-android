@@ -3,14 +3,13 @@ package app.yukine.playback;
 import app.yukine.playback.manager.PlaybackCrossfadeAdvanceManager;
 
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 final class PlaybackCrossfadeCommandOwner implements PlaybackCrossfadeAdvanceManager.Actions {
     private final Consumer<Boolean> transitionState;
     private final Consumer<Float> playerVolumeController;
     private final Runnable immediateSkipCommand;
     private final Runnable appVolumeApplier;
-    private final Supplier<PlaybackCrossfadeAdvanceManager> crossfadeAdvanceManagerProvider;
+    private PlaybackCrossfadeAdvanceManager crossfadeAdvanceManager;
 
     PlaybackCrossfadeCommandOwner(
             Consumer<Boolean> transitionState,
@@ -18,21 +17,14 @@ final class PlaybackCrossfadeCommandOwner implements PlaybackCrossfadeAdvanceMan
             Runnable immediateSkipCommand,
             Runnable appVolumeApplier
     ) {
-        this(transitionState, playerVolumeController, immediateSkipCommand, appVolumeApplier, null);
-    }
-
-    PlaybackCrossfadeCommandOwner(
-            Consumer<Boolean> transitionState,
-            Consumer<Float> playerVolumeController,
-            Runnable immediateSkipCommand,
-            Runnable appVolumeApplier,
-            Supplier<PlaybackCrossfadeAdvanceManager> crossfadeAdvanceManagerProvider
-    ) {
         this.transitionState = transitionState;
         this.playerVolumeController = playerVolumeController;
         this.immediateSkipCommand = immediateSkipCommand;
         this.appVolumeApplier = appVolumeApplier;
-        this.crossfadeAdvanceManagerProvider = crossfadeAdvanceManagerProvider;
+    }
+
+    void bindPlaybackCrossfadeAdvanceManager(PlaybackCrossfadeAdvanceManager crossfadeAdvanceManager) {
+        this.crossfadeAdvanceManager = crossfadeAdvanceManager;
     }
 
     @Override
@@ -68,8 +60,6 @@ final class PlaybackCrossfadeCommandOwner implements PlaybackCrossfadeAdvanceMan
     }
 
     private PlaybackCrossfadeAdvanceManager crossfadeAdvanceManager() {
-        return crossfadeAdvanceManagerProvider == null
-                ? null
-                : crossfadeAdvanceManagerProvider.get();
+        return crossfadeAdvanceManager;
     }
 }

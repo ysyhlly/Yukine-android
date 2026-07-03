@@ -371,8 +371,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                     }
                 },
                 () -> withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::skipToNextImmediately),
-                EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer,
-                () -> playbackCrossfadeAdvanceManager
+                EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer
         );
         final PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner(
                 playbackTransitionStateManager::fadeOutAdvancing,
@@ -391,6 +390,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackCrossfadeStateOwner,
                 playbackCrossfadeCommandOwner
         );
+        playbackCrossfadeCommandOwner.bindPlaybackCrossfadeAdvanceManager(playbackCrossfadeAdvanceManager);
         playbackRecoveryScheduler = new PlaybackRecoveryScheduler(
                 task -> playbackTaskScheduler.schedule(
                         PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY,
