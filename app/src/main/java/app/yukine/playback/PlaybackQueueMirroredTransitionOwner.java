@@ -8,15 +8,18 @@ import java.util.function.BooleanSupplier;
 
 final class PlaybackQueueMirroredTransitionOwner {
     private final PlaybackQueueManager playbackQueueManager;
+    private final PlaybackQueueStateOwner queueStateOwner;
     private final Runnable currentTrackVolumeApplier;
     private final BooleanSupplier playerMirrorsQueue;
 
     PlaybackQueueMirroredTransitionOwner(
             PlaybackQueueManager playbackQueueManager,
+            PlaybackQueueStateOwner queueStateOwner,
             Runnable currentTrackVolumeApplier,
             BooleanSupplier playerMirrorsQueue
     ) {
         this.playbackQueueManager = playbackQueueManager;
+        this.queueStateOwner = queueStateOwner;
         this.currentTrackVolumeApplier = currentTrackVolumeApplier;
         this.playerMirrorsQueue = playerMirrorsQueue;
     }
@@ -52,9 +55,9 @@ final class PlaybackQueueMirroredTransitionOwner {
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null
                 ? null
-                : playbackQueueManager.queueStateSnapshot();
+                : queueStateOwner.queueStateSnapshot();
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 

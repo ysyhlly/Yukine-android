@@ -2387,6 +2387,36 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P1 Wiring Note - Mirrored Transition Queue State Source
+
+Current audit date: 2026-07-03.
+
+- `PlaybackQueueManager` public API audit split the current surface into:
+  command methods such as `playQueue`, `appendToQueue`, navigation, mutation,
+  completion, and mirrored-transition commands; restore/persistence methods
+  such as `restorePlaybackQueue`, `restoreLastPlayback`, and
+  `persistQueueState`; and state reads such as `queueSnapshot`,
+  `queueStateSnapshot`, and `upcomingTracksForPrecache`.
+- `PlaybackQueueMirroredTransitionOwner` still uses `PlaybackQueueManager` for
+  the mirrored-transition command `applyMirroredTransitionIndex(...)`, but its
+  empty-queue state read now goes through the existing
+  `PlaybackQueueStateOwner`.
+- No owner was added. This does add one constructor argument to an existing
+  owner, so it should not be counted as service wiring reduction. The real
+  reduction is one fewer app owner directly reading
+  `PlaybackQueueManager.queueStateSnapshot()`.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1428 lines,
+  `private Playback*` field count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, direct
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, and direct `playbackQueueManager.queueStateSnapshot()` calls inside
+  `PlaybackQueueMirroredTransitionOwner` are 0.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMirroredTransitionOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## P1 Wiring Note - Play Command Current Track Reuse
 
 Current audit date: 2026-07-03.
