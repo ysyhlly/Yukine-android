@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Supplier;
 
 import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
@@ -37,7 +38,7 @@ public class PlaybackSessionCommandOwnerTest {
                     events.add("controllerItems:" + mediaItems.size() + ":" + startIndex + ":" + startPositionMs);
                     return true;
                 },
-                queueStateOwner(track),
+                queueManagerSupplier(track),
                 requestedTrack -> {
                     events.add("metadata:" + requestedTrack.id);
                     return metadata;
@@ -96,7 +97,7 @@ public class PlaybackSessionCommandOwnerTest {
                 repeatMode -> {
                 },
                 (mediaItems, startIndex, startPositionMs) -> false,
-                new PlaybackQueueStateOwner(),
+                () -> null,
                 track -> null
         );
 
@@ -107,7 +108,7 @@ public class PlaybackSessionCommandOwnerTest {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "file:" + id);
     }
 
-    private static PlaybackQueueStateOwner queueStateOwner(Track track) {
+    private static Supplier<PlaybackQueueManager> queueManagerSupplier(Track track) {
         PlaybackQueueManager queueManager = new PlaybackQueueManager(
                 new FakeQueueStore(),
                 new ArrayList<>(),
@@ -120,7 +121,7 @@ public class PlaybackSessionCommandOwnerTest {
                 new Random(1L)
         );
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        return new PlaybackQueueStateOwner(queueManager);
+        return () -> queueManager;
     }
 
     private static final class FakePlaybackCommands implements PlaybackNotificationCommandOwner.PlaybackCommands {
