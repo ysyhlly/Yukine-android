@@ -8141,8 +8141,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner;"));
         assertTrue(service.contains("final PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner("));
         assertTrue(service.contains("                playbackPlayerStateOwner::isPlaying,"));
-        assertTrue(service.contains("                queueStateSupplier,"));
         assertFalse(service.contains(
+                "                playbackPlayerStateOwner::isPlaying,\r\n"
+                        + "                queueStateSupplier,"));
+        assertTrue(service.contains(
                 "                () -> playbackModeSettingsStore == null\n"
                         + "                        ? REPEAT_ALL\n"
                         + "                        : playbackModeSettingsStore.repeatMode(playbackRuntimeStateManager),\n"
@@ -8183,13 +8185,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(stateOwner.contains("private final IntSupplier repeatModeProvider;"));
         assertTrue(stateOwner.contains("private final DoubleSupplier baseVolumeProvider;"));
         assertTrue(stateOwner.contains("import java.util.function.DoubleSupplier;"));
-        assertTrue(stateOwner.contains("import java.util.function.Supplier;"));
+        assertFalse(stateOwner.contains("import java.util.function.Supplier;"));
         assertFalse(stateOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
         assertFalse(stateOwner.contains("private final BooleanSupplier hasMultipleTracksProvider;"));
         assertFalse(stateOwner.contains("private final BooleanSupplier atEndOfQueueProvider;"));
-        assertTrue(stateOwner.contains(
+        assertFalse(stateOwner.contains(
                 "private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier;"
         ));
+        assertTrue(stateOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
         assertTrue(stateOwner.contains("return transitionStateProvider.getAsBoolean();"));
         assertTrue(stateOwner.contains("return playerAvailabilityProvider.getAsBoolean();"));
         assertTrue(stateOwner.contains("return playbackStateProvider.getAsBoolean();"));

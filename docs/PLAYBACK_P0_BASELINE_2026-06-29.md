@@ -2466,3 +2466,29 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackErrorRecoveryCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1 Wiring Note - Crossfade Queue State Source
+
+Current audit date: 2026-07-03.
+
+- `PlaybackCrossfadeStateOwner` no longer accepts a generic
+  `Supplier<PlaybackQueueManager.QueueStateSnapshot>`. It now reads queue state
+  through the existing `PlaybackQueueStateOwner`.
+- `EchoPlaybackService` no longer passes the local `queueStateSupplier` into
+  crossfade state wiring. The remaining `queueStateSupplier` uses in the
+  service belong to position, notification state, and playback state snapshot
+  owners.
+- No owner was added. The real reduction is one fewer generic queue snapshot
+  supplier chain entering crossfade.
+- `PlaybackCrossfadeStateOwnerTest` now exercises the real
+  `PlaybackQueueStateOwner -> PlaybackQueueManager` path for multiple-track and
+  end-of-queue crossfade decisions instead of hand-written queue snapshots.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1424 lines,
+  `private Playback*` field count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, `queueStateSnapshot` references in
+  the service are 2, and `Playback*Owner` production file count is 43.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackCrossfadeStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
