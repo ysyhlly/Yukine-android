@@ -125,12 +125,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                     EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer,
                     playbackQueueRuntimeStateManager::playerMirrorsQueue
             );
-    private final PlaybackQueueRestoreOwner playbackQueueRestoreOwner =
-            new PlaybackQueueRestoreOwner(
-                    () -> playbackQueueManager,
-                    EchoPlaybackService.this::createPlayerIfNeeded,
-                    playbackQueueCommandOwner
-            );
     private final PlaybackQueueCompletionOwner.CompletionBoundary playbackQueueCompletionBoundary =
             new PlaybackQueueCompletionOwner.CompletionBoundary() {
                 @Override
@@ -711,7 +705,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 mediaSourceProvider,
                 playbackMainHandlerSchedulerOwner
         );
-        playbackQueueRestoreOwner.restorePlaybackQueue();
+        withPlaybackQueueRestoreOwner(PlaybackQueueRestoreOwner::restorePlaybackQueue);
         playbackNotificationCommandOwner.publishPlaybackNotificationIfWorthy();
         playbackLyricsManager.bind();
         playbackNoisyReceiverManager = new PlaybackNoisyReceiverManager(
@@ -971,7 +965,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void restoreLastPlayback(boolean playWhenRestored) {
-        playbackQueueRestoreOwner.restoreLastPlayback(playWhenRestored);
+        withPlaybackQueueRestoreOwner(owner -> owner.restoreLastPlayback(playWhenRestored));
     }
 
     public void replaceQueuedTrackById(long oldTrackId, Track replacement) {
@@ -1055,7 +1049,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void setPlaybackRestoreEnabled(boolean enabled) {
-        playbackQueueRestoreOwner.setPlaybackRestoreEnabled(enabled);
+        withPlaybackQueueRestoreOwner(owner -> owner.setPlaybackRestoreEnabled(enabled));
     }
 
     public void setReplayGainEnabled(boolean enabled) {
@@ -1318,6 +1312,14 @@ public final class EchoPlaybackService extends MediaLibraryService
         action.accept(new PlaybackQueueMutationOwner(
                 playbackQueueManager,
                 EchoPlaybackService.this::stopAndClear
+        ));
+    }
+
+    private void withPlaybackQueueRestoreOwner(Consumer<PlaybackQueueRestoreOwner> action) {
+        action.accept(new PlaybackQueueRestoreOwner(
+                playbackQueueManager,
+                EchoPlaybackService.this::createPlayerIfNeeded,
+                playbackQueueCommandOwner
         ));
     }
 

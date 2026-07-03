@@ -44,25 +44,18 @@ public class PlaybackQueueRestoreOwnerTest {
     }
 
     @Test
-    public void missingPlaybackQueueManagerSupplierPublishesEmptyRestoreState() {
+    public void nullPlaybackQueueManagerPublishesEmptyRestoreState() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueRestoreOwner missingManagerProvider =
+        PlaybackQueueRestoreOwner missingManager =
                 new PlaybackQueueRestoreOwner(
                         null,
                         () -> events.add("create"),
                         new FakeRestorePlaybackBoundary(events)
                 );
-        PlaybackQueueRestoreOwner missingManager =
-                new PlaybackQueueRestoreOwner(
-                        () -> null,
-                        () -> events.add("create"),
-                        new FakeRestorePlaybackBoundary(events)
-                );
 
-        missingManagerProvider.restoreLastPlayback(false);
         missingManager.restoreLastPlayback(false);
 
-        assertEquals("publish,publish", String.join(",", events));
+        assertEquals("publish", String.join(",", events));
     }
 
     @Test
@@ -113,7 +106,7 @@ public class PlaybackQueueRestoreOwnerTest {
             FakeRestorePlaybackBoundary boundary
     ) {
         return new PlaybackQueueRestoreOwner(
-                () -> queueManager,
+                queueManager,
                 boundary == null ? null : boundary::createPlayerIfNeeded,
                 boundary
         );

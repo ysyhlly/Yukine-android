@@ -2,25 +2,22 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackQueueManager;
 
-import java.util.function.Supplier;
-
 final class PlaybackQueueRestoreOwner {
-    private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
+    private final PlaybackQueueManager playbackQueueManager;
     private final Runnable createPlayerIfNeeded;
     private final PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions;
 
     PlaybackQueueRestoreOwner(
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            PlaybackQueueManager playbackQueueManager,
             Runnable createPlayerIfNeeded,
             PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions
     ) {
-        this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
+        this.playbackQueueManager = playbackQueueManager;
         this.createPlayerIfNeeded = createPlayerIfNeeded;
         this.queuePlaybackActions = queuePlaybackActions;
     }
 
     void restoreLastPlayback(boolean playWhenRestored) {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         PlaybackQueueManager.RestorePlaybackResult restoreResult = playbackQueueManager == null
                 ? PlaybackQueueManager.RestorePlaybackResult.empty()
                 : playbackQueueManager.restoreLastPlayback(playWhenRestored);
@@ -38,14 +35,12 @@ final class PlaybackQueueRestoreOwner {
     }
 
     void restorePlaybackQueue() {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         if (playbackQueueManager != null) {
             playbackQueueManager.restorePlaybackQueue();
         }
     }
 
     void setPlaybackRestoreEnabled(boolean enabled) {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         if (playbackQueueManager != null) {
             playbackQueueManager.setPlaybackRestoreEnabled(enabled);
         }
@@ -69,7 +64,4 @@ final class PlaybackQueueRestoreOwner {
         }
     }
 
-    private PlaybackQueueManager playbackQueueManager() {
-        return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
-    }
 }
