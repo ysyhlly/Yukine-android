@@ -8,7 +8,6 @@ import app.yukine.playback.manager.PlaybackQueueManager;
 
 final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOwner.QueuePlayer {
     private final PlaybackQueueManager playbackQueueManager;
-    private final PlaybackQueueStateOwner queueStateOwner;
     private final Runnable stopAndClearAction;
 
     PlaybackQueueMutationOwner(
@@ -16,7 +15,6 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
             Runnable stopAndClearAction
     ) {
         this.playbackQueueManager = playbackQueueManager;
-        this.queueStateOwner = new PlaybackQueueStateOwner(playbackQueueManager);
         this.stopAndClearAction = stopAndClearAction;
     }
 
@@ -58,7 +56,7 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
     }
 
     void clearQueue() {
-        if (!queueStateOwner.isQueueEmpty()) {
+        if (!queueStateSnapshot().isQueueEmpty()) {
             stopAndClear();
         }
     }
@@ -81,5 +79,12 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
         if (stopAndClearAction != null) {
             stopAndClearAction.run();
         }
+    }
+
+    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
+        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
+                ? null
+                : playbackQueueManager.queueStateSnapshot();
+        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 }
