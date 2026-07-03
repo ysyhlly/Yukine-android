@@ -4,12 +4,15 @@ import android.net.Uri
 import app.yukine.model.PlaybackQueueState
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackPositionManager
+import app.yukine.playback.manager.PlaybackQueueManager
 import app.yukine.playback.manager.PlaybackQueueStore
+import app.yukine.playback.manager.PlaybackRuntimeStateManager
+import app.yukine.playback.manager.PlaybackTransitionStateManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
+import java.util.Random
 import java.util.function.LongSupplier
-import java.util.function.Supplier
 
 class PlaybackPositionManagerTest {
     @Test
@@ -88,11 +91,12 @@ class PlaybackPositionManagerTest {
     }
 
     @Test
-    fun stateProviderFromPlaybackStateReadsCurrentTrackAndPositionSuppliers() {
+    fun stateProviderFromPlaybackStateReadsQueueManagerAndPositionSupplier() {
         val events = mutableListOf<String>()
         val track = track(23L)
+        val queueManager = queueManager(track)
         val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            Supplier { track },
+            queueManager,
             LongSupplier {
                 events += "position"
                 321L
@@ -108,7 +112,7 @@ class PlaybackPositionManagerTest {
     fun stateProviderFromPlaybackStateHandlesMissingCurrentTrack() {
         val missingProvider = PlaybackPositionManager.stateProviderFromPlaybackState(null, null)
         val nullTrackProvider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            Supplier { null },
+            queueManager(),
             null
         )
 
@@ -120,15 +124,15 @@ class PlaybackPositionManagerTest {
     @Test
     fun stateProviderFromPlaybackStateReadsLateBoundCurrentTrack() {
         val track = track(24L)
-        var currentTrack: Track? = null
+        val queueManager = queueManager()
         val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            Supplier { currentTrack },
+            queueManager,
             LongSupplier { 420L }
         )
 
         assertEquals(null, provider.currentTrack())
 
-        currentTrack = track
+        queueManager.playQueue(listOf(track), 0, -1L)
 
         assertSame(track, provider.currentTrack())
         assertEquals(420L, provider.positionMs())
@@ -136,6 +140,26 @@ class PlaybackPositionManagerTest {
 
     private fun manager(): PlaybackPositionManager {
         return PlaybackPositionManager(FakeQueueStore(), FakeStateProvider(), MutableClock())
+    }
+
+    private fun queueManager(currentTrack: Track? = null): PlaybackQueueManager {
+        val manager = PlaybackQueueManager(
+            FakeQueueStore(),
+            ArrayList(),
+            NoopQueuePlaybackActions(),
+            null,
+            NoopStreamingRestoreProvider(),
+            NoopMirroredQueuePlayer(),
+            PlaybackRuntimeStateManager(
+                PlaybackRuntimeStateManager.stateProviderFromPlaybackState(null, null, null)
+            ),
+            PlaybackTransitionStateManager(),
+            Random(1L)
+        )
+        if (currentTrack != null) {
+            manager.playQueue(listOf(currentTrack), 0, -1L)
+        }
+        return manager
     }
 
     private fun track(
@@ -172,6 +196,20 @@ class PlaybackPositionManagerTest {
         override fun savePlaybackPosition(trackId: Long, positionMs: Long) {
             savedPositions.add(trackId to positionMs)
         }
+    }
+
+    private class NoopQueuePlaybackActions : PlaybackQueueManager.QueuePlaybackActions {
+        override fun prepareCurrent(playWhenReady: Boolean) {}
+        override fun publishState() {}
+    }
+
+    private class NoopStreamingRestoreProvider : PlaybackQueueManager.StreamingRestoreProvider {
+        override fun restoreTrackForPlayback(track: Track): Track = track
+    }
+
+    private class NoopMirroredQueuePlayer : PlaybackQueueManager.MirroredQueuePlayer {
+        override fun matchesCurrentQueue(): Boolean = false
+        override fun seekTo(index: Int, positionMs: Long, playWhenReady: Boolean): Boolean = false
     }
 
 }
