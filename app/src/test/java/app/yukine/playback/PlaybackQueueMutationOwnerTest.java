@@ -65,7 +65,7 @@ public class PlaybackQueueMutationOwnerTest {
     }
 
     @Test
-    public void ignoresMissingManagerOrEmptyQueueMutationInputs() {
+    public void ignoresNullManagerOrEmptyQueueMutationInputs() {
         FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
         PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);
         PlaybackQueueMutationOwner missingManager = new PlaybackQueueMutationOwner(null, null);
@@ -147,7 +147,7 @@ public class PlaybackQueueMutationOwnerTest {
             PlaybackQueueManager queueManager,
             FakeStopAndClearAction stopAndClearAction
     ) {
-        return new PlaybackQueueMutationOwner(() -> queueManager, stopAndClearAction::run);
+        return new PlaybackQueueMutationOwner(queueManager, stopAndClearAction::run);
     }
 
     private static PlaybackQueueManager queueManager(

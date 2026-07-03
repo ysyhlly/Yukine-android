@@ -119,11 +119,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                     EchoPlaybackService.this::prepareCurrent,
                     EchoPlaybackService.this::publishState
             );
-    private final PlaybackQueueMutationOwner playbackQueueMutationOwner =
-            new PlaybackQueueMutationOwner(
-                    () -> playbackQueueManager,
-                    EchoPlaybackService.this::stopAndClear
-            );
     private final PlaybackQueueMirroredTransitionOwner playbackQueueMirroredTransitionOwner =
             new PlaybackQueueMirroredTransitionOwner(
                     () -> playbackQueueManager,
@@ -753,7 +748,10 @@ public final class EchoPlaybackService extends MediaLibraryService
                                             startIndex,
                                             startPositionMs
                                     ),
-                            playbackQueueMutationOwner
+                            new PlaybackQueueMutationOwner(
+                                    playbackQueueManager,
+                                    EchoPlaybackService.this::stopAndClear
+                            )
                     );
             playbackSessionCommandOwner = new PlaybackSessionCommandOwner(
                     EchoPlaybackService.this,
@@ -846,11 +844,13 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void playQueue(List<Track> tracks, int startIndex) {
-        playbackQueueMutationOwner.playQueue(tracks, startIndex, C.TIME_UNSET);
+        withPlaybackQueueMutationOwner(
+                owner -> owner.playQueue(tracks, startIndex, C.TIME_UNSET)
+        );
     }
 
     public void appendToQueue(List<Track> tracks) {
-        playbackQueueMutationOwner.appendToQueue(tracks);
+        withPlaybackQueueMutationOwner(owner -> owner.appendToQueue(tracks));
     }
 
     public void play() {
@@ -929,7 +929,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void moveQueueTrack(int fromIndex, int toIndex) {
-        playbackQueueMutationOwner.moveQueueTrack(fromIndex, toIndex);
+        withPlaybackQueueMutationOwner(owner -> owner.moveQueueTrack(fromIndex, toIndex));
     }
 
     public PlaybackStreamingDiagnostics.Snapshot streamingDiagnostics() {
@@ -945,7 +945,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void removeTracksById(Set<Long> trackIds) {
-        playbackQueueMutationOwner.removeTracksById(trackIds);
+        withPlaybackQueueMutationOwner(owner -> owner.removeTracksById(trackIds));
     }
 
     @Override
@@ -956,11 +956,11 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void retainTracksById(Set<Long> trackIdsToKeep) {
-        playbackQueueMutationOwner.retainTracksById(trackIdsToKeep);
+        withPlaybackQueueMutationOwner(owner -> owner.retainTracksById(trackIdsToKeep));
     }
 
     public void clearQueue() {
-        playbackQueueMutationOwner.clearQueue();
+        withPlaybackQueueMutationOwner(PlaybackQueueMutationOwner::clearQueue);
     }
 
     public void toggleCurrentFavorite() {
@@ -975,7 +975,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void replaceQueuedTrackById(long oldTrackId, Track replacement) {
-        playbackQueueMutationOwner.replaceQueuedTrackById(oldTrackId, replacement);
+        withPlaybackQueueMutationOwner(owner -> owner.replaceQueuedTrackById(oldTrackId, replacement));
     }
 
     public PlaybackStateSnapshot snapshot() {
@@ -1311,6 +1311,13 @@ public final class EchoPlaybackService extends MediaLibraryService
         action.accept(new PlaybackQueueNavigationOwner(
                 playbackQueueManager,
                 this::onMirroredQueueReused
+        ));
+    }
+
+    private void withPlaybackQueueMutationOwner(Consumer<PlaybackQueueMutationOwner> action) {
+        action.accept(new PlaybackQueueMutationOwner(
+                playbackQueueManager,
+                EchoPlaybackService.this::stopAndClear
         ));
     }
 
