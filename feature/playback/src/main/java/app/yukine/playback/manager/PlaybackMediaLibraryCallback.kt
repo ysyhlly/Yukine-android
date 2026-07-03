@@ -25,6 +25,11 @@ internal class PlaybackMediaLibraryCallback(
         val startPositionMs: Long
     )
 
+    private data class ResolvedControllerTracks(
+        val tracks: List<Track>,
+        val startIndex: Int
+    )
+
     interface DataSource {
         fun appName(): String
         fun loadCachedTracks(): List<Track>
@@ -95,19 +100,36 @@ internal class PlaybackMediaLibraryCallback(
         startIndex: Int,
         startPositionMs: Long
     ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        return Futures.immediateFuture(
+            mediaItemsWithStartPosition(mediaItems, startIndex, startPositionMs)
+        )
+    }
+
+    private fun mediaItemsWithStartPosition(
+        mediaItems: List<MediaItem>,
+        startIndex: Int,
+        startPositionMs: Long
+    ): MediaSession.MediaItemsWithStartPosition {
+        val resolvedTracks = resolvedControllerTracks(mediaItems, startIndex)
         val resolved = ArrayList<MediaItem>()
-        for (track in tracksForMediaItems(mediaItems)) {
-            resolved.add(mediaItemForTrack(track))
+        var resolvedStartIndex = -1
+        if (resolvedTracks != null) {
+            for (track in resolvedTracks.tracks) {
+                resolved.add(mediaItemForTrack(track))
+            }
+            resolvedStartIndex = resolvedTracks.startIndex
         }
         if (resolved.isEmpty()) {
             resolved.addAll(mediaItems)
         }
-        return Futures.immediateFuture(
-            MediaSession.MediaItemsWithStartPosition(
-                resolved,
-                maxOf(0, minOf(startIndex, maxOf(resolved.size - 1, 0))),
-                startPositionMs
-            )
+        return MediaSession.MediaItemsWithStartPosition(
+            resolved,
+            if (resolvedStartIndex >= 0) {
+                resolvedStartIndex
+            } else {
+                maxOf(0, minOf(startIndex, maxOf(resolved.size - 1, 0)))
+            },
+            startPositionMs
         )
     }
 
@@ -240,6 +262,14 @@ internal class PlaybackMediaLibraryCallback(
         startIndex: Int,
         startPositionMs: Long
     ): ControllerQueue? {
+        val resolvedTracks = resolvedControllerTracks(mediaItems, startIndex) ?: return null
+        return ControllerQueue(resolvedTracks.tracks, resolvedTracks.startIndex, startPositionMs)
+    }
+
+    private fun resolvedControllerTracks(
+        mediaItems: List<MediaItem>?,
+        startIndex: Int
+    ): ResolvedControllerTracks? {
         if (mediaItems == null || mediaItems.isEmpty()) {
             return null
         }
@@ -256,10 +286,9 @@ internal class PlaybackMediaLibraryCallback(
         if (tracks.isEmpty()) {
             return null
         }
-        return ControllerQueue(
+        return ResolvedControllerTracks(
             tracks,
-            if (resolvedStartIndex >= 0) resolvedStartIndex else maxOf(0, minOf(startIndex, tracks.size - 1)),
-            startPositionMs
+            if (resolvedStartIndex >= 0) resolvedStartIndex else maxOf(0, minOf(startIndex, tracks.size - 1))
         )
     }
 
