@@ -3891,3 +3891,29 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackSessionCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## P1/P4-Adjacent Wiring Note - Notification Queue State Source
+
+Current audit date: 2026-07-03.
+
+- `EchoPlaybackService` no longer passes
+  `playbackQueueStateOwner::queueStateSnapshot` into
+  `PlaybackNotificationStateOwner`.
+- The existing notification state owner now receives `PlaybackQueueStateOwner`
+  and reads only the two semantic values it needs:
+  `PlaybackQueueStateOwner.isQueueEmpty()` and
+  `PlaybackQueueStateOwner.currentTrack()`.
+- Notification building, action mapping, foreground behavior, lyrics text, and
+  MediaSession token lookup were not changed. This is intentionally limited to
+  notification state source wiring, not P4 runtime notification behavior.
+- No owner, facade, field, or Service strategy branch was added. The real
+  reduction is one fewer Service supplier/method-reference chain and the
+  Service `playbackQueueStateOwner::queueStateSnapshot` count dropping to 0.
+- `PlaybackNotificationStateOwnerTest` now covers current track, empty queue,
+  missing queue state owner, and missing queue manager through the queue state
+  owner. The architecture contract blocks the snapshot supplier from returning.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackNotificationStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```

@@ -5,10 +5,15 @@ import android.net.Uri;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
+import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
+import app.yukine.playback.manager.PlaybackQueueStore;
+import app.yukine.playback.manager.PlaybackTransitionStateManager;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -22,10 +27,7 @@ public class PlaybackNotificationStateOwnerTest {
         List<String> events = new ArrayList<>();
         Track track = new Track(7L, "Track", "Artist", "Album", 1000L, Uri.EMPTY, "file:7");
         PlaybackNotificationStateOwner owner = new PlaybackNotificationStateOwner(
-                () -> {
-                    events.add("queueState");
-                    return new PlaybackQueueManager.QueueStateSnapshot(track, 0, 2);
-                },
+                queueStateOwner(track),
                 () -> {
                     events.add("playing");
                     return true;
@@ -53,10 +55,8 @@ public class PlaybackNotificationStateOwnerTest {
 
         assertEquals(
                 java.util.Arrays.asList(
-                        "queueState",
                         "playing",
                         "preparing",
-                        "queueState",
                         "favorite:7",
                         "token"
                 ),
@@ -90,5 +90,114 @@ public class PlaybackNotificationStateOwnerTest {
 
         assertTrue(owner.isQueueEmpty());
         assertNull(owner.currentTrack());
+    }
+
+    @Test
+    public void returnsEmptyQueueStateWhenQueueManagerIsMissing() {
+        PlaybackNotificationStateOwner owner = new PlaybackNotificationStateOwner(
+                new PlaybackQueueStateOwner(() -> null),
+                null,
+                null,
+                track -> false,
+                () -> null
+        );
+
+        assertTrue(owner.isQueueEmpty());
+        assertNull(owner.currentTrack());
+    }
+
+    private static PlaybackQueueStateOwner queueStateOwner(Track track) {
+        PlaybackQueueManager queueManager = playbackQueueManager();
+        queueManager.playQueue(Collections.singletonList(track), 0, -1L);
+        return new PlaybackQueueStateOwner(() -> queueManager);
+    }
+
+    private static PlaybackQueueManager playbackQueueManager() {
+        return new PlaybackQueueManager(
+                new FakeQueueStore(),
+                new ArrayList<>(),
+                new NoopQueuePlaybackActions(),
+                null,
+                new NoopStreamingRestoreProvider(),
+                new NoopMirroredQueuePlayer(),
+                null,
+                new PlaybackTransitionStateManager(),
+                new Random(1L)
+        );
+    }
+
+    private static final class FakeQueueStore implements PlaybackQueueStore {
+        @Override
+        public PlaybackQueueState load() {
+            return new PlaybackQueueState(Collections.emptyList(), -1);
+        }
+
+        @Override
+        public void save(List<Track> tracks, int currentIndex) {
+        }
+
+        @Override
+        public boolean loadResumeRequested() {
+            return false;
+        }
+
+        @Override
+        public void saveResumeRequested(boolean requested) {
+        }
+
+        @Override
+        public boolean loadPlaybackRestoreEnabled() {
+            return true;
+        }
+
+        @Override
+        public void savePlaybackRestoreEnabled(boolean enabled) {
+        }
+
+        @Override
+        public long loadPlaybackPositionTrackId() {
+            return -1L;
+        }
+
+        @Override
+        public long loadPlaybackPositionMs() {
+            return 0L;
+        }
+
+        @Override
+        public void savePlaybackPosition(long trackId, long positionMs) {
+        }
+    }
+
+    private static final class NoopQueuePlaybackActions
+            implements PlaybackQueueManager.QueuePlaybackActions {
+        @Override
+        public void prepareCurrent(boolean playWhenReady) {
+        }
+
+        @Override
+        public void publishState() {
+        }
+    }
+
+    private static final class NoopStreamingRestoreProvider
+            implements PlaybackQueueManager.StreamingRestoreProvider {
+        @Override
+        public Track restoreTrackForPlayback(Track track) {
+            return track;
+        }
+    }
+
+    private static final class NoopMirroredQueuePlayer
+            implements PlaybackQueueManager.MirroredQueuePlayer {
+        @Override
+        public boolean matchesCurrentQueue() {
+            return false;
+        }
+
+        @Override
+        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
+            return false;
+        }
     }
 }

@@ -418,7 +418,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackNotificationForegroundOwner::stopForegroundAndSelf
         );
         playbackNotificationStateOwner = new PlaybackNotificationStateOwner(
-                playbackQueueStateOwner::queueStateSnapshot,
+                playbackQueueStateOwner,
                 playbackPlayerStateOwner::isPlaying,
                 playbackCurrentTrackPreparationRuntimeOwner::preparing,
                 track -> toggleFavoriteUseCase != null && toggleFavoriteUseCase.isFavorite(track),

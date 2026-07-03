@@ -5983,8 +5983,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("\n    fun prepareMirroredTransitionPlaybackState()"));
         assertTrue(owner.contains("private fun prepareMirroredTransitionPlaybackState()"));
         assertTrue(mirroredTransitionOwner.contains("playbackQueueManager.applyMirroredTransitionIndex("));
-        assertTrue(service.contains("playbackQueueStateOwner::queueStateSnapshot"));
-        assertEquals(1, countOccurrences(service, "playbackQueueStateOwner::queueStateSnapshot"));
+        assertFalse(service.contains("playbackQueueStateOwner::queueStateSnapshot"));
+        assertEquals(0, countOccurrences(service, "playbackQueueStateOwner::queueStateSnapshot"));
         assertTrue(service.contains("playbackQueueStateOwner::currentTrack"));
         assertFalse(service.contains("final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier"));
         assertFalse(service.contains("playbackQueueManager.canSkipFailedTrack(failed)"));
@@ -6396,7 +6396,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("queuePreparation.startIndex()"));
         assertFalse(service.contains("return playbackQueueManager == null ? 0 : playbackQueueManager.safeCurrentIndex();"));
         assertFalse(service.contains("private boolean isAtEndOfQueue()"));
-        assertTrue(service.contains("playbackQueueStateOwner::queueStateSnapshot"));
+        assertFalse(service.contains("playbackQueueStateOwner::queueStateSnapshot"));
         assertFalse(service.contains("playbackQueueManager.canCrossfadeAdvance(repeatMode)"));
         assertTrue(service.contains("mirroredTransitionOwner.applyMirroredTransitionReason("));
         assertTrue(service.contains("mirroredTransitionOwner.canApplyMirroredTransition()"));
@@ -8419,7 +8419,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackNotificationStateOwner = new PlaybackNotificationStateOwner("));
         assertTrue(normalizedService.contains(
                 "playbackNotificationStateOwner = new PlaybackNotificationStateOwner(\n"
-                        + "                playbackQueueStateOwner::queueStateSnapshot,"));
+                        + "                playbackQueueStateOwner,"));
+        assertFalse(service.contains("                playbackQueueStateOwner::queueStateSnapshot,"));
         assertFalse(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));
         assertTrue(service.contains("                playbackNotificationStateOwner,"));
         assertFalse(service.contains("PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState("));
@@ -8537,17 +8538,20 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(stateOwner.contains("import java.util.function.Supplier;"));
         assertFalse(stateOwner.contains("private final BooleanSupplier queueEmptySupplier;"));
         assertFalse(stateOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
-        assertTrue(stateOwner.contains(
+        assertFalse(stateOwner.contains(
                 "private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier;"
         ));
+        assertTrue(stateOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
         assertTrue(stateOwner.contains("private final BooleanSupplier playingStateProvider;"));
         assertTrue(stateOwner.contains("private final BooleanSupplier preparingStateProvider;"));
         assertFalse(stateOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
-        assertTrue(stateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
+        assertFalse(stateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertTrue(stateOwner.contains("private final Predicate<Track> favoriteStateProvider;"));
         assertTrue(stateOwner.contains("private final Supplier<MediaSession.Token> sessionTokenSupplier;"));
-        assertTrue(stateOwner.contains("return queueStateSnapshot().isQueueEmpty();"));
-        assertTrue(stateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertTrue(stateOwner.contains("return queueStateOwner == null || queueStateOwner.isQueueEmpty();"));
+        assertTrue(stateOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertFalse(stateOwner.contains("queueStateSnapshot().isQueueEmpty()"));
+        assertFalse(stateOwner.contains("queueStateSnapshot().getCurrentTrack()"));
         assertFalse(stateOwner.contains("return queueEmptySupplier == null || queueEmptySupplier.getAsBoolean();"));
         assertFalse(stateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertFalse(stateOwner.contains("return playbackStateProvider.currentTrack();"));
