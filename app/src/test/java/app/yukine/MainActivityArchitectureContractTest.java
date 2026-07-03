@@ -8236,8 +8236,9 @@ public final class MainActivityArchitectureContractTest {
         String manager = read("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackProgressUpdateManager.kt");
 
         assertFalse(service.contains("new PlaybackProgressUpdateManager.Actions()"));
-        assertTrue(service.contains("private PlaybackProgressUpdateCommandOwner playbackProgressUpdateCommandOwner;"));
-        assertTrue(service.contains("playbackProgressUpdateCommandOwner = new PlaybackProgressUpdateCommandOwner("));
+        assertFalse(service.contains("private PlaybackProgressUpdateCommandOwner playbackProgressUpdateCommandOwner;"));
+        assertTrue(service.contains("final PlaybackProgressUpdateCommandOwner playbackProgressUpdateCommandOwner ="));
+        assertTrue(service.contains("new PlaybackProgressUpdateCommandOwner("));
         assertTrue(service.contains("playbackProgressUpdateCommandOwner"));
         assertFalse(
                 service.contains("EchoPlaybackService.this::persistCurrentPlaybackPosition,\r\n"
