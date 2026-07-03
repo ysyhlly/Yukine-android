@@ -1832,12 +1832,17 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(normalizedPlaybackService.contains(
                 "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
                         + "                this,\n"
-                        + "                playbackQueueManager,"
+                        + "                playbackNotificationStateOwner::currentTrack,"
         ));
         assertFalse(normalizedPlaybackService.contains(
                 "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
                         + "                this,\n"
                         + "                playbackQueueStateOwner::currentTrack,"
+        ));
+        assertFalse(normalizedPlaybackService.contains(
+                "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
+                        + "                this,\n"
+                        + "                playbackQueueManager,"
         ));
         assertFalse(normalizedPlaybackService.contains(
                 "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
@@ -2044,11 +2049,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(notificationArtworkManager.contains("interface ArtworkLoader"));
         assertTrue(notificationArtworkManager.contains("interface ArtworkEncoder"));
         assertTrue(notificationArtworkManager.contains("private final NotificationBridge notificationBridge;"));
-        assertTrue(notificationArtworkManager.contains("private final PlaybackQueueManager playbackQueueManager;"));
-        assertFalse(notificationArtworkManager.contains("private final Supplier<Track> currentTrackProvider;"));
+        assertFalse(notificationArtworkManager.contains("private final PlaybackQueueManager playbackQueueManager;"));
+        assertTrue(notificationArtworkManager.contains("private final Supplier<Track> currentTrackProvider;"));
         assertFalse(notificationArtworkManager.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot>"));
         assertFalse(notificationArtworkManager.contains("PlaybackQueueManager.QueueStateSnapshot snapshot"));
-        assertTrue(notificationArtworkManager.contains("playbackQueueManager.queueStateSnapshot()"));
+        assertFalse(notificationArtworkManager.contains("playbackQueueManager.queueStateSnapshot()"));
+        assertTrue(notificationArtworkManager.contains("return currentTrackProvider == null ? null : currentTrackProvider.get();"));
         assertTrue(notificationArtworkManager.contains("private final AtomicInteger artworkGeneration"));
         assertTrue(notificationArtworkManager.contains("artworkGeneration.incrementAndGet();"));
         assertTrue(notificationArtworkManager.contains("notificationBridge.refreshPlaybackSession();"));
@@ -8642,11 +8648,15 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains(
                 "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
                         + "                this,\n"
-                        + "                playbackQueueManager,"));
+                        + "                playbackNotificationStateOwner::currentTrack,"));
         assertFalse(service.contains(
                 "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
                         + "                this,\n"
                         + "                playbackQueueStateOwner::currentTrack,"));
+        assertFalse(service.contains(
+                "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
+                        + "                this,\n"
+                        + "                playbackQueueManager,"));
         assertFalse(service.contains("new PlaybackNotificationManager.ArtworkProvider()"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkStateOwner.java")));
         assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackNotificationArtworkStateOwnerTest.java")));

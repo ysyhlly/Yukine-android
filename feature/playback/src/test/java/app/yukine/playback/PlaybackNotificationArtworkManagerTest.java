@@ -8,18 +8,12 @@ import static org.junit.Assert.assertSame;
 import android.graphics.Bitmap;
 import android.net.Uri;
 
-import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
-import app.yukine.playback.manager.PlaybackQueueStore;
-import app.yukine.playback.manager.PlaybackTransitionStateManager;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.Random;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -37,7 +31,7 @@ public final class PlaybackNotificationArtworkManagerTest {
         Track track = track(1L);
         FakeArtworkLoader artworkLoader = new FakeArtworkLoader(bitmap);
         PlaybackNotificationArtworkManager manager = manager(
-                queueManager(track),
+                track,
                 notificationBridge,
                 pending,
                 artworkLoader,
@@ -64,7 +58,7 @@ public final class PlaybackNotificationArtworkManagerTest {
         Track track = track(2L);
         final PlaybackNotificationArtworkManager[] holder = new PlaybackNotificationArtworkManager[1];
         holder[0] = manager(
-                queueManager(track),
+                track,
                 notificationBridge,
                 pending,
                 ignored -> {
@@ -91,7 +85,7 @@ public final class PlaybackNotificationArtworkManagerTest {
         Track track = track(3L);
         FakeArtworkLoader artworkLoader = new FakeArtworkLoader(bitmap);
         PlaybackNotificationArtworkManager manager = manager(
-                queueManager(track),
+                track,
                 notificationBridge,
                 pending,
                 artworkLoader,
@@ -116,7 +110,7 @@ public final class PlaybackNotificationArtworkManagerTest {
         Track track = track(5L);
         FakeArtworkLoader artworkLoader = new FakeArtworkLoader(bitmap);
         PlaybackNotificationArtworkManager manager = manager(
-                queueManager(track),
+                track,
                 notificationBridge,
                 pending,
                 artworkLoader,
@@ -146,7 +140,7 @@ public final class PlaybackNotificationArtworkManagerTest {
         byte[] artworkData = new byte[] {7, 8, 9};
         Track track = track(4L);
         PlaybackNotificationArtworkManager manager = manager(
-                queueManager(track),
+                track,
                 notificationBridge,
                 pending,
                 ignored -> bitmap,
@@ -163,7 +157,7 @@ public final class PlaybackNotificationArtworkManagerTest {
     }
 
     private static PlaybackNotificationArtworkManager manager(
-            PlaybackQueueManager playbackQueueManager,
+            Track currentTrack,
             PlaybackNotificationArtworkManager.NotificationBridge notificationBridge,
             List<Runnable> pending,
             PlaybackNotificationArtworkManager.ArtworkLoader artworkLoader,
@@ -171,30 +165,12 @@ public final class PlaybackNotificationArtworkManagerTest {
     ) {
         return new PlaybackNotificationArtworkManager(
                 RuntimeEnvironment.getApplication(),
-                playbackQueueManager,
+                () -> currentTrack,
                 notificationBridge,
                 pending::add,
                 artworkLoader,
                 artworkEncoder
         );
-    }
-
-    private static PlaybackQueueManager queueManager(Track track) {
-        PlaybackQueueManager queueManager = new PlaybackQueueManager(
-                new FakeQueueStore(),
-                new ArrayList<>(),
-                new NoopQueuePlaybackActions(),
-                null,
-                new NoopStreamingRestoreProvider(),
-                new NoopMirroredQueuePlayer(),
-                null,
-                new PlaybackTransitionStateManager(),
-                new Random(1L)
-        );
-        if (track != null) {
-            queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        }
-        return queueManager;
     }
 
     private static int artworkGeneration(PlaybackNotificationArtworkManager manager) throws Exception {
@@ -244,79 +220,6 @@ public final class PlaybackNotificationArtworkManagerTest {
         public Bitmap decode(Uri uri) {
             decodeCalls++;
             return bitmap;
-        }
-    }
-
-    private static final class FakeQueueStore implements PlaybackQueueStore {
-        @Override
-        public PlaybackQueueState load() {
-            return new PlaybackQueueState(Collections.emptyList(), -1);
-        }
-
-        @Override
-        public void save(List<Track> tracks, int currentIndex) {
-        }
-
-        @Override
-        public boolean loadResumeRequested() {
-            return false;
-        }
-
-        @Override
-        public void saveResumeRequested(boolean requested) {
-        }
-
-        @Override
-        public boolean loadPlaybackRestoreEnabled() {
-            return true;
-        }
-
-        @Override
-        public void savePlaybackRestoreEnabled(boolean enabled) {
-        }
-
-        @Override
-        public long loadPlaybackPositionTrackId() {
-            return -1L;
-        }
-
-        @Override
-        public long loadPlaybackPositionMs() {
-            return 0L;
-        }
-
-        @Override
-        public void savePlaybackPosition(long trackId, long positionMs) {
-        }
-    }
-
-    private static final class NoopQueuePlaybackActions implements PlaybackQueueManager.QueuePlaybackActions {
-        @Override
-        public void prepareCurrent(boolean playWhenReady) {
-        }
-
-        @Override
-        public void publishState() {
-        }
-    }
-
-    private static final class NoopStreamingRestoreProvider
-            implements PlaybackQueueManager.StreamingRestoreProvider {
-        @Override
-        public Track restoreTrackForPlayback(Track track) {
-            return track;
-        }
-    }
-
-    private static final class NoopMirroredQueuePlayer implements PlaybackQueueManager.MirroredQueuePlayer {
-        @Override
-        public boolean matchesCurrentQueue() {
-            return false;
-        }
-
-        @Override
-        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
-            return false;
         }
     }
 }
