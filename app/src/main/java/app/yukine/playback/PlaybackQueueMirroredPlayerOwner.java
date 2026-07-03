@@ -15,7 +15,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     private final BooleanSupplier mirroredQueueMatcher;
     private final BooleanSupplier playerAvailability;
     private final Consumer<Boolean> preparingStateController;
-    private final Supplier<Track> currentTrackSupplier;
+    private final PlaybackQueueStateOwner queueStateOwner;
     private final Consumer<Track> waveformResetter;
     private final Runnable playbackParameterApplier;
     private final BiConsumer<Integer, Long> playerSeeker;
@@ -42,7 +42,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
             BooleanSupplier mirroredQueueMatcher,
             BooleanSupplier playerAvailability,
             Consumer<Boolean> preparingStateController,
-            Supplier<Track> currentTrackSupplier,
+            PlaybackQueueStateOwner queueStateOwner,
             Consumer<Track> waveformResetter,
             Runnable playbackParameterApplier,
             BiConsumer<Integer, Long> playerSeeker,
@@ -54,7 +54,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
         this.mirroredQueueMatcher = mirroredQueueMatcher;
         this.playerAvailability = playerAvailability;
         this.preparingStateController = preparingStateController;
-        this.currentTrackSupplier = currentTrackSupplier;
+        this.queueStateOwner = queueStateOwner;
         this.waveformResetter = waveformResetter;
         this.playbackParameterApplier = playbackParameterApplier;
         this.playerSeeker = playerSeeker;
@@ -95,7 +95,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     }
 
     private Track currentTrack() {
-        return currentTrackSupplier == null ? null : currentTrackSupplier.get();
+        return queueStateOwner == null ? null : queueStateOwner.currentTrack();
     }
 
     private boolean hasPlayer() {
