@@ -2,13 +2,12 @@ package app.yukine.playback;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackErrorRecoveryManager;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryManager.Actions {
-    private final PlaybackQueueManager playbackQueueManager;
+    private final PlaybackQueueStateOwner queueStateOwner;
     private final Consumer<Boolean> playbackPreparer;
     private final Runnable skipToNextCommand;
     private final Consumer<String> errorMessageStore;
@@ -16,14 +15,14 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
     private final BiConsumer<String, Exception> warningLogger;
 
     PlaybackErrorRecoveryCommandOwner(
-            PlaybackQueueManager playbackQueueManager,
+            PlaybackQueueStateOwner queueStateOwner,
             Consumer<Boolean> playbackPreparer,
             Runnable skipToNextCommand,
             Consumer<String> errorMessageStore,
             Runnable statePublisher,
             BiConsumer<String, Exception> warningLogger
     ) {
-        this.playbackQueueManager = playbackQueueManager;
+        this.queueStateOwner = queueStateOwner;
         this.playbackPreparer = playbackPreparer;
         this.skipToNextCommand = skipToNextCommand;
         this.errorMessageStore = errorMessageStore;
@@ -33,17 +32,15 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
 
     @Override
     public Track currentTrack() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshot();
-        return snapshot == null ? null : snapshot.getCurrentTrack();
+        return queueStateOwner == null ? null : queueStateOwner.currentTrack();
     }
 
     @Override
     public boolean canSkipFailedTrack(Track failed) {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshot();
         return failed != null
                 && failed.id != -1L
-                && snapshot != null
-                && snapshot.getHasMultipleTracks();
+                && queueStateOwner != null
+                && queueStateOwner.hasMultipleTracks();
     }
 
     @Override
@@ -84,9 +81,5 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
     @Override
     public void logWarning(String message, Exception error) {
         warningLogger.accept(message, error);
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        return playbackQueueManager == null ? null : playbackQueueManager.queueStateSnapshot();
     }
 }

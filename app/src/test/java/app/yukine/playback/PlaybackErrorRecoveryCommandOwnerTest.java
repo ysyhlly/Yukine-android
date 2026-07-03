@@ -29,7 +29,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
         List<String> events = new ArrayList<>();
         Track track = track(7L);
         PlaybackErrorRecoveryCommandOwner owner = new PlaybackErrorRecoveryCommandOwner(
-                queueManager(track, 2),
+                queueStateOwner(track, 2),
                 playWhenReady -> events.add("prepare:" + playWhenReady),
                 () -> events.add("next"),
                 message -> events.add("error:" + message),
@@ -79,7 +79,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
                 }
         );
         PlaybackErrorRecoveryCommandOwner singleTrackOwner = new PlaybackErrorRecoveryCommandOwner(
-                queueManager(track, 1),
+                queueStateOwner(track, 1),
                 playWhenReady -> {
                 },
                 () -> {
@@ -118,6 +118,10 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
 
     private static Track track(long id) {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "file:" + id);
+    }
+
+    private static PlaybackQueueStateOwner queueStateOwner(Track current, int queueSize) {
+        return new PlaybackQueueStateOwner(queueManager(current, queueSize));
     }
 
     private static PlaybackQueueManager queueManager(Track current, int queueSize) {
