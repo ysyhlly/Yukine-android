@@ -52,6 +52,14 @@ final class PlaybackQueueStateOwner {
         return snapshot == null ? Collections.emptyList() : snapshot;
     }
 
+    List<Track> upcomingTracksForPrecache(int maxCount) {
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        List<Track> snapshot = playbackQueueManager == null
+                ? null
+                : playbackQueueManager.upcomingTracksForPrecache(maxCount);
+        return snapshot == null ? Collections.emptyList() : snapshot;
+    }
+
     private PlaybackQueueManager playbackQueueManager() {
         return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }

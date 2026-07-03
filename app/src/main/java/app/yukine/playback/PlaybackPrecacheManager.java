@@ -33,7 +33,6 @@ import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import app.yukine.playback.manager.PlaybackMediaCacheOperations;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 final class PlaybackPrecacheManager {
     static final int PRECACHE_BYTES = 512 * 1024;
@@ -54,7 +53,6 @@ final class PlaybackPrecacheManager {
     }
 
     private final Supplier<MediaItem> currentPlayerMediaItemSupplier;
-    private final PlaybackQueueManager playbackQueueManager;
     private final PlaybackQueueStateOwner queueStateOwner;
     private final PlaybackMediaCacheOperations mediaCacheOperations;
     private final PlaybackStreamingDiagnostics streamingDiagnostics;
@@ -76,7 +74,7 @@ final class PlaybackPrecacheManager {
     PlaybackPrecacheManager(
             Supplier<MediaItem> currentPlayerMediaItemSupplier,
             PlaybackStreamingDiagnostics streamingDiagnostics,
-            PlaybackQueueManager playbackQueueManager,
+            PlaybackQueueStateOwner queueStateOwner,
             PlaybackMediaCacheOperations mediaCacheOperations,
             BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
             CallbackScheduler callbackScheduler,
@@ -85,7 +83,7 @@ final class PlaybackPrecacheManager {
         this(
                 currentPlayerMediaItemSupplier,
                 streamingDiagnostics,
-                playbackQueueManager,
+                queueStateOwner,
                 mediaCacheOperations,
                 mediaItemTrackMatcher,
                 callbackScheduler,
@@ -97,7 +95,7 @@ final class PlaybackPrecacheManager {
     PlaybackPrecacheManager(
             Supplier<MediaItem> currentPlayerMediaItemSupplier,
             PlaybackStreamingDiagnostics streamingDiagnostics,
-            PlaybackQueueManager playbackQueueManager,
+            PlaybackQueueStateOwner queueStateOwner,
             PlaybackMediaCacheOperations mediaCacheOperations,
             BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
             CallbackScheduler callbackScheduler,
@@ -108,8 +106,7 @@ final class PlaybackPrecacheManager {
         this.streamingDiagnostics = streamingDiagnostics == null
                 ? new PlaybackStreamingDiagnostics()
                 : streamingDiagnostics;
-        this.playbackQueueManager = playbackQueueManager;
-        this.queueStateOwner = new PlaybackQueueStateOwner(playbackQueueManager);
+        this.queueStateOwner = queueStateOwner == null ? new PlaybackQueueStateOwner() : queueStateOwner;
         this.mediaCacheOperations = mediaCacheOperations;
         this.mediaItemTrackMatcher = mediaItemTrackMatcher;
         this.callbackScheduler = callbackScheduler;
@@ -122,14 +119,14 @@ final class PlaybackPrecacheManager {
     static PlaybackPrecacheManager fromMediaSourceProvider(
             Supplier<MediaItem> currentPlayerMediaItemSupplier,
             PlaybackStreamingDiagnostics streamingDiagnostics,
-            PlaybackQueueManager playbackQueueManager,
+            PlaybackQueueStateOwner queueStateOwner,
             PlaybackMediaSourceProvider mediaSourceProvider,
             CallbackScheduler callbackScheduler
     ) {
         return new PlaybackPrecacheManager(
                 currentPlayerMediaItemSupplier,
                 streamingDiagnostics,
-                playbackQueueManager,
+                queueStateOwner,
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider),
                 (mediaItem, track) -> mediaSourceProvider != null
                         && mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track),
@@ -278,9 +275,7 @@ final class PlaybackPrecacheManager {
     }
 
     private List<Track> upcomingTracksForPrecache() {
-        return playbackQueueManager == null
-                ? Collections.emptyList()
-                : playbackQueueManager.upcomingTracksForPrecache(SEGMENTED_PRECACHE_CONCURRENCY);
+        return queueStateOwner.upcomingTracksForPrecache(SEGMENTED_PRECACHE_CONCURRENCY);
     }
 
     private Track currentTrack() {
