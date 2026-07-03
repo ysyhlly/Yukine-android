@@ -183,11 +183,23 @@ public final class MainActivityArchitectureContractTest {
         String trackList = read("feature/ui-common/src/main/java/app/yukine/ui/TrackListScreen.kt");
 
         assertContainsUtf8Chinese(homeDashboard, "今天想听点什么？");
+        assertContainsUtf8Chinese(homeDashboard, "今日回声");
+        assertContainsUtf8Chinese(homeDashboard, "继续最近播放，或从最近入库里挑一张封面开始。");
         assertContainsUtf8Chinese(homeDashboard, "继续播放");
         assertContainsUtf8Chinese(homeDashboard, "队列");
+        assertContainsUtf8Chinese(homeDashboard, "随机");
         assertContainsUtf8Chinese(homeDashboard, "收藏");
+        assertContainsUtf8Chinese(homeDashboard, "搜索");
+        assertContainsUtf8Chinese(homeDashboard, "刷新");
         assertContainsUtf8Chinese(homeDashboard, "正在播放");
+        assertContainsUtf8Chinese(homeDashboard, "最近播放");
         assertContainsUtf8Chinese(homeDashboard, "查看全部");
+        assertContainsUtf8Chinese(homeDashboard, "添加音乐后开始聆听");
+        assertContainsUtf8Chinese(homeDashboard, "暂无最近播放");
+        assertContainsUtf8Chinese(homeDashboard, "本周回声");
+        assertContainsUtf8Chinese(homeDashboard, "每日推荐");
+        assertContainsUtf8Chinese(homeDashboard, "心动推荐");
+        assertContainsUtf8Chinese(homeDashboard, "连接流媒体账号");
         assertContainsUtf8Chinese(libraryGroups, "播放");
         assertContainsUtf8Chinese(trackList, "歌手介绍");
         assertContainsUtf8Chinese(trackList, "全部专辑");
