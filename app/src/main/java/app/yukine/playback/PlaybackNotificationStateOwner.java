@@ -4,7 +4,6 @@ import android.media.session.MediaSession;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackNotificationManager;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
@@ -33,10 +32,7 @@ final class PlaybackNotificationStateOwner implements PlaybackNotificationManage
 
     @Override
     public boolean isQueueEmpty() {
-        PlaybackQueueManager.QueueStateSnapshot queueSnapshot = queueStateOwner == null
-                ? PlaybackQueueManager.QueueStateSnapshot.empty()
-                : queueStateOwner.queueStateSnapshot();
-        return queueSnapshot.isQueueEmpty();
+        return queueStateOwner == null || queueStateOwner.isQueueEmpty();
     }
 
     @Override

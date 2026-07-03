@@ -55,10 +55,8 @@ final class PlaybackQueueMirroredTransitionOwner {
 
     boolean canApplyMirroredTransition() {
         boolean mirrorsQueue = playerMirrorsQueue == null || playerMirrorsQueue.getAsBoolean();
-        PlaybackQueueManager.QueueStateSnapshot queueSnapshot = queueStateOwner == null
-                ? PlaybackQueueManager.QueueStateSnapshot.empty()
-                : queueStateOwner.queueStateSnapshot();
-        return mirrorsQueue && !queueSnapshot.isQueueEmpty();
+        boolean queueEmpty = queueStateOwner == null || queueStateOwner.isQueueEmpty();
+        return mirrorsQueue && !queueEmpty;
     }
 
     Transition applyMirroredTransitionReason(
