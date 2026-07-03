@@ -8559,10 +8559,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackNotificationCommandOwner.stopForegroundAndSelf();"));
         assertFalse(service.contains("        stopForeground(true);\r\n        publishState();\r\n        stopSelf();"));
         assertFalse(service.contains("new PlaybackNotificationManager.ForegroundController()"));
-        assertTrue(service.contains("private PlaybackNotificationStateOwner playbackNotificationStateOwner;"));
-        assertTrue(service.contains("playbackNotificationStateOwner = new PlaybackNotificationStateOwner("));
+        assertFalse(service.contains("private PlaybackNotificationStateOwner playbackNotificationStateOwner;"));
+        assertTrue(service.contains("final PlaybackNotificationStateOwner playbackNotificationStateOwner = new PlaybackNotificationStateOwner("));
         assertTrue(normalizedService.contains(
-                "playbackNotificationStateOwner = new PlaybackNotificationStateOwner(\n"
+                "final PlaybackNotificationStateOwner playbackNotificationStateOwner = new PlaybackNotificationStateOwner(\n"
                         + "                playbackQueueStateOwner,"));
         assertFalse(service.contains("                playbackQueueStateOwner::queueStateSnapshot,"));
         assertFalse(service.contains("                playbackQueueStateOwner::isQueueEmpty,"));

@@ -149,7 +149,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackNotificationManager playbackNotificationManager;
     private PlaybackNotificationForegroundOwner playbackNotificationForegroundOwner;
     private PlaybackNotificationCommandOwner playbackNotificationCommandOwner;
-    private PlaybackNotificationStateOwner playbackNotificationStateOwner;
     private PlaybackNotificationArtworkSource playbackNotificationArtworkSource;
     private PlaybackSessionCommandOwner playbackSessionCommandOwner;
     private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner;
@@ -400,7 +399,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 EchoPlaybackService.this,
                 playbackNotificationForegroundOwner::stopForegroundAndSelf
         );
-        playbackNotificationStateOwner = new PlaybackNotificationStateOwner(
+        final PlaybackNotificationStateOwner playbackNotificationStateOwner = new PlaybackNotificationStateOwner(
                 playbackQueueStateOwner,
                 playbackPlayerStateOwner::isPlaying,
                 playbackCurrentTrackPreparationRuntimeOwner::preparing,
