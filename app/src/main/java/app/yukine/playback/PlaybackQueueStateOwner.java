@@ -46,18 +46,6 @@ final class PlaybackQueueStateOwner {
         return queueStateSnapshot().getCurrentTrack();
     }
 
-    boolean isQueueEmpty() {
-        return queueStateSnapshot().isQueueEmpty();
-    }
-
-    boolean hasMultipleTracks() {
-        return queueStateSnapshot().getHasMultipleTracks();
-    }
-
-    boolean isAtEndOfQueue() {
-        return queueStateSnapshot().isAtEndOfQueue();
-    }
-
     private PlaybackQueueManager playbackQueueManager() {
         return playbackQueueManager;
     }
