@@ -143,6 +143,30 @@ public final class PlaybackVisualizationCacheManagerTest {
     }
 
     @Test
+    public void partiallyCachedVisualizationWindowResumesFromCachedBytes() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        Track track = track(10L);
+        stateProvider.currentTrack = track;
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        long cachedBytes = 128L * 1024L;
+        mediaCacheOperations.cachedBytes = cachedBytes;
+        FakeCacheWriter writer = new FakeCacheWriter(null);
+        FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory(writer);
+        PlaybackVisualizationCacheManager manager =
+                manager(stateProvider, mediaCacheOperations, writerFactory);
+
+        manager.scheduleVisualizationCache(track);
+        shadowOf(Looper.getMainLooper()).idle();
+        stateProvider.scheduledTasks.get(0).run();
+
+        assertEquals(1, mediaCacheOperations.cachedBytesInRangeCalls);
+        assertSame(track, writerFactory.lastTrack);
+        assertEquals(cachedBytes, writerFactory.lastDataSpec.position);
+        assertEquals(64L * 1024L * 1024L - cachedBytes, writerFactory.lastDataSpec.length);
+        assertEquals(1, writer.cacheCalls);
+    }
+
+    @Test
     public void nonHttpTrackDoesNotScheduleVisualizationCache() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         Track track = track(7L, "content://media/audio/7");
@@ -283,6 +307,8 @@ public final class PlaybackVisualizationCacheManagerTest {
     private static final class FakeMediaCacheOperations
             implements PlaybackMediaCacheOperations {
         private int cacheKeyForPrecacheCalls;
+        private int cachedBytesInRangeCalls;
+        private long cachedBytes;
 
         @Override
         public boolean tracksShareResolvedUriForReuse(Track current, Track candidate) {
@@ -307,7 +333,8 @@ public final class PlaybackVisualizationCacheManagerTest {
 
         @Override
         public long cachedBytesInRange(String cacheKey, long position, long length) {
-            return 0L;
+            cachedBytesInRangeCalls++;
+            return cachedBytes;
         }
 
         @Override
