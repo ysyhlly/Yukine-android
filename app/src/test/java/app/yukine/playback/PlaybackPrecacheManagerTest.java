@@ -298,6 +298,35 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
+    public void cacheStateReadFailureFallsBackToManagerOwnedCacheAttempt() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                mediaCacheOperations,
+                (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
+                scheduler,
+                new FakeAudioCacheReleaseAction()::releaseAudioCache,
+                executor
+        );
+        Track track = track(1L, "https://example.test/cache-state-fails.mp3");
+        mediaCacheOperations.mediaItemMatchesForReuse = false;
+        mediaCacheOperations.throwOnCachedBytesRead = true;
+
+        stateProvider.currentTrack = track;
+        manager.precacheTrack(track);
+        executor.runSubmitted(0);
+        manager.release();
+
+        assertEquals(1, mediaCacheOperations.cachedBytesInRangeCalls);
+        assertEquals(1, mediaCacheOperations.cacheDataSourceForTrackCalls);
+        assertEquals(track, mediaCacheOperations.lastCacheDataSourceTrack);
+        assertEquals(1, stateProvider.diagnostics.snapshot().precacheFailures);
+    }
+
+    @Test
     public void failedCurrentLeadingRangeCleansActiveRangeForRetry() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
@@ -606,6 +635,7 @@ public final class PlaybackPrecacheManagerTest {
         private long contentLength = -1L;
         private long cachedBytes;
         private boolean mediaItemMatchesForReuse = true;
+        private boolean throwOnCachedBytesRead;
         private int cacheKeyForPrecacheCalls;
         private int contentLengthCalls;
         private int cachedBytesInRangeCalls;
@@ -647,6 +677,9 @@ public final class PlaybackPrecacheManagerTest {
         @Override
         public long cachedBytesInRange(String cacheKey, long position, long length) {
             cachedBytesInRangeCalls++;
+            if (throwOnCachedBytesRead) {
+                throw new IllegalStateException("cache state unavailable");
+            }
             return cachedBytes;
         }
 
