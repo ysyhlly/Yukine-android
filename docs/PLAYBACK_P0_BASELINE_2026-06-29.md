@@ -2532,6 +2532,48 @@ rg -n "interface QueueProvider|class QueueProvider|QueueProvider" app/src/main/j
 git diff --check
 ```
 
+## P1/P2 Boundary Delta - Mutation And Resolver Cache
+
+Current audit date: 2026-07-03.
+
+- `PlaybackQueueMutationOwner.clearQueue()` remains intentionally unchanged in
+  this checkpoint. It reads `playbackQueueManager.queueStateSnapshot().isQueueEmpty()`
+  only to avoid running `stopAndClear()` for an already-empty queue.
+- Do not add a public `PlaybackQueueManager` boolean such as `hasQueueItems()`
+  just to hide this read; that would grow the queue API and move derived state
+  instead of narrowing it. Also do not add `PlaybackQueueStateOwner` to
+  `PlaybackQueueMutationOwner` unless a focused mutation slice proves the
+  added constructor wiring is offset by a real behavior or interface reduction.
+- Current low-risk path for this area is test-first: strengthen
+  `PlaybackQueueMutationOwnerTest` around empty-queue clear behavior before
+  changing the owner. If the behavior should remain a no-op, leave the read in
+  place until a better command-level owner shape exists.
+- Resolver/cache boundary remains stable after the runtime/position adapter
+  slices. Production code still has no `PlaybackMediaSourceResolutionOwner` or
+  `Playback*ResolutionOwner` file, and architecture contracts assert that these
+  files stay absent.
+- `PlaybackMediaSourceProvider` is still the URI/MediaItem/cache-key owner.
+  `PlaybackPrecacheManager` still owns cache scheduling and cache policy.
+  `PlaybackMediaCacheOperations` remains a cache operations adapter and should
+  not grow MediaItem or URI resolution methods.
+- Current focused coverage for this boundary includes
+  `PlaybackMediaSourceProviderTest`, `PlaybackPrecacheManagerTest`,
+  `PlaybackMediaCacheOperationsTest`, `PlaybackVisualizationCacheManagerTest`,
+  and `PlaybackPrecacheStateOwnerTest`.
+- Current metrics after the latest wiring slices: `EchoPlaybackService.java`
+  is 1421 lines, `private (final )?Playback` count is 55,
+  `fromPlaybackQueueManager` count is 0, direct
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, and `Playback*Owner` production file count is 43.
+- Verification for this checkpoint was read-only evidence plus diff hygiene:
+
+```powershell
+codegraph explore "PlaybackQueueMutationOwner clearQueue PlaybackQueueMutationOwnerTest EchoPlaybackService clearQueue queueStateSnapshot isQueueEmpty stopAndClearAction"
+codegraph explore "PlaybackMediaSourceProvider PlaybackMediaSourceResolutionOwner PlaybackPrecacheManager PlaybackPrecacheStateOwner cache policy media item uri resolver EchoPlaybackService tests"
+rg -n "PlaybackMediaSourceResolutionOwner|ResolutionOwner|MediaSourceResolution" app/src/main/java feature/playback/src/main/java app/src/test/java feature/playback/src/test/java docs
+git diff --check
+```
+
 ## P1 Wiring Note - Error Recovery Queue State Source
 
 Current audit date: 2026-07-03.
