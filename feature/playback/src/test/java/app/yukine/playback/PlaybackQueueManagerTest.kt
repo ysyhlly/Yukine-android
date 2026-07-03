@@ -71,22 +71,6 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun serviceBoundaryPlaybackPositionPersistsThroughQueueOwner() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        val current = track(10L, durationMs = 10_000L)
-        provider.playbackPositionMsValue = 4100L
-        val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(current), 0)
-
-        manager.persistCurrentPlaybackPosition(force = false)
-        provider.playbackPositionMsValue = 4700L
-        manager.persistCurrentPlaybackPosition(force = true)
-
-        assertEquals(listOf(10L to 4100L, 10L to 4700L), store.savedPositions)
-    }
-
-    @Test
     fun queuePlaybackStartClearsRuntimeErrorAndTransitionMarkerThroughOwners() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
@@ -301,22 +285,6 @@ class PlaybackQueueManagerTest {
         assertFalse(provider.transitionStateManager.fadeOutAdvancing())
         assertFalse(store.resumeRequested)
         assertEquals(0L, provider.positionManager.restoredPositionFor(current))
-    }
-
-    @Test
-    fun persistCurrentPlaybackPositionUsesPositionOwnerThrottleAndForce() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        val current = track(1L, durationMs = 10_000L)
-        provider.playbackPositionMsValue = 2300L
-        val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(current), 0)
-
-        manager.persistCurrentPlaybackPosition(force = false)
-        manager.persistCurrentPlaybackPosition(force = false)
-        manager.persistCurrentPlaybackPosition(force = true)
-
-        assertEquals(listOf(1L to 2300L, 1L to 2300L), store.savedPositions)
     }
 
     @Test

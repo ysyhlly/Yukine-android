@@ -37,10 +37,4 @@ final class PlaybackQueuePersistenceOwner
     void clearPlaybackResumeRequest() {
         savePlaybackResumeRequested(false);
     }
-
-    void persistCurrentPlaybackPosition(boolean force) {
-        if (playbackQueueManager != null) {
-            playbackQueueManager.persistCurrentPlaybackPosition(force);
-        }
-    }
 }

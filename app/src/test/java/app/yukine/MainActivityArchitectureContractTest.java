@@ -5632,7 +5632,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("queueStore().loadPlaybackPositionTrackId()"));
         assertFalse(service.contains("queueStore().loadPlaybackPositionMs()"));
         assertFalse(service.contains("queueStore().savePlaybackPosition("));
-        assertFalse(service.contains("playbackPositionManager.persistCurrentPosition(force)"));
+        assertTrue(service.contains("playbackPositionManager.persistCurrentPosition(force);"));
         assertFalse(service.contains("private final PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner"));
         assertFalse(service.contains("private PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner"));
         assertTrue(service.contains("final PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner = new PlaybackQueuePersistenceOwner("));
@@ -5646,10 +5646,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueuePersistenceOwner::persistCurrentPlaybackPosition"));
         assertTrue(service.contains("EchoPlaybackService.this::persistCurrentPlaybackPosition"));
         assertTrue(service.contains("private void persistCurrentPlaybackPosition(boolean force)"));
-        assertTrue(service.contains("withPlaybackQueuePersistenceOwner(owner -> owner.persistCurrentPlaybackPosition(force));"));
-        assertTrue(service.contains("playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(true)"));
+        assertFalse(service.contains("withPlaybackQueuePersistenceOwner(owner -> owner.persistCurrentPlaybackPosition(force));"));
+        assertFalse(service.contains("playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(true)"));
         assertFalse(service.contains("playbackQueueManager.persistCurrentPlaybackPosition(force)"));
-        assertTrue(queuePersistenceOwner.contains("playbackQueueManager.persistCurrentPlaybackPosition(force);"));
+        assertFalse(queuePersistenceOwner.contains("playbackQueueManager.persistCurrentPlaybackPosition(force);"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackPositionStateOwner.java")));
         assertFalse(service.contains("PlaybackPositionStateOwner"));
         assertTrue(service.contains("PlaybackPositionManager.stateProviderFromPlaybackState("));
@@ -6636,7 +6636,6 @@ public final class MainActivityArchitectureContractTest {
                 "skipToPrevious"
         ));
         java.util.Set<String> queueRestoreAndPersistenceApi = new java.util.TreeSet<>(java.util.Arrays.asList(
-                "persistCurrentPlaybackPosition",
                 "persistQueueState",
                 "preparePlaybackCompletionAction",
                 "prepareStopAfterAutomaticAdvance",
@@ -7530,7 +7529,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queuePersistenceOwner.contains("playbackQueueManager.persistQueueState();"));
         assertFalse(queuePersistenceOwner.contains("playbackQueueManager.savePlaybackResumeRequested(requested);"));
         assertTrue(queuePersistenceOwner.contains("queueStore.saveResumeRequested(requested);"));
-        assertTrue(queuePersistenceOwner.contains("playbackQueueManager.persistCurrentPlaybackPosition(force);"));
+        assertFalse(queuePersistenceOwner.contains("playbackQueueManager.persistCurrentPlaybackPosition(force);"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackShutdownPlaybackStateOwner.java")));
         assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackShutdownPlaybackStateOwnerTest.java")));
         assertTrue(lifecycleResourcesOwner.contains("static PlaybackStateProvider playbackStateProviderFromPlaybackState("));

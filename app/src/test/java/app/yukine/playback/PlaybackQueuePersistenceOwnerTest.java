@@ -30,15 +30,11 @@ public class PlaybackQueuePersistenceOwnerTest {
         owner.savePlaybackResumeRequested(false);
         owner.requestPlaybackResume();
         owner.clearPlaybackResumeRequest();
-        owner.persistCurrentPlaybackPosition(true);
-        owner.persistCurrentPlaybackPosition(false);
 
         assertEquals(1, store.saveCalls);
         assertEquals(4, store.resumeCalls);
         assertEquals(false, store.lastResumeRequested);
-        assertEquals(2, store.positionCalls);
-        assertEquals(42L, store.lastPositionTrackId);
-        assertEquals(0L, store.lastPositionMs);
+        assertEquals(0, store.positionCalls);
     }
 
     @Test
@@ -51,7 +47,6 @@ public class PlaybackQueuePersistenceOwnerTest {
         missingManager.savePlaybackResumeRequested(false);
         missingManager.requestPlaybackResume();
         missingManager.clearPlaybackResumeRequest();
-        missingManager.persistCurrentPlaybackPosition(false);
 
         assertEquals(3, store.resumeCalls);
     }

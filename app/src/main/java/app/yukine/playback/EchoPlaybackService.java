@@ -638,7 +638,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 )
         );
         playbackShutdownLifecycleResourcesOwner = new PlaybackShutdownLifecycleResourcesOwner(
-                () -> playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(true),
+                () -> EchoPlaybackService.this.persistCurrentPlaybackPosition(true),
                 playbackQueuePersistenceOwner,
                 PlaybackShutdownLifecycleResourcesOwner.playbackStateProviderFromPlaybackState(
                         playbackPlayerStateOwner::isPlaying,
@@ -1318,7 +1318,9 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     private void persistCurrentPlaybackPosition(boolean force) {
-        withPlaybackQueuePersistenceOwner(owner -> owner.persistCurrentPlaybackPosition(force));
+        if (playbackPositionManager != null) {
+            playbackPositionManager.persistCurrentPosition(force);
+        }
     }
 
     private void startProgressUpdates() {

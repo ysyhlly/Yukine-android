@@ -340,15 +340,6 @@ internal class PlaybackQueueManager(
         savePlaybackResumeRequested(false)
     }
 
-    fun persistCurrentPlaybackPosition(force: Boolean) {
-        if (playbackPositionManager != null) {
-            playbackPositionManager.persistCurrentPosition(force)
-            return
-        }
-        val track = currentTrack() ?: return
-        queueStore.savePlaybackPosition(track.id, 0L)
-    }
-
     fun skipToPrevious(): Boolean {
         val queue = this.queue
         if (queue.isEmpty()) {
@@ -758,7 +749,12 @@ internal class PlaybackQueueManager(
     }
 
     private fun persistPlaybackPosition() {
-        persistCurrentPlaybackPosition(force = true)
+        if (playbackPositionManager != null) {
+            playbackPositionManager.persistCurrentPosition(force = true)
+            return
+        }
+        val track = currentTrack() ?: return
+        queueStore.savePlaybackPosition(track.id, 0L)
     }
 
     private fun saveCurrentTrackPlaybackPosition(positionMs: Long) {

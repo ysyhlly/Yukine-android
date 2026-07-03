@@ -2317,3 +2317,27 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackPositionManagerTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackCurrentTrackPreparationQueueOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1 Audit - Playback Position Persistence Boundary Narrowing
+
+Current audit date: 2026-07-03.
+
+- `PlaybackQueueManager` no longer exposes
+  `persistCurrentPlaybackPosition(force)`. Service-bound current-position
+  persistence now goes directly to `PlaybackPositionManager.persistCurrentPosition(force)`.
+- `PlaybackQueuePersistenceOwner` no longer forwards current-position
+  persistence through the queue manager. It remains responsible for queue state
+  persistence and playback resume flags.
+- No new owner or constructor parameter was added for this slice. The real
+  reductions are one fewer queue-manager public method, one fewer
+  queue-persistence owner method, and the shorter service path:
+  `EchoPlaybackService -> PlaybackPositionManager`.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1425 lines,
+  `private Playback*` field count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, `queueStateSnapshot` references in
+  the service are 2, and `Playback*Owner` production file count is 43.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackPositionManagerTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueuePersistenceOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
