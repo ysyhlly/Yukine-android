@@ -443,6 +443,35 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun queueStateSnapshotOwnsSourceStateAndDerivedReads() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(track(1L), track(2L)), 0)
+
+        val first = manager.queueStateSnapshot()
+
+        assertEquals(1L, first.currentTrack?.id)
+        assertEquals(0, first.currentIndex)
+        assertEquals(2, first.queueSize)
+        assertFalse(first.isQueueEmpty)
+        assertTrue(first.hasCurrentTrack)
+        assertTrue(first.hasMultipleTracks)
+        assertFalse(first.isAtEndOfQueue)
+
+        manager.skipToNextImmediately()
+        val second = manager.queueStateSnapshot()
+
+        assertEquals(2L, second.currentTrack?.id)
+        assertEquals(1, second.currentIndex)
+        assertEquals(2, second.queueSize)
+        assertFalse(second.isQueueEmpty)
+        assertTrue(second.hasCurrentTrack)
+        assertTrue(second.hasMultipleTracks)
+        assertTrue(second.isAtEndOfQueue)
+    }
+
+    @Test
     fun restoreLastPlaybackReportsEmptyQueueWithoutServicePolicy() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
