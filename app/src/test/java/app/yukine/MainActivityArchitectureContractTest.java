@@ -8163,14 +8163,14 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner;"));
         assertTrue(service.contains("final PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner ="));
         assertTrue(service.contains("new PlaybackControllerMediaItemsOwner("));
-        assertTrue(service.contains("                            playbackQueueMutationOwner()"));
-        assertTrue(service.contains("                    playbackControllerMediaItemsOwner,"));
-        assertTrue(service.contains("private PlaybackSessionCommandOwner playbackSessionCommandOwner;"));
-        assertTrue(service.contains("playbackSessionCommandOwner = new PlaybackSessionCommandOwner("));
+        assertTrue(service.contains("                        playbackQueueMutationOwner()"));
+        assertTrue(service.contains("                playbackControllerMediaItemsOwner,"));
+        assertFalse(service.contains("private PlaybackSessionCommandOwner playbackSessionCommandOwner;"));
+        assertTrue(service.contains("final PlaybackSessionCommandOwner playbackSessionCommandOwner = new PlaybackSessionCommandOwner("));
         assertTrue(service.contains("return new PlaybackSessionPlayer(player, playbackSessionCommandOwner);"));
         assertTrue(normalizedService.contains(
-                "                    playbackQueueStateOwner,\n" +
-                        "                    playbackNotificationManager::mediaMetadataForTrack"));
+                "                playbackQueueStateOwner,\n" +
+                        "                playbackNotificationManager::mediaMetadataForTrack"));
         assertFalse(service.contains(
                 "                    playbackQueueStateOwner::currentTrack,\n" +
                         "                    playbackNotificationManager::mediaMetadataForTrack"));
@@ -8519,7 +8519,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("return repository.loadPlaylistTracks(playlistId);"));
         assertFalse(service.contains("private PlaybackMediaLibraryCallback playbackMediaLibraryCallback;"));
         assertTrue(service.contains("final PlaybackMediaLibraryCallback playbackMediaLibraryCallback = new PlaybackMediaLibraryCallback("));
-        assertTrue(service.contains("() -> createSessionPlayer(playbackMediaLibraryCallback)"));
+        assertTrue(service.contains("() -> createSessionPlayer(playbackSessionCommandOwner)"));
         assertTrue(service.contains("PlaybackMediaLibraryDataSource.fromRepository("));
         assertFalse(service.contains("private static final String AUTO_ROOT"));
         assertFalse(service.contains("private static final String AUTO_ALL"));

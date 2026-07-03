@@ -146,7 +146,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackPositionManager playbackPositionManager;
     private PlaybackNotificationManager playbackNotificationManager;
     private PlaybackNotificationCommandOwner playbackNotificationCommandOwner;
-    private PlaybackSessionCommandOwner playbackSessionCommandOwner;
     private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner;
     private PlaybackCurrentTrackPreparationOwner playbackCurrentTrackPreparationOwner;
     private PlaybackSleepTimerCommandOwner playbackSleepTimerCommandOwner;
@@ -499,9 +498,27 @@ public final class EchoPlaybackService extends MediaLibraryService
                         playbackNotificationManager::mediaMetadataForTrack
                 )
         );
+        final PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner =
+                new PlaybackControllerMediaItemsOwner(
+                        (mediaItems, startIndex, startPositionMs) ->
+                                playbackMediaLibraryCallback.controllerQueueForMediaItems(
+                                        mediaItems,
+                                        startIndex,
+                                        startPositionMs
+                                ),
+                        playbackQueueMutationOwner()
+                );
+        final PlaybackSessionCommandOwner playbackSessionCommandOwner = new PlaybackSessionCommandOwner(
+                EchoPlaybackService.this,
+                EchoPlaybackService.this::seekTo,
+                EchoPlaybackService.this::setRepeatMode,
+                playbackControllerMediaItemsOwner,
+                playbackQueueStateOwner,
+                playbackNotificationManager::mediaMetadataForTrack
+        );
         playbackSessionManager = new PlaybackSessionManager(
                 this,
-                () -> createSessionPlayer(playbackMediaLibraryCallback),
+                () -> createSessionPlayer(playbackSessionCommandOwner),
                 playbackMediaLibraryCallback,
                 this::activityPendingIntent
         );
@@ -703,27 +720,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     @UnstableApi
-    private Player createSessionPlayer(PlaybackMediaLibraryCallback playbackMediaLibraryCallback) {
-        if (playbackSessionCommandOwner == null) {
-            final PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner =
-                    new PlaybackControllerMediaItemsOwner(
-                            (mediaItems, startIndex, startPositionMs) ->
-                                    playbackMediaLibraryCallback.controllerQueueForMediaItems(
-                                            mediaItems,
-                                            startIndex,
-                                            startPositionMs
-                                    ),
-                            playbackQueueMutationOwner()
-                    );
-            playbackSessionCommandOwner = new PlaybackSessionCommandOwner(
-                    EchoPlaybackService.this,
-                    EchoPlaybackService.this::seekTo,
-                    EchoPlaybackService.this::setRepeatMode,
-                    playbackControllerMediaItemsOwner,
-                    playbackQueueStateOwner,
-                    playbackNotificationManager::mediaMetadataForTrack
-            );
-        }
+    private Player createSessionPlayer(PlaybackSessionCommandOwner playbackSessionCommandOwner) {
         return new PlaybackSessionPlayer(player, playbackSessionCommandOwner);
     }
 
