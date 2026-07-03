@@ -119,12 +119,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                     EchoPlaybackService.this::prepareCurrent,
                     EchoPlaybackService.this::publishState
             );
-    private final PlaybackQueueMirroredTransitionOwner playbackQueueMirroredTransitionOwner =
-            new PlaybackQueueMirroredTransitionOwner(
-                    () -> playbackQueueManager,
-                    EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer,
-                    playbackQueueRuntimeStateManager::playerMirrorsQueue
-            );
     private final PlaybackQueueCompletionOwner.CompletionBoundary playbackQueueCompletionBoundary =
             new PlaybackQueueCompletionOwner.CompletionBoundary() {
                 @Override
@@ -248,12 +242,21 @@ public final class EchoPlaybackService extends MediaLibraryService
 
         @Override
         public void onMediaItemTransition(MediaItem mediaItem, int reason) {
-            if (player == null || !playbackQueueMirroredTransitionOwner.canApplyMirroredTransition()) {
+            if (player == null) {
+                return;
+            }
+            PlaybackQueueMirroredTransitionOwner mirroredTransitionOwner =
+                    new PlaybackQueueMirroredTransitionOwner(
+                            playbackQueueManager,
+                            EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer,
+                            playbackQueueRuntimeStateManager::playerMirrorsQueue
+                    );
+            if (!mirroredTransitionOwner.canApplyMirroredTransition()) {
                 return;
             }
             int nextIndex = player.getCurrentMediaItemIndex();
             PlaybackQueueManager.MirroredTransitionResult transition =
-                    playbackQueueMirroredTransitionOwner.applyMirroredTransitionReason(nextIndex, reason);
+                    mirroredTransitionOwner.applyMirroredTransitionReason(nextIndex, reason);
             if (transition == null) {
                 return;
             }

@@ -44,7 +44,7 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         events.clear();
         PlaybackQueueMirroredTransitionOwner owner =
                 new PlaybackQueueMirroredTransitionOwner(
-                        () -> queueManager,
+                        queueManager,
                         () -> events.add("applyVolume"),
                         null
                 );
@@ -81,7 +81,7 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         events.clear();
         PlaybackQueueMirroredTransitionOwner owner =
                 new PlaybackQueueMirroredTransitionOwner(
-                        () -> queueManager,
+                        queueManager,
                         () -> events.add("applyVolume"),
                         null
                 );
@@ -105,25 +105,15 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
     }
 
     @Test
-    public void returnsNullAndIgnoresVolumeWhenOperationsAreMissing() {
+    public void returnsNullAndIgnoresVolumeWhenManagerIsNull() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueMirroredTransitionOwner missingManagerProvider =
+        PlaybackQueueMirroredTransitionOwner missingManager =
                 new PlaybackQueueMirroredTransitionOwner(
                         null,
                         () -> events.add("applyVolume"),
                         null
                 );
-        PlaybackQueueMirroredTransitionOwner missingManager =
-                new PlaybackQueueMirroredTransitionOwner(
-                        () -> null,
-                        () -> events.add("applyVolume"),
-                        null
-                );
 
-        assertNull(missingManagerProvider.applyMirroredTransitionReason(
-                2,
-                Player.MEDIA_ITEM_TRANSITION_REASON_SEEK
-        ));
         assertNull(missingManager.applyMirroredTransitionReason(
                 3,
                 Player.MEDIA_ITEM_TRANSITION_REASON_AUTO
@@ -142,7 +132,7 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         queueManager.playQueue(Arrays.asList(track(1L), track(2L), track(3L)), 0, 0L);
         PlaybackQueueMirroredTransitionOwner owner =
                 new PlaybackQueueMirroredTransitionOwner(
-                        () -> queueManager,
+                        queueManager,
                         null,
                         null
                 );
@@ -180,19 +170,19 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
                 new PlaybackQueueMirroredTransitionOwner(null, null, null);
         PlaybackQueueMirroredTransitionOwner readyOwner =
                 new PlaybackQueueMirroredTransitionOwner(
-                        () -> readyManager,
+                        readyManager,
                         null,
                         () -> true
                 );
         PlaybackQueueMirroredTransitionOwner notMirroredOwner =
                 new PlaybackQueueMirroredTransitionOwner(
-                        () -> readyManager,
+                        readyManager,
                         null,
                         () -> false
                 );
         PlaybackQueueMirroredTransitionOwner emptyQueueOwner =
                 new PlaybackQueueMirroredTransitionOwner(
-                        () -> emptyManager,
+                        emptyManager,
                         null,
                         () -> true
                 );
