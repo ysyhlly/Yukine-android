@@ -98,6 +98,21 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     @Test
+    public void currentTrackIsDerivedFromLatestQueueStateWithoutLocalState() {
+        PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
+        Track first = track(31L);
+        Track replacement = track(32L);
+        queueManager.playQueue(Collections.singletonList(first), 0, -1L);
+        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManager);
+
+        assertSame(first, owner.currentTrack());
+
+        queueManager.playQueue(Collections.singletonList(replacement), 0, -1L);
+
+        assertSame(replacement, owner.currentTrack());
+    }
+
+    @Test
     public void returnsEmptyQueueStateWhenManagerIsMissing() {
         PlaybackQueueStateOwner missingManager = new PlaybackQueueStateOwner();
 
@@ -115,6 +130,13 @@ public class PlaybackQueueStateOwnerTest {
         PlaybackQueueStateOwner missingManager = new PlaybackQueueStateOwner();
 
         assertTrue(missingManager.queueSnapshot().isEmpty());
+    }
+
+    @Test
+    public void currentTrackReturnsNullWhenManagerIsMissing() {
+        PlaybackQueueStateOwner missingManager = new PlaybackQueueStateOwner();
+
+        assertSame(null, missingManager.currentTrack());
     }
 
     @Test

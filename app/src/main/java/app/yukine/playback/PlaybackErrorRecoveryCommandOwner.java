@@ -33,10 +33,7 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
 
     @Override
     public Track currentTrack() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null
-                ? PlaybackQueueManager.QueueStateSnapshot.empty()
-                : queueStateOwner.queueStateSnapshot();
-        return snapshot.getCurrentTrack();
+        return queueStateOwner == null ? null : queueStateOwner.currentTrack();
     }
 
     @Override

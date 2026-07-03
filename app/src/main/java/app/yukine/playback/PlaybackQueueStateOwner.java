@@ -30,6 +30,10 @@ final class PlaybackQueueStateOwner {
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 
+    Track currentTrack() {
+        return queueStateSnapshot().getCurrentTrack();
+    }
+
     List<Track> queueSnapshot() {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         List<Track> snapshot = playbackQueueManager == null ? null : playbackQueueManager.queueSnapshot();
