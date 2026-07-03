@@ -14,7 +14,7 @@ public class PlaybackStreamingDiagnosticsRecorderOwnerTest {
     public void recordsBufferingFromSnapshot() {
         PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
         PlaybackStreamingDiagnosticsRecorderOwner owner =
-                new PlaybackStreamingDiagnosticsRecorderOwner(() -> diagnostics, track -> "");
+                new PlaybackStreamingDiagnosticsRecorderOwner(diagnostics, track -> "");
 
         owner.record(PlaybackStateSnapshot.empty());
 
@@ -28,7 +28,7 @@ public class PlaybackStreamingDiagnosticsRecorderOwnerTest {
         Track track = track();
         PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
         PlaybackStreamingDiagnosticsRecorderOwner owner = new PlaybackStreamingDiagnosticsRecorderOwner(
-                () -> diagnostics,
+                diagnostics,
                 requestedTrack -> requestedTrack == track ? "lossless" : ""
         );
 
@@ -44,15 +44,11 @@ public class PlaybackStreamingDiagnosticsRecorderOwnerTest {
     @Test
     public void ignoresMissingDiagnosticsOrRecovery() {
         PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
-        PlaybackStreamingDiagnosticsRecorderOwner nullProviderOwner =
-                new PlaybackStreamingDiagnosticsRecorderOwner(null, track -> "high");
         PlaybackStreamingDiagnosticsRecorderOwner missingDiagnosticsOwner =
-                new PlaybackStreamingDiagnosticsRecorderOwner(() -> null, track -> "high");
+                new PlaybackStreamingDiagnosticsRecorderOwner(null, track -> "high");
         PlaybackStreamingDiagnosticsRecorderOwner owner =
-                new PlaybackStreamingDiagnosticsRecorderOwner(() -> diagnostics, track -> "high");
+                new PlaybackStreamingDiagnosticsRecorderOwner(diagnostics, track -> "high");
 
-        nullProviderOwner.record(new PlaybackQueueManager.CurrentTrackReplacementRecovery(track(), 1L, true));
-        nullProviderOwner.record(PlaybackStateSnapshot.empty());
         missingDiagnosticsOwner.record(new PlaybackQueueManager.CurrentTrackReplacementRecovery(track(), 1L, true));
         missingDiagnosticsOwner.record(PlaybackStateSnapshot.empty());
         owner.record((PlaybackQueueManager.CurrentTrackReplacementRecovery) null);
@@ -67,7 +63,7 @@ public class PlaybackStreamingDiagnosticsRecorderOwnerTest {
         Track track = track();
         PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
         PlaybackStreamingDiagnosticsRecorderOwner owner =
-                new PlaybackStreamingDiagnosticsRecorderOwner(() -> diagnostics, null);
+                new PlaybackStreamingDiagnosticsRecorderOwner(diagnostics, null);
 
         owner.record(new PlaybackQueueManager.CurrentTrackReplacementRecovery(track, 1200L, true));
 

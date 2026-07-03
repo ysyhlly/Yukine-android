@@ -5,18 +5,17 @@ import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 final class PlaybackStreamingDiagnosticsRecorderOwner
         implements PlaybackStatePublisher.BufferingRecorder {
-    private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider;
+    private final PlaybackStreamingDiagnostics streamingDiagnostics;
     private final Function<Track, String> streamingQualityProvider;
 
     PlaybackStreamingDiagnosticsRecorderOwner(
-            Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider,
+            PlaybackStreamingDiagnostics streamingDiagnostics,
             Function<Track, String> streamingQualityProvider
     ) {
-        this.streamingDiagnosticsProvider = streamingDiagnosticsProvider;
+        this.streamingDiagnostics = streamingDiagnostics;
         this.streamingQualityProvider = streamingQualityProvider;
     }
 
@@ -41,8 +40,6 @@ final class PlaybackStreamingDiagnosticsRecorderOwner
     }
 
     private PlaybackStreamingDiagnostics streamingDiagnostics() {
-        return streamingDiagnosticsProvider == null
-                ? null
-                : streamingDiagnosticsProvider.get();
+        return streamingDiagnostics;
     }
 }

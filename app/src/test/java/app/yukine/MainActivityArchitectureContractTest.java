@@ -6151,6 +6151,7 @@ public final class MainActivityArchitectureContractTest {
                 "playbackQueueManager.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs);"));
         assertTrue(service.contains("private PlaybackStreamingDiagnosticsRecorderOwner playbackStreamingDiagnosticsRecorderOwner;"));
         assertTrue(service.contains("new PlaybackStreamingDiagnosticsRecorderOwner("));
+        assertFalse(service.contains("() -> streamingDiagnostics"));
         assertFalse(service.contains("private PlaybackRecoveryDiagnosticsRecorderOwner playbackRecoveryDiagnosticsRecorderOwner;"));
         assertFalse(service.contains("new PlaybackRecoveryDiagnosticsRecorderOwner("));
         assertFalse(service.contains("PlaybackStreamingDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider("));
@@ -6241,11 +6242,14 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(streamingDiagnosticsOwner.contains("interface StreamingDiagnosticsProvider"));
         assertFalse(streamingDiagnosticsOwner.contains("interface StreamingQualityProvider"));
         assertTrue(streamingDiagnosticsOwner.contains(
+                "private final PlaybackStreamingDiagnostics streamingDiagnostics;"));
+        assertFalse(streamingDiagnosticsOwner.contains(
                 "private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider;"));
         assertTrue(streamingDiagnosticsOwner.contains("private final Function<Track, String> streamingQualityProvider;"));
         assertFalse(streamingDiagnosticsOwner.contains("interface StreamingDiagnosticsOperations"));
         assertFalse(streamingDiagnosticsOwner.contains("StreamingDiagnosticsOperationsProvider"));
-        assertTrue(streamingDiagnosticsOwner.contains("streamingDiagnosticsProvider.get()"));
+        assertTrue(streamingDiagnosticsOwner.contains("return streamingDiagnostics;"));
+        assertFalse(streamingDiagnosticsOwner.contains("streamingDiagnosticsProvider.get()"));
         assertTrue(streamingDiagnosticsOwner.contains("streamingQualityProvider.apply(track)"));
         assertTrue(streamingDiagnosticsOwner.contains("diagnostics.recordBuffering(snapshot.currentTrack, snapshot.positionMs);"));
         assertTrue(streamingDiagnosticsOwner.contains(
@@ -7213,6 +7217,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("PlaybackStatePublisherWidgetOwner.fromContextProvider(() -> this)"));
         assertTrue(service.contains("private PlaybackStreamingDiagnosticsRecorderOwner playbackStreamingDiagnosticsRecorderOwner;"));
         assertTrue(service.contains("new PlaybackStreamingDiagnosticsRecorderOwner("));
+        assertFalse(service.contains("() -> streamingDiagnostics"));
         assertFalse(service.contains("private PlaybackBufferingDiagnosticsRecorderOwner playbackBufferingDiagnosticsRecorderOwner;"));
         assertFalse(service.contains("new PlaybackBufferingDiagnosticsRecorderOwner("));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackBufferingDiagnosticsRecorderOwner.java")));
@@ -7252,8 +7257,11 @@ public final class MainActivityArchitectureContractTest {
                 "implements PlaybackStatePublisher.BufferingRecorder"));
         assertFalse(streamingDiagnosticsOwner.contains("interface StreamingDiagnosticsProvider"));
         assertTrue(streamingDiagnosticsOwner.contains(
+                "private final PlaybackStreamingDiagnostics streamingDiagnostics;"));
+        assertFalse(streamingDiagnosticsOwner.contains(
                 "private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider;"));
-        assertTrue(streamingDiagnosticsOwner.contains("streamingDiagnosticsProvider.get()"));
+        assertTrue(streamingDiagnosticsOwner.contains("return streamingDiagnostics;"));
+        assertFalse(streamingDiagnosticsOwner.contains("streamingDiagnosticsProvider.get()"));
         assertFalse(streamingDiagnosticsOwner.contains("interface StreamingDiagnosticsOperations"));
         assertFalse(streamingDiagnosticsOwner.contains("StreamingDiagnosticsOperationsProvider"));
         assertTrue(streamingDiagnosticsOwner.contains("diagnostics.recordBuffering(snapshot.currentTrack, snapshot.positionMs);"));

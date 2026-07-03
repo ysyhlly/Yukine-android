@@ -683,7 +683,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackStreamingDiagnosticsRecorderOwner =
                 new PlaybackStreamingDiagnosticsRecorderOwner(
-                        () -> streamingDiagnostics,
+                        streamingDiagnostics,
                         mediaSourceProvider::streamingQualityForTrack
                 );
         PlaybackPrecacheStateOwner playbackPrecacheStateOwner = new PlaybackPrecacheStateOwner(
