@@ -31,7 +31,7 @@ public class PlaybackFavoriteCommandOwnerTest {
         FakeStatePublisher statePublisher = new FakeStatePublisher();
 
         PlaybackFavoriteCommandOwner.toggleCurrentFavorite(
-                queueManager,
+                queueStateOwner(queueManager),
                 new ToggleFavoriteUseCase(operations),
                 statePublisher::publishState
         );
@@ -48,7 +48,7 @@ public class PlaybackFavoriteCommandOwnerTest {
         FakeStatePublisher statePublisher = new FakeStatePublisher();
 
         PlaybackFavoriteCommandOwner.toggleCurrentFavorite(
-                queueManager(),
+                queueStateOwner(queueManager()),
                 new ToggleFavoriteUseCase(operations),
                 statePublisher::publishState
         );
@@ -64,12 +64,16 @@ public class PlaybackFavoriteCommandOwnerTest {
         FakeStatePublisher statePublisher = new FakeStatePublisher();
 
         PlaybackFavoriteCommandOwner.toggleCurrentFavorite(
-                queueManager,
+                queueStateOwner(queueManager),
                 null,
                 statePublisher::publishState
         );
 
         assertEquals(0, statePublisher.publishStateCalls);
+    }
+
+    private PlaybackQueueStateOwner queueStateOwner(PlaybackQueueManager queueManager) {
+        return new PlaybackQueueStateOwner(queueManager);
     }
 
     private PlaybackQueueManager queueManager() {
