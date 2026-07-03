@@ -8338,10 +8338,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
         assertFalse(commandOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertFalse(commandOwner.contains("hasMultipleTracksSupplier.getAsBoolean()"));
-        assertTrue(commandOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertFalse(commandOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertFalse(commandOwner.contains(": queueStateOwner.currentTrack();"));
         assertFalse(commandOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
         assertTrue(commandOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null"));
         assertTrue(commandOwner.contains(": queueStateOwner.queueStateSnapshot();"));
+        assertTrue(commandOwner.contains("return snapshot.getCurrentTrack();"));
         assertTrue(commandOwner.contains("&& snapshot.getHasMultipleTracks();"));
         assertTrue(commandOwner.contains("private final Consumer<Boolean> playbackPreparer;"));
         assertTrue(commandOwner.contains("private final Runnable skipToNextCommand;"));
