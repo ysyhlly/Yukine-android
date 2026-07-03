@@ -2387,6 +2387,31 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P1 Wiring Note - Position Current Track Adapter
+
+Current audit date: 2026-07-03.
+
+- `PlaybackPositionManager.stateProviderFromPlaybackState(...)` no longer
+  accepts a `Supplier<PlaybackQueueManager.QueueStateSnapshot?>`.
+- It now accepts a `Supplier<Track?>`, matching the only queue value the
+  position manager needs to persist or reset playback position.
+- `EchoPlaybackService` now passes `playbackQueueStateOwner::currentTrack` to
+  position state wiring. Runtime state and notification remain the only direct
+  service consumers of `playbackQueueStateOwner::queueStateSnapshot`.
+- No owner was added. The real reduction is one narrower feature adapter input
+  and one fewer direct service queue snapshot method reference.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1421 lines,
+  `private (final )?Playback` count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, `playbackQueueStateOwner::queueStateSnapshot`
+  references in the service are 2, service `queueStateSupplier` alias
+  references are 0, `playbackQueueStateOwner::currentTrack` method-reference
+  count in the service is 3, and `Playback*Owner` production file count is 43.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackPositionManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## P2/P3 Boundary Audit - Resolver And Precache Owners
 
 Current audit date: 2026-07-03.
