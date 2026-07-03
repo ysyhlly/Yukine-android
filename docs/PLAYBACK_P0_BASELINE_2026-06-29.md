@@ -3009,3 +3009,49 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest --console=plain
 ```
+
+## P1/P2 Batch Audit - Queue State And Resolver Cache Boundaries
+
+Current audit date: 2026-07-03.
+
+- This is the audit checkpoint after three small playback slices:
+  queue mutation empty-state routing, error-recovery current-track debug
+  routing, and media cache key owner-rule coverage.
+- Real reductions in this batch:
+  - `PlaybackQueueMutationOwner.clearQueue()` reads empty-queue state through
+    `PlaybackQueueStateOwner`, not directly from
+    `PlaybackQueueManager.queueStateSnapshot()`.
+  - fallback player-error debug logging reads the current track through the
+    existing `PlaybackErrorRecoveryCommandOwner`, reducing direct
+    `EchoPlaybackService` queue-current-track reads from 4 to 3.
+  - `PlaybackMediaSourceProviderTest` now protects cache-key ownership for
+    streaming, WebDAV, empty data path, and local-path rules.
+- Candidate disposition:
+  - `PlaybackQueueStopClearOwner` remains abandoned. The production and test
+    files are absent, architecture contracts already guard that absence, and
+    `stopAndClear()` reaches
+    `PlaybackQueueCompletionOwner.prepareStopAndClearPlaybackState`.
+  - The remaining service
+    `playbackQueueStateOwner::queueStateSnapshot` consumer is
+    `PlaybackNotificationStateOwner`, which is P4-adjacent and should not be
+    moved until notification smoke is stable or the slice is explicitly scoped
+    to notification.
+  - No production `PlaybackMediaSourceResolutionOwner`, `PlaybackItemResolver`,
+    resolver facade, or cache policy facade exists. URI and MediaItem
+    decisions remain in `PlaybackMediaSourceProvider`; precache policy remains
+    in `PlaybackPrecacheManager` through `PlaybackMediaCacheOperations`.
+- Current metrics: `EchoPlaybackService.java` is 1430 lines,
+  `private Playback*` field count is 43 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0,
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.currentTrack()` calls in the service are
+  3, and `Playback*Owner` production file count is 44.
+- Focused tests covering this batch:
+  `PlaybackQueueMutationOwnerTest`, `PlaybackErrorRecoveryCommandOwnerTest`,
+  `PlaybackMediaSourceProviderTest`, and
+  `MainActivityArchitectureContractTest`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMutationOwnerTest --tests app.yukine.playback.PlaybackErrorRecoveryCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
