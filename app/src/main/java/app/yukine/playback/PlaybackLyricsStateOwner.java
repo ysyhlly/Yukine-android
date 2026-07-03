@@ -4,7 +4,6 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackLyricsManager;
 
 import java.util.function.BooleanSupplier;
-import java.util.function.Supplier;
 
 final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvider {
     interface PlaybackStateProvider {
@@ -16,14 +15,14 @@ final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvi
     }
 
     static PlaybackStateProvider playbackStateProviderFromPlaybackState(
-            Supplier<Track> currentTrackSupplier,
+            PlaybackQueueStateOwner queueStateOwner,
             BooleanSupplier playingStateProvider,
             BooleanSupplier preparingStateProvider
     ) {
         return new PlaybackStateProvider() {
             @Override
             public Track currentTrack() {
-                return currentTrackSupplier == null ? null : currentTrackSupplier.get();
+                return queueStateOwner == null ? null : queueStateOwner.currentTrack();
             }
 
             @Override

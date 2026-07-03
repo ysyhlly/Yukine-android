@@ -2341,3 +2341,25 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackPositionManagerTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueuePersistenceOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1/P4 Boundary Note - Lyrics Current Track Source
+
+Current audit date: 2026-07-03.
+
+- `PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState(...)` no
+  longer accepts a generic `Supplier<Track>` for current-track state. It now
+  reads the current track from the existing `PlaybackQueueStateOwner`.
+- This is not a P4 runtime lyrics/notification migration. The notification and
+  lyrics trigger behavior is unchanged; the only boundary change is that the
+  lyrics state owner uses the queue-state owner as the current-track source.
+- No owner was added. The real reduction is one fewer generic current-track
+  supplier chain entering lyrics state.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1425 lines,
+  `private Playback*` field count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, `queueStateSnapshot` references in
+  the service are 2, and `Playback*Owner` production file count is 43.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackLyricsStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
