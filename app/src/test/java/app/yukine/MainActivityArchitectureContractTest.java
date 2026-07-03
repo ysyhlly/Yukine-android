@@ -6473,7 +6473,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueStateOwner.contains("interface UpcomingTracksOperationsProvider"));
         assertFalse(queueStateOwner.contains("IntFunction<List<Track>> upcomingTracksSupplier"));
         assertFalse(queueStateOwner.contains("upcomingTracksOperationsProvider"));
-        assertTrue(queueStateOwner.contains(
+        assertFalse(queueStateOwner.contains("upcomingTracksForPrecache(int maxCount)"));
+        assertFalse(queueStateOwner.contains(
                 "playbackQueueManager.upcomingTracksForPrecache(maxCount);"));
         assertFalse(queueStateOwner.contains("new QueueStateOperations()"));
         assertFalse(queueStateOwner.contains("default List<Track> upcomingTracksForPrecache(int maxCount)"));
@@ -8096,8 +8097,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("fun setCurrentIndex(index: Int)"));
         assertFalse(owner.contains("fun clampCurrentIndex(queueSize: Int): Int"));
         assertFalse(owner.contains("fun setClampedCurrentIndex(index: Int, queueSize: Int)"));
-        assertTrue(queueStateOwner.contains("upcomingTracksForPrecache(int maxCount)"));
-        assertTrue(queueStateOwner.contains(
+        assertFalse(queueStateOwner.contains("upcomingTracksForPrecache(int maxCount)"));
+        assertFalse(queueStateOwner.contains(
                 "playbackQueueManager.upcomingTracksForPrecache(maxCount);"));
         assertFalse(queueStateOwner.contains("default List<Track> upcomingTracksForPrecache(int maxCount)"));
         assertTrue(queueOwner.contains("private var currentIndex = -1"));

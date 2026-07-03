@@ -117,7 +117,6 @@ public class PlaybackQueueStateOwnerTest {
         PlaybackQueueStateOwner missingManager = new PlaybackQueueStateOwner();
 
         assertTrue(missingManager.queueSnapshot().isEmpty());
-        assertTrue(missingManager.upcomingTracksForPrecache(3).isEmpty());
     }
 
     @Test
@@ -133,7 +132,6 @@ public class PlaybackQueueStateOwnerTest {
                 new PlaybackQueueStateOwner(queueManager);
 
         assertTrackIds(Arrays.asList(1L, 2L, 3L), owner.queueSnapshot());
-        assertTrackIds(Collections.singletonList(3L), owner.upcomingTracksForPrecache(3));
     }
 
     private static Track track(long id) {
