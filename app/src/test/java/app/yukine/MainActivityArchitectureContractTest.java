@@ -5978,6 +5978,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(normalizedService.contains(
                 "playbackQueueCompletionOwner().prepareStopAtEndOfQueue();"));
         assertTrue(normalizedService.contains(
+                "playbackQueueCompletionOwner().stopAfterAutomaticAdvance(transition.completedIndex());"));
+        assertFalse(normalizedService.contains(
                 "playbackQueueCompletionOwner().prepareStopAfterAutomaticAdvance(completedIndex);"));
         assertFalse(normalizedService.contains("withPlaybackQueueCompletionOwner("));
         assertFalse(normalizedService.contains("Consumer<PlaybackQueueCompletionOwner>"));
@@ -6217,7 +6219,9 @@ public final class MainActivityArchitectureContractTest {
                 "playbackQueueCompletionOwner().prepareStopAtEndOfQueue();"));
         assertFalse(service.contains("if (!new PlaybackQueueCompletionOwner("));
         assertFalse(service.contains("playbackQueueManager.prepareStopAtEndOfQueue()"));
-        assertTrue(service.contains("playbackQueueCompletionOwner().prepareStopAfterAutomaticAdvance(completedIndex);"));
+        assertTrue(service.contains(
+                "playbackQueueCompletionOwner().stopAfterAutomaticAdvance(transition.completedIndex());"));
+        assertFalse(service.contains("playbackQueueCompletionOwner().prepareStopAfterAutomaticAdvance(completedIndex);"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex)"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.preparePlaybackCompletionAction();"));
         assertTrue(queueCompletionOwner.contains("if (completionAction == null)"));
@@ -6228,6 +6232,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAtEndOfQueue();"));
         assertFalse(queueCompletionOwner.contains("completionBoundary.prepareStopAtEndFallbackState();"));
         assertFalse(service.contains("prepareStopAtEndFallbackState()"));
+        assertTrue(queueCompletionOwner.contains("void stopAfterAutomaticAdvance(int completedIndex)"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex);"));
         assertFalse(queueCompletionOwner.contains("private void stopAndClear()"));
         assertFalse(queueCompletionOwner.contains("private void stopAtEndOfQueue()"));
@@ -8189,8 +8194,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueManager.setClampedCurrentIndex(index);"));
         assertFalse(service.contains("playbackQueueStateOwner::upcomingTracksForPrecache"));
         assertFalse(service.contains("playbackQueueManager::upcomingTracksForPrecache"));
-        assertTrue(service.contains("playbackQueueCompletionOwner().prepareStopAfterAutomaticAdvance(completedIndex);"));
+        assertTrue(service.contains(
+                "playbackQueueCompletionOwner().stopAfterAutomaticAdvance(transition.completedIndex());"));
+        assertFalse(service.contains("playbackQueueCompletionOwner().prepareStopAfterAutomaticAdvance(completedIndex);"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex);"));
+        assertTrue(queueCompletionOwner.contains("void stopAfterAutomaticAdvance(int completedIndex)"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex);"));
         assertFalse(service.contains("saveTrackPlaybackPosition(completed, 0L);"));
         assertFalse(service.contains("private void saveTrackPlaybackPosition(Track track, long positionMs)"));

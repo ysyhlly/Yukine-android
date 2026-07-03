@@ -229,7 +229,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 return;
             }
             if (transition.stopAfterAutomaticAdvance()) {
-                stopAfterAutomaticAdvance(transition.completedIndex());
+                playbackQueueCompletionOwner().stopAfterAutomaticAdvance(transition.completedIndex());
                 return;
             }
             Track track = transition.currentTrack();
@@ -1244,11 +1244,6 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackStreamingDiagnosticsRecorderOwner != null) {
             playbackStreamingDiagnosticsRecorderOwner.record(snapshot());
         }
-    }
-
-    private void stopAfterAutomaticAdvance(int completedIndex) {
-        playbackQueueCompletionOwner().prepareStopAfterAutomaticAdvance(completedIndex);
-        stopAtEndOfQueue();
     }
 
     private PlaybackQueueCompletionOwner playbackQueueCompletionOwner() {

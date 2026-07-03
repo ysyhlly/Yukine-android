@@ -146,6 +146,37 @@ public class PlaybackQueueCompletionOwnerTest {
     }
 
     @Test
+    public void stopAfterAutomaticAdvancePreparesQueueAndStopsAtEnd() {
+        FakeQueueStore store = new FakeQueueStore();
+        PlaybackQueueManager queueManager = queueManagerWithTracks(
+                store,
+                Arrays.asList(track(3L), track(4L)),
+                1,
+                REPEAT_ALL
+        );
+        List<String> events = new ArrayList<>();
+
+        owner(queueManager, new FakeCompletionBoundary(events)).stopAfterAutomaticAdvance(0);
+
+        assertEquals(0, queueManager.queueStateSnapshot().getCurrentIndex());
+        assertEquals(Collections.singletonList("4:0"), store.savedPositions);
+        assertEquals(Collections.singletonList("stopAtEnd"), events);
+    }
+
+    @Test
+    public void stopAfterAutomaticAdvanceWithoutQueueManagerStillStopsAtEnd() {
+        List<String> events = new ArrayList<>();
+        PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
+                null,
+                new FakeCompletionBoundary(events)
+        );
+
+        owner.stopAfterAutomaticAdvance(7);
+
+        assertEquals(Collections.singletonList("stopAtEnd"), events);
+    }
+
+    @Test
     public void missingPlaybackQueueManagerUsesStopAndClearBoundaryOnlyForCompletion() {
         List<String> events = new ArrayList<>();
         PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
