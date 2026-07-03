@@ -6651,6 +6651,7 @@ public final class MainActivityArchitectureContractTest {
     public void playbackQueueManagerPublicApiStaysExplicitlyAudited() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String owner = read("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackQueueManager.kt");
+        String normalizedOwner = owner.replace("\r\n", "\n");
         for (Path source : sourceFiles("app/src/main/java/app/yukine/playback")) {
             assertSourceDoesNotContain(source, "interface QueueProvider");
             assertSourceDoesNotContain(source, "PlaybackQueueManager.QueueProvider");
@@ -6715,6 +6716,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("interface QueueProvider"));
         assertFalse(owner.contains("queueProvider"));
         assertFalse(service.contains("new PlaybackQueueManager.QueueProvider()"));
+        assertEquals(3, countOccurrences(normalizedOwner, "\n    interface "));
         String queuePlaybackActions = owner.substring(
                 owner.indexOf("interface QueuePlaybackActions"),
                 owner.indexOf("interface StreamingRestoreProvider"));
@@ -6729,6 +6731,25 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queuePlaybackActions.contains("restoredPosition"));
         assertFalse(queuePlaybackActions.contains("isPlaying"));
         assertFalse(queuePlaybackActions.contains("preparing"));
+        String streamingRestoreProvider = normalizedOwner.substring(
+                normalizedOwner.indexOf("interface StreamingRestoreProvider"),
+                normalizedOwner.indexOf("interface MirroredQueuePlayer"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "restoreTrackForPlayback"
+        )), kotlinInterfaceFunNames(streamingRestoreProvider));
+        assertFalse(streamingRestoreProvider.contains("queueStateSnapshot"));
+        assertFalse(streamingRestoreProvider.contains("cache"));
+        assertFalse(streamingRestoreProvider.contains("mediaItem"));
+        String mirroredQueuePlayer = normalizedOwner.substring(
+                normalizedOwner.indexOf("interface MirroredQueuePlayer"),
+                normalizedOwner.indexOf("data class CurrentTrackReplacementRecovery"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "matchesCurrentQueue",
+                "seekTo"
+        )), kotlinInterfaceFunNames(mirroredQueuePlayer));
+        assertFalse(mirroredQueuePlayer.contains("currentTrack"));
+        assertFalse(mirroredQueuePlayer.contains("queueStateSnapshot"));
+        assertFalse(mirroredQueuePlayer.contains("publishState"));
         assertFalse(owner.contains("\n    fun currentIndex(): Int"));
         assertFalse(owner.contains("\n    fun setCurrentIndex(index: Int)"));
         assertFalse(owner.contains("\n    fun currentTrack(): Track?"));

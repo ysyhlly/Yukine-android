@@ -2520,6 +2520,38 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMirroredTransitionOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P1 Interface Audit - Queue Manager Inputs
+
+Current audit date: 2026-07-03.
+
+- This is an interface-only audit checkpoint after the recent queue snapshot
+  and current-track wiring slices. No production owner was added or deleted.
+- `PlaybackQueueManager.QueueProvider` remains absent from production code, and
+  production `fromPlaybackQueueManager(...)` factories remain at 0.
+- `MainActivityArchitectureContractTest` now treats the remaining
+  `PlaybackQueueManager` nested interfaces as an audited external-input set:
+  `QueuePlaybackActions`, `StreamingRestoreProvider`, and
+  `MirroredQueuePlayer`.
+- The contract fixes each interface width:
+  `QueuePlaybackActions` can only prepare current playback and publish state,
+  `StreamingRestoreProvider` can only restore a track for playback, and
+  `MirroredQueuePlayer` can only match/seek the mirrored queue.
+- This closes the P1 audit gap where Service direct queue calls had shrunk but
+  interface width could still grow by moving calls behind new provider-style
+  methods.
+- Current metrics: `EchoPlaybackService.java` is 1425 lines,
+  `private (final )?Playback` count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` production count is 0,
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.currentTrack()` calls in the service are
+  0, direct `playbackQueueStateOwner::currentTrack` references in the service
+  are 2, and `Playback*Owner` production file count is 43.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## P1 Wiring Note - Runtime And Position Current Track Suppliers
 
 Current audit date: 2026-07-03.
