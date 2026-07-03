@@ -4229,3 +4229,24 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheStateOwnerTest --console=plain
 .\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1 Wiring Note - Queue Mutation Clear Boundary
+
+Current audit date: 2026-07-03.
+
+- `PlaybackQueueMutationOwner` no longer receives `PlaybackQueueStateOwner`.
+  The owner already owns the queue mutation boundary through
+  `PlaybackQueueManager`, so `clearQueue()` now checks the existing
+  `queueSnapshot()` read instead of unpacking a full `QueueStateSnapshot`.
+- `EchoPlaybackService.playbackQueueMutationOwner()` now passes one fewer
+  constructor argument. No owner, facade, Service field, or supplier was added.
+- The real gain is one fewer constructor parameter and one fewer Service wiring
+  argument, while keeping queue mutation commands behind
+  `PlaybackQueueMutationOwner`.
+- Focused coverage: `PlaybackQueueMutationOwnerTest` and
+  `MainActivityArchitectureContractTest`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMutationOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```

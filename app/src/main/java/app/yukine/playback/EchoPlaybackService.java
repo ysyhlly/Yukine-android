@@ -1295,7 +1295,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackQueueMutationOwner playbackQueueMutationOwner() {
         return new PlaybackQueueMutationOwner(
                 playbackQueueManager,
-                playbackQueueStateOwner,
                 EchoPlaybackService.this::stopAndClear
         );
     }

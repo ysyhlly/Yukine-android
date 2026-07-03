@@ -5821,11 +5821,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.replace("\r\n", "\n").contains(
                 "new PlaybackQueueMutationOwner(\n"
                         + "                playbackQueueManager,\n"
-                        + "                playbackQueueStateOwner,"
+                        + "                EchoPlaybackService.this::stopAndClear"
         ));
+        assertFalse(service.contains("playbackQueueStateOwner,\n                EchoPlaybackService.this::stopAndClear"));
         assertTrue(service.contains("EchoPlaybackService.this::stopAndClear"));
         assertFalse(service.contains("PlaybackQueueMutationOwner.fromPlaybackQueueManager("));
         assertFalse(queueMutationOwner.contains("static PlaybackQueueMutationOwner fromPlaybackQueueManager("));
+        assertFalse(queueMutationOwner.contains("private final PlaybackQueueStateOwner queueStateOwner"));
+        assertFalse(queueMutationOwner.contains("PlaybackQueueStateOwner queueStateOwner"));
+        assertFalse(queueMutationOwner.contains("QueueStateSnapshot"));
+        assertTrue(queueMutationOwner.contains("!playbackQueueManager.queueSnapshot().isEmpty()"));
         assertFalse(service.contains("private final PlaybackQueueNavigationOwner playbackQueueNavigationOwner"));
         assertFalse(service.contains("private PlaybackQueueNavigationOwner playbackQueueNavigationOwner;"));
         assertTrue(service.contains("private PlaybackQueueNavigationOwner playbackQueueNavigationOwner()"));
@@ -5975,12 +5980,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueMutationOwner.contains("playbackQueueManager.retainTracksById(trackIdsToKeep)"));
         assertTrue(service.contains("playbackQueueMutationOwner().clearQueue();"));
         assertFalse(service.contains("playbackQueueManager.clearQueue()"));
-        assertTrue(queueMutationOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertFalse(queueMutationOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
         assertFalse(queueMutationOwner.contains("playbackQueueManager.queueStateSnapshot().isQueueEmpty()"));
-        assertTrue(queueMutationOwner.contains("PlaybackQueueManager.QueueStateSnapshot queueSnapshot = queueStateOwner == null"));
-        assertTrue(queueMutationOwner.contains(": queueStateOwner.queueStateSnapshot();"));
-        assertTrue(queueMutationOwner.contains("if (!queueSnapshot.isQueueEmpty())"));
-        assertFalse(queueMutationOwner.contains("playbackQueueManager.queueSnapshot().isEmpty()"));
+        assertFalse(queueMutationOwner.contains("PlaybackQueueManager.QueueStateSnapshot queueSnapshot = queueStateOwner == null"));
+        assertFalse(queueMutationOwner.contains(": queueStateOwner.queueStateSnapshot();"));
+        assertFalse(queueMutationOwner.contains("if (!queueSnapshot.isQueueEmpty())"));
+        assertTrue(queueMutationOwner.contains("!playbackQueueManager.queueSnapshot().isEmpty()"));
         assertTrue(queueMutationOwner.contains("stopAndClear();"));
         assertFalse(service.contains("public void replaceQueuedTrack(Track replacement)"));
         assertFalse(service.contains("playbackQueueMutationOwner.replaceQueuedTrack(replacement);"));

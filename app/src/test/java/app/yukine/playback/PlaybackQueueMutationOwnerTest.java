@@ -69,7 +69,7 @@ public class PlaybackQueueMutationOwnerTest {
         FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
         PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);
         FakeStopAndClearAction stopAndClearAction = new FakeStopAndClearAction();
-        PlaybackQueueMutationOwner missingManager = new PlaybackQueueMutationOwner(null, null, null);
+        PlaybackQueueMutationOwner missingManager = new PlaybackQueueMutationOwner(null, null);
         PlaybackQueueMutationOwner owner = owner(queueManager, stopAndClearAction);
 
         missingManager.playQueue(Collections.singletonList(track(3L)), 0, 0L);
@@ -152,7 +152,6 @@ public class PlaybackQueueMutationOwnerTest {
     ) {
         return new PlaybackQueueMutationOwner(
                 queueManager,
-                new PlaybackQueueStateOwner(queueManager),
                 stopAndClearAction::run
         );
     }
