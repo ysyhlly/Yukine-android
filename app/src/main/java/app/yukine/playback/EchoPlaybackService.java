@@ -679,7 +679,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                         () -> playbackNotificationManager
                 ),
                 playbackNotificationArtworkSource,
-                PlaybackStatePublisherWidgetOwner.fromContextProvider(() -> this)
+                PlaybackStatePublisherWidgetOwner.fromContext(this)
         );
         playbackStreamingDiagnosticsRecorderOwner =
                 new PlaybackStreamingDiagnosticsRecorderOwner(

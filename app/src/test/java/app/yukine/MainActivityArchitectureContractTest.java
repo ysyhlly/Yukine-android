@@ -7214,7 +7214,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("() -> playbackNotificationManager"));
         assertFalse(service.contains("playbackNotificationManager.updateMediaNotification(force);"));
         assertTrue(service.contains("                playbackNotificationArtworkSource,"));
-        assertTrue(service.contains("PlaybackStatePublisherWidgetOwner.fromContextProvider(() -> this)"));
+        assertTrue(service.contains("PlaybackStatePublisherWidgetOwner.fromContext(this)"));
+        assertFalse(service.contains("PlaybackStatePublisherWidgetOwner.fromContextProvider(() -> this)"));
         assertTrue(service.contains("private PlaybackStreamingDiagnosticsRecorderOwner playbackStreamingDiagnosticsRecorderOwner;"));
         assertTrue(service.contains("new PlaybackStreamingDiagnosticsRecorderOwner("));
         assertFalse(service.contains("() -> streamingDiagnostics"));
@@ -7244,7 +7245,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(widgetOwner.contains("interface WidgetOperations"));
         assertFalse(widgetOwner.contains("interface ContextProvider"));
         assertFalse(widgetOwner.contains("interface WidgetOperationsProvider"));
-        assertTrue(widgetOwner.contains("Supplier<Context>"));
+        assertTrue(widgetOwner.contains("private final Context context;"));
+        assertFalse(widgetOwner.contains("Supplier<Context>"));
+        assertTrue(widgetOwner.contains("static PlaybackStatePublisherWidgetOwner fromContext(Context context)"));
+        assertFalse(widgetOwner.contains("fromContextProvider("));
         assertFalse(widgetOwner.contains("Supplier<WidgetOperations>"));
         assertFalse(widgetOwner.contains("widgetOperationsProvider"));
         assertFalse(widgetOwner.contains("EchoPlaybackWidgetOperations"));
