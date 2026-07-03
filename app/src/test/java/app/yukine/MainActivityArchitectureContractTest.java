@@ -1794,8 +1794,8 @@ public final class MainActivityArchitectureContractTest {
                         "        playbackVisualizationCacheManager = PlaybackVisualizationCacheManager.fromMediaSourceProvider("
                 )
         );
-        assertFalse(normalizedVisualizationCacheStateWiring.contains("                        playbackQueueStateOwner,\n"));
-        assertTrue(normalizedVisualizationCacheStateWiring.contains("currentTrackSupplier"));
+        assertTrue(normalizedVisualizationCacheStateWiring.contains("                        playbackQueueStateOwner,\n"));
+        assertFalse(normalizedVisualizationCacheStateWiring.contains("currentTrackSupplier"));
         assertTrue(playbackService.contains(
                 "playbackVisualizationCacheManager = PlaybackVisualizationCacheManager.fromMediaSourceProvider("));
         assertTrue(playbackService.contains("                playbackVisualizationCacheStateOwner,"));
@@ -1959,12 +1959,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(visualizationCacheStateOwner.contains("private final Consumer<Runnable> cacheTaskScheduler;"));
         assertFalse(visualizationCacheStateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertFalse(visualizationCacheStateOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
-        assertTrue(visualizationCacheStateOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
+        assertTrue(visualizationCacheStateOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertFalse(visualizationCacheStateOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
         assertTrue(visualizationCacheStateOwner.contains("return mainHandler;"));
         assertFalse(visualizationCacheStateOwner.contains("return mainHandlerProvider == null ? null : mainHandlerProvider.get();"));
-        assertFalse(visualizationCacheStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
         assertFalse(visualizationCacheStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
-        assertTrue(visualizationCacheStateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
+        assertTrue(visualizationCacheStateOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertFalse(visualizationCacheStateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertFalse(visualizationCacheStateOwner.contains("return currentTrackProvider.currentTrack();"));
         assertTrue(visualizationCacheStateOwner.contains("if (cacheTaskScheduler != null)"));
         assertTrue(visualizationCacheStateOwner.contains("cacheTaskScheduler.accept(task);"));
