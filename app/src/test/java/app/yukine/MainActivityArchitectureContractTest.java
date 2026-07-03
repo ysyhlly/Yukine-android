@@ -79,9 +79,19 @@ public final class MainActivityArchitectureContractTest {
         int platformControllersStep = onCreate.indexOf("        initializePlatformControllers();");
         int playbackLifecycleStep = onCreate.indexOf("        initializePlaybackLifecycleControllers();");
         int playbackControllersStep = onCreate.indexOf("        initializePlaybackControllers();");
+        int routeControllerAssignment = routeStoresAndStatus.indexOf(
+                "routeController = new MainRouteController(navigationViewModel);"
+        );
+        int libraryRouteActionsArgument = libraryGateway.indexOf("                routeController,\n");
 
         assertTrue(streamingGatewayStep >= 0);
         assertTrue(streamingOwnersStep >= 0);
+        assertTrue(nowPlayingGatewayStep >= 0);
+        assertTrue(downloadRequestsStep >= 0);
+        assertTrue(libraryGatewayStep >= 0);
+        assertTrue(platformControllersStep >= 0);
+        assertTrue(playbackLifecycleStep >= 0);
+        assertTrue(playbackControllersStep >= 0);
         assertTrue(streamingGatewayStep < streamingOwnersStep);
         assertTrue(routeStoresStep >= 0);
         assertTrue(routeStoresStep < nowPlayingGatewayStep);
@@ -93,6 +103,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("routeController = new MainRouteController(navigationViewModel)"));
         assertTrue(routeStoresAndStatus.contains("uiShellController = new MainUiShellController(this);"));
         assertTrue(routeStoresAndStatus.contains("routeController = new MainRouteController(navigationViewModel);"));
+        assertTrue(routeControllerAssignment >= 0);
         assertTrue(routeStoresAndStatus.contains("playbackStore = playbackStoreFactory.create(playbackViewModel);"));
         assertTrue(routeStoresAndStatus.contains("statusMessageController = new StatusMessageController("));
         assertTrue(streamingActionGateway.contains(
@@ -106,6 +117,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(streamingActionGateway.contains("                streamingManualCookieController,\n"));
         assertTrue(libraryGateway.contains("libraryViewModel.bindGateway(libraryGatewayFactory.create("));
         assertTrue(libraryGateway.contains("                routeController,\n"));
+        assertTrue(libraryRouteActionsArgument >= 0);
         assertTrue(nowPlayingGateway.contains("                () -> playbackActionController,\n"));
         assertTrue(nowPlayingGateway.contains("                () -> playbackStore,\n"));
         assertTrue(nowPlayingGateway.contains("                () -> playbackService\n"));
