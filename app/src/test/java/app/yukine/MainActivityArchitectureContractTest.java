@@ -6717,6 +6717,27 @@ public final class MainActivityArchitectureContractTest {
                 "queueStateSnapshot",
                 "upcomingTracksForPrecache"
         )), queueDerivedReadApi);
+        String queueStateSnapshot = normalizedOwner.substring(
+                normalizedOwner.indexOf("data class QueueStateSnapshot("),
+                normalizedOwner.indexOf("        companion object {", normalizedOwner.indexOf("data class QueueStateSnapshot("))
+        );
+        String queueStateSnapshotConstructor = normalizedOwner.substring(
+                normalizedOwner.indexOf("data class QueueStateSnapshot("),
+                normalizedOwner.indexOf("\n    ) {", normalizedOwner.indexOf("data class QueueStateSnapshot("))
+        );
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "currentIndex",
+                "currentTrack",
+                "queueSize"
+        )), kotlinConstructorPropertyNames(queueStateSnapshotConstructor));
+        assertTrue(queueStateSnapshot.contains("val isQueueEmpty: Boolean"));
+        assertTrue(queueStateSnapshot.contains("get() = queueSize <= 0"));
+        assertTrue(queueStateSnapshot.contains("val hasCurrentTrack: Boolean"));
+        assertTrue(queueStateSnapshot.contains("get() = currentTrack != null"));
+        assertTrue(queueStateSnapshot.contains("val hasMultipleTracks: Boolean"));
+        assertTrue(queueStateSnapshot.contains("get() = queueSize >= 2"));
+        assertTrue(queueStateSnapshot.contains("val isAtEndOfQueue: Boolean"));
+        assertTrue(queueStateSnapshot.contains("get() = currentIndex >= queueSize - 1"));
         assertFalse(owner.contains("interface QueueProvider"));
         assertFalse(owner.contains("queueProvider"));
         assertFalse(service.contains("new PlaybackQueueManager.QueueProvider()"));
@@ -8909,6 +8930,22 @@ public final class MainActivityArchitectureContractTest {
             }
             int nameStart = "fun ".length();
             int nameEnd = trimmed.indexOf('(', nameStart);
+            if (nameEnd > nameStart) {
+                names.add(trimmed.substring(nameStart, nameEnd));
+            }
+        }
+        return names;
+    }
+
+    private static java.util.Set<String> kotlinConstructorPropertyNames(String source) {
+        java.util.Set<String> names = new java.util.TreeSet<>();
+        for (String line : source.split("\\R")) {
+            String trimmed = line.trim();
+            if (!trimmed.startsWith("val ") && !trimmed.startsWith("var ")) {
+                continue;
+            }
+            int nameStart = trimmed.indexOf(' ') + 1;
+            int nameEnd = trimmed.indexOf(':', nameStart);
             if (nameEnd > nameStart) {
                 names.add(trimmed.substring(nameStart, nameEnd));
             }

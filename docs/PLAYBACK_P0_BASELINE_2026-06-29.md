@@ -3503,3 +3503,28 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackRuntimeStateManagerTest --tests app.yukine.playback.PlaybackPositionManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## P1 Interface Audit - Queue State Snapshot Source Fields
+
+Current audit date: 2026-07-03.
+
+- `MainActivityArchitectureContractTest` now audits
+  `PlaybackQueueManager.QueueStateSnapshot` constructor fields separately from
+  derived reads.
+- The snapshot source state is fixed to `currentTrack`, `currentIndex`, and
+  `queueSize`.
+- `isQueueEmpty`, `hasCurrentTrack`, `hasMultipleTracks`, and
+  `isAtEndOfQueue` must remain derived getters. This prevents queue snapshot
+  widening from reintroducing extra state sources under a narrower-looking
+  interface.
+- No production code changed and no owner was added. The real gain is stronger
+  interface drift coverage for the queue authority boundary.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1327 lines,
+  `private Playback*` field count is 43 by the existing non-final field
+  metric, and `Playback*Owner` production file count is 43.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --console=plain
+```
