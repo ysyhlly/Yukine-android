@@ -6884,6 +6884,27 @@ public final class MainActivityArchitectureContractTest {
                 "queueStateSnapshot",
                 "upcomingTracksForPrecache"
         )), queueDerivedReadApi);
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackPrecacheManager.java",
+                "PlaybackQueueMutationOwner.java",
+                "PlaybackQueueStateOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.queueStateSnapshot()"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackPositionManager.kt",
+                "PlaybackRuntimeStateManager.kt"
+        )), playbackSourceFileNamesContaining("queueManagerSupplier?.get()?.queueStateSnapshot()"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackWifiLockManager.kt"
+        )), playbackSourceFileNamesContaining("playbackQueueManager?.queueStateSnapshot()"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueStateOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.queueSnapshot()"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackPrecacheManager.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.upcomingTracksForPrecache("));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackCurrentTrackPreparationQueueOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.queuePreparationForNewPlayer()"));
         String queueStateSnapshot = normalizedOwner.substring(
                 normalizedOwner.indexOf("data class QueueStateSnapshot("),
                 normalizedOwner.indexOf("        companion object {", normalizedOwner.indexOf("data class QueueStateSnapshot("))
@@ -9251,6 +9272,28 @@ public final class MainActivityArchitectureContractTest {
         }
         files.sort(java.util.Comparator.comparing(Path::toString));
         return files;
+    }
+
+    private static java.util.Set<String> playbackSourceFileNamesContaining(String needle) throws Exception {
+        java.util.Set<String> names = new java.util.TreeSet<>();
+        for (Path source : sourceFiles("app/src/main/java/app/yukine/playback")) {
+            addFileNameIfContains(names, source, needle);
+        }
+        for (Path source : sourceFiles("feature/playback/src/main/java/app/yukine/playback")) {
+            addFileNameIfContains(names, source, needle);
+        }
+        return names;
+    }
+
+    private static void addFileNameIfContains(
+            java.util.Set<String> names,
+            Path source,
+            String needle
+    ) throws Exception {
+        String content = new String(Files.readAllBytes(source), StandardCharsets.UTF_8);
+        if (content.contains(needle)) {
+            names.add(source.getFileName().toString());
+        }
     }
 
     private static void assertSourceDoesNotContain(Path source, String forbidden) throws Exception {
