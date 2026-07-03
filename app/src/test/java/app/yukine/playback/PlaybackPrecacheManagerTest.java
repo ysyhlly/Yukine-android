@@ -1,5 +1,7 @@
 package app.yukine.playback;
 
+import static app.yukine.playback.PlaybackRepeatMode.REPEAT_ALL;
+import static app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 
@@ -9,6 +11,7 @@ import android.net.Uri;
 import androidx.media3.common.MediaItem;
 import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.cache.CacheDataSource;
+import androidx.media3.exoplayer.ExoPlayer;
 
 import app.yukine.common.StreamingDataPathParser;
 import app.yukine.data.MusicLibraryRepository;
@@ -19,6 +22,7 @@ import app.yukine.playback.manager.PlaybackMediaCacheOperations;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackQueueStore;
+import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 import app.yukine.playback.manager.PlaybackTransitionStateManager;
 import app.yukine.streaming.StreamingPlaybackHeaderStore;
 
@@ -29,6 +33,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -542,23 +547,89 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
-    public void upcomingPrecacheReadsTracksThroughQueueManager() {
+    public void upcomingPrecacheWrapsAndSkipsCurrentTrackWhenRepeatAll() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        Track current = track(1L, "https://example.test/current.mp3");
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        Track first = track(1L, "https://example.test/first.mp3");
+        Track second = track(2L, "https://example.test/second.mp3");
+        Track current = track(3L, "https://example.test/current.mp3");
         PlaybackQueueManager queueManager = queueManager(
-                current,
-                track(2L, "https://example.test/upcoming.mp3")
+                2,
+                REPEAT_ALL,
+                first,
+                second,
+                current
         );
-        PlaybackPrecacheManager manager = precacheManager(stateProvider, queueManager, scheduler);
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                stateProvider.diagnostics,
+                queueManager,
+                mediaCacheOperations,
+                (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
+                scheduler,
+                new FakeAudioCacheReleaseAction()::releaseAudioCache,
+                executor
+        );
 
         stateProvider.currentTrack = current;
         manager.precacheTrack(current);
         scheduler.runNext();
         scheduler.runNext();
+        for (int i = 0; i < executor.submittedTaskCount(); i++) {
+            executor.runSubmitted(i);
+        }
         manager.release();
 
-        assertEquals(2, queueManager.queueStateSnapshot().getQueueSize());
+        assertEquals(4, executor.submittedTaskCount());
+        assertEquals(
+                Arrays.asList(1L, 2L),
+                sortedTrackIds(mediaCacheOperations.cacheDataSourceTracks)
+        );
+    }
+
+    @Test
+    public void upcomingPrecacheStopsAtQueueEndWhenRepeatOff() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        Track first = track(1L, "https://example.test/first.mp3");
+        Track current = track(2L, "https://example.test/current.mp3");
+        Track upcoming = track(3L, "https://example.test/upcoming.mp3");
+        PlaybackQueueManager queueManager = queueManager(
+                1,
+                REPEAT_OFF,
+                first,
+                current,
+                upcoming
+        );
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                stateProvider.diagnostics,
+                queueManager,
+                mediaCacheOperations,
+                (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
+                scheduler,
+                new FakeAudioCacheReleaseAction()::releaseAudioCache,
+                executor
+        );
+
+        stateProvider.currentTrack = current;
+        manager.precacheTrack(current);
+        scheduler.runNext();
+        scheduler.runNext();
+        for (int i = 0; i < executor.submittedTaskCount(); i++) {
+            executor.runSubmitted(i);
+        }
+        manager.release();
+
+        assertEquals(3, executor.submittedTaskCount());
+        assertEquals(
+                Collections.singletonList(3L),
+                sortedTrackIds(mediaCacheOperations.cacheDataSourceTracks)
+        );
     }
 
     @Test
@@ -610,6 +681,15 @@ public final class PlaybackPrecacheManagerTest {
         );
     }
 
+    private static List<Long> sortedTrackIds(List<Track> tracks) {
+        List<Long> ids = new ArrayList<>();
+        for (Track track : tracks) {
+            ids.add(track.id);
+        }
+        Collections.sort(ids);
+        return ids;
+    }
+
     private static PlaybackPrecacheManager precacheManager(
             FakeStateProvider stateProvider,
             FakeCallbackScheduler scheduler
@@ -633,6 +713,12 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     private static PlaybackQueueManager queueManager(Track... tracks) {
+        return queueManager(0, REPEAT_ALL, tracks);
+    }
+
+    private static PlaybackQueueManager queueManager(int startIndex, int repeatMode, Track... tracks) {
+        PlaybackRuntimeStateManager runtimeStateManager = playbackRuntimeStateManager();
+        runtimeStateManager.setRepeatMode(repeatMode);
         PlaybackQueueManager queueManager = new PlaybackQueueManager(
                 new FakeQueueStore(),
                 new ArrayList<>(),
@@ -640,14 +726,33 @@ public final class PlaybackPrecacheManagerTest {
                 null,
                 new NoopStreamingRestoreProvider(),
                 new NoopMirroredQueuePlayer(),
-                null,
+                runtimeStateManager,
                 new PlaybackTransitionStateManager(),
                 new Random(1L)
         );
         if (tracks != null && tracks.length > 0) {
-            queueManager.playQueue(java.util.Arrays.asList(tracks), 0, -1L);
+            queueManager.playQueue(java.util.Arrays.asList(tracks), startIndex, -1L);
         }
         return queueManager;
+    }
+
+    private static PlaybackRuntimeStateManager playbackRuntimeStateManager() {
+        return new PlaybackRuntimeStateManager(new PlaybackRuntimeStateManager.StateProvider() {
+            @Override
+            public ExoPlayer player() {
+                return null;
+            }
+
+            @Override
+            public boolean playerMirrorsQueue() {
+                return false;
+            }
+
+            @Override
+            public Track currentTrack() {
+                return null;
+            }
+        });
     }
 
     private static void assertEventuallyPrecacheComplete(
@@ -869,6 +974,7 @@ public final class PlaybackPrecacheManagerTest {
         private long lastCachedBytesPosition = -1L;
         private long lastCachedBytesLength = -1L;
         private Track lastCacheDataSourceTrack;
+        private final List<Track> cacheDataSourceTracks = new ArrayList<>();
 
         @Override
         public boolean tracksShareResolvedUriForReuse(Track current, Track candidate) {
@@ -918,6 +1024,7 @@ public final class PlaybackPrecacheManagerTest {
         public CacheDataSource cacheDataSourceForTrack(Track track) {
             cacheDataSourceForTrackCalls++;
             lastCacheDataSourceTrack = track;
+            cacheDataSourceTracks.add(track);
             return null;
         }
 
