@@ -837,6 +837,32 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun queueStateSnapshotBooleansAreDerivedFromSourceFields() {
+        val empty = PlaybackQueueManager.QueueStateSnapshot(
+            currentTrack = null,
+            currentIndex = -1,
+            queueSize = 0
+        )
+        assertTrue(empty.isQueueEmpty)
+        assertFalse(empty.hasCurrentTrack)
+        assertFalse(empty.hasMultipleTracks)
+        assertTrue(empty.isAtEndOfQueue)
+
+        val middle = PlaybackQueueManager.QueueStateSnapshot(
+            currentTrack = track(1L),
+            currentIndex = 0,
+            queueSize = 2
+        )
+        assertFalse(middle.isQueueEmpty)
+        assertTrue(middle.hasCurrentTrack)
+        assertTrue(middle.hasMultipleTracks)
+        assertFalse(middle.isAtEndOfQueue)
+
+        val end = middle.copy(currentIndex = 1)
+        assertTrue(end.isAtEndOfQueue)
+    }
+
+    @Test
     fun emptyQueueStateSnapshotIsOwnedByQueueManager() {
         val snapshot = PlaybackQueueManager.QueueStateSnapshot.empty()
 

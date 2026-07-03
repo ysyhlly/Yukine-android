@@ -6307,6 +6307,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("\n        fun currentTrack(): Track?"));
         assertFalse(owner.contains("\n        fun currentIndex(): Int"));
         assertFalse(owner.contains("\n        fun setCurrentIndex(index: Int)"));
+        assertTrue(owner.contains("\n    private fun currentIndex(): Int"));
+        assertTrue(owner.contains("\n    private fun setCurrentIndex(index: Int)"));
+        assertFalse(owner.contains("\n    fun currentIndex(): Int"));
+        assertFalse(owner.contains("\n    fun setCurrentIndex(index: Int)"));
         assertFalse(owner.contains("\n        fun savePlaybackResumeRequested(requested: Boolean)"));
         assertFalse(owner.contains("\n        fun seekMirroredQueueToCurrentIndex(playWhenReady: Boolean): Boolean"));
         assertFalse(owner.contains("\n        fun playbackPositionMs(): Long"));
