@@ -478,12 +478,11 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackQueueManager,
                 queueStore
         );
-        playbackCurrentTrackPreparationQueueOwner =
-                PlaybackCurrentTrackPreparationQueueOwner.fromMediaSourceProvider(
-                        playbackQueueManager,
-                        mediaSourceProvider,
-                        playbackNotificationManager::mediaMetadataForTrack
-                );
+        playbackCurrentTrackPreparationQueueOwner = new PlaybackCurrentTrackPreparationQueueOwner(
+                playbackQueueManager,
+                mediaSourceProvider,
+                playbackNotificationManager::mediaMetadataForTrack
+        );
         playbackCurrentTrackPreparationOwner = PlaybackCurrentTrackPreparationOwner.fromMediaSourceProvider(
                 mediaSourceProvider,
                 playbackNotificationManager::mediaMetadataForTrack,

@@ -145,9 +145,9 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     }
 
     @Test
-    public void mediaSourceProviderFactoryFallsBackWhenProviderIsMissing() {
+    public void mediaSourceProviderConstructorFallsBackWhenProviderIsMissing() {
         PlaybackCurrentTrackPreparationQueueOwner owner =
-                PlaybackCurrentTrackPreparationQueueOwner.fromMediaSourceProvider(
+                new PlaybackCurrentTrackPreparationQueueOwner(
                         null,
                         null,
                         track -> null
