@@ -850,8 +850,9 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackCurrentTrackPreparationRuntimeOwner.preparing()) {
             return;
         }
-        if (!playbackQueueCommandOwner.hasCurrentTrack()) {
-            withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::playFirstQueuedTrack);
+        if (playbackQueueCommandOwner.runIfCurrentTrackMissing(
+                () -> withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::playFirstQueuedTrack)
+        )) {
             return;
         }
         if (player.getMediaItemCount() == 0) {

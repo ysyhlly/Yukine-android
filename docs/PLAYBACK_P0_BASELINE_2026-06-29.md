@@ -3552,3 +3552,29 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheManagerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 .\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest --console=plain
 ```
+
+## P1 Wiring Note - Current Track Missing Fallback Command
+
+Current audit date: 2026-07-03.
+
+- `EchoPlaybackService.play()` no longer calls
+  `playbackQueueCommandOwner.hasCurrentTrack()` and interprets the boolean
+  current-track availability result itself.
+- `PlaybackQueueCommandOwner.runIfCurrentTrackMissing(...)` now owns the
+  current-track-missing check and runs the Service-provided fallback command.
+- No owner was added. The real reduction is one fewer Service queue-state
+  strategy decision; the Service still supplies the Android/Media3 boundary
+  action that plays the first queued track.
+- `PlaybackQueueCommandOwnerTest` covers both paths: fallback is skipped when a
+  current track exists and is run when the current track is missing.
+- `MainActivityArchitectureContractTest` blocks the old
+  `playbackQueueCommandOwner.hasCurrentTrack()` call from returning.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1328 lines,
+  `private Playback*` field count is 43 by the existing non-final field
+  metric, `Playback*Owner` production file count is 43, and Service
+  `queueStateSnapshot()` supplier count is 1.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```

@@ -35,9 +35,13 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
         return true;
     }
 
-    boolean hasCurrentTrack() {
-        return queueStateOwner != null
-                && queueStateOwner.queueStateSnapshot().getCurrentTrack() != null;
+    boolean runIfCurrentTrackMissing(Runnable missingCurrentTrackAction) {
+        boolean missingCurrentTrack = queueStateOwner == null
+                || queueStateOwner.queueStateSnapshot().getCurrentTrack() == null;
+        if (missingCurrentTrack && missingCurrentTrackAction != null) {
+            missingCurrentTrackAction.run();
+        }
+        return missingCurrentTrack;
     }
 
     @Override
