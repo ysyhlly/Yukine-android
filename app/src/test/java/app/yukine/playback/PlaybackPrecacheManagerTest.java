@@ -294,6 +294,9 @@ public final class PlaybackPrecacheManagerTest {
 
         assertEquals(PlaybackPrecacheManager.PRECACHE_BYTES, stateProvider.diagnostics.snapshot().recentEvents.get(0).bytes);
         assertEquals(1, stateProvider.diagnostics.snapshot().precacheSuccesses);
+        assertEquals("streaming:test:1|url=https://example.test/cached.mp3", mediaCacheOperations.lastCachedBytesCacheKey);
+        assertEquals(0L, mediaCacheOperations.lastCachedBytesPosition);
+        assertEquals(PlaybackPrecacheManager.PRECACHE_BYTES, mediaCacheOperations.lastCachedBytesLength);
         assertEquals(0, mediaCacheOperations.cacheDataSourceForTrackCalls);
     }
 
@@ -321,6 +324,9 @@ public final class PlaybackPrecacheManagerTest {
         manager.release();
 
         assertEquals(1, mediaCacheOperations.cachedBytesInRangeCalls);
+        assertEquals("streaming:test:1|url=https://example.test/cache-state-fails.mp3", mediaCacheOperations.lastCachedBytesCacheKey);
+        assertEquals(0L, mediaCacheOperations.lastCachedBytesPosition);
+        assertEquals(PlaybackPrecacheManager.PRECACHE_BYTES, mediaCacheOperations.lastCachedBytesLength);
         assertEquals(1, mediaCacheOperations.cacheDataSourceForTrackCalls);
         assertEquals(track, mediaCacheOperations.lastCacheDataSourceTrack);
         assertEquals(1, stateProvider.diagnostics.snapshot().precacheFailures);
@@ -643,6 +649,9 @@ public final class PlaybackPrecacheManagerTest {
         private int contentLengthCalls;
         private int cachedBytesInRangeCalls;
         private int cacheDataSourceForTrackCalls;
+        private String lastCachedBytesCacheKey;
+        private long lastCachedBytesPosition = -1L;
+        private long lastCachedBytesLength = -1L;
         private Track lastCacheDataSourceTrack;
 
         @Override
@@ -680,6 +689,9 @@ public final class PlaybackPrecacheManagerTest {
         @Override
         public long cachedBytesInRange(String cacheKey, long position, long length) {
             cachedBytesInRangeCalls++;
+            lastCachedBytesCacheKey = cacheKey;
+            lastCachedBytesPosition = position;
+            lastCachedBytesLength = length;
             if (throwOnCachedBytesRead) {
                 throw new IllegalStateException("cache state unavailable");
             }
