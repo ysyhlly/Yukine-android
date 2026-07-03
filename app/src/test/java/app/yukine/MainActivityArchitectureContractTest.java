@@ -171,9 +171,16 @@ public final class MainActivityArchitectureContractTest {
 
     @Test
     public void uiCommonChineseCopyRemainsUtf8Readable() throws Exception {
-        String homeDashboard = read("app/src/main/java/app/yukine/ui/HomeDashboardScreen.kt");
-        String libraryGroups = read("app/src/main/java/app/yukine/ui/LibraryGroupsScreen.kt");
-        String trackList = read("app/src/main/java/app/yukine/ui/TrackListScreen.kt");
+        assertFalse(rawExists("app/src/main/java/app/yukine/ui/HomeDashboardScreen.kt"));
+        assertFalse(rawExists("app/src/main/java/app/yukine/ui/LibraryGroupsScreen.kt"));
+        assertFalse(rawExists("app/src/main/java/app/yukine/ui/TrackListScreen.kt"));
+        assertTrue(rawExists("feature/ui-common/src/main/java/app/yukine/ui/HomeDashboardScreen.kt"));
+        assertTrue(rawExists("feature/ui-common/src/main/java/app/yukine/ui/LibraryGroupsScreen.kt"));
+        assertTrue(rawExists("feature/ui-common/src/main/java/app/yukine/ui/TrackListScreen.kt"));
+
+        String homeDashboard = read("feature/ui-common/src/main/java/app/yukine/ui/HomeDashboardScreen.kt");
+        String libraryGroups = read("feature/ui-common/src/main/java/app/yukine/ui/LibraryGroupsScreen.kt");
+        String trackList = read("feature/ui-common/src/main/java/app/yukine/ui/TrackListScreen.kt");
 
         assertContainsUtf8Chinese(homeDashboard, "今天想听点什么？");
         assertContainsUtf8Chinese(homeDashboard, "继续播放");
@@ -9552,6 +9559,20 @@ public final class MainActivityArchitectureContractTest {
                 if (Files.exists(current.resolve("echo-android").resolve(candidatePath))) {
                     return true;
                 }
+            }
+            current = current.getParent();
+        }
+        return false;
+    }
+
+    private static boolean rawExists(String path) {
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
+        while (current != null) {
+            if (Files.exists(current.resolve(path))) {
+                return true;
+            }
+            if (Files.exists(current.resolve("echo-android").resolve(path))) {
+                return true;
             }
             current = current.getParent();
         }
