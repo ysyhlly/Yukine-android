@@ -2583,6 +2583,40 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMirroredPlayerOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P3 Interface Note - Cache State Current Track Snapshots
+
+Current audit date: 2026-07-03.
+
+- `PlaybackPrecacheStateOwner` and `PlaybackVisualizationCacheStateOwner` now
+  read current track state from `PlaybackQueueStateOwner.queueStateSnapshot()`
+  instead of the derivable `PlaybackQueueStateOwner.currentTrack()`
+  convenience method.
+- No owner, supplier, resolver, or cache policy was added. The real reduction
+  is two fewer cache-adjacent state-provider paths depending on the
+  current-track shortcut while keeping URI/MediaItem resolution in
+  `PlaybackMediaSourceProvider` and cache policy in `PlaybackPrecacheManager`
+  / `PlaybackVisualizationCacheManager`.
+- `MainActivityArchitectureContractTest` now guards both state owners against
+  returning to `queueStateOwner.currentTrack()`.
+- Remaining production `queueStateOwner.currentTrack()` use is only in
+  `PlaybackLyricsStateOwner`, which is P4-adjacent and should wait for lyrics
+  smoke coverage. The remaining direct Service
+  `playbackQueueStateOwner.currentTrack()` call is still `play()` and remains
+  deferred to avoid creating a broad play facade around Media3/player
+  boundary behavior.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1425 lines,
+  `private Playback*` field count is 43 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0,
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.currentTrack()` calls in the service are
+  1, and recursive `Playback*Owner` production file count is 43 by the current
+  `Get-ChildItem` metric.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheStateOwnerTest --tests app.yukine.playback.PlaybackVisualizationCacheStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## P1 Wiring Note - Play Command Current Track Reuse
 
 Current audit date: 2026-07-03.

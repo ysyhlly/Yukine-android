@@ -1970,7 +1970,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(visualizationCacheStateOwner.contains("return mainHandler;"));
         assertFalse(visualizationCacheStateOwner.contains("return mainHandlerProvider == null ? null : mainHandlerProvider.get();"));
         assertFalse(visualizationCacheStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
-        assertTrue(visualizationCacheStateOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertTrue(visualizationCacheStateOwner.contains("return queueStateOwner == null ? null"));
+        assertTrue(visualizationCacheStateOwner.contains(": queueStateOwner.queueStateSnapshot().getCurrentTrack();"));
+        assertFalse(visualizationCacheStateOwner.contains("queueStateOwner.currentTrack()"));
         assertFalse(visualizationCacheStateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertFalse(visualizationCacheStateOwner.contains("return currentTrackProvider.currentTrack();"));
         assertTrue(visualizationCacheStateOwner.contains("if (cacheTaskScheduler != null)"));
@@ -2199,7 +2201,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheStateOwner.contains("private final Supplier<MediaItem> playerMediaItemSupplier;"));
         assertFalse(playbackPrecacheStateOwner.contains("private final IntFunction<List<Track>> upcomingTracksProvider;"));
         assertTrue(playbackPrecacheStateOwner.contains("private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsSupplier;"));
-        assertTrue(playbackPrecacheStateOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertTrue(playbackPrecacheStateOwner.contains("return queueStateOwner == null ? null"));
+        assertTrue(playbackPrecacheStateOwner.contains(": queueStateOwner.queueStateSnapshot().getCurrentTrack();"));
+        assertFalse(playbackPrecacheStateOwner.contains("queueStateOwner.currentTrack()"));
         assertFalse(playbackPrecacheStateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertTrue(playbackPrecacheStateOwner.contains("queueStateOwner.upcomingTracksForPrecache(maxCount)"));
         assertFalse(playbackPrecacheStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));

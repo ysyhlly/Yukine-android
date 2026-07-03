@@ -28,7 +28,8 @@ final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizatio
 
     @Override
     public Track currentTrack() {
-        return queueStateOwner == null ? null : queueStateOwner.currentTrack();
+        return queueStateOwner == null ? null
+                : queueStateOwner.queueStateSnapshot().getCurrentTrack();
     }
 
     @Override
