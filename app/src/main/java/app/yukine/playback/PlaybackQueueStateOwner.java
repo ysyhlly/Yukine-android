@@ -38,6 +38,14 @@ final class PlaybackQueueStateOwner {
         return queueStateSnapshot().isQueueEmpty();
     }
 
+    boolean hasMultipleTracks() {
+        return queueStateSnapshot().getHasMultipleTracks();
+    }
+
+    boolean isAtEndOfQueue() {
+        return queueStateSnapshot().isAtEndOfQueue();
+    }
+
     List<Track> queueSnapshot() {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         List<Track> snapshot = playbackQueueManager == null ? null : playbackQueueManager.queueSnapshot();

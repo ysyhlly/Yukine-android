@@ -152,6 +152,25 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     @Test
+    public void queueBoundaryFlagsAreDerivedFromLatestQueueStateWithoutLocalState() {
+        PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
+        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManager);
+
+        assertFalse(owner.hasMultipleTracks());
+        assertFalse(owner.isAtEndOfQueue());
+
+        queueManager.playQueue(Arrays.asList(track(51L), track(52L)), 0, -1L);
+
+        assertTrue(owner.hasMultipleTracks());
+        assertFalse(owner.isAtEndOfQueue());
+
+        queueManager.playQueue(Arrays.asList(track(53L), track(54L)), 1, -1L);
+
+        assertTrue(owner.hasMultipleTracks());
+        assertTrue(owner.isAtEndOfQueue());
+    }
+
+    @Test
     public void delegatesQueueReadsToPlaybackQueueManager() {
         PlaybackRuntimeStateManager runtimeStateManager = playbackRuntimeStateManager();
         runtimeStateManager.setRepeatMode(REPEAT_OFF);
