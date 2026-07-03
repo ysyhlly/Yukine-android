@@ -1827,7 +1827,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackService.contains("postponePlaybackVisualizationWarmup();"));
         assertTrue(playbackService.contains("private PlaybackStateSnapshotOwner playbackStateSnapshotOwner;"));
         assertTrue(playbackService.contains("playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner("));
-        assertTrue(playbackService.contains("                queueStateSupplier,"));
+        assertTrue(normalizedPlaybackService.contains(
+                "playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner(\n"
+                        + "                playbackQueueStateOwner,"));
+        assertFalse(normalizedPlaybackService.contains(
+                "playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner(\n"
+                        + "                queueStateSupplier,"));
         assertTrue(playbackService.contains("PlaybackStateSnapshotOwner.fromRuntimeStateManager(playbackRuntimeStateManager)"));
         assertFalse(playbackService.contains("PlaybackStateSnapshotOwner.fromRuntimeStateManagerProvider("));
         assertTrue(playbackService.contains("PlaybackStateSnapshotOwner.fromVisualizationAnalyzerProvider("));
@@ -1844,7 +1849,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(stateSnapshotOwner.contains("interface RuntimeStateManagerProvider"));
         assertFalse(stateSnapshotOwner.contains("interface VisualizationAnalyzerProvider"));
         assertFalse(stateSnapshotOwner.contains("interface RealtimeBeatProvider"));
-        assertTrue(stateSnapshotOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;"));
+        assertFalse(stateSnapshotOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;"));
+        assertTrue(stateSnapshotOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
         assertTrue(stateSnapshotOwner.contains("private final LongSupplier sleepTimerProvider;"));
         assertTrue(stateSnapshotOwner.contains("private final DoubleSupplier realtimeBeatProvider;"));
         assertFalse(stateSnapshotOwner.contains("Supplier<PlaybackRuntimeStateManager> runtimeStateManagerProvider"));

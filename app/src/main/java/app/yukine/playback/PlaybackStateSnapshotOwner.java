@@ -39,7 +39,7 @@ final class PlaybackStateSnapshotOwner {
         PlaybackSpectrumSnapshot spectrumSnapshot(Track track, long durationMs, boolean deferGeneration);
     }
 
-    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;
+    private final PlaybackQueueStateOwner queueStateOwner;
     private final PlaybackPositionProvider playbackPositionProvider;
     private final RuntimeStateProvider runtimeStateProvider;
     private final LongSupplier sleepTimerProvider;
@@ -48,7 +48,7 @@ final class PlaybackStateSnapshotOwner {
     private final int defaultRepeatMode;
 
     PlaybackStateSnapshotOwner(
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider,
+            PlaybackQueueStateOwner queueStateOwner,
             PlaybackPositionProvider playbackPositionProvider,
             RuntimeStateProvider runtimeStateProvider,
             LongSupplier sleepTimerProvider,
@@ -56,7 +56,7 @@ final class PlaybackStateSnapshotOwner {
             DoubleSupplier realtimeBeatProvider,
             int defaultRepeatMode
     ) {
-        this.queueStateProvider = queueStateProvider;
+        this.queueStateOwner = queueStateOwner;
         this.playbackPositionProvider = playbackPositionProvider;
         this.runtimeStateProvider = runtimeStateProvider;
         this.sleepTimerProvider = sleepTimerProvider;
@@ -144,9 +144,9 @@ final class PlaybackStateSnapshotOwner {
     }
 
     PlaybackStateSnapshot snapshot() {
-        PlaybackQueueManager.QueueStateSnapshot queueState = queueStateProvider == null
+        PlaybackQueueManager.QueueStateSnapshot queueState = queueStateOwner == null
                 ? PlaybackQueueManager.QueueStateSnapshot.empty()
-                : queueStateProvider.get();
+                : queueStateOwner.queueStateSnapshot();
         if (queueState == null) {
             queueState = PlaybackQueueManager.QueueStateSnapshot.empty();
         }

@@ -2534,3 +2534,31 @@ codegraph explore "EchoPlaybackService queueStateSupplier PlaybackPositionManage
 rg -n "queueStateSupplier|new PlaybackNotificationStateOwner|new PlaybackStateSnapshotOwner|PlaybackPositionManager\.stateProviderFromPlaybackState|new PlaybackCrossfadeStateOwner|new PlaybackErrorRecoveryCommandOwner" app/src/main/java/app/yukine/playback/EchoPlaybackService.java app/src/main/java/app/yukine/playback feature/playback/src/main/java app/src/test/java/app/yukine/playback feature/playback/src/test/java/app/yukine/playback
 git diff --check
 ```
+
+## P1 Wiring Note - Playback Snapshot Queue State Source
+
+Current audit date: 2026-07-03.
+
+- `PlaybackStateSnapshotOwner` no longer accepts a generic
+  `Supplier<PlaybackQueueManager.QueueStateSnapshot>`. It now reads the stable
+  queue snapshot through the existing `PlaybackQueueStateOwner`.
+- `EchoPlaybackService` no longer passes the local `queueStateSupplier` into
+  playback state snapshot wiring. The remaining `queueStateSupplier` uses in
+  the service are `PlaybackPositionManager.stateProviderFromPlaybackState(...)`
+  and `PlaybackNotificationStateOwner`.
+- No owner was added. The real reduction is one fewer generic queue snapshot
+  supplier chain entering playback state snapshot aggregation.
+- `PlaybackStateSnapshotOwnerTest` now exercises the real
+  `PlaybackQueueStateOwner -> PlaybackQueueManager` path for current track,
+  current index, and queue size instead of a hand-written queue snapshot
+  supplier.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1424 lines,
+  `private Playback*` field count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, `queueStateSnapshot` references in
+  the service are 2, service `queueStateSupplier` argument references are 2,
+  and `Playback*Owner` production file count is 43.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackStateSnapshotOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
