@@ -1971,8 +1971,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(visualizationCacheStateOwner.contains("return mainHandlerProvider == null ? null : mainHandlerProvider.get();"));
         assertFalse(visualizationCacheStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
         assertTrue(visualizationCacheStateOwner.contains("return queueStateOwner == null ? null"));
-        assertTrue(visualizationCacheStateOwner.contains(": queueStateOwner.queueStateSnapshot().getCurrentTrack();"));
-        assertFalse(visualizationCacheStateOwner.contains("queueStateOwner.currentTrack()"));
+        assertTrue(visualizationCacheStateOwner.contains(": queueStateOwner.currentTrack();"));
+        assertFalse(visualizationCacheStateOwner.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(visualizationCacheStateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertFalse(visualizationCacheStateOwner.contains("return currentTrackProvider.currentTrack();"));
         assertTrue(visualizationCacheStateOwner.contains("if (cacheTaskScheduler != null)"));

@@ -3787,3 +3787,28 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## P1/P3 Wiring Note - Visualization Cache Current Track Source
+
+Current audit date: 2026-07-03.
+
+- `PlaybackVisualizationCacheStateOwner.currentTrack()` no longer unwraps
+  `queueStateOwner.queueStateSnapshot().getCurrentTrack()` directly.
+- The existing visualization cache state owner now reads the current track
+  through `PlaybackQueueStateOwner.currentTrack()` while leaving cache media
+  policy in `PlaybackVisualizationCacheManager` and `PlaybackMediaSourceProvider`.
+- No owner was added, no resolver/cache facade was introduced, and Service
+  wiring did not change. The real reduction is one fewer direct
+  snapshot-current dereference in a cache/visualization state boundary.
+- `PlaybackVisualizationCacheStateOwnerTest` covers current track, missing
+  queue state owner, missing queue manager, main handler, and cache task
+  scheduling delegation. The architecture contract now blocks the old direct
+  snapshot read from returning.
+- Remaining production direct
+  `queueStateOwner.queueStateSnapshot().getCurrentTrack()` reads are now 2:
+  mirrored player and session command.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackVisualizationCacheStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
