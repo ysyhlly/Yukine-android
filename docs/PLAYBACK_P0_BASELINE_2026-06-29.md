@@ -2387,6 +2387,37 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P1 Wiring Note - Play Command Current Track Read
+
+Current audit date: 2026-07-03.
+
+- `EchoPlaybackService.play()` no longer reads
+  `playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()` to decide
+  whether to prepare the current queue track.
+- The existing `PlaybackQueueCommandOwner` now owns the queue-current check for
+  play preparation through owner-local `prepareCurrentIfAvailable(...)` and
+  `hasCurrentTrack()` methods. `PlaybackQueueManager.QueuePlaybackActions`
+  remains unchanged, so this does not widen the queue manager interface.
+- No owner was added. The real reduction is one fewer direct Service
+  queue-current-track read and one fewer Service branch that passes a raw
+  `Track` into `prepareCurrent(...)` from `play()`.
+- `PlaybackQueueCommandOwnerTest` now covers the true/false return paths for
+  preparing the current queue track and the missing-current-track no-op path.
+- Current metrics: `EchoPlaybackService.java` is 1422 lines,
+  `private (final )?Playback` count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` production count is 0,
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()`
+  calls in the service are 2, direct `playbackQueueStateOwner.currentTrack()`
+  calls in the service are 0, direct `playbackQueueStateOwner::currentTrack`
+  references in the service are 2, and `Playback*Owner` production file count
+  is 43.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## P2/P3 Boundary Test - Media Cache Operations
 
 Current audit date: 2026-07-03.

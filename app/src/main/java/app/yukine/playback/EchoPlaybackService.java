@@ -841,11 +841,8 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void play() {
-        Track track = playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack();
         if (player == null) {
-            if (track != null) {
-                prepareCurrent(track, true);
-            } else {
+            if (!playbackQueueCommandOwner.prepareCurrentIfAvailable(true)) {
                 withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::playFirstQueuedTrack);
             }
             return;
@@ -853,12 +850,12 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackCurrentTrackPreparationRuntimeOwner.preparing()) {
             return;
         }
-        if (track == null) {
+        if (!playbackQueueCommandOwner.hasCurrentTrack()) {
             withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::playFirstQueuedTrack);
             return;
         }
         if (player.getMediaItemCount() == 0) {
-            prepareCurrent(track, true);
+            playbackQueueCommandOwner.prepareCurrent(true);
             return;
         }
         if (player.getPlaybackState() == Player.STATE_ENDED) {

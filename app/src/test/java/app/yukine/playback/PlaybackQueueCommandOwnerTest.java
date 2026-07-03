@@ -15,6 +15,8 @@ import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackQueueStore;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class PlaybackQueueCommandOwnerTest {
     @Test
@@ -39,6 +41,16 @@ public class PlaybackQueueCommandOwnerTest {
                 ),
                 events
         );
+        assertTrue(owner.hasCurrentTrack());
+        assertTrue(owner.prepareCurrentIfAvailable(false));
+        assertEquals(
+                java.util.Arrays.asList(
+                        "prepare:7:true",
+                        "publish",
+                        "prepare:7:false"
+                ),
+                events
+        );
     }
 
     @Test
@@ -53,6 +65,9 @@ public class PlaybackQueueCommandOwnerTest {
         owner.prepareCurrent(true);
         owner.publishState();
 
+        assertEquals(Collections.singletonList("publish"), events);
+        assertFalse(owner.hasCurrentTrack());
+        assertFalse(owner.prepareCurrentIfAvailable(false));
         assertEquals(Collections.singletonList("publish"), events);
     }
 

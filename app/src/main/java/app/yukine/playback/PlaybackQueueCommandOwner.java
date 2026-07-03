@@ -22,12 +22,22 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
 
     @Override
     public void prepareCurrent(boolean playWhenReady) {
+        prepareCurrentIfAvailable(playWhenReady);
+    }
+
+    boolean prepareCurrentIfAvailable(boolean playWhenReady) {
         Track track = queueStateOwner == null ? null
                 : queueStateOwner.queueStateSnapshot().getCurrentTrack();
         if (track == null || playbackPreparer == null) {
-            return;
+            return false;
         }
         playbackPreparer.accept(track, playWhenReady);
+        return true;
+    }
+
+    boolean hasCurrentTrack() {
+        return queueStateOwner != null
+                && queueStateOwner.queueStateSnapshot().getCurrentTrack() != null;
     }
 
     @Override

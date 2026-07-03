@@ -6274,7 +6274,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackCurrentTrackOwner"));
         assertFalse(service.contains("playbackCurrentTrackOwner"));
         assertFalse(service.contains("private Track currentTrack()"));
-        assertTrue(service.contains("Track track = playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack();"));
+        assertFalse(service.contains("Track track = playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack();"));
+        assertTrue(service.contains("playbackQueueCommandOwner.prepareCurrentIfAvailable(true)"));
+        assertTrue(service.contains("playbackQueueCommandOwner.hasCurrentTrack()"));
         assertFalse(service.contains("playbackQueueStateOwner.currentTrack()"));
         assertFalse(service.contains("playbackQueueManager.currentTrack();"));
         assertTrue(queueStateOwner.contains("Track currentTrack()"));
@@ -6622,6 +6624,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("private final BiConsumer<Track, Boolean> playbackPreparer;"));
         assertTrue(commandOwner.contains("private final Runnable statePublisher;"));
         assertFalse(commandOwner.contains("private final Runnable stopAndClearCommand;"));
+        assertTrue(commandOwner.contains("boolean prepareCurrentIfAvailable(boolean playWhenReady)"));
+        assertTrue(commandOwner.contains("boolean hasCurrentTrack()"));
         assertTrue(commandOwner.contains("Track track = queueStateOwner == null ? null"));
         assertTrue(commandOwner.contains(": queueStateOwner.queueStateSnapshot().getCurrentTrack();"));
         assertFalse(commandOwner.contains("queueStateOwner.currentTrack()"));
@@ -7945,11 +7949,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackQueueStateOwner::currentTrack"));
         assertEquals(2, countOccurrences(service, "playbackQueueStateOwner::currentTrack"));
         assertFalse(service.contains("final Supplier<Track> currentTrackSupplier = playbackQueueStateOwner::currentTrack;"));
-        assertTrue(service.contains("Track track = playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack();"));
+        assertFalse(service.contains("Track track = playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack();"));
+        assertEquals(2, countOccurrences(service, "playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertEquals(0, countOccurrences(service, "playbackQueueStateOwner.currentTrack()"));
         assertFalse(service.contains("private void prepareCurrent(final boolean playWhenReady)"));
         assertTrue(service.contains("private void prepareCurrent(Track track, final boolean playWhenReady)"));
-        assertTrue(service.contains("prepareCurrent(track, true);"));
+        assertFalse(service.contains("prepareCurrent(track, true);"));
+        assertTrue(service.contains("playbackQueueCommandOwner.prepareCurrentIfAvailable(true)"));
+        assertTrue(service.contains("playbackQueueCommandOwner.prepareCurrent(true);"));
         assertFalse(service.contains("playbackQueueManager.currentTrack()"));
         assertTrue(queueStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
         assertFalse(queueStateOwner.contains("playbackQueueManager::currentTrack"));
