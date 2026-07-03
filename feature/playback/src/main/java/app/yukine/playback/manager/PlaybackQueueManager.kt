@@ -269,6 +269,7 @@ internal class PlaybackQueueManager(
             saveCurrentTrackPlaybackPosition(0L)
             if (action == PlaybackCompletionAction.REPEAT_CURRENT) {
                 clearRestoredPosition()
+                queuePlaybackActions.prepareCurrent(true)
             }
         }
         return action

@@ -1290,8 +1290,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     private void withPlaybackQueueCompletionOwner(Consumer<PlaybackQueueCompletionOwner> action) {
         action.accept(new PlaybackQueueCompletionOwner(
                 playbackQueueManager,
-                playbackQueueCompletionBoundary,
-                playbackQueueCommandOwner
+                playbackQueueCompletionBoundary
         ));
     }
 

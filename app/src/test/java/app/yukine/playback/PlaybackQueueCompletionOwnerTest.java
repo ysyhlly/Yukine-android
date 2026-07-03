@@ -24,25 +24,29 @@ import org.junit.Test;
 
 public class PlaybackQueueCompletionOwnerTest {
     @Test
-    public void routesRepeatCurrentCompletionThroughQueuePlaybackActions() {
+    public void repeatCurrentCompletionIsPreparedByQueueManagerWithoutBoundaryAction() {
         FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
         FakeQueueStore store = new FakeQueueStore();
         PlaybackQueueManager queueManager = queueManagerWithTracks(
                 store,
                 Collections.singletonList(track(1L)),
                 0,
-                REPEAT_ONE
+                REPEAT_ONE,
+                runtimeStateManager(),
+                actions
         );
+        actions.clearRecords();
+        List<String> events = new ArrayList<>();
         PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
                 queueManager,
-                new FakeCompletionBoundary(new ArrayList<>()),
-                actions
+                new FakeCompletionBoundary(events)
         );
 
         owner.playAfterCompletion();
 
         assertEquals(1, actions.prepareCurrentCalls);
         assertTrue(actions.lastPreparePlayWhenReady);
+        assertTrue(events.isEmpty());
     }
 
     @Test
@@ -146,8 +150,7 @@ public class PlaybackQueueCompletionOwnerTest {
         List<String> events = new ArrayList<>();
         PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
                 null,
-                new FakeCompletionBoundary(events),
-                new NoopQueuePlaybackActions()
+                new FakeCompletionBoundary(events)
         );
 
         owner.playAfterCompletion();
@@ -179,8 +182,7 @@ public class PlaybackQueueCompletionOwnerTest {
     ) {
         return new PlaybackQueueCompletionOwner(
                 queueManager,
-                boundary,
-                new NoopQueuePlaybackActions()
+                boundary
         );
     }
 
@@ -200,8 +202,26 @@ public class PlaybackQueueCompletionOwnerTest {
             int repeatMode,
             PlaybackRuntimeStateManager runtimeStateManager
     ) {
+        return queueManagerWithTracks(
+                store,
+                tracks,
+                currentIndex,
+                repeatMode,
+                runtimeStateManager,
+                new NoopQueuePlaybackActions()
+        );
+    }
+
+    private static PlaybackQueueManager queueManagerWithTracks(
+            FakeQueueStore store,
+            List<Track> tracks,
+            int currentIndex,
+            int repeatMode,
+            PlaybackRuntimeStateManager runtimeStateManager,
+            PlaybackQueueManager.QueuePlaybackActions actions
+    ) {
         runtimeStateManager.setRepeatMode(repeatMode);
-        PlaybackQueueManager queueManager = queueManager(store, runtimeStateManager);
+        PlaybackQueueManager queueManager = queueManager(store, runtimeStateManager, actions);
         queueManager.playQueue(tracks, currentIndex, 0L);
         store.clearRecords();
         return queueManager;
@@ -211,9 +231,17 @@ public class PlaybackQueueCompletionOwnerTest {
             FakeQueueStore store,
             PlaybackRuntimeStateManager runtimeStateManager
     ) {
+        return queueManager(store, runtimeStateManager, new NoopQueuePlaybackActions());
+    }
+
+    private static PlaybackQueueManager queueManager(
+            FakeQueueStore store,
+            PlaybackRuntimeStateManager runtimeStateManager,
+            PlaybackQueueManager.QueuePlaybackActions actions
+    ) {
         return new PlaybackQueueManager(
                 store,
-                new NoopQueuePlaybackActions(),
+                actions,
                 null,
                 new NoopStreamingRestoreProvider(),
                 new NoopMirroredQueuePlayer(),
@@ -334,6 +362,11 @@ public class PlaybackQueueCompletionOwnerTest {
 
         @Override
         public void publishState() {
+        }
+
+        private void clearRecords() {
+            prepareCurrentCalls = 0;
+            lastPreparePlayWhenReady = false;
         }
     }
 

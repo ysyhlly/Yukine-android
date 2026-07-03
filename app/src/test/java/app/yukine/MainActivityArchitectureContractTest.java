@@ -5793,8 +5793,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackQueueCompletionOwner.fromPlaybackQueueManager("));
         assertFalse(queueCompletionOwner.contains("static PlaybackQueueCompletionOwner fromPlaybackQueueManager("));
         assertFalse(service.contains("PlaybackQueueCompletionOwner.fromPlaybackQueueManagerProvider("));
-        assertTrue(queueCompletionOwner.contains("private final PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions;"));
-        assertTrue(queueCompletionOwner.contains("PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions"));
+        assertFalse(queueCompletionOwner.contains("private final PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions;"));
+        assertFalse(queueCompletionOwner.contains("PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions"));
         assertFalse(queueCompletionOwner.contains("void prepareCurrent(boolean playWhenReady);"));
         assertFalse(queueCompletionOwner.contains("void repeatCurrent();"));
         String queueCompletionBoundaryWiring = normalizedService.substring(
@@ -5817,6 +5817,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(normalizedService.contains(
                 "private void withPlaybackQueueCompletionOwner(Consumer<PlaybackQueueCompletionOwner> action)"));
         assertTrue(normalizedService.contains(
+                "new PlaybackQueueCompletionOwner(\n                playbackQueueManager,\n                playbackQueueCompletionBoundary\n        )"));
+        assertFalse(normalizedService.contains(
                 "new PlaybackQueueCompletionOwner(\n                playbackQueueManager,\n                playbackQueueCompletionBoundary,\n                playbackQueueCommandOwner\n        )"));
         assertFalse(normalizedService.contains("new PlaybackQueueCompletionOwner(\n                () -> playbackQueueManager"));
         assertFalse(service.contains("private final PlaybackCurrentTrackReplacementOwner playbackCurrentTrackReplacementOwner"));
@@ -6051,7 +6053,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueCompletionOwner.contains("private void stopAtEndOfQueue()"));
         assertFalse(queueCompletionOwner.contains("private void skipToNext()"));
         assertFalse(queueCompletionOwner.contains("private void prepareStopAndClearFallbackState()"));
-        assertTrue(queueCompletionOwner.contains("queuePlaybackActions.prepareCurrent(true);"));
+        assertFalse(queueCompletionOwner.contains("queuePlaybackActions.prepareCurrent(true);"));
+        assertTrue(owner.contains("queuePlaybackActions.prepareCurrent(true)"));
         assertFalse(queueCompletionOwner.contains("completionBoundary.repeatCurrent();"));
         assertFalse(queueCompletionOwner.contains("completionBoundary.prepareCurrent(playWhenReady);"));
         assertTrue(queueCompletionOwner.contains("completionBoundary.stopAtEndOfQueue();"));
