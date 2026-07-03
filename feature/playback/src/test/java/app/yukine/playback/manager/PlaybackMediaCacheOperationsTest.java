@@ -3,6 +3,7 @@ package app.yukine.playback.manager;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 import android.net.Uri;
@@ -70,6 +71,32 @@ public final class PlaybackMediaCacheOperationsTest {
         );
         assertEquals(headers, operations.headersForTrack(streaming));
         assertNull(operations.cacheKeyForPrecache(local));
+    }
+
+    @Test
+    public void providerBackedOperationsOwnResolvedUriReuseAndCacheMissReads() {
+        PlaybackMediaSourceProvider provider =
+                mediaSourceProvider(new FakeStreamingPlaybackHeaderStore(Collections.emptyMap()));
+        PlaybackMediaCacheOperations operations =
+                PlaybackMediaCacheOperations.fromMediaSourceProvider(provider);
+        Track current = track(42L, "https://example.test/audio.flac", "streaming:test:42");
+        Track sameResolvedUri = track(43L, "https://example.test/audio.flac", "streaming:test:43");
+        Track differentResolvedUri = track(44L, "https://example.test/other.flac", "streaming:test:44");
+
+        try {
+            assertTrue(operations.tracksShareResolvedUriForReuse(current, sameResolvedUri));
+            assertFalse(operations.tracksShareResolvedUriForReuse(current, differentResolvedUri));
+            assertEquals(0L, operations.cachedBytesInRange(
+                    "streaming:test:42|url=https://example.test/audio.flac",
+                    0L,
+                    512L
+            ));
+            assertEquals(-1L, operations.contentLengthForCacheKey(
+                    "streaming:test:42|url=https://example.test/audio.flac"
+            ));
+        } finally {
+            provider.releaseAudioCache();
+        }
     }
 
     private static Track track(long id) {
