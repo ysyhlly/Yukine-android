@@ -329,6 +329,9 @@ final class PlaybackPrecacheManager {
     }
 
     private String cacheKeyForPrecache(Track track) {
+        if (mediaCacheOperations == null) {
+            return null;
+        }
         String cacheKey = mediaCacheOperations.cacheKeyForPrecache(track);
         return cacheKey == null || cacheKey.isEmpty() ? null : cacheKey;
     }

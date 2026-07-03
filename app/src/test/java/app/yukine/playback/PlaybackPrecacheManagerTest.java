@@ -230,6 +230,31 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
+    public void missingMediaCacheOperationsDoesNotQueuePrecacheWork() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        Track track = track(1L, "https://example.test/no-cache-owner.mp3");
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                stateProvider.diagnostics,
+                queueManager(track),
+                null,
+                null,
+                scheduler,
+                new FakeAudioCacheReleaseAction()::releaseAudioCache,
+                executor
+        );
+
+        stateProvider.currentTrack = track;
+        manager.precacheTrack(track);
+
+        assertEquals(0, stateProvider.diagnostics.snapshot().precacheAttempts);
+        assertEquals(0, scheduler.pendingCallbacks.size());
+        assertEquals(0, executor.submittedTasks.size());
+    }
+
+    @Test
     public void providerBackedMediaCacheOperationsOwnCacheKeyAndHeaders() {
         Map<String, String> headers = Collections.singletonMap("Cookie", "token=abc");
         PlaybackMediaCacheOperations operations =
