@@ -264,6 +264,25 @@ class PlaybackRuntimeStateManagerTest {
     }
 
     @Test
+    fun stateProviderFromPlaybackStateSupportsLateBoundQueueManagerForReplayGain() {
+        var queueManager: PlaybackQueueManager? = null
+        val manager = PlaybackRuntimeStateManager(
+            PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
+                null,
+                null,
+                Supplier { queueManager }
+            )
+        )
+        manager.setAppVolume(0.8f)
+
+        assertEquals(0.8f, manager.currentTrackVolume(), 0.0f)
+
+        queueManager = queueManagerWithCurrent(track(replayGainTrackDb = -6.0f))
+
+        assertEquals(0.4f, manager.currentTrackVolume(), 0.01f)
+    }
+
+    @Test
     fun repeatModeFallbackMatchesQueueMirroringRules() {
         assertEquals(
             ExoPlayer.REPEAT_MODE_OFF,
