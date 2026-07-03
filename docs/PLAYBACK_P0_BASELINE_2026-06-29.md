@@ -2520,6 +2520,39 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMirroredTransitionOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P1 Wiring Note - Runtime And Position Current Track Suppliers
+
+Current audit date: 2026-07-03.
+
+- `EchoPlaybackService` no longer wires `playbackQueueStateOwner::currentTrack`
+  into `PlaybackRuntimeStateManager.stateProviderFromPlaybackState(...)` or
+  `PlaybackPositionManager.stateProviderFromPlaybackState(...)`.
+- Both suppliers now explicitly read
+  `playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()`, keeping the
+  source state path visible as `PlaybackQueueStateOwner -> PlaybackQueueManager`
+  instead of another derivable current-track method reference.
+- No owner was added or deleted. The real reduction is two fewer
+  current-track forwarding method references in Service wiring, without
+  touching notification, lyrics, shutdown, or background playback behavior.
+- The remaining `playbackQueueStateOwner::currentTrack` references in
+  `EchoPlaybackService` are notification artwork and Wi-Fi lock wiring. They
+  stay deferred because they are P4/P5-adjacent runtime boundaries.
+- `MainActivityArchitectureContractTest` now guards the runtime and position
+  wiring against reintroducing the old method references, and keeps the
+  remaining Service method-reference count at 2.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1425 lines,
+  `private (final )?Playback` count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, direct
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.currentTrack()` calls in the service are
+  0, direct `playbackQueueStateOwner::currentTrack` references in the service
+  are 2, and `Playback*Owner` production file count is 43.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackPositionManagerTest --tests app.yukine.playback.PlaybackRuntimeStateManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## P1 Interface Note - Queue State Snapshot Current Track Reads
 
 Current audit date: 2026-07-03.

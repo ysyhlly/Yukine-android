@@ -141,7 +141,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                     PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
                             () -> player,
                             playbackQueueRuntimeStateManager::playerMirrorsQueue,
-                            playbackQueueStateOwner::currentTrack
+                            () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()
                     )
             );
     private final PlaybackCurrentTrackPreparationRuntimeOwner playbackCurrentTrackPreparationRuntimeOwner =
@@ -324,7 +324,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackPositionManager = new PlaybackPositionManager(
                 queueStore,
                 PlaybackPositionManager.stateProviderFromPlaybackState(
-                        playbackQueueStateOwner::currentTrack,
+                        () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),
                         playbackPlayerStateOwner::positionMs
                 )
         );
