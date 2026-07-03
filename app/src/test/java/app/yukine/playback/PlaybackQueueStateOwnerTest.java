@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
 
@@ -31,8 +32,7 @@ public class PlaybackQueueStateOwnerTest {
         Track track = track(12L);
         PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner();
-        owner.bindPlaybackQueueManager(queueManager);
+        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManager);
         PlaybackQueueManager.QueueStateSnapshot snapshot = owner.queueStateSnapshot();
 
         assertSame(track, snapshot.getCurrentTrack());
@@ -44,20 +44,20 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     @Test
-    public void bindPlaybackQueueManagerSupportsRebindingForIsolatedOwners() {
+    public void supplierBackedOwnerReadsLateBoundQueueManager() {
         Track track = track(13L);
         PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner();
-
-        owner.bindPlaybackQueueManager(queueManager);
-
-        assertSame(track, owner.queueStateSnapshot().getCurrentTrack());
-
-        owner.bindPlaybackQueueManager(null);
+        AtomicReference<PlaybackQueueManager> queueManagerRef = new AtomicReference<>();
+        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManagerRef::get);
 
         assertSame(null, owner.queueStateSnapshot().getCurrentTrack());
         assertTrue(owner.queueStateSnapshot().isQueueEmpty());
+
+        queueManagerRef.set(queueManager);
+
+        assertSame(track, owner.queueStateSnapshot().getCurrentTrack());
+        assertEquals(1, owner.queueSnapshot().size());
     }
 
     @Test
