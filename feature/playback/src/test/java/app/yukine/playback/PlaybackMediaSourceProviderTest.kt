@@ -598,6 +598,18 @@ class PlaybackMediaSourceProviderTest {
     }
 
     @Test
+    fun prepareTrackForPlaybackReturnsGenericErrorForLocalTrackWithoutPlayableUri() {
+        val localMissingUri = Track(7L, "Local", "Artist", "Album", 180_000L, Uri.EMPTY, "/music/local.flac")
+
+        val preparation = provider(FakeStreamingPlaybackHeaderStore()).prepareTrackForPlayback(localMissingUri)
+
+        assertNull(preparation.restoredTrack)
+        assertSame(localMissingUri, preparation.track)
+        assertFalse(preparation.playable)
+        assertEquals("Unable to open this track.", preparation.unplayableMessage)
+    }
+
+    @Test
     fun restoreHeadersForTrackDelegatesDataPathToHeaderStore() {
         val track = Track(42L, "Stream", "Artist", "Album", 180_000L, Uri.EMPTY, "streaming:netease:42")
         val headerStore = FakeStreamingPlaybackHeaderStore()
