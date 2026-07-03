@@ -220,7 +220,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 }
                 recordPlaybackStartHistoryAction.run();
             } else if (playbackState == Player.STATE_ENDED) {
-                withPlaybackQueueCompletionOwner(PlaybackQueueCompletionOwner::playAfterCompletion);
+                playbackQueueCompletionOwner().playAfterCompletion();
                 return;
             }
             publishState();
@@ -1201,7 +1201,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     public void stopAndClear() {
         playbackCrossfadeCommandOwner.cancelCrossfadeAdvance();
         playbackSleepTimerCommandOwner.cancelSleepTimer(false);
-        withPlaybackQueueCompletionOwner(PlaybackQueueCompletionOwner::prepareStopAndClearPlaybackState);
+        playbackQueueCompletionOwner().prepareStopAndClearPlaybackState();
         if (playbackShutdownCoordinator != null) {
             playbackShutdownCoordinator.releasePlaybackResources();
         } else {
@@ -1213,7 +1213,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     private void stopAtEndOfQueue() {
-        withPlaybackQueueCompletionOwner(PlaybackQueueCompletionOwner::prepareStopAtEndOfQueue);
+        playbackQueueCompletionOwner().prepareStopAtEndOfQueue();
         stopProgressUpdates();
         if (player == null) {
             createPlayerIfNeeded();
@@ -1281,17 +1281,15 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     private void stopAfterAutomaticAdvance(int completedIndex) {
-        withPlaybackQueueCompletionOwner(
-                owner -> owner.prepareStopAfterAutomaticAdvance(completedIndex)
-        );
+        playbackQueueCompletionOwner().prepareStopAfterAutomaticAdvance(completedIndex);
         stopAtEndOfQueue();
     }
 
-    private void withPlaybackQueueCompletionOwner(Consumer<PlaybackQueueCompletionOwner> action) {
-        action.accept(new PlaybackQueueCompletionOwner(
+    private PlaybackQueueCompletionOwner playbackQueueCompletionOwner() {
+        return new PlaybackQueueCompletionOwner(
                 playbackQueueManager,
                 playbackQueueCompletionBoundary
-        ));
+        );
     }
 
     private void withPlaybackQueueNavigationOwner(Consumer<PlaybackQueueNavigationOwner> action) {
