@@ -5749,7 +5749,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("EchoPlaybackService.this::stopAndClear"));
         assertFalse(service.contains("PlaybackQueueMutationOwner.fromPlaybackQueueManager("));
         assertFalse(queueMutationOwner.contains("static PlaybackQueueMutationOwner fromPlaybackQueueManager("));
-        assertTrue(service.contains("private final PlaybackQueueNavigationOwner playbackQueueNavigationOwner"));
+        assertFalse(service.contains("private final PlaybackQueueNavigationOwner playbackQueueNavigationOwner"));
+        assertFalse(service.contains("private PlaybackQueueNavigationOwner playbackQueueNavigationOwner"));
+        assertFalse(service.contains("private PlaybackQueueNavigationOwner playbackQueueNavigationOwner()"));
+        assertTrue(service.contains("private void withPlaybackQueueNavigationOwner(Consumer<PlaybackQueueNavigationOwner> action)"));
         assertTrue(service.contains("new PlaybackQueueNavigationOwner("));
         assertFalse(service.contains("PlaybackQueueNavigationOwner.fromPlaybackQueueManager("));
         assertFalse(queueNavigationOwner.contains("static PlaybackQueueNavigationOwner fromPlaybackQueueManager("));
@@ -5895,16 +5898,19 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackQueueMutationOwner.replaceQueuedTrackById(oldTrackId, replacement);"));
         assertFalse(service.contains("playbackQueueManager.replaceQueuedTrackById(oldTrackId, replacement)"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.replaceQueuedTrackById(oldTrackId, replacement)"));
-        assertTrue(service.contains("playbackQueueNavigationOwner.skipToNextImmediately();"));
+        assertTrue(service.contains(
+                "withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::skipToNextImmediately);"));
         assertFalse(service.contains("playbackQueueManager.skipToNextImmediately()"));
         assertTrue(queueNavigationOwner.contains(
                 "playbackQueueManager != null && playbackQueueManager.skipToNextImmediately()"
         ));
-        assertTrue(service.contains("playbackQueueNavigationOwner.playFirstQueuedTrack();"));
+        assertTrue(service.contains(
+                "withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::playFirstQueuedTrack);"));
         assertFalse(service.contains("private void playFirstQueuedTrack()"));
         assertFalse(service.contains("playbackQueueManager.playFirstQueuedTrack()"));
         assertTrue(queueNavigationOwner.contains("playbackQueueManager.playFirstQueuedTrack();"));
-        assertTrue(queueNavigationOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
+        assertTrue(queueNavigationOwner.contains("private final PlaybackQueueManager playbackQueueManager;"));
+        assertFalse(queueNavigationOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertFalse(queueNavigationOwner.contains("playbackQueueManagerProvider"));
         assertFalse(queueNavigationOwner.contains("interface QueueNavigationOperations"));
         assertFalse(queueNavigationOwner.contains("QueueNavigationOperations"));
@@ -5917,12 +5923,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueNavigationOwner.contains("private final BooleanSupplier skipToNextImmediately;"));
         assertFalse(queueNavigationOwner.contains("private final BooleanSupplier skipToPrevious;"));
         assertFalse(queueNavigationOwner.contains("private final BiPredicate<Boolean, Long> reuseMirroredQueueIfAvailable;"));
-        assertTrue(queueNavigationOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
-        assertTrue(queueNavigationOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
+        assertFalse(queueNavigationOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
+        assertFalse(queueNavigationOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertTrue(queueNavigationOwner.contains("private final Consumer<Boolean> mirroredQueueReuseHandler;"));
         assertTrue(queueNavigationOwner.contains("mirroredQueueReuseHandler.accept(playWhenReady);"));
         assertFalse(queueNavigationOwner.contains("queueNavigationOperationsProvider"));
-        assertTrue(service.contains("playbackQueueNavigationOwner.skipToPrevious();"));
+        assertTrue(service.contains(
+                "withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::skipToPrevious);"));
         assertFalse(service.contains("playbackQueueManager.skipToPrevious()"));
         assertTrue(queueNavigationOwner.contains(
                 "playbackQueueManager != null && playbackQueueManager.skipToPrevious()"
@@ -6039,7 +6046,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(currentReplacementOwner.contains("recoveryDiagnosticsRecorder.accept(recovery);"));
         assertTrue(currentReplacementOwner.contains("recoveryScheduler.accept(recovery.getPlayWhenReady());"));
         assertTrue(service.contains(
-                "if (playbackQueueNavigationOwner.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs))"));
+                "if (reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs))"));
+        assertTrue(service.contains("private boolean reuseMirroredQueueIfAvailable(boolean playWhenReady, long startPositionMs)"));
         assertFalse(service.contains("private boolean seekExistingMirroredQueue(boolean playWhenReady, long startPositionMs)"));
         assertFalse(service.contains("if (seekExistingMirroredQueue(playWhenReady, startPositionMs))"));
         assertFalse(service.contains("playbackQueueManager.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs)"));

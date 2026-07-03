@@ -124,11 +124,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                     () -> playbackQueueManager,
                     EchoPlaybackService.this::stopAndClear
             );
-    private final PlaybackQueueNavigationOwner playbackQueueNavigationOwner =
-            new PlaybackQueueNavigationOwner(
-                    () -> playbackQueueManager,
-                    this::onMirroredQueueReused
-            );
     private final PlaybackQueueMirroredTransitionOwner playbackQueueMirroredTransitionOwner =
             new PlaybackQueueMirroredTransitionOwner(
                     () -> playbackQueueManager,
@@ -402,7 +397,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                         player.setVolume(volume);
                     }
                 },
-                playbackQueueNavigationOwner::skipToNextImmediately,
+                () -> withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::skipToNextImmediately),
                 () -> {
                     if (playbackRuntimeSettingsStore != null) {
                         playbackRuntimeSettingsStore.applyCurrentTrackVolumeToPlayer(playbackRuntimeStateManager);
@@ -863,7 +858,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             if (playbackQueueStateOwner.currentTrack() != null) {
                 prepareCurrent(true);
             } else {
-                playbackQueueNavigationOwner.playFirstQueuedTrack();
+                withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::playFirstQueuedTrack);
             }
             return;
         }
@@ -872,7 +867,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
         Track track = playbackQueueStateOwner.currentTrack();
         if (track == null) {
-            playbackQueueNavigationOwner.playFirstQueuedTrack();
+            withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::playFirstQueuedTrack);
             return;
         }
         if (player.getMediaItemCount() == 0) {
@@ -918,7 +913,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackCrossfadeCommandOwner.startFadeOutThenNext()) {
             return;
         }
-        playbackQueueNavigationOwner.skipToNextImmediately();
+        withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::skipToNextImmediately);
     }
 
     public void skipToPrevious() {
@@ -926,7 +921,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             seekTo(0L);
             return;
         }
-        playbackQueueNavigationOwner.skipToPrevious();
+        withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::skipToPrevious);
     }
 
     public List<Track> queueSnapshot() {
@@ -1117,7 +1112,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             PlaybackCurrentTrackPreparationOwner.PreparedTrack preparedTrack
     ) {
         final long startPositionMs = preparedTrack.startPositionMs();
-        if (playbackQueueNavigationOwner.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs)) {
+        if (reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs)) {
             return;
         }
         PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
@@ -1310,6 +1305,20 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackQueueManager,
                 playbackQueueCompletionBoundary
         ));
+    }
+
+    private void withPlaybackQueueNavigationOwner(Consumer<PlaybackQueueNavigationOwner> action) {
+        action.accept(new PlaybackQueueNavigationOwner(
+                playbackQueueManager,
+                this::onMirroredQueueReused
+        ));
+    }
+
+    private boolean reuseMirroredQueueIfAvailable(boolean playWhenReady, long startPositionMs) {
+        return new PlaybackQueueNavigationOwner(
+                playbackQueueManager,
+                this::onMirroredQueueReused
+        ).reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs);
     }
 
     private void createPlayerIfNeeded() {
