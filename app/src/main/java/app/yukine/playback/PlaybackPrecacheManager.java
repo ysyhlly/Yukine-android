@@ -55,6 +55,7 @@ final class PlaybackPrecacheManager {
 
     private final Supplier<MediaItem> currentPlayerMediaItemSupplier;
     private final PlaybackQueueManager playbackQueueManager;
+    private final PlaybackQueueStateOwner queueStateOwner;
     private final PlaybackMediaCacheOperations mediaCacheOperations;
     private final PlaybackStreamingDiagnostics streamingDiagnostics;
     private final BiPredicate<MediaItem, Track> mediaItemTrackMatcher;
@@ -108,6 +109,7 @@ final class PlaybackPrecacheManager {
                 ? new PlaybackStreamingDiagnostics()
                 : streamingDiagnostics;
         this.playbackQueueManager = playbackQueueManager;
+        this.queueStateOwner = new PlaybackQueueStateOwner(playbackQueueManager);
         this.mediaCacheOperations = mediaCacheOperations;
         this.mediaItemTrackMatcher = mediaItemTrackMatcher;
         this.callbackScheduler = callbackScheduler;
@@ -282,9 +284,7 @@ final class PlaybackPrecacheManager {
     }
 
     private Track currentTrack() {
-        return playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot().getCurrentTrack();
+        return queueStateOwner.currentTrack();
     }
 
     @OptIn(markerClass = UnstableApi.class)

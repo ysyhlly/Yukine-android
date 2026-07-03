@@ -2272,8 +2272,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackPrecacheManager.contains("Track currentTrack();"));
         assertFalse(playbackPrecacheManager.contains("PlaybackStreamingDiagnostics streamingDiagnostics();"));
         assertTrue(playbackPrecacheManager.contains("private final PlaybackStreamingDiagnostics streamingDiagnostics;"));
+        assertTrue(playbackPrecacheManager.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
         assertTrue(playbackPrecacheManager.contains("private Track currentTrack()"));
-        assertTrue(playbackPrecacheManager.contains("playbackQueueManager.queueStateSnapshot().getCurrentTrack()"));
+        assertFalse(playbackPrecacheManager.contains("playbackQueueManager.queueStateSnapshot().getCurrentTrack()"));
+        assertTrue(playbackPrecacheManager.contains("return queueStateOwner.currentTrack();"));
         assertFalse(playbackPrecacheManager.contains("stateProvider.currentTrack()"));
         assertTrue(playbackPrecacheManager.contains(
                 "playbackQueueManager.upcomingTracksForPrecache(SEGMENTED_PRECACHE_CONCURRENCY)"));
@@ -6931,7 +6933,6 @@ public final class MainActivityArchitectureContractTest {
                 "upcomingTracksForPrecache"
         )), queueDerivedReadApi);
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
-                "PlaybackPrecacheManager.java",
                 "PlaybackQueueMutationOwner.java",
                 "PlaybackQueueStateOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.queueStateSnapshot()"));
