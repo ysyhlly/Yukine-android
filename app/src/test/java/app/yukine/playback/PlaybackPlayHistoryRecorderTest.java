@@ -58,12 +58,11 @@ public final class PlaybackPlayHistoryRecorderTest {
         AtomicBoolean playWhenReady = new AtomicBoolean(false);
         PlaybackQueueManager queueManager = playbackQueueManager();
         queueManager.playQueue(Collections.singletonList(track(1L)), 0, -1L);
-        PlaybackQueueStateOwner queueStateOwner = new PlaybackQueueStateOwner(queueManager);
         PlaybackPlayHistoryRecorder recorder = recorder(historySink);
         Runnable action = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 recorder,
                 playWhenReady::get,
-                queueStateOwner
+                queueManager
         );
 
         action.run();
@@ -83,7 +82,7 @@ public final class PlaybackPlayHistoryRecorderTest {
         Runnable action = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 null,
                 playWhenReady::get,
-                new PlaybackQueueStateOwner(queueManager)
+                queueManager
         );
 
         action.run();

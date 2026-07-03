@@ -6991,6 +6991,7 @@ public final class MainActivityArchitectureContractTest {
         )), queueDerivedReadApi);
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackFavoriteCommandOwner.java",
+                "PlaybackPlayHistoryRecorder.java",
                 "PlaybackPrecacheManager.java",
                 "PlaybackQueueStateOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.queueStateSnapshot()"));
@@ -7581,6 +7582,12 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(\n" +
                         "                playbackPlayHistoryRecorder,\n" +
                         "                () -> player != null && player.getPlayWhenReady(),\n" +
+                        "                playbackQueueManager\n" +
+                        "        );"));
+        assertFalse(normalizedService.contains(
+                "PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(\n" +
+                        "                playbackPlayHistoryRecorder,\n" +
+                        "                () -> player != null && player.getPlayWhenReady(),\n" +
                         "                playbackQueueStateOwner\n" +
                         "        );"));
         assertFalse(normalizedService.contains(
@@ -7594,15 +7601,17 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("recordPlaybackStartHistoryAction.run();"));
         assertFalse(service.contains("playbackPlayHistoryRecorder.recordIfPlaybackStarted("));
         assertTrue(service.contains("PlaybackPlayHistoryRecorder.fromRepository("));
-        assertFalse(owner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
+        assertTrue(owner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertTrue(owner.contains("interface HistorySink"));
         assertTrue(owner.contains("static Runnable recordIfPlaybackStartedAction("));
-        assertTrue(owner.contains("PlaybackQueueStateOwner queueStateOwner"));
+        assertFalse(owner.contains("PlaybackQueueStateOwner queueStateOwner"));
         assertFalse(owner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null"));
         assertFalse(owner.contains(": queueStateOwner.queueStateSnapshot();"));
         assertFalse(owner.contains("snapshot.getCurrentTrack()"));
-        assertTrue(owner.contains("queueStateOwner == null ? null : queueStateOwner.currentTrack()"));
+        assertFalse(owner.contains("queueStateOwner == null ? null : queueStateOwner.currentTrack()"));
         assertFalse(owner.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
+        assertTrue(owner.contains("private static Track currentTrack(PlaybackQueueManager playbackQueueManager)"));
+        assertTrue(owner.contains("playbackQueueManager.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(owner.contains("Supplier<Track> currentTrack"));
         assertFalse(owner.contains("currentTrack == null ? null : currentTrack.get()"));
         assertTrue(owner.contains("void recordIfPlaybackStarted(boolean playWhenReady, Track track)"));

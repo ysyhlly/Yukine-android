@@ -296,7 +296,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         recordPlaybackStartHistoryAction = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 playbackPlayHistoryRecorder,
                 () -> player != null && player.getPlayWhenReady(),
-                playbackQueueStateOwner
+                playbackQueueManager
         );
         playbackPositionManager = new PlaybackPositionManager(
                 queueStore,
