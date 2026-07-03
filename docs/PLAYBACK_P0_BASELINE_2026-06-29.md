@@ -2549,6 +2549,28 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMutationOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P1 Wiring Note - Error Recovery Queue State Read
+
+Current audit date: 2026-07-03.
+
+- `PlaybackErrorRecoveryCommandOwner.canSkipFailedTrack(...)` no longer reads
+  the full `PlaybackQueueManager.QueueStateSnapshot`.
+- `PlaybackQueueStateOwner` now exposes the generic derived read
+  `hasMultipleTracks()`, while the failed-track policy remains in
+  `PlaybackErrorRecoveryCommandOwner`.
+- No owner, facade, Service field, constructor parameter, or supplier was
+  added. `EchoPlaybackService` wiring did not change.
+- The real gain is one fewer playback owner with direct access to the full
+  queue snapshot object.
+- Focused coverage: `PlaybackQueueStateOwnerTest`,
+  `PlaybackErrorRecoveryCommandOwnerTest`, and
+  `MainActivityArchitectureContractTest`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueStateOwnerTest --tests app.yukine.playback.PlaybackErrorRecoveryCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## P1 Wiring Note - Mirrored Transition Queue State Source
 
 Current audit date: 2026-07-03.
