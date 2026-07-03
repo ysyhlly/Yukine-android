@@ -284,7 +284,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 return;
             }
             Log.w(TAG, "Playback failed for "
-                    + playbackErrorRecoveryCommandOwner.debugTrack(playbackQueueStateOwner.currentTrack()), error);
+                    + playbackErrorRecoveryCommandOwner.debugCurrentTrack(), error);
             playbackErrorRecoveryCommandOwner.setErrorMessage("Unable to play this track.");
             publishState();
         }

@@ -2954,3 +2954,30 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1 Wiring Note - Error Recovery Current Track Debug
+
+Current audit date: 2026-07-03.
+
+- `EchoPlaybackService` no longer reads
+  `playbackQueueStateOwner.currentTrack()` just to format the fallback player
+  error log. The existing `PlaybackErrorRecoveryCommandOwner` now exposes
+  `debugCurrentTrack()` and reads the current track through its existing
+  `PlaybackQueueStateOwner`.
+- No owner was added and no constructor wiring changed. The real reduction is
+  one fewer direct Service queue-current-track read in the player error path.
+- This slice deliberately does not touch notification, lyrics, shutdown, or
+  background playback behavior.
+- `PlaybackErrorRecoveryCommandOwnerTest` now covers current-track debug
+  formatting for populated and missing queue state.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1430 lines,
+  `private Playback*` field count is 43 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, direct
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.currentTrack()` calls in the service are
+  3, and `Playback*Owner` production file count is 44.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackErrorRecoveryCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```

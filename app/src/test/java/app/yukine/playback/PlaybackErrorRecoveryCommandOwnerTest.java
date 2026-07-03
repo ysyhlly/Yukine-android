@@ -42,6 +42,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
         assertEquals(false, owner.canSkipFailedTrack(null));
         assertEquals(false, owner.canSkipFailedTrack(track(-1L)));
         assertEquals("trackId=7, title=Track 7, dataPath=file:7, uri=null", owner.debugTrack(track));
+        assertEquals("trackId=7, title=Track 7, dataPath=file:7, uri=null", owner.debugCurrentTrack());
         assertEquals("track=<null>", owner.debugTrack(null));
         owner.prepareCurrent(true);
         owner.skipToNext();
@@ -92,8 +93,10 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
         );
 
         assertEquals(null, missingStateOwner.currentTrack());
+        assertEquals("track=<null>", missingStateOwner.debugCurrentTrack());
         assertFalse(missingStateOwner.canSkipFailedTrack(track));
         assertSame(track, singleTrackOwner.currentTrack());
+        assertEquals("trackId=7, title=Track 7, dataPath=file:7, uri=null", singleTrackOwner.debugCurrentTrack());
         assertFalse(singleTrackOwner.canSkipFailedTrack(track));
     }
 

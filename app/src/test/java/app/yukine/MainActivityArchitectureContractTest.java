@@ -7899,7 +7899,7 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(4, countOccurrences(service, "playbackQueueStateOwner::currentTrack"));
         assertFalse(service.contains("final Supplier<Track> currentTrackSupplier = playbackQueueStateOwner::currentTrack;"));
         assertTrue(service.contains("playbackQueueStateOwner.currentTrack()"));
-        assertEquals(4, countOccurrences(service, "playbackQueueStateOwner.currentTrack()"));
+        assertEquals(3, countOccurrences(service, "playbackQueueStateOwner.currentTrack()"));
         assertTrue(service.contains("private void prepareCurrent(Track track, final boolean playWhenReady)"));
         assertTrue(service.contains("prepareCurrent(track, true);"));
         assertFalse(service.contains("playbackQueueManager.currentTrack()"));
@@ -8109,6 +8109,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackRuntimeStateManager.setErrorMessage(\"Unable to play this track.\")"));
         assertFalse(service.contains("playbackRuntimeStateManager.setErrorMessage(\"Playback is not ready.\")"));
         assertTrue(service.contains("playbackErrorRecoveryCommandOwner.debugTrack(track)"));
+        assertTrue(service.contains("playbackErrorRecoveryCommandOwner.debugCurrentTrack()"));
+        assertFalse(service.contains("playbackErrorRecoveryCommandOwner.debugTrack(playbackQueueStateOwner.currentTrack())"));
         assertTrue(commandOwner.contains("final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryManager.Actions"));
         assertFalse(commandOwner.contains("interface CurrentTrackProvider"));
         assertFalse(commandOwner.contains("interface FailedTrackPolicy"));

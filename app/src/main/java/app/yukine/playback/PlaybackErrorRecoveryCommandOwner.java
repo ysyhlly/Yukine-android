@@ -54,6 +54,10 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
                 + ", uri=" + track.contentUri;
     }
 
+    String debugCurrentTrack() {
+        return debugTrack(currentTrack());
+    }
+
     @Override
     public void prepareCurrent(boolean playWhenReady) {
         playbackPreparer.accept(playWhenReady);
