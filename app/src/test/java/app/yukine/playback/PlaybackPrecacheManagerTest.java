@@ -445,10 +445,13 @@ public final class PlaybackPrecacheManagerTest {
         manager.precacheTrack(current);
         scheduler.runNext();
         scheduler.runNext();
-        manager.release();
+        executor.runSubmitted(2);
 
         assertEquals(1, stateProvider.upcomingTracksCalls);
         assertEquals(3, executor.submittedTaskCount());
+        assertEquals(1, mediaCacheOperations.cacheDataSourceForTrackCalls);
+        assertEquals(streamingUpcoming, mediaCacheOperations.lastCacheDataSourceTrack);
+        manager.release();
     }
 
     private static Track track(long id, String uri) {
