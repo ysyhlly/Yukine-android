@@ -6,49 +6,21 @@ import app.yukine.playback.manager.PlaybackLyricsManager;
 import java.util.function.BooleanSupplier;
 
 final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvider {
-    interface PlaybackStateProvider {
-        Track currentTrack();
+    private final BooleanSupplier appVisibilitySupplier;
+    private final PlaybackQueueStateOwner queueStateOwner;
+    private final BooleanSupplier playingStateProvider;
+    private final BooleanSupplier preparingStateProvider;
 
-        boolean isPlaying();
-
-        boolean isPreparing();
-    }
-
-    static PlaybackStateProvider playbackStateProviderFromPlaybackState(
+    PlaybackLyricsStateOwner(
+            BooleanSupplier appVisibilitySupplier,
             PlaybackQueueStateOwner queueStateOwner,
             BooleanSupplier playingStateProvider,
             BooleanSupplier preparingStateProvider
     ) {
-        return new PlaybackStateProvider() {
-            @Override
-            public Track currentTrack() {
-                return queueStateOwner == null
-                        ? null
-                        : queueStateOwner.queueStateSnapshot().getCurrentTrack();
-            }
-
-            @Override
-            public boolean isPlaying() {
-                return playingStateProvider != null && playingStateProvider.getAsBoolean();
-            }
-
-            @Override
-            public boolean isPreparing() {
-                return preparingStateProvider != null && preparingStateProvider.getAsBoolean();
-            }
-
-        };
-    }
-
-    private final BooleanSupplier appVisibilitySupplier;
-    private final PlaybackStateProvider playbackStateProvider;
-
-    PlaybackLyricsStateOwner(
-            BooleanSupplier appVisibilitySupplier,
-            PlaybackStateProvider playbackStateProvider
-    ) {
         this.appVisibilitySupplier = appVisibilitySupplier;
-        this.playbackStateProvider = playbackStateProvider;
+        this.queueStateOwner = queueStateOwner;
+        this.playingStateProvider = playingStateProvider;
+        this.preparingStateProvider = preparingStateProvider;
     }
 
     @Override
@@ -58,16 +30,16 @@ final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvi
 
     @Override
     public Track currentTrack() {
-        return playbackStateProvider.currentTrack();
+        return queueStateOwner == null ? null : queueStateOwner.queueStateSnapshot().getCurrentTrack();
     }
 
     @Override
     public boolean isPlaying() {
-        return playbackStateProvider.isPlaying();
+        return playingStateProvider != null && playingStateProvider.getAsBoolean();
     }
 
     @Override
     public boolean isPreparing() {
-        return playbackStateProvider.isPreparing();
+        return preparingStateProvider != null && preparingStateProvider.getAsBoolean();
     }
 }

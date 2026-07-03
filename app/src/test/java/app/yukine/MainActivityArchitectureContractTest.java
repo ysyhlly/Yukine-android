@@ -5502,10 +5502,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("PlaybackActiveStateOwner"));
         assertTrue(playbackService.contains("final PlaybackLyricsStateOwner playbackLyricsStateOwner = new PlaybackLyricsStateOwner("));
         assertTrue(playbackService.contains("                playbackLyricsStateOwner,"));
-        assertTrue(playbackService.contains("PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState("));
+        assertFalse(playbackService.contains("PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState("));
         assertTrue(normalizedPlaybackService.contains(
-                "                        playbackQueueStateOwner,\n" +
-                        "                        playbackPlayerStateOwner::isPlaying,"));
+                "                playbackQueueStateOwner,\n" +
+                        "                playbackPlayerStateOwner::isPlaying,\n" +
+                        "                playbackCurrentTrackPreparationRuntimeOwner::preparing"));
         assertFalse(normalizedPlaybackService.contains(
                 "                        currentTrackSupplier,\n" +
                         "                        playbackPlayerStateOwner::isPlaying,"));
@@ -5523,10 +5524,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(lyricsOwner.contains("notificationBridge.hasNotificationWorthyState()"));
         assertTrue(lyricsStateOwner.contains("final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvider"));
         assertFalse(lyricsStateOwner.contains("interface AppVisibilityProvider"));
-        assertTrue(lyricsStateOwner.contains("interface PlaybackStateProvider"));
+        assertFalse(lyricsStateOwner.contains("interface PlaybackStateProvider"));
+        assertFalse(lyricsStateOwner.contains("static PlaybackStateProvider playbackStateProviderFromPlaybackState("));
         assertTrue(lyricsStateOwner.contains("import java.util.function.BooleanSupplier;"));
         assertFalse(lyricsStateOwner.contains("import java.util.function.Supplier;"));
         assertTrue(lyricsStateOwner.contains("private final BooleanSupplier appVisibilitySupplier;"));
+        assertTrue(lyricsStateOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertTrue(lyricsStateOwner.contains("private final BooleanSupplier playingStateProvider;"));
+        assertTrue(lyricsStateOwner.contains("private final BooleanSupplier preparingStateProvider;"));
         assertTrue(lyricsStateOwner.contains("return appVisibilitySupplier.getAsBoolean();"));
         assertFalse(lyricsStateOwner.contains("PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider"));
         assertTrue(lyricsStateOwner.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
@@ -5535,9 +5540,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(lyricsStateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertTrue(lyricsStateOwner.contains("PlaybackQueueStateOwner queueStateOwner"));
         assertFalse(lyricsStateOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
-        assertTrue(lyricsStateOwner.contains("return playbackStateProvider.currentTrack();"));
-        assertTrue(lyricsStateOwner.contains("return playbackStateProvider.isPlaying();"));
-        assertTrue(lyricsStateOwner.contains("return playbackStateProvider.isPreparing();"));
+        assertFalse(lyricsStateOwner.contains("return playbackStateProvider.currentTrack();"));
+        assertFalse(lyricsStateOwner.contains("return playbackStateProvider.isPlaying();"));
+        assertFalse(lyricsStateOwner.contains("return playbackStateProvider.isPreparing();"));
+        assertTrue(lyricsStateOwner.contains("return playingStateProvider != null && playingStateProvider.getAsBoolean();"));
+        assertTrue(lyricsStateOwner.contains("return preparingStateProvider != null && preparingStateProvider.getAsBoolean();"));
         assertFalse(lyricsOwner.contains("fun hasNotificationWorthyState(): Boolean {\n        return stateProvider.currentTrack()"));
         assertFalse(lyricsOwner.contains("fun isQueueEmpty(): Boolean"));
         assertFalse(lyricsOwner.contains("fun isPreparing(): Boolean\n        fun notifyMediaNotification(force: Boolean)"));

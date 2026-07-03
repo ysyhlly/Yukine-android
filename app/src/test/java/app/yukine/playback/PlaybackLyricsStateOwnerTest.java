@@ -24,29 +24,22 @@ public class PlaybackLyricsStateOwnerTest {
     public void delegatesLyricsStateToPlaybackOwners() {
         List<String> events = new ArrayList<>();
         Track track = new Track(13L, "Track", "Artist", "Album", 1000L, Uri.EMPTY, "file:13");
+        PlaybackQueueManager queueManager = queueManager();
+        queueManager.playQueue(Collections.singletonList(track), 0, -1L);
+        PlaybackQueueStateOwner queueStateOwner = new PlaybackQueueStateOwner(queueManager);
         PlaybackLyricsStateOwner owner = new PlaybackLyricsStateOwner(
                 () -> {
                     events.add("visible");
                     return true;
                 },
-                new PlaybackLyricsStateOwner.PlaybackStateProvider() {
-                    @Override
-                    public Track currentTrack() {
-                        events.add("track");
-                        return track;
-                    }
-
-                    @Override
-                    public boolean isPlaying() {
-                        events.add("playing");
-                        return false;
-                    }
-
-                    @Override
-                    public boolean isPreparing() {
-                        events.add("preparing");
-                        return true;
-                    }
+                queueStateOwner,
+                () -> {
+                    events.add("playing");
+                    return false;
+                },
+                () -> {
+                    events.add("preparing");
+                    return true;
                 }
         );
 
@@ -57,7 +50,6 @@ public class PlaybackLyricsStateOwnerTest {
         assertEquals(
                 java.util.Arrays.asList(
                         "visible",
-                        "track",
                         "playing",
                         "preparing"
                 ),
@@ -66,28 +58,28 @@ public class PlaybackLyricsStateOwnerTest {
     }
 
     @Test
-    public void playbackStateProviderFromPlaybackStateDelegatesPlaybackSuppliers() {
+    public void directPlaybackStateInputsDelegateQueueAndPlaybackSuppliers() {
         List<String> events = new ArrayList<>();
         Track track = new Track(14L, "Track", "Artist", "Album", 1000L, Uri.EMPTY, "file:14");
         PlaybackQueueManager queueManager = queueManager();
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
         PlaybackQueueStateOwner queueStateOwner = new PlaybackQueueStateOwner(queueManager);
-        PlaybackLyricsStateOwner.PlaybackStateProvider provider =
-                PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState(
-                        queueStateOwner,
-                        () -> {
-                            events.add("playing");
-                            return false;
-                        },
-                        () -> {
-                            events.add("preparing");
-                            return true;
-                        }
-                );
+        PlaybackLyricsStateOwner owner = new PlaybackLyricsStateOwner(
+                () -> true,
+                queueStateOwner,
+                () -> {
+                    events.add("playing");
+                    return false;
+                },
+                () -> {
+                    events.add("preparing");
+                    return true;
+                }
+        );
 
-        assertSame(track, provider.currentTrack());
-        assertFalse(provider.isPlaying());
-        assertTrue(provider.isPreparing());
+        assertSame(track, owner.currentTrack());
+        assertFalse(owner.isPlaying());
+        assertTrue(owner.isPreparing());
         assertEquals(
                 java.util.Arrays.asList(
                         "playing",
@@ -98,13 +90,12 @@ public class PlaybackLyricsStateOwnerTest {
     }
 
     @Test
-    public void playbackStateProviderFromPlaybackStateReturnsInactiveForMissingSuppliers() {
-        PlaybackLyricsStateOwner.PlaybackStateProvider provider =
-                PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState(null, null, null);
+    public void directPlaybackStateInputsReturnInactiveForMissingSuppliers() {
+        PlaybackLyricsStateOwner owner = new PlaybackLyricsStateOwner(() -> true, null, null, null);
 
-        assertNull(provider.currentTrack());
-        assertFalse(provider.isPlaying());
-        assertFalse(provider.isPreparing());
+        assertNull(owner.currentTrack());
+        assertFalse(owner.isPlaying());
+        assertFalse(owner.isPreparing());
     }
 
     private static PlaybackQueueManager queueManager() {
