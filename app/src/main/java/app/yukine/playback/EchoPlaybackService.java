@@ -205,11 +205,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     StreamingPlaybackHeaderStore streamingPlaybackHeaderStore;
     @Inject
     ToggleFavoriteUseCase toggleFavoriteUseCase;
-    private final PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner =
-            new PlaybackQueuePersistenceOwner(
-                    () -> playbackQueueManager,
-                    () -> new PlaybackQueueStoreImpl(repository)
-            );
     private PlaybackAudioEffectSettingsStore playbackAudioEffectSettingsStore;
     private PlaybackMediaSourceProvider mediaSourceProvider;
     private PlaybackPlayerFactory playerFactory;
@@ -365,7 +360,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackProgressUpdateCommandOwner = new PlaybackProgressUpdateCommandOwner(
                 EchoPlaybackService.this::publishState,
-                playbackQueuePersistenceOwner::persistCurrentPlaybackPosition,
+                EchoPlaybackService.this::persistCurrentPlaybackPosition,
                 () -> playbackProgressUpdateManager
         );
         playbackProgressUpdateManager = new PlaybackProgressUpdateManager(
@@ -506,6 +501,10 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackQueueMirroredPlayerOwner,
                 playbackRuntimeStateManager,
                 playbackTransitionStateManager
+        );
+        final PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner = new PlaybackQueuePersistenceOwner(
+                playbackQueueManager,
+                queueStore
         );
         playbackCurrentTrackPreparationQueueOwner =
                 PlaybackCurrentTrackPreparationQueueOwner.fromMediaSourceProvider(
@@ -792,12 +791,14 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackShutdownCoordinator != null) {
             playbackShutdownCoordinator.handleTaskRemoved();
         } else {
-            playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(true);
-            playbackQueuePersistenceOwner.persistQueueState();
-            playbackQueuePersistenceOwner.savePlaybackResumeRequested(
-                    playbackPlayerStateOwner.isPlaying()
-                            || playbackCurrentTrackPreparationRuntimeOwner.preparing()
-            );
+            persistCurrentPlaybackPosition(true);
+            withPlaybackQueuePersistenceOwner(owner -> {
+                owner.persistQueueState();
+                owner.savePlaybackResumeRequested(
+                        playbackPlayerStateOwner.isPlaying()
+                                || playbackCurrentTrackPreparationRuntimeOwner.preparing()
+                );
+            });
             if (playbackNotificationCommandOwner != null) {
                 playbackNotificationCommandOwner.publishPlaybackNotificationIfWorthy();
             }
@@ -810,7 +811,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackShutdownCoordinator != null) {
             playbackShutdownCoordinator.handleServiceDestroyed();
         } else {
-            playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(true);
+            persistCurrentPlaybackPosition(true);
         }
         super.onDestroy();
     }
@@ -875,7 +876,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             player.seekTo(0L);
         }
         player.play();
-        playbackQueuePersistenceOwner.requestPlaybackResume();
+        withPlaybackQueuePersistenceOwner(PlaybackQueuePersistenceOwner::requestPlaybackResume);
         acquireWifiLockIfStreamingAction.run();
         publishState();
         playbackProgressUpdateCommandOwner.startProgressUpdates();
@@ -886,9 +887,9 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (player != null && playbackPlayerStateOwner.isPlaying()) {
             player.pause();
         }
-        playbackQueuePersistenceOwner.clearPlaybackResumeRequest();
+        withPlaybackQueuePersistenceOwner(PlaybackQueuePersistenceOwner::clearPlaybackResumeRequest);
         releaseWifiLockAction.run();
-        playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(true);
+        persistCurrentPlaybackPosition(true);
         publishState();
     }
 
@@ -898,7 +899,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
         try {
             player.seekTo(Math.max(0L, positionMs));
-            playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(true);
+            persistCurrentPlaybackPosition(true);
             publishState();
         } catch (IllegalStateException ignored) {
             playbackErrorRecoveryCommandOwner.setErrorMessage("Playback is not ready.");
@@ -1323,6 +1324,17 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackQueueManager,
                 EchoPlaybackService.this::createPlayerIfNeeded,
                 playbackQueueCommandOwner
+        ));
+    }
+
+    private void persistCurrentPlaybackPosition(boolean force) {
+        withPlaybackQueuePersistenceOwner(owner -> owner.persistCurrentPlaybackPosition(force));
+    }
+
+    private void withPlaybackQueuePersistenceOwner(Consumer<PlaybackQueuePersistenceOwner> action) {
+        action.accept(new PlaybackQueuePersistenceOwner(
+                playbackQueueManager,
+                new PlaybackQueueStoreImpl(repository)
         ));
     }
 
