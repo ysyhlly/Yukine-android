@@ -195,12 +195,8 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     private static final class NoopStreamingRestoreProvider
             implements PlaybackQueueManager.StreamingRestoreProvider {
         @Override
-        public Track restoredTrackFor(Track track) {
+        public Track restoreTrackForPlayback(Track track) {
             return track;
-        }
-
-        @Override
-        public void restoreForDataPath(String dataPath) {
         }
     }
 

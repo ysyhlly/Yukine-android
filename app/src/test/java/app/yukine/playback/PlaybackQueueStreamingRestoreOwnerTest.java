@@ -26,12 +26,11 @@ public class PlaybackQueueStreamingRestoreOwnerTest {
                 dataPath -> events.add("headers:" + dataPath)
         );
 
-        assertSame(restored, owner.restoredTrackFor(input));
-        owner.restoreForDataPath("streaming:test:1");
+        assertSame(restored, owner.restoreTrackForPlayback(input));
         assertEquals(
                 java.util.Arrays.asList(
                         "track:1",
-                        "headers:streaming:test:1"
+                        "headers:streaming:test:2"
                 ),
                 events
         );
@@ -40,18 +39,18 @@ public class PlaybackQueueStreamingRestoreOwnerTest {
     @Test
     public void missingRestoreActionsAreSafe() {
         PlaybackQueueStreamingRestoreOwner owner = new PlaybackQueueStreamingRestoreOwner(null, null);
+        Track input = track(3L);
 
-        org.junit.Assert.assertNull(owner.restoredTrackFor(track(3L)));
-        owner.restoreForDataPath("streaming:test:3");
+        assertSame(input, owner.restoreTrackForPlayback(input));
     }
 
     @Test
     public void mediaSourceProviderFactoryIsSafeWhenProviderIsMissing() {
         PlaybackQueueStreamingRestoreOwner owner =
                 PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(null);
+        Track input = track(4L);
 
-        org.junit.Assert.assertNull(owner.restoredTrackFor(track(4L)));
-        owner.restoreForDataPath("streaming:test:4");
+        assertSame(input, owner.restoreTrackForPlayback(input));
     }
 
     private static Track track(long id) {

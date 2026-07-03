@@ -35,14 +35,14 @@ final class PlaybackQueueStreamingRestoreOwner implements PlaybackQueueManager.S
     }
 
     @Override
-    public Track restoredTrackFor(Track track) {
-        return restoredTrackForPreparation == null ? null : restoredTrackForPreparation.apply(track);
-    }
-
-    @Override
-    public void restoreForDataPath(String dataPath) {
+    public Track restoreTrackForPlayback(Track track) {
+        Track restoredTrack = restoredTrackForPreparation == null
+                ? null
+                : restoredTrackForPreparation.apply(track);
+        Track playbackTrack = restoredTrack == null ? track : restoredTrack;
         if (restoreHeadersForDataPath != null) {
-            restoreHeadersForDataPath.accept(dataPath);
+            restoreHeadersForDataPath.accept(playbackTrack.dataPath);
         }
+        return playbackTrack;
     }
 }

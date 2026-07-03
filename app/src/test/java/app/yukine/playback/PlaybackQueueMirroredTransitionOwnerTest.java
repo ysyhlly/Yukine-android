@@ -341,13 +341,9 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         }
 
         @Override
-        public Track restoredTrackFor(Track track) {
+        public Track restoreTrackForPlayback(Track track) {
+            events.add("restore:" + track.dataPath);
             return track;
-        }
-
-        @Override
-        public void restoreForDataPath(String dataPath) {
-            events.add("restore:" + dataPath);
         }
     }
 

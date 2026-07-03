@@ -1218,9 +1218,9 @@ class PlaybackQueueManagerTest {
 
     private class FakeStreamingRestoreProvider : PlaybackQueueManager.StreamingRestoreProvider {
         val restoredDataPaths = mutableListOf<String?>()
-        override fun restoredTrackFor(track: Track): Track? = track
-        override fun restoreForDataPath(dataPath: String?) {
-            restoredDataPaths.add(dataPath)
+        override fun restoreTrackForPlayback(track: Track): Track {
+            restoredDataPaths.add(track.dataPath)
+            return track
         }
     }
 

@@ -6517,7 +6517,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("new PlaybackQueueMirroredPlayerOwner("));
         assertTrue(service.contains("                playbackQueueMirroredPlayerOwner,"));
         assertFalse(service.contains("new PlaybackQueueManager.MirroredQueuePlayer()"));
-        assertTrue(owner.contains("streamingRestoreProvider.restoreForDataPath(track.dataPath)"));
+        assertTrue(owner.contains("streamingRestoreProvider.restoreTrackForPlayback(track)"));
+        assertFalse(owner.contains("streamingRestoreProvider.restoreForDataPath(track.dataPath)"));
         assertFalse(service.contains("private PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner;"));
         assertTrue(service.contains("final PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner ="));
         assertTrue(service.contains(
@@ -6720,8 +6721,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueRestoreOwner.contains("private final Consumer<String> restoreHeadersForDataPath;"));
         assertTrue(queueRestoreOwner.contains("mediaSourceProvider.restoredTrackForPreparation(track)"));
         assertTrue(queueRestoreOwner.contains("mediaSourceProvider.restoreHeadersForDataPath(dataPath)"));
-        assertTrue(queueRestoreOwner.contains("return restoredTrackForPreparation == null ? null : restoredTrackForPreparation.apply(track);"));
-        assertTrue(queueRestoreOwner.contains("restoreHeadersForDataPath.accept(dataPath);"));
+        assertTrue(queueRestoreOwner.contains("public Track restoreTrackForPlayback(Track track)"));
+        assertTrue(queueRestoreOwner.contains("Track playbackTrack = restoredTrack == null ? track : restoredTrack;"));
+        assertTrue(queueRestoreOwner.contains("restoreHeadersForDataPath.accept(playbackTrack.dataPath);"));
+        assertFalse(queueRestoreOwner.contains("public Track restoredTrackFor(Track track)"));
+        assertFalse(queueRestoreOwner.contains("public void restoreForDataPath(String dataPath)"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackQueueStreamingRestoreResolverOwner.java")));
         assertFalse(service.contains("PlaybackQueueStreamingRestoreResolverOwner"));
         assertTrue(service.contains("PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(mediaSourceProvider)"));
