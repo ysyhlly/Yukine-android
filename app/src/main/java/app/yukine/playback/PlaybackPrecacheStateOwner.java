@@ -3,24 +3,19 @@ package app.yukine.playback;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 
-import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateProvider {
-    private final PlaybackQueueStateOwner queueStateOwner;
     private final Supplier<MediaItem> playerMediaItemSupplier;
     private final PlaybackStreamingDiagnostics streamingDiagnostics;
 
     PlaybackPrecacheStateOwner(
-            PlaybackQueueStateOwner queueStateOwner,
             Supplier<MediaItem> playerMediaItemSupplier,
             PlaybackStreamingDiagnostics streamingDiagnostics
     ) {
-        this.queueStateOwner = queueStateOwner;
         this.playerMediaItemSupplier = playerMediaItemSupplier;
         this.streamingDiagnostics = streamingDiagnostics;
     }
@@ -70,14 +65,6 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
         } catch (IllegalStateException ignored) {
             return null;
         }
-    }
-
-    @Override
-    public Track currentTrack() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null
-                ? PlaybackQueueManager.QueueStateSnapshot.empty()
-                : queueStateOwner.queueStateSnapshot();
-        return snapshot.getCurrentTrack();
     }
 
     @Override

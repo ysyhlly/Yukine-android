@@ -48,7 +48,6 @@ final class PlaybackPrecacheManager {
     static final long UPCOMING_TRACK_PRECACHE_DELAY_MS = 5500L;
 
     interface StateProvider {
-        Track currentTrack();
         MediaItem currentPlayerMediaItem();
         PlaybackStreamingDiagnostics streamingDiagnostics();
     }
@@ -181,7 +180,7 @@ final class PlaybackPrecacheManager {
         if (cacheKey.equals(lastPrecacheKey) && shouldKeepExistingPrecache(cacheKey)) {
             return;
         }
-        Track current = stateProvider.currentTrack();
+        Track current = currentTrack();
         if (mediaCacheOperations.tracksShareResolvedUriForReuse(current, track)) {
             scheduleCurrentTrackPrecache(track);
             return;
@@ -234,7 +233,7 @@ final class PlaybackPrecacheManager {
             return;
         }
         Runnable task = () -> {
-            Track current = stateProvider.currentTrack();
+            Track current = currentTrack();
             if (!mediaCacheOperations.tracksShareResolvedUriForReuse(current, precacheTrack)
                     || !isCurrentPrecacheGeneration(generation, cacheKey)) {
                 return;
@@ -295,6 +294,12 @@ final class PlaybackPrecacheManager {
                 : playbackQueueManager.upcomingTracksForPrecache(SEGMENTED_PRECACHE_CONCURRENCY);
     }
 
+    private Track currentTrack() {
+        return playbackQueueManager == null
+                ? null
+                : playbackQueueManager.queueStateSnapshot().getCurrentTrack();
+    }
+
     @OptIn(markerClass = UnstableApi.class)
     private void precacheWithMediaCache(
             Track track,
@@ -352,7 +357,7 @@ final class PlaybackPrecacheManager {
 
     private void scheduleCurrentSegmentedPrecache(Track track, String cacheKey, int generation) {
         postDelayedPrecacheCallback(() -> {
-            Track current = stateProvider.currentTrack();
+            Track current = currentTrack();
             if (!mediaCacheOperations.tracksShareResolvedUriForReuse(current, track)
                     || !isCurrentPrecacheGeneration(generation, cacheKey)) {
                 return;
