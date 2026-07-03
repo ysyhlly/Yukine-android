@@ -214,15 +214,15 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(41, countFiles("app/src/main/java/app/yukine/playback", "Playback*Owner.java"));
         assertTrue(
                 "EchoPlaybackService should not add more Playback* fields without a narrower owner/interface slice",
-                countPrivatePlaybackFields(service) <= 43
+                countPrivatePlaybackFields(service) <= 40
         );
         assertTrue(
                 "EchoPlaybackService should not grow Playback* wiring fields, including final initialized fields",
-                countPrivatePlaybackFieldDeclarations(service, false) <= 53
+                countPrivatePlaybackFieldDeclarations(service, false) <= 51
         );
         assertTrue(
                 "EchoPlaybackService should not grow Playback*Owner wiring fields, including final initialized fields",
-                countPrivatePlaybackFieldDeclarations(service, true) <= 22
+                countPrivatePlaybackFieldDeclarations(service, true) <= 21
         );
         assertFalse(exists("app/src/main/java/app/yukine/playback/PlaybackMediaSourceResolutionOwner.java"));
         assertFalse(exists("app/src/test/java/app/yukine/playback/PlaybackMediaSourceResolutionOwnerTest.java"));
