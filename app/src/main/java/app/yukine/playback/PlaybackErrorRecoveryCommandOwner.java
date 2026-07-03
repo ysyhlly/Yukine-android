@@ -6,10 +6,9 @@ import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryManager.Actions {
-    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier;
+    private final PlaybackQueueStateOwner queueStateOwner;
     private final Consumer<Boolean> playbackPreparer;
     private final Runnable skipToNextCommand;
     private final Consumer<String> errorMessageStore;
@@ -17,14 +16,14 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
     private final BiConsumer<String, Exception> warningLogger;
 
     PlaybackErrorRecoveryCommandOwner(
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier,
+            PlaybackQueueStateOwner queueStateOwner,
             Consumer<Boolean> playbackPreparer,
             Runnable skipToNextCommand,
             Consumer<String> errorMessageStore,
             Runnable statePublisher,
             BiConsumer<String, Exception> warningLogger
     ) {
-        this.queueStateSupplier = queueStateSupplier;
+        this.queueStateOwner = queueStateOwner;
         this.playbackPreparer = playbackPreparer;
         this.skipToNextCommand = skipToNextCommand;
         this.errorMessageStore = errorMessageStore;
@@ -81,9 +80,9 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSupplier == null
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null
                 ? null
-                : queueStateSupplier.get();
+                : queueStateOwner.queueStateSnapshot();
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 }
