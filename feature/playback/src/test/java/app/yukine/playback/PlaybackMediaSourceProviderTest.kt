@@ -1,6 +1,7 @@
 package app.yukine.playback
 
 import android.net.Uri
+import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.datasource.ByteArrayDataSource
 import androidx.media3.datasource.DataSpec
@@ -396,6 +397,19 @@ class PlaybackMediaSourceProviderTest {
         val mediaItem = PlaybackMediaSourceProvider.playbackMediaItemForTrack(track, null)
 
         assertTrue(provider(FakeStreamingPlaybackHeaderStore()).mediaItemMatchesTrackForReuse(mediaItem, track))
+    }
+
+    @Test
+    fun providerRejectsStreamingMediaItemWhenCacheKeyIsStale() {
+        val uri = Uri.parse("https://audio.example/current.flac")
+        val track = Track(42L, "Stream", "Artist", "Album", 180_000L, uri, "streaming:netease:42")
+        val staleMediaItem = MediaItem.Builder()
+            .setMediaId("42")
+            .setUri(uri)
+            .setCustomCacheKey("streaming:netease:42|url=https://audio.example/old.flac")
+            .build()
+
+        assertFalse(provider(FakeStreamingPlaybackHeaderStore()).mediaItemMatchesTrackForReuse(staleMediaItem, track))
     }
 
     @Test
