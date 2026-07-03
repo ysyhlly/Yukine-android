@@ -96,6 +96,23 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void uiCommonChineseCopyRemainsUtf8Readable() throws Exception {
+        String homeDashboard = read("app/src/main/java/app/yukine/ui/HomeDashboardScreen.kt");
+        String libraryGroups = read("app/src/main/java/app/yukine/ui/LibraryGroupsScreen.kt");
+        String trackList = read("app/src/main/java/app/yukine/ui/TrackListScreen.kt");
+
+        assertContainsUtf8Chinese(homeDashboard, "今天想听点什么？");
+        assertContainsUtf8Chinese(homeDashboard, "继续播放");
+        assertContainsUtf8Chinese(homeDashboard, "队列");
+        assertContainsUtf8Chinese(homeDashboard, "收藏");
+        assertContainsUtf8Chinese(homeDashboard, "正在播放");
+        assertContainsUtf8Chinese(homeDashboard, "查看全部");
+        assertContainsUtf8Chinese(libraryGroups, "播放");
+        assertContainsUtf8Chinese(trackList, "歌手介绍");
+        assertContainsUtf8Chinese(trackList, "全部专辑");
+    }
+
+    @Test
     public void playbackOwnerInventoryAndServiceWiringDoNotGrowWithoutAudit() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java")
                 .replace("\r\n", "\n");
@@ -9504,6 +9521,12 @@ public final class MainActivityArchitectureContractTest {
             return null;
         }
         return new String(Files.readAllBytes(base), StandardCharsets.UTF_8);
+    }
+
+    private static void assertContainsUtf8Chinese(String source, String expected) {
+        assertTrue(source.contains(expected));
+        assertFalse(source.contains(utf8ReadAsGbk(expected)));
+        assertFalse(source.contains("�"));
     }
 
     private static String utf8ReadAsGbk(String value) {
