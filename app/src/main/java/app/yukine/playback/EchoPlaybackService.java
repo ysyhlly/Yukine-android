@@ -330,13 +330,13 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackSleepTimerCommandOwner = new PlaybackSleepTimerCommandOwner(
                 EchoPlaybackService.this::pause,
-                EchoPlaybackService.this::publishState,
-                () -> playbackSleepTimerManager
+                EchoPlaybackService.this::publishState
         );
         playbackSleepTimerManager = new PlaybackSleepTimerManager(
                 playbackMainHandlerSchedulerOwner,
                 playbackSleepTimerCommandOwner
         );
+        playbackSleepTimerCommandOwner.bindPlaybackSleepTimerManager(playbackSleepTimerManager);
         playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner(
                 playbackQueueStateOwner,
                 playbackQueueCommandOwner::prepareCurrent,

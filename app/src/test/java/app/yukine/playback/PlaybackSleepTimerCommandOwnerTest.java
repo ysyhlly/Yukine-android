@@ -43,9 +43,9 @@ public class PlaybackSleepTimerCommandOwnerTest {
         );
         PlaybackSleepTimerCommandOwner owner = new PlaybackSleepTimerCommandOwner(
                 () -> events.add("pauseOwner"),
-                () -> events.add("publishOwner"),
-                () -> manager
+                () -> events.add("publishOwner")
         );
+        owner.bindPlaybackSleepTimerManager(manager);
 
         owner.cancelSleepTimer(false);
         owner.cancelSleepTimer(true);
@@ -73,9 +73,9 @@ public class PlaybackSleepTimerCommandOwnerTest {
         );
         PlaybackSleepTimerCommandOwner owner = new PlaybackSleepTimerCommandOwner(
                 () -> events.add("pauseOwner"),
-                () -> events.add("publishOwner"),
-                () -> manager
+                () -> events.add("publishOwner")
         );
+        owner.bindPlaybackSleepTimerManager(manager);
 
         owner.startSleepTimerMinutes(3);
 
@@ -91,7 +91,7 @@ public class PlaybackSleepTimerCommandOwnerTest {
     }
 
     @Test
-    public void toleratesMissingSleepTimerManagerProvider() {
+    public void toleratesMissingBoundSleepTimerManager() {
         PlaybackSleepTimerCommandOwner owner = new PlaybackSleepTimerCommandOwner(
                 () -> {
                 },
