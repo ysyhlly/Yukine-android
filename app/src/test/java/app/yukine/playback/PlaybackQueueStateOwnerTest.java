@@ -80,6 +80,26 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     @Test
+    public void currentTrackFollowsBoundQueueStateSnapshotWithoutLocalState() {
+        PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
+        Track first = track(21L);
+        Track second = track(22L);
+        Track replacement = track(23L);
+        queueManager.playQueue(Arrays.asList(first, second), 0, -1L);
+        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManager);
+
+        PlaybackQueueManager.QueueStateSnapshot initialSnapshot = owner.queueStateSnapshot();
+        assertSame(first, initialSnapshot.getCurrentTrack());
+        assertSame(initialSnapshot.getCurrentTrack(), owner.currentTrack());
+
+        queueManager.playQueue(Collections.singletonList(replacement), 0, -1L);
+        PlaybackQueueManager.QueueStateSnapshot updatedSnapshot = owner.queueStateSnapshot();
+
+        assertSame(replacement, updatedSnapshot.getCurrentTrack());
+        assertSame(updatedSnapshot.getCurrentTrack(), owner.currentTrack());
+    }
+
+    @Test
     public void returnsEmptyQueueStateWhenManagerIsMissing() {
         PlaybackQueueStateOwner missingManager = new PlaybackQueueStateOwner();
 
