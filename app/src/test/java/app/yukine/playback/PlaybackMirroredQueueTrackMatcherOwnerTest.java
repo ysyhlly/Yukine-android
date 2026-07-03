@@ -49,10 +49,10 @@ public class PlaybackMirroredQueueTrackMatcherOwnerTest {
     }
 
     @Test
-    public void mediaSourceProviderFactoryIsSafeWhenProviderIsMissing() {
+    public void mediaSourceProviderConstructorIsSafeWhenProviderIsMissing() {
         MediaItem mediaItem = new MediaItem.Builder().setUri("https://example.test/one.mp3").build();
         PlaybackMirroredQueueTrackMatcherOwner owner =
-                PlaybackMirroredQueueTrackMatcherOwner.fromMediaSourceProvider(
+                new PlaybackMirroredQueueTrackMatcherOwner(
                         () -> playerWithMediaItem(mediaItem),
                         null
                 );
