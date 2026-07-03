@@ -2265,3 +2265,32 @@ After the next notification boundary slice:
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackNotificationManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## P1 Audit - Queue Completion Boundary Narrowing
+
+Current audit date: 2026-07-03.
+
+- The stop/clear queue preparation merge candidate is complete; there is still
+  no `PlaybackQueueStopClearOwner` production or test source.
+- `PlaybackQueueCompletionOwner` no longer receives
+  `PlaybackQueueManager.QueuePlaybackActions` from `EchoPlaybackService`.
+  Repeat-current completion is handled inside `PlaybackQueueManager`; the
+  completion owner only routes service-boundary actions: stop/clear,
+  stop-at-end, and skip-next.
+- `PlaybackQueueManager.PlaybackCompletionAction` now represents only actions
+  that need service-boundary handling. Repeat-current remains an internal
+  queue decision and returns no boundary action after preparing current
+  playback.
+- Batch metrics after this audit: `EchoPlaybackService.java` is 1422 lines,
+  `private Playback*` field count is 47, `fromPlaybackQueueManager` count is
+  0, `queueStateSnapshot` references in the service are 3, and
+  `Playback*Owner` production file count is 43.
+- Real reductions in this batch: one fewer
+  `PlaybackQueueCompletionOwner` constructor parameter, one fewer
+  `EchoPlaybackService` owner-wiring argument, and one fewer completion-owner
+  strategy branch.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueCompletionOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
