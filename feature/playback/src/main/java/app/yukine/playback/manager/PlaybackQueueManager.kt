@@ -713,7 +713,9 @@ internal class PlaybackQueueManager(
             setCurrentIndex(-1)
             return
         }
-        setCurrentIndex(restored.currentIndex)
+        setCurrentIndex(
+            if (restored.currentIndex < 0) -1 else minOf(restored.currentIndex, queue.size - 1)
+        )
         setRestoredPosition(
             queueStore.loadPlaybackPositionTrackId(),
             queueStore.loadPlaybackPositionMs(),

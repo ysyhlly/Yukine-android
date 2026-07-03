@@ -401,6 +401,31 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun restorePlaybackQueueClampsCurrentIndexAfterFilteringInvalidTracks() {
+        val store = FakeQueueStore()
+        val current = track(3L, android.net.Uri.parse("content://music/3"), "/music/3")
+        store.restore = PlaybackQueueState(
+                listOf(
+                        track(-1L, android.net.Uri.parse("content://music/invalid"), "/music/invalid"),
+                        track(2L, null, "streaming:netease:2"),
+                        current
+                ),
+                2
+        )
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+
+        manager.restorePlaybackQueue()
+        val snapshot = manager.queueStateSnapshot()
+
+        assertEquals(listOf(2L, 3L), provider.queue.map { it.id })
+        assertEquals(1, snapshot.currentIndex)
+        assertEquals(3L, snapshot.currentTrack?.id)
+        assertEquals(listOf(2L, 3L), store.savedTracks.map { it.id })
+        assertEquals(1, store.savedIndex)
+    }
+
+    @Test
     fun restoreLastPlaybackReportsEmptyQueueWithoutServicePolicy() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
