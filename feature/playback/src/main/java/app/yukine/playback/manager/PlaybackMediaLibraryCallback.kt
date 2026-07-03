@@ -240,11 +240,27 @@ internal class PlaybackMediaLibraryCallback(
         startIndex: Int,
         startPositionMs: Long
     ): ControllerQueue? {
-        val tracks = tracksForMediaItems(mediaItems)
+        if (mediaItems == null || mediaItems.isEmpty()) {
+            return null
+        }
+        val tracksById = dataSource.loadCachedTracks().associateBy { it.id }
+        val tracks = ArrayList<Track>()
+        var resolvedStartIndex = -1
+        for ((index, mediaItem) in mediaItems.withIndex()) {
+            val track = trackForMediaItem(mediaItem, tracksById) ?: continue
+            if (index == startIndex) {
+                resolvedStartIndex = tracks.size
+            }
+            tracks.add(track)
+        }
         if (tracks.isEmpty()) {
             return null
         }
-        return ControllerQueue(tracks, startIndex, startPositionMs)
+        return ControllerQueue(
+            tracks,
+            if (resolvedStartIndex >= 0) resolvedStartIndex else maxOf(0, minOf(startIndex, tracks.size - 1)),
+            startPositionMs
+        )
     }
 
     private fun trackForMediaItem(mediaItem: MediaItem?, tracksById: Map<Long, Track>): Track? {
