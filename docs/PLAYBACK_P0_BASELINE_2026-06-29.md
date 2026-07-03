@@ -2386,3 +2386,57 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P2/P3 Boundary Audit - Resolver And Precache Owners
+
+Current audit date: 2026-07-03.
+
+- This is a read-only boundary checkpoint after the last playback wiring
+  slices. No playback behavior or production code changed in this checkpoint.
+- `PlaybackMediaSourceProvider` remains the owner for playable URI and
+  MediaItem resolution, restored streaming headers, MediaItem-to-track reuse,
+  resolved URI track reuse, media identity reuse, and media/cache key
+  derivation. Do not move these rules into a generic
+  `PlaybackMediaSourceResolutionOwner`.
+- No production `PlaybackMediaSourceResolutionOwner` exists. Existing
+  `PlaybackWarmupCoordinator` and `PlaybackShutdownCoordinator` are outside
+  the resolver/cache boundary and should be audited separately before any
+  rename, merge, or deletion.
+- `PlaybackPrecacheManager` remains the owner for cache scheduling and cache
+  policy: delayed current-track precache, upcoming-track precache, segmented
+  precache probing, generation checks, executor shutdown, active writer
+  cancellation, and "keep existing precache" decisions.
+- `PlaybackMediaCacheOperations` is intentionally narrow. It exposes cache
+  operations needed by precache and visualization cache users:
+  resolved-URI reuse, content length, precache cache key, request headers,
+  cached byte ranges, and cache data sources. It should not grow into a
+  MediaItem/URI resolver facade.
+- Current `PlaybackPrecacheManager.StateProvider`: 4 methods
+  (`currentTrack`, `currentPlayerMediaItem`, `upcomingTracksForPrecache`, and
+  `streamingDiagnostics`). Its remaining width is playback state, not cache
+  policy.
+- Current risk to watch: `PlaybackPrecacheManager.fromMediaSourceProvider(...)`
+  still injects `PlaybackMediaSourceProvider.mediaItemMatchesTrackForReuse(...)`
+  and `releaseAudioCache()` through constructor callbacks. A future slice may
+  reduce that wiring only if it removes a real supplier/constructor chain
+  without moving MediaItem identity rules into `PlaybackMediaCacheOperations`.
+- `PlaybackQueueManager.QueueProvider` remains absent in production playback
+  code. The next P1 audit should continue from queue snapshot/service wiring
+  and classify remaining queue-derived values as source input, snapshot-derived
+  value, or migration residue.
+- Batch metrics after this audit: `EchoPlaybackService.java` is 1424 lines,
+  `private Playback*` field count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, `queueStateSnapshot` references in
+  the service are 2, and `Playback*Owner` production file count is 43.
+- Focused tests already protecting this boundary include
+  `PlaybackMediaSourceProviderTest`, `PlaybackPrecacheManagerTest`,
+  `PlaybackVisualizationCacheManagerTest`, `PlaybackMediaCacheOperationsTest`,
+  and `PlaybackMediaLibraryCallbackTest`.
+- Verification for this checkpoint was read-only audit plus doc validation:
+
+```powershell
+codegraph explore "PlaybackMediaSourceProvider PlaybackPrecacheManager PlaybackMediaCacheOperations PlaybackMediaSourceResolutionOwner resolver cache owner boundary"
+rg -n "PlaybackMediaSourceResolutionOwner|ResolutionOwner|Facade|Coordinator" app/src/main/java feature/playback/src/main/java
+rg -n "interface QueueProvider|class QueueProvider|QueueProvider" app/src/main/java feature/playback/src/main/java feature/playback/src/test app/src/test/java/app/yukine/playback
+git diff --check
+```
