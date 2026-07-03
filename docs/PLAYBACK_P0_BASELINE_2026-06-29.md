@@ -4041,3 +4041,27 @@ Current audit date: 2026-07-03.
 - Interface drift check: the queue state owner only gained generic derived
   snapshot reads, `hasMultipleTracks()` and `isAtEndOfQueue()`; failed-track
   skip policy remains outside the queue state owner.
+
+## P1 Wiring Note - Queue Snapshot Exposure Narrowed
+
+Current audit date: 2026-07-03.
+
+- `PlaybackStateSnapshotOwner` no longer reads or unpacks
+  `PlaybackQueueManager.QueueStateSnapshot` from `PlaybackQueueStateOwner`.
+- `PlaybackQueueStateOwner` now exposes explicit queue source reads:
+  `currentTrack()`, `currentIndex()`, and `queueSize()`, plus existing derived
+  reads for empty/multiple/end checks.
+- `PlaybackQueueStateOwner.queueStateSnapshot()` is private, so the full queue
+  snapshot is no longer a package-level escape hatch for new playback owners.
+- No owner, facade, constructor parameter, Service field, or Service supplier
+  was added.
+- The real reduction is one fewer playback owner with direct access to the full
+  queue snapshot object. Queue snapshot derivation stays inside the queue state
+  owner, and `EchoPlaybackService` remains outside the snapshot API.
+- Focused coverage: `PlaybackQueueStateOwnerTest`,
+  `PlaybackStateSnapshotOwnerTest`, and `MainActivityArchitectureContractTest`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueStateOwnerTest --tests app.yukine.playback.PlaybackStateSnapshotOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```

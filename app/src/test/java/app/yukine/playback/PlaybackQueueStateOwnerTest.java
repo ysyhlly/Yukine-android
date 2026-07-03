@@ -27,16 +27,16 @@ import org.junit.Test;
 
 public class PlaybackQueueStateOwnerTest {
     @Test
-    public void delegatesQueueStateSnapshotToPlaybackQueueManager() {
+    public void delegatesQueueStateReadsToPlaybackQueueManager() {
         Track track = track(12L);
         PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
         PlaybackQueueStateOwner owner =
                 new PlaybackQueueStateOwner(() -> queueManager);
 
-        assertSame(track, owner.queueStateSnapshot().getCurrentTrack());
         assertSame(track, owner.currentTrack());
-        assertEquals(false, owner.queueStateSnapshot().isQueueEmpty());
+        assertEquals(0, owner.currentIndex());
+        assertEquals(1, owner.queueSize());
         assertFalse(owner.isQueueEmpty());
         assertFalse(owner.hasMultipleTracks());
         assertTrue(owner.isAtEndOfQueue());
@@ -52,15 +52,10 @@ public class PlaybackQueueStateOwnerTest {
         PlaybackQueueStateOwner owner =
                 new PlaybackQueueStateOwner(() -> queueManager);
 
-        PlaybackQueueManager.QueueStateSnapshot snapshot = owner.queueStateSnapshot();
-
-        assertSame(second, snapshot.getCurrentTrack());
-        assertEquals(1, snapshot.getCurrentIndex());
-        assertEquals(3, snapshot.getQueueSize());
-        assertFalse(snapshot.isQueueEmpty());
-        assertTrue(snapshot.getHasCurrentTrack());
-        assertTrue(snapshot.getHasMultipleTracks());
-        assertFalse(snapshot.isAtEndOfQueue());
+        assertSame(second, owner.currentTrack());
+        assertEquals(1, owner.currentIndex());
+        assertEquals(3, owner.queueSize());
+        assertFalse(owner.isQueueEmpty());
         assertTrue(owner.hasMultipleTracks());
         assertFalse(owner.isAtEndOfQueue());
     }
@@ -72,10 +67,12 @@ public class PlaybackQueueStateOwnerTest {
         PlaybackQueueStateOwner missingManager =
                 new PlaybackQueueStateOwner(() -> null);
 
-        assertEmpty(missingManagerProvider.queueStateSnapshot());
-        assertEmpty(missingManager.queueStateSnapshot());
         assertSame(null, missingManagerProvider.currentTrack());
         assertSame(null, missingManager.currentTrack());
+        assertEquals(-1, missingManagerProvider.currentIndex());
+        assertEquals(-1, missingManager.currentIndex());
+        assertEquals(0, missingManagerProvider.queueSize());
+        assertEquals(0, missingManager.queueSize());
         assertTrue(missingManagerProvider.isQueueEmpty());
         assertTrue(missingManager.isQueueEmpty());
         assertFalse(missingManagerProvider.hasMultipleTracks());
@@ -111,13 +108,6 @@ public class PlaybackQueueStateOwnerTest {
 
         assertTrackIds(Arrays.asList(1L, 2L, 3L), owner.queueSnapshot());
         assertTrackIds(Collections.singletonList(3L), owner.upcomingTracksForPrecache(3));
-    }
-
-    private static void assertEmpty(PlaybackQueueManager.QueueStateSnapshot snapshot) {
-        assertSame(null, snapshot.getCurrentTrack());
-        assertEquals(-1, snapshot.getCurrentIndex());
-        assertEquals(0, snapshot.getQueueSize());
-        assertEquals(true, snapshot.isQueueEmpty());
     }
 
     private static Track track(long id) {

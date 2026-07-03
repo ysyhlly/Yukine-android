@@ -1,7 +1,6 @@
 package app.yukine.playback;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 
 import java.util.function.DoubleSupplier;
@@ -144,13 +143,9 @@ final class PlaybackStateSnapshotOwner {
     }
 
     PlaybackStateSnapshot snapshot() {
-        PlaybackQueueManager.QueueStateSnapshot queueState = queueStateOwner == null
-                ? PlaybackQueueManager.QueueStateSnapshot.empty()
-                : queueStateOwner.queueStateSnapshot();
-        if (queueState == null) {
-            queueState = PlaybackQueueManager.QueueStateSnapshot.empty();
-        }
-        Track track = queueState.getCurrentTrack();
+        Track track = queueStateOwner == null ? null : queueStateOwner.currentTrack();
+        int currentIndex = queueStateOwner == null ? -1 : queueStateOwner.currentIndex();
+        int queueSize = queueStateOwner == null ? 0 : queueStateOwner.queueSize();
         long positionMs = playbackPositionProvider == null ? 0L : playbackPositionProvider.positionMs();
         long playbackDurationMs = playbackPositionProvider == null ? 0L : playbackPositionProvider.durationMs();
         boolean playing = playbackPositionProvider != null && playbackPositionProvider.isPlaying();
@@ -165,8 +160,8 @@ final class PlaybackStateSnapshotOwner {
                 : visualizationProvider.spectrumSnapshot(track, durationMs, deferVisualGeneration);
         return new PlaybackStateSnapshot(
                 track,
-                queueState.getCurrentIndex(),
-                queueState.getQueueSize(),
+                currentIndex,
+                queueSize,
                 positionMs,
                 durationMs,
                 playing,
