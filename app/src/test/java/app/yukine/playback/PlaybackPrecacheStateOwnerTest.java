@@ -44,10 +44,7 @@ public class PlaybackPrecacheStateOwnerTest {
                     events.add("mediaItem");
                     return mediaItem;
                 },
-                () -> {
-                    events.add("diagnostics");
-                    return diagnostics;
-                }
+                diagnostics
         );
 
         assertSame(track, owner.currentTrack());
@@ -55,10 +52,7 @@ public class PlaybackPrecacheStateOwnerTest {
         assertTrackIds(Collections.singletonList(2L), owner.upcomingTracksForPrecache(4));
         assertSame(diagnostics, owner.streamingDiagnostics());
         assertEquals(
-                java.util.Arrays.asList(
-                        "mediaItem",
-                        "diagnostics"
-                ),
+                java.util.Collections.singletonList("mediaItem"),
                 events
         );
     }
@@ -68,13 +62,13 @@ public class PlaybackPrecacheStateOwnerTest {
         PlaybackPrecacheStateOwner missingProviderOwner = new PlaybackPrecacheStateOwner(
                 null,
                 () -> null,
-                PlaybackStreamingDiagnostics::new
+                new PlaybackStreamingDiagnostics()
         );
         PlaybackQueueStateOwner missingQueueManagerOwner = new PlaybackQueueStateOwner();
         PlaybackPrecacheStateOwner nullTrackOwner = new PlaybackPrecacheStateOwner(
                 missingQueueManagerOwner,
                 () -> null,
-                PlaybackStreamingDiagnostics::new
+                new PlaybackStreamingDiagnostics()
         );
 
         assertNull(missingProviderOwner.currentTrack());

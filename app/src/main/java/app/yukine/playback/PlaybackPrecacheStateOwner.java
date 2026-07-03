@@ -14,16 +14,16 @@ import java.util.function.Supplier;
 final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateProvider {
     private final PlaybackQueueStateOwner queueStateOwner;
     private final Supplier<MediaItem> playerMediaItemSupplier;
-    private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsSupplier;
+    private final PlaybackStreamingDiagnostics streamingDiagnostics;
 
     PlaybackPrecacheStateOwner(
             PlaybackQueueStateOwner queueStateOwner,
             Supplier<MediaItem> playerMediaItemSupplier,
-            Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsSupplier
+            PlaybackStreamingDiagnostics streamingDiagnostics
     ) {
         this.queueStateOwner = queueStateOwner;
         this.playerMediaItemSupplier = playerMediaItemSupplier;
-        this.streamingDiagnosticsSupplier = streamingDiagnosticsSupplier;
+        this.streamingDiagnostics = streamingDiagnostics;
     }
 
     static Supplier<MediaItem> playerMediaItemSupplierFromPlayerSupplier(Supplier<Player> playerSupplier) {
@@ -93,7 +93,7 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
 
     @Override
     public PlaybackStreamingDiagnostics streamingDiagnostics() {
-        return streamingDiagnosticsSupplier.get();
+        return streamingDiagnostics;
     }
 
 }
