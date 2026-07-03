@@ -4856,7 +4856,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(streamingPlaybackController.contains("MainActivityViewModel"));
         assertTrue(streamingPlaybackController.contains("fun preResolveNextStreamingTrack(snapshot: PlaybackStateSnapshot?)"));
         assertTrue(streamingPlaybackController.contains("listener.maybeAppendHeartbeatRecommendations(snapshot)"));
-        assertTrue(streamingPlaybackController.contains("listener.queueSnapshot()"));
+        assertTrue(streamingPlaybackController.contains("val queueSnapshot = listener.queueSnapshot()"));
+        assertEquals(1, countOccurrences(streamingPlaybackController, "listener.queueSnapshot()"));
+        assertTrue(streamingPlaybackController.contains("            queueSnapshot,\n"));
         assertTrue(streamingPlaybackController.contains("streamingViewModel.preResolveNextStreamingTrack("));
         assertTrue(streamingPlaybackController.contains("nowPlayingViewModel.replaceQueuedTrack(oldTrackId, resolved)"));
         assertTrue(streamingPlaybackController.contains("nowPlayingViewModel.warmPlaybackTrack(resolved)"));
