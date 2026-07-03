@@ -320,6 +320,48 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
+    public void currentPrecacheFallsBackToCacheWhenPlayerMediaItemDoesNotMatchTrack() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        Track track = track(1L, "https://example.test/one.mp3");
+        Track playerTrack = track(2L, "https://example.test/two.mp3");
+        MediaItem playerMediaItem = PlaybackMediaSourceProvider.playbackMediaItemForTrack(playerTrack, null);
+        List<MediaItem> matchedMediaItems = new ArrayList<>();
+        List<Track> matchedTracks = new ArrayList<>();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                queueManager(track),
+                mediaCacheOperations,
+                (mediaItem, matchedTrack) -> {
+                    matchedMediaItems.add(mediaItem);
+                    matchedTracks.add(matchedTrack);
+                    return false;
+                },
+                scheduler,
+                new FakeAudioCacheReleaseAction()::releaseAudioCache,
+                executor
+        );
+
+        stateProvider.currentTrack = track;
+        stateProvider.currentPlayerMediaItem = playerMediaItem;
+        manager.precacheTrack(track);
+        scheduler.runNext();
+        executor.runSubmitted(0);
+        manager.release();
+
+        assertEquals(1, matchedMediaItems.size());
+        assertSame(playerMediaItem, matchedMediaItems.get(0));
+        assertEquals(1, matchedTracks.size());
+        assertSame(track, matchedTracks.get(0));
+        assertEquals(1, mediaCacheOperations.cachedBytesInRangeCalls);
+        assertEquals(1, mediaCacheOperations.cacheDataSourceForTrackCalls);
+        assertEquals(track, mediaCacheOperations.lastCacheDataSourceTrack);
+        assertEquals(1, stateProvider.diagnostics.snapshot().precacheFailures);
+    }
+
+    @Test
     public void fullyCachedCurrentLeadingRangeCompletesWithoutOpeningCacheDataSource() throws Exception {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
