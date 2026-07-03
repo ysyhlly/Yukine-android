@@ -322,6 +322,7 @@ public final class PlaybackPrecacheManagerTest {
         manager.release();
 
         assertEquals(2, mediaCacheOperations.cacheDataSourceForTrackCalls);
+        assertEquals(track, mediaCacheOperations.lastCacheDataSourceTrack);
         assertEquals(2, stateProvider.diagnostics.snapshot().precacheFailures);
     }
 
@@ -609,6 +610,7 @@ public final class PlaybackPrecacheManagerTest {
         private int contentLengthCalls;
         private int cachedBytesInRangeCalls;
         private int cacheDataSourceForTrackCalls;
+        private Track lastCacheDataSourceTrack;
 
         @Override
         public boolean tracksShareResolvedUriForReuse(Track current, Track candidate) {
@@ -651,6 +653,7 @@ public final class PlaybackPrecacheManagerTest {
         @Override
         public CacheDataSource cacheDataSourceForTrack(Track track) {
             cacheDataSourceForTrackCalls++;
+            lastCacheDataSourceTrack = track;
             return null;
         }
 
