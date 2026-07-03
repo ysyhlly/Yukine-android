@@ -64,22 +64,36 @@ public final class MainActivityArchitectureContractTest {
                 mainActivity.indexOf("    protected void onCreate(Bundle savedInstanceState)"),
                 mainActivity.indexOf("    protected abstract MainActivityViewModels createActivityViewModels()")
         );
+        String streamingActionGateway = methodBody(mainActivity, "    private MainActivityStreamingActionGateway createStreamingActionGateway()");
         String nowPlayingGateway = methodBody(mainActivity, "    private void initializeNowPlayingGateways()");
         String downloadRequests = methodBody(mainActivity, "    private void initializeDownloadRequests()");
         String libraryGateway = methodBody(mainActivity, "    private void initializeLibraryGateway()");
 
+        int streamingGatewayStep = onCreate.indexOf("        MainActivityStreamingActionGateway streamingActionGateway = createStreamingActionGateway();");
+        int streamingOwnersStep = onCreate.indexOf("        initializeStreamingOwners(streamingActionGateway);");
         int routeStoresStep = onCreate.indexOf("        initializeRouteStoresAndStatus();");
         int nowPlayingGatewayStep = onCreate.indexOf("        initializeNowPlayingGateways();");
         int downloadRequestsStep = onCreate.indexOf("        initializeDownloadRequests();");
         int libraryGatewayStep = onCreate.indexOf("        initializeLibraryGateway();");
         int playbackLifecycleStep = onCreate.indexOf("        initializePlaybackLifecycleControllers();");
 
+        assertTrue(streamingGatewayStep >= 0);
+        assertTrue(streamingOwnersStep >= 0);
+        assertTrue(streamingGatewayStep < streamingOwnersStep);
         assertTrue(routeStoresStep >= 0);
         assertTrue(routeStoresStep < nowPlayingGatewayStep);
         assertTrue(routeStoresStep < downloadRequestsStep);
         assertTrue(routeStoresStep < libraryGatewayStep);
         assertTrue(routeStoresStep < playbackLifecycleStep);
         assertTrue(mainActivity.contains("routeController = new MainRouteController(navigationViewModel)"));
+        assertTrue(streamingActionGateway.contains(
+                "                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),\n"));
+        assertTrue(streamingActionGateway.contains(
+                "                provider -> streamingPlaylistController.onStreamingLoginSuccess(provider),\n"));
+        assertTrue(streamingActionGateway.contains("                    if (streamingManualCookieController != null) {"));
+        assertFalse(streamingActionGateway.contains("                settingsStore.languageMode(),\n"));
+        assertFalse(streamingActionGateway.contains("                streamingPlaylistController,\n"));
+        assertFalse(streamingActionGateway.contains("                streamingManualCookieController,\n"));
         assertTrue(libraryGateway.contains("libraryViewModel.bindGateway(libraryGatewayFactory.create("));
         assertTrue(libraryGateway.contains("                routeController,\n"));
         assertTrue(nowPlayingGateway.contains("                () -> playbackActionController,\n"));
