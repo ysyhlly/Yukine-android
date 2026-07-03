@@ -45,6 +45,7 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner owner =
                 new PlaybackQueueMirroredTransitionOwner(
                         queueManager,
+                        queueStateOwner(queueManager),
                         () -> events.add("applyVolume"),
                         null
                 );
@@ -83,6 +84,7 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner owner =
                 new PlaybackQueueMirroredTransitionOwner(
                         queueManager,
+                        queueStateOwner(queueManager),
                         () -> events.add("applyVolume"),
                         null
                 );
@@ -112,6 +114,7 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner missingManager =
                 new PlaybackQueueMirroredTransitionOwner(
                         null,
+                        queueStateOwner(null),
                         () -> events.add("applyVolume"),
                         null
                 );
@@ -137,6 +140,7 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner owner =
                 new PlaybackQueueMirroredTransitionOwner(
                         queueManager,
+                        queueStateOwner(queueManager),
                         () -> events.add("applyVolume"),
                         null
                 );
@@ -172,6 +176,7 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner owner =
                 new PlaybackQueueMirroredTransitionOwner(
                         queueManager,
+                        queueStateOwner(queueManager),
                         null,
                         null
                 );
@@ -209,22 +214,25 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
                 REPEAT_OFF
         );
         PlaybackQueueMirroredTransitionOwner missingStateOwner =
-                new PlaybackQueueMirroredTransitionOwner(null, null, null);
+                new PlaybackQueueMirroredTransitionOwner(null, null, null, null);
         PlaybackQueueMirroredTransitionOwner readyOwner =
                 new PlaybackQueueMirroredTransitionOwner(
                         readyManager,
+                        queueStateOwner(readyManager),
                         null,
                         () -> true
                 );
         PlaybackQueueMirroredTransitionOwner notMirroredOwner =
                 new PlaybackQueueMirroredTransitionOwner(
                         readyManager,
+                        queueStateOwner(readyManager),
                         null,
                         () -> false
                 );
         PlaybackQueueMirroredTransitionOwner emptyQueueOwner =
                 new PlaybackQueueMirroredTransitionOwner(
                         emptyManager,
+                        queueStateOwner(emptyManager),
                         null,
                         () -> true
                 );
@@ -302,6 +310,10 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
                 null,
                 "streaming:netease:" + id
         );
+    }
+
+    private static PlaybackQueueStateOwner queueStateOwner(PlaybackQueueManager queueManager) {
+        return new PlaybackQueueStateOwner(queueManager);
     }
 
     private static final class FakeQueueStore implements PlaybackQueueStore {

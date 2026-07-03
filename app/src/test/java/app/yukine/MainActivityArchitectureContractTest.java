@@ -6756,9 +6756,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mirroredTransitionWiring.contains(
                 "new PlaybackQueueMirroredTransitionOwner(\n"
                         + "                            playbackQueueManager,\n"
+                        + "                            playbackQueueStateOwner,\n"
                         + "                            EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer,"
         ));
-        assertFalse(mirroredTransitionWiring.contains("playbackQueueStateOwner,"));
+        assertTrue(mirroredTransitionWiring.contains("playbackQueueStateOwner,"));
         assertFalse(mirroredTransitionWiring.contains("() -> playbackQueueStateOwner.queueStateSnapshot()"));
         assertTrue(service.contains("private void applyCurrentTrackVolumeToPlayer()"));
         assertTrue(service.contains(
@@ -6787,15 +6788,15 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredTransitionOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier;"));
         assertFalse(mirroredTransitionOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
         assertFalse(mirroredTransitionOwner.contains("QueueStateProvider queueStateProvider"));
-        assertFalse(mirroredTransitionOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
-        assertTrue(mirroredTransitionOwner.contains("private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
-        assertTrue(mirroredTransitionOwner.contains("playbackQueueManager.queueStateSnapshot();"));
+        assertTrue(mirroredTransitionOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertFalse(mirroredTransitionOwner.contains("private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
+        assertFalse(mirroredTransitionOwner.contains("playbackQueueManager.queueStateSnapshot();"));
         assertFalse(mirroredTransitionOwner.contains(": queueStateOwner.queueStateSnapshot();"));
         assertFalse(mirroredTransitionOwner.contains("return mirrorsQueue && !queueSnapshot.isQueueEmpty();"));
-        assertTrue(mirroredTransitionOwner.contains("boolean queueEmpty = queueStateSnapshot().isQueueEmpty();"));
+        assertTrue(mirroredTransitionOwner.contains("boolean queueEmpty = queueStateOwner == null || queueStateOwner.isQueueEmpty();"));
         assertTrue(mirroredTransitionOwner.contains("return mirrorsQueue && !queueEmpty;"));
-        assertFalse(mirroredTransitionOwner.contains("currentTrack = queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
-        assertTrue(mirroredTransitionOwner.contains("currentTrack = queueStateSnapshot().getCurrentTrack();"));
+        assertTrue(mirroredTransitionOwner.contains("currentTrack = queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertFalse(mirroredTransitionOwner.contains("currentTrack = queueStateSnapshot().getCurrentTrack();"));
         assertTrue(mirroredTransitionOwner.contains("boolean canApplyMirroredTransition()"));
         assertTrue(mirroredTransitionOwner.contains("static final class Transition"));
         assertTrue(mirroredTransitionOwner.contains("Track currentTrack()"));
@@ -7083,7 +7084,6 @@ public final class MainActivityArchitectureContractTest {
         )), queuePrecacheApi);
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackQueueMirroredPlayerOwner.java",
-                "PlaybackQueueMirroredTransitionOwner.java",
                 "PlaybackQueueMutationOwner.java",
                 "PlaybackSessionCommandOwner.java",
                 "PlaybackStateSnapshotOwner.java",
