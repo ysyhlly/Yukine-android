@@ -6983,12 +6983,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("mainHandler.removeCallbacks(progressRunnable)"));
         assertFalse(service.contains("mainHandler.postDelayed(progressRunnable"));
         assertTrue(service.contains("private PlaybackProgressUpdateManager playbackProgressUpdateManager"));
-        assertFalse(service.contains("private void startProgressUpdates()"));
-        assertFalse(service.contains("private void stopProgressUpdates()"));
-        assertFalse(service.contains("playbackProgressUpdateManager.startIfNeeded()"));
-        assertFalse(service.contains("playbackProgressUpdateManager.stop()"));
-        assertTrue(service.contains("playbackProgressUpdateCommandOwner.startProgressUpdates()"));
-        assertTrue(service.contains("playbackProgressUpdateCommandOwner.stopProgressUpdates()"));
+        assertTrue(service.contains("private void startProgressUpdates()"));
+        assertTrue(service.contains("private void stopProgressUpdates()"));
+        assertTrue(service.contains("playbackProgressUpdateManager.startIfNeeded()"));
+        assertTrue(service.contains("playbackProgressUpdateManager.stop()"));
+        assertFalse(service.contains("playbackProgressUpdateCommandOwner.startProgressUpdates()"));
+        assertFalse(service.contains("playbackProgressUpdateCommandOwner.stopProgressUpdates()"));
         assertTrue(owner.contains("class PlaybackProgressUpdateManager"));
         assertTrue(owner.contains("interface CallbackScheduler"));
         assertTrue(owner.contains("interface StateProvider"));
@@ -7983,6 +7983,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("private PlaybackProgressUpdateCommandOwner playbackProgressUpdateCommandOwner;"));
         assertTrue(service.contains("playbackProgressUpdateCommandOwner = new PlaybackProgressUpdateCommandOwner("));
         assertTrue(service.contains("playbackProgressUpdateCommandOwner"));
+        assertFalse(
+                service.contains("EchoPlaybackService.this::persistCurrentPlaybackPosition,\r\n"
+                        + "                () -> playbackProgressUpdateManager")
+                        || service.contains("EchoPlaybackService.this::persistCurrentPlaybackPosition,\n"
+                        + "                () -> playbackProgressUpdateManager")
+        );
         assertFalse(service.contains("new PlaybackProgressUpdateManager.StateProvider()"));
         assertFalse(service.contains("private PlaybackProgressUpdateStateOwner playbackProgressUpdateStateOwner;"));
         assertFalse(service.contains("new PlaybackProgressUpdateStateOwner("));
@@ -7995,15 +8001,15 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(commandOwner.contains("interface ProgressUpdateManagerProvider"));
         assertTrue(commandOwner.contains("private final Runnable statePublisher;"));
         assertTrue(commandOwner.contains("private final Consumer<Boolean> positionPersister;"));
-        assertTrue(commandOwner.contains(
-                "private final Supplier<PlaybackProgressUpdateManager> progressUpdateManagerProvider;"));
+        assertFalse(commandOwner.contains("Supplier<PlaybackProgressUpdateManager>"));
+        assertFalse(commandOwner.contains("progressUpdateManagerProvider"));
         assertTrue(commandOwner.contains("statePublisher.run();"));
         assertTrue(commandOwner.contains("positionPersister.accept(false);"));
-        assertTrue(commandOwner.contains("progressUpdateManagerProvider.get();"));
-        assertTrue(commandOwner.contains("void startProgressUpdates()"));
-        assertTrue(commandOwner.contains("void stopProgressUpdates()"));
-        assertTrue(commandOwner.contains("manager.startIfNeeded();"));
-        assertTrue(commandOwner.contains("manager.stop();"));
+        assertFalse(commandOwner.contains("progressUpdateManagerProvider.get();"));
+        assertFalse(commandOwner.contains("void startProgressUpdates()"));
+        assertFalse(commandOwner.contains("void stopProgressUpdates()"));
+        assertFalse(commandOwner.contains("manager.startIfNeeded();"));
+        assertFalse(commandOwner.contains("manager.stop();"));
         assertTrue(manager.contains("fun stateProviderFromPlaybackState("));
         assertTrue(manager.contains("playbackStateProvider: BooleanSupplier?"));
         assertTrue(manager.contains("preparingStateProvider: BooleanSupplier?"));

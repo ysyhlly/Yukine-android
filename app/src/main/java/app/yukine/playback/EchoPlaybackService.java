@@ -227,7 +227,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             if (playbackState == Player.STATE_BUFFERING && player.getPlayWhenReady()) {
                 publishBufferingState();
             }
-            playbackProgressUpdateCommandOwner.startProgressUpdates();
+            startProgressUpdates();
         }
 
         @Override
@@ -259,7 +259,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 resetWaveformIfTrackChanged(track);
             }
             publishState();
-            playbackProgressUpdateCommandOwner.startProgressUpdates();
+            startProgressUpdates();
         }
 
         @Override
@@ -273,7 +273,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 releaseWifiLockAction.run();
             }
             publishState();
-            playbackProgressUpdateCommandOwner.startProgressUpdates();
+            startProgressUpdates();
         }
 
         @Override
@@ -355,8 +355,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackProgressUpdateCommandOwner = new PlaybackProgressUpdateCommandOwner(
                 EchoPlaybackService.this::publishState,
-                EchoPlaybackService.this::persistCurrentPlaybackPosition,
-                () -> playbackProgressUpdateManager
+                EchoPlaybackService.this::persistCurrentPlaybackPosition
         );
         playbackProgressUpdateManager = new PlaybackProgressUpdateManager(
                 playbackMainHandlerSchedulerOwner,
@@ -874,7 +873,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         withPlaybackQueuePersistenceOwner(PlaybackQueuePersistenceOwner::requestPlaybackResume);
         acquireWifiLockIfStreamingAction.run();
         publishState();
-        playbackProgressUpdateCommandOwner.startProgressUpdates();
+        startProgressUpdates();
     }
 
     public void pause() {
@@ -1213,14 +1212,14 @@ public final class EchoPlaybackService extends MediaLibraryService
         } else {
             releasePlaybackPlayerResources();
         }
-        playbackProgressUpdateCommandOwner.stopProgressUpdates();
+        stopProgressUpdates();
         playbackNotificationCommandOwner.stopForegroundAndSelf();
         publishState();
     }
 
     private void stopAtEndOfQueue() {
         withPlaybackQueueCompletionOwner(PlaybackQueueCompletionOwner::prepareStopAtEndOfQueue);
-        playbackProgressUpdateCommandOwner.stopProgressUpdates();
+        stopProgressUpdates();
         if (player == null) {
             createPlayerIfNeeded();
         } else {
@@ -1327,6 +1326,18 @@ public final class EchoPlaybackService extends MediaLibraryService
         withPlaybackQueuePersistenceOwner(owner -> owner.persistCurrentPlaybackPosition(force));
     }
 
+    private void startProgressUpdates() {
+        if (playbackProgressUpdateManager != null) {
+            playbackProgressUpdateManager.startIfNeeded();
+        }
+    }
+
+    private void stopProgressUpdates() {
+        if (playbackProgressUpdateManager != null) {
+            playbackProgressUpdateManager.stop();
+        }
+    }
+
     private void withPlaybackQueuePersistenceOwner(Consumer<PlaybackQueuePersistenceOwner> action) {
         action.accept(new PlaybackQueuePersistenceOwner(
                 playbackQueueManager,
@@ -1359,7 +1370,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playWhenReady) {
             acquireWifiLockIfStreamingAction.run();
         }
-        playbackProgressUpdateCommandOwner.startProgressUpdates();
+        startProgressUpdates();
     }
 
     private void resetWaveformIfTrackChanged(Track track) {
