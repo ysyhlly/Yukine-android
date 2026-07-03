@@ -74,6 +74,22 @@ public final class PlaybackMediaCacheOperationsTest {
     }
 
     @Test
+    public void providerBackedOperationsDoNotPrecacheUnresolvedStreamingPlaceholders() {
+        PlaybackMediaSourceProvider provider =
+                mediaSourceProvider(new FakeStreamingPlaybackHeaderStore(Collections.emptyMap()));
+        PlaybackMediaCacheOperations operations =
+                PlaybackMediaCacheOperations.fromMediaSourceProvider(provider);
+        Track unresolved = track(42L, "", "streaming:test:42");
+
+        try {
+            assertEquals("streaming:test:42", provider.mediaCacheKeyForTrack(unresolved));
+            assertNull(operations.cacheKeyForPrecache(unresolved));
+        } finally {
+            provider.releaseAudioCache();
+        }
+    }
+
+    @Test
     public void providerBackedOperationsOwnResolvedUriReuseAndCacheMissReads() {
         PlaybackMediaSourceProvider provider =
                 mediaSourceProvider(new FakeStreamingPlaybackHeaderStore(Collections.emptyMap()));
