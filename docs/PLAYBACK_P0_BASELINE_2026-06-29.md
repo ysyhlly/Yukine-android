@@ -3578,3 +3578,49 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## P1/P2/P3 Batch Audit - Queue Contract And Cache Boundary
+
+Current audit date: 2026-07-03.
+
+- This checkpoint follows three small slices:
+  - queue state snapshot source-field contract;
+  - null media source provider precache boundary coverage;
+  - current-track-missing fallback routed through `PlaybackQueueCommandOwner`.
+- Real reductions and protections in this batch:
+  - `PlaybackQueueManager.QueueStateSnapshot` is locked to three source fields:
+    `currentTrack`, `currentIndex`, and `queueSize`; queue booleans must remain
+    derived getters.
+  - `PlaybackPrecacheManager.fromMediaSourceProvider(...)` now has focused
+    coverage for missing provider behavior, so null-provider cache fallback
+    policy does not need to move into `EchoPlaybackService` or a new facade.
+  - `EchoPlaybackService.play()` no longer interprets
+    `playbackQueueCommandOwner.hasCurrentTrack()`; missing-current fallback is
+    owned by `PlaybackQueueCommandOwner.runIfCurrentTrackMissing(...)`.
+- Current metrics:
+  - `EchoPlaybackService.java` is 1328 lines.
+  - `private Playback*` field count is 43 by the existing non-final field
+    metric; counting `private final Playback*` as well gives 55.
+  - `fromPlaybackQueueManager` production count is 0.
+  - Service `queueStateSnapshot()` supplier count is 1.
+  - `Playback*Owner` production file count is 43.
+- Boundary disposition:
+  - no owner was added in this batch;
+  - no production `PlaybackMediaSourceResolutionOwner`, `PlaybackItemResolver`,
+    resolver facade, or cache policy facade was added;
+  - URI / MediaItem resolution remains in `PlaybackMediaSourceProvider`;
+  - cache policy remains in `PlaybackPrecacheManager` /
+    `PlaybackMediaCacheOperations`.
+- Deferred risk remains unchanged: the single Service
+  `playbackQueueStateOwner::queueStateSnapshot` supplier is notification-state
+  wiring and should stay deferred until a P4 notification smoke slice is
+  explicitly scoped.
+- Focused tests covering this batch:
+  `PlaybackQueueManagerTest`, `PlaybackMediaSourceProviderTest`,
+  `PlaybackPrecacheManagerTest`, `PlaybackQueueCommandOwnerTest`, and
+  `MainActivityArchitectureContractTest`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheManagerTest --tests app.yukine.playback.PlaybackQueueCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
