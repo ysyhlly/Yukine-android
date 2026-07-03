@@ -60,12 +60,19 @@ public final class MainActivityArchitectureContractTest {
     public void mainActivityCreatesRouteStoresAndStatusBeforeGatewayBinding() throws Exception {
         String mainActivity = read("app/src/main/java/app/yukine/MainActivityBase.java")
                 .replace("\r\n", "\n");
+        String onCreate = mainActivity.substring(
+                mainActivity.indexOf("    protected void onCreate(Bundle savedInstanceState)"),
+                mainActivity.indexOf("    protected abstract MainActivityViewModels createActivityViewModels()")
+        );
+        String nowPlayingGateway = methodBody(mainActivity, "    private void initializeNowPlayingGateways()");
+        String downloadRequests = methodBody(mainActivity, "    private void initializeDownloadRequests()");
+        String libraryGateway = methodBody(mainActivity, "    private void initializeLibraryGateway()");
 
-        int routeStoresStep = mainActivity.indexOf("        initializeRouteStoresAndStatus();");
-        int nowPlayingGatewayStep = mainActivity.indexOf("        initializeNowPlayingGateways();");
-        int downloadRequestsStep = mainActivity.indexOf("        initializeDownloadRequests();");
-        int libraryGatewayStep = mainActivity.indexOf("        initializeLibraryGateway();");
-        int playbackLifecycleStep = mainActivity.indexOf("        initializePlaybackLifecycleControllers();");
+        int routeStoresStep = onCreate.indexOf("        initializeRouteStoresAndStatus();");
+        int nowPlayingGatewayStep = onCreate.indexOf("        initializeNowPlayingGateways();");
+        int downloadRequestsStep = onCreate.indexOf("        initializeDownloadRequests();");
+        int libraryGatewayStep = onCreate.indexOf("        initializeLibraryGateway();");
+        int playbackLifecycleStep = onCreate.indexOf("        initializePlaybackLifecycleControllers();");
 
         assertTrue(routeStoresStep >= 0);
         assertTrue(routeStoresStep < nowPlayingGatewayStep);
@@ -73,9 +80,19 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(routeStoresStep < libraryGatewayStep);
         assertTrue(routeStoresStep < playbackLifecycleStep);
         assertTrue(mainActivity.contains("routeController = new MainRouteController(navigationViewModel)"));
-        assertTrue(mainActivity.contains("libraryViewModel.bindGateway(libraryGatewayFactory.create("));
-        assertTrue(mainActivity.contains("                routeController,\n"));
-        assertFalse(mainActivity.contains("initializeLibraryGateway();\n        initializeRouteStoresAndStatus();"));
+        assertTrue(libraryGateway.contains("libraryViewModel.bindGateway(libraryGatewayFactory.create("));
+        assertTrue(libraryGateway.contains("                routeController,\n"));
+        assertTrue(nowPlayingGateway.contains("                () -> playbackActionController,\n"));
+        assertTrue(nowPlayingGateway.contains("                () -> playbackStore,\n"));
+        assertTrue(nowPlayingGateway.contains("                () -> playbackService\n"));
+        assertFalse(nowPlayingGateway.contains("                playbackActionController,\n"));
+        assertFalse(nowPlayingGateway.contains("                playbackStore,\n"));
+        assertFalse(nowPlayingGateway.contains("                playbackService\n"));
+        assertTrue(downloadRequests.contains("                () -> trackDownloadManager,\n"));
+        assertFalse(downloadRequests.contains("                trackDownloadManager,\n"));
+        assertTrue(libraryGateway.contains("                () -> documentPickerController.openAudioFilePicker(),\n"));
+        assertFalse(libraryGateway.contains("                documentPickerController.openAudioFilePicker(),\n"));
+        assertFalse(onCreate.contains("initializeLibraryGateway();\n        initializeRouteStoresAndStatus();"));
     }
 
     @Test
@@ -9349,6 +9366,26 @@ public final class MainActivityArchitectureContractTest {
         return normalizedPath.endsWith("/app/src/main/java/app/yukine/LiveLyricsNotificationService.kt")
                 || normalizedPath.endsWith("/app/src/main/java/app/yukine/NowPlayingPlaybackServiceStarter.kt")
                 || normalizedPath.endsWith("/app/src/main/java/app/yukine/PlaybackServiceConnectionController.kt");
+    }
+
+    private static String methodBody(String source, String signature) {
+        int signatureIndex = source.indexOf(signature);
+        assertTrue(signatureIndex >= 0);
+        int bodyStart = source.indexOf('{', signatureIndex);
+        assertTrue(bodyStart >= 0);
+        int depth = 0;
+        for (int index = bodyStart; index < source.length(); index++) {
+            char c = source.charAt(index);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return source.substring(signatureIndex, index + 1);
+                }
+            }
+        }
+        throw new AssertionError("Missing method body end for " + signature);
     }
 
     private static boolean exists(String path) {
