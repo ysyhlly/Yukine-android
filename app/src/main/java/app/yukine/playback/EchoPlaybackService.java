@@ -373,11 +373,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                     }
                 },
                 () -> withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::skipToNextImmediately),
-                () -> {
-                    if (playbackRuntimeSettingsStore != null) {
-                        playbackRuntimeSettingsStore.applyCurrentTrackVolumeToPlayer(playbackRuntimeStateManager);
-                    }
-                },
+                EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer,
                 () -> playbackCrossfadeAdvanceManager
         );
         final PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner(

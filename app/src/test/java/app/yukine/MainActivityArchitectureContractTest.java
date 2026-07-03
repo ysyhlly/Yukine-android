@@ -7288,8 +7288,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(setConcurrentPlaybackMethod.contains("applyAudioFocusHandling();"));
         assertFalse(setReplayGainMethod.contains("applyPlaybackParametersToPlayer();"));
         assertFalse(crossfadeCommandOwnerConstruction.contains("playbackRuntimeStateManager.applyCurrentTrackVolumeToPlayer();"));
-        assertTrue(crossfadeCommandOwnerConstruction.contains(
+        assertFalse(crossfadeCommandOwnerConstruction.contains(
                 "playbackRuntimeSettingsStore.applyCurrentTrackVolumeToPlayer(playbackRuntimeStateManager);"
+        ));
+        assertTrue(crossfadeCommandOwnerConstruction.contains(
+                "EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer"
         ));
         assertFalse(crossfadeCommandOwnerConstruction.contains(
                 "PlaybackCrossfadeCommandOwner.appVolumeApplierFromRuntimeStateManagerProvider("
