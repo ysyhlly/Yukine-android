@@ -5640,10 +5640,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("repository.loadPlaybackPositionMs()"));
         assertFalse(service.contains("repository.savePlaybackPosition("));
         assertFalse(service.contains("repository.savePlaybackResumeRequested("));
-        assertTrue(service.contains("withPlaybackQueueRestoreOwner(PlaybackQueueRestoreOwner::restorePlaybackQueue);"));
+        assertTrue(service.contains("playbackQueueRestoreOwner().restorePlaybackQueue();"));
         assertFalse(service.contains("playbackQueueManager.restorePlaybackQueue()"));
         assertTrue(queueRestoreOwner.contains("playbackQueueManager.restorePlaybackQueue();"));
-        assertTrue(service.contains("owner -> owner.restoreLastPlayback(playWhenRestored)"));
+        assertTrue(service.contains("playbackQueueRestoreOwner().restoreLastPlayback(playWhenRestored);"));
         assertFalse(service.contains("playbackQueueManager.restoreLastPlayback(playWhenRestored)"));
         assertTrue(queueRestoreOwner.contains("playbackQueueManager.restoreLastPlayback(playWhenRestored)"));
         assertFalse(service.contains("repository.loadPlaybackResumeRequested()"));
@@ -5823,8 +5823,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueNavigationOwner.contains("static PlaybackQueueNavigationOwner fromPlaybackQueueManager("));
         assertTrue(service.contains("this::onMirroredQueueReused"));
         assertFalse(service.contains("private final PlaybackQueueRestoreOwner playbackQueueRestoreOwner"));
-        assertFalse(service.contains("private PlaybackQueueRestoreOwner playbackQueueRestoreOwner"));
-        assertTrue(service.contains("private void withPlaybackQueueRestoreOwner(Consumer<PlaybackQueueRestoreOwner> action)"));
+        assertFalse(service.contains("private PlaybackQueueRestoreOwner playbackQueueRestoreOwner;"));
+        assertTrue(service.contains("private PlaybackQueueRestoreOwner playbackQueueRestoreOwner()"));
+        assertFalse(service.contains("withPlaybackQueueRestoreOwner("));
+        assertFalse(service.contains("Consumer<PlaybackQueueRestoreOwner>"));
         assertTrue(service.contains("new PlaybackQueueRestoreOwner("));
         assertFalse(service.contains("PlaybackQueueRestoreOwner.fromPlaybackQueueManager("));
         assertFalse(queueRestoreOwner.contains("static PlaybackQueueRestoreOwner fromPlaybackQueueManager("));
@@ -6025,13 +6027,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueNavigationOwner.contains("PlaybackErrorRecoveryCommandOwner.FailedTrackPolicy"));
         assertFalse(queueNavigationOwner.contains("playbackQueueManager.canCrossfadeAdvance(repeatMode);"));
         assertFalse(queueNavigationOwner.contains("PlaybackCrossfadeStateOwner.CrossfadeAdvancePolicy"));
-        assertTrue(service.contains("owner -> owner.restoreLastPlayback(playWhenRestored)"));
+        assertTrue(service.contains("playbackQueueRestoreOwner().restoreLastPlayback(playWhenRestored);"));
         assertFalse(service.contains("playbackQueueManager.restoreLastPlayback(playWhenRestored)"));
         assertTrue(queueRestoreOwner.contains("playbackQueueManager.restoreLastPlayback(playWhenRestored);"));
-        assertTrue(service.contains("withPlaybackQueueRestoreOwner(PlaybackQueueRestoreOwner::restorePlaybackQueue);"));
+        assertTrue(service.contains("playbackQueueRestoreOwner().restorePlaybackQueue();"));
         assertFalse(service.contains("playbackQueueManager.restorePlaybackQueue()"));
         assertTrue(queueRestoreOwner.contains("playbackQueueManager.restorePlaybackQueue();"));
-        assertTrue(service.contains("owner -> owner.setPlaybackRestoreEnabled(enabled)"));
+        assertTrue(service.contains("playbackQueueRestoreOwner().setPlaybackRestoreEnabled(enabled);"));
         assertFalse(service.contains("playbackQueueManager.setPlaybackRestoreEnabled(enabled)"));
         assertTrue(queueRestoreOwner.contains("playbackQueueManager.setPlaybackRestoreEnabled(enabled);"));
         assertTrue(queueRestoreOwner.contains("private final PlaybackQueueManager playbackQueueManager"));
@@ -6054,7 +6056,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueRestoreOwner.contains("private final PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions;"));
         assertTrue(service.contains("EchoPlaybackService.this::createPlayerIfNeeded"));
         String queueRestoreWiring = normalizedService.substring(
-                normalizedService.indexOf("private void withPlaybackQueueRestoreOwner(Consumer<PlaybackQueueRestoreOwner> action)"),
+                normalizedService.indexOf("private PlaybackQueueRestoreOwner playbackQueueRestoreOwner()"),
                 normalizedService.indexOf("    private boolean reuseMirroredQueueIfAvailable")
         );
         assertTrue(queueRestoreWiring.contains("                playbackQueueCommandOwner"));
@@ -7295,7 +7297,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("if (!playbackRestoreEnabled)"));
         assertFalse(service.contains("repository.loadPlaybackRestoreEnabled()"));
         assertFalse(service.contains("repository.savePlaybackRestoreEnabled("));
-        assertTrue(service.contains("owner -> owner.setPlaybackRestoreEnabled(enabled)"));
+        assertTrue(service.contains("playbackQueueRestoreOwner().setPlaybackRestoreEnabled(enabled);"));
         assertFalse(service.contains("playbackQueueManager.setPlaybackRestoreEnabled(enabled)"));
         assertTrue(restoreOwner.contains("playbackQueueManager.setPlaybackRestoreEnabled(enabled);"));
         assertTrue(owner.contains("private var playbackRestoreEnabled = queueStore.loadPlaybackRestoreEnabled()"));

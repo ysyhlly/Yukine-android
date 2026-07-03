@@ -696,7 +696,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 mediaSourceProvider,
                 playbackMainHandlerSchedulerOwner
         );
-        withPlaybackQueueRestoreOwner(PlaybackQueueRestoreOwner::restorePlaybackQueue);
+        playbackQueueRestoreOwner().restorePlaybackQueue();
         playbackNotificationCommandOwner.publishPlaybackNotificationIfWorthy();
         playbackLyricsManager.bind();
         playbackNoisyReceiverManager = new PlaybackNoisyReceiverManager(
@@ -958,7 +958,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void restoreLastPlayback(boolean playWhenRestored) {
-        withPlaybackQueueRestoreOwner(owner -> owner.restoreLastPlayback(playWhenRestored));
+        playbackQueueRestoreOwner().restoreLastPlayback(playWhenRestored);
     }
 
     public void replaceQueuedTrackById(long oldTrackId, Track replacement) {
@@ -1042,7 +1042,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void setPlaybackRestoreEnabled(boolean enabled) {
-        withPlaybackQueueRestoreOwner(owner -> owner.setPlaybackRestoreEnabled(enabled));
+        playbackQueueRestoreOwner().setPlaybackRestoreEnabled(enabled);
     }
 
     public void setReplayGainEnabled(boolean enabled) {
@@ -1306,12 +1306,12 @@ public final class EchoPlaybackService extends MediaLibraryService
         ));
     }
 
-    private void withPlaybackQueueRestoreOwner(Consumer<PlaybackQueueRestoreOwner> action) {
-        action.accept(new PlaybackQueueRestoreOwner(
+    private PlaybackQueueRestoreOwner playbackQueueRestoreOwner() {
+        return new PlaybackQueueRestoreOwner(
                 playbackQueueManager,
                 EchoPlaybackService.this::createPlayerIfNeeded,
                 playbackQueueCommandOwner
-        ));
+        );
     }
 
     private void persistCurrentPlaybackPosition(boolean force) {
