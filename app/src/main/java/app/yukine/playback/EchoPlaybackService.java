@@ -209,12 +209,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackCrossfadeCommandOwner playbackCrossfadeCommandOwner;
     private PlaybackCrossfadeAdvanceManager playbackCrossfadeAdvanceManager;
     private PlaybackRecoveryScheduler playbackRecoveryScheduler;
-    private final PlaybackCurrentTrackReplacementOwner playbackCurrentTrackReplacementOwner =
-            new PlaybackCurrentTrackReplacementOwner(
-                    () -> playbackQueueManager,
-                    recovery -> playbackStreamingDiagnosticsRecorderOwner.record(recovery),
-                    playWhenReady -> playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(playWhenReady)
-            );
     private PlaybackShutdownPlaybackResourcesOwner playbackShutdownPlaybackResourcesOwner;
     private PlaybackShutdownServiceResourcesOwner playbackShutdownServiceResourcesOwner;
     private PlaybackShutdownLifecycleResourcesOwner playbackShutdownLifecycleResourcesOwner;
@@ -948,7 +942,11 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void replaceCurrentTrackAndResume(Track replacement, long positionMs) {
-        playbackCurrentTrackReplacementOwner.replaceCurrentTrackAndResume(replacement, positionMs);
+        new PlaybackCurrentTrackReplacementOwner(
+                playbackQueueManager,
+                recovery -> playbackStreamingDiagnosticsRecorderOwner.record(recovery),
+                playWhenReady -> playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(playWhenReady)
+        ).replaceCurrentTrackAndResume(replacement, positionMs);
     }
 
     public void removeTracksById(Set<Long> trackIds) {

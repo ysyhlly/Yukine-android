@@ -5799,7 +5799,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(normalizedService.contains(
                 "new PlaybackQueueCompletionOwner(\n                playbackQueueManager,\n                playbackQueueCompletionBoundary\n        )"));
         assertFalse(normalizedService.contains("new PlaybackQueueCompletionOwner(\n                () -> playbackQueueManager"));
-        assertTrue(service.contains("private final PlaybackCurrentTrackReplacementOwner playbackCurrentTrackReplacementOwner"));
+        assertFalse(service.contains("private final PlaybackCurrentTrackReplacementOwner playbackCurrentTrackReplacementOwner"));
+        assertFalse(service.contains("private PlaybackCurrentTrackReplacementOwner playbackCurrentTrackReplacementOwner"));
         assertTrue(service.contains("new PlaybackCurrentTrackReplacementOwner("));
         assertFalse(service.contains("PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager("));
         assertFalse(currentReplacementOwner.contains("static PlaybackCurrentTrackReplacementOwner fromPlaybackQueueManager("));
@@ -5862,12 +5863,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(currentReplacementOwner.contains("interface RecoveryScheduler"));
         assertFalse(currentReplacementOwner.contains(
                 "private final BiFunction<Track, Long, PlaybackQueueManager.CurrentTrackReplacementRecovery> replaceCurrentTrackAndResume;"));
-        assertTrue(currentReplacementOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
+        assertTrue(currentReplacementOwner.contains("private final PlaybackQueueManager playbackQueueManager;"));
+        assertFalse(currentReplacementOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
         assertTrue(currentReplacementOwner.contains(
                 "private final Consumer<PlaybackQueueManager.CurrentTrackReplacementRecovery> recoveryDiagnosticsRecorder;"));
         assertTrue(currentReplacementOwner.contains("private final Consumer<Boolean> recoveryScheduler;"));
-        assertTrue(currentReplacementOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
-        assertTrue(currentReplacementOwner.contains(
+        assertFalse(currentReplacementOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
+        assertFalse(currentReplacementOwner.contains(
                 "Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertFalse(currentReplacementOwner.contains("currentTrackReplacementOperationsProvider"));
         assertFalse(currentReplacementOwner.contains("playbackQueueManagerProvider"));
@@ -6027,7 +6029,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueCompletionOwner.contains("completionBoundary.prepareCurrent(playWhenReady);"));
         assertTrue(queueCompletionOwner.contains("completionBoundary.stopAtEndOfQueue();"));
         assertTrue(queueCompletionOwner.contains("completionBoundary.skipToNext();"));
-        assertTrue(service.contains("playbackCurrentTrackReplacementOwner.replaceCurrentTrackAndResume(replacement, positionMs);"));
+        assertTrue(service.contains(
+                "new PlaybackCurrentTrackReplacementOwner(\n                playbackQueueManager,"));
+        assertTrue(service.contains(").replaceCurrentTrackAndResume(replacement, positionMs);"));
+        assertFalse(service.contains(
+                "new PlaybackCurrentTrackReplacementOwner(\n                    () -> playbackQueueManager"));
         assertFalse(service.contains("playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs)"));
         assertTrue(currentReplacementOwner.contains("playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs);"));
         assertTrue(currentReplacementOwner.contains("recoveryDiagnosticsRecorder.accept(recovery);"));
