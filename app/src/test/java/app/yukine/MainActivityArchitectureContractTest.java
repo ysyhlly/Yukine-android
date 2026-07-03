@@ -6607,7 +6607,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("private final BiConsumer<Track, Boolean> playbackPreparer;"));
         assertTrue(commandOwner.contains("private final Runnable statePublisher;"));
         assertFalse(commandOwner.contains("private final Runnable stopAndClearCommand;"));
-        assertTrue(commandOwner.contains("Track track = queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertTrue(commandOwner.contains("Track track = queueStateOwner == null ? null"));
+        assertTrue(commandOwner.contains(": queueStateOwner.queueStateSnapshot().getCurrentTrack();"));
+        assertFalse(commandOwner.contains("queueStateOwner.currentTrack()"));
         assertTrue(commandOwner.contains("playbackPreparer.accept(track, playWhenReady);"));
         assertTrue(commandOwner.contains("statePublisher.run();"));
         assertFalse(commandOwner.contains("stopAndClearCommand.run();"));
@@ -7220,7 +7222,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("interface HistorySink"));
         assertTrue(owner.contains("static Runnable recordIfPlaybackStartedAction("));
         assertTrue(owner.contains("PlaybackQueueStateOwner queueStateOwner"));
-        assertTrue(owner.contains("queueStateOwner == null ? null : queueStateOwner.currentTrack()"));
+        assertTrue(owner.contains("queueStateOwner == null ? null"));
+        assertTrue(owner.contains(": queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
+        assertFalse(owner.contains("queueStateOwner.currentTrack()"));
         assertFalse(owner.contains("Supplier<Track> currentTrack"));
         assertFalse(owner.contains("currentTrack == null ? null : currentTrack.get()"));
         assertTrue(owner.contains("void recordIfPlaybackStarted(boolean playWhenReady, Track track)"));
@@ -7995,7 +7999,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(commandOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
         assertFalse(commandOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertTrue(commandOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
-        assertTrue(commandOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertTrue(commandOwner.contains("return queueStateOwner == null ? null"));
+        assertTrue(commandOwner.contains(": queueStateOwner.queueStateSnapshot().getCurrentTrack();"));
+        assertFalse(commandOwner.contains("queueStateOwner.currentTrack()"));
         assertTrue(commandOwner.contains("playbackCommands.skipToNext();"));
         assertTrue(commandOwner.contains("controllerMediaItems.setControllerMediaItems(mediaItems, startIndex, startPositionMs)"));
         assertTrue(commandOwner.contains("seekController.accept(positionMs);"));
@@ -8378,7 +8384,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(toggleCurrentFavoriteMethod.contains("Track track = playbackQueueStateOwner.currentTrack();"));
         assertFalse(toggleCurrentFavoriteMethod.contains("toggleFavoriteUseCase.toggle(track)"));
         assertTrue(favoriteCommandOwner.contains("final class PlaybackFavoriteCommandOwner"));
-        assertTrue(favoriteCommandOwner.contains("queueStateOwner.currentTrack()"));
+        assertTrue(favoriteCommandOwner.contains("queueStateOwner == null ? null"));
+        assertTrue(favoriteCommandOwner.contains(": queueStateOwner.queueStateSnapshot().getCurrentTrack();"));
+        assertFalse(favoriteCommandOwner.contains("queueStateOwner.currentTrack()"));
         assertTrue(favoriteCommandOwner.contains("toggleFavoriteUseCase.toggle(track)"));
         assertTrue(favoriteCommandOwner.contains("statePublisher.run();"));
         assertFalse(service.contains("private PlaybackFavoriteCommandOwner playbackFavoriteCommandOwner;"));
