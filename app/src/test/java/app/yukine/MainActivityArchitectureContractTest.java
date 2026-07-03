@@ -6230,11 +6230,14 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueManager.clearQueue()"));
         assertFalse(queueMutationOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.queueStateSnapshot();"));
+        assertEquals(1, countOccurrences(queueMutationOwner, "playbackQueueManager.queueStateSnapshot();"));
         assertFalse(queueMutationOwner.contains("PlaybackQueueManager.QueueStateSnapshot queueSnapshot = queueStateOwner == null"));
         assertFalse(queueMutationOwner.contains(": queueStateOwner.queueStateSnapshot();"));
         assertFalse(queueMutationOwner.contains("if (!queueStateOwner.isQueueEmpty())"));
         assertTrue(queueMutationOwner.contains("if (!queueStateSnapshot().isQueueEmpty())"));
         assertFalse(queueMutationOwner.contains("!playbackQueueManager.queueSnapshot().isEmpty()"));
+        assertFalse(queueMutationOwner.contains("queueStateSnapshot().getCurrentTrack()"));
+        assertFalse(queueMutationOwner.contains("queueSnapshot().isEmpty()"));
         assertTrue(queueMutationOwner.contains("stopAndClear();"));
         assertFalse(service.contains("public void replaceQueuedTrack(Track replacement)"));
         assertFalse(service.contains("playbackQueueMutationOwner.replaceQueuedTrack(replacement);"));
@@ -7030,6 +7033,7 @@ public final class MainActivityArchitectureContractTest {
     public void playbackQueueManagerPublicApiStaysExplicitlyAudited() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String owner = read("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackQueueManager.kt");
+        String queueMutationOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueMutationOwner.java");
         String normalizedOwner = owner.replace("\r\n", "\n");
         for (Path source : sourceFiles("app/src/main/java/app/yukine/playback")) {
             assertSourceDoesNotContain(source, "interface QueueProvider");
@@ -7105,6 +7109,12 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackPrecacheManager.java",
                 "PlaybackQueueStateOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.queueStateSnapshot()"));
+        assertEquals(1, countOccurrences(queueMutationOwner, "playbackQueueManager.queueStateSnapshot();"));
+        assertTrue(queueMutationOwner.contains("private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
+        assertTrue(queueMutationOwner.contains("if (!queueStateSnapshot().isQueueEmpty())"));
+        assertFalse(queueMutationOwner.contains("queueStateSnapshot().getCurrentTrack()"));
+        assertFalse(queueMutationOwner.contains("queueSnapshot().isEmpty()"));
+        assertFalse(queueMutationOwner.contains("fun clearQueue(): Boolean"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackRuntimeStateManager.kt"
         )), playbackSourceFileNamesContaining("playbackQueueManagerSupplier?.get()?.queueStateSnapshot()"));
