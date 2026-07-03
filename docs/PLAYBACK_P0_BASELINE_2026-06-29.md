@@ -3762,3 +3762,28 @@ Current audit date: 2026-07-03.
   `MainActivityArchitectureContractTest`.
 - Deferred risk remains unchanged: notification, lyrics, shutdown, and
   background playback are not touched by this batch.
+
+## P1/P3 Wiring Note - Precache State Current Track Source
+
+Current audit date: 2026-07-03.
+
+- `PlaybackPrecacheStateOwner.currentTrack()` no longer unwraps
+  `queueStateOwner.queueStateSnapshot().getCurrentTrack()` directly.
+- The existing precache state owner now reads the current track through
+  `PlaybackQueueStateOwner.currentTrack()` while leaving cache policy in
+  `PlaybackPrecacheManager`.
+- No owner was added, no resolver/cache facade was introduced, and Service
+  wiring did not change. The real reduction is one fewer direct
+  snapshot-current dereference in the cache state boundary.
+- `PlaybackPrecacheStateOwnerTest` covers current track, missing queue manager,
+  upcoming precache tracks, current player media item, and streaming diagnostics
+  delegation. The architecture contract now blocks the old direct snapshot read
+  from returning.
+- Remaining production direct
+  `queueStateOwner.queueStateSnapshot().getCurrentTrack()` reads are now 3:
+  mirrored player, session command, and visualization cache.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
