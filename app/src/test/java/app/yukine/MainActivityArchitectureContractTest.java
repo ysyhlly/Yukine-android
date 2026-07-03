@@ -6320,8 +6320,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredPlayerOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
         assertFalse(mirroredPlayerOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertTrue(mirroredPlayerOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
-        assertTrue(mirroredPlayerOwner.contains("return queueStateOwner == null ? null"));
-        assertTrue(mirroredPlayerOwner.contains(": queueStateOwner.currentTrack();"));
+        assertTrue(mirroredPlayerOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null"));
+        assertTrue(mirroredPlayerOwner.contains("? PlaybackQueueManager.QueueStateSnapshot.empty()"));
+        assertTrue(mirroredPlayerOwner.contains(": queueStateOwner.queueStateSnapshot();"));
+        assertTrue(mirroredPlayerOwner.contains("return snapshot.getCurrentTrack();"));
+        assertFalse(mirroredPlayerOwner.contains(": queueStateOwner.currentTrack();"));
         assertFalse(mirroredPlayerOwner.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertTrue(mirroredPlayerOwner.contains("private final Consumer<Track> waveformResetter;"));
         assertTrue(mirroredPlayerOwner.contains("private final Runnable playbackParameterApplier;"));
