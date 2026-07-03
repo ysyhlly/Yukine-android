@@ -3,21 +3,16 @@ package app.yukine.playback;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 
-import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
-
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateProvider {
     private final Supplier<MediaItem> playerMediaItemSupplier;
-    private final PlaybackStreamingDiagnostics streamingDiagnostics;
 
     PlaybackPrecacheStateOwner(
-            Supplier<MediaItem> playerMediaItemSupplier,
-            PlaybackStreamingDiagnostics streamingDiagnostics
+            Supplier<MediaItem> playerMediaItemSupplier
     ) {
         this.playerMediaItemSupplier = playerMediaItemSupplier;
-        this.streamingDiagnostics = streamingDiagnostics;
     }
 
     static Supplier<MediaItem> playerMediaItemSupplierFromPlayerSupplier(Supplier<Player> playerSupplier) {
@@ -70,11 +65,6 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
     @Override
     public MediaItem currentPlayerMediaItem() {
         return playerMediaItemSupplier == null ? null : playerMediaItemSupplier.get();
-    }
-
-    @Override
-    public PlaybackStreamingDiagnostics streamingDiagnostics() {
-        return streamingDiagnostics;
     }
 
 }

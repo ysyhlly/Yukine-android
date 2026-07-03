@@ -49,7 +49,6 @@ final class PlaybackPrecacheManager {
 
     interface StateProvider {
         MediaItem currentPlayerMediaItem();
-        PlaybackStreamingDiagnostics streamingDiagnostics();
     }
 
     interface CallbackScheduler {
@@ -60,6 +59,7 @@ final class PlaybackPrecacheManager {
     private final StateProvider stateProvider;
     private final PlaybackQueueManager playbackQueueManager;
     private final PlaybackMediaCacheOperations mediaCacheOperations;
+    private final PlaybackStreamingDiagnostics streamingDiagnostics;
     private final BiPredicate<MediaItem, Track> mediaItemTrackMatcher;
     private final CallbackScheduler callbackScheduler;
     private final Runnable audioCacheReleaseAction;
@@ -77,6 +77,7 @@ final class PlaybackPrecacheManager {
 
     PlaybackPrecacheManager(
             StateProvider stateProvider,
+            PlaybackStreamingDiagnostics streamingDiagnostics,
             PlaybackQueueManager playbackQueueManager,
             PlaybackMediaCacheOperations mediaCacheOperations,
             CallbackScheduler callbackScheduler,
@@ -84,6 +85,7 @@ final class PlaybackPrecacheManager {
     ) {
         this(
                 stateProvider,
+                streamingDiagnostics,
                 playbackQueueManager,
                 mediaCacheOperations,
                 null,
@@ -95,6 +97,7 @@ final class PlaybackPrecacheManager {
 
     PlaybackPrecacheManager(
             StateProvider stateProvider,
+            PlaybackStreamingDiagnostics streamingDiagnostics,
             PlaybackQueueManager playbackQueueManager,
             PlaybackMediaCacheOperations mediaCacheOperations,
             BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
@@ -103,6 +106,7 @@ final class PlaybackPrecacheManager {
     ) {
         this(
                 stateProvider,
+                streamingDiagnostics,
                 playbackQueueManager,
                 mediaCacheOperations,
                 mediaItemTrackMatcher,
@@ -114,6 +118,7 @@ final class PlaybackPrecacheManager {
 
     PlaybackPrecacheManager(
             StateProvider stateProvider,
+            PlaybackStreamingDiagnostics streamingDiagnostics,
             PlaybackQueueManager playbackQueueManager,
             PlaybackMediaCacheOperations mediaCacheOperations,
             BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
@@ -122,6 +127,9 @@ final class PlaybackPrecacheManager {
             ThreadPoolExecutor playbackCacheExecutor
     ) {
         this.stateProvider = stateProvider;
+        this.streamingDiagnostics = streamingDiagnostics == null
+                ? new PlaybackStreamingDiagnostics()
+                : streamingDiagnostics;
         this.playbackQueueManager = playbackQueueManager;
         this.mediaCacheOperations = mediaCacheOperations;
         this.mediaItemTrackMatcher = mediaItemTrackMatcher;
@@ -134,12 +142,14 @@ final class PlaybackPrecacheManager {
 
     static PlaybackPrecacheManager fromMediaSourceProvider(
             StateProvider stateProvider,
+            PlaybackStreamingDiagnostics streamingDiagnostics,
             PlaybackQueueManager playbackQueueManager,
             PlaybackMediaSourceProvider mediaSourceProvider,
             CallbackScheduler callbackScheduler
     ) {
         return new PlaybackPrecacheManager(
                 stateProvider,
+                streamingDiagnostics,
                 playbackQueueManager,
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider),
                 (mediaItem, track) -> mediaSourceProvider != null
@@ -188,7 +198,7 @@ final class PlaybackPrecacheManager {
         if (current != null) {
             int generation = precacheGeneration.get();
             final Track upcomingTrack = track;
-            stateProvider.streamingDiagnostics().recordPrecacheQueued(upcomingTrack);
+            streamingDiagnostics.recordPrecacheQueued(upcomingTrack);
             submitPlaybackCacheTask(
                     PrecachePriority.UPCOMING_TRACK,
                     () -> precacheWithMediaCache(upcomingTrack, generation, PrecacheMode.UPCOMING_TRACK, false)
@@ -203,7 +213,7 @@ final class PlaybackPrecacheManager {
         playbackCacheExecutor.getQueue().clear();
         playbackCacheExecutor.purge();
         final Track precacheTrack = track;
-        stateProvider.streamingDiagnostics().recordPrecacheQueued(precacheTrack);
+        streamingDiagnostics.recordPrecacheQueued(precacheTrack);
         scheduleCurrentTrackPrecache(precacheTrack, generation);
     }
 
@@ -222,7 +232,7 @@ final class PlaybackPrecacheManager {
         cancelActivePrecacheWriters();
         playbackCacheExecutor.getQueue().clear();
         playbackCacheExecutor.purge();
-        stateProvider.streamingDiagnostics().recordPrecacheQueued(track);
+        streamingDiagnostics.recordPrecacheQueued(track);
         scheduleCurrentTrackPrecache(track, generation);
     }
 
@@ -317,16 +327,16 @@ final class PlaybackPrecacheManager {
         try {
             long leadingTargetBytes = leadingPrecacheBytes(mode);
             if (shouldLetPlayerFillCurrentLeadingRange(mode, playerAlreadyLoadsLeadingRange)) {
-                stateProvider.streamingDiagnostics().recordPrecacheComplete(track, 0L);
+                streamingDiagnostics.recordPrecacheComplete(track, 0L);
                 return;
             }
             long leadingBytes = cacheMediaRange(track, cacheKey, 0L, leadingTargetBytes, generation);
             if (leadingBytes > 0L || leadingTargetBytes <= 0L) {
-                stateProvider.streamingDiagnostics().recordPrecacheComplete(track, leadingBytes);
+                streamingDiagnostics.recordPrecacheComplete(track, leadingBytes);
             }
         } catch (PrecacheSupersededException ignored) {
         } catch (Exception error) {
-            stateProvider.streamingDiagnostics().recordPrecacheFailed(track, error);
+            streamingDiagnostics.recordPrecacheFailed(track, error);
         }
     }
 
@@ -488,11 +498,11 @@ final class PlaybackPrecacheManager {
                     }
                     long cached = cacheMediaRange(track, cacheKey, segment.start, segment.length, generation);
                     if (cached > 0L) {
-                        stateProvider.streamingDiagnostics().recordPrecacheSegmentComplete(track, segment.start, cached);
+                        streamingDiagnostics.recordPrecacheSegmentComplete(track, segment.start, cached);
                     }
                 } catch (PrecacheSupersededException ignored) {
                 } catch (Exception error) {
-                    stateProvider.streamingDiagnostics().recordPrecacheSegmentFailed(track, segment.start, error);
+                    streamingDiagnostics.recordPrecacheSegmentFailed(track, segment.start, error);
                 }
             });
         }
