@@ -7112,10 +7112,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackWifiLockStreamingTrackOwner.java")));
         assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackWifiLockStreamingTrackOwnerTest.java")));
         assertFalse(service.contains("PlaybackWifiLockStreamingTrackOwner"));
-        assertTrue(normalizedService.contains(
+        assertFalse(normalizedService.contains(
                 "                playbackQueueStateOwner::currentTrack,\n" +
                         "                mediaSourceProvider::isHttpTrack"));
-        assertFalse(service.contains(
+        assertTrue(service.contains(
                 "                playbackQueueManager,\n" +
                         "                mediaSourceProvider::isHttpTrack"));
         assertFalse(service.contains(
@@ -7133,10 +7133,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("interface Lock"));
         assertFalse(owner.contains("interface StreamingTrackProvider"));
         assertFalse(owner.contains("streamingTrackProvider.currentTrack()"));
-        assertTrue(owner.contains("private val currentTrackSupplier: Supplier<Track?>?"));
-        assertTrue(owner.contains("return currentTrackSupplier?.get()"));
-        assertFalse(owner.contains("private val playbackQueueManager: PlaybackQueueManager?"));
-        assertFalse(owner.contains("return playbackQueueManager?.queueStateSnapshot()?.currentTrack"));
+        assertFalse(owner.contains("private val currentTrackSupplier: Supplier<Track?>?"));
+        assertFalse(owner.contains("return currentTrackSupplier?.get()"));
+        assertTrue(owner.contains("private val playbackQueueManager: PlaybackQueueManager?"));
+        assertTrue(owner.contains("return playbackQueueManager?.queueStateSnapshot()?.currentTrack"));
         assertFalse(owner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot?>"));
         assertFalse(owner.contains("queueStateSupplier?.get()?.currentTrack"));
         assertFalse(owner.contains("private val mediaSourceProvider: PlaybackMediaSourceProvider"));
@@ -8074,7 +8074,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private final PlaybackCurrentTrackOwner playbackCurrentTrackOwner"));
         assertFalse(service.contains("private Track currentTrack()"));
         assertTrue(service.contains("playbackQueueStateOwner::currentTrack"));
-        assertEquals(3, countOccurrences(service, "playbackQueueStateOwner::currentTrack"));
+        assertEquals(2, countOccurrences(service, "playbackQueueStateOwner::currentTrack"));
         assertFalse(service.contains("final Supplier<Track> currentTrackSupplier = playbackQueueStateOwner::currentTrack;"));
         assertFalse(service.contains("Track track = playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack();"));
         assertEquals(0, countOccurrences(service, "playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
