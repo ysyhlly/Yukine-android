@@ -2294,3 +2294,26 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueCompletionOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1 Audit - Restored Position Boundary Narrowing
+
+Current audit date: 2026-07-03.
+
+- `PlaybackQueueManager` no longer exposes
+  `consumeRestoredPositionAfterPrepare(startPositionMs)`. The method only
+  consumed restored playback position after a successful player prepare, so it
+  now belongs to `PlaybackPositionManager`.
+- `PlaybackCurrentTrackPreparationQueueOwner` no longer forwards restored
+  position cleanup through the queue manager. `EchoPlaybackService` still owns
+  the Android/Media3 prepare success trigger, but delegates the restored
+  position cleanup policy to the position owner.
+- No new owner was added for this slice. The real reduction is one fewer
+  queue-manager public method and one fewer queue-owner forwarding method.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1423 lines,
+  `fromPlaybackQueueManager` count is 0, `queueStateSnapshot` references in
+  the service are 2, and `Playback*Owner` production file count is 43.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackPositionManagerTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackCurrentTrackPreparationQueueOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```

@@ -1129,7 +1129,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             if (playbackWarmupCoordinator != null) {
                 playbackWarmupCoordinator.warmup(track);
             }
-            playbackCurrentTrackPreparationQueueOwner.consumeRestoredPositionAfterPrepare(startPositionMs);
+            playbackPositionManager.consumeRestoredPositionAfterPrepare(startPositionMs);
             publishState();
             playbackNotificationCommandOwner.publishPlaybackNotification(true);
         } catch (IllegalStateException error) {
@@ -1167,7 +1167,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             if (startPositionMs > 0L) {
                 player.seekTo(startPositionMs);
             }
-            playbackCurrentTrackPreparationQueueOwner.consumeRestoredPositionAfterPrepare(startPositionMs);
+            playbackPositionManager.consumeRestoredPositionAfterPrepare(startPositionMs);
             publishState();
             playbackNotificationCommandOwner.publishPlaybackNotification(true);
         } catch (IllegalStateException error) {

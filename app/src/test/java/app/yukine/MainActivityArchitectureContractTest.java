@@ -5692,6 +5692,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueStoreOwner.contains("fun saveResumeRequested(requested: Boolean)"));
         assertTrue(positionOwner.contains("class PlaybackPositionManager"));
         assertTrue(positionOwner.contains("fun restoredPositionFor(track: Track?)"));
+        assertTrue(positionOwner.contains("fun consumeRestoredPositionAfterPrepare(startPositionMs: Long)"));
         assertTrue(positionOwner.contains("fun clearRestoredPosition()"));
         assertTrue(positionOwner.contains("fun persistCurrentPosition(force: Boolean)"));
         assertTrue(positionOwner.contains("fun setExplicitRestoredPosition(track: Track?, positionMs: Long)"));
@@ -6506,10 +6507,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("private fun playbackPositionMs(): Long"));
         assertTrue(owner.contains("return playbackPositionManager?.positionMs() ?: 0L"));
         assertTrue(owner.contains("queueStore.saveResumeRequested(requested)"));
-        assertTrue(owner.contains("fun consumeRestoredPositionAfterPrepare(startPositionMs: Long)"));
-        assertTrue(service.contains("playbackCurrentTrackPreparationQueueOwner.consumeRestoredPositionAfterPrepare(startPositionMs);"));
+        assertFalse(owner.contains("fun consumeRestoredPositionAfterPrepare(startPositionMs: Long)"));
+        assertTrue(service.contains("playbackPositionManager.consumeRestoredPositionAfterPrepare(startPositionMs);"));
+        assertFalse(service.contains("playbackCurrentTrackPreparationQueueOwner.consumeRestoredPositionAfterPrepare(startPositionMs);"));
         assertFalse(service.contains("playbackQueueManager.consumeRestoredPositionAfterPrepare(startPositionMs)"));
-        assertTrue(currentPreparationQueueOwner.contains(
+        assertFalse(currentPreparationQueueOwner.contains(
                 "playbackQueueManager.consumeRestoredPositionAfterPrepare(startPositionMs);"));
         assertFalse(service.contains("private void consumeRestoredPositionAfterPrepare(long startPositionMs)"));
         assertTrue(positionOwner.contains("fun positionMs(): Long"));
@@ -6634,7 +6636,6 @@ public final class MainActivityArchitectureContractTest {
                 "skipToPrevious"
         ));
         java.util.Set<String> queueRestoreAndPersistenceApi = new java.util.TreeSet<>(java.util.Arrays.asList(
-                "consumeRestoredPositionAfterPrepare",
                 "persistCurrentPlaybackPosition",
                 "persistQueueState",
                 "preparePlaybackCompletionAction",

@@ -96,10 +96,4 @@ final class PlaybackCurrentTrackPreparationQueueOwner
                 mirroredQueueMediaSources
         );
     }
-
-    void consumeRestoredPositionAfterPrepare(long startPositionMs) {
-        if (playbackQueueManager != null) {
-            playbackQueueManager.consumeRestoredPositionAfterPrepare(startPositionMs);
-        }
-    }
 }

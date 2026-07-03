@@ -36,6 +36,21 @@ class PlaybackPositionManagerTest {
     }
 
     @Test
+    fun consumeRestoredPositionAfterPrepareClearsOnlyWhenStartPositionWasUsed() {
+        val manager = manager()
+        val track = track(id = 12L, durationMs = 10000L)
+        manager.setRestoredPosition(track.id, 3200L, explicit = true)
+
+        manager.consumeRestoredPositionAfterPrepare(0L)
+
+        assertEquals(3200L, manager.restoredPositionFor(track))
+
+        manager.consumeRestoredPositionAfterPrepare(3200L)
+
+        assertEquals(0L, manager.restoredPositionFor(track))
+    }
+
+    @Test
     fun throttledPersistSkipsSmallRepeatWrites() {
         val store = FakeQueueStore()
         val state = FakeStateProvider(track = track(9L), positionMs = 1000L)

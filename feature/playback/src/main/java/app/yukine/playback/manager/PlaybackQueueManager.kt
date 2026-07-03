@@ -340,12 +340,6 @@ internal class PlaybackQueueManager(
         savePlaybackResumeRequested(false)
     }
 
-    fun consumeRestoredPositionAfterPrepare(startPositionMs: Long) {
-        if (startPositionMs > 0L) {
-            clearRestoredPosition()
-        }
-    }
-
     fun persistCurrentPlaybackPosition(force: Boolean) {
         if (playbackPositionManager != null) {
             playbackPositionManager.persistCurrentPosition(force)

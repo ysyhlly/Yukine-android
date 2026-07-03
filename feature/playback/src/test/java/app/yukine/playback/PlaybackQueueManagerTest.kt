@@ -304,24 +304,6 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun consumeRestoredPositionAfterPrepareClearsOnlyWhenStartPositionWasUsed() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        val current = track(1L, durationMs = 10_000L)
-        val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(current), 0)
-        provider.positionManager.setRestoredPosition(current.id, 3200L, explicit = true)
-
-        manager.consumeRestoredPositionAfterPrepare(0L)
-
-        assertEquals(3200L, provider.positionManager.restoredPositionFor(current))
-
-        manager.consumeRestoredPositionAfterPrepare(3200L)
-
-        assertEquals(0L, provider.positionManager.restoredPositionFor(current))
-    }
-
-    @Test
     fun persistCurrentPlaybackPositionUsesPositionOwnerThrottleAndForce() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()

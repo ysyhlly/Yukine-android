@@ -54,6 +54,12 @@ internal class PlaybackPositionManager @JvmOverloads constructor(
         restoredPositionExplicit = false
     }
 
+    fun consumeRestoredPositionAfterPrepare(startPositionMs: Long) {
+        if (startPositionMs > 0L) {
+            clearRestoredPosition()
+        }
+    }
+
     fun clearPlaybackPosition() {
         clearRestoredPosition()
         queueStore.savePlaybackPosition(-1L, 0L)
