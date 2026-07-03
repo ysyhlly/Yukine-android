@@ -3673,3 +3673,24 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## P1 Wiring Note - Queue Mutation Empty State Source Refresh
+
+Current audit date: 2026-07-03.
+
+- `PlaybackQueueMutationOwner.clearQueue()` no longer reads
+  `queueStateOwner.queueStateSnapshot().isQueueEmpty()` directly.
+- `PlaybackQueueStateOwner` now exposes the derived
+  `isQueueEmpty()` semantic read, matching its existing `currentTrack()`
+  helper while keeping `QueueStateSnapshot` source fields unchanged.
+- No owner was added and Service wiring did not gain a
+  `playbackQueueStateOwner::isQueueEmpty` supplier. The real reduction is one
+  fewer direct snapshot-derived read in a mutation owner.
+- `PlaybackQueueStateOwnerTest` covers the new empty-state helper for present
+  and missing queue manager paths, and `MainActivityArchitectureContractTest`
+  blocks the old mutation-owner snapshot chain from returning.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueStateOwnerTest --tests app.yukine.playback.PlaybackQueueMutationOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```

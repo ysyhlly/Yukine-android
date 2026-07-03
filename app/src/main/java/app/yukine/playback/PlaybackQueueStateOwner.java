@@ -40,6 +40,10 @@ final class PlaybackQueueStateOwner {
         return queueStateSnapshot().getCurrentTrack();
     }
 
+    boolean isQueueEmpty() {
+        return queueStateSnapshot().isQueueEmpty();
+    }
+
     private PlaybackQueueManager playbackQueueManager() {
         return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }
