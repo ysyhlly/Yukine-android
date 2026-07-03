@@ -5661,8 +5661,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueuePositionPersistenceOwner"));
         assertFalse(service.contains("PlaybackShutdownQueueLifecycleStoreOwner"));
         assertFalse(service.contains("playbackShutdownQueueLifecycleStoreOwner"));
-        assertTrue(service.contains("withPlaybackQueuePersistenceOwner(owner -> {"));
-        assertTrue(service.contains("owner.persistQueueState();"));
+        assertTrue(service.contains("PlaybackQueuePersistenceOwner persistenceOwner = playbackQueuePersistenceOwner();"));
+        assertTrue(service.contains("persistenceOwner.persistQueueState();"));
         assertFalse(service.contains("playbackQueueManager.persistQueueState();"));
         assertTrue(queuePersistenceOwner.contains("playbackQueueManager.persistQueueState();"));
         assertFalse(service.contains("private void persistPlaybackQueue()"));
@@ -5673,9 +5673,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("queueStore().savePlaybackPosition("));
         assertTrue(service.contains("playbackPositionManager.persistCurrentPosition(force);"));
         assertFalse(service.contains("private final PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner"));
-        assertFalse(service.contains("private PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner"));
+        assertFalse(service.contains("private PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner;"));
         assertTrue(service.contains("final PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner = new PlaybackQueuePersistenceOwner("));
-        assertTrue(service.contains("private void withPlaybackQueuePersistenceOwner(Consumer<PlaybackQueuePersistenceOwner> action)"));
+        assertTrue(service.contains("private PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner()"));
+        assertFalse(service.contains("withPlaybackQueuePersistenceOwner("));
+        assertFalse(service.contains("Consumer<PlaybackQueuePersistenceOwner>"));
         assertTrue(service.contains("new PlaybackQueueStoreImpl(repository)"));
         assertFalse(service.contains("PlaybackQueuePersistenceOwner.fromPlaybackQueueManager("));
         assertFalse(queuePersistenceOwner.contains("static PlaybackQueuePersistenceOwner fromPlaybackQueueManager("));
@@ -5718,7 +5720,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("queueStore().saveResumeRequested("));
         assertFalse(service.contains("private void savePlaybackResumeRequested(boolean requested)"));
         assertTrue(service.contains("PlaybackQueueStore queueStore = new PlaybackQueueStoreImpl(repository);"));
-        assertTrue(service.contains("owner.savePlaybackResumeRequested("));
+        assertTrue(service.contains("persistenceOwner.savePlaybackResumeRequested("));
         assertFalse(service.contains("playbackQueueManager.savePlaybackResumeRequested("));
         assertFalse(queuePersistenceOwner.contains("playbackQueueManager.savePlaybackResumeRequested(requested);"));
         assertTrue(queuePersistenceOwner.contains("queueStore.saveResumeRequested(requested);"));
@@ -6068,9 +6070,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueuePositionPersistenceOwner"));
         assertFalse(service.contains("PlaybackShutdownQueueLifecycleStoreOwner"));
         assertFalse(service.contains("playbackShutdownQueueLifecycleStoreOwner"));
-        assertTrue(service.contains("withPlaybackQueuePersistenceOwner(PlaybackQueuePersistenceOwner::requestPlaybackResume);"));
+        assertTrue(service.contains("playbackQueuePersistenceOwner().requestPlaybackResume();"));
         assertFalse(service.contains("playbackQueueManager.savePlaybackResumeRequested(true)"));
-        assertTrue(service.contains("withPlaybackQueuePersistenceOwner(PlaybackQueuePersistenceOwner::clearPlaybackResumeRequest);"));
+        assertTrue(service.contains("playbackQueuePersistenceOwner().clearPlaybackResumeRequest();"));
         assertFalse(service.contains("playbackQueueManager.savePlaybackResumeRequested(false)"));
         assertTrue(queuePersistenceOwner.contains("void requestPlaybackResume()"));
         assertTrue(queuePersistenceOwner.contains("void clearPlaybackResumeRequest()"));
@@ -6573,7 +6575,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("new PlaybackQueueManager.QueueTrackMatcher()"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
         assertFalse(service.contains("playbackQueueManager.clearQueueState();"));
-        assertTrue(service.contains("owner.persistQueueState();"));
+        assertTrue(service.contains("persistenceOwner.persistQueueState();"));
         assertFalse(service.contains("playbackQueueManager.persistQueueState();"));
         assertFalse(service.contains("queue.isEmpty()"));
         assertFalse(service.contains("queueSize() < 2"));

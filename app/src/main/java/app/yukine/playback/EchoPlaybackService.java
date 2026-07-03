@@ -782,13 +782,12 @@ public final class EchoPlaybackService extends MediaLibraryService
             playbackShutdownCoordinator.handleTaskRemoved();
         } else {
             persistCurrentPlaybackPosition(true);
-            withPlaybackQueuePersistenceOwner(owner -> {
-                owner.persistQueueState();
-                owner.savePlaybackResumeRequested(
-                        playbackPlayerStateOwner.isPlaying()
-                                || playbackCurrentTrackPreparationRuntimeOwner.preparing()
-                );
-            });
+            PlaybackQueuePersistenceOwner persistenceOwner = playbackQueuePersistenceOwner();
+            persistenceOwner.persistQueueState();
+            persistenceOwner.savePlaybackResumeRequested(
+                    playbackPlayerStateOwner.isPlaying()
+                            || playbackCurrentTrackPreparationRuntimeOwner.preparing()
+            );
             if (playbackNotificationCommandOwner != null) {
                 playbackNotificationCommandOwner.publishPlaybackNotificationIfWorthy();
             }
@@ -865,7 +864,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             player.seekTo(0L);
         }
         player.play();
-        withPlaybackQueuePersistenceOwner(PlaybackQueuePersistenceOwner::requestPlaybackResume);
+        playbackQueuePersistenceOwner().requestPlaybackResume();
         acquireWifiLockIfStreamingAction.run();
         publishState();
         startProgressUpdates();
@@ -876,7 +875,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (player != null && playbackPlayerStateOwner.isPlaying()) {
             player.pause();
         }
-        withPlaybackQueuePersistenceOwner(PlaybackQueuePersistenceOwner::clearPlaybackResumeRequest);
+        playbackQueuePersistenceOwner().clearPlaybackResumeRequest();
         releaseWifiLockAction.run();
         persistCurrentPlaybackPosition(true);
         publishState();
@@ -1333,11 +1332,11 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
     }
 
-    private void withPlaybackQueuePersistenceOwner(Consumer<PlaybackQueuePersistenceOwner> action) {
-        action.accept(new PlaybackQueuePersistenceOwner(
+    private PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner() {
+        return new PlaybackQueuePersistenceOwner(
                 playbackQueueManager,
                 new PlaybackQueueStoreImpl(repository)
-        ));
+        );
     }
 
     private boolean reuseMirroredQueueIfAvailable(boolean playWhenReady, long startPositionMs) {
