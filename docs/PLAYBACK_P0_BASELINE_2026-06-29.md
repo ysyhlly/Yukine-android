@@ -4392,3 +4392,38 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackWifiLockManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1 Owner/Interface Audit - Queue Snapshot Consumers
+
+Current audit date: 2026-07-04.
+
+- Current metrics: `EchoPlaybackService.java` is 1303 lines, strict
+  `private Playback*` field count is 41, production
+  `fromPlaybackQueueManager(...)` calls are 0, `queueStateSnapshot()` references
+  in the service are 0, and production `Playback*Owner.java` file count is 42.
+- `PlaybackQueueManager.QueueProvider` remains absent from production playback
+  code. The remaining broad queue-state surface is not an interface provider;
+  it is the production set of direct `PlaybackQueueManager.queueStateSnapshot()`
+  consumers and `PlaybackQueueStateOwner` derived reads.
+- `EchoPlaybackService` still owns one `PlaybackQueueStateOwner` field. It
+  passes that owner into notification and lyrics state owners, and exposes
+  `queueSnapshot()` for the service boundary. These are wiring risks, but they
+  are intentionally not being collapsed into a new facade.
+- Notification and lyrics remain deferred P4 areas. Do not move their queue
+  state wiring until the smoke table covers background playback, notification
+  pause/resume/next, lyrics track switching, queue restore, local playback, and
+  streaming playback.
+- A virtual machine/emulator is now available for T3 smoke. Use it when a slice
+  touches notification, lyrics, shutdown, service lifecycle, or background
+  playback. It is not required for pure owner/interface documentation or
+  feature-local queue/cache/resolver slices.
+- Next low-risk candidates should prove a real narrowing win:
+  `PlaybackRuntimeStateManager.stateProviderFromPlaybackState()` if its
+  late-bound replay-gain behavior can stay covered, or a resolver/cache boundary
+  audit that keeps URI and `MediaItem` resolution in `PlaybackMediaSourceProvider`
+  and cache policy in `PlaybackPrecacheManager`.
+- Validation basis for this audit: CodeGraph inspection of queue snapshot,
+  media-source, and precache owners, plus source scans for Service
+  `queueStateSnapshot()` usage, `fromPlaybackQueueManager(...)`, owner count,
+  and strict Service `private Playback*` field count. No device smoke was run
+  because this checkpoint does not change runtime playback behavior.
