@@ -68,8 +68,9 @@ public class PlaybackQueueMutationOwnerTest {
     public void ignoresNullManagerOrEmptyQueueMutationInputs() {
         FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
         PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);
+        FakeStopAndClearAction stopAndClearAction = new FakeStopAndClearAction();
         PlaybackQueueMutationOwner missingManager = new PlaybackQueueMutationOwner(null, null);
-        PlaybackQueueMutationOwner owner = owner(queueManager);
+        PlaybackQueueMutationOwner owner = owner(queueManager, stopAndClearAction);
 
         missingManager.playQueue(Collections.singletonList(track(3L)), 0, 0L);
         missingManager.appendToQueue(Collections.singletonList(track(4L)));
@@ -86,10 +87,12 @@ public class PlaybackQueueMutationOwnerTest {
         owner.removeTracksById(Collections.emptySet());
         owner.retainTracksById(null);
         owner.retainTracksById(Collections.emptySet());
+        owner.clearQueue();
 
         assertEquals(0, queueManager.queueSnapshot().size());
         assertEquals(0, actions.prepareCurrentCalls);
         assertEquals(0, actions.publishStateCalls);
+        assertEquals(0, stopAndClearAction.calls);
     }
 
     @Test
