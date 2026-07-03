@@ -5,6 +5,7 @@ import androidx.media3.common.Player;
 
 import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.Collections;
 import java.util.List;
@@ -75,7 +76,10 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
 
     @Override
     public Track currentTrack() {
-        return queueStateOwner == null ? null : queueStateOwner.currentTrack();
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null
+                ? PlaybackQueueManager.QueueStateSnapshot.empty()
+                : queueStateOwner.queueStateSnapshot();
+        return snapshot.getCurrentTrack();
     }
 
     @Override
