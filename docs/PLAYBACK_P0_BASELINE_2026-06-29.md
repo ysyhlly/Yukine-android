@@ -2492,3 +2492,45 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackCrossfadeStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1 Audit - Queue Snapshot Supplier Batch
+
+Current audit date: 2026-07-03.
+
+- This is a read-only audit after the error-recovery and crossfade queue-state
+  source slices. No production code changed in this checkpoint.
+- Batch reductions:
+  - `PlaybackErrorRecoveryCommandOwner` now reads queue state from
+    `PlaybackQueueStateOwner` instead of a generic
+    `Supplier<PlaybackQueueManager.QueueStateSnapshot>`.
+  - `PlaybackCrossfadeStateOwner` now reads queue state from
+    `PlaybackQueueStateOwner` instead of a generic
+    `Supplier<PlaybackQueueManager.QueueStateSnapshot>`.
+  - Both focused tests now exercise the real
+    `PlaybackQueueStateOwner -> PlaybackQueueManager` path instead of
+    hand-written queue snapshot suppliers.
+- Remaining `queueStateSupplier` arguments in `EchoPlaybackService`: 3.
+  They currently feed `PlaybackPositionManager.stateProviderFromPlaybackState`,
+  `PlaybackNotificationStateOwner`, and `PlaybackStateSnapshotOwner`.
+- Boundary assessment:
+  - `PlaybackPositionManager` is a low-risk next candidate if the feature
+    manager can accept a queue-state owner without creating an app-module
+    dependency cycle.
+  - `PlaybackStateSnapshotOwner` is the public playback snapshot aggregation
+    owner; it can be narrowed later, but it should keep one stable snapshot
+    read instead of exposing separate derived queue booleans.
+  - `PlaybackNotificationStateOwner` remains a P4-adjacent runtime surface.
+    Do not touch notification queue-state wiring until the smoke table is
+    stable or the slice is explicitly notification-focused.
+- Current metrics: `EchoPlaybackService.java` is 1424 lines,
+  `private Playback*` field count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, `queueStateSnapshot` references in
+  the service are 2, service `queueStateSupplier` argument references are 3,
+  and `Playback*Owner` production file count is 43.
+- Verification for this audit was read-only evidence plus doc validation:
+
+```powershell
+codegraph explore "EchoPlaybackService queueStateSupplier PlaybackPositionManager PlaybackNotificationStateOwner PlaybackStateSnapshotOwner PlaybackQueueStateOwner supplier wiring owner interface audit"
+rg -n "queueStateSupplier|new PlaybackNotificationStateOwner|new PlaybackStateSnapshotOwner|PlaybackPositionManager\.stateProviderFromPlaybackState|new PlaybackCrossfadeStateOwner|new PlaybackErrorRecoveryCommandOwner" app/src/main/java/app/yukine/playback/EchoPlaybackService.java app/src/main/java/app/yukine/playback feature/playback/src/main/java app/src/test/java/app/yukine/playback feature/playback/src/test/java/app/yukine/playback
+git diff --check
+```
