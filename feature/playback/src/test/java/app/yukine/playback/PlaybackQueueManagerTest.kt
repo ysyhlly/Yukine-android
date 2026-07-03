@@ -3,6 +3,7 @@ package app.yukine.playback
 import app.yukine.model.PlaybackQueueState
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackPositionManager
+import app.yukine.playback.manager.PlaybackMediaSourceProvider
 import app.yukine.playback.manager.PlaybackQueueManager
 import app.yukine.playback.manager.PlaybackQueueStore
 import app.yukine.playback.manager.PlaybackRuntimeStateManager
@@ -392,7 +393,7 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun restorePlaybackQueueFiltersInvalidTracksInsideManager() {
+    fun restorePlaybackQueueSkipsTracksRejectedByStreamingRestoreProvider() {
         val store = FakeQueueStore()
         store.restore = PlaybackQueueState(
                 listOf(
@@ -1278,7 +1279,10 @@ class PlaybackQueueManagerTest {
     private class FakeStreamingRestoreProvider : PlaybackQueueManager.StreamingRestoreProvider {
         val restoredDataPaths = mutableListOf<String?>()
         val restoredTracks = mutableMapOf<Long, Track>()
-        override fun restoreTrackForPlayback(track: Track): Track {
+        override fun restoreTrackForPlayback(track: Track): Track? {
+            if (!PlaybackMediaSourceProvider.isRestorableQueueTrack(track)) {
+                return null
+            }
             restoredDataPaths.add(track.dataPath)
             return restoredTracks[track.id] ?: track
         }

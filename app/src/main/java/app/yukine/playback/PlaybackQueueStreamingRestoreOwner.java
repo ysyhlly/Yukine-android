@@ -34,6 +34,9 @@ final class PlaybackQueueStreamingRestoreOwner implements PlaybackQueueManager.S
 
     @Override
     public Track restoreTrackForPlayback(Track track) {
+        if (!PlaybackMediaSourceProvider.isRestorableQueueTrack(track)) {
+            return null;
+        }
         Track restoredTrack = restoredTrackForPreparation == null
                 ? null
                 : restoredTrackForPreparation.apply(track);

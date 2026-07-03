@@ -31,7 +31,7 @@ internal class PlaybackQueueManager(
     }
 
     interface StreamingRestoreProvider {
-        fun restoreTrackForPlayback(track: Track): Track
+        fun restoreTrackForPlayback(track: Track): Track?
     }
 
     interface MirroredQueuePlayer {
@@ -322,7 +322,7 @@ internal class PlaybackQueueManager(
         clearErrorMessage()
         clearLastMarkedTrack()
         currentTrack()?.let { track ->
-            queue[currentIndex()] = streamingRestoreProvider.restoreTrackForPlayback(track)
+            queue[currentIndex()] = streamingRestoreProvider.restoreTrackForPlayback(track) ?: track
         }
         clearRestoredPosition()
         resetCurrentPlaybackPosition()
@@ -564,7 +564,7 @@ internal class PlaybackQueueManager(
         val track = currentTrack() ?: return false
         clearErrorMessage()
         clearLastMarkedTrack()
-        queue[targetIndex] = streamingRestoreProvider.restoreTrackForPlayback(track)
+        queue[targetIndex] = streamingRestoreProvider.restoreTrackForPlayback(track) ?: track
         if (resetCurrentPlaybackState) {
             clearRestoredPosition()
             resetCurrentPlaybackPosition()
@@ -596,7 +596,8 @@ internal class PlaybackQueueManager(
         }
         val tracks = ArrayList<Track>(queue.size)
         for (track in queue) {
-            tracks.add(streamingRestoreProvider.restoreTrackForPlayback(track))
+            val restoredTrack = streamingRestoreProvider.restoreTrackForPlayback(track) ?: return null
+            tracks.add(restoredTrack)
         }
         return tracks
     }
@@ -702,10 +703,7 @@ internal class PlaybackQueueManager(
         val queue = this.queue
         queue.clear()
         for (track in restored.tracks) {
-            if (!PlaybackMediaSourceProvider.isRestorableQueueTrack(track)) {
-                continue
-            }
-            val queueTrack = streamingRestoreProvider.restoreTrackForPlayback(track)
+            val queueTrack = streamingRestoreProvider.restoreTrackForPlayback(track) ?: continue
             queue.add(queueTrack)
         }
         if (queue.isEmpty()) {
@@ -863,7 +861,7 @@ internal class PlaybackQueueManager(
     }
 
     private object NoopStreamingRestoreProvider : StreamingRestoreProvider {
-        override fun restoreTrackForPlayback(track: Track): Track = track
+        override fun restoreTrackForPlayback(track: Track): Track? = track
     }
 
     private object NoopMirroredQueuePlayer : MirroredQueuePlayer {

@@ -46,6 +46,30 @@ public class PlaybackQueueStreamingRestoreOwnerTest {
     }
 
     @Test
+    public void rejectsTracksThatMediaResolverCannotRestoreForQueuePlayback() {
+        List<String> events = new ArrayList<>();
+        PlaybackQueueStreamingRestoreOwner owner = new PlaybackQueueStreamingRestoreOwner(
+                track -> {
+                    events.add("track:" + track.id);
+                    return track;
+                },
+                dataPath -> events.add("headers:" + dataPath)
+        );
+        Track invalid = new Track(
+                -1L,
+                "Invalid",
+                "Artist",
+                "Album",
+                180000L,
+                Uri.parse("content://example.test/invalid"),
+                "streaming:test:invalid"
+        );
+
+        assertEquals(null, owner.restoreTrackForPlayback(invalid));
+        assertEquals(java.util.Collections.emptyList(), events);
+    }
+
+    @Test
     public void mediaSourceProviderConstructorIsSafeWhenProviderIsMissing() {
         PlaybackQueueStreamingRestoreOwner owner =
                 new PlaybackQueueStreamingRestoreOwner((PlaybackMediaSourceProvider) null);

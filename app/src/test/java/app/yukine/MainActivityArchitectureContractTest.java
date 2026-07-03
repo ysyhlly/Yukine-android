@@ -6712,7 +6712,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("public long playbackPositionMs()"));
         assertFalse(owner.contains("private fun isRestorableQueueTrack(track: Track): Boolean"));
         assertFalse(owner.contains("File(path).exists()"));
-        assertTrue(owner.contains("PlaybackMediaSourceProvider.isRestorableQueueTrack(track)"));
+        assertFalse(owner.contains("PlaybackMediaSourceProvider.isRestorableQueueTrack(track)"));
         assertTrue(mediaSourceProvider.contains("fun isRestorableQueueTrack(track: Track?): Boolean"));
         assertTrue(mediaSourceProvider.contains("fun isStreamingPlaceholder(track: Track?): Boolean"));
         assertTrue(mediaSourceProvider.contains("File(path).exists()"));
@@ -6724,10 +6724,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("                playbackQueueMirroredPlayerOwner,"));
         assertFalse(service.contains("new PlaybackQueueManager.MirroredQueuePlayer()"));
         assertFalse(owner.contains("\n        streamingRestoreProvider.restoreTrackForPlayback(track)\n"));
-        assertTrue(owner.contains("queue[currentIndex()] = streamingRestoreProvider.restoreTrackForPlayback(track)"));
-        assertTrue(owner.contains("queue[targetIndex] = streamingRestoreProvider.restoreTrackForPlayback(track)"));
-        assertTrue(owner.contains("tracks.add(streamingRestoreProvider.restoreTrackForPlayback(track))"));
-        assertTrue(owner.contains("val queueTrack = streamingRestoreProvider.restoreTrackForPlayback(track)"));
+        assertTrue(owner.contains("queue[currentIndex()] = streamingRestoreProvider.restoreTrackForPlayback(track) ?: track"));
+        assertTrue(owner.contains("queue[targetIndex] = streamingRestoreProvider.restoreTrackForPlayback(track) ?: track"));
+        assertTrue(owner.contains("val restoredTrack = streamingRestoreProvider.restoreTrackForPlayback(track) ?: return null"));
+        assertTrue(owner.contains("tracks.add(restoredTrack)"));
+        assertTrue(owner.contains("val queueTrack = streamingRestoreProvider.restoreTrackForPlayback(track) ?: continue"));
         assertFalse(owner.contains("streamingRestoreProvider.restoreForDataPath(track.dataPath)"));
         assertFalse(service.contains("private PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner;"));
         assertTrue(service.contains("final PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner ="));
@@ -6978,6 +6979,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueRestoreOwner.contains("static PlaybackQueueStreamingRestoreOwner fromMediaSourceProvider("));
         assertTrue(queueRestoreOwner.contains("private final Function<Track, Track> restoredTrackForPreparation;"));
         assertTrue(queueRestoreOwner.contains("private final Consumer<String> restoreHeadersForDataPath;"));
+        assertTrue(queueRestoreOwner.contains("PlaybackMediaSourceProvider.isRestorableQueueTrack(track)"));
         assertTrue(queueRestoreOwner.contains("mediaSourceProvider.restoredTrackForPreparation(track)"));
         assertTrue(queueRestoreOwner.contains("mediaSourceProvider.restoreHeadersForDataPath(dataPath)"));
         assertTrue(queueRestoreOwner.contains("public Track restoreTrackForPlayback(Track track)"));
