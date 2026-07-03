@@ -76,6 +76,14 @@ public final class MainActivityArchitectureContractTest {
                 "EchoPlaybackService should not add more Playback* fields without a narrower owner/interface slice",
                 countPrivatePlaybackFields(service) <= 43
         );
+        assertTrue(
+                "EchoPlaybackService should not grow Playback* wiring fields, including final initialized fields",
+                countPrivatePlaybackFieldDeclarations(service, false) <= 54
+        );
+        assertTrue(
+                "EchoPlaybackService should not grow Playback*Owner wiring fields, including final initialized fields",
+                countPrivatePlaybackFieldDeclarations(service, true) <= 23
+        );
         assertFalse(exists("app/src/main/java/app/yukine/playback/PlaybackMediaSourceResolutionOwner.java"));
         assertFalse(exists("app/src/test/java/app/yukine/playback/PlaybackMediaSourceResolutionOwnerTest.java"));
         assertFalse(exists(
@@ -9014,6 +9022,30 @@ public final class MainActivityArchitectureContractTest {
         for (String line : lines) {
             String trimmed = line.trim();
             if (trimmed.startsWith("private Playback") && trimmed.endsWith(";")) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int countPrivatePlaybackFieldDeclarations(String source, boolean ownerOnly) {
+        int count = 0;
+        String[] lines = source.split("\\R", -1);
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (!trimmed.startsWith("private ") || !(trimmed.endsWith(";") || trimmed.endsWith("="))) {
+                continue;
+            }
+            String[] parts = trimmed.replace(";", "").split("\\s+");
+            if (parts.length < 3) {
+                continue;
+            }
+            String type = "final".equals(parts[1]) ? parts[2] : parts[1];
+            if (!type.startsWith("Playback")) {
+                continue;
+            }
+            String simpleType = type.contains(".") ? type.substring(0, type.indexOf('.')) : type;
+            if (!ownerOnly || simpleType.endsWith("Owner")) {
                 count++;
             }
         }
