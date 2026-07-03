@@ -121,9 +121,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(libraryGateway.contains("libraryViewModel.bindGateway(libraryGatewayFactory.create("));
         assertTrue(libraryGateway.contains(
                 "                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),\n"));
+        assertTrue(libraryGateway.contains("                    if (MainActivityBase.this.playlistDialogController != null) {"));
+        assertTrue(libraryGateway.contains(
+                "                        MainActivityBase.this.playlistDialogController.showAddToPlaylist(track);\n"));
         assertTrue(libraryGateway.contains("                routeController,\n"));
         assertTrue(libraryRouteActionsArgument >= 0);
         assertFalse(libraryGateway.contains("                () -> settingsStore.languageMode(),\n"));
+        assertFalse(libraryGateway.contains(
+                "                track -> MainActivityBase.this.playlistDialogController.showAddToPlaylist(track),\n"));
         assertTrue(nowPlayingGateway.contains("                () -> playbackActionController,\n"));
         assertTrue(nowPlayingGateway.contains("                () -> playbackStore,\n"));
         assertTrue(nowPlayingGateway.contains("                () -> playbackService\n"));

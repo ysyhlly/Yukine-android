@@ -321,7 +321,11 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> nowPlayingStateController.renderNowBar(),
                 this::renderSelectedTab,
                 this::loadCollections,
-                track -> MainActivityBase.this.playlistDialogController.showAddToPlaylist(track),
+                track -> {
+                    if (MainActivityBase.this.playlistDialogController != null) {
+                        MainActivityBase.this.playlistDialogController.showAddToPlaylist(track);
+                    }
+                },
                 routeController,
                 this::applySearch,
                 () -> documentPickerController.openAudioFilePicker(),
