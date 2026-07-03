@@ -3927,8 +3927,8 @@ Current audit date: 2026-07-03.
 - The existing error recovery owner now reads the current track through
   `PlaybackQueueStateOwner.currentTrack()`.
 - The failed-track skip policy remains in `PlaybackErrorRecoveryCommandOwner`;
-  `PlaybackQueueStateOwner` was not widened with `hasMultipleTracks()` or
-  `canSkipFailedTrack(...)`, so queue state does not become a policy facade.
+  `PlaybackQueueStateOwner` was not widened with `canSkipFailedTrack(...)`,
+  so queue state does not become a policy facade.
 - No owner, facade, field, constructor parameter, or Service wiring was added.
   The real reduction is one fewer direct snapshot-current dereference in a
   playback owner.
@@ -3995,3 +3995,49 @@ Current audit date: 2026-07-03.
   and `MainActivityArchitectureContractTest`.
 - Deferred risk remains unchanged: notification runtime behavior, lyrics,
   shutdown, and background playback are not touched by this batch.
+
+## P1 Wiring Note - Queue State Derived Semantics
+
+Current audit date: 2026-07-03.
+
+- `PlaybackQueueStateOwner` now owns two generic derived queue reads:
+  `hasMultipleTracks()` and `isAtEndOfQueue()`.
+- `PlaybackCrossfadeStateOwner` no longer imports `PlaybackQueueManager` or
+  owns a private `queueStateSnapshot()` helper. It asks the queue state owner
+  for `hasMultipleTracks()` and `isAtEndOfQueue()` while keeping crossfade
+  repeat-mode policy local.
+- `PlaybackErrorRecoveryCommandOwner` no longer imports `PlaybackQueueManager`
+  or owns a private `queueStateSnapshot()` helper. It asks the queue state
+  owner for `hasMultipleTracks()` while keeping failed-track policy local.
+- No owner, facade, constructor parameter, or Service wiring was added.
+  `PlaybackQueueStateOwner` still does not own `canSkipFailedTrack(...)`, and
+  Service does not receive new queue-state suppliers.
+- The real reduction is two fewer private snapshot helpers and removal of the
+  remaining direct snapshot-derived reads from crossfade and error recovery
+  owners.
+- Focused coverage: `PlaybackQueueStateOwnerTest`,
+  `PlaybackCrossfadeStateOwnerTest`, `PlaybackErrorRecoveryCommandOwnerTest`,
+  and `MainActivityArchitectureContractTest`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueStateOwnerTest --tests app.yukine.playback.PlaybackCrossfadeStateOwnerTest --tests app.yukine.playback.PlaybackErrorRecoveryCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Batch Audit - Queue State Derived Reads
+
+Current audit date: 2026-07-03.
+
+- Batch scope: mirrored transition current-track read plus crossfade/error
+  recovery derived queue reads.
+- `EchoPlaybackService.java`: 1424 lines.
+- `EchoPlaybackService` `private Playback*` fields: 43.
+- Production playback `fromPlaybackQueueManager(...)` calls: 0.
+- `EchoPlaybackService` `queueStateSnapshot` supplier references: 0.
+- Production playback `Playback*Owner.java` files: 43.
+- Production playback `PlaybackQueueManager.QueueProvider`: absent.
+- Owner growth check: no owner, facade, constructor parameter, or Service field
+  was added in this batch.
+- Interface drift check: the queue state owner only gained generic derived
+  snapshot reads, `hasMultipleTracks()` and `isAtEndOfQueue()`; failed-track
+  skip policy remains outside the queue state owner.

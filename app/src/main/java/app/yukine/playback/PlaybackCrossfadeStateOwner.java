@@ -3,7 +3,6 @@ package app.yukine.playback;
 import static app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF;
 
 import app.yukine.playback.manager.PlaybackCrossfadeAdvanceManager;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BooleanSupplier;
 import java.util.function.DoubleSupplier;
@@ -50,22 +49,14 @@ final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManag
 
     @Override
     public boolean canCrossfadeAdvance() {
-        PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();
-        if (!queueStateSnapshot.getHasMultipleTracks()) {
+        if (queueStateOwner == null || !queueStateOwner.hasMultipleTracks()) {
             return false;
         }
-        return repeatModeProvider.getAsInt() != REPEAT_OFF || !queueStateSnapshot.isAtEndOfQueue();
+        return repeatModeProvider.getAsInt() != REPEAT_OFF || !queueStateOwner.isAtEndOfQueue();
     }
 
     @Override
     public float baseVolume() {
         return baseVolumeProvider == null ? 1.0f : (float) baseVolumeProvider.getAsDouble();
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null
-                ? null
-                : queueStateOwner.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 }

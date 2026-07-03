@@ -2,7 +2,6 @@ package app.yukine.playback;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackErrorRecoveryManager;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -40,7 +39,8 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
     public boolean canSkipFailedTrack(Track failed) {
         return failed != null
                 && failed.id != -1L
-                && queueStateSnapshot().getHasMultipleTracks();
+                && queueStateOwner != null
+                && queueStateOwner.hasMultipleTracks();
     }
 
     @Override
@@ -81,12 +81,5 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
     @Override
     public void logWarning(String message, Exception error) {
         warningLogger.accept(message, error);
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null
-                ? null
-                : queueStateOwner.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 }
