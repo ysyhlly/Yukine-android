@@ -2617,6 +2617,50 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheStateOwnerTest --tests app.yukine.playback.PlaybackVisualizationCacheStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P1/P3 Batch Audit - Snapshot Reads And Resolver Cache Boundary
+
+Current audit date: 2026-07-03.
+
+- Batch covered the mirrored-player and cache-adjacent current-track read
+  slices:
+  - `PlaybackQueueMirroredPlayerOwner` now reads current track state through
+    `PlaybackQueueStateOwner.queueStateSnapshot()`.
+  - `PlaybackPrecacheStateOwner` and
+    `PlaybackVisualizationCacheStateOwner` now read current track state through
+    `PlaybackQueueStateOwner.queueStateSnapshot()`.
+- Batch reductions:
+  - Three fewer production owner paths depend on the derivable
+    `PlaybackQueueStateOwner.currentTrack()` shortcut.
+  - No owner, facade, supplier chain, Service field, or Service strategy branch
+    was added.
+- Resolver/cache boundary audit:
+  - `MainActivityArchitectureContractTest` already rejects
+    `PlaybackMediaSourceResolutionOwner` files and Service references.
+  - `PlaybackMediaSourceProvider` remains the URI / MediaItem owner.
+  - `PlaybackPrecacheManager` and `PlaybackVisualizationCacheManager` receive
+    `PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)`
+    and do not store `PlaybackMediaSourceProvider` fields directly.
+  - Service still enters cache policy through
+    `PlaybackPrecacheManager.fromMediaSourceProvider(...)`; it does not call
+    `PlaybackMediaCacheOperations.fromMediaSourceProvider(...)` directly.
+- Remaining production `queueStateOwner.currentTrack()` use is only in
+  `PlaybackLyricsStateOwner`, which stays P4-adjacent. The remaining direct
+  Service `playbackQueueStateOwner.currentTrack()` read remains in `play()`,
+  still deferred to avoid creating a broad play facade around Media3/player
+  boundary behavior.
+- Batch metrics after this audit: `EchoPlaybackService.java` is 1425 lines,
+  `private Playback*` field count is 43 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0,
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.currentTrack()` calls in the service are
+  1, and recursive `Playback*Owner` production file count is 43 by the current
+  `Get-ChildItem` metric.
+- T1 verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMirroredPlayerOwnerTest --tests app.yukine.playback.PlaybackPrecacheStateOwnerTest --tests app.yukine.playback.PlaybackVisualizationCacheStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## P1 Wiring Note - Play Command Current Track Reuse
 
 Current audit date: 2026-07-03.
