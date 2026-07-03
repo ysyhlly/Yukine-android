@@ -6,13 +6,8 @@ import androidx.media3.common.Player;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
-final class PlaybackPrecacheStateOwner implements Supplier<MediaItem> {
-    private final Supplier<MediaItem> playerMediaItemSupplier;
-
-    PlaybackPrecacheStateOwner(
-            Supplier<MediaItem> playerMediaItemSupplier
-    ) {
-        this.playerMediaItemSupplier = playerMediaItemSupplier;
+final class PlaybackPrecacheStateOwner {
+    private PlaybackPrecacheStateOwner() {
     }
 
     static Supplier<MediaItem> playerMediaItemSupplierFromPlayerSupplier(Supplier<Player> playerSupplier) {
@@ -60,11 +55,6 @@ final class PlaybackPrecacheStateOwner implements Supplier<MediaItem> {
         } catch (IllegalStateException ignored) {
             return null;
         }
-    }
-
-    @Override
-    public MediaItem get() {
-        return playerMediaItemSupplier == null ? null : playerMediaItemSupplier.get();
     }
 
 }
