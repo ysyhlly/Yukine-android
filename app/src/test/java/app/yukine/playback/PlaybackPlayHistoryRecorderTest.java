@@ -62,7 +62,7 @@ public final class PlaybackPlayHistoryRecorderTest {
         Runnable action = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 recorder,
                 playWhenReady::get,
-                queueManager
+                queueStateOwner(queueManager)
         );
 
         action.run();
@@ -82,7 +82,7 @@ public final class PlaybackPlayHistoryRecorderTest {
         Runnable action = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 null,
                 playWhenReady::get,
-                queueManager
+                queueStateOwner(queueManager)
         );
 
         action.run();
@@ -90,6 +90,10 @@ public final class PlaybackPlayHistoryRecorderTest {
 
     private static PlaybackPlayHistoryRecorder recorder(FakeHistorySink historySink) {
         return new PlaybackPlayHistoryRecorder(historySink, new PlaybackTransitionStateManager());
+    }
+
+    private static PlaybackQueueStateOwner queueStateOwner(PlaybackQueueManager queueManager) {
+        return new PlaybackQueueStateOwner(queueManager);
     }
 
     private static PlaybackQueueManager playbackQueueManager() {
