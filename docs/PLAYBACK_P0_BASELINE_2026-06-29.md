@@ -3416,3 +3416,63 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMirroredTransitionOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1/P2 Checkpoint - Owner Boundary And Interface Drift
+
+Current audit date: 2026-07-03.
+
+- This checkpoint follows the queue command and media library data-source
+  slices:
+  - `EchoPlaybackService.play()` no longer reads the current track directly
+    before preparing playback; it asks `PlaybackQueueCommandOwner` to prepare
+    the current queue item when one exists.
+  - `PlaybackMediaLibraryDataSourceTest` now covers the real streaming item
+    path from `PlaybackMediaLibraryDataSource.fromRepository(...)` to
+    `PlaybackMediaSourceProvider.mediaItemForTrack(...)`, including media item
+    id, resolved URI, custom cache key, and metadata.
+- Real reductions in this checkpoint:
+  - no new owner was added;
+  - one Service queue-current-track decision moved behind the existing
+    semantic queue command owner;
+  - no resolver/cache facade was introduced for the media library path;
+  - the architecture contract still blocks `PlaybackQueueManager.QueueProvider`
+    from returning and keeps queue manager nested interfaces narrowed to
+    `QueuePlaybackActions`, `StreamingRestoreProvider`, and
+    `MirroredQueuePlayer`.
+- Current metrics:
+  - `EchoPlaybackService.java` is 1327 lines.
+  - `private Playback*` field count is 43 by the existing non-final field
+    metric; counting `private final Playback*` as well makes the wiring risk
+    count 55.
+  - `fromPlaybackQueueManager` production count is 0.
+  - service `playbackQueueStateOwner` queue/current references are:
+    `playbackQueueStateOwner::queueStateSnapshot` = 1,
+    direct `playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()` =
+    2, `playbackQueueStateOwner::currentTrack` = 2, and direct
+    `playbackQueueStateOwner.currentTrack()` = 0.
+  - `Playback*Owner` production file count is 43.
+- Resolver/cache boundary audit:
+  - production code has no `PlaybackMediaSourceResolutionOwner`,
+    `PlaybackItemResolver`, resolver facade, or cache policy facade.
+  - URI and MediaItem resolution remain in `PlaybackMediaSourceProvider`.
+  - cache operations for precache still enter through
+    `PlaybackPrecacheManager.fromMediaSourceProvider(...)` and
+    `PlaybackMediaCacheOperations.fromMediaSourceProvider(...)`.
+- Deferred risk:
+  - the remaining `playbackQueueStateOwner::queueStateSnapshot` service
+    supplier feeds notification state and is P4-adjacent;
+  - the remaining `playbackQueueStateOwner::currentTrack` suppliers feed
+    notification artwork and Wi-Fi/background handling, so they should not be
+    collapsed without the notification/background smoke table;
+  - the two direct snapshot current-track reads are runtime/position wiring and
+    should only move if the next slice removes a real supplier chain or Service
+    strategy decision.
+- Focused tests covering this checkpoint:
+  `PlaybackQueueCommandOwnerTest`, `PlaybackMediaLibraryDataSourceTest`,
+  `PlaybackMediaSourceProviderTest`, and
+  `MainActivityArchitectureContractTest`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueCommandOwnerTest --tests app.yukine.playback.PlaybackMediaLibraryDataSourceTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
