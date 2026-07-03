@@ -37,25 +37,22 @@ final class PlaybackQueueMirroredTransitionOwner {
     }
 
     private final PlaybackQueueManager playbackQueueManager;
-    private final PlaybackQueueStateOwner queueStateOwner;
     private final Runnable currentTrackVolumeApplier;
     private final BooleanSupplier playerMirrorsQueue;
 
     PlaybackQueueMirroredTransitionOwner(
             PlaybackQueueManager playbackQueueManager,
-            PlaybackQueueStateOwner queueStateOwner,
             Runnable currentTrackVolumeApplier,
             BooleanSupplier playerMirrorsQueue
     ) {
         this.playbackQueueManager = playbackQueueManager;
-        this.queueStateOwner = queueStateOwner;
         this.currentTrackVolumeApplier = currentTrackVolumeApplier;
         this.playerMirrorsQueue = playerMirrorsQueue;
     }
 
     boolean canApplyMirroredTransition() {
         boolean mirrorsQueue = playerMirrorsQueue == null || playerMirrorsQueue.getAsBoolean();
-        boolean queueEmpty = queueStateOwner == null || queueStateOwner.isQueueEmpty();
+        boolean queueEmpty = queueStateSnapshot().isQueueEmpty();
         return mirrorsQueue && !queueEmpty;
     }
 
@@ -76,7 +73,7 @@ final class PlaybackQueueMirroredTransitionOwner {
         }
         Track currentTrack = null;
         if (!result.getStopAfterAutomaticAdvance()) {
-            currentTrack = queueStateOwner == null ? null : queueStateOwner.currentTrack();
+            currentTrack = queueStateSnapshot().getCurrentTrack();
             if (currentTrackVolumeApplier != null) {
                 currentTrackVolumeApplier.run();
             }
@@ -90,6 +87,13 @@ final class PlaybackQueueMirroredTransitionOwner {
 
     static boolean isAutomaticMediaItemAdvance(int reason) {
         return reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO;
+    }
+
+    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
+        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
+                ? null
+                : playbackQueueManager.queueStateSnapshot();
+        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 
 }
