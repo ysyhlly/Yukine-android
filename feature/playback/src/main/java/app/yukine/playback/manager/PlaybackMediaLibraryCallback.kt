@@ -246,15 +246,7 @@ internal class PlaybackMediaLibraryCallback(
     }
 
     private fun tracksForMediaItems(mediaItems: List<MediaItem>?): List<Track> {
-        if (mediaItems == null || mediaItems.isEmpty()) {
-            return emptyList()
-        }
-        val tracksById = dataSource.loadCachedTracks().associateBy { it.id }
-        val tracks = ArrayList<Track>()
-        for (mediaItem in mediaItems) {
-            trackForMediaItem(mediaItem, tracksById)?.let { tracks.add(it) }
-        }
-        return tracks
+        return resolvedControllerTracks(mediaItems, 0)?.tracks ?: emptyList()
     }
 
     fun controllerQueueForMediaItems(
