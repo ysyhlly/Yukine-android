@@ -11,10 +11,14 @@ import androidx.media3.datasource.cache.CacheDataSource;
 
 import app.yukine.common.StreamingDataPathParser;
 import app.yukine.data.MusicLibraryRepository;
+import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import app.yukine.playback.manager.PlaybackMediaCacheOperations;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
+import app.yukine.playback.manager.PlaybackQueueManager;
+import app.yukine.playback.manager.PlaybackQueueStore;
+import app.yukine.playback.manager.PlaybackTransitionStateManager;
 import app.yukine.streaming.StreamingPlaybackHeaderStore;
 
 import org.junit.Test;
@@ -27,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -70,6 +75,7 @@ public final class PlaybackPrecacheManagerTest {
         FakeAudioCacheReleaseAction audioCacheReleaseAction = new FakeAudioCacheReleaseAction();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
+                null,
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider()),
                 scheduler,
                 audioCacheReleaseAction::releaseAudioCache
@@ -169,6 +175,7 @@ public final class PlaybackPrecacheManagerTest {
         CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
+                null,
                 mediaCacheOperations,
                 null,
                 scheduler,
@@ -240,6 +247,7 @@ public final class PlaybackPrecacheManagerTest {
         PlaybackPrecacheManager manager = PlaybackPrecacheManager.fromMediaSourceProvider(
                 stateProvider,
                 null,
+                null,
                 scheduler
         );
         Track track = track(42L, "https://example.test/audio.flac", "streaming:test:42");
@@ -277,6 +285,7 @@ public final class PlaybackPrecacheManagerTest {
         CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
+                null,
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -308,6 +317,7 @@ public final class PlaybackPrecacheManagerTest {
         CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
+                null,
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -340,6 +350,7 @@ public final class PlaybackPrecacheManagerTest {
         CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
+                null,
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -384,6 +395,7 @@ public final class PlaybackPrecacheManagerTest {
         FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
+                null,
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -410,12 +422,15 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
-    public void upcomingPrecacheReadsTracksThroughNarrowProvider() {
+    public void upcomingPrecacheReadsTracksThroughQueueManager() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        PlaybackPrecacheManager manager = precacheManager(stateProvider, scheduler);
         Track current = track(1L, "https://example.test/current.mp3");
-        stateProvider.upcomingTracks.add(track(2L, "https://example.test/upcoming.mp3"));
+        PlaybackQueueManager queueManager = queueManager(
+                current,
+                track(2L, "https://example.test/upcoming.mp3")
+        );
+        PlaybackPrecacheManager manager = precacheManager(stateProvider, queueManager, scheduler);
 
         stateProvider.currentTrack = current;
         manager.precacheTrack(current);
@@ -423,8 +438,7 @@ public final class PlaybackPrecacheManagerTest {
         scheduler.runNext();
         manager.release();
 
-        assertEquals(PlaybackPrecacheManager.SEGMENTED_PRECACHE_CONCURRENCY, stateProvider.lastUpcomingMaxCount);
-        assertEquals(1, stateProvider.upcomingTracksCalls);
+        assertEquals(2, queueManager.queueStateSnapshot().getQueueSize());
     }
 
     @Test
@@ -433,27 +447,26 @@ public final class PlaybackPrecacheManagerTest {
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
         FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
         CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        Track current = track(1L, "https://example.test/current.mp3");
+        Track localUpcoming = track(2L, "content://media/audio/2", "/music/local.flac");
+        Track streamingUpcoming = track(3L, "https://example.test/upcoming.mp3");
+        PlaybackQueueManager queueManager = queueManager(current, localUpcoming, streamingUpcoming);
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
+                queueManager,
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
                 new FakeAudioCacheReleaseAction()::releaseAudioCache,
                 executor
         );
-        Track current = track(1L, "https://example.test/current.mp3");
-        Track localUpcoming = track(2L, "content://media/audio/2", "/music/local.flac");
-        Track streamingUpcoming = track(3L, "https://example.test/upcoming.mp3");
 
         stateProvider.currentTrack = current;
-        stateProvider.upcomingTracks.add(localUpcoming);
-        stateProvider.upcomingTracks.add(streamingUpcoming);
         manager.precacheTrack(current);
         scheduler.runNext();
         scheduler.runNext();
         executor.runSubmitted(2);
 
-        assertEquals(1, stateProvider.upcomingTracksCalls);
         assertEquals(3, executor.submittedTaskCount());
         assertEquals(1, mediaCacheOperations.cacheDataSourceForTrackCalls);
         assertEquals(streamingUpcoming, mediaCacheOperations.lastCacheDataSourceTrack);
@@ -480,12 +493,39 @@ public final class PlaybackPrecacheManagerTest {
             FakeStateProvider stateProvider,
             FakeCallbackScheduler scheduler
     ) {
+        return precacheManager(stateProvider, null, scheduler);
+    }
+
+    private static PlaybackPrecacheManager precacheManager(
+            FakeStateProvider stateProvider,
+            PlaybackQueueManager queueManager,
+            FakeCallbackScheduler scheduler
+    ) {
         PlaybackMediaSourceProvider mediaSourceProvider = mediaSourceProvider();
         return PlaybackPrecacheManager.fromMediaSourceProvider(
                 stateProvider,
+                queueManager,
                 mediaSourceProvider,
                 scheduler
         );
+    }
+
+    private static PlaybackQueueManager queueManager(Track... tracks) {
+        PlaybackQueueManager queueManager = new PlaybackQueueManager(
+                new FakeQueueStore(),
+                new ArrayList<>(),
+                new NoopQueuePlaybackActions(),
+                null,
+                new NoopStreamingRestoreProvider(),
+                new NoopMirroredQueuePlayer(),
+                null,
+                new PlaybackTransitionStateManager(),
+                new Random(1L)
+        );
+        if (tracks != null && tracks.length > 0) {
+            queueManager.playQueue(java.util.Arrays.asList(tracks), 0, -1L);
+        }
+        return queueManager;
     }
 
     private static void assertEventuallyPrecacheComplete(
@@ -522,12 +562,9 @@ public final class PlaybackPrecacheManagerTest {
 
     private static final class FakeStateProvider implements PlaybackPrecacheManager.StateProvider {
         private final PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
-        private final List<Track> upcomingTracks = new ArrayList<>();
         private Track currentTrack;
         private MediaItem currentPlayerMediaItem;
         private int currentTrackCalls;
-        private int upcomingTracksCalls;
-        private int lastUpcomingMaxCount;
 
         @Override
         public Track currentTrack() {
@@ -546,15 +583,83 @@ public final class PlaybackPrecacheManagerTest {
         }
 
         @Override
-        public List<Track> upcomingTracksForPrecache(int maxCount) {
-            upcomingTracksCalls++;
-            lastUpcomingMaxCount = maxCount;
-            return upcomingTracks;
+        public PlaybackStreamingDiagnostics streamingDiagnostics() {
+            return diagnostics;
+        }
+    }
+
+    private static final class FakeQueueStore implements PlaybackQueueStore {
+        @Override
+        public PlaybackQueueState load() {
+            return new PlaybackQueueState(Collections.emptyList(), -1);
         }
 
         @Override
-        public PlaybackStreamingDiagnostics streamingDiagnostics() {
-            return diagnostics;
+        public void save(List<Track> tracks, int currentIndex) {
+        }
+
+        @Override
+        public boolean loadResumeRequested() {
+            return false;
+        }
+
+        @Override
+        public void saveResumeRequested(boolean requested) {
+        }
+
+        @Override
+        public boolean loadPlaybackRestoreEnabled() {
+            return true;
+        }
+
+        @Override
+        public void savePlaybackRestoreEnabled(boolean enabled) {
+        }
+
+        @Override
+        public long loadPlaybackPositionTrackId() {
+            return -1L;
+        }
+
+        @Override
+        public long loadPlaybackPositionMs() {
+            return 0L;
+        }
+
+        @Override
+        public void savePlaybackPosition(long trackId, long positionMs) {
+        }
+    }
+
+    private static final class NoopQueuePlaybackActions
+            implements PlaybackQueueManager.QueuePlaybackActions {
+        @Override
+        public void prepareCurrent(boolean playWhenReady) {
+        }
+
+        @Override
+        public void publishState() {
+        }
+    }
+
+    private static final class NoopStreamingRestoreProvider
+            implements PlaybackQueueManager.StreamingRestoreProvider {
+        @Override
+        public Track restoreTrackForPlayback(Track track) {
+            return track;
+        }
+    }
+
+    private static final class NoopMirroredQueuePlayer
+            implements PlaybackQueueManager.MirroredQueuePlayer {
+        @Override
+        public boolean matchesCurrentQueue() {
+            return false;
+        }
+
+        @Override
+        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
+            return false;
         }
     }
 

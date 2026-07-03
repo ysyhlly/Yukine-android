@@ -32,6 +32,7 @@ import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import app.yukine.playback.manager.PlaybackMediaCacheOperations;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 final class PlaybackPrecacheManager {
     static final int PRECACHE_BYTES = 512 * 1024;
@@ -49,7 +50,6 @@ final class PlaybackPrecacheManager {
     interface StateProvider {
         Track currentTrack();
         MediaItem currentPlayerMediaItem();
-        List<Track> upcomingTracksForPrecache(int maxCount);
         PlaybackStreamingDiagnostics streamingDiagnostics();
     }
 
@@ -59,6 +59,7 @@ final class PlaybackPrecacheManager {
     }
 
     private final StateProvider stateProvider;
+    private final PlaybackQueueManager playbackQueueManager;
     private final PlaybackMediaCacheOperations mediaCacheOperations;
     private final BiPredicate<MediaItem, Track> mediaItemTrackMatcher;
     private final CallbackScheduler callbackScheduler;
@@ -77,12 +78,14 @@ final class PlaybackPrecacheManager {
 
     PlaybackPrecacheManager(
             StateProvider stateProvider,
+            PlaybackQueueManager playbackQueueManager,
             PlaybackMediaCacheOperations mediaCacheOperations,
             CallbackScheduler callbackScheduler,
             Runnable audioCacheReleaseAction
     ) {
         this(
                 stateProvider,
+                playbackQueueManager,
                 mediaCacheOperations,
                 null,
                 callbackScheduler,
@@ -93,6 +96,7 @@ final class PlaybackPrecacheManager {
 
     PlaybackPrecacheManager(
             StateProvider stateProvider,
+            PlaybackQueueManager playbackQueueManager,
             PlaybackMediaCacheOperations mediaCacheOperations,
             BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
             CallbackScheduler callbackScheduler,
@@ -100,6 +104,7 @@ final class PlaybackPrecacheManager {
     ) {
         this(
                 stateProvider,
+                playbackQueueManager,
                 mediaCacheOperations,
                 mediaItemTrackMatcher,
                 callbackScheduler,
@@ -110,6 +115,7 @@ final class PlaybackPrecacheManager {
 
     PlaybackPrecacheManager(
             StateProvider stateProvider,
+            PlaybackQueueManager playbackQueueManager,
             PlaybackMediaCacheOperations mediaCacheOperations,
             BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
             CallbackScheduler callbackScheduler,
@@ -117,6 +123,7 @@ final class PlaybackPrecacheManager {
             ThreadPoolExecutor playbackCacheExecutor
     ) {
         this.stateProvider = stateProvider;
+        this.playbackQueueManager = playbackQueueManager;
         this.mediaCacheOperations = mediaCacheOperations;
         this.mediaItemTrackMatcher = mediaItemTrackMatcher;
         this.callbackScheduler = callbackScheduler;
@@ -128,11 +135,13 @@ final class PlaybackPrecacheManager {
 
     static PlaybackPrecacheManager fromMediaSourceProvider(
             StateProvider stateProvider,
+            PlaybackQueueManager playbackQueueManager,
             PlaybackMediaSourceProvider mediaSourceProvider,
             CallbackScheduler callbackScheduler
     ) {
         return new PlaybackPrecacheManager(
                 stateProvider,
+                playbackQueueManager,
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider),
                 (mediaItem, track) -> mediaSourceProvider != null
                         && mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track),
@@ -281,9 +290,9 @@ final class PlaybackPrecacheManager {
     }
 
     private List<Track> upcomingTracksForPrecache() {
-        return stateProvider == null
+        return playbackQueueManager == null
                 ? Collections.emptyList()
-                : stateProvider.upcomingTracksForPrecache(SEGMENTED_PRECACHE_CONCURRENCY);
+                : playbackQueueManager.upcomingTracksForPrecache(SEGMENTED_PRECACHE_CONCURRENCY);
     }
 
     @OptIn(markerClass = UnstableApi.class)

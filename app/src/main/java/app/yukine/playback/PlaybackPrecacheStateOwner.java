@@ -7,8 +7,6 @@ import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
@@ -85,14 +83,6 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
     @Override
     public MediaItem currentPlayerMediaItem() {
         return playerMediaItemSupplier == null ? null : playerMediaItemSupplier.get();
-    }
-
-    @Override
-    public List<Track> upcomingTracksForPrecache(int maxCount) {
-        List<Track> tracks = queueStateOwner == null
-                ? null
-                : queueStateOwner.upcomingTracksForPrecache(maxCount);
-        return tracks == null ? Collections.emptyList() : tracks;
     }
 
     @Override

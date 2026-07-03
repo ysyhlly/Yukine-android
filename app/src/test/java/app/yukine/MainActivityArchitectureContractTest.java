@@ -2113,6 +2113,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(normalizedPrecacheStateWiring.contains("playbackQueueStateOwner::upcomingTracksForPrecache"));
         assertFalse(normalizedPrecacheStateWiring.contains("() -> streamingDiagnostics"));
         assertTrue(playbackService.contains("                playbackPrecacheStateOwner,"));
+        assertTrue(playbackService.contains("                playbackQueueManager,"));
         assertFalse(normalizedPlaybackService.contains(
                 "        playbackPrecacheManager = PlaybackPrecacheManager.fromMediaSourceProvider(\n"
                         + "                playbackPrecacheStateOwner,\n"
@@ -2213,8 +2214,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackPrecacheManager.contains("import java.util.function.IntFunction;"));
         assertFalse(playbackPrecacheManager.contains("private final IntFunction<List<Track>> upcomingTracksProvider;"));
         assertFalse(playbackPrecacheManager.contains("upcomingTracksProvider.apply(SEGMENTED_PRECACHE_CONCURRENCY)"));
-        assertTrue(playbackPrecacheManager.contains("List<Track> upcomingTracksForPrecache(int maxCount);"));
+        assertFalse(playbackPrecacheManager.contains("List<Track> upcomingTracksForPrecache(int maxCount);"));
         assertTrue(playbackPrecacheManager.contains(
+                "playbackQueueManager.upcomingTracksForPrecache(SEGMENTED_PRECACHE_CONCURRENCY)"));
+        assertFalse(playbackPrecacheManager.contains(
                 "stateProvider.upcomingTracksForPrecache(SEGMENTED_PRECACHE_CONCURRENCY)"));
         assertFalse(playbackPrecacheManager.contains("interface AudioCacheReleaser"));
         assertFalse(playbackPrecacheManager.contains("interface PrecacheManagerProvider"));
@@ -2223,8 +2226,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackPrecacheManager.contains("static Runnable audioCacheReleaseActionFromPrecacheManagerSupplier("));
         assertTrue(playbackPrecacheManager.contains("private final Runnable audioCacheReleaseAction;"));
         assertFalse(playbackPrecacheManager.contains("implements MediaCacheOperations, AudioCacheReleaser"));
-        assertFalse(playbackPrecacheManager.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
-        assertFalse(playbackPrecacheManager.contains("private final PlaybackQueueManager playbackQueueManager;"));
+        assertTrue(playbackPrecacheManager.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
+        assertTrue(playbackPrecacheManager.contains("private final PlaybackQueueManager playbackQueueManager;"));
         assertTrue(playbackPrecacheManager.contains("private final CallbackScheduler callbackScheduler;"));
         assertTrue(playbackPrecacheManager.contains("PlaybackPrecacheManager("));
         assertTrue(playbackPrecacheManager.contains("CallbackScheduler callbackScheduler"));
@@ -2256,7 +2259,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackPrecacheStateOwner.contains(": queueStateOwner.currentTrack();"));
         assertFalse(playbackPrecacheStateOwner.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(playbackPrecacheStateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
-        assertTrue(playbackPrecacheStateOwner.contains("queueStateOwner.upcomingTracksForPrecache(maxCount)"));
+        assertFalse(playbackPrecacheStateOwner.contains("queueStateOwner.upcomingTracksForPrecache(maxCount)"));
         assertTrue(playbackPrecacheStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
         assertTrue(playbackPrecacheStateOwner.contains(
                 "return playerMediaItemSupplier == null ? null : playerMediaItemSupplier.get();"));

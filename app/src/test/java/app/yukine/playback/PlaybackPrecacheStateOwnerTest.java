@@ -16,7 +16,6 @@ import app.yukine.playback.manager.PlaybackTransitionStateManager;
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -30,11 +29,10 @@ public class PlaybackPrecacheStateOwnerTest {
     public void delegatesPrecacheStateToPlaybackOwners() {
         List<String> events = new ArrayList<>();
         Track track = track(1L);
-        Track upcomingTrack = track(2L);
         PlaybackRuntimeStateManager runtimeStateManager = playbackRuntimeStateManager();
         runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF);
         PlaybackQueueManager queueManager = playbackQueueManager(runtimeStateManager);
-        queueManager.playQueue(Arrays.asList(track, upcomingTrack), 0, -1L);
+        queueManager.playQueue(Collections.singletonList(track), 0, -1L);
         PlaybackQueueStateOwner queueStateOwner = new PlaybackQueueStateOwner(queueManager);
         MediaItem mediaItem = MediaItem.fromUri("https://example.test/one.mp3");
         PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
@@ -49,7 +47,6 @@ public class PlaybackPrecacheStateOwnerTest {
 
         assertSame(track, owner.currentTrack());
         assertSame(mediaItem, owner.currentPlayerMediaItem());
-        assertTrackIds(Collections.singletonList(2L), owner.upcomingTracksForPrecache(4));
         assertSame(diagnostics, owner.streamingDiagnostics());
         assertEquals(
                 java.util.Collections.singletonList("mediaItem"),
@@ -73,8 +70,6 @@ public class PlaybackPrecacheStateOwnerTest {
 
         assertNull(missingProviderOwner.currentTrack());
         assertNull(nullTrackOwner.currentTrack());
-        assertEquals(Collections.emptyList(), missingProviderOwner.upcomingTracksForPrecache(3));
-        assertEquals(Collections.emptyList(), nullTrackOwner.upcomingTracksForPrecache(3));
     }
 
     @Test
@@ -98,14 +93,6 @@ public class PlaybackPrecacheStateOwnerTest {
                 Uri.parse("https://example.test/" + id + ".mp3"),
                 "streaming:test:" + id
         );
-    }
-
-    private static void assertTrackIds(List<Long> expectedIds, List<Track> tracks) {
-        List<Long> actualIds = new ArrayList<>();
-        for (Track track : tracks) {
-            actualIds.add(track.id);
-        }
-        assertEquals(expectedIds, actualIds);
     }
 
     private static PlaybackQueueManager playbackQueueManager(
