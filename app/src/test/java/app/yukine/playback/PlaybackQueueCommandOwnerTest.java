@@ -26,7 +26,7 @@ public class PlaybackQueueCommandOwnerTest {
         PlaybackQueueManager queueManager = queueManager();
         queueManager.playQueue(Collections.singletonList(track), 0, 0L);
         PlaybackQueueCommandOwner owner = new PlaybackQueueCommandOwner(
-                new PlaybackQueueStateOwner(queueManager),
+                queueManager,
                 (currentTrack, playWhenReady) -> events.add("prepare:" + currentTrack.id + ":" + playWhenReady),
                 () -> events.add("publish")
         );
@@ -57,7 +57,7 @@ public class PlaybackQueueCommandOwnerTest {
     public void ignoresPrepareWhenCurrentTrackIsMissing() {
         List<String> events = new ArrayList<>();
         PlaybackQueueCommandOwner owner = new PlaybackQueueCommandOwner(
-                new PlaybackQueueStateOwner(missingQueueManager()),
+                missingQueueManager(),
                 (currentTrack, playWhenReady) -> events.add("prepare"),
                 () -> events.add("publish")
         );

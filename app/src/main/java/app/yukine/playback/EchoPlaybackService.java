@@ -116,7 +116,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             new PlaybackQueueRuntimeStateManager();
     private final PlaybackQueueCommandOwner playbackQueueCommandOwner =
             new PlaybackQueueCommandOwner(
-                    playbackQueueStateOwner,
+                    () -> playbackQueueManager,
                     EchoPlaybackService.this::prepareCurrent,
                     EchoPlaybackService.this::publishState
             );
