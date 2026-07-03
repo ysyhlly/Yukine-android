@@ -2,11 +2,40 @@ package app.yukine.playback;
 
 import androidx.media3.common.Player;
 
+import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BooleanSupplier;
 
 final class PlaybackQueueMirroredTransitionOwner {
+    static final class Transition {
+        private final int completedIndex;
+        private final boolean stopAfterAutomaticAdvance;
+        private final Track currentTrack;
+
+        private Transition(
+                int completedIndex,
+                boolean stopAfterAutomaticAdvance,
+                Track currentTrack
+        ) {
+            this.completedIndex = completedIndex;
+            this.stopAfterAutomaticAdvance = stopAfterAutomaticAdvance;
+            this.currentTrack = currentTrack;
+        }
+
+        int completedIndex() {
+            return completedIndex;
+        }
+
+        boolean stopAfterAutomaticAdvance() {
+            return stopAfterAutomaticAdvance;
+        }
+
+        Track currentTrack() {
+            return currentTrack;
+        }
+    }
+
     private final PlaybackQueueManager playbackQueueManager;
     private final PlaybackQueueStateOwner queueStateOwner;
     private final Runnable currentTrackVolumeApplier;
@@ -30,7 +59,7 @@ final class PlaybackQueueMirroredTransitionOwner {
         return mirrorsQueue && !emptyQueue;
     }
 
-    PlaybackQueueManager.MirroredTransitionResult applyMirroredTransitionReason(
+    Transition applyMirroredTransitionReason(
             int nextIndex,
             int reason
     ) {
@@ -42,12 +71,21 @@ final class PlaybackQueueMirroredTransitionOwner {
                         nextIndex,
                         isAutomaticMediaItemAdvance(reason)
                 );
-        if (result != null
-                && !result.getStopAfterAutomaticAdvance()
-                && currentTrackVolumeApplier != null) {
-            currentTrackVolumeApplier.run();
+        if (result == null) {
+            return null;
         }
-        return result;
+        Track currentTrack = null;
+        if (!result.getStopAfterAutomaticAdvance()) {
+            currentTrack = queueStateSnapshot().getCurrentTrack();
+            if (currentTrackVolumeApplier != null) {
+                currentTrackVolumeApplier.run();
+            }
+        }
+        return new Transition(
+                result.getCompletedIndex(),
+                result.getStopAfterAutomaticAdvance(),
+                currentTrack
+        );
     }
 
     static boolean isAutomaticMediaItemAdvance(int reason) {

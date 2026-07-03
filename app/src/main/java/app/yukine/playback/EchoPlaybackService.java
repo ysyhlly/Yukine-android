@@ -246,16 +246,16 @@ public final class EchoPlaybackService extends MediaLibraryService
                 return;
             }
             int nextIndex = player.getCurrentMediaItemIndex();
-            PlaybackQueueManager.MirroredTransitionResult transition =
+            PlaybackQueueMirroredTransitionOwner.Transition transition =
                     mirroredTransitionOwner.applyMirroredTransitionReason(nextIndex, reason);
             if (transition == null) {
                 return;
             }
-            if (transition.getStopAfterAutomaticAdvance()) {
-                stopAfterAutomaticAdvance(transition.getCompletedIndex());
+            if (transition.stopAfterAutomaticAdvance()) {
+                stopAfterAutomaticAdvance(transition.completedIndex());
                 return;
             }
-            Track track = playbackQueueStateOwner.currentTrack();
+            Track track = transition.currentTrack();
             if (track != null) {
                 resetWaveformIfTrackChanged(track);
             }

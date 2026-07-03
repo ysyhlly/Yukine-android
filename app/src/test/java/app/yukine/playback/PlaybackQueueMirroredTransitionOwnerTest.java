@@ -50,14 +50,15 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
                         null
                 );
 
-        PlaybackQueueManager.MirroredTransitionResult result =
+        PlaybackQueueMirroredTransitionOwner.Transition result =
                 owner.applyMirroredTransitionReason(
                         3,
                         Player.MEDIA_ITEM_TRANSITION_REASON_SEEK
                 );
 
-        assertEquals(1, result.getCompletedIndex());
-        assertEquals(false, result.getStopAfterAutomaticAdvance());
+        assertEquals(1, result.completedIndex());
+        assertEquals(false, result.stopAfterAutomaticAdvance());
+        assertEquals(4L, result.currentTrack().id);
         assertEquals(3, queueManager.queueStateSnapshot().getCurrentIndex());
         assertEquals(
                 Arrays.asList(
@@ -88,13 +89,14 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
                         null
                 );
 
-        PlaybackQueueManager.MirroredTransitionResult result =
+        PlaybackQueueMirroredTransitionOwner.Transition result =
                 owner.applyMirroredTransitionReason(
                         1,
                         Player.MEDIA_ITEM_TRANSITION_REASON_SEEK
                 );
 
-        assertEquals(false, result.getStopAfterAutomaticAdvance());
+        assertEquals(false, result.stopAfterAutomaticAdvance());
+        assertEquals(9L, result.currentTrack().id);
         assertEquals(
                 Arrays.asList(
                         "position:9:0",
@@ -141,19 +143,22 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
                         null
                 );
 
-        PlaybackQueueManager.MirroredTransitionResult automaticResult =
+        PlaybackQueueMirroredTransitionOwner.Transition automaticResult =
                 owner.applyMirroredTransitionReason(2, Player.MEDIA_ITEM_TRANSITION_REASON_AUTO);
-        PlaybackQueueManager.MirroredTransitionResult seekResult =
+        PlaybackQueueMirroredTransitionOwner.Transition seekResult =
                 owner.applyMirroredTransitionReason(1, Player.MEDIA_ITEM_TRANSITION_REASON_SEEK);
-        PlaybackQueueManager.MirroredTransitionResult playlistChangedResult =
+        PlaybackQueueMirroredTransitionOwner.Transition playlistChangedResult =
                 owner.applyMirroredTransitionReason(2, Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED);
 
-        assertEquals(0, automaticResult.getCompletedIndex());
-        assertEquals(true, automaticResult.getStopAfterAutomaticAdvance());
-        assertEquals(0, seekResult.getCompletedIndex());
-        assertEquals(false, seekResult.getStopAfterAutomaticAdvance());
-        assertEquals(1, playlistChangedResult.getCompletedIndex());
-        assertEquals(false, playlistChangedResult.getStopAfterAutomaticAdvance());
+        assertEquals(0, automaticResult.completedIndex());
+        assertEquals(true, automaticResult.stopAfterAutomaticAdvance());
+        assertNull(automaticResult.currentTrack());
+        assertEquals(0, seekResult.completedIndex());
+        assertEquals(false, seekResult.stopAfterAutomaticAdvance());
+        assertEquals(2L, seekResult.currentTrack().id);
+        assertEquals(1, playlistChangedResult.completedIndex());
+        assertEquals(false, playlistChangedResult.stopAfterAutomaticAdvance());
+        assertEquals(3L, playlistChangedResult.currentTrack().id);
         assertEquals(2, queueManager.queueStateSnapshot().getCurrentIndex());
     }
 

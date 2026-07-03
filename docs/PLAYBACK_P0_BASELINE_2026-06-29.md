@@ -3089,3 +3089,31 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueCommandOwnerTest --tests app.yukine.playback.PlaybackErrorRecoveryCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1 Wiring Note - Mirrored Transition Current Track Result
+
+Current audit date: 2026-07-03.
+
+- `PlaybackQueueMirroredTransitionOwner.applyMirroredTransitionReason(...)`
+  now returns a narrow owner-local `Transition` result with the completed
+  index, stop-after-auto-advance flag, and the transition-current track.
+- `EchoPlaybackService.onMediaItemTransition(...)` no longer reads
+  `playbackQueueStateOwner.currentTrack()` after applying a mirrored queue
+  transition; it consumes `transition.currentTrack()` for waveform reset.
+- No owner was added. The real reduction is one fewer direct Service
+  queue-current-track read while keeping the queue state source inside the
+  existing mirrored transition owner.
+- `PlaybackQueueMirroredTransitionOwnerTest` now covers current-track values
+  returned for successful mirrored transitions and null current-track for the
+  stop-after-automatic-advance branch.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1425 lines,
+  `private Playback*` field count is 43 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0,
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.currentTrack()` calls in the service are
+  1, and `Playback*Owner` production file count is 44.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMirroredTransitionOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```

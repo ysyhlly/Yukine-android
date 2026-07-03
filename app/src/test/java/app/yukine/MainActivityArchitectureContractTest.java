@@ -6441,7 +6441,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mirroredTransitionOwner.contains("queueStateOwner.queueStateSnapshot();"));
         assertTrue(mirroredTransitionOwner.contains("boolean emptyQueue = queueStateSnapshot().isQueueEmpty();"));
         assertTrue(mirroredTransitionOwner.contains("boolean canApplyMirroredTransition()"));
-        assertTrue(mirroredTransitionOwner.contains("PlaybackQueueManager.MirroredTransitionResult applyMirroredTransitionReason("));
+        assertTrue(mirroredTransitionOwner.contains("static final class Transition"));
+        assertTrue(mirroredTransitionOwner.contains("Track currentTrack()"));
+        assertTrue(mirroredTransitionOwner.contains("Transition applyMirroredTransitionReason("));
+        assertTrue(service.contains("PlaybackQueueMirroredTransitionOwner.Transition transition"));
+        assertTrue(service.contains("Track track = transition.currentTrack();"));
         assertTrue(mirroredTransitionOwner.contains("static boolean isAutomaticMediaItemAdvance(int reason)"));
         assertTrue(mirroredTransitionOwner.contains("return reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO;"));
         assertFalse(mirroredTransitionOwner.contains(
@@ -7901,7 +7905,7 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(4, countOccurrences(service, "playbackQueueStateOwner::currentTrack"));
         assertFalse(service.contains("final Supplier<Track> currentTrackSupplier = playbackQueueStateOwner::currentTrack;"));
         assertTrue(service.contains("playbackQueueStateOwner.currentTrack()"));
-        assertEquals(2, countOccurrences(service, "playbackQueueStateOwner.currentTrack()"));
+        assertEquals(1, countOccurrences(service, "playbackQueueStateOwner.currentTrack()"));
         assertFalse(service.contains("private void prepareCurrent(final boolean playWhenReady)"));
         assertTrue(service.contains("private void prepareCurrent(Track track, final boolean playWhenReady)"));
         assertTrue(service.contains("prepareCurrent(track, true);"));
