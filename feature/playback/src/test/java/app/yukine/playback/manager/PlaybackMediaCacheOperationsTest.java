@@ -21,6 +21,8 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 
@@ -79,6 +81,44 @@ public final class PlaybackMediaCacheOperationsTest {
         );
         assertEquals(headers, operations.headersForTrack(streaming));
         assertNull(operations.cacheKeyForPrecache(local));
+    }
+
+    @Test
+    public void providerBackedOperationsPrecacheWebDavHttpTracksWithProviderHeaders() {
+        Context context = RuntimeEnvironment.getApplication();
+        MusicLibraryRepository repository =
+                new MusicLibraryRepository(context, new FakeStreamingDataPathParser());
+        long sourceId = repository.saveWebDavSource(
+                "NAS",
+                "https://dav.example",
+                "alice",
+                "secret",
+                "music"
+        );
+        Map<String, String> streamingHeaders = Collections.singletonMap("Cookie", "token=abc");
+        PlaybackMediaSourceProvider provider = new PlaybackMediaSourceProvider(
+                context,
+                repository,
+                new FakeStreamingPlaybackHeaderStore(streamingHeaders)
+        );
+        PlaybackMediaCacheOperations operations =
+                PlaybackMediaCacheOperations.fromMediaSourceProvider(provider);
+        Track webDav = track(
+                9L,
+                "https://dav.example/music/webdav.flac",
+                "webdav:" + sourceId + ":/music/webdav.flac"
+        );
+        String expectedAuth = "Basic " + Base64.getEncoder().encodeToString(
+                "alice:secret".getBytes(StandardCharsets.UTF_8)
+        );
+
+        try {
+            assertEquals(webDav.dataPath, operations.cacheKeyForPrecache(webDav));
+            assertEquals(streamingHeaders.get("Cookie"), operations.headersForTrack(webDav).get("Cookie"));
+            assertEquals(expectedAuth, operations.headersForTrack(webDav).get("Authorization"));
+        } finally {
+            provider.releaseAudioCache();
+        }
     }
 
     @Test
