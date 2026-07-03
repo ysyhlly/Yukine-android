@@ -6561,10 +6561,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueManager.currentTrack();"));
         assertTrue(queueStateOwner.contains("Track currentTrack()"));
         assertTrue(queueStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
-        assertTrue(queueStateOwner.contains("int currentIndex()"));
-        assertTrue(queueStateOwner.contains("return queueStateSnapshot().getCurrentIndex();"));
-        assertTrue(queueStateOwner.contains("int queueSize()"));
-        assertTrue(queueStateOwner.contains("return queueStateSnapshot().getQueueSize();"));
+        assertFalse(queueStateOwner.contains("int currentIndex()"));
+        assertFalse(queueStateOwner.contains("return queueStateSnapshot().getCurrentIndex();"));
+        assertFalse(queueStateOwner.contains("int queueSize()"));
+        assertFalse(queueStateOwner.contains("return queueStateSnapshot().getQueueSize();"));
         assertFalse(queueStateOwner.contains("public PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
         assertTrue(queueStateOwner.contains("private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
         assertFalse(queueStateOwner.contains("playbackQueueManager::currentTrack"));

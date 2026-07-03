@@ -1,6 +1,5 @@
 package app.yukine.playback;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -34,8 +33,6 @@ public class PlaybackQueueStateOwnerTest {
         PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManager);
 
         assertSame(track, owner.currentTrack());
-        assertEquals(0, owner.currentIndex());
-        assertEquals(1, owner.queueSize());
         assertFalse(owner.isQueueEmpty());
         assertFalse(owner.hasMultipleTracks());
         assertTrue(owner.isAtEndOfQueue());
@@ -55,7 +52,7 @@ public class PlaybackQueueStateOwnerTest {
         queueManagerRef.set(queueManager);
 
         assertSame(track, owner.currentTrack());
-        assertEquals(1, owner.queueSize());
+        assertFalse(owner.isQueueEmpty());
     }
 
     @Test
@@ -69,8 +66,6 @@ public class PlaybackQueueStateOwnerTest {
                 new PlaybackQueueStateOwner(queueManager);
 
         assertSame(second, owner.currentTrack());
-        assertEquals(1, owner.currentIndex());
-        assertEquals(3, owner.queueSize());
         assertFalse(owner.isQueueEmpty());
         assertTrue(owner.hasMultipleTracks());
         assertFalse(owner.isAtEndOfQueue());
@@ -112,8 +107,6 @@ public class PlaybackQueueStateOwnerTest {
         PlaybackQueueStateOwner missingManager = new PlaybackQueueStateOwner();
 
         assertSame(null, missingManager.currentTrack());
-        assertEquals(-1, missingManager.currentIndex());
-        assertEquals(0, missingManager.queueSize());
         assertTrue(missingManager.isQueueEmpty());
         assertFalse(missingManager.hasMultipleTracks());
         assertFalse(missingManager.isAtEndOfQueue());

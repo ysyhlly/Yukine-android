@@ -32,14 +32,6 @@ final class PlaybackQueueStateOwner {
         return queueStateSnapshot().getCurrentTrack();
     }
 
-    int currentIndex() {
-        return queueStateSnapshot().getCurrentIndex();
-    }
-
-    int queueSize() {
-        return queueStateSnapshot().getQueueSize();
-    }
-
     boolean isQueueEmpty() {
         return queueStateSnapshot().isQueueEmpty();
     }
