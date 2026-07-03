@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
-import java.util.function.Supplier;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackSessionPlayer;
@@ -21,7 +20,7 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
     private final LongConsumer seekController;
     private final IntConsumer repeatModeController;
     private final ControllerMediaItems controllerMediaItems;
-    private final Supplier<Track> currentTrackSupplier;
+    private final PlaybackQueueStateOwner queueStateOwner;
     private final Function<Track, MediaMetadata> metadataProvider;
 
     PlaybackSessionCommandOwner(
@@ -29,14 +28,14 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
             LongConsumer seekController,
             IntConsumer repeatModeController,
             ControllerMediaItems controllerMediaItems,
-            Supplier<Track> currentTrackSupplier,
+            PlaybackQueueStateOwner queueStateOwner,
             Function<Track, MediaMetadata> metadataProvider
     ) {
         this.playbackCommands = playbackCommands;
         this.seekController = seekController;
         this.repeatModeController = repeatModeController;
         this.controllerMediaItems = controllerMediaItems;
-        this.currentTrackSupplier = currentTrackSupplier;
+        this.queueStateOwner = queueStateOwner;
         this.metadataProvider = metadataProvider;
     }
 
@@ -82,7 +81,7 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
 
     @Override
     public Track currentTrack() {
-        return currentTrackSupplier == null ? null : currentTrackSupplier.get();
+        return queueStateOwner == null ? null : queueStateOwner.currentTrack();
     }
 
     @Override
