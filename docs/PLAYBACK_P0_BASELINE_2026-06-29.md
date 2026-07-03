@@ -2387,6 +2387,41 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P2/P3 Boundary Test - Media Cache Operations
+
+Current audit date: 2026-07-03.
+
+- Read-only boundary check found no `PlaybackMediaSourceResolutionOwner`
+  production or test class, and architecture contracts already keep that
+  resolution facade from returning.
+- URI/media item resolution remains in `PlaybackMediaSourceProvider`.
+  `PlaybackPrecacheManager` and `PlaybackVisualizationCacheManager` depend on
+  `PlaybackMediaCacheOperations`, which adapts only cache-relevant provider
+  operations.
+- `PlaybackMediaCacheOperationsTest` now covers the provider-backed cache
+  boundary in `feature:playback`: HTTP/streaming tracks produce the owned
+  streaming cache key and headers, while local/content tracks return `null`
+  for precache cache key.
+- No production owner was added or removed. The real gain is stronger focused
+  behavior coverage for the resolver/cache boundary, reducing the chance that
+  cache policy drifts into `EchoPlaybackService` or a broad resolution owner.
+- Current batch metrics: `EchoPlaybackService.java` is 1428 lines,
+  `private Playback*` field count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, direct
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, and `Playback*Owner` production file count is 44.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.manager.PlaybackMediaCacheOperationsTest --console=plain
+```
+
+- T1 verification passed for the current playback batch:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.manager.PlaybackMediaCacheOperationsTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## P1 Wiring Note - Mirrored Transition Queue State Source
 
 Current audit date: 2026-07-03.
