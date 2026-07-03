@@ -5843,6 +5843,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("CopyOnWriteArrayList()"));
         assertFalse(owner.contains("interface QueueProvider"));
         assertFalse(owner.contains("queueProvider"));
+        assertFalse(owner.contains("PlaybackMediaSourceProvider"));
         assertEquals(1, countOccurrences(owner, "    constructor("));
         assertFalse(owner.contains("NoopQueuePlaybackActions, playbackPositionManager"));
         assertFalse(owner.contains("NoopStreamingRestoreProvider, NoopMirroredQueuePlayer"));
@@ -6712,6 +6713,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("public long playbackPositionMs()"));
         assertFalse(owner.contains("private fun isRestorableQueueTrack(track: Track): Boolean"));
         assertFalse(owner.contains("File(path).exists()"));
+        assertFalse(owner.contains("PlaybackMediaSourceProvider"));
         assertFalse(owner.contains("PlaybackMediaSourceProvider.isRestorableQueueTrack(track)"));
         assertTrue(mediaSourceProvider.contains("fun isRestorableQueueTrack(track: Track?): Boolean"));
         assertTrue(mediaSourceProvider.contains("fun isStreamingPlaceholder(track: Track?): Boolean"));
@@ -6899,6 +6901,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueStateSnapshot.contains("get() = queueSize > 0 && currentIndex >= queueSize - 1"));
         assertFalse(owner.contains("interface QueueProvider"));
         assertFalse(owner.contains("queueProvider"));
+        assertFalse(owner.contains("PlaybackMediaSourceProvider"));
         assertFalse(service.contains("new PlaybackQueueManager.QueueProvider()"));
         assertEquals(3, countOccurrences(normalizedOwner, "\n    interface "));
         String queuePlaybackActions = owner.substring(
