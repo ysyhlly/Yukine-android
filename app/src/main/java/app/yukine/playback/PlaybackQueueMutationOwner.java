@@ -8,13 +8,16 @@ import app.yukine.playback.manager.PlaybackQueueManager;
 
 final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOwner.QueuePlayer {
     private final PlaybackQueueManager playbackQueueManager;
+    private final PlaybackQueueStateOwner queueStateOwner;
     private final Runnable stopAndClearAction;
 
     PlaybackQueueMutationOwner(
             PlaybackQueueManager playbackQueueManager,
+            PlaybackQueueStateOwner queueStateOwner,
             Runnable stopAndClearAction
     ) {
         this.playbackQueueManager = playbackQueueManager;
+        this.queueStateOwner = queueStateOwner;
         this.stopAndClearAction = stopAndClearAction;
     }
 
@@ -56,8 +59,8 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
     }
 
     void clearQueue() {
-        if (playbackQueueManager != null
-                && !playbackQueueManager.queueStateSnapshot().isQueueEmpty()) {
+        if (queueStateOwner != null
+                && !queueStateOwner.queueStateSnapshot().isQueueEmpty()) {
             stopAndClear();
         }
     }

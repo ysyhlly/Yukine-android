@@ -2464,6 +2464,32 @@ Current audit date: 2026-07-03.
   leftovers. P4/P5 notification, lyrics, shutdown, and background playback stay
   deferred until smoke evidence is stable.
 
+## P1 Wiring Note - Queue Mutation Empty State Source
+
+Current audit date: 2026-07-03.
+
+- `PlaybackQueueMutationOwner` still uses `PlaybackQueueManager` for queue
+  mutation commands such as play, append, remove, retain, move, and replace.
+- `clearQueue()` now reads empty-queue state through the existing
+  `PlaybackQueueStateOwner` instead of directly calling
+  `PlaybackQueueManager.queueStateSnapshot()`.
+- No owner was added. This adds one constructor argument to an existing owner,
+  so it should not be counted as service wiring reduction. The real reduction
+  is one fewer app owner directly reading
+  `PlaybackQueueManager.queueStateSnapshot()`.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1430 lines,
+  `private Playback*` field count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, direct
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.currentTrack()` calls in the service are
+  4, and direct `playbackQueueManager.queueStateSnapshot()` calls inside
+  `PlaybackQueueMutationOwner` are 0.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMutationOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## P1 Wiring Note - Mirrored Transition Queue State Source
 
 Current audit date: 2026-07-03.

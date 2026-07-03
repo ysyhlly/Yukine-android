@@ -5771,6 +5771,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private PlaybackQueueMutationOwner playbackQueueMutationOwner"));
         assertTrue(service.contains("private void withPlaybackQueueMutationOwner(Consumer<PlaybackQueueMutationOwner> action)"));
         assertTrue(service.contains("new PlaybackQueueMutationOwner("));
+        assertTrue(service.replace("\r\n", "\n").contains(
+                "new PlaybackQueueMutationOwner(\n"
+                        + "                playbackQueueManager,\n"
+                        + "                playbackQueueStateOwner,"
+        ));
         assertTrue(service.contains("EchoPlaybackService.this::stopAndClear"));
         assertFalse(service.contains("PlaybackQueueMutationOwner.fromPlaybackQueueManager("));
         assertFalse(queueMutationOwner.contains("static PlaybackQueueMutationOwner fromPlaybackQueueManager("));
@@ -5918,7 +5923,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueMutationOwner.contains("playbackQueueManager.retainTracksById(trackIdsToKeep)"));
         assertTrue(service.contains("withPlaybackQueueMutationOwner(PlaybackQueueMutationOwner::clearQueue);"));
         assertFalse(service.contains("playbackQueueManager.clearQueue()"));
-        assertTrue(queueMutationOwner.contains("!playbackQueueManager.queueStateSnapshot().isQueueEmpty()"));
+        assertTrue(queueMutationOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertFalse(queueMutationOwner.contains("playbackQueueManager.queueStateSnapshot().isQueueEmpty()"));
+        assertTrue(queueMutationOwner.contains("!queueStateOwner.queueStateSnapshot().isQueueEmpty()"));
         assertFalse(queueMutationOwner.contains("playbackQueueManager.queueSnapshot().isEmpty()"));
         assertTrue(queueMutationOwner.contains("stopAndClear();"));
         assertFalse(service.contains("public void replaceQueuedTrack(Track replacement)"));
@@ -7929,6 +7936,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains(
                 "new PlaybackQueueMutationOwner(\n" +
                         "                                    playbackQueueManager,\n" +
+                        "                                    playbackQueueStateOwner,\n" +
                         "                                    EchoPlaybackService.this::stopAndClear\n" +
                         "                            )"));
         assertTrue(service.contains("                    playbackControllerMediaItemsOwner,"));

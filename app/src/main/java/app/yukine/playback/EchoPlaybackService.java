@@ -733,6 +733,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                                     ),
                             new PlaybackQueueMutationOwner(
                                     playbackQueueManager,
+                                    playbackQueueStateOwner,
                                     EchoPlaybackService.this::stopAndClear
                             )
                     );
@@ -1308,6 +1309,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     private void withPlaybackQueueMutationOwner(Consumer<PlaybackQueueMutationOwner> action) {
         action.accept(new PlaybackQueueMutationOwner(
                 playbackQueueManager,
+                playbackQueueStateOwner,
                 EchoPlaybackService.this::stopAndClear
         ));
     }
