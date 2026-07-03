@@ -3,19 +3,17 @@ package app.yukine.playback;
 import static app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF;
 
 import app.yukine.playback.manager.PlaybackCrossfadeAdvanceManager;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BooleanSupplier;
 import java.util.function.DoubleSupplier;
 import java.util.function.IntSupplier;
-import java.util.function.Supplier;
 
 final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManager.StateProvider {
     private final BooleanSupplier transitionStateProvider;
     private final BooleanSupplier playerAvailabilityProvider;
     private final BooleanSupplier playbackStateProvider;
     private final IntSupplier repeatModeProvider;
-    private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
+    private final PlaybackQueueStateOwner queueStateOwner;
     private final DoubleSupplier baseVolumeProvider;
 
     PlaybackCrossfadeStateOwner(
@@ -23,14 +21,14 @@ final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManag
             BooleanSupplier playerAvailabilityProvider,
             BooleanSupplier playbackStateProvider,
             IntSupplier repeatModeProvider,
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            PlaybackQueueStateOwner queueStateOwner,
             DoubleSupplier baseVolumeProvider
     ) {
         this.transitionStateProvider = transitionStateProvider;
         this.playerAvailabilityProvider = playerAvailabilityProvider;
         this.playbackStateProvider = playbackStateProvider;
         this.repeatModeProvider = repeatModeProvider;
-        this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
+        this.queueStateOwner = queueStateOwner;
         this.baseVolumeProvider = baseVolumeProvider;
     }
 
@@ -51,27 +49,14 @@ final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManag
 
     @Override
     public boolean canCrossfadeAdvance() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshot();
-        if (!snapshot.getHasMultipleTracks()) {
+        if (queueStateOwner == null || !queueStateOwner.hasMultipleTracks()) {
             return false;
         }
-        return repeatModeProvider.getAsInt() != REPEAT_OFF || !snapshot.isAtEndOfQueue();
+        return repeatModeProvider.getAsInt() != REPEAT_OFF || !queueStateOwner.isAtEndOfQueue();
     }
 
     @Override
     public float baseVolume() {
         return baseVolumeProvider == null ? 1.0f : (float) baseVolumeProvider.getAsDouble();
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
-    }
-
-    private PlaybackQueueManager playbackQueueManager() {
-        return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }
 }
