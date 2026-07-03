@@ -91,6 +91,19 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
                 (message, error) -> {
                 }
         );
+        PlaybackErrorRecoveryCommandOwner missingQueueManagerOwner = new PlaybackErrorRecoveryCommandOwner(
+                new PlaybackQueueStateOwner(() -> null),
+                playWhenReady -> {
+                },
+                () -> {
+                },
+                message -> {
+                },
+                () -> {
+                },
+                (message, error) -> {
+                }
+        );
 
         assertEquals(null, missingStateOwner.currentTrack());
         assertEquals("track=<null>", missingStateOwner.debugCurrentTrack());
@@ -98,6 +111,9 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
         assertSame(track, singleTrackOwner.currentTrack());
         assertEquals("trackId=7, title=Track 7, dataPath=file:7, uri=null", singleTrackOwner.debugCurrentTrack());
         assertFalse(singleTrackOwner.canSkipFailedTrack(track));
+        assertEquals(null, missingQueueManagerOwner.currentTrack());
+        assertEquals("track=<null>", missingQueueManagerOwner.debugCurrentTrack());
+        assertFalse(missingQueueManagerOwner.canSkipFailedTrack(track));
     }
 
     private static Track track(long id) {

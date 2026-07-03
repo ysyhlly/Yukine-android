@@ -3917,3 +3917,55 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackNotificationStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## P1 Wiring Note - Error Recovery Current Track Source
+
+Current audit date: 2026-07-03.
+
+- `PlaybackErrorRecoveryCommandOwner.currentTrack()` no longer unwraps
+  `queueStateSnapshot().getCurrentTrack()` directly.
+- The existing error recovery owner now reads the current track through
+  `PlaybackQueueStateOwner.currentTrack()`.
+- The failed-track skip policy remains in `PlaybackErrorRecoveryCommandOwner`;
+  `PlaybackQueueStateOwner` was not widened with `hasMultipleTracks()` or
+  `canSkipFailedTrack(...)`, so queue state does not become a policy facade.
+- No owner, facade, field, constructor parameter, or Service wiring was added.
+  The real reduction is one fewer direct snapshot-current dereference in a
+  playback owner.
+- `PlaybackErrorRecoveryCommandOwnerTest` covers current track, missing queue
+  state owner, missing queue manager, single-track state, and skip policy. The
+  architecture contract blocks the old direct current-track snapshot read from
+  returning.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackErrorRecoveryCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1/P4-Adjacent Batch Audit - Queue State Semantic Wiring
+
+Current audit date: 2026-07-03.
+
+- This checkpoint follows two queue-state wiring slices:
+  - `PlaybackNotificationStateOwner` now receives `PlaybackQueueStateOwner`
+    instead of `playbackQueueStateOwner::queueStateSnapshot`.
+  - `PlaybackErrorRecoveryCommandOwner.currentTrack()` now uses
+    `PlaybackQueueStateOwner.currentTrack()`.
+- Real reduction in this batch: one fewer Service supplier/method-reference
+  chain and one fewer direct snapshot-current dereference in a playback owner.
+  No owner, facade, constructor parameter, or Service strategy branch was
+  added.
+- Current metrics after this batch:
+  - `EchoPlaybackService.java` is 1424 lines.
+  - `private Playback*` field count is 55 by the current field metric.
+  - Production `fromPlaybackQueueManager(...)` count is 0.
+  - Service `playbackQueueStateOwner::queueStateSnapshot` supplier count is 0.
+  - `Playback*Owner` production file count is 43.
+  - Remaining production `queueStateSnapshot().getCurrentTrack()` reads are 2:
+    `PlaybackQueueStateOwner.currentTrack()` itself and
+    `PlaybackQueueMirroredTransitionOwner`'s full mirrored-transition snapshot.
+- Focused tests covering this batch:
+  `PlaybackNotificationStateOwnerTest`, `PlaybackErrorRecoveryCommandOwnerTest`,
+  and `MainActivityArchitectureContractTest`.
+- Deferred risk remains unchanged: notification runtime behavior, lyrics,
+  shutdown, and background playback are not touched by this batch.
