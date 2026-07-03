@@ -9,19 +9,20 @@ final class PlaybackQueueCompletionOwner {
         void stopAtEndOfQueue();
 
         void skipToNext();
-
-        void repeatCurrent();
     }
 
     private final PlaybackQueueManager playbackQueueManager;
     private final CompletionBoundary completionBoundary;
+    private final PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions;
 
     PlaybackQueueCompletionOwner(
             PlaybackQueueManager playbackQueueManager,
-            CompletionBoundary completionBoundary
+            CompletionBoundary completionBoundary,
+            PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions
     ) {
         this.playbackQueueManager = playbackQueueManager;
         this.completionBoundary = completionBoundary;
+        this.queuePlaybackActions = queuePlaybackActions;
     }
 
     void playAfterCompletion() {
@@ -36,8 +37,8 @@ final class PlaybackQueueCompletionOwner {
         }
         switch (completionAction) {
             case REPEAT_CURRENT:
-                if (completionBoundary != null) {
-                    completionBoundary.repeatCurrent();
+                if (queuePlaybackActions != null) {
+                    queuePlaybackActions.prepareCurrent(true);
                 }
                 break;
             case STOP_AT_END:

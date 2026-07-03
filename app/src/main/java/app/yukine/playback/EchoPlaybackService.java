@@ -135,11 +135,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                 public void skipToNext() {
                     EchoPlaybackService.this.skipToNext();
                 }
-
-                @Override
-                public void repeatCurrent() {
-                    playbackQueueCommandOwner.prepareCurrent(true);
-                }
             };
     private final PlaybackRuntimeStateManager playbackRuntimeStateManager =
             new PlaybackRuntimeStateManager(
@@ -1301,7 +1296,8 @@ public final class EchoPlaybackService extends MediaLibraryService
     private void withPlaybackQueueCompletionOwner(Consumer<PlaybackQueueCompletionOwner> action) {
         action.accept(new PlaybackQueueCompletionOwner(
                 playbackQueueManager,
-                playbackQueueCompletionBoundary
+                playbackQueueCompletionBoundary,
+                playbackQueueCommandOwner
         ));
     }
 

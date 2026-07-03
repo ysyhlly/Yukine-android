@@ -24,8 +24,8 @@ import org.junit.Test;
 
 public class PlaybackQueueCompletionOwnerTest {
     @Test
-    public void routesRepeatCurrentCompletionThroughBoundary() {
-        List<String> events = new ArrayList<>();
+    public void routesRepeatCurrentCompletionThroughQueuePlaybackActions() {
+        FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
         FakeQueueStore store = new FakeQueueStore();
         PlaybackQueueManager queueManager = queueManagerWithTracks(
                 store,
@@ -35,12 +35,14 @@ public class PlaybackQueueCompletionOwnerTest {
         );
         PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
                 queueManager,
-                new FakeCompletionBoundary(events)
+                new FakeCompletionBoundary(new ArrayList<>()),
+                actions
         );
 
         owner.playAfterCompletion();
 
-        assertEquals(Collections.singletonList("repeatCurrent"), events);
+        assertEquals(1, actions.prepareCurrentCalls);
+        assertTrue(actions.lastPreparePlayWhenReady);
     }
 
     @Test
@@ -144,7 +146,8 @@ public class PlaybackQueueCompletionOwnerTest {
         List<String> events = new ArrayList<>();
         PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
                 null,
-                new FakeCompletionBoundary(events)
+                new FakeCompletionBoundary(events),
+                new NoopQueuePlaybackActions()
         );
 
         owner.playAfterCompletion();
@@ -176,7 +179,8 @@ public class PlaybackQueueCompletionOwnerTest {
     ) {
         return new PlaybackQueueCompletionOwner(
                 queueManager,
-                boundary
+                boundary,
+                new NoopQueuePlaybackActions()
         );
     }
 
@@ -317,6 +321,22 @@ public class PlaybackQueueCompletionOwnerTest {
         }
     }
 
+    private static final class FakeQueuePlaybackActions
+            implements PlaybackQueueManager.QueuePlaybackActions {
+        private int prepareCurrentCalls;
+        private boolean lastPreparePlayWhenReady;
+
+        @Override
+        public void prepareCurrent(boolean playWhenReady) {
+            prepareCurrentCalls++;
+            lastPreparePlayWhenReady = playWhenReady;
+        }
+
+        @Override
+        public void publishState() {
+        }
+    }
+
     private static final class NoopStreamingRestoreProvider
             implements PlaybackQueueManager.StreamingRestoreProvider {
         @Override
@@ -363,11 +383,6 @@ public class PlaybackQueueCompletionOwnerTest {
         @Override
         public void skipToNext() {
             events.add("skipNext");
-        }
-
-        @Override
-        public void repeatCurrent() {
-            events.add("repeatCurrent");
         }
     }
 }
