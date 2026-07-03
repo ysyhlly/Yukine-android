@@ -26,6 +26,9 @@ final class PlaybackQueueCompletionOwner {
         PlaybackQueueManager.PlaybackCompletionAction completionAction = playbackQueueManager == null
                 ? PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR
                 : playbackQueueManager.preparePlaybackCompletionAction();
+        if (completionAction == null) {
+            return;
+        }
         if (completionAction == PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR) {
             if (completionBoundary != null) {
                 completionBoundary.stopAndClear();
@@ -33,8 +36,6 @@ final class PlaybackQueueCompletionOwner {
             return;
         }
         switch (completionAction) {
-            case REPEAT_CURRENT:
-                break;
             case STOP_AT_END:
                 if (completionBoundary != null) {
                     completionBoundary.stopAtEndOfQueue();

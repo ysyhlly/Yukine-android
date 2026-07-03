@@ -109,6 +109,12 @@ internal class PlaybackQueueManager(
 
     enum class PlaybackCompletionAction {
         STOP_AND_CLEAR,
+        STOP_AT_END,
+        ADVANCE_TO_NEXT
+    }
+
+    private enum class PlaybackCompletionDecision {
+        STOP_AND_CLEAR,
         REPEAT_CURRENT,
         STOP_AT_END,
         ADVANCE_TO_NEXT
@@ -263,29 +269,35 @@ internal class PlaybackQueueManager(
         return false
     }
 
-    fun preparePlaybackCompletionAction(): PlaybackCompletionAction {
-        val action = playbackCompletionAction()
-        if (action != PlaybackCompletionAction.STOP_AND_CLEAR) {
+    fun preparePlaybackCompletionAction(): PlaybackCompletionAction? {
+        val decision = playbackCompletionDecision()
+        if (decision != PlaybackCompletionDecision.STOP_AND_CLEAR) {
             saveCurrentTrackPlaybackPosition(0L)
-            if (action == PlaybackCompletionAction.REPEAT_CURRENT) {
+            if (decision == PlaybackCompletionDecision.REPEAT_CURRENT) {
                 clearRestoredPosition()
                 queuePlaybackActions.prepareCurrent(true)
+                return null
             }
         }
-        return action
+        return when (decision) {
+            PlaybackCompletionDecision.STOP_AND_CLEAR -> PlaybackCompletionAction.STOP_AND_CLEAR
+            PlaybackCompletionDecision.STOP_AT_END -> PlaybackCompletionAction.STOP_AT_END
+            PlaybackCompletionDecision.ADVANCE_TO_NEXT -> PlaybackCompletionAction.ADVANCE_TO_NEXT
+            PlaybackCompletionDecision.REPEAT_CURRENT -> null
+        }
     }
 
-    private fun playbackCompletionAction(): PlaybackCompletionAction {
+    private fun playbackCompletionDecision(): PlaybackCompletionDecision {
         if (queue.isEmpty()) {
-            return PlaybackCompletionAction.STOP_AND_CLEAR
+            return PlaybackCompletionDecision.STOP_AND_CLEAR
         }
         if (repeatMode() == REPEAT_ONE) {
-            return PlaybackCompletionAction.REPEAT_CURRENT
+            return PlaybackCompletionDecision.REPEAT_CURRENT
         }
         if (repeatMode() == REPEAT_OFF && queueStateSnapshot().isAtEndOfQueue) {
-            return PlaybackCompletionAction.STOP_AT_END
+            return PlaybackCompletionDecision.STOP_AT_END
         }
-        return PlaybackCompletionAction.ADVANCE_TO_NEXT
+        return PlaybackCompletionDecision.ADVANCE_TO_NEXT
     }
 
     fun prepareStopAtEndOfQueue() {

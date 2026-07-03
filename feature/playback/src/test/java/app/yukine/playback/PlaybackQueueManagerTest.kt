@@ -115,17 +115,15 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun preparePlaybackCompletionActionRepeatsCurrentWhenRepeatOne() {
+    fun preparePlaybackCompletionActionPreparesCurrentInternallyWhenRepeatOne() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
         restoreQueue(manager, store, listOf(track(1L), track(2L)), 0)
         provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_ONE)
 
-        assertEquals(
-            PlaybackQueueManager.PlaybackCompletionAction.REPEAT_CURRENT,
-            manager.preparePlaybackCompletionAction()
-        )
+        assertEquals(null, manager.preparePlaybackCompletionAction())
+        assertTrue(provider.queuePlaybackActions.prepareCurrentCalled)
     }
 
     @Test
@@ -206,10 +204,8 @@ class PlaybackQueueManagerTest {
         provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_ONE)
         provider.positionManager.setRestoredPosition(current.id, 4500L, explicit = true)
 
-        assertEquals(
-            PlaybackQueueManager.PlaybackCompletionAction.REPEAT_CURRENT,
-            manager.preparePlaybackCompletionAction()
-        )
+        assertEquals(null, manager.preparePlaybackCompletionAction())
+        assertTrue(provider.queuePlaybackActions.prepareCurrentCalled)
 
         assertEquals(listOf(1L to 0L), store.savedPositions)
         assertEquals(0L, provider.positionManager.restoredPositionFor(current))

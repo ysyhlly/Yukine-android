@@ -6042,7 +6042,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("owner -> owner.prepareStopAfterAutomaticAdvance(completedIndex)"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex)"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.preparePlaybackCompletionAction();"));
+        assertTrue(queueCompletionOwner.contains("if (completionAction == null)"));
         assertFalse(queueCompletionOwner.contains("playbackQueueManager.playbackCompletionAction();"));
+        assertFalse(queueCompletionOwner.contains("case REPEAT_CURRENT"));
         assertFalse(queueCompletionOwner.contains("playbackQueueManager.preparePlaybackCompletion(completionAction);"));
         assertFalse(queueCompletionOwner.contains("boolean prepareStopAtEndOfQueue()"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAtEndOfQueue();"));
