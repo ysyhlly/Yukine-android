@@ -179,6 +179,23 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun upcomingTracksForPrecacheIsOwnedByQueueManagerAndDefensive() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(track(1L), track(2L), track(3L)), 0)
+        provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_ALL)
+
+        val upcoming = manager.upcomingTracksForPrecache(2)
+        provider.queue.clear()
+
+        assertEquals(listOf(2L, 3L), upcoming.map { it.id })
+        assertThrows(UnsupportedOperationException::class.java) {
+            (upcoming as MutableList<Track>).add(track(4L))
+        }
+    }
+
+    @Test
     fun preparePlaybackCompletionActionResetsCompletedTrackAndClearsRepeatRestore() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
