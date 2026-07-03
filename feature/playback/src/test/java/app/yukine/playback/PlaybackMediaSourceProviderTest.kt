@@ -105,6 +105,24 @@ class PlaybackMediaSourceProviderTest {
     }
 
     @Test
+    fun providerMediaItemForWebDavTrackUsesOwnedCacheKeyRule() {
+        val uri = Uri.parse("https://dav.example/music/webdav.flac")
+        val track = Track(9L, "WebDav", "Artist", "Album", 180_000L, uri, "webdav:3:/music/webdav.flac")
+        var metadataTrack: Track? = null
+
+        val mediaItem = provider(FakeStreamingPlaybackHeaderStore()).mediaItemForTrack(track) {
+            metadataTrack = it
+            MediaMetadata.Builder().setTitle(it.title).build()
+        }
+
+        assertSame(track, metadataTrack)
+        assertEquals("9", mediaItem.mediaId)
+        assertEquals(uri, mediaItem.localConfiguration?.uri)
+        assertEquals("webdav:3:/music/webdav.flac", mediaItem.localConfiguration?.customCacheKey)
+        assertEquals("WebDav", mediaItem.mediaMetadata.title.toString())
+    }
+
+    @Test
     fun providerMediaItemForUnresolvedStreamingTrackKeepsPlaceholderCacheKeyWithoutResolvedUrl() {
         val track = Track(42L, "Stream", "Artist", "Album", 180_000L, Uri.EMPTY, "streaming:netease:42")
 
