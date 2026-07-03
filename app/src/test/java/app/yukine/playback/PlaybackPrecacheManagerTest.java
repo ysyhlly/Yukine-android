@@ -234,6 +234,27 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
+    public void nullMediaSourceProviderKeepsPrecacheFactoryAsSafeNoop() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        PlaybackPrecacheManager manager = PlaybackPrecacheManager.fromMediaSourceProvider(
+                stateProvider,
+                null,
+                scheduler
+        );
+        Track track = track(42L, "https://example.test/audio.flac", "streaming:test:42");
+
+        stateProvider.currentTrack = track;
+        manager.precacheTrack(track);
+        manager.releaseAudioCache();
+        manager.release();
+
+        assertEquals(0, stateProvider.diagnostics.snapshot().precacheAttempts);
+        assertEquals(0, scheduler.pendingCallbacks.size());
+        assertEquals(0, scheduler.removedCallbacks);
+    }
+
+    @Test
     public void matchingCurrentPlayerMediaItemLetsPlayerFillLeadingRange() throws Exception {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();

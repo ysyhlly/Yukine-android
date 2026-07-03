@@ -3528,3 +3528,27 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 .\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --console=plain
 ```
+
+## P2/P3 Boundary Test - Null Media Source Provider Precache
+
+Current audit date: 2026-07-03.
+
+- `PlaybackPrecacheManagerTest` now covers
+  `PlaybackPrecacheManager.fromMediaSourceProvider(...)` when the media source
+  provider is missing.
+- The expected behavior is a safe no-op: no precache diagnostics, no delayed
+  callbacks, and safe `releaseAudioCache()` / `release()` calls.
+- No production code changed and no owner was added. The real gain is behavior
+  coverage for the cache boundary staying inside `PlaybackPrecacheManager` and
+  `PlaybackMediaCacheOperations`, instead of pushing null-provider fallback
+  policy back into `EchoPlaybackService` or a new resolver/cache facade.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1327 lines,
+  `private Playback*` field count is 43 by the existing non-final field
+  metric, `Playback*Owner` production file count is 43, and Service
+  `queueStateSnapshot()` supplier count is 1.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheManagerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest --console=plain
+```
