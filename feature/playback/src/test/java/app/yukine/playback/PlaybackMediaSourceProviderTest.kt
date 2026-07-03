@@ -296,6 +296,20 @@ class PlaybackMediaSourceProviderTest {
     }
 
     @Test
+    fun mirroredQueueReuseRequiresCacheKeyToMatchWhenBothArePresent() {
+        assertFalse(
+            PlaybackMediaSourceProvider.mediaItemIdentityMatchesForReuse(
+                "42",
+                "https://audio.example/current.flac",
+                "streaming:netease:42|url=https://audio.example/old.flac",
+                42L,
+                "https://audio.example/current.flac",
+                "streaming:netease:42|url=https://audio.example/current.flac"
+            )
+        )
+    }
+
+    @Test
     fun providerMatchesMediaItemForTrackUsingOwnedCacheKeyRule() {
         val uri = Uri.parse("https://audio.example/current.flac")
         val track = Track(42L, "Stream", "Artist", "Album", 180_000L, uri, "streaming:netease:42")
