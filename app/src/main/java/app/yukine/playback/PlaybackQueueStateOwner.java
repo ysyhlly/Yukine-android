@@ -3,8 +3,6 @@ package app.yukine.playback;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.function.Supplier;
 
 final class PlaybackQueueStateOwner {
@@ -52,12 +50,6 @@ final class PlaybackQueueStateOwner {
 
     boolean isAtEndOfQueue() {
         return queueStateSnapshot().isAtEndOfQueue();
-    }
-
-    List<Track> queueSnapshot() {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
-        List<Track> snapshot = playbackQueueManager == null ? null : playbackQueueManager.queueSnapshot();
-        return snapshot == null ? Collections.emptyList() : snapshot;
     }
 
     private PlaybackQueueManager playbackQueueManager() {

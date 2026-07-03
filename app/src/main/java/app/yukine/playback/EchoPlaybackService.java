@@ -880,7 +880,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public List<Track> queueSnapshot() {
-        return playbackQueueStateOwner.queueSnapshot();
+        return playbackQueueManager == null ? Collections.emptyList() : playbackQueueManager.queueSnapshot();
     }
 
     public void moveQueueTrack(int fromIndex, int toIndex) {

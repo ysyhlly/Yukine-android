@@ -6574,16 +6574,17 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackQueueSnapshotOwner.java")));
         assertFalse(service.contains("PlaybackQueueSnapshotOwner"));
         assertFalse(service.contains("playbackQueueSnapshotOwner"));
-        assertTrue(service.contains("return playbackQueueStateOwner.queueSnapshot();"));
-        assertFalse(service.contains("return playbackQueueManager.queueSnapshot();"));
+        assertFalse(service.contains("return playbackQueueStateOwner.queueSnapshot();"));
+        assertTrue(service.contains("return playbackQueueManager == null ? Collections.emptyList() : playbackQueueManager.queueSnapshot();"));
         assertFalse(queueStateOwner.contains("interface QueueSnapshotOperations"));
         assertFalse(queueStateOwner.contains("interface QueueSnapshotOperationsProvider"));
         assertFalse(queueStateOwner.contains("Supplier<List<Track>> queueSnapshotSupplier"));
         assertTrue(queueStateOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertTrue(queueStateOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertFalse(queueStateOwner.contains("queueSnapshotOperationsProvider"));
-        assertTrue(queueStateOwner.contains("playbackQueueManager == null ? null : playbackQueueManager.queueSnapshot();"));
-        assertTrue(queueStateOwner.contains("return snapshot == null ? Collections.emptyList() : snapshot;"));
+        assertFalse(queueStateOwner.contains("List<Track> queueSnapshot()"));
+        assertFalse(queueStateOwner.contains("playbackQueueManager.queueSnapshot();"));
+        assertFalse(queueStateOwner.contains("return snapshot == null ? Collections.emptyList() : snapshot;"));
         assertFalse(queueStateOwner.contains("default List<Track> queueSnapshot()"));
         assertFalse(service.contains("Collections.unmodifiableList(new ArrayList<>(queue))"));
         assertFalse(service.contains("return new ArrayList<>(queue);"));
@@ -7066,8 +7067,7 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackPositionManager.kt"
         )), playbackSourceFileNamesContaining("playbackQueueManager?.queueStateSnapshot()"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
-                "EchoPlaybackService.java",
-                "PlaybackQueueStateOwner.java"
+                "EchoPlaybackService.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.queueSnapshot()"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackPrecacheManager.java"

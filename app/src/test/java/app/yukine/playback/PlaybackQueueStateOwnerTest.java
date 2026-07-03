@@ -1,6 +1,5 @@
 package app.yukine.playback;
 
-import static app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
@@ -56,7 +55,7 @@ public class PlaybackQueueStateOwnerTest {
         queueManagerRef.set(queueManager);
 
         assertSame(track, owner.currentTrack());
-        assertEquals(1, owner.queueSnapshot().size());
+        assertEquals(1, owner.queueSize());
     }
 
     @Test
@@ -121,13 +120,6 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     @Test
-    public void returnsEmptyQueueSnapshotWhenManagerIsMissing() {
-        PlaybackQueueStateOwner missingManager = new PlaybackQueueStateOwner();
-
-        assertTrue(missingManager.queueSnapshot().isEmpty());
-    }
-
-    @Test
     public void currentTrackReturnsNullWhenManagerIsMissing() {
         PlaybackQueueStateOwner missingManager = new PlaybackQueueStateOwner();
 
@@ -165,31 +157,8 @@ public class PlaybackQueueStateOwnerTest {
         assertTrue(owner.isAtEndOfQueue());
     }
 
-    @Test
-    public void delegatesQueueReadsToPlaybackQueueManager() {
-        PlaybackRuntimeStateManager runtimeStateManager = playbackRuntimeStateManager();
-        runtimeStateManager.setRepeatMode(REPEAT_OFF);
-        PlaybackQueueManager queueManager = playbackQueueManager(runtimeStateManager);
-        Track first = track(1L);
-        Track second = track(2L);
-        Track third = track(3L);
-        queueManager.playQueue(Arrays.asList(first, second, third), 1, -1L);
-        PlaybackQueueStateOwner owner =
-                new PlaybackQueueStateOwner(queueManager);
-
-        assertTrackIds(Arrays.asList(1L, 2L, 3L), owner.queueSnapshot());
-    }
-
     private static Track track(long id) {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "file:" + id);
-    }
-
-    private static void assertTrackIds(List<Long> expectedIds, List<Track> tracks) {
-        List<Long> actualIds = new ArrayList<>();
-        for (Track track : tracks) {
-            actualIds.add(track.id);
-        }
-        assertEquals(expectedIds, actualIds);
     }
 
     private static PlaybackQueueManager playbackQueueManager(
