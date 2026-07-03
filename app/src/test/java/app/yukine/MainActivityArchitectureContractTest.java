@@ -5659,7 +5659,8 @@ public final class MainActivityArchitectureContractTest {
                         "                )\n        );\n        playbackSleepTimerCommandOwner"
                 )
         );
-        assertTrue(positionStateProviderWiring.contains("                        currentTrackSupplier,\n"));
+        assertTrue(positionStateProviderWiring.contains("                        queueStateSupplier,\n"));
+        assertFalse(positionStateProviderWiring.contains("                        currentTrackSupplier,\n"));
         assertFalse(positionStateProviderWiring.contains("playbackQueueStateOwner::queueStateSnapshot"));
         assertTrue(service.contains("                        playbackPlayerStateOwner::positionMs"));
         assertFalse(service.contains("new PlaybackPositionManager.StateProvider()"));
@@ -5694,10 +5695,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(positionOwner.contains("fun persistCurrentPosition(force: Boolean)"));
         assertTrue(positionOwner.contains("fun setExplicitRestoredPosition(track: Track?, positionMs: Long)"));
         assertTrue(positionOwner.contains("fun stateProviderFromPlaybackState("));
-        assertTrue(positionOwner.contains("currentTrackSupplier: Supplier<Track?>?"));
-        assertFalse(positionOwner.contains("queueStateSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
+        assertFalse(positionOwner.contains("currentTrackSupplier: Supplier<Track?>?"));
+        assertTrue(positionOwner.contains("queueStateSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
         assertTrue(positionOwner.contains("playbackPositionSupplier: LongSupplier?"));
-        assertTrue(positionOwner.contains("override fun currentTrack(): Track? = currentTrackSupplier?.get()"));
+        assertTrue(positionOwner.contains("override fun currentTrack(): Track? = queueStateSupplier?.get()?.currentTrack"));
         assertTrue(positionOwner.contains("override fun positionMs(): Long = playbackPositionSupplier?.asLong ?: 0L"));
         assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot>"));
         assertFalse(queueStateOwner.contains("public PlaybackQueueManager.QueueStateSnapshot get()"));
