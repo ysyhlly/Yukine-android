@@ -6326,7 +6326,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueStateOwner.contains("interface QueueSnapshotOperations"));
         assertFalse(queueStateOwner.contains("interface QueueSnapshotOperationsProvider"));
         assertFalse(queueStateOwner.contains("Supplier<List<Track>> queueSnapshotSupplier"));
-        assertTrue(queueStateOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
+        assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager>"));
+        assertFalse(queueStateOwner.contains("playbackQueueManagerSupplier"));
         assertFalse(queueStateOwner.contains("queueSnapshotOperationsProvider"));
         assertTrue(queueStateOwner.contains("playbackQueueManager == null ? null : playbackQueueManager.queueSnapshot();"));
         assertTrue(queueStateOwner.contains("return snapshot == null ? Collections.emptyList() : snapshot;"));
@@ -6353,8 +6354,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("new PlaybackQueueStateOwner(() -> playbackQueueManager)"));
         assertFalse(service.contains("PlaybackQueueStateOwner.fromPlaybackQueueManager("));
         assertFalse(queueStateOwner.contains("static PlaybackQueueStateOwner fromPlaybackQueueManager("));
+        assertTrue(queueStateOwner.contains("PlaybackQueueStateOwner(PlaybackQueueManager playbackQueueManager)"));
         assertTrue(queueStateOwner.contains("void bindPlaybackQueueManager(PlaybackQueueManager playbackQueueManager)"));
-        assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier = () -> playbackQueueManager"));
         assertTrue(queueStateOwner.contains("boolean isQueueEmpty()"));
         assertTrue(queueStateOwner.contains("return queueStateSnapshot().isQueueEmpty();"));
         assertFalse(service.contains("playbackQueueStateOwner::isQueueEmpty"));
@@ -6373,6 +6374,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueStateOwner.contains("interface PlaybackQueueManagerProvider"));
         assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier"));
         assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot> fallbackQueueStateSnapshotSupplier"));
+        assertFalse(queueStateOwner.contains("PlaybackQueueStateOwner(Supplier<PlaybackQueueManager>"));
         assertFalse(queueStateOwner.contains("fallbackQueueStateSnapshot"));
         assertFalse(queueStateOwner.contains("PlaybackQueueStateOwner(Supplier<PlaybackQueueManager.QueueStateSnapshot>"));
         assertFalse(queueStateOwner.contains("playbackQueueManagerProvider"));

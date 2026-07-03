@@ -35,7 +35,7 @@ public class PlaybackPrecacheStateOwnerTest {
         runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF);
         PlaybackQueueManager queueManager = playbackQueueManager(runtimeStateManager);
         queueManager.playQueue(Arrays.asList(track, upcomingTrack), 0, -1L);
-        PlaybackQueueStateOwner queueStateOwner = new PlaybackQueueStateOwner(() -> queueManager);
+        PlaybackQueueStateOwner queueStateOwner = new PlaybackQueueStateOwner(queueManager);
         MediaItem mediaItem = MediaItem.fromUri("https://example.test/one.mp3");
         PlaybackStreamingDiagnostics diagnostics = new PlaybackStreamingDiagnostics();
         PlaybackPrecacheStateOwner owner = new PlaybackPrecacheStateOwner(
@@ -70,7 +70,7 @@ public class PlaybackPrecacheStateOwnerTest {
                 () -> null,
                 PlaybackStreamingDiagnostics::new
         );
-        PlaybackQueueStateOwner missingQueueManagerOwner = new PlaybackQueueStateOwner(() -> null);
+        PlaybackQueueStateOwner missingQueueManagerOwner = new PlaybackQueueStateOwner();
         PlaybackPrecacheStateOwner nullTrackOwner = new PlaybackPrecacheStateOwner(
                 missingQueueManagerOwner,
                 () -> null,

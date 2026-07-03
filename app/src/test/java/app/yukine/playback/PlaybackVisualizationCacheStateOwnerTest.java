@@ -34,7 +34,7 @@ public class PlaybackVisualizationCacheStateOwnerTest {
         Handler handler = new Handler();
         PlaybackVisualizationCacheStateOwner owner = new PlaybackVisualizationCacheStateOwner(
                 handler,
-                new PlaybackQueueStateOwner(() -> queueManager),
+                new PlaybackQueueStateOwner(queueManager),
                 scheduled -> {
                     events.add("schedule");
                     assertSame(task, scheduled);
@@ -60,7 +60,7 @@ public class PlaybackVisualizationCacheStateOwnerTest {
         );
         PlaybackVisualizationCacheStateOwner nullTrackOwner = new PlaybackVisualizationCacheStateOwner(
                 null,
-                new PlaybackQueueStateOwner(() -> null),
+                new PlaybackQueueStateOwner(),
                 task -> {
                 }
         );

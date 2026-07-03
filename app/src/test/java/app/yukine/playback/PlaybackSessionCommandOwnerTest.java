@@ -96,7 +96,7 @@ public class PlaybackSessionCommandOwnerTest {
                 repeatMode -> {
                 },
                 (mediaItems, startIndex, startPositionMs) -> false,
-                new PlaybackQueueStateOwner(() -> null),
+                new PlaybackQueueStateOwner(),
                 track -> null
         );
 
@@ -120,7 +120,7 @@ public class PlaybackSessionCommandOwnerTest {
                 new Random(1L)
         );
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        return new PlaybackQueueStateOwner(() -> queueManager);
+        return new PlaybackQueueStateOwner(queueManager);
     }
 
     private static final class FakePlaybackCommands implements PlaybackNotificationCommandOwner.PlaybackCommands {

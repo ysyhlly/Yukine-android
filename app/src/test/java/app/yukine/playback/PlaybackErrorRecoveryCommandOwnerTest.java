@@ -92,7 +92,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
                 }
         );
         PlaybackErrorRecoveryCommandOwner missingQueueManagerOwner = new PlaybackErrorRecoveryCommandOwner(
-                new PlaybackQueueStateOwner(() -> null),
+                new PlaybackQueueStateOwner(),
                 playWhenReady -> {
                 },
                 () -> {
@@ -128,7 +128,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
             queue.add(track(current.id + index));
         }
         queueManager.playQueue(queue, 0, -1L);
-        return new PlaybackQueueStateOwner(() -> queueManager);
+        return new PlaybackQueueStateOwner(queueManager);
     }
 
     private static PlaybackQueueManager playbackQueueManager() {

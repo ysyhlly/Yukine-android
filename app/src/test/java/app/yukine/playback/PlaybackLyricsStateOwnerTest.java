@@ -71,10 +71,7 @@ public class PlaybackLyricsStateOwnerTest {
         Track track = new Track(14L, "Track", "Artist", "Album", 1000L, Uri.EMPTY, "file:14");
         PlaybackQueueManager queueManager = queueManager();
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        PlaybackQueueStateOwner queueStateOwner = new PlaybackQueueStateOwner(() -> {
-            events.add("queueState");
-            return queueManager;
-        });
+        PlaybackQueueStateOwner queueStateOwner = new PlaybackQueueStateOwner(queueManager);
         PlaybackLyricsStateOwner.PlaybackStateProvider provider =
                 PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState(
                         queueStateOwner,
@@ -93,7 +90,6 @@ public class PlaybackLyricsStateOwnerTest {
         assertTrue(provider.isPreparing());
         assertEquals(
                 java.util.Arrays.asList(
-                        "queueState",
                         "playing",
                         "preparing"
                 ),

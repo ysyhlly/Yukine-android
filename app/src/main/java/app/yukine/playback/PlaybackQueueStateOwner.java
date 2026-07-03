@@ -5,18 +5,15 @@ import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Supplier;
 
 final class PlaybackQueueStateOwner {
     private PlaybackQueueManager playbackQueueManager;
-    private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
 
     PlaybackQueueStateOwner() {
-        this(null);
     }
 
-    PlaybackQueueStateOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
-        this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
+    PlaybackQueueStateOwner(PlaybackQueueManager playbackQueueManager) {
+        this.playbackQueueManager = playbackQueueManager;
     }
 
     void bindPlaybackQueueManager(PlaybackQueueManager playbackQueueManager) {
@@ -70,6 +67,6 @@ final class PlaybackQueueStateOwner {
     }
 
     private PlaybackQueueManager playbackQueueManager() {
-        return playbackQueueManagerSupplier == null ? playbackQueueManager : playbackQueueManagerSupplier.get();
+        return playbackQueueManager;
     }
 }

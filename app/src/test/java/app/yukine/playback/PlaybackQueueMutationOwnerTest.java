@@ -152,7 +152,7 @@ public class PlaybackQueueMutationOwnerTest {
     ) {
         return new PlaybackQueueMutationOwner(
                 queueManager,
-                new PlaybackQueueStateOwner(() -> queueManager),
+                new PlaybackQueueStateOwner(queueManager),
                 stopAndClearAction::run
         );
     }

@@ -94,7 +94,7 @@ public class PlaybackStateSnapshotOwnerTest {
     public void doesNotReadRealtimeBeatWhenPlaybackIsPaused() {
         CountingBeatProvider beatProvider = new CountingBeatProvider();
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
-                new PlaybackQueueStateOwner(() -> null),
+                new PlaybackQueueStateOwner(),
                 new FakePlaybackPositionProvider(0L, 0L, false),
                 null,
                 null,
@@ -181,7 +181,7 @@ public class PlaybackStateSnapshotOwnerTest {
             queue.add(index == currentIndex ? currentTrack : track(index + 1L));
         }
         queueManager.playQueue(queue, currentIndex, -1L);
-        return new PlaybackQueueStateOwner(() -> queueManager);
+        return new PlaybackQueueStateOwner(queueManager);
     }
 
     private static PlaybackQueueManager playbackQueueManager() {

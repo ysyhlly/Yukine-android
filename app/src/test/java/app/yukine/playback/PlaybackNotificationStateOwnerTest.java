@@ -95,7 +95,7 @@ public class PlaybackNotificationStateOwnerTest {
     @Test
     public void returnsEmptyQueueStateWhenQueueManagerIsMissing() {
         PlaybackNotificationStateOwner owner = new PlaybackNotificationStateOwner(
-                new PlaybackQueueStateOwner(() -> null),
+                new PlaybackQueueStateOwner(),
                 null,
                 null,
                 track -> false,
@@ -109,7 +109,7 @@ public class PlaybackNotificationStateOwnerTest {
     private static PlaybackQueueStateOwner queueStateOwner(Track track) {
         PlaybackQueueManager queueManager = playbackQueueManager();
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        return new PlaybackQueueStateOwner(() -> queueManager);
+        return new PlaybackQueueStateOwner(queueManager);
     }
 
     private static PlaybackQueueManager playbackQueueManager() {

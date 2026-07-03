@@ -43,17 +43,17 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     @Test
-    public void supplierConstructorStillSupportsDeferredQueueManagerForIsolatedOwners() {
+    public void bindPlaybackQueueManagerSupportsRebindingForIsolatedOwners() {
         Track track = track(13L);
-        PlaybackQueueManager[] queueManagerRef = new PlaybackQueueManager[]{
-                playbackQueueManager(playbackRuntimeStateManager())
-        };
-        queueManagerRef[0].playQueue(Collections.singletonList(track), 0, -1L);
-        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(() -> queueManagerRef[0]);
+        PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
+        queueManager.playQueue(Collections.singletonList(track), 0, -1L);
+        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner();
+
+        owner.bindPlaybackQueueManager(queueManager);
 
         assertSame(track, owner.currentTrack());
 
-        queueManagerRef[0] = null;
+        owner.bindPlaybackQueueManager(null);
 
         assertSame(null, owner.currentTrack());
         assertTrue(owner.isQueueEmpty());
@@ -67,7 +67,7 @@ public class PlaybackQueueStateOwnerTest {
         Track third = track(3L);
         queueManager.playQueue(Arrays.asList(first, second, third), 1, -1L);
         PlaybackQueueStateOwner owner =
-                new PlaybackQueueStateOwner(() -> queueManager);
+                new PlaybackQueueStateOwner(queueManager);
 
         assertSame(second, owner.currentTrack());
         assertEquals(1, owner.currentIndex());
@@ -78,36 +78,22 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     @Test
-    public void returnsEmptyQueueStateWhenManagerSupplierOrManagerAreMissing() {
-        PlaybackQueueStateOwner missingManagerProvider =
-                new PlaybackQueueStateOwner(null);
-        PlaybackQueueStateOwner missingManager =
-                new PlaybackQueueStateOwner(() -> null);
+    public void returnsEmptyQueueStateWhenManagerIsMissing() {
+        PlaybackQueueStateOwner missingManager = new PlaybackQueueStateOwner();
 
-        assertSame(null, missingManagerProvider.currentTrack());
         assertSame(null, missingManager.currentTrack());
-        assertEquals(-1, missingManagerProvider.currentIndex());
         assertEquals(-1, missingManager.currentIndex());
-        assertEquals(0, missingManagerProvider.queueSize());
         assertEquals(0, missingManager.queueSize());
-        assertTrue(missingManagerProvider.isQueueEmpty());
         assertTrue(missingManager.isQueueEmpty());
-        assertFalse(missingManagerProvider.hasMultipleTracks());
         assertFalse(missingManager.hasMultipleTracks());
-        assertTrue(missingManagerProvider.isAtEndOfQueue());
         assertTrue(missingManager.isAtEndOfQueue());
     }
 
     @Test
     public void returnsEmptyQueueSnapshotWhenManagerIsMissing() {
-        PlaybackQueueStateOwner missingManagerProvider =
-                new PlaybackQueueStateOwner(null);
-        PlaybackQueueStateOwner missingManager =
-                new PlaybackQueueStateOwner(() -> null);
+        PlaybackQueueStateOwner missingManager = new PlaybackQueueStateOwner();
 
-        assertTrue(missingManagerProvider.queueSnapshot().isEmpty());
         assertTrue(missingManager.queueSnapshot().isEmpty());
-        assertTrue(missingManagerProvider.upcomingTracksForPrecache(3).isEmpty());
         assertTrue(missingManager.upcomingTracksForPrecache(3).isEmpty());
     }
 
@@ -121,7 +107,7 @@ public class PlaybackQueueStateOwnerTest {
         Track third = track(3L);
         queueManager.playQueue(Arrays.asList(first, second, third), 1, -1L);
         PlaybackQueueStateOwner owner =
-                new PlaybackQueueStateOwner(() -> queueManager);
+                new PlaybackQueueStateOwner(queueManager);
 
         assertTrackIds(Arrays.asList(1L, 2L, 3L), owner.queueSnapshot());
         assertTrackIds(Collections.singletonList(3L), owner.upcomingTracksForPrecache(3));

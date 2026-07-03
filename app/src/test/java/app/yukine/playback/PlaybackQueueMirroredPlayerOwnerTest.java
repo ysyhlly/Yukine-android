@@ -308,7 +308,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     private static PlaybackQueueStateOwner queueStateOwner(Track track) {
         PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        return new PlaybackQueueStateOwner(() -> queueManager);
+        return new PlaybackQueueStateOwner(queueManager);
     }
 
     private static PlaybackQueueManager playbackQueueManager(
