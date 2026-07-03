@@ -6715,7 +6715,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("new PlaybackQueueMirroredPlayerOwner("));
         assertTrue(service.contains("                playbackQueueMirroredPlayerOwner,"));
         assertFalse(service.contains("new PlaybackQueueManager.MirroredQueuePlayer()"));
-        assertTrue(owner.contains("streamingRestoreProvider.restoreTrackForPlayback(track)"));
+        assertFalse(owner.contains("\n        streamingRestoreProvider.restoreTrackForPlayback(track)\n"));
+        assertTrue(owner.contains("queue[currentIndex()] = streamingRestoreProvider.restoreTrackForPlayback(track)"));
+        assertTrue(owner.contains("queue[targetIndex] = streamingRestoreProvider.restoreTrackForPlayback(track)"));
+        assertTrue(owner.contains("tracks.add(streamingRestoreProvider.restoreTrackForPlayback(track))"));
+        assertTrue(owner.contains("val queueTrack = streamingRestoreProvider.restoreTrackForPlayback(track)"));
         assertFalse(owner.contains("streamingRestoreProvider.restoreForDataPath(track.dataPath)"));
         assertFalse(service.contains("private PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner;"));
         assertTrue(service.contains("final PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner ="));
