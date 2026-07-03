@@ -3694,3 +3694,23 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueStateOwnerTest --tests app.yukine.playback.PlaybackQueueMutationOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## P1 Wiring Note - Favorite Command Current Track Source
+
+Current audit date: 2026-07-03.
+
+- `PlaybackFavoriteCommandOwner.toggleCurrentFavorite(...)` no longer unwraps
+  `queueStateOwner.queueStateSnapshot().getCurrentTrack()` directly.
+- The existing favorite command owner now reads the current track through
+  `PlaybackQueueStateOwner.currentTrack()`, matching the queue command path.
+- No owner was added and Service wiring did not change. The real reduction is
+  one fewer direct snapshot-current dereference inside a playback command
+  owner.
+- `PlaybackFavoriteCommandOwnerTest` already covers current-track toggle,
+  missing-current no-op, and missing use case behavior; the architecture
+  contract now blocks the direct snapshot read from returning.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackFavoriteCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```

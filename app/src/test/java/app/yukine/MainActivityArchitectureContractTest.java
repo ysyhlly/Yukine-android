@@ -8461,8 +8461,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(toggleCurrentFavoriteMethod.contains("toggleFavoriteUseCase.toggle(track)"));
         assertTrue(favoriteCommandOwner.contains("final class PlaybackFavoriteCommandOwner"));
         assertTrue(favoriteCommandOwner.contains("queueStateOwner == null ? null"));
-        assertTrue(favoriteCommandOwner.contains(": queueStateOwner.queueStateSnapshot().getCurrentTrack();"));
-        assertFalse(favoriteCommandOwner.contains("queueStateOwner.currentTrack()"));
+        assertTrue(favoriteCommandOwner.contains(": queueStateOwner.currentTrack();"));
+        assertFalse(favoriteCommandOwner.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertTrue(favoriteCommandOwner.contains("toggleFavoriteUseCase.toggle(track)"));
         assertTrue(favoriteCommandOwner.contains("statePublisher.run();"));
         assertFalse(service.contains("private PlaybackFavoriteCommandOwner playbackFavoriteCommandOwner;"));

@@ -12,8 +12,7 @@ final class PlaybackFavoriteCommandOwner {
             ToggleFavoriteUseCase toggleFavoriteUseCase,
             Runnable statePublisher
     ) {
-        Track track = queueStateOwner == null ? null
-                : queueStateOwner.queueStateSnapshot().getCurrentTrack();
+        Track track = queueStateOwner == null ? null : queueStateOwner.currentTrack();
         if (toggleFavoriteUseCase != null && toggleFavoriteUseCase.toggle(track)) {
             if (statePublisher != null) {
                 statePublisher.run();
