@@ -2387,6 +2387,33 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P1 Wiring Note - Play Command Current Track Reuse
+
+Current audit date: 2026-07-03.
+
+- The `PlaybackQueueStopClearOwner` candidate was not continued: the class no
+  longer exists, `fromPlaybackQueueManager` is already 0, and stop/clear
+  playback-state preparation is already owned by `PlaybackQueueCompletionOwner`
+  and `PlaybackQueueManager`.
+- `EchoPlaybackService.play()` now reads
+  `playbackQueueStateOwner.currentTrack()` once and passes the resolved track
+  into a private `prepareCurrent(track, playWhenReady)` overload for the
+  immediate prepare paths.
+- No owner was added and no public playback command changed. The real reduction
+  is one fewer repeated service current-track snapshot read during a single
+  play command.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1427 lines,
+  `private Playback*` field count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, direct
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, and direct `playbackQueueStateOwner.currentTrack()` calls in the service
+  are 4.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## Batch Verification - P1 Command And Queue State Slices
 
 Current audit date: 2026-07-03.

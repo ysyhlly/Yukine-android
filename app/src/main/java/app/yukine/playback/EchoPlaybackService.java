@@ -838,9 +838,10 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void play() {
+        Track track = playbackQueueStateOwner.currentTrack();
         if (player == null) {
-            if (playbackQueueStateOwner.currentTrack() != null) {
-                prepareCurrent(true);
+            if (track != null) {
+                prepareCurrent(track, true);
             } else {
                 withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::playFirstQueuedTrack);
             }
@@ -849,13 +850,12 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackCurrentTrackPreparationRuntimeOwner.preparing()) {
             return;
         }
-        Track track = playbackQueueStateOwner.currentTrack();
         if (track == null) {
             withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::playFirstQueuedTrack);
             return;
         }
         if (player.getMediaItemCount() == 0) {
-            prepareCurrent(true);
+            prepareCurrent(track, true);
             return;
         }
         if (player.getPlaybackState() == Player.STATE_ENDED) {
@@ -1079,6 +1079,11 @@ public final class EchoPlaybackService extends MediaLibraryService
     @OptIn(markerClass = UnstableApi.class)
     private void prepareCurrent(final boolean playWhenReady) {
         Track track = playbackQueueStateOwner.currentTrack();
+        prepareCurrent(track, playWhenReady);
+    }
+
+    @OptIn(markerClass = UnstableApi.class)
+    private void prepareCurrent(Track track, final boolean playWhenReady) {
         if (track == null) {
             return;
         }

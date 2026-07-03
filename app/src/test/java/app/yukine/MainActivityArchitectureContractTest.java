@@ -7885,6 +7885,9 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(4, countOccurrences(service, "playbackQueueStateOwner::currentTrack"));
         assertFalse(service.contains("final Supplier<Track> currentTrackSupplier = playbackQueueStateOwner::currentTrack;"));
         assertTrue(service.contains("playbackQueueStateOwner.currentTrack()"));
+        assertEquals(4, countOccurrences(service, "playbackQueueStateOwner.currentTrack()"));
+        assertTrue(service.contains("private void prepareCurrent(Track track, final boolean playWhenReady)"));
+        assertTrue(service.contains("prepareCurrent(track, true);"));
         assertFalse(service.contains("playbackQueueManager.currentTrack()"));
         assertTrue(queueStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
         assertFalse(queueStateOwner.contains("playbackQueueManager::currentTrack"));
