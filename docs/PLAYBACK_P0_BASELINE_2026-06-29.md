@@ -2387,6 +2387,30 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P1 Wiring Note - Runtime Current Track Adapter
+
+Current audit date: 2026-07-03.
+
+- `PlaybackRuntimeStateManager.stateProviderFromPlaybackState(...)` no longer
+  accepts a `Supplier<PlaybackQueueManager.QueueStateSnapshot?>`.
+- It now accepts a `Supplier<Track?>`, matching the only queue value runtime
+  state needs for replay-gain volume calculation.
+- `EchoPlaybackService` now passes `playbackQueueStateOwner::currentTrack` to
+  runtime state wiring. Notification state is now the only direct service
+  consumer of `playbackQueueStateOwner::queueStateSnapshot`.
+- No owner was added. The real reduction is one narrower feature adapter input
+  and one fewer direct service queue snapshot method reference.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1421 lines,
+  `private (final )?Playback` count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, `playbackQueueStateOwner::queueStateSnapshot`
+  references in the service are 1, service `queueStateSupplier` alias
+  references are 0, and `Playback*Owner` production file count is 43.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackRuntimeStateManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## P1 Wiring Note - Position Current Track Adapter
 
 Current audit date: 2026-07-03.

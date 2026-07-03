@@ -1,7 +1,6 @@
 package app.yukine.playback
 
 import app.yukine.model.Track
-import app.yukine.playback.manager.PlaybackQueueManager
 import app.yukine.playback.manager.PlaybackRuntimeStateManager
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
@@ -235,15 +234,15 @@ class PlaybackRuntimeStateManagerTest {
                 true
             },
             Supplier {
-                events += "queueState"
-                PlaybackQueueManager.QueueStateSnapshot(track, 0, 1)
+                events += "currentTrack"
+                track
             }
         )
 
         assertNull(provider.player())
         assertTrue(provider.playerMirrorsQueue())
         assertSame(track, provider.currentTrack())
-        assertEquals(listOf("player", "mirrors", "queueState"), events)
+        assertEquals(listOf("player", "mirrors", "currentTrack"), events)
     }
 
     @Test
@@ -252,7 +251,7 @@ class PlaybackRuntimeStateManagerTest {
         val nullTrackProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
             null,
             null,
-            Supplier { PlaybackQueueManager.QueueStateSnapshot.empty() }
+            Supplier { null }
         )
 
         assertNull(missingProvider.currentTrack())
