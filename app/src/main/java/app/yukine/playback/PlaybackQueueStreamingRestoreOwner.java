@@ -19,10 +19,8 @@ final class PlaybackQueueStreamingRestoreOwner implements PlaybackQueueManager.S
         this.restoreHeadersForDataPath = restoreHeadersForDataPath;
     }
 
-    static PlaybackQueueStreamingRestoreOwner fromMediaSourceProvider(
-            PlaybackMediaSourceProvider mediaSourceProvider
-    ) {
-        return new PlaybackQueueStreamingRestoreOwner(
+    PlaybackQueueStreamingRestoreOwner(PlaybackMediaSourceProvider mediaSourceProvider) {
+        this(
                 track -> mediaSourceProvider == null
                         ? null
                         : mediaSourceProvider.restoredTrackForPreparation(track),

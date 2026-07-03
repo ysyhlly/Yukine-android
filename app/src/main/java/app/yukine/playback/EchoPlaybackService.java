@@ -439,7 +439,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         PlaybackLyricsSettingsStore.fromRepository(repository).restoreInto(playbackLyricsManager);
         final PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner =
-                PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(mediaSourceProvider);
+                new PlaybackQueueStreamingRestoreOwner(mediaSourceProvider);
         final PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner =
                 new PlaybackMirroredQueueTrackMatcherOwner(
                         () -> player,

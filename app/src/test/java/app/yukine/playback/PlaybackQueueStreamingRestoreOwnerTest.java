@@ -3,6 +3,7 @@ package app.yukine.playback;
 import android.net.Uri;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
 import org.junit.Test;
 
@@ -45,9 +46,9 @@ public class PlaybackQueueStreamingRestoreOwnerTest {
     }
 
     @Test
-    public void mediaSourceProviderFactoryIsSafeWhenProviderIsMissing() {
+    public void mediaSourceProviderConstructorIsSafeWhenProviderIsMissing() {
         PlaybackQueueStreamingRestoreOwner owner =
-                PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(null);
+                new PlaybackQueueStreamingRestoreOwner((PlaybackMediaSourceProvider) null);
         Track input = track(4L);
 
         assertSame(input, owner.restoreTrackForPlayback(input));
