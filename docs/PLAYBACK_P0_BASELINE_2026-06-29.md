@@ -2553,6 +2553,36 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackFavoriteCommandOwnerTest --tests app.yukine.playback.PlaybackQueueCommandOwnerTest --tests app.yukine.playback.PlaybackPlayHistoryRecorderTest --tests app.yukine.playback.PlaybackSessionCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P1 Interface Note - Mirrored Player Current Track Snapshot
+
+Current audit date: 2026-07-03.
+
+- `PlaybackQueueMirroredPlayerOwner` now reads the current track from
+  `PlaybackQueueStateOwner.queueStateSnapshot()` instead of the derivable
+  `PlaybackQueueStateOwner.currentTrack()` convenience method before resetting
+  waveform state during mirrored queue seek reuse.
+- No owner was added and no Service wiring changed. The real reduction is one
+  fewer P1 mirrored-queue owner path depending on the current-track shortcut.
+- `MainActivityArchitectureContractTest` now guards
+  `PlaybackQueueMirroredPlayerOwner` against returning to
+  `queueStateOwner.currentTrack()`.
+- Remaining `queueStateOwner.currentTrack()` production calls are in
+  `PlaybackLyricsStateOwner`, `PlaybackPrecacheStateOwner`, and
+  `PlaybackVisualizationCacheStateOwner`, which are P3/P4-adjacent and should
+  be handled only with their focused smoke/test coverage.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1425 lines,
+  `private Playback*` field count is 43 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0,
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.currentTrack()` calls in the service are
+  1, and recursive `Playback*Owner` production file count is 43 by the current
+  `Get-ChildItem` metric.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMirroredPlayerOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## P1 Wiring Note - Play Command Current Track Reuse
 
 Current audit date: 2026-07-03.
