@@ -25,7 +25,17 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
         prepareCurrentIfAvailable(playWhenReady);
     }
 
-    boolean prepareCurrentIfAvailable(boolean playWhenReady) {
+    boolean prepareCurrentOrRunFallback(boolean playWhenReady, Runnable fallbackAction) {
+        if (prepareCurrentIfAvailable(playWhenReady)) {
+            return true;
+        }
+        if (fallbackAction != null) {
+            fallbackAction.run();
+        }
+        return false;
+    }
+
+    private boolean prepareCurrentIfAvailable(boolean playWhenReady) {
         Track track = queueStateOwner == null ? null
                 : queueStateOwner.queueStateSnapshot().getCurrentTrack();
         if (track == null || playbackPreparer == null) {

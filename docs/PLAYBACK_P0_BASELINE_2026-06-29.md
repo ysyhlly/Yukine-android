@@ -3624,3 +3624,31 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheManagerTest --tests app.yukine.playback.PlaybackQueueCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## P1 Wiring Note - Prepare Current Or Fallback Command
+
+Current audit date: 2026-07-03.
+
+- `EchoPlaybackService.play()` no longer calls
+  `playbackQueueCommandOwner.prepareCurrentIfAvailable(true)` and branches on
+  the boolean prepare result in the player-null path.
+- `PlaybackQueueCommandOwner.prepareCurrentOrRunFallback(...)` now owns the
+  prepare-or-fallback decision and runs the Service-provided queue fallback
+  command when the current item cannot be prepared.
+- `prepareCurrentIfAvailable(...)` is now private to
+  `PlaybackQueueCommandOwner`; the Service sees a semantic command instead of a
+  queue-state probe.
+- No owner was added. The real reduction is one fewer Service prepare fallback
+  strategy decision.
+- `PlaybackQueueCommandOwnerTest` covers both prepare success and fallback
+  paths, and `MainActivityArchitectureContractTest` blocks the old Service
+  call from returning.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1329 lines,
+  `private Playback*` field count is 43 by the existing non-final field
+  metric, `Playback*Owner` production file count is 43, and Service
+  `queueStateSnapshot()` supplier count is 1.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```

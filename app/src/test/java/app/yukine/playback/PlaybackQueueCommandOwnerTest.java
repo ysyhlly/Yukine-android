@@ -42,7 +42,7 @@ public class PlaybackQueueCommandOwnerTest {
                 events
         );
         assertFalse(owner.runIfCurrentTrackMissing(() -> events.add("fallback")));
-        assertTrue(owner.prepareCurrentIfAvailable(false));
+        assertTrue(owner.prepareCurrentOrRunFallback(false, () -> events.add("fallback")));
         assertEquals(
                 java.util.Arrays.asList(
                         "prepare:7:true",
@@ -67,8 +67,8 @@ public class PlaybackQueueCommandOwnerTest {
 
         assertEquals(Collections.singletonList("publish"), events);
         assertTrue(owner.runIfCurrentTrackMissing(() -> events.add("fallback")));
-        assertFalse(owner.prepareCurrentIfAvailable(false));
-        assertEquals(java.util.Arrays.asList("publish", "fallback"), events);
+        assertFalse(owner.prepareCurrentOrRunFallback(false, () -> events.add("fallback")));
+        assertEquals(java.util.Arrays.asList("publish", "fallback", "fallback"), events);
     }
 
     private PlaybackQueueManager missingQueueManager() {

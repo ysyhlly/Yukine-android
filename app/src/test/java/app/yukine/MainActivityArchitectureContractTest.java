@@ -5948,7 +5948,7 @@ public final class MainActivityArchitectureContractTest {
                 "playbackQueueManager != null && playbackQueueManager.skipToNextImmediately()"
         ));
         assertTrue(service.contains(
-                "withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::playFirstQueuedTrack);"));
+                "withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::playFirstQueuedTrack)"));
         assertFalse(service.contains("private void playFirstQueuedTrack()"));
         assertFalse(service.contains("playbackQueueManager.playFirstQueuedTrack()"));
         assertTrue(queueNavigationOwner.contains("playbackQueueManager.playFirstQueuedTrack();"));
@@ -6275,7 +6275,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackCurrentTrackOwner"));
         assertFalse(service.contains("private Track currentTrack()"));
         assertFalse(service.contains("Track track = playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack();"));
-        assertTrue(service.contains("playbackQueueCommandOwner.prepareCurrentIfAvailable(true)"));
+        assertTrue(service.contains("playbackQueueCommandOwner.prepareCurrentOrRunFallback("));
+        assertFalse(service.contains("playbackQueueCommandOwner.prepareCurrentIfAvailable(true)"));
         assertTrue(service.contains("playbackQueueCommandOwner.runIfCurrentTrackMissing("));
         assertFalse(service.contains("playbackQueueCommandOwner.hasCurrentTrack()"));
         assertFalse(service.contains("playbackQueueStateOwner.currentTrack()"));
@@ -6625,7 +6626,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("private final BiConsumer<Track, Boolean> playbackPreparer;"));
         assertTrue(commandOwner.contains("private final Runnable statePublisher;"));
         assertFalse(commandOwner.contains("private final Runnable stopAndClearCommand;"));
-        assertTrue(commandOwner.contains("boolean prepareCurrentIfAvailable(boolean playWhenReady)"));
+        assertTrue(commandOwner.contains("boolean prepareCurrentOrRunFallback(boolean playWhenReady, Runnable fallbackAction)"));
+        assertTrue(commandOwner.contains("private boolean prepareCurrentIfAvailable(boolean playWhenReady)"));
         assertTrue(commandOwner.contains("boolean runIfCurrentTrackMissing(Runnable missingCurrentTrackAction)"));
         assertFalse(commandOwner.contains("boolean hasCurrentTrack()"));
         assertTrue(commandOwner.contains("Track track = queueStateOwner == null ? null"));
@@ -7979,7 +7981,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private void prepareCurrent(final boolean playWhenReady)"));
         assertTrue(service.contains("private void prepareCurrent(Track track, final boolean playWhenReady)"));
         assertFalse(service.contains("prepareCurrent(track, true);"));
-        assertTrue(service.contains("playbackQueueCommandOwner.prepareCurrentIfAvailable(true)"));
+        assertTrue(service.contains("playbackQueueCommandOwner.prepareCurrentOrRunFallback("));
+        assertFalse(service.contains("playbackQueueCommandOwner.prepareCurrentIfAvailable(true)"));
         assertTrue(service.contains("playbackQueueCommandOwner.runIfCurrentTrackMissing("));
         assertTrue(service.contains("playbackQueueCommandOwner.prepareCurrent(true);"));
         assertFalse(service.contains("playbackQueueCommandOwner.hasCurrentTrack()"));
