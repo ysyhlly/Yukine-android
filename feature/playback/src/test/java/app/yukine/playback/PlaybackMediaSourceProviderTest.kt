@@ -319,6 +319,16 @@ class PlaybackMediaSourceProviderTest {
     }
 
     @Test
+    fun providerMatchesLocalMediaItemForTrackWithoutCacheKey() {
+        val uri = Uri.parse("file:///storage/emulated/0/Music/local.flac")
+        val track = Track(7L, "Local", "Artist", "Album", 180_000L, uri, "/storage/emulated/0/Music/local.flac")
+        val mediaItem = PlaybackMediaSourceProvider.playbackMediaItemForTrack(track, null)
+
+        assertNull(mediaItem.localConfiguration?.customCacheKey)
+        assertTrue(provider(FakeStreamingPlaybackHeaderStore()).mediaItemMatchesTrackForReuse(mediaItem, track))
+    }
+
+    @Test
     fun providerMatchesTracksForReuseUsingResolvedUriRule() {
         val uri = Uri.parse("https://audio.example/current.flac")
         val current = Track(1L, "Current", "Artist", "Album", 180_000L, uri, "streaming:netease:1")
