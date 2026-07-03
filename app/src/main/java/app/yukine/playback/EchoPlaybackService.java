@@ -146,7 +146,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     };
     private PlaybackPositionManager playbackPositionManager;
     private PlaybackNotificationManager playbackNotificationManager;
-    private PlaybackNotificationForegroundOwner playbackNotificationForegroundOwner;
     private PlaybackNotificationCommandOwner playbackNotificationCommandOwner;
     private PlaybackSessionCommandOwner playbackSessionCommandOwner;
     private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner;
@@ -380,15 +379,16 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackQueueCommandOwner::prepareCurrent
         );
         createPlayerIfNeeded();
-        playbackNotificationForegroundOwner = new PlaybackNotificationForegroundOwner(
-                EchoPlaybackService.this::activityPendingIntent,
-                EchoPlaybackService.this::serviceActionPendingIntent,
-                notification -> EchoPlaybackService.this.startPlaybackForeground(notification),
-                () -> {
-                    EchoPlaybackService.this.stopForeground(true);
-                    EchoPlaybackService.this.stopSelf();
-                }
-        );
+        final PlaybackNotificationForegroundOwner playbackNotificationForegroundOwner =
+                new PlaybackNotificationForegroundOwner(
+                        EchoPlaybackService.this::activityPendingIntent,
+                        EchoPlaybackService.this::serviceActionPendingIntent,
+                        notification -> EchoPlaybackService.this.startPlaybackForeground(notification),
+                        () -> {
+                            EchoPlaybackService.this.stopForeground(true);
+                            EchoPlaybackService.this.stopSelf();
+                        }
+                );
         playbackNotificationCommandOwner = PlaybackNotificationCommandOwner.fromNotificationOwners(
                 () -> playbackStatePublisher,
                 () -> playbackNotificationManager,

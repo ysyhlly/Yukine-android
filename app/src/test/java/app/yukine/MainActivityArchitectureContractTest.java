@@ -8554,8 +8554,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("BooleanSupplier notificationWorthySupplier"));
         assertTrue(commandOwner.contains("statePublisher.publishNotification(force);"));
         assertTrue(commandOwner.contains("notificationManager.updateMediaNotification(force);"));
-        assertTrue(service.contains("private PlaybackNotificationForegroundOwner playbackNotificationForegroundOwner;"));
-        assertTrue(service.contains("playbackNotificationForegroundOwner = new PlaybackNotificationForegroundOwner("));
+        assertFalse(service.contains("private PlaybackNotificationForegroundOwner playbackNotificationForegroundOwner;"));
+        assertTrue(service.contains(
+                "final PlaybackNotificationForegroundOwner playbackNotificationForegroundOwner =\n"
+                        + "                new PlaybackNotificationForegroundOwner("));
         assertTrue(service.contains("                playbackNotificationForegroundOwner"));
         assertTrue(service.contains("                playbackNotificationForegroundOwner,"));
         assertTrue(service.contains("                playbackNotificationForegroundOwner::stopForegroundAndSelf"));
