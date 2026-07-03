@@ -813,8 +813,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(viewModel.contains("\\u5a34\\u4f5a"));
         assertFalse(appLanguage.contains("\"Cookie is empty\""));
         assertFalse(appLanguage.contains("\"Cookie saved\""));
-        assertFalse(viewModel.contains(utf8ReadAsGbk("姝屽崟瀵煎叆澶辫触")));
-        assertFalse(viewModel.contains(utf8ReadAsGbk("鏃犳硶鍔犺浇璐︽埛姝屽崟")));
+        assertFalse(viewModel.contains(utf8ReadAsGbk("歌单导入失败")));
+        assertFalse(viewModel.contains(utf8ReadAsGbk("无法加载账户歌单")));
         assertFalse(viewModel.contains("\u6d41\u5a92\u4f53\u8bf7\u6c42\u5931\u8d25"));
         assertFalse(mainActivity.contains("\"????\""));
         assertTrue(playlistRenderController.contains("AppLanguage.text(languageMode, \"no.tracks.in.playlist\")"));
@@ -9566,7 +9566,7 @@ public final class MainActivityArchitectureContractTest {
     private static void assertContainsUtf8Chinese(String source, String expected) {
         assertTrue(source.contains(expected));
         assertFalse(source.contains(utf8ReadAsGbk(expected)));
-        assertFalse(source.contains("�"));
+        assertFalse(source.contains("\uFFFD"));
     }
 
     private static String utf8ReadAsGbk(String value) {
