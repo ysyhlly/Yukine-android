@@ -1,6 +1,7 @@
 package app.yukine.playback;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 
 import android.content.Context;
 import android.net.Uri;
@@ -277,6 +278,45 @@ public final class PlaybackPrecacheManagerTest {
         scheduler.runNext();
         assertEventuallyPrecacheComplete(stateProvider, 1, 0L);
         manager.release();
+    }
+
+    @Test
+    public void currentPrecacheMatchesStateProviderMediaItemBeforeCacheRead() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        Track track = track(1L, "https://example.test/one.mp3");
+        MediaItem playerMediaItem = PlaybackMediaSourceProvider.playbackMediaItemForTrack(track, null);
+        List<MediaItem> matchedMediaItems = new ArrayList<>();
+        List<Track> matchedTracks = new ArrayList<>();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                queueManager(track),
+                mediaCacheOperations,
+                (mediaItem, matchedTrack) -> {
+                    matchedMediaItems.add(mediaItem);
+                    matchedTracks.add(matchedTrack);
+                    return true;
+                },
+                scheduler,
+                new FakeAudioCacheReleaseAction()::releaseAudioCache,
+                executor
+        );
+
+        stateProvider.currentTrack = track;
+        stateProvider.currentPlayerMediaItem = playerMediaItem;
+        manager.precacheTrack(track);
+        scheduler.runNext();
+        executor.runSubmitted(0);
+        manager.release();
+
+        assertEquals(1, matchedMediaItems.size());
+        assertSame(playerMediaItem, matchedMediaItems.get(0));
+        assertEquals(1, matchedTracks.size());
+        assertSame(track, matchedTracks.get(0));
+        assertEquals(0, mediaCacheOperations.cacheDataSourceForTrackCalls);
+        assertEquals(1, stateProvider.diagnostics.snapshot().precacheSuccesses);
     }
 
     @Test
