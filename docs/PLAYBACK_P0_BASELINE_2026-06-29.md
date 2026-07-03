@@ -2661,6 +2661,40 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMirroredPlayerOwnerTest --tests app.yukine.playback.PlaybackPrecacheStateOwnerTest --tests app.yukine.playback.PlaybackVisualizationCacheStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P1 Interface Note - Service Play Current Track Snapshot
+
+Current audit date: 2026-07-03.
+
+- `EchoPlaybackService.play()` now reads the current track through
+  `playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()` instead of
+  the derivable `playbackQueueStateOwner.currentTrack()` shortcut.
+- No play owner, facade, Service field, or playback strategy branch was added.
+  The Service still owns the Android/Media3 boundary work in `play()`:
+  player existence, preparation, player resume, Wi-Fi lock, state publish, and
+  progress updates.
+- Stop/clear queue preparation was re-audited before this slice. It is already
+  owned by `PlaybackQueueCompletionOwner` and `PlaybackQueueManager`, covered
+  by `PlaybackQueueCompletionOwnerTest`, and guarded by
+  `MainActivityArchitectureContractTest` against
+  `PlaybackQueueStopClearOwner` and `fromPlaybackQueueManager(...)` factories
+  returning.
+- The real reduction is the final direct Service
+  `playbackQueueStateOwner.currentTrack()` call dropping from 1 to 0.
+  Remaining production `queueStateOwner.currentTrack()` use is only in
+  `PlaybackLyricsStateOwner`, which remains P4-adjacent.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1425 lines,
+  `private Playback*` field count is 43 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0,
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.currentTrack()` calls in the service are
+  0, and recursive `Playback*Owner` production file count is 43 by the current
+  `Get-ChildItem` metric.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## P1 Wiring Note - Play Command Current Track Reuse
 
 Current audit date: 2026-07-03.

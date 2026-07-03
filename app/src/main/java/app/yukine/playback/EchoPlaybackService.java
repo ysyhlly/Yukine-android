@@ -841,7 +841,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void play() {
-        Track track = playbackQueueStateOwner.currentTrack();
+        Track track = playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack();
         if (player == null) {
             if (track != null) {
                 prepareCurrent(track, true);
