@@ -1804,7 +1804,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(normalizedPlaybackService.contains(
                 "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
                         + "                this,\n"
-                        + "                currentTrackSupplier,"
+                        + "                playbackQueueStateOwner::currentTrack,"
         ));
         assertFalse(normalizedPlaybackService.contains(
                 "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
@@ -6937,7 +6937,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackWifiLockStreamingTrackOwnerTest.java")));
         assertFalse(service.contains("PlaybackWifiLockStreamingTrackOwner"));
         assertTrue(normalizedService.contains(
-                "                currentTrackSupplier,\n" +
+                "                playbackQueueStateOwner::currentTrack,\n" +
                         "                mediaSourceProvider::isHttpTrack"));
         assertFalse(service.contains(
                 "                playbackQueueStateOwner::queueStateSnapshot,\n" +
@@ -7876,8 +7876,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private final PlaybackCurrentTrackOwner playbackCurrentTrackOwner"));
         assertFalse(service.contains("private Track currentTrack()"));
         assertTrue(service.contains("playbackQueueStateOwner::currentTrack"));
-        assertEquals(1, countOccurrences(service, "playbackQueueStateOwner::currentTrack"));
-        assertTrue(service.contains("final Supplier<Track> currentTrackSupplier = playbackQueueStateOwner::currentTrack;"));
+        assertEquals(2, countOccurrences(service, "playbackQueueStateOwner::currentTrack"));
+        assertFalse(service.contains("final Supplier<Track> currentTrackSupplier = playbackQueueStateOwner::currentTrack;"));
         assertTrue(service.contains("playbackQueueStateOwner.currentTrack()"));
         assertFalse(service.contains("playbackQueueManager.currentTrack()"));
         assertTrue(queueStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));

@@ -2363,3 +2363,26 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackLyricsStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1 Wiring Note - Service Current Track Supplier Alias
+
+Current audit date: 2026-07-03.
+
+- `EchoPlaybackService` no longer creates a local
+  `final Supplier<Track> currentTrackSupplier` alias during playback owner
+  wiring.
+- The remaining owners that still require a `Supplier<Track>` receive
+  `playbackQueueStateOwner::currentTrack` directly. This avoids a service-local
+  forwarding variable without changing notification artwork or wifi-lock
+  behavior.
+- No owner was added or removed. The real reduction is one fewer service wiring
+  supplier alias.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1424 lines,
+  `private Playback*` field count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, `queueStateSnapshot` references in
+  the service are 2, and `Playback*Owner` production file count is 43.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
