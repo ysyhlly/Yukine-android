@@ -203,11 +203,11 @@ public abstract class MainActivityBase extends ComponentActivity {
         initializeViewModels(createActivityViewModels());
         MainActivityStreamingActionGateway streamingActionGateway = createStreamingActionGateway();
         initializeStreamingPlaybackCoordinator();
+        initializeRouteStoresAndStatus();
         initializeNowPlayingGateways();
         initializeDownloadRequests();
         initializeLibraryGateway();
         initializeStreamingStartup(streamingActionGateway);
-        initializeRouteStoresAndStatus();
         initializePlatformControllers();
         initializePlaybackLifecycleControllers();
         initializeNavigationRendering();

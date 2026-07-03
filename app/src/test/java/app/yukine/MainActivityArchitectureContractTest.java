@@ -57,6 +57,28 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void mainActivityCreatesRouteStoresAndStatusBeforeGatewayBinding() throws Exception {
+        String mainActivity = read("app/src/main/java/app/yukine/MainActivityBase.java")
+                .replace("\r\n", "\n");
+
+        int routeStoresStep = mainActivity.indexOf("        initializeRouteStoresAndStatus();");
+        int nowPlayingGatewayStep = mainActivity.indexOf("        initializeNowPlayingGateways();");
+        int downloadRequestsStep = mainActivity.indexOf("        initializeDownloadRequests();");
+        int libraryGatewayStep = mainActivity.indexOf("        initializeLibraryGateway();");
+        int playbackLifecycleStep = mainActivity.indexOf("        initializePlaybackLifecycleControllers();");
+
+        assertTrue(routeStoresStep >= 0);
+        assertTrue(routeStoresStep < nowPlayingGatewayStep);
+        assertTrue(routeStoresStep < downloadRequestsStep);
+        assertTrue(routeStoresStep < libraryGatewayStep);
+        assertTrue(routeStoresStep < playbackLifecycleStep);
+        assertTrue(mainActivity.contains("routeController = new MainRouteController(navigationViewModel)"));
+        assertTrue(mainActivity.contains("libraryViewModel.bindGateway(libraryGatewayFactory.create("));
+        assertTrue(mainActivity.contains("                routeController,\n"));
+        assertFalse(mainActivity.contains("initializeLibraryGateway();\n        initializeRouteStoresAndStatus();"));
+    }
+
+    @Test
     public void playbackOwnerInventoryAndServiceWiringDoNotGrowWithoutAudit() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java")
                 .replace("\r\n", "\n");
