@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Supplier;
 import org.junit.Test;
 
 public class PlaybackStateSnapshotOwnerTest {
@@ -26,7 +27,7 @@ public class PlaybackStateSnapshotOwnerTest {
         FakePlaybackPositionProvider playback = new FakePlaybackPositionProvider(321L, 7000L, true);
         FakeVisualizationProvider visualization = new FakeVisualizationProvider(waveform, spectrum, true);
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
-                queueStateOwner(track, 2, 5),
+                queueManagerSupplier(track, 2, 5),
                 playback,
                 new FakeRuntimeStateProvider(true, "buffering", true, 1, 1.25f, 0.75f),
                 () -> 9000L,
@@ -94,7 +95,7 @@ public class PlaybackStateSnapshotOwnerTest {
     public void doesNotReadRealtimeBeatWhenPlaybackIsPaused() {
         CountingBeatProvider beatProvider = new CountingBeatProvider();
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
-                new PlaybackQueueStateOwner(),
+                () -> null,
                 new FakePlaybackPositionProvider(0L, 0L, false),
                 null,
                 null,
@@ -180,7 +181,7 @@ public class PlaybackStateSnapshotOwnerTest {
         );
     }
 
-    private static PlaybackQueueStateOwner queueStateOwner(
+    private static Supplier<PlaybackQueueManager> queueManagerSupplier(
             Track currentTrack,
             int currentIndex,
             int queueSize
@@ -191,7 +192,7 @@ public class PlaybackStateSnapshotOwnerTest {
             queue.add(index == currentIndex ? currentTrack : track(index + 1L));
         }
         queueManager.playQueue(queue, currentIndex, -1L);
-        return new PlaybackQueueStateOwner(queueManager);
+        return () -> queueManager;
     }
 
     private static PlaybackQueueManager playbackQueueManager() {

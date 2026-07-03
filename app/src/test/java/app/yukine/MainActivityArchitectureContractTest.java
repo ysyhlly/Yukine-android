@@ -1966,7 +1966,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackService.contains("playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner("));
         assertTrue(normalizedPlaybackService.contains(
                 "playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner(\n"
-                        + "                playbackQueueStateOwner,"));
+                        + "                () -> playbackQueueManager,"));
         assertFalse(normalizedPlaybackService.contains(
                 "playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner(\n"
                         + "                queueStateSupplier,"));
@@ -1988,12 +1988,14 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(stateSnapshotOwner.contains("interface VisualizationAnalyzerProvider"));
         assertFalse(stateSnapshotOwner.contains("interface RealtimeBeatProvider"));
         assertFalse(stateSnapshotOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;"));
-        assertTrue(stateSnapshotOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertFalse(stateSnapshotOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertTrue(stateSnapshotOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
         assertFalse(stateSnapshotOwner.contains("PlaybackQueueManager.QueueStateSnapshot queueSnapshot = queueStateOwner == null"));
         assertFalse(stateSnapshotOwner.contains(": queueStateOwner.queueStateSnapshot();"));
-        assertTrue(stateSnapshotOwner.contains("Track track = queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
-        assertTrue(stateSnapshotOwner.contains("int currentIndex = queueStateOwner == null ? -1 : queueStateOwner.currentIndex();"));
-        assertTrue(stateSnapshotOwner.contains("int queueSize = queueStateOwner == null ? 0 : queueStateOwner.queueSize();"));
+        assertTrue(stateSnapshotOwner.contains("PlaybackQueueManager.QueueStateSnapshot queueSnapshot = queueStateSnapshot();"));
+        assertTrue(stateSnapshotOwner.contains("Track track = queueSnapshot.getCurrentTrack();"));
+        assertTrue(stateSnapshotOwner.contains("int currentIndex = queueSnapshot.getCurrentIndex();"));
+        assertTrue(stateSnapshotOwner.contains("int queueSize = queueSnapshot.getQueueSize();"));
         assertTrue(stateSnapshotOwner.contains("private final LongSupplier sleepTimerProvider;"));
         assertTrue(stateSnapshotOwner.contains("private final DoubleSupplier realtimeBeatProvider;"));
         assertFalse(stateSnapshotOwner.contains("Supplier<PlaybackRuntimeStateManager> runtimeStateManagerProvider"));
@@ -6668,7 +6670,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun applyMirroredTransitionIndex(nextIndex: Int, automaticAdvance: Boolean): MirroredTransitionResult?"));
         assertFalse(service.contains("private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
         assertFalse(service.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
-        assertFalse(stateSnapshotOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
+        assertTrue(stateSnapshotOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
         assertFalse(stateSnapshotOwner.contains("queueStateOwner.queueStateSnapshot()"));
         assertFalse(service.contains("new PlaybackQueueManager.QueueStateSnapshot(null, -1, 0, true, false, false, true)"));
         assertFalse(service.contains("private boolean isQueueEmpty()"));
@@ -7040,6 +7042,7 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackQueueMirroredTransitionOwner.java",
                 "PlaybackQueueMutationOwner.java",
                 "PlaybackSessionCommandOwner.java",
+                "PlaybackStateSnapshotOwner.java",
                 "PlaybackPlayHistoryRecorder.java",
                 "PlaybackPrecacheManager.java",
                 "PlaybackVisualizationCacheStateOwner.java",

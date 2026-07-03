@@ -546,7 +546,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                         realtimeBassDetector
                 );
         playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner(
-                playbackQueueStateOwner,
+                () -> playbackQueueManager,
                 playbackPlayerStateOwner,
                 PlaybackStateSnapshotOwner.fromRuntimeStateManager(playbackRuntimeStateManager),
                 playbackSleepTimerCommandOwner::sleepTimerRemainingMs,
