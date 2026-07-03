@@ -311,7 +311,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         libraryViewModel.bindGateway(libraryGatewayFactory.create(
                 (tracks, index) -> MainActivityBase.this.playTrackListFromHost(tracks, index),
-                () -> settingsStore.languageMode(),
+                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 status -> statusMessageController.setStatus(status),
                 (trackId, favorite) -> viewModel.setFavorite(trackId, favorite),
                 () -> nowPlayingStateController.renderNowBar(),

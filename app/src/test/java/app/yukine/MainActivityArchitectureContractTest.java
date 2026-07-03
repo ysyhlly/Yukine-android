@@ -116,8 +116,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(streamingActionGateway.contains("                streamingPlaylistController,\n"));
         assertFalse(streamingActionGateway.contains("                streamingManualCookieController,\n"));
         assertTrue(libraryGateway.contains("libraryViewModel.bindGateway(libraryGatewayFactory.create("));
+        assertTrue(libraryGateway.contains(
+                "                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),\n"));
         assertTrue(libraryGateway.contains("                routeController,\n"));
         assertTrue(libraryRouteActionsArgument >= 0);
+        assertFalse(libraryGateway.contains("                () -> settingsStore.languageMode(),\n"));
         assertTrue(nowPlayingGateway.contains("                () -> playbackActionController,\n"));
         assertTrue(nowPlayingGateway.contains("                () -> playbackStore,\n"));
         assertTrue(nowPlayingGateway.contains("                () -> playbackService\n"));
