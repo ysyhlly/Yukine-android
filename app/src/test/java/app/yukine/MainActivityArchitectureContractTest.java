@@ -135,6 +135,9 @@ public final class MainActivityArchitectureContractTest {
         assertContainsUtf8Chinese(libraryGroups, "播放");
         assertContainsUtf8Chinese(trackList, "歌手介绍");
         assertContainsUtf8Chinese(trackList, "全部专辑");
+        assertNoCommonMojibake(homeDashboard);
+        assertNoCommonMojibake(libraryGroups);
+        assertNoCommonMojibake(trackList);
     }
 
     @Test
@@ -9601,6 +9604,17 @@ public final class MainActivityArchitectureContractTest {
     private static void assertContainsUtf8Chinese(String source, String expected) {
         assertTrue(source.contains(expected));
         assertFalse(source.contains(utf8ReadAsGbk(expected)));
+        assertFalse(source.contains("\uFFFD"));
+    }
+
+    private static void assertNoCommonMojibake(String source) {
+        for (String phrase : new String[]{
+                "今天想听点什么？", "今日回声", "继续最近播放", "继续播放", "队列",
+                "随机", "收藏", "搜索", "刷新", "正在播放", "最近播放", "查看全部",
+                "添加音乐后开始聆听", "暂无最近播放", "本周回声", "歌手介绍", "全部专辑"
+        }) {
+            assertFalse(source.contains(utf8ReadAsGbk(phrase)));
+        }
         assertFalse(source.contains("\uFFFD"));
     }
 
