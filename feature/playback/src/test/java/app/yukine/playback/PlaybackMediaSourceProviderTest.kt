@@ -22,6 +22,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.RobolectricTestRunner
 import java.io.File
+import java.util.Base64
 
 @RunWith(RobolectricTestRunner::class)
 class PlaybackMediaSourceProviderTest {
@@ -171,6 +172,53 @@ class PlaybackMediaSourceProviderTest {
         assertNull(PlaybackMediaSourceProvider.mediaCacheKey("/storage/emulated/0/Music/local.flac", local.contentUri.toString()))
         assertNull(PlaybackMediaSourceProvider.mediaCacheKey("", local.contentUri.toString()))
         assertNull(PlaybackMediaSourceProvider.mediaCacheKey(null, local.contentUri.toString()))
+    }
+
+    @Test
+    fun headersForTrackOwnsStreamingAndWebDavHeaderResolution() {
+        val context = RuntimeEnvironment.getApplication()
+        val repository = MusicLibraryRepository(context, FakeStreamingDataPathParser)
+        val sourceId = repository.saveWebDavSource(
+            "NAS",
+            "https://dav.example",
+            "alice",
+            "secret",
+            "music"
+        )
+        val provider = PlaybackMediaSourceProvider(
+            context,
+            repository,
+            FakeStreamingPlaybackHeaderStore(mapOf("Cookie" to "qm_keyst=token"))
+        )
+        val streaming = Track(
+            42L,
+            "Stream",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://audio.example/current.flac"),
+            "streaming:qq:42"
+        )
+        val webDav = Track(
+            9L,
+            "WebDav",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://dav.example/music/webdav.flac"),
+            "webdav:$sourceId:/music/webdav.flac"
+        )
+        val expectedAuth = "Basic " + Base64.getEncoder()
+            .encodeToString("alice:secret".toByteArray(Charsets.UTF_8))
+
+        assertEquals(mapOf("Cookie" to "qm_keyst=token"), provider.headersForTrack(streaming))
+        assertEquals(
+            mapOf(
+                "Cookie" to "qm_keyst=token",
+                "Authorization" to expectedAuth
+            ),
+            provider.headersForTrack(webDav)
+        )
     }
 
     @Test
@@ -570,6 +618,7 @@ class PlaybackMediaSourceProviderTest {
     }
 
     private class FakeStreamingPlaybackHeaderStore(
+        private val headers: Map<String, String> = emptyMap(),
         private val restoredTrack: Track? = null
     ) : StreamingPlaybackHeaderStore {
         var restoredTrackInput: Track? = null
@@ -579,7 +628,7 @@ class PlaybackMediaSourceProviderTest {
 
         override fun register(dataPath: String, headers: Map<String, String>) = Unit
 
-        override fun forDataPath(dataPath: String?): Map<String, String> = emptyMap()
+        override fun forDataPath(dataPath: String?): Map<String, String> = headers
 
         override fun restoreForDataPath(dataPath: String?): Boolean {
             restoredDataPath = dataPath
