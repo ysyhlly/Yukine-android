@@ -21,8 +21,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.RobolectricTestRunner
+import java.io.BufferedReader
 import java.io.File
+import java.io.InputStreamReader
+import java.net.ServerSocket
 import java.util.Base64
+import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(RobolectricTestRunner::class)
 class PlaybackMediaSourceProviderTest {
@@ -219,6 +223,64 @@ class PlaybackMediaSourceProviderTest {
             ),
             provider.headersForTrack(webDav)
         )
+    }
+
+    @Test
+    fun cacheDataSourceForTrackUsesProviderOwnedHeaders() {
+        val observedCookie = AtomicReference<String?>()
+        val server = ServerSocket(0)
+        val serverThread = Thread {
+            server.accept().use { socket ->
+                val reader = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.UTF_8))
+                while (true) {
+                    val line = reader.readLine() ?: break
+                    if (line.isEmpty()) {
+                        break
+                    }
+                    if (line.startsWith("Cookie:", ignoreCase = true)) {
+                        observedCookie.set(line.substringAfter(":").trim())
+                    }
+                }
+                val body = byteArrayOf(1, 2, 3, 4)
+                socket.getOutputStream().use { output ->
+                    output.write("HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\n".toByteArray(Charsets.US_ASCII))
+                    output.write(body)
+                }
+            }
+        }
+        serverThread.start()
+        val provider = provider(FakeStreamingPlaybackHeaderStore(mapOf("Cookie" to "qm_keyst=token")))
+        try {
+            val track = Track(
+                42L,
+                "Stream",
+                "Artist",
+                "Album",
+                180_000L,
+                Uri.parse("http://127.0.0.1:${server.localPort}/audio.flac"),
+                "streaming:qq:42"
+            )
+            val dataSource = provider.cacheDataSourceForTrack(track)
+            val dataSpec = DataSpec.Builder()
+                .setUri(track.contentUri)
+                .setKey(provider.cacheKeyForTrack(track))
+                .build()
+            val buffer = ByteArray(4)
+
+            dataSource.open(dataSpec)
+            try {
+                assertEquals(4, dataSource.read(buffer, 0, buffer.size))
+            } finally {
+                dataSource.close()
+            }
+
+            assertEquals(byteArrayOf(1, 2, 3, 4).toList(), buffer.toList())
+            assertEquals("qm_keyst=token", observedCookie.get())
+        } finally {
+            provider.releaseAudioCache()
+            server.close()
+            serverThread.join(1000L)
+        }
     }
 
     @Test
