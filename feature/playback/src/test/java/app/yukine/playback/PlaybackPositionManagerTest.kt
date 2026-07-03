@@ -4,7 +4,6 @@ import android.net.Uri
 import app.yukine.model.PlaybackQueueState
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackPositionManager
-import app.yukine.playback.manager.PlaybackQueueManager
 import app.yukine.playback.manager.PlaybackQueueStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
@@ -89,11 +88,11 @@ class PlaybackPositionManagerTest {
     }
 
     @Test
-    fun stateProviderFromPlaybackStateReadsCurrentTrackFromQueueManagerAndPositionSupplier() {
+    fun stateProviderFromPlaybackStateReadsCurrentTrackAndPositionSuppliers() {
         val events = mutableListOf<String>()
         val track = track(23L)
         val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            Supplier { queueManager(track) },
+            Supplier { track },
             LongSupplier {
                 events += "position"
                 321L
@@ -109,7 +108,7 @@ class PlaybackPositionManagerTest {
     fun stateProviderFromPlaybackStateHandlesMissingCurrentTrack() {
         val missingProvider = PlaybackPositionManager.stateProviderFromPlaybackState(null, null)
         val nullTrackProvider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            Supplier { queueManager(null) },
+            Supplier { null },
             null
         )
 
@@ -119,17 +118,17 @@ class PlaybackPositionManagerTest {
     }
 
     @Test
-    fun stateProviderFromPlaybackStateReadsLateBoundQueueManager() {
+    fun stateProviderFromPlaybackStateReadsLateBoundCurrentTrack() {
         val track = track(24L)
-        var queueManager: PlaybackQueueManager? = null
+        var currentTrack: Track? = null
         val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            Supplier { queueManager },
+            Supplier { currentTrack },
             LongSupplier { 420L }
         )
 
         assertEquals(null, provider.currentTrack())
 
-        queueManager = queueManager(track)
+        currentTrack = track
 
         assertSame(track, provider.currentTrack())
         assertEquals(420L, provider.positionMs())
@@ -173,36 +172,6 @@ class PlaybackPositionManagerTest {
         override fun savePlaybackPosition(trackId: Long, positionMs: Long) {
             savedPositions.add(trackId to positionMs)
         }
-    }
-
-    private fun queueManager(track: Track?): PlaybackQueueManager {
-        val manager = PlaybackQueueManager(
-            FakeQueueStore(),
-            NoopQueuePlaybackActions,
-            null,
-            NoopStreamingRestoreProvider,
-            NoopMirroredQueuePlayer,
-            null,
-            null
-        )
-        if (track != null) {
-            manager.playQueue(listOf(track), 0, 0L)
-        }
-        return manager
-    }
-
-    private object NoopQueuePlaybackActions : PlaybackQueueManager.QueuePlaybackActions {
-        override fun prepareCurrent(playWhenReady: Boolean) {}
-        override fun publishState() {}
-    }
-
-    private object NoopStreamingRestoreProvider : PlaybackQueueManager.StreamingRestoreProvider {
-        override fun restoreTrackForPlayback(track: Track): Track = track
-    }
-
-    private object NoopMirroredQueuePlayer : PlaybackQueueManager.MirroredQueuePlayer {
-        override fun matchesCurrentQueue(): Boolean = false
-        override fun seekTo(index: Int, positionMs: Long, playWhenReady: Boolean): Boolean = false
     }
 
 }
