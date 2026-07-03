@@ -80,7 +80,7 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
 
     @Override
     public MediaItem currentPlayerMediaItem() {
-        return playerMediaItemSupplier.get();
+        return playerMediaItemSupplier == null ? null : playerMediaItemSupplier.get();
     }
 
     @Override

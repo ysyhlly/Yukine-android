@@ -77,6 +77,17 @@ public class PlaybackPrecacheStateOwnerTest {
         assertEquals(Collections.emptyList(), nullTrackOwner.upcomingTracksForPrecache(3));
     }
 
+    @Test
+    public void returnsNullCurrentPlayerMediaItemWhenSupplierIsMissing() {
+        PlaybackPrecacheStateOwner owner = new PlaybackPrecacheStateOwner(
+                null,
+                null,
+                new PlaybackStreamingDiagnostics()
+        );
+
+        assertNull(owner.currentPlayerMediaItem());
+    }
+
     private static Track track(long id) {
         return new Track(
                 id,
