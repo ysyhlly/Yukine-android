@@ -119,23 +119,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                     EchoPlaybackService.this::prepareCurrent,
                     EchoPlaybackService.this::publishState
             );
-    private final PlaybackQueueCompletionOwner.CompletionBoundary playbackQueueCompletionBoundary =
-            new PlaybackQueueCompletionOwner.CompletionBoundary() {
-                @Override
-                public void stopAndClear() {
-                    EchoPlaybackService.this.stopAndClear();
-                }
-
-                @Override
-                public void stopAtEndOfQueue() {
-                    EchoPlaybackService.this.stopAtEndOfQueue();
-                }
-
-                @Override
-                public void skipToNext() {
-                    EchoPlaybackService.this.skipToNext();
-                }
-            };
     private final PlaybackRuntimeStateManager playbackRuntimeStateManager =
             new PlaybackRuntimeStateManager(
                     PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
@@ -1281,7 +1264,22 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackQueueCompletionOwner playbackQueueCompletionOwner() {
         return new PlaybackQueueCompletionOwner(
                 playbackQueueManager,
-                playbackQueueCompletionBoundary
+                new PlaybackQueueCompletionOwner.CompletionBoundary() {
+                    @Override
+                    public void stopAndClear() {
+                        EchoPlaybackService.this.stopAndClear();
+                    }
+
+                    @Override
+                    public void stopAtEndOfQueue() {
+                        EchoPlaybackService.this.stopAtEndOfQueue();
+                    }
+
+                    @Override
+                    public void skipToNext() {
+                        EchoPlaybackService.this.skipToNext();
+                    }
+                }
         );
     }
 

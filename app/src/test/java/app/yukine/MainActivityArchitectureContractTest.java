@@ -78,11 +78,11 @@ public final class MainActivityArchitectureContractTest {
         );
         assertTrue(
                 "EchoPlaybackService should not grow Playback* wiring fields, including final initialized fields",
-                countPrivatePlaybackFieldDeclarations(service, false) <= 54
+                countPrivatePlaybackFieldDeclarations(service, false) <= 53
         );
         assertTrue(
                 "EchoPlaybackService should not grow Playback*Owner wiring fields, including final initialized fields",
-                countPrivatePlaybackFieldDeclarations(service, true) <= 23
+                countPrivatePlaybackFieldDeclarations(service, true) <= 22
         );
         assertFalse(exists("app/src/main/java/app/yukine/playback/PlaybackMediaSourceResolutionOwner.java"));
         assertFalse(exists("app/src/test/java/app/yukine/playback/PlaybackMediaSourceResolutionOwnerTest.java"));
@@ -5865,7 +5865,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueStopClearOwner"));
         assertFalse(service.contains("private PlaybackQueueCompletionOwner playbackQueueCompletionOwner;"));
         assertFalse(service.contains("private final PlaybackQueueCompletionOwner playbackQueueCompletionOwner"));
-        assertTrue(service.contains(
+        assertFalse(service.contains(
                 "private final PlaybackQueueCompletionOwner.CompletionBoundary playbackQueueCompletionBoundary"));
         assertTrue(service.contains("new PlaybackQueueCompletionOwner("));
         assertFalse(service.contains("PlaybackQueueCompletionOwner.fromPlaybackQueueManager("));
@@ -5877,8 +5877,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueCompletionOwner.contains("void repeatCurrent();"));
         String queueCompletionBoundaryWiring = normalizedService.substring(
                 normalizedService.indexOf(
-                        "private final PlaybackQueueCompletionOwner.CompletionBoundary playbackQueueCompletionBoundary"),
-                normalizedService.indexOf("    private final PlaybackRuntimeStateManager")
+                        "private PlaybackQueueCompletionOwner playbackQueueCompletionOwner()"),
+                normalizedService.indexOf("    private PlaybackQueueNavigationOwner playbackQueueNavigationOwner()")
         );
         assertFalse(queueCompletionBoundaryWiring.contains("                playbackQueueCommandOwner,"));
         assertFalse(queueCompletionBoundaryWiring.contains("playbackQueueCommandOwner.prepareCurrent(true);"));
@@ -5897,7 +5897,15 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(normalizedService.contains(
                 "private PlaybackQueueCompletionOwner playbackQueueCompletionOwner()"));
         assertTrue(normalizedService.contains(
-                "return new PlaybackQueueCompletionOwner(\n                playbackQueueManager,\n                playbackQueueCompletionBoundary\n        );"));
+                "return new PlaybackQueueCompletionOwner(\n"
+                        + "                playbackQueueManager,\n"
+                        + "                new PlaybackQueueCompletionOwner.CompletionBoundary() {"));
+        assertTrue(queueCompletionBoundaryWiring.contains("public void stopAndClear()"));
+        assertTrue(queueCompletionBoundaryWiring.contains("EchoPlaybackService.this.stopAndClear();"));
+        assertTrue(queueCompletionBoundaryWiring.contains("public void stopAtEndOfQueue()"));
+        assertTrue(queueCompletionBoundaryWiring.contains("EchoPlaybackService.this.stopAtEndOfQueue();"));
+        assertTrue(queueCompletionBoundaryWiring.contains("public void skipToNext()"));
+        assertTrue(queueCompletionBoundaryWiring.contains("EchoPlaybackService.this.skipToNext();"));
         assertFalse(normalizedService.contains(
                 "new PlaybackQueueCompletionOwner(\n                playbackQueueManager,\n                playbackQueueCompletionBoundary,\n                playbackQueueCommandOwner\n        )"));
         assertFalse(normalizedService.contains("new PlaybackQueueCompletionOwner(\n                () -> playbackQueueManager"));
