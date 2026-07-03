@@ -2,6 +2,7 @@ package app.yukine.playback;
 
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackTransitionStateManager;
 
 import java.util.function.BooleanSupplier;
@@ -38,9 +39,12 @@ final class PlaybackPlayHistoryRecorder {
             if (recorder == null) {
                 return;
             }
+            PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null
+                    ? PlaybackQueueManager.QueueStateSnapshot.empty()
+                    : queueStateOwner.queueStateSnapshot();
             recorder.recordIfPlaybackStarted(
                     playWhenReady != null && playWhenReady.getAsBoolean(),
-                    queueStateOwner == null ? null : queueStateOwner.currentTrack()
+                    snapshot.getCurrentTrack()
             );
         };
     }

@@ -7401,11 +7401,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("recordPlaybackStartHistoryAction.run();"));
         assertFalse(service.contains("playbackPlayHistoryRecorder.recordIfPlaybackStarted("));
         assertTrue(service.contains("PlaybackPlayHistoryRecorder.fromRepository("));
+        assertTrue(owner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertTrue(owner.contains("interface HistorySink"));
         assertTrue(owner.contains("static Runnable recordIfPlaybackStartedAction("));
         assertTrue(owner.contains("PlaybackQueueStateOwner queueStateOwner"));
-        assertTrue(owner.contains("queueStateOwner == null ? null"));
-        assertTrue(owner.contains(": queueStateOwner.currentTrack()"));
+        assertTrue(owner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null"));
+        assertTrue(owner.contains(": queueStateOwner.queueStateSnapshot();"));
+        assertTrue(owner.contains("snapshot.getCurrentTrack()"));
+        assertFalse(owner.contains(": queueStateOwner.currentTrack()"));
         assertFalse(owner.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(owner.contains("Supplier<Track> currentTrack"));
         assertFalse(owner.contains("currentTrack == null ? null : currentTrack.get()"));
