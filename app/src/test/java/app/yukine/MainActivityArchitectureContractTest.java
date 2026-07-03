@@ -6559,7 +6559,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredTransitionOwner.contains("return mirrorsQueue && !queueSnapshot.isQueueEmpty();"));
         assertTrue(mirroredTransitionOwner.contains("boolean queueEmpty = snapshot.isQueueEmpty();"));
         assertTrue(mirroredTransitionOwner.contains("return mirrorsQueue && !queueEmpty;"));
-        assertTrue(mirroredTransitionOwner.contains("currentTrack = queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertFalse(mirroredTransitionOwner.contains("currentTrack = queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertTrue(mirroredTransitionOwner.contains("currentTrack = snapshot.getCurrentTrack();"));
         assertTrue(mirroredTransitionOwner.contains("boolean canApplyMirroredTransition()"));
         assertTrue(mirroredTransitionOwner.contains("static final class Transition"));
         assertTrue(mirroredTransitionOwner.contains("Track currentTrack()"));

@@ -79,7 +79,10 @@ final class PlaybackQueueMirroredTransitionOwner {
         }
         Track currentTrack = null;
         if (!result.getStopAfterAutomaticAdvance()) {
-            currentTrack = queueStateOwner == null ? null : queueStateOwner.currentTrack();
+            PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null
+                    ? PlaybackQueueManager.QueueStateSnapshot.empty()
+                    : queueStateOwner.queueStateSnapshot();
+            currentTrack = snapshot.getCurrentTrack();
             if (currentTrackVolumeApplier != null) {
                 currentTrackVolumeApplier.run();
             }
