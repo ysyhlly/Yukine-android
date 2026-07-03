@@ -20,7 +20,7 @@ final class PlaybackQueueStateOwner {
         this.playbackQueueManager = playbackQueueManager;
     }
 
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
+    PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
                 ? null
@@ -44,26 +44,6 @@ final class PlaybackQueueStateOwner {
 
     Track currentTrack() {
         return queueStateSnapshot().getCurrentTrack();
-    }
-
-    int currentIndex() {
-        return queueStateSnapshot().getCurrentIndex();
-    }
-
-    int queueSize() {
-        return queueStateSnapshot().getQueueSize();
-    }
-
-    boolean isQueueEmpty() {
-        return queueStateSnapshot().isQueueEmpty();
-    }
-
-    boolean hasMultipleTracks() {
-        return queueStateSnapshot().getHasMultipleTracks();
-    }
-
-    boolean isAtEndOfQueue() {
-        return queueStateSnapshot().isAtEndOfQueue();
     }
 
     private PlaybackQueueManager playbackQueueManager() {
