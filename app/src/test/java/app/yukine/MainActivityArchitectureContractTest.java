@@ -8583,8 +8583,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkProviderOwner.java")));
         assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackNotificationArtworkProviderOwnerTest.java")));
         assertFalse(service.contains("PlaybackNotificationArtworkProviderOwner"));
-        assertTrue(service.contains("private PlaybackNotificationArtworkSource playbackNotificationArtworkSource;"));
-        assertTrue(service.contains("playbackNotificationArtworkSource = PlaybackNotificationArtworkSource.fromSupplier("));
+        assertFalse(service.contains("private PlaybackNotificationArtworkSource playbackNotificationArtworkSource;"));
+        assertTrue(service.contains(
+                "final PlaybackNotificationArtworkSource playbackNotificationArtworkSource =\n"
+                        + "                PlaybackNotificationArtworkSource.fromSupplier("));
         assertTrue(service.contains("                playbackNotificationArtworkSource,"));
         assertFalse(service.contains("new PlaybackNotificationManager.ArtworkProvider()"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkStateOwner.java")));

@@ -148,7 +148,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackNotificationManager playbackNotificationManager;
     private PlaybackNotificationForegroundOwner playbackNotificationForegroundOwner;
     private PlaybackNotificationCommandOwner playbackNotificationCommandOwner;
-    private PlaybackNotificationArtworkSource playbackNotificationArtworkSource;
     private PlaybackSessionCommandOwner playbackSessionCommandOwner;
     private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner;
     private PlaybackCurrentTrackPreparationOwner playbackCurrentTrackPreparationOwner;
@@ -408,9 +407,10 @@ public final class EchoPlaybackService extends MediaLibraryService
                     return session == null ? null : session.getPlatformToken();
                 }
         );
-        playbackNotificationArtworkSource = PlaybackNotificationArtworkSource.fromSupplier(
-                () -> playbackNotificationArtworkManager
-        );
+        final PlaybackNotificationArtworkSource playbackNotificationArtworkSource =
+                PlaybackNotificationArtworkSource.fromSupplier(
+                        () -> playbackNotificationArtworkManager
+                );
         playbackNotificationManager = new PlaybackNotificationManager(
                 this,
                 playbackNotificationForegroundOwner,
