@@ -8182,6 +8182,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("import java.util.function.LongConsumer;"));
         assertTrue(commandOwner.contains("import java.util.function.IntConsumer;"));
         assertTrue(commandOwner.contains("import java.util.function.Function;"));
+        assertTrue(commandOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertTrue(commandOwner.contains("private final LongConsumer seekController;"));
         assertTrue(commandOwner.contains("private final IntConsumer repeatModeController;"));
         assertTrue(commandOwner.contains("private final Function<Track, MediaMetadata> metadataProvider;"));
@@ -8193,8 +8194,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(commandOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
         assertFalse(commandOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertTrue(commandOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
-        assertTrue(commandOwner.contains("return queueStateOwner == null ? null"));
-        assertTrue(commandOwner.contains(": queueStateOwner.currentTrack();"));
+        assertTrue(commandOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null"));
+        assertTrue(commandOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
+        assertTrue(commandOwner.contains(": queueStateOwner.queueStateSnapshot();"));
+        assertTrue(commandOwner.contains("return snapshot.getCurrentTrack();"));
+        assertFalse(commandOwner.contains(": queueStateOwner.currentTrack();"));
         assertFalse(commandOwner.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertTrue(commandOwner.contains("playbackCommands.skipToNext();"));
         assertTrue(commandOwner.contains("controllerMediaItems.setControllerMediaItems(mediaItems, startIndex, startPositionMs)"));
