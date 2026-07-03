@@ -3714,3 +3714,51 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackFavoriteCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## P1 Wiring Note - Play History Current Track Source
+
+Current audit date: 2026-07-03.
+
+- `PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(...)` no longer
+  unwraps `queueStateOwner.queueStateSnapshot().getCurrentTrack()` directly.
+- The existing play-history owner now reads the current track through
+  `PlaybackQueueStateOwner.currentTrack()`.
+- No owner was added and Service wiring did not change. The real reduction is
+  one fewer direct snapshot-current dereference in a playback owner.
+- `PlaybackPlayHistoryRecorderTest` covers the action path with changing
+  queue state and the missing-recorder no-op; the architecture contract now
+  blocks the direct snapshot read from returning.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPlayHistoryRecorderTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Batch Audit - Queue State Semantic Reads
+
+Current audit date: 2026-07-03.
+
+- This checkpoint follows three queue-state semantic read slices:
+  - `PlaybackQueueMutationOwner.clearQueue()` now uses
+    `PlaybackQueueStateOwner.isQueueEmpty()`.
+  - `PlaybackFavoriteCommandOwner.toggleCurrentFavorite(...)` now uses
+    `PlaybackQueueStateOwner.currentTrack()`.
+  - `PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(...)` now uses
+    `PlaybackQueueStateOwner.currentTrack()`.
+- Real reduction in this batch: two fewer direct snapshot-current dereference
+  chains and one fewer direct snapshot-derived empty read in playback owners.
+- Current metrics after this batch:
+  - `EchoPlaybackService.java` is 1424 lines.
+  - `private Playback*` field count is 55 by the current field metric.
+  - Production `fromPlaybackQueueManager(...)` count is 0.
+  - Service `playbackQueueStateOwner::queueStateSnapshot` supplier count is 1.
+  - `Playback*Owner` production file count is 43.
+  - Remaining production direct
+    `queueStateOwner.queueStateSnapshot().getCurrentTrack()` reads are 4:
+    precache state, mirrored player, session command, and visualization cache.
+- Focused tests covering this batch:
+  `PlaybackQueueStateOwnerTest`, `PlaybackQueueMutationOwnerTest`,
+  `PlaybackFavoriteCommandOwnerTest`, `PlaybackPlayHistoryRecorderTest`, and
+  `MainActivityArchitectureContractTest`.
+- Deferred risk remains unchanged: notification, lyrics, shutdown, and
+  background playback are not touched by this batch.

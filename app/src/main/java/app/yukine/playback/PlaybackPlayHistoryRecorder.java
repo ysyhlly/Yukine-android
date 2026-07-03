@@ -40,8 +40,7 @@ final class PlaybackPlayHistoryRecorder {
             }
             recorder.recordIfPlaybackStarted(
                     playWhenReady != null && playWhenReady.getAsBoolean(),
-                    queueStateOwner == null ? null
-                            : queueStateOwner.queueStateSnapshot().getCurrentTrack()
+                    queueStateOwner == null ? null : queueStateOwner.currentTrack()
             );
         };
     }

@@ -7292,8 +7292,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("static Runnable recordIfPlaybackStartedAction("));
         assertTrue(owner.contains("PlaybackQueueStateOwner queueStateOwner"));
         assertTrue(owner.contains("queueStateOwner == null ? null"));
-        assertTrue(owner.contains(": queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
-        assertFalse(owner.contains("queueStateOwner.currentTrack()"));
+        assertTrue(owner.contains(": queueStateOwner.currentTrack()"));
+        assertFalse(owner.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(owner.contains("Supplier<Track> currentTrack"));
         assertFalse(owner.contains("currentTrack == null ? null : currentTrack.get()"));
         assertTrue(owner.contains("void recordIfPlaybackStarted(boolean playWhenReady, Track track)"));
