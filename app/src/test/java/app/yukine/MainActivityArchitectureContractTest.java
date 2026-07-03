@@ -5751,7 +5751,8 @@ public final class MainActivityArchitectureContractTest {
                         "                )\n        );\n        playbackSleepTimerCommandOwner"
                 )
         );
-        assertTrue(positionStateProviderWiring.contains("                        playbackQueueManager,\n"));
+        assertTrue(positionStateProviderWiring.contains("                        () -> playbackQueueManager,\n"));
+        assertFalse(positionStateProviderWiring.contains("                        playbackQueueManager,\n"));
         assertFalse(positionStateProviderWiring.contains("                        playbackQueueStateOwner::currentTrack,\n"));
         assertFalse(positionStateProviderWiring.contains(
                 "playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
@@ -5792,10 +5793,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(positionOwner.contains("fun stateProviderFromPlaybackState("));
         assertFalse(positionOwner.contains("currentTrackSupplier: Supplier<Track?>?"));
         assertFalse(positionOwner.contains("queueStateSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
-        assertTrue(positionOwner.contains("playbackQueueManager: PlaybackQueueManager?"));
+        assertTrue(positionOwner.contains("queueManagerSupplier: Supplier<PlaybackQueueManager?>?"));
+        assertFalse(positionOwner.contains("playbackQueueManager: PlaybackQueueManager?"));
         assertTrue(positionOwner.contains("playbackPositionSupplier: LongSupplier?"));
         assertFalse(positionOwner.contains("override fun currentTrack(): Track? = currentTrackSupplier?.get()"));
-        assertTrue(positionOwner.contains("override fun currentTrack(): Track? = playbackQueueManager?.queueStateSnapshot()?.currentTrack"));
+        assertTrue(positionOwner.contains(
+                "override fun currentTrack(): Track? = queueManagerSupplier?.get()?.queueStateSnapshot()?.currentTrack"));
+        assertFalse(positionOwner.contains("override fun currentTrack(): Track? = playbackQueueManager?.queueStateSnapshot()?.currentTrack"));
         assertFalse(positionOwner.contains("queueStateSupplier?.get()?.currentTrack"));
         assertTrue(positionOwner.contains("override fun positionMs(): Long = playbackPositionSupplier?.asLong ?: 0L"));
         assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot>"));

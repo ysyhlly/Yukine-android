@@ -10,6 +10,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
 import java.util.function.LongSupplier
+import java.util.function.Supplier
 
 class PlaybackPositionManagerTest {
     @Test
@@ -92,7 +93,7 @@ class PlaybackPositionManagerTest {
         val events = mutableListOf<String>()
         val track = track(23L)
         val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            queueManager(track),
+            Supplier { queueManager(track) },
             LongSupplier {
                 events += "position"
                 321L
@@ -108,13 +109,30 @@ class PlaybackPositionManagerTest {
     fun stateProviderFromPlaybackStateHandlesMissingCurrentTrack() {
         val missingProvider = PlaybackPositionManager.stateProviderFromPlaybackState(null, null)
         val nullTrackProvider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            queueManager(null),
+            Supplier { queueManager(null) },
             null
         )
 
         assertEquals(null, missingProvider.currentTrack())
         assertEquals(0L, missingProvider.positionMs())
         assertEquals(null, nullTrackProvider.currentTrack())
+    }
+
+    @Test
+    fun stateProviderFromPlaybackStateReadsLateBoundQueueManager() {
+        val track = track(24L)
+        var queueManager: PlaybackQueueManager? = null
+        val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
+            Supplier { queueManager },
+            LongSupplier { 420L }
+        )
+
+        assertEquals(null, provider.currentTrack())
+
+        queueManager = queueManager(track)
+
+        assertSame(track, provider.currentTrack())
+        assertEquals(420L, provider.positionMs())
     }
 
     private fun manager(): PlaybackPositionManager {
