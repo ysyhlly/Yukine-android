@@ -70,6 +70,8 @@ public final class MainActivityArchitectureContractTest {
         String libraryGateway = methodBody(mainActivity, "    private void initializeLibraryGateway()");
         String routeStoresAndStatus = methodBody(mainActivity, "    private void initializeRouteStoresAndStatus()");
         String playTrackListFromHost = methodBody(mainActivity, "    private void playTrackListFromHost(List<Track> tracks, int index)");
+        String mainLibraryGateway = read("app/src/main/java/app/yukine/MainLibraryGateway.kt")
+                .replace("\r\n", "\n");
 
         int streamingGatewayStep = onCreate.indexOf("        MainActivityStreamingActionGateway streamingActionGateway = createStreamingActionGateway();");
         int streamingOwnersStep = onCreate.indexOf("        initializeStreamingOwners(streamingActionGateway);");
@@ -90,6 +92,9 @@ public final class MainActivityArchitectureContractTest {
         int libraryStatusCallbackArgument = libraryGateway.indexOf(
                 "                status -> statusMessageController.setStatus(status),\n"
         );
+        int documentPickerProviderArgument = libraryGateway.indexOf(
+                "                () -> documentPickerController.openAudioFilePicker(),\n"
+        );
 
         assertTrue(streamingGatewayStep >= 0);
         assertTrue(streamingOwnersStep >= 0);
@@ -103,7 +108,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(routeStoresStep >= 0);
         assertTrue(routeStoresStep < nowPlayingGatewayStep);
         assertTrue(routeStoresStep < downloadRequestsStep);
-        assertTrue(routeStoresStep < libraryGatewayStep);
+        assertTrue(
+                "Route/status shell must be initialized before binding MainLibraryGateway non-null host actions",
+                routeStoresStep < libraryGatewayStep
+        );
         assertTrue(routeStoresStep < playbackLifecycleStep);
         assertTrue(libraryGatewayStep < platformControllersStep);
         assertTrue(nowPlayingGatewayStep < playbackControllersStep);
@@ -143,6 +151,11 @@ public final class MainActivityArchitectureContractTest {
                 "                        MainActivityBase.this.playlistDialogController.showAddToPlaylist(track);\n"));
         assertTrue(libraryGateway.contains("                routeController,\n"));
         assertTrue(libraryRouteActionsArgument >= 0);
+        assertTrue(mainLibraryGateway.contains("        routeActions: LibraryRouteActions,\n"));
+        assertFalse(mainLibraryGateway.contains("        routeActions: LibraryRouteActions?,\n"));
+        assertFalse(mainLibraryGateway.contains("        routeActionsProvider:"));
+        assertFalse(libraryGateway.contains("                () -> routeController,\n"));
+        assertFalse(libraryGateway.contains("                routeController == null"));
         assertFalse(libraryGateway.contains("                () -> settingsStore.languageMode(),\n"));
         assertFalse(libraryGateway.contains("                statusMessageController,\n"));
         assertFalse(libraryGateway.contains("                playbackStartController,\n"));
@@ -164,6 +177,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(downloadRequests.contains("                () -> trackDownloadManager,\n"));
         assertFalse(downloadRequests.contains("                trackDownloadManager,\n"));
         assertTrue(libraryGateway.contains("                () -> documentPickerController.openAudioFilePicker(),\n"));
+        assertTrue(documentPickerProviderArgument >= 0);
+        assertTrue(libraryRouteActionsArgument < documentPickerProviderArgument);
         assertFalse(libraryGateway.contains("                documentPickerController,\n"));
         assertFalse(libraryGateway.contains("                documentPickerController.openAudioFilePicker(),\n"));
         assertFalse(onCreate.contains("initializeLibraryGateway();\n        initializeRouteStoresAndStatus();"));
