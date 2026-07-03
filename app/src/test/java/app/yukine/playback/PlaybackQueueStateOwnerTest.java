@@ -107,7 +107,7 @@ public class PlaybackQueueStateOwnerTest {
         assertEquals(0, snapshot.getQueueSize());
         assertTrue(snapshot.isQueueEmpty());
         assertFalse(snapshot.getHasMultipleTracks());
-        assertTrue(snapshot.isAtEndOfQueue());
+        assertFalse(snapshot.isAtEndOfQueue());
     }
 
     @Test

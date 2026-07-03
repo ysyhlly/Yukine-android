@@ -917,7 +917,7 @@ class PlaybackQueueManagerTest {
         assertTrue(empty.isQueueEmpty)
         assertFalse(empty.hasCurrentTrack)
         assertFalse(empty.hasMultipleTracks)
-        assertTrue(empty.isAtEndOfQueue)
+        assertFalse(empty.isAtEndOfQueue)
 
         val middle = PlaybackQueueManager.QueueStateSnapshot(
             currentTrack = track(1L),
@@ -943,7 +943,7 @@ class PlaybackQueueManagerTest {
         assertTrue(snapshot.isQueueEmpty)
         assertFalse(snapshot.hasCurrentTrack)
         assertFalse(snapshot.hasMultipleTracks)
-        assertTrue(snapshot.isAtEndOfQueue)
+        assertFalse(snapshot.isAtEndOfQueue)
     }
 
     @Test
@@ -979,7 +979,7 @@ class PlaybackQueueManagerTest {
         assertTrue(snapshot.isQueueEmpty)
         assertFalse(snapshot.hasCurrentTrack)
         assertFalse(snapshot.hasMultipleTracks)
-        assertTrue(snapshot.isAtEndOfQueue)
+        assertFalse(snapshot.isAtEndOfQueue)
     }
 
     @Test
@@ -1052,7 +1052,7 @@ class PlaybackQueueManagerTest {
         val manager = queueManager(store, provider)
 
         assertFalse(manager.queueStateSnapshot().hasMultipleTracks)
-        assertTrue(manager.queueStateSnapshot().isAtEndOfQueue)
+        assertFalse(manager.queueStateSnapshot().isAtEndOfQueue)
 
         provider.queue.add(track(1L))
         assertFalse(manager.queueStateSnapshot().hasMultipleTracks)

@@ -80,7 +80,7 @@ internal class PlaybackQueueManager(
             get() = queueSize >= 2
 
         val isAtEndOfQueue: Boolean
-            get() = currentIndex >= queueSize - 1
+            get() = queueSize > 0 && currentIndex >= queueSize - 1
 
         companion object {
             @JvmStatic

@@ -6441,7 +6441,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("val hasMultipleTracks: Boolean"));
         assertTrue(owner.contains("get() = queueSize >= 2"));
         assertTrue(owner.contains("val isAtEndOfQueue: Boolean"));
-        assertTrue(owner.contains("get() = currentIndex >= queueSize - 1"));
+        assertTrue(owner.contains("get() = queueSize > 0 && currentIndex >= queueSize - 1"));
         assertTrue(service.contains("private final PlaybackQueueStateOwner playbackQueueStateOwner"));
         assertTrue(service.contains("new PlaybackQueueStateOwner()"));
         assertTrue(service.contains("playbackQueueStateOwner.bindPlaybackQueueManager(playbackQueueManager);"));
@@ -6883,7 +6883,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueStateSnapshot.contains("val hasMultipleTracks: Boolean"));
         assertTrue(queueStateSnapshot.contains("get() = queueSize >= 2"));
         assertTrue(queueStateSnapshot.contains("val isAtEndOfQueue: Boolean"));
-        assertTrue(queueStateSnapshot.contains("get() = currentIndex >= queueSize - 1"));
+        assertTrue(queueStateSnapshot.contains("get() = queueSize > 0 && currentIndex >= queueSize - 1"));
         assertFalse(owner.contains("interface QueueProvider"));
         assertFalse(owner.contains("queueProvider"));
         assertFalse(service.contains("new PlaybackQueueManager.QueueProvider()"));
