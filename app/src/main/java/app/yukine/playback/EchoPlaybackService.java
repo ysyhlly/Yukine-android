@@ -135,7 +135,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private app.yukine.playback.manager.LyricsPublisher playbackLyricsManager;
     private final Consumer<Boolean> statusBarLyricsEnabledAction =
             PlaybackLyricsSettingsStore.statusBarLyricsEnabledActionFromSupplier(() -> playbackLyricsManager);
-    private PlaybackLyricsStateOwner playbackLyricsStateOwner;
     private PlaybackModeSettingsStore playbackModeSettingsStore;
     private PlaybackStatePublisher playbackStatePublisher;
     private PlaybackStateSnapshotOwner playbackStateSnapshotOwner;
@@ -423,7 +422,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 PlaybackNotificationArtworkBridgeOwner.sessionRefresherFromPlaybackSessionManager(
                         () -> playbackSessionManager
                 );
-        playbackLyricsStateOwner = new PlaybackLyricsStateOwner(
+        final PlaybackLyricsStateOwner playbackLyricsStateOwner = new PlaybackLyricsStateOwner(
                 () -> appVisible,
                 PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState(
                         playbackQueueStateOwner,

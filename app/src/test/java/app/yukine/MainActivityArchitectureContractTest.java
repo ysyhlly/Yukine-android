@@ -5488,10 +5488,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("repository.loadStatusBarLyricsEnabled()"));
         assertFalse(playbackService.contains("playbackLyricsManager.setStatusBarLyricsEnabled(repository.loadStatusBarLyricsEnabled())"));
         assertTrue(playbackService.contains("PlaybackLyricsSettingsStore.fromRepository(repository).restoreInto(playbackLyricsManager)"));
-        assertTrue(playbackService.contains("private PlaybackLyricsStateOwner playbackLyricsStateOwner;"));
+        assertFalse(playbackService.contains("private PlaybackLyricsStateOwner playbackLyricsStateOwner;"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackActiveStateOwner.java")));
         assertFalse(playbackService.contains("PlaybackActiveStateOwner"));
-        assertTrue(playbackService.contains("playbackLyricsStateOwner = new PlaybackLyricsStateOwner("));
+        assertTrue(playbackService.contains("final PlaybackLyricsStateOwner playbackLyricsStateOwner = new PlaybackLyricsStateOwner("));
         assertTrue(playbackService.contains("                playbackLyricsStateOwner,"));
         assertTrue(playbackService.contains("PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState("));
         assertTrue(normalizedPlaybackService.contains(
