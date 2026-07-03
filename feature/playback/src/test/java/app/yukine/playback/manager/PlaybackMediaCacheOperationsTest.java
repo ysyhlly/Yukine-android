@@ -8,6 +8,13 @@ import static org.junit.Assert.assertTrue;
 import android.content.Context;
 import android.net.Uri;
 
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.datasource.ByteArrayDataSource;
+import androidx.media3.datasource.DataSpec;
+import androidx.media3.datasource.cache.CacheDataSource;
+import androidx.media3.datasource.cache.CacheWriter;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RuntimeEnvironment;
@@ -22,6 +29,7 @@ import app.yukine.data.MusicLibraryRepository;
 import app.yukine.model.Track;
 import app.yukine.streaming.StreamingPlaybackHeaderStore;
 
+@OptIn(markerClass = UnstableApi.class)
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 33)
 public final class PlaybackMediaCacheOperationsTest {
@@ -110,6 +118,38 @@ public final class PlaybackMediaCacheOperationsTest {
             assertEquals(-1L, operations.contentLengthForCacheKey(
                     "streaming:test:42|url=https://example.test/audio.flac"
             ));
+        } finally {
+            provider.releaseAudioCache();
+        }
+    }
+
+    @Test
+    public void providerBackedOperationsReadCommittedCacheBytesWithSafeOffset() throws Exception {
+        PlaybackMediaSourceProvider provider =
+                mediaSourceProvider(new FakeStreamingPlaybackHeaderStore(Collections.emptyMap()));
+        PlaybackMediaCacheOperations operations =
+                PlaybackMediaCacheOperations.fromMediaSourceProvider(provider);
+        String cacheKey = "streaming:test:45|url=https://example.test/cached.flac";
+
+        try {
+            CacheWriter cacheWriter = new CacheWriter(
+                    new CacheDataSource(
+                            provider.audioCache(),
+                            new ByteArrayDataSource(new byte[]{1, 2, 3, 4})
+                    ),
+                    new DataSpec.Builder()
+                            .setUri(Uri.parse("https://example.test/cached.flac"))
+                            .setKey(cacheKey)
+                            .setLength(4L)
+                            .build(),
+                    new byte[1024],
+                    null
+            );
+
+            cacheWriter.cache();
+
+            assertEquals(4L, operations.cachedBytesInRange(cacheKey, -128L, 512L));
+            assertEquals(0L, operations.cachedBytesInRange(cacheKey, 0L, 0L));
         } finally {
             provider.releaseAudioCache();
         }
