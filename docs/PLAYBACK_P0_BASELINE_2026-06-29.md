@@ -4169,3 +4169,63 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackCurrentTrackPreparationQueueOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1/P2/P3 Batch Audit - Owner Drift And Queue Interface Scope
+
+Current audit date: 2026-07-03.
+
+- Batch scope since the previous audit:
+  `PlaybackCurrentTrackPreparationQueueOwnerTest` now protects mirrored queue
+  preparation through the media source boundary;
+  `PlaybackRuntimeStateManagerTest` now protects late-bound queue state for
+  replay gain; and `PlaybackPrecacheStateOwnerTest` now protects a missing
+  current-player media item supplier.
+- Current metrics: `EchoPlaybackService.java` is 1318 lines, strict
+  `private Playback*` field count is 43, production
+  `fromPlaybackQueueManager(...)` calls are 0, `queueStateSnapshot()` references
+  in the service are 0, and production `Playback*Owner.java` file count is 43.
+- `PlaybackQueueManager.QueueProvider` remains absent. The remaining
+  `PlaybackQueueManager` public surface is still broad, but now groups into
+  clearer responsibilities:
+  - True queue commands: `playQueue`, `appendToQueue`, `playFirstQueuedTrack`,
+    `skipToNextImmediately`, `skipToPrevious`, `moveQueueTrack`,
+    `removeTracksById`, `retainTracksById`, `replaceQueuedTrackById`,
+    `replaceCurrentTrackAndResume`, and `replaceCurrentQueueTrack`.
+  - Completion and stop preparation: `preparePlaybackCompletionAction`,
+    `prepareStopAtEndOfQueue`, `prepareStopAfterAutomaticAdvance`, and
+    `prepareStopAndClearPlaybackState`.
+  - Persistence and restore: `persistQueueState`, `restorePlaybackQueue`, and
+    `restoreLastPlayback`.
+  - Media/session preparation reads: `reuseMirroredQueueIfAvailable` and
+    `queuePreparationForNewPlayer`.
+  - Derived reads: `queueSnapshot`, `queueStateSnapshot`, and
+    `upcomingTracksForPrecache`.
+- Interface narrowing conclusion: there is no `QueueProvider` interface left to
+  shrink, so the next real queue-interface win should come from reducing
+  derived read exposure or moving one remaining command cluster behind a tested
+  owner, not from adding another provider/facade.
+- Stop/clear candidate conclusion: `PlaybackQueueStopClearOwner` and its test
+  remain deleted, and the architecture contract blocks their return. The
+  remaining `PlaybackQueueCompletionOwner` call sites are a temporary service
+  helper shape with no Service field and no `fromPlaybackQueueManager(...)`
+  factory. Do not continue the stop/clear merge unless the slice also removes a
+  real Service wiring point or owner method; otherwise it is only call-site
+  churn.
+- Resolver/cache boundary conclusion: the latest cache slice strengthened
+  `PlaybackPrecacheStateOwner` null-boundary behavior without adding a cache
+  facade or moving URI / MediaItem resolution away from
+  `PlaybackMediaSourceProvider`.
+- Focused tests protecting this batch:
+  `PlaybackCurrentTrackPreparationQueueOwnerTest`,
+  `PlaybackRuntimeStateManagerTest`, and `PlaybackPrecacheStateOwnerTest`.
+- The architecture contract was also updated to require the new null-safe
+  `PlaybackPrecacheStateOwner.currentPlayerMediaItem()` read, so the cache
+  state boundary remains documented by executable source checks.
+- Verification used in this batch:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackCurrentTrackPreparationQueueOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackRuntimeStateManagerTest --console=plain
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheStateOwnerTest --console=plain
+.\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```

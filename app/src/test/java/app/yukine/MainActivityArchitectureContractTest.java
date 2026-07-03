@@ -2238,7 +2238,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackPrecacheStateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertTrue(playbackPrecacheStateOwner.contains("queueStateOwner.upcomingTracksForPrecache(maxCount)"));
         assertFalse(playbackPrecacheStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
-        assertTrue(playbackPrecacheStateOwner.contains("return playerMediaItemSupplier.get();"));
+        assertTrue(playbackPrecacheStateOwner.contains(
+                "return playerMediaItemSupplier == null ? null : playerMediaItemSupplier.get();"));
         assertTrue(playbackPrecacheStateOwner.contains("return streamingDiagnostics;"));
         assertFalse(playbackPrecacheStateOwner.contains("return streamingDiagnosticsSupplier.get();"));
         assertFalse(playbackPrecacheStateOwner.contains("interface PlayerOperations"));
