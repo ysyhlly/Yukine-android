@@ -33,14 +33,13 @@ public class PlaybackQueueStateOwnerTest {
         PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
         PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManager);
-        PlaybackQueueManager.QueueStateSnapshot snapshot = owner.queueStateSnapshot();
 
-        assertSame(track, snapshot.getCurrentTrack());
-        assertEquals(0, snapshot.getCurrentIndex());
-        assertEquals(1, snapshot.getQueueSize());
-        assertFalse(snapshot.isQueueEmpty());
-        assertFalse(snapshot.getHasMultipleTracks());
-        assertTrue(snapshot.isAtEndOfQueue());
+        assertSame(track, owner.currentTrack());
+        assertEquals(0, owner.currentIndex());
+        assertEquals(1, owner.queueSize());
+        assertFalse(owner.isQueueEmpty());
+        assertFalse(owner.hasMultipleTracks());
+        assertTrue(owner.isAtEndOfQueue());
     }
 
     @Test
@@ -51,12 +50,12 @@ public class PlaybackQueueStateOwnerTest {
         AtomicReference<PlaybackQueueManager> queueManagerRef = new AtomicReference<>();
         PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManagerRef::get);
 
-        assertSame(null, owner.queueStateSnapshot().getCurrentTrack());
-        assertTrue(owner.queueStateSnapshot().isQueueEmpty());
+        assertSame(null, owner.currentTrack());
+        assertTrue(owner.isQueueEmpty());
 
         queueManagerRef.set(queueManager);
 
-        assertSame(track, owner.queueStateSnapshot().getCurrentTrack());
+        assertSame(track, owner.currentTrack());
         assertEquals(1, owner.queueSnapshot().size());
     }
 
@@ -69,14 +68,13 @@ public class PlaybackQueueStateOwnerTest {
         queueManager.playQueue(Arrays.asList(first, second, third), 1, -1L);
         PlaybackQueueStateOwner owner =
                 new PlaybackQueueStateOwner(queueManager);
-        PlaybackQueueManager.QueueStateSnapshot snapshot = owner.queueStateSnapshot();
 
-        assertSame(second, snapshot.getCurrentTrack());
-        assertEquals(1, snapshot.getCurrentIndex());
-        assertEquals(3, snapshot.getQueueSize());
-        assertFalse(snapshot.isQueueEmpty());
-        assertTrue(snapshot.getHasMultipleTracks());
-        assertFalse(snapshot.isAtEndOfQueue());
+        assertSame(second, owner.currentTrack());
+        assertEquals(1, owner.currentIndex());
+        assertEquals(3, owner.queueSize());
+        assertFalse(owner.isQueueEmpty());
+        assertTrue(owner.hasMultipleTracks());
+        assertFalse(owner.isAtEndOfQueue());
     }
 
     @Test
@@ -88,13 +86,11 @@ public class PlaybackQueueStateOwnerTest {
         queueManager.playQueue(Arrays.asList(first, second), 0, -1L);
         PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManager);
 
-        PlaybackQueueManager.QueueStateSnapshot initialSnapshot = owner.queueStateSnapshot();
-        assertSame(first, initialSnapshot.getCurrentTrack());
+        assertSame(first, owner.currentTrack());
 
         queueManager.playQueue(Collections.singletonList(replacement), 0, -1L);
-        PlaybackQueueManager.QueueStateSnapshot updatedSnapshot = owner.queueStateSnapshot();
 
-        assertSame(replacement, updatedSnapshot.getCurrentTrack());
+        assertSame(replacement, owner.currentTrack());
     }
 
     @Test
@@ -116,13 +112,12 @@ public class PlaybackQueueStateOwnerTest {
     public void returnsEmptyQueueStateWhenManagerIsMissing() {
         PlaybackQueueStateOwner missingManager = new PlaybackQueueStateOwner();
 
-        PlaybackQueueManager.QueueStateSnapshot snapshot = missingManager.queueStateSnapshot();
-        assertSame(null, snapshot.getCurrentTrack());
-        assertEquals(-1, snapshot.getCurrentIndex());
-        assertEquals(0, snapshot.getQueueSize());
-        assertTrue(snapshot.isQueueEmpty());
-        assertFalse(snapshot.getHasMultipleTracks());
-        assertFalse(snapshot.isAtEndOfQueue());
+        assertSame(null, missingManager.currentTrack());
+        assertEquals(-1, missingManager.currentIndex());
+        assertEquals(0, missingManager.queueSize());
+        assertTrue(missingManager.isQueueEmpty());
+        assertFalse(missingManager.hasMultipleTracks());
+        assertFalse(missingManager.isAtEndOfQueue());
     }
 
     @Test
