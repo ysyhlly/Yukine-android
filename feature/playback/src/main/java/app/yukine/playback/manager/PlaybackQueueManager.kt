@@ -564,12 +564,12 @@ internal class PlaybackQueueManager(
         val track = currentTrack() ?: return false
         clearErrorMessage()
         clearLastMarkedTrack()
+        queue[targetIndex] = streamingRestoreProvider.restoreTrackForPlayback(track)
         if (resetCurrentPlaybackState) {
             clearRestoredPosition()
-            persistQueue()
             resetCurrentPlaybackPosition()
         }
-        streamingRestoreProvider.restoreTrackForPlayback(track)
+        persistQueue()
         val startAtMs = maxOf(0L, startPositionMs)
         if (!mirroredQueuePlayer.seekTo(targetIndex, startAtMs, playWhenReady)) {
             return false

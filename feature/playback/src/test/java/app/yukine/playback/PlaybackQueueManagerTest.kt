@@ -691,16 +691,22 @@ class PlaybackQueueManagerTest {
         provider.mirroredQueuePlayer.seekToValue = true
         val manager = queueManager(store, provider)
         restoreQueue(manager, store, listOf(track(1L), track(2L)), 1)
+        val restoredSecond = track(20L, android.net.Uri.parse("content://music/restored-2"))
+        provider.streamingRestoreProvider.restoredTracks[2L] = restoredSecond
         provider.streamingRestoreProvider.restoredDataPaths.clear()
         provider.positionManager.setRestoredPosition(2L, 1200L, explicit = true)
 
         val reused = manager.reuseMirroredQueueIfAvailable(playWhenReady = true, startPositionMs = 4500L)
 
         assertTrue(reused)
+        assertEquals(20L, manager.queueStateSnapshot().currentTrack?.id)
+        assertEquals(listOf(1L, 20L), store.savedTracks.map { it.id })
+        assertEquals(1, store.savedIndex)
         assertEquals(1, provider.mirroredQueuePlayer.seekIndex)
         assertEquals(4500L, provider.mirroredQueuePlayer.seekPositionMs)
         assertTrue(store.resumeRequested)
-        assertEquals(0L, provider.positionManager.restoredPositionFor(track(2L)))
+        assertEquals(listOf("/music/2"), provider.streamingRestoreProvider.restoredDataPaths)
+        assertEquals(0L, provider.positionManager.restoredPositionFor(restoredSecond))
         assertFalse(provider.prepareCurrentCalled)
     }
 
