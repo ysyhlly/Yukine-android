@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Supplier;
 
 import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
@@ -43,7 +44,7 @@ public class PlaybackCrossfadeStateOwnerTest {
                     events.add("repeat");
                     return 2;
                 },
-                queueStateOwner(2, 0),
+                queueManagerSupplier(2, 0),
                 () -> {
                     events.add("volume");
                     return 0.75f;
@@ -70,10 +71,10 @@ public class PlaybackCrossfadeStateOwnerTest {
     @Test
     public void crossfadeAdvancePolicyUsesQueueStateAndRepeatMode() {
         PlaybackCrossfadeStateOwner missingQueue = owner(null, PlaybackRepeatMode.REPEAT_ALL);
-        PlaybackCrossfadeStateOwner singleTrack = owner(queueStateOwner(1, 0), PlaybackRepeatMode.REPEAT_ALL);
-        PlaybackCrossfadeStateOwner repeatOffBeforeEnd = owner(queueStateOwner(2, 0), PlaybackRepeatMode.REPEAT_OFF);
-        PlaybackCrossfadeStateOwner repeatOffAtEnd = owner(queueStateOwner(2, 1), PlaybackRepeatMode.REPEAT_OFF);
-        PlaybackCrossfadeStateOwner repeatAllAtEnd = owner(queueStateOwner(2, 1), PlaybackRepeatMode.REPEAT_ALL);
+        PlaybackCrossfadeStateOwner singleTrack = owner(queueManagerSupplier(1, 0), PlaybackRepeatMode.REPEAT_ALL);
+        PlaybackCrossfadeStateOwner repeatOffBeforeEnd = owner(queueManagerSupplier(2, 0), PlaybackRepeatMode.REPEAT_OFF);
+        PlaybackCrossfadeStateOwner repeatOffAtEnd = owner(queueManagerSupplier(2, 1), PlaybackRepeatMode.REPEAT_OFF);
+        PlaybackCrossfadeStateOwner repeatAllAtEnd = owner(queueManagerSupplier(2, 1), PlaybackRepeatMode.REPEAT_ALL);
 
         assertFalse(missingQueue.canCrossfadeAdvance());
         assertFalse(singleTrack.canCrossfadeAdvance());
@@ -83,7 +84,7 @@ public class PlaybackCrossfadeStateOwnerTest {
     }
 
     private static PlaybackCrossfadeStateOwner owner(
-            PlaybackQueueStateOwner queueStateOwner,
+            Supplier<PlaybackQueueManager> queueManagerSupplier,
             int repeatMode
     ) {
         return new PlaybackCrossfadeStateOwner(
@@ -91,19 +92,19 @@ public class PlaybackCrossfadeStateOwnerTest {
                 () -> true,
                 () -> true,
                 () -> repeatMode,
-                queueStateOwner,
+                queueManagerSupplier,
                 () -> 1.0f
         );
     }
 
-    private static PlaybackQueueStateOwner queueStateOwner(int queueSize, int currentIndex) {
+    private static Supplier<PlaybackQueueManager> queueManagerSupplier(int queueSize, int currentIndex) {
         PlaybackQueueManager queueManager = playbackQueueManager();
         List<Track> queue = new ArrayList<>();
         for (int index = 0; index < queueSize; index++) {
             queue.add(track(index + 1L));
         }
         queueManager.playQueue(queue, currentIndex, -1L);
-        return new PlaybackQueueStateOwner(queueManager);
+        return () -> queueManager;
     }
 
     private static Track track(long id) {
