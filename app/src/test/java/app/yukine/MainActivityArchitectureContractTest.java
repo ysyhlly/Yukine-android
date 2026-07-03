@@ -855,6 +855,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("new PlaybackStateEventController.Listener()"));
         assertTrue(mainActivity.contains("@Inject MainPlaybackStateEventListenerFactory playbackStateEventListenerFactory;"));
         assertTrue(mainActivity.contains("this::playbackQueueSnapshot"));
+        assertEquals(1, countOccurrences(mainActivity, "playbackService.queueSnapshot()"));
         assertTrue(mainActivity.contains("playbackStateEventListenerFactory.create("));
         assertTrue(mainActivity.contains("this::selectedTab"));
         assertTrue(mainActivity.contains("this::resolveCurrentStreamingQueueTrackIfNeeded"));
@@ -4845,7 +4846,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("() -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()"));
         assertTrue(mainActivity.contains("this::adaptiveStreamingQuality"));
         assertTrue(mainActivity.contains("this::selectedStreamingQuality"));
-        assertTrue(mainActivity.contains("() -> playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot()"));
+        assertTrue(mainActivity.contains("this::playbackQueueSnapshot"));
         assertTrue(mainActivity.contains("snapshot -> heartbeatRecommendationController.maybeAppendHeartbeatRecommendations(snapshot)"));
         assertTrue(mainActivity.contains("this::applyPlaybackActionResult"));
         assertTrue(mainActivity.contains("status -> statusMessageController.setStatus(status)"));

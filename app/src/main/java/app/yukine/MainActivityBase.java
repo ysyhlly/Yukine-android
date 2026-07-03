@@ -505,7 +505,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private void initializePlaybackControllers() {
         heartbeatSeedBinder = new HeartbeatRecommendationSeedBinder(
                 () -> playbackService == null ? null : playbackService.snapshot(),
-                () -> playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot(),
+                this::playbackQueueSnapshot,
                 () -> playbackStore == null ? null : playbackStore.snapshot(),
                 () -> playbackViewModel == null || playbackViewModel.getPlayback().getValue() == null
                         ? Collections.emptyList()
@@ -586,7 +586,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                         this::adaptiveStreamingQuality,
                         this::selectedStreamingQuality,
-                        () -> playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot(),
+                        this::playbackQueueSnapshot,
                         snapshot -> heartbeatRecommendationController.maybeAppendHeartbeatRecommendations(snapshot),
                         this::applyPlaybackActionResult,
                         status -> statusMessageController.setStatus(status)
@@ -1505,7 +1505,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             return;
         }
         queueViewModel.bind(
-                playbackService == null ? new ArrayList<>() : playbackService.queueSnapshot(),
+                playbackQueueSnapshot(),
                 playbackStore == null ? null : playbackStore.snapshot(),
                 libraryStore == null ? java.util.Collections.<Long>emptySet() : libraryStore.favoriteIds(),
                 settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()
@@ -2363,7 +2363,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             return;
         }
         queueRenderController.render(
-                playbackService.queueSnapshot(),
+                playbackQueueSnapshot(),
                 playbackStore.snapshot(),
                 libraryStore.favoriteIds(),
                 settingsStore.languageMode()
@@ -2466,7 +2466,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
         StreamingQueueResolveTarget target = streamingViewModel.prepareCurrentStreamingQueueResolveTarget(
                 playbackService.snapshot(),
-                playbackService.queueSnapshot()
+                playbackQueueSnapshot()
         );
         return target != null && streamingPlaybackController.resolveAndPlayStreamingTrack(target.getTracks(), target.getIndex());
     }
