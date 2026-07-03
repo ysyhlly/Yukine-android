@@ -2,7 +2,8 @@ package app.yukine.playback.manager;
 
 import androidx.media3.datasource.cache.CacheDataSource;
 
-import java.util.Collections;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.Map;
 
 import app.yukine.model.Track;
@@ -20,7 +21,7 @@ public interface PlaybackMediaCacheOperations {
 
     String cacheKeyForPrecache(Track track);
 
-    Map<String, String> headersForTrack(Track track);
+    long probeSegmentedPrecacheContentLength(Track track, String cacheKey, long start, long length);
 
     long cachedBytesInRange(String cacheKey, long position, long length);
 
@@ -54,8 +55,43 @@ final class PlaybackMediaSourceProviderCacheOperations implements PlaybackMediaC
     }
 
     @Override
-    public Map<String, String> headersForTrack(Track track) {
-        return mediaSourceProvider == null ? Collections.emptyMap() : mediaSourceProvider.headersForTrack(track);
+    public long probeSegmentedPrecacheContentLength(Track track, String cacheKey, long start, long length) {
+        if (mediaSourceProvider == null
+                || track == null
+                || track.contentUri == null
+                || cacheKey == null
+                || cacheKey.isEmpty()
+                || length <= 0L) {
+            return -1L;
+        }
+        try {
+            HttpURLConnection connection =
+                    (HttpURLConnection) new URL(track.contentUri.toString()).openConnection();
+            try {
+                connection.setInstanceFollowRedirects(true);
+                connection.setConnectTimeout(4000);
+                connection.setReadTimeout(4000);
+                for (Map.Entry<String, String> entry : mediaSourceProvider.headersForTrack(track).entrySet()) {
+                    if (entry.getKey() != null && !entry.getKey().isEmpty() && entry.getValue() != null) {
+                        connection.setRequestProperty(entry.getKey(), entry.getValue());
+                    }
+                }
+                long safeStart = Math.max(0L, start);
+                connection.setRequestProperty(
+                        "Range",
+                        "bytes=" + safeStart + "-" + (safeStart + length - 1)
+                );
+                int responseCode = connection.getResponseCode();
+                long totalBytes = totalBytesFromContentRange(connection.getHeaderField("Content-Range"));
+                return responseCode == HttpURLConnection.HTTP_PARTIAL && totalBytes > safeStart
+                        ? totalBytes
+                        : -1L;
+            } finally {
+                connection.disconnect();
+            }
+        } catch (Exception ignored) {
+            return -1L;
+        }
     }
 
     @Override
@@ -77,6 +113,21 @@ final class PlaybackMediaSourceProviderCacheOperations implements PlaybackMediaC
             throw new IllegalStateException("Media cache operations are unavailable");
         }
         return mediaSourceProvider.cacheDataSourceForTrack(track);
+    }
+
+    static long totalBytesFromContentRange(String contentRange) {
+        if (contentRange == null || contentRange.trim().isEmpty()) {
+            return -1L;
+        }
+        int slash = contentRange.lastIndexOf('/');
+        if (slash < 0 || slash >= contentRange.length() - 1) {
+            return -1L;
+        }
+        try {
+            return Long.parseLong(contentRange.substring(slash + 1).trim());
+        } catch (NumberFormatException ignored) {
+            return -1L;
+        }
     }
 
 }

@@ -9,13 +9,10 @@ import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.cache.CacheWriter;
 
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -399,50 +396,15 @@ final class PlaybackPrecacheManager {
         if (!isCurrentPrecacheGeneration(generation, cacheKey)) {
             return SegmentedPrecacheProbe.unsupported();
         }
-        try {
-            HttpURLConnection connection = (HttpURLConnection) new URL(track.contentUri.toString()).openConnection();
-            try {
-                connection.setInstanceFollowRedirects(true);
-                connection.setConnectTimeout(4000);
-                connection.setReadTimeout(4000);
-                for (Map.Entry<String, String> entry : mediaCacheOperations.headersForTrack(track).entrySet()) {
-                    if (entry.getKey() != null && !entry.getKey().isEmpty() && entry.getValue() != null) {
-                        connection.setRequestProperty(entry.getKey(), entry.getValue());
-                    }
-                }
-                connection.setRequestProperty(
-                        "Range",
-                        "bytes=" + PRECACHE_BYTES + "-" + (PRECACHE_BYTES + PRECACHE_RANGE_PROBE_BYTES - 1)
-                );
-                int responseCode = connection.getResponseCode();
-                long totalBytes = totalBytesFromContentRange(connection.getHeaderField("Content-Range"));
-                boolean supported = responseCode == HttpURLConnection.HTTP_PARTIAL
-                        && totalBytes > PRECACHE_BYTES
-                        && isCurrentPrecacheGeneration(generation, cacheKey);
-                return supported
-                        ? new SegmentedPrecacheProbe(true, totalBytes)
-                        : SegmentedPrecacheProbe.unsupported();
-            } finally {
-                connection.disconnect();
-            }
-        } catch (Exception ignored) {
-            return SegmentedPrecacheProbe.unsupported();
-        }
-    }
-
-    static long totalBytesFromContentRange(String contentRange) {
-        if (contentRange == null || contentRange.trim().isEmpty()) {
-            return -1L;
-        }
-        int slash = contentRange.lastIndexOf('/');
-        if (slash < 0 || slash >= contentRange.length() - 1) {
-            return -1L;
-        }
-        try {
-            return Long.parseLong(contentRange.substring(slash + 1).trim());
-        } catch (NumberFormatException ignored) {
-            return -1L;
-        }
+        long totalBytes = mediaCacheOperations.probeSegmentedPrecacheContentLength(
+                track,
+                cacheKey,
+                PRECACHE_BYTES,
+                PRECACHE_RANGE_PROBE_BYTES
+        );
+        return totalBytes > PRECACHE_BYTES && isCurrentPrecacheGeneration(generation, cacheKey)
+                ? new SegmentedPrecacheProbe(true, totalBytes)
+                : SegmentedPrecacheProbe.unsupported();
     }
 
     private void precacheMediaSegments(

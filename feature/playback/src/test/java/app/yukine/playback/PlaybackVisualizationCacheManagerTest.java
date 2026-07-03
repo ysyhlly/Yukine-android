@@ -429,8 +429,13 @@ public final class PlaybackVisualizationCacheManagerTest {
         }
 
         @Override
-        public Map<String, String> headersForTrack(Track track) {
-            return Collections.emptyMap();
+        public long probeSegmentedPrecacheContentLength(
+                Track track,
+                String cacheKey,
+                long start,
+                long length
+        ) {
+            return -1L;
         }
 
     }

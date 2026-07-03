@@ -2323,7 +2323,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("CallbackScheduler callbackScheduler"));
         assertFalse(playbackPrecacheManager.contains("Handler mainHandler();"));
         assertFalse(playbackPrecacheManager.contains("Map<String, String> headersForTrack(Track track);"));
-        assertTrue(playbackMediaCacheOperations.contains("Map<String, String> headersForTrack(Track track);"));
+        assertFalse(playbackMediaCacheOperations.contains("Map<String, String> headersForTrack(Track track);"));
+        assertTrue(playbackMediaCacheOperations.contains(
+                "long probeSegmentedPrecacheContentLength(Track track, String cacheKey, long start, long length);"));
         assertFalse(playbackPrecacheManager.contains("SimpleCache audioCache();"));
         assertFalse(playbackPrecacheManager.contains("private static final class PlaybackMediaSourceProviderCacheOperations"));
         assertFalse(playbackPrecacheManager.contains("PlaybackMediaSourceResolutionOwner"));
@@ -2385,7 +2387,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("private void precacheWithMediaCache("));
         assertTrue(playbackPrecacheManager.contains("private void scheduleCurrentSegmentedPrecache(Track track, String cacheKey, int generation)"));
         assertTrue(playbackPrecacheManager.contains("private SegmentedPrecacheProbe probeSegmentedPrecache(Track track, String cacheKey, int generation)"));
-        assertTrue(playbackPrecacheManager.contains("static long totalBytesFromContentRange(String contentRange)"));
+        assertFalse(playbackPrecacheManager.contains("static long totalBytesFromContentRange(String contentRange)"));
+        assertTrue(playbackPrecacheManager.contains("mediaCacheOperations.probeSegmentedPrecacheContentLength("));
+        assertFalse(playbackPrecacheManager.contains("mediaCacheOperations.headersForTrack("));
+        assertFalse(playbackPrecacheManager.contains("import java.net.HttpURLConnection;"));
+        assertFalse(playbackPrecacheManager.contains("import java.net.URL;"));
         assertTrue(playbackPrecacheManager.contains("private void precacheMediaSegments("));
         assertTrue(playbackPrecacheManager.contains("private long currentSegmentedPrecacheStart(String cacheKey)"));
         assertTrue(playbackPrecacheManager.contains("static long segmentedPrecacheStart(long leadingBytes, long continuousCachedBytes)"));

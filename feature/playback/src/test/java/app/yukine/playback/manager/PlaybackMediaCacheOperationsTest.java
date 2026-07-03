@@ -21,10 +21,20 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.ServerSocket;
+import java.net.InetAddress;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import app.yukine.common.StreamingDataPathParser;
 import app.yukine.data.MusicLibraryRepository;
@@ -36,6 +46,15 @@ import app.yukine.streaming.StreamingPlaybackHeaderStore;
 @Config(sdk = 33)
 public final class PlaybackMediaCacheOperationsTest {
     @Test
+    public void contentRangeTotalBytesAreParsedForSegmentedPrecacheProbe() {
+        assertEquals(1234567L, PlaybackMediaSourceProviderCacheOperations.totalBytesFromContentRange(
+                "bytes 524288-524288/1234567"
+        ));
+        assertEquals(-1L, PlaybackMediaSourceProviderCacheOperations.totalBytesFromContentRange("bytes 0-0/*"));
+        assertEquals(-1L, PlaybackMediaSourceProviderCacheOperations.totalBytesFromContentRange(""));
+    }
+
+    @Test
     public void nullMediaSourceProviderReturnsSafeCacheNoops() {
         PlaybackMediaCacheOperations operations =
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(null);
@@ -44,7 +63,7 @@ public final class PlaybackMediaCacheOperationsTest {
         assertFalse(operations.tracksShareResolvedUriForReuse(track, track));
         assertEquals(-1L, operations.contentLengthForCacheKey("cache-key"));
         assertNull(operations.cacheKeyForPrecache(track));
-        assertEquals(Collections.emptyMap(), operations.headersForTrack(track));
+        assertEquals(-1L, operations.probeSegmentedPrecacheContentLength(track, "cache-key", 0L, 512L));
         assertEquals(0L, operations.cachedBytesInRange("cache-key", 0L, 512L));
         assertEquals(0L, operations.cachedBytesInRange("", 0L, 512L));
         assertEquals(0L, operations.cachedBytesInRange("cache-key", 0L, 0L));
@@ -79,12 +98,39 @@ public final class PlaybackMediaCacheOperationsTest {
                 "streaming:test:42|url=https://example.test/audio.flac",
                 operations.cacheKeyForPrecache(streaming)
         );
-        assertEquals(headers, operations.headersForTrack(streaming));
         assertNull(operations.cacheKeyForPrecache(local));
     }
 
     @Test
-    public void providerBackedOperationsPrecacheWebDavHttpTracksWithProviderHeaders() {
+    public void providerBackedOperationsProbeRangeWithProviderHeaders() throws Exception {
+        AtomicReference<String> rawRequest = new AtomicReference<>("");
+        ServerSocket server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<?> requestTask = executor.submit(() -> {
+            try (Socket socket = server.accept();
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(
+                         socket.getInputStream(),
+                         StandardCharsets.ISO_8859_1
+                 ))) {
+                StringBuilder request = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null && !line.isEmpty()) {
+                    request.append(line).append('\n');
+                }
+                rawRequest.set(request.toString());
+                byte[] response = (
+                        "HTTP/1.1 206 Partial Content\r\n"
+                                + "Content-Range: bytes 512-1023/4096\r\n"
+                                + "Content-Length: 0\r\n"
+                                + "Connection: close\r\n"
+                                + "\r\n"
+                ).getBytes(StandardCharsets.ISO_8859_1);
+                socket.getOutputStream().write(response);
+                socket.getOutputStream().flush();
+            } catch (Exception error) {
+                throw new RuntimeException(error);
+            }
+        });
         Context context = RuntimeEnvironment.getApplication();
         MusicLibraryRepository repository =
                 new MusicLibraryRepository(context, new FakeStreamingDataPathParser());
@@ -105,7 +151,7 @@ public final class PlaybackMediaCacheOperationsTest {
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(provider);
         Track webDav = track(
                 9L,
-                "https://dav.example/music/webdav.flac",
+                "http://127.0.0.1:" + server.getLocalPort() + "/music/webdav.flac",
                 "webdav:" + sourceId + ":/music/webdav.flac"
         );
         String expectedAuth = "Basic " + Base64.getEncoder().encodeToString(
@@ -114,10 +160,21 @@ public final class PlaybackMediaCacheOperationsTest {
 
         try {
             assertEquals(webDav.dataPath, operations.cacheKeyForPrecache(webDav));
-            assertEquals(streamingHeaders.get("Cookie"), operations.headersForTrack(webDav).get("Cookie"));
-            assertEquals(expectedAuth, operations.headersForTrack(webDav).get("Authorization"));
+            assertEquals(4096L, operations.probeSegmentedPrecacheContentLength(
+                    webDav,
+                    webDav.dataPath,
+                    512L,
+                    512L
+            ));
+            requestTask.get(5, TimeUnit.SECONDS);
+            String request = rawRequest.get();
+            assertTrue(request.contains("Range: bytes=512-1023"));
+            assertTrue(request.contains("Cookie: " + streamingHeaders.get("Cookie")));
+            assertTrue(request.contains("Authorization: " + expectedAuth));
         } finally {
             provider.releaseAudioCache();
+            server.close();
+            executor.shutdownNow();
         }
     }
 

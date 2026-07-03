@@ -260,7 +260,7 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
-    public void providerBackedMediaCacheOperationsOwnCacheKeyAndHeaders() {
+    public void providerBackedMediaCacheOperationsOwnCacheKey() {
         Map<String, String> headers = Collections.singletonMap("Cookie", "token=abc");
         PlaybackMediaCacheOperations operations =
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(
@@ -273,7 +273,6 @@ public final class PlaybackPrecacheManagerTest {
                 "streaming:test:42|url=https://example.test/audio.flac",
                 operations.cacheKeyForPrecache(streaming)
         );
-        assertEquals(headers, operations.headersForTrack(streaming));
         assertEquals(null, operations.cacheKeyForPrecache(local));
     }
 
@@ -1004,8 +1003,13 @@ public final class PlaybackPrecacheManagerTest {
         }
 
         @Override
-        public Map<String, String> headersForTrack(Track track) {
-            return Collections.emptyMap();
+        public long probeSegmentedPrecacheContentLength(
+                Track track,
+                String cacheKey,
+                long start,
+                long length
+        ) {
+            return -1L;
         }
 
         @Override
