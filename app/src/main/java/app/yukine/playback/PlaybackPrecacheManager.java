@@ -30,6 +30,7 @@ import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import app.yukine.playback.manager.PlaybackMediaCacheOperations;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 final class PlaybackPrecacheManager {
     static final int PRECACHE_BYTES = 512 * 1024;
@@ -50,7 +51,7 @@ final class PlaybackPrecacheManager {
     }
 
     private final Supplier<MediaItem> currentPlayerMediaItemSupplier;
-    private final PlaybackQueueStateOwner queueStateOwner;
+    private final PlaybackQueueManager playbackQueueManager;
     private final PlaybackMediaCacheOperations mediaCacheOperations;
     private final PlaybackStreamingDiagnostics streamingDiagnostics;
     private final BiPredicate<MediaItem, Track> mediaItemTrackMatcher;
@@ -71,7 +72,7 @@ final class PlaybackPrecacheManager {
     PlaybackPrecacheManager(
             Supplier<MediaItem> currentPlayerMediaItemSupplier,
             PlaybackStreamingDiagnostics streamingDiagnostics,
-            PlaybackQueueStateOwner queueStateOwner,
+            PlaybackQueueManager playbackQueueManager,
             PlaybackMediaCacheOperations mediaCacheOperations,
             BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
             CallbackScheduler callbackScheduler,
@@ -80,7 +81,7 @@ final class PlaybackPrecacheManager {
         this(
                 currentPlayerMediaItemSupplier,
                 streamingDiagnostics,
-                queueStateOwner,
+                playbackQueueManager,
                 mediaCacheOperations,
                 mediaItemTrackMatcher,
                 callbackScheduler,
@@ -92,7 +93,7 @@ final class PlaybackPrecacheManager {
     PlaybackPrecacheManager(
             Supplier<MediaItem> currentPlayerMediaItemSupplier,
             PlaybackStreamingDiagnostics streamingDiagnostics,
-            PlaybackQueueStateOwner queueStateOwner,
+            PlaybackQueueManager playbackQueueManager,
             PlaybackMediaCacheOperations mediaCacheOperations,
             BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
             CallbackScheduler callbackScheduler,
@@ -103,7 +104,7 @@ final class PlaybackPrecacheManager {
         this.streamingDiagnostics = streamingDiagnostics == null
                 ? new PlaybackStreamingDiagnostics()
                 : streamingDiagnostics;
-        this.queueStateOwner = queueStateOwner == null ? new PlaybackQueueStateOwner() : queueStateOwner;
+        this.playbackQueueManager = playbackQueueManager;
         this.mediaCacheOperations = mediaCacheOperations;
         this.mediaItemTrackMatcher = mediaItemTrackMatcher;
         this.callbackScheduler = callbackScheduler;
@@ -116,14 +117,14 @@ final class PlaybackPrecacheManager {
     static PlaybackPrecacheManager fromMediaSourceProvider(
             Supplier<MediaItem> currentPlayerMediaItemSupplier,
             PlaybackStreamingDiagnostics streamingDiagnostics,
-            PlaybackQueueStateOwner queueStateOwner,
+            PlaybackQueueManager playbackQueueManager,
             PlaybackMediaSourceProvider mediaSourceProvider,
             CallbackScheduler callbackScheduler
     ) {
         return new PlaybackPrecacheManager(
                 currentPlayerMediaItemSupplier,
                 streamingDiagnostics,
-                queueStateOwner,
+                playbackQueueManager,
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider),
                 (mediaItem, track) -> mediaSourceProvider != null
                         && mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track),
@@ -272,11 +273,15 @@ final class PlaybackPrecacheManager {
     }
 
     private List<Track> upcomingTracksForPrecache() {
-        return queueStateOwner.upcomingTracksForPrecache(SEGMENTED_PRECACHE_CONCURRENCY);
+        return playbackQueueManager == null
+                ? Collections.emptyList()
+                : playbackQueueManager.upcomingTracksForPrecache(SEGMENTED_PRECACHE_CONCURRENCY);
     }
 
     private Track currentTrack() {
-        return queueStateOwner.currentTrack();
+        return playbackQueueManager == null
+                ? null
+                : playbackQueueManager.queueStateSnapshot().getCurrentTrack();
     }
 
     @OptIn(markerClass = UnstableApi.class)

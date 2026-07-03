@@ -166,22 +166,6 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     @Test
-    public void upcomingTracksForPrecacheAreDerivedFromLatestQueueStateWithoutLocalState() {
-        PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
-        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManager);
-
-        assertTrue(owner.upcomingTracksForPrecache(2).isEmpty());
-
-        queueManager.playQueue(Arrays.asList(track(61L), track(62L), track(63L), track(64L)), 1, -1L);
-
-        assertTrackIds(Arrays.asList(63L, 64L), owner.upcomingTracksForPrecache(2));
-
-        queueManager.playQueue(Arrays.asList(track(65L), track(66L)), 0, -1L);
-
-        assertTrackIds(Collections.singletonList(66L), owner.upcomingTracksForPrecache(2));
-    }
-
-    @Test
     public void delegatesQueueReadsToPlaybackQueueManager() {
         PlaybackRuntimeStateManager runtimeStateManager = playbackRuntimeStateManager();
         runtimeStateManager.setRepeatMode(REPEAT_OFF);
