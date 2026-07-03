@@ -167,6 +167,26 @@ public final class PlaybackVisualizationCacheManagerTest {
     }
 
     @Test
+    public void visualizationCacheDataSpecUsesMediaCacheOperationsCacheKey() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        Track track = track(12L);
+        stateProvider.currentTrack = track;
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        mediaCacheOperations.cacheKey = "webdav:3:/music/webdav.flac";
+        FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
+        PlaybackVisualizationCacheManager manager =
+                manager(stateProvider, mediaCacheOperations, writerFactory);
+
+        manager.scheduleVisualizationCache(track);
+        shadowOf(Looper.getMainLooper()).idle();
+        stateProvider.scheduledTasks.get(0).run();
+
+        assertEquals(2, mediaCacheOperations.cacheKeyForPrecacheCalls);
+        assertEquals("webdav:3:/music/webdav.flac", writerFactory.lastDataSpec.key);
+        assertEquals(1, writerFactory.createCalls);
+    }
+
+    @Test
     public void fullyCachedVisualizationWindowSkipsCacheWriterCreation() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         Track track = track(11L);
@@ -328,6 +348,7 @@ public final class PlaybackVisualizationCacheManagerTest {
             implements PlaybackMediaCacheOperations {
         private int cacheKeyForPrecacheCalls;
         private int cachedBytesInRangeCalls;
+        private String cacheKey;
         private long cachedBytes;
 
         @Override
@@ -341,6 +362,9 @@ public final class PlaybackVisualizationCacheManagerTest {
         @Override
         public String cacheKeyForPrecache(Track track) {
             cacheKeyForPrecacheCalls++;
+            if (cacheKey != null) {
+                return cacheKey;
+            }
             String scheme = track == null || track.contentUri == null ? null : track.contentUri.getScheme();
             if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
                 return null;
