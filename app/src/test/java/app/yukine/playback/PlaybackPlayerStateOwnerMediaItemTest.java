@@ -11,7 +11,7 @@ import org.junit.Test;
 import java.lang.reflect.Proxy;
 import java.util.function.Supplier;
 
-public class PlaybackPrecacheStateOwnerPlayerMediaItemTest {
+public class PlaybackPlayerStateOwnerMediaItemTest {
     @Test
     public void returnsCurrentMediaItemForActivePlayerWithItems() {
         MediaItem mediaItem = MediaItem.fromUri("https://example.test/song.mp3");
@@ -25,7 +25,7 @@ public class PlaybackPrecacheStateOwnerPlayerMediaItemTest {
     public void returnsCurrentMediaItemFromPlayerSupplier() {
         MediaItem mediaItem = MediaItem.fromUri("https://example.test/player.mp3");
         Supplier<MediaItem> supplier =
-                PlaybackPrecacheStateOwner.playerMediaItemSupplierFromPlayerSupplier(
+                PlaybackPlayerStateOwner.mediaItemSupplierFromPlayerSupplier(
                         () -> player(Player.STATE_READY, 1, mediaItem)
                 );
 
@@ -34,11 +34,11 @@ public class PlaybackPrecacheStateOwnerPlayerMediaItemTest {
 
     @Test
     public void returnsNullForMissingIdleOrEmptyPlayer() {
-        assertNull(PlaybackPrecacheStateOwner.playerMediaItemSupplierFromPlayerSupplier(null)
+        assertNull(PlaybackPlayerStateOwner.mediaItemSupplierFromPlayerSupplier(null)
                 .get());
-        assertNull(PlaybackPrecacheStateOwner.playerMediaItemSupplierFromPlayerSupplier(() -> null)
+        assertNull(PlaybackPlayerStateOwner.mediaItemSupplierFromPlayerSupplier(() -> null)
                 .get());
-        assertNull(PlaybackPrecacheStateOwner.playerMediaItemSupplierFromStateSuppliers(null, null, null)
+        assertNull(PlaybackPlayerStateOwner.mediaItemSupplierFromStateSuppliers(null, null, null)
                 .get());
         assertNull(supplierFromState(new FakePlayerState(
                 Player.STATE_IDLE,
@@ -63,7 +63,7 @@ public class PlaybackPrecacheStateOwnerPlayerMediaItemTest {
     @Test
     public void returnsNullWhenPlayerSupplierStateCannotBeRead() {
         Supplier<MediaItem> supplier =
-                PlaybackPrecacheStateOwner.playerMediaItemSupplierFromPlayerSupplier(
+                PlaybackPlayerStateOwner.mediaItemSupplierFromPlayerSupplier(
                         () -> throwingPlayer()
                 );
 
@@ -71,7 +71,7 @@ public class PlaybackPrecacheStateOwnerPlayerMediaItemTest {
     }
 
     private static Supplier<MediaItem> supplierFromState(FakePlayerState state) {
-        return PlaybackPrecacheStateOwner.playerMediaItemSupplierFromStateSuppliers(
+        return PlaybackPlayerStateOwner.mediaItemSupplierFromStateSuppliers(
                 state::playbackState,
                 state::mediaItemCount,
                 state::currentMediaItem
