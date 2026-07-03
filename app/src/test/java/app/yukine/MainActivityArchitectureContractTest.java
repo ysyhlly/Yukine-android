@@ -1828,7 +1828,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackService.contains("private PlaybackStateSnapshotOwner playbackStateSnapshotOwner;"));
         assertTrue(playbackService.contains("playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner("));
         assertTrue(playbackService.contains("                queueStateSupplier,"));
-        assertTrue(playbackService.contains("PlaybackStateSnapshotOwner.fromRuntimeStateManagerProvider("));
+        assertTrue(playbackService.contains("PlaybackStateSnapshotOwner.fromRuntimeStateManager(playbackRuntimeStateManager)"));
+        assertFalse(playbackService.contains("PlaybackStateSnapshotOwner.fromRuntimeStateManagerProvider("));
         assertTrue(playbackService.contains("PlaybackStateSnapshotOwner.fromVisualizationAnalyzerProvider("));
         assertTrue(playbackService.contains("return playbackStateSnapshotOwner == null"));
         assertFalse(playbackService.contains("boolean deferVisualGeneration = shouldDeferPlaybackVisualization();"));
@@ -1846,7 +1847,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(stateSnapshotOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateProvider;"));
         assertTrue(stateSnapshotOwner.contains("private final LongSupplier sleepTimerProvider;"));
         assertTrue(stateSnapshotOwner.contains("private final DoubleSupplier realtimeBeatProvider;"));
-        assertTrue(stateSnapshotOwner.contains("Supplier<PlaybackRuntimeStateManager> runtimeStateManagerProvider"));
+        assertFalse(stateSnapshotOwner.contains("Supplier<PlaybackRuntimeStateManager> runtimeStateManagerProvider"));
+        assertTrue(stateSnapshotOwner.contains("static RuntimeStateProvider fromRuntimeStateManager("));
         assertTrue(stateSnapshotOwner.contains("Supplier<PlaybackVisualizationAnalyzer> visualizationAnalyzerProvider"));
         assertTrue(stateSnapshotOwner.contains("interface RuntimeStateProvider"));
         assertTrue(stateSnapshotOwner.contains("interface VisualizationProvider"));
@@ -7309,7 +7311,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackRuntimeStateManager.preparing()"));
         assertFalse(service.contains("playbackRuntimeStateManager::preparing"));
         assertFalse(service.contains("playbackRuntimeStateManager.errorMessage()"));
-        assertTrue(stateSnapshotOwner.contains("manager.errorMessage()"));
+        assertTrue(stateSnapshotOwner.contains("runtimeStateManager.errorMessage()"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackRuntimeStateOwner.java")));
         assertFalse(service.contains("PlaybackRuntimeStateOwner"));
         assertTrue(service.contains("PlaybackRuntimeStateManager.stateProviderFromPlaybackState("));

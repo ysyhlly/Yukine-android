@@ -65,48 +65,38 @@ final class PlaybackStateSnapshotOwner {
         this.defaultRepeatMode = defaultRepeatMode;
     }
 
-    static RuntimeStateProvider fromRuntimeStateManagerProvider(
-            Supplier<PlaybackRuntimeStateManager> runtimeStateManagerProvider
+    static RuntimeStateProvider fromRuntimeStateManager(
+            PlaybackRuntimeStateManager runtimeStateManager
     ) {
         return new RuntimeStateProvider() {
             @Override
             public boolean preparing() {
-                PlaybackRuntimeStateManager manager = runtimeStateManager();
-                return manager != null && manager.preparing();
+                return runtimeStateManager != null && runtimeStateManager.preparing();
             }
 
             @Override
             public String errorMessage() {
-                PlaybackRuntimeStateManager manager = runtimeStateManager();
-                return manager == null ? "" : manager.errorMessage();
+                return runtimeStateManager == null ? "" : runtimeStateManager.errorMessage();
             }
 
             @Override
             public boolean shuffleEnabled() {
-                PlaybackRuntimeStateManager manager = runtimeStateManager();
-                return manager != null && manager.shuffleEnabled();
+                return runtimeStateManager != null && runtimeStateManager.shuffleEnabled();
             }
 
             @Override
             public int repeatMode() {
-                PlaybackRuntimeStateManager manager = runtimeStateManager();
-                return manager == null ? 0 : manager.repeatMode();
+                return runtimeStateManager == null ? 0 : runtimeStateManager.repeatMode();
             }
 
             @Override
             public float playbackSpeed() {
-                PlaybackRuntimeStateManager manager = runtimeStateManager();
-                return manager == null ? 1.0f : manager.playbackSpeed();
+                return runtimeStateManager == null ? 1.0f : runtimeStateManager.playbackSpeed();
             }
 
             @Override
             public float appVolume() {
-                PlaybackRuntimeStateManager manager = runtimeStateManager();
-                return manager == null ? 1.0f : manager.appVolume();
-            }
-
-            private PlaybackRuntimeStateManager runtimeStateManager() {
-                return runtimeStateManagerProvider == null ? null : runtimeStateManagerProvider.get();
+                return runtimeStateManager == null ? 1.0f : runtimeStateManager.appVolume();
             }
         };
     }

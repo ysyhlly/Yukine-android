@@ -554,7 +554,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner(
                 queueStateSupplier,
                 playbackPlayerStateOwner,
-                PlaybackStateSnapshotOwner.fromRuntimeStateManagerProvider(() -> playbackRuntimeStateManager),
+                PlaybackStateSnapshotOwner.fromRuntimeStateManager(playbackRuntimeStateManager),
                 playbackSleepTimerCommandOwner::sleepTimerRemainingMs,
                 PlaybackStateSnapshotOwner.fromVisualizationAnalyzerProvider(() -> playbackVisualizationAnalyzer),
                 playbackRealtimeVisualizationOwner::beat,

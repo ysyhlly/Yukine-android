@@ -7,6 +7,7 @@ import android.net.Uri;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
+import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 import org.junit.Test;
 
 public class PlaybackStateSnapshotOwnerTest {
@@ -101,6 +102,45 @@ public class PlaybackStateSnapshotOwnerTest {
         assertEquals(0, beatProvider.calls);
     }
 
+    @Test
+    public void runtimeStateProviderReadsPlaybackRuntimeStateManagerDirectly() {
+        PlaybackRuntimeStateManager runtimeStateManager = playbackRuntimeStateManager();
+        runtimeStateManager.setPreparing(true);
+        runtimeStateManager.setErrorMessage("loading");
+        runtimeStateManager.setShuffleEnabled(true);
+        runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_ONE);
+        runtimeStateManager.setPlaybackSpeed(1.5f);
+        runtimeStateManager.setAppVolume(0.4f);
+        PlaybackStateSnapshotOwner.RuntimeStateProvider provider =
+                PlaybackStateSnapshotOwner.fromRuntimeStateManager(runtimeStateManager);
+
+        assertEquals(true, provider.preparing());
+        assertEquals("loading", provider.errorMessage());
+        assertEquals(true, provider.shuffleEnabled());
+        assertEquals(PlaybackRepeatMode.REPEAT_ONE, provider.repeatMode());
+        assertEquals(1.5f, provider.playbackSpeed(), 0.001f);
+        assertEquals(0.4f, provider.appVolume(), 0.001f);
+
+        runtimeStateManager.setPreparing(false);
+        runtimeStateManager.setErrorMessage(null);
+
+        assertEquals(false, provider.preparing());
+        assertEquals("", provider.errorMessage());
+    }
+
+    @Test
+    public void runtimeStateProviderUsesDefaultsWhenRuntimeStateManagerIsMissing() {
+        PlaybackStateSnapshotOwner.RuntimeStateProvider provider =
+                PlaybackStateSnapshotOwner.fromRuntimeStateManager(null);
+
+        assertEquals(false, provider.preparing());
+        assertEquals("", provider.errorMessage());
+        assertEquals(false, provider.shuffleEnabled());
+        assertEquals(0, provider.repeatMode());
+        assertEquals(1.0f, provider.playbackSpeed(), 0.001f);
+        assertEquals(1.0f, provider.appVolume(), 0.001f);
+    }
+
     private static Track track() {
         return new Track(
                 42L,
@@ -110,6 +150,12 @@ public class PlaybackStateSnapshotOwnerTest {
                 6000L,
                 Uri.parse("https://example.test/track.mp3"),
                 "streaming:test:42"
+        );
+    }
+
+    private static PlaybackRuntimeStateManager playbackRuntimeStateManager() {
+        return new PlaybackRuntimeStateManager(
+                PlaybackRuntimeStateManager.stateProviderFromPlaybackState(null, null, null)
         );
     }
 
