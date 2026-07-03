@@ -29,7 +29,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
         List<String> events = new ArrayList<>();
         Track track = track(7L);
         PlaybackErrorRecoveryCommandOwner owner = new PlaybackErrorRecoveryCommandOwner(
-                queueStateOwner(track, 2),
+                queueManager(track, 2),
                 playWhenReady -> events.add("prepare:" + playWhenReady),
                 () -> events.add("next"),
                 message -> events.add("error:" + message),
@@ -79,7 +79,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
                 }
         );
         PlaybackErrorRecoveryCommandOwner singleTrackOwner = new PlaybackErrorRecoveryCommandOwner(
-                queueStateOwner(track, 1),
+                queueManager(track, 1),
                 playWhenReady -> {
                 },
                 () -> {
@@ -92,7 +92,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
                 }
         );
         PlaybackErrorRecoveryCommandOwner missingQueueManagerOwner = new PlaybackErrorRecoveryCommandOwner(
-                new PlaybackQueueStateOwner(),
+                null,
                 playWhenReady -> {
                 },
                 () -> {
@@ -120,7 +120,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "file:" + id);
     }
 
-    private static PlaybackQueueStateOwner queueStateOwner(Track current, int queueSize) {
+    private static PlaybackQueueManager queueManager(Track current, int queueSize) {
         PlaybackQueueManager queueManager = playbackQueueManager();
         List<Track> queue = new ArrayList<>();
         queue.add(current);
@@ -128,7 +128,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
             queue.add(track(current.id + index));
         }
         queueManager.playQueue(queue, 0, -1L);
-        return new PlaybackQueueStateOwner(queueManager);
+        return queueManager;
     }
 
     private static PlaybackQueueManager playbackQueueManager() {
