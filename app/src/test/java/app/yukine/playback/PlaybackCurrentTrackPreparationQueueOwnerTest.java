@@ -1,6 +1,9 @@
 package app.yukine.playback;
 
+import android.net.FakeUri;
 import android.net.Uri;
+
+import androidx.media3.exoplayer.source.MediaSource;
 
 import org.junit.Test;
 
@@ -80,6 +83,33 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     }
 
     @Test
+    public void queuePreparationMapsMirroredQueueThroughMediaSourceBoundary() {
+        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), null);
+        Track first = playableTrack(21L);
+        Track second = playableTrack(22L);
+        queueManager.playQueue(Arrays.asList(first, second), 1, -1L);
+        List<List<Track>> requestedTracks = new ArrayList<>();
+        List<MediaSource> resolvedSources = Collections.emptyList();
+        PlaybackCurrentTrackPreparationQueueOwner owner =
+                new PlaybackCurrentTrackPreparationQueueOwner(
+                        queueManager,
+                        tracks -> {
+                            requestedTracks.add(new ArrayList<>(tracks));
+                            return resolvedSources;
+                        }
+                );
+
+        PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
+                owner.queuePreparationForNewPlayer();
+
+        assertSame(second, queuePreparation.currentTrack());
+        assertEquals(1, queuePreparation.startIndex());
+        assertSame(resolvedSources, queuePreparation.mirroredQueueMediaSources());
+        assertEquals(1, requestedTracks.size());
+        assertEquals(Arrays.asList(first, second), requestedTracks.get(0));
+    }
+
+    @Test
     public void missingQueueManagerAndMediaResolverSkipsQueueActions() {
         PlaybackCurrentTrackPreparationQueueOwner owner =
                 new PlaybackCurrentTrackPreparationQueueOwner(null, null);
@@ -126,6 +156,18 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
                 "Album",
                 10000L,
                 Uri.parse("content://test/" + id),
+                "/music/" + id
+        );
+    }
+
+    private static Track playableTrack(long id) {
+        return new Track(
+                id,
+                "Track " + id,
+                "Artist",
+                "Album",
+                10000L,
+                new FakeUri("content://test/" + id),
                 "/music/" + id
         );
     }

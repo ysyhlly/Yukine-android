@@ -4142,3 +4142,30 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## P1/P2 Boundary Test Note - Queue Preparation Media Sources
+
+Current audit date: 2026-07-03.
+
+- `PlaybackCurrentTrackPreparationQueueOwner` now has focused coverage for the
+  mirrored queue preparation boundary: it receives queue preparation state from
+  `PlaybackQueueManager`, forwards only the mirrored queue tracks to the media
+  source resolver function, and returns the resolver result through
+  `PreparedQueue`.
+- The slice intentionally does not add an owner, service field, facade,
+  resolver, cache policy class, or new Service strategy branch. URI /
+  `MediaItem` construction remains owned by `PlaybackMediaSourceProvider`.
+- The real gain is stronger behavior evidence for the queue preparation /
+  media source boundary, preventing future drift toward resolving playable
+  items inside `EchoPlaybackService` or a broad resolution owner.
+- Current metrics: `EchoPlaybackService.java` is 1413 lines, strict
+  `private Playback*` field count is 45, production
+  `fromPlaybackQueueManager(...)` calls are 0, `queueStateSnapshot` references
+  in the service are 0, and production `Playback*Owner.java` file count is 43.
+- Focused coverage: `PlaybackCurrentTrackPreparationQueueOwnerTest` and
+  `MainActivityArchitectureContractTest`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackCurrentTrackPreparationQueueOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
