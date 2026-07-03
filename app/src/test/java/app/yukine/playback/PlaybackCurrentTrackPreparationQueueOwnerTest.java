@@ -110,6 +110,31 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     }
 
     @Test
+    public void queuePreparationSkipsMirroredSourcesWhenAnyQueuedTrackLacksPlayableUri() {
+        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), null);
+        Track current = playableTrack(31L);
+        Track missingUri = trackWithoutPlayableUri(32L);
+        int[] mediaSourceRequests = new int[] {0};
+        queueManager.playQueue(Arrays.asList(current, missingUri), 0, -1L);
+        PlaybackCurrentTrackPreparationQueueOwner owner =
+                new PlaybackCurrentTrackPreparationQueueOwner(
+                        queueManager,
+                        tracks -> {
+                            mediaSourceRequests[0]++;
+                            return Collections.singletonList(null);
+                        }
+                );
+
+        PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
+                owner.queuePreparationForNewPlayer();
+
+        assertSame(current, queuePreparation.currentTrack());
+        assertEquals(0, queuePreparation.startIndex());
+        assertEquals(null, queuePreparation.mirroredQueueMediaSources());
+        assertEquals(0, mediaSourceRequests[0]);
+    }
+
+    @Test
     public void missingQueueManagerAndMediaResolverSkipsQueueActions() {
         PlaybackCurrentTrackPreparationQueueOwner owner =
                 new PlaybackCurrentTrackPreparationQueueOwner(null, null);
@@ -168,6 +193,18 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
                 "Album",
                 10000L,
                 new FakeUri("content://test/" + id),
+                "/music/" + id
+        );
+    }
+
+    private static Track trackWithoutPlayableUri(long id) {
+        return new Track(
+                id,
+                "Track " + id,
+                "Artist",
+                "Album",
+                10000L,
+                Uri.EMPTY,
                 "/music/" + id
         );
     }
