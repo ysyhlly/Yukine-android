@@ -108,12 +108,15 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(routeStoresAndStatus.contains("statusMessageController = new StatusMessageController("));
         assertTrue(streamingActionGateway.contains(
                 "                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),\n"));
+        assertTrue(streamingActionGateway.contains("                    if (streamingPlaylistController != null) {"));
         assertTrue(streamingActionGateway.contains(
-                "                provider -> streamingPlaylistController.onStreamingLoginSuccess(provider),\n"));
+                "                        streamingPlaylistController.onStreamingLoginSuccess(provider);\n"));
         assertTrue(streamingActionGateway.contains("                    if (streamingManualCookieController != null) {"));
         assertFalse(streamingActionGateway.contains("                settingsStore.languageMode(),\n"));
         assertFalse(streamingActionGateway.contains("                settingsStore,\n"));
         assertFalse(streamingActionGateway.contains("                streamingPlaylistController,\n"));
+        assertFalse(streamingActionGateway.contains(
+                "                provider -> streamingPlaylistController.onStreamingLoginSuccess(provider),\n"));
         assertFalse(streamingActionGateway.contains("                streamingManualCookieController,\n"));
         assertTrue(libraryGateway.contains("libraryViewModel.bindGateway(libraryGatewayFactory.create("));
         assertTrue(libraryGateway.contains(

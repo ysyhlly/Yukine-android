@@ -249,7 +249,11 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 launch -> StreamingAuthLauncher.INSTANCE.launch(MainActivityBase.this, launch),
                 (tracks, index) -> playTrackListFromHost(tracks, index),
-                provider -> streamingPlaylistController.onStreamingLoginSuccess(provider),
+                provider -> {
+                    if (streamingPlaylistController != null) {
+                        streamingPlaylistController.onStreamingLoginSuccess(provider);
+                    }
+                },
                 provider -> streamingViewModel.selectStreamingProvider(provider),
                 () -> {
                     if (streamingManualCookieController != null) {
