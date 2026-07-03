@@ -322,7 +322,7 @@ internal class PlaybackQueueManager(
         clearErrorMessage()
         clearLastMarkedTrack()
         currentTrack()?.let { track ->
-            streamingRestoreProvider.restoreTrackForPlayback(track)
+            queue[currentIndex()] = streamingRestoreProvider.restoreTrackForPlayback(track)
         }
         clearRestoredPosition()
         resetCurrentPlaybackPosition()

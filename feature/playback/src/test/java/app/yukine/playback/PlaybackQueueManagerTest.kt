@@ -1106,9 +1106,11 @@ class PlaybackQueueManagerTest {
         val provider = FakeQueueState()
         val first = track(1L, durationMs = 10_000L)
         val second = track(2L, durationMs = 10_000L)
+        val restoredSecond = track(20L, android.net.Uri.parse("content://music/restored-2"))
         provider.playbackPositionMsValue = 4200L
         val manager = queueManager(store, provider)
         restoreQueue(manager, store, listOf(first, second), 0)
+        provider.streamingRestoreProvider.restoredTracks[2L] = restoredSecond
         provider.streamingRestoreProvider.restoredDataPaths.clear()
         provider.runtimeStateManager.setErrorMessage("stale")
         provider.transitionStateManager.setLastMarkedTrack(first)
@@ -1117,13 +1119,14 @@ class PlaybackQueueManagerTest {
         manager.applyMirroredTransitionIndex(1, automaticAdvance = false)
 
         assertEquals(1, manager.queueStateSnapshot().currentIndex)
-        assertEquals(listOf(2L to 4200L, 2L to 0L), store.savedPositions)
-        assertEquals(listOf(1L, 2L), store.savedTracks.map { it.id })
+        assertEquals(20L, manager.queueStateSnapshot().currentTrack?.id)
+        assertEquals(listOf(2L to 4200L, 20L to 0L), store.savedPositions)
+        assertEquals(listOf(1L, 20L), store.savedTracks.map { it.id })
         assertEquals(1, store.savedIndex)
         assertEquals("", provider.runtimeStateManager.errorMessage())
         assertEquals(null, provider.transitionStateManager.lastMarkedTrack())
         assertEquals(listOf("/music/2"), provider.streamingRestoreProvider.restoredDataPaths)
-        assertEquals(0L, provider.positionManager.restoredPositionFor(second))
+        assertEquals(0L, provider.positionManager.restoredPositionFor(restoredSecond))
     }
 
     private fun queueManager(store: FakeQueueStore, provider: FakeQueueState): PlaybackQueueManager {
