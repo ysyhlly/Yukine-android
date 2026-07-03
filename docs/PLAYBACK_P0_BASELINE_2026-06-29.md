@@ -3055,3 +3055,37 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMutationOwnerTest --tests app.yukine.playback.PlaybackErrorRecoveryCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1 Wiring Note - Prepare Current Command Owner
+
+Current audit date: 2026-07-03.
+
+- `PlaybackQueueCommandOwner.prepareCurrent(boolean)` now resolves the current
+  track through the existing `PlaybackQueueStateOwner` before invoking the
+  Track-aware Service preparation boundary.
+- `EchoPlaybackService` no longer has the boolean-only `prepareCurrent(boolean)`
+  helper that read `playbackQueueStateOwner.currentTrack()` and then forwarded
+  to `prepareCurrent(Track, boolean)`.
+- `PlaybackErrorRecoveryCommandOwner` now receives
+  `playbackQueueCommandOwner::prepareCurrent`, so error recovery also uses the
+  semantic playback command owner instead of re-entering the Service to read
+  queue state.
+- `PlaybackRecoveryScheduler` also receives
+  `playbackQueueCommandOwner::prepareCurrent`, keeping scheduled playback
+  recovery on the same semantic command path.
+- No owner was added. The real reductions are one fewer Service queue-current
+  read and one fewer boolean-only Service forwarding helper.
+- `PlaybackQueueCommandOwnerTest` now covers the real
+  `PlaybackQueueStateOwner -> PlaybackQueueManager` current-track path and the
+  missing-current-track no-op path.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1425 lines,
+  `private Playback*` field count is 43 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0,
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.currentTrack()` calls in the service are
+  2, and `Playback*Owner` production file count is 44.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueCommandOwnerTest --tests app.yukine.playback.PlaybackErrorRecoveryCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```

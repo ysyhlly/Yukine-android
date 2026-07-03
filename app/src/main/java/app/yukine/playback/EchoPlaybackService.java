@@ -115,6 +115,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             new PlaybackQueueRuntimeStateManager();
     private final PlaybackQueueCommandOwner playbackQueueCommandOwner =
             new PlaybackQueueCommandOwner(
+                    playbackQueueStateOwner,
                     EchoPlaybackService.this::prepareCurrent,
                     EchoPlaybackService.this::publishState
             );
@@ -338,7 +339,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner(
                 playbackQueueStateOwner,
-                EchoPlaybackService.this::prepareCurrent,
+                playbackQueueCommandOwner::prepareCurrent,
                 EchoPlaybackService.this::skipToNext,
                 playbackCurrentTrackPreparationRuntimeOwner::setErrorMessage,
                 EchoPlaybackService.this::publishState,
@@ -396,7 +397,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                         task
                 ),
                 playbackMainHandlerSchedulerOwner,
-                EchoPlaybackService.this::prepareCurrent
+                playbackQueueCommandOwner::prepareCurrent
         );
         createPlayerIfNeeded();
         playbackNotificationForegroundOwner = new PlaybackNotificationForegroundOwner(
@@ -1076,12 +1077,6 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     public long sleepTimerRemainingMs() {
         return playbackSleepTimerCommandOwner.sleepTimerRemainingMs();
-    }
-
-    @OptIn(markerClass = UnstableApi.class)
-    private void prepareCurrent(final boolean playWhenReady) {
-        Track track = playbackQueueStateOwner.currentTrack();
-        prepareCurrent(track, playWhenReady);
     }
 
     @OptIn(markerClass = UnstableApi.class)

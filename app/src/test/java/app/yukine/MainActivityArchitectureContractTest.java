@@ -6598,11 +6598,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(commandOwner.contains("PlaybackNotificationCommandOwner.PlaybackCommands"));
         assertFalse(commandOwner.contains("private final PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands;"));
         assertFalse(playerStateOwner.contains("PlaybackQueueCommandOwner.PlaybackStateProvider"));
-        assertTrue(commandOwner.contains("import java.util.function.Consumer;"));
-        assertTrue(commandOwner.contains("private final Consumer<Boolean> playbackPreparer;"));
+        assertTrue(commandOwner.contains("import java.util.function.BiConsumer;"));
+        assertTrue(commandOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertTrue(commandOwner.contains("private final BiConsumer<Track, Boolean> playbackPreparer;"));
         assertTrue(commandOwner.contains("private final Runnable statePublisher;"));
         assertFalse(commandOwner.contains("private final Runnable stopAndClearCommand;"));
-        assertTrue(commandOwner.contains("playbackPreparer.accept(playWhenReady);"));
+        assertTrue(commandOwner.contains("Track track = queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertTrue(commandOwner.contains("playbackPreparer.accept(track, playWhenReady);"));
         assertTrue(commandOwner.contains("statePublisher.run();"));
         assertFalse(commandOwner.contains("stopAndClearCommand.run();"));
         assertFalse(owner.contains("queueProvider.canPrepareMirroredQueueTrack(track)"));
@@ -7899,7 +7901,8 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(4, countOccurrences(service, "playbackQueueStateOwner::currentTrack"));
         assertFalse(service.contains("final Supplier<Track> currentTrackSupplier = playbackQueueStateOwner::currentTrack;"));
         assertTrue(service.contains("playbackQueueStateOwner.currentTrack()"));
-        assertEquals(3, countOccurrences(service, "playbackQueueStateOwner.currentTrack()"));
+        assertEquals(2, countOccurrences(service, "playbackQueueStateOwner.currentTrack()"));
+        assertFalse(service.contains("private void prepareCurrent(final boolean playWhenReady)"));
         assertTrue(service.contains("private void prepareCurrent(Track track, final boolean playWhenReady)"));
         assertTrue(service.contains("prepareCurrent(track, true);"));
         assertFalse(service.contains("playbackQueueManager.currentTrack()"));
@@ -8100,6 +8103,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner::currentTrack"));
         assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner::hasMultipleTracks"));
         assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner::canSkipFailedTrack"));
+        assertTrue(errorRecoveryWiring.contains("playbackQueueCommandOwner::prepareCurrent"));
+        assertFalse(errorRecoveryWiring.contains("EchoPlaybackService.this::prepareCurrent"));
         assertTrue(errorRecoveryWiring.contains("EchoPlaybackService.this::skipToNext"));
         assertTrue(service.contains("playbackErrorRecoveryCommandOwner"));
         assertTrue(service.contains("playbackCurrentTrackPreparationRuntimeOwner::setErrorMessage"));
@@ -8239,7 +8244,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackRecoveryCommandOwner.java")));
         assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackRecoveryCommandOwnerTest.java")));
         assertFalse(service.contains("PlaybackRecoveryCommandOwner"));
-        assertTrue(service.contains("                EchoPlaybackService.this::prepareCurrent"));
+        assertTrue(service.contains("                playbackQueueCommandOwner::prepareCurrent"));
         assertTrue(scheduler.contains("fun interface Actions"));
         assertTrue(scheduler.contains("fun prepareCurrent(playWhenReady: Boolean)"));
     }
