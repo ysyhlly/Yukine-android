@@ -7059,7 +7059,9 @@ public final class MainActivityArchitectureContractTest {
         java.util.Set<String> queueDerivedReadApi = new java.util.TreeSet<>(java.util.Arrays.asList(
                 "queuePreparationForNewPlayer",
                 "queueSnapshot",
-                "queueStateSnapshot",
+                "queueStateSnapshot"
+        ));
+        java.util.Set<String> queuePrecacheApi = new java.util.TreeSet<>(java.util.Arrays.asList(
                 "upcomingTracksForPrecache"
         ));
         java.util.Set<String> expectedPublicApi = new java.util.TreeSet<>();
@@ -7067,15 +7069,18 @@ public final class MainActivityArchitectureContractTest {
         expectedPublicApi.addAll(queueRestoreAndPersistenceApi);
         expectedPublicApi.addAll(queueMirrorApi);
         expectedPublicApi.addAll(queueDerivedReadApi);
+        expectedPublicApi.addAll(queuePrecacheApi);
 
         assertEquals(expectedPublicApi, kotlinClassLevelFunNames(owner));
         assertFalse(owner.contains("fun clearQueue(): Boolean"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "queuePreparationForNewPlayer",
                 "queueSnapshot",
-                "queueStateSnapshot",
-                "upcomingTracksForPrecache"
+                "queueStateSnapshot"
         )), queueDerivedReadApi);
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "upcomingTracksForPrecache"
+        )), queuePrecacheApi);
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackQueueCommandOwner.java",
                 "PlaybackQueueMirroredPlayerOwner.java",
