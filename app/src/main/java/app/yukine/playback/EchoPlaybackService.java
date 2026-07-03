@@ -733,11 +733,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                                             startIndex,
                                             startPositionMs
                                     ),
-                            new PlaybackQueueMutationOwner(
-                                    playbackQueueManager,
-                                    playbackQueueStateOwner,
-                                    EchoPlaybackService.this::stopAndClear
-                            )
+                            playbackQueueMutationOwner()
                     );
             playbackSessionCommandOwner = new PlaybackSessionCommandOwner(
                     EchoPlaybackService.this,
@@ -831,13 +827,11 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void playQueue(List<Track> tracks, int startIndex) {
-        withPlaybackQueueMutationOwner(
-                owner -> owner.playQueue(tracks, startIndex, C.TIME_UNSET)
-        );
+        playbackQueueMutationOwner().playQueue(tracks, startIndex, C.TIME_UNSET);
     }
 
     public void appendToQueue(List<Track> tracks) {
-        withPlaybackQueueMutationOwner(owner -> owner.appendToQueue(tracks));
+        playbackQueueMutationOwner().appendToQueue(tracks);
     }
 
     public void play() {
@@ -915,7 +909,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void moveQueueTrack(int fromIndex, int toIndex) {
-        withPlaybackQueueMutationOwner(owner -> owner.moveQueueTrack(fromIndex, toIndex));
+        playbackQueueMutationOwner().moveQueueTrack(fromIndex, toIndex);
     }
 
     public PlaybackStreamingDiagnostics.Snapshot streamingDiagnostics() {
@@ -931,7 +925,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void removeTracksById(Set<Long> trackIds) {
-        withPlaybackQueueMutationOwner(owner -> owner.removeTracksById(trackIds));
+        playbackQueueMutationOwner().removeTracksById(trackIds);
     }
 
     @Override
@@ -942,11 +936,11 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void retainTracksById(Set<Long> trackIdsToKeep) {
-        withPlaybackQueueMutationOwner(owner -> owner.retainTracksById(trackIdsToKeep));
+        playbackQueueMutationOwner().retainTracksById(trackIdsToKeep);
     }
 
     public void clearQueue() {
-        withPlaybackQueueMutationOwner(PlaybackQueueMutationOwner::clearQueue);
+        playbackQueueMutationOwner().clearQueue();
     }
 
     public void toggleCurrentFavorite() {
@@ -962,7 +956,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void replaceQueuedTrackById(long oldTrackId, Track replacement) {
-        withPlaybackQueueMutationOwner(owner -> owner.replaceQueuedTrackById(oldTrackId, replacement));
+        playbackQueueMutationOwner().replaceQueuedTrackById(oldTrackId, replacement);
     }
 
     public PlaybackStateSnapshot snapshot() {
@@ -1298,12 +1292,12 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
     }
 
-    private void withPlaybackQueueMutationOwner(Consumer<PlaybackQueueMutationOwner> action) {
-        action.accept(new PlaybackQueueMutationOwner(
+    private PlaybackQueueMutationOwner playbackQueueMutationOwner() {
+        return new PlaybackQueueMutationOwner(
                 playbackQueueManager,
                 playbackQueueStateOwner,
                 EchoPlaybackService.this::stopAndClear
-        ));
+        );
     }
 
     private PlaybackQueueRestoreOwner playbackQueueRestoreOwner() {

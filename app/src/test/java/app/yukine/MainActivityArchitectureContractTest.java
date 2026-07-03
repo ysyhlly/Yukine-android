@@ -5802,8 +5802,10 @@ public final class MainActivityArchitectureContractTest {
                 "app/src/main/java/app/yukine/playback/PlaybackCurrentTrackReplacementOwner.java"
         );
         assertFalse(service.contains("private final PlaybackQueueMutationOwner playbackQueueMutationOwner"));
-        assertFalse(service.contains("private PlaybackQueueMutationOwner playbackQueueMutationOwner"));
-        assertTrue(service.contains("private void withPlaybackQueueMutationOwner(Consumer<PlaybackQueueMutationOwner> action)"));
+        assertFalse(service.contains("private PlaybackQueueMutationOwner playbackQueueMutationOwner;"));
+        assertTrue(service.contains("private PlaybackQueueMutationOwner playbackQueueMutationOwner()"));
+        assertFalse(service.contains("withPlaybackQueueMutationOwner("));
+        assertFalse(service.contains("Consumer<PlaybackQueueMutationOwner>"));
         assertTrue(service.contains("new PlaybackQueueMutationOwner("));
         assertTrue(service.replace("\r\n", "\n").contains(
                 "new PlaybackQueueMutationOwner(\n"
@@ -5881,7 +5883,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager("));
         assertFalse(currentReplacementOwner.contains("static PlaybackCurrentTrackReplacementOwner fromPlaybackQueueManager("));
         assertFalse(service.contains("PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManagerProvider("));
-        assertTrue(service.contains("owner -> owner.playQueue(tracks, startIndex, C.TIME_UNSET)"));
+        assertTrue(service.contains("playbackQueueMutationOwner().playQueue(tracks, startIndex, C.TIME_UNSET);"));
         assertFalse(queueMutationOwner.contains("void playQueue(List<Track> tracks, int startIndex)"));
         assertFalse(service.contains("playbackQueueManager.playQueue(tracks, startIndex, startPositionMs)"));
         assertFalse(service.contains("playbackQueueManager.advanceQueueIndexToNext()"));
@@ -5889,7 +5891,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("private fun advanceQueueIndexToNext()"));
         assertFalse(owner.contains("\n    fun advanceQueueIndexToNext()"));
         assertFalse(service.contains("private int clampedCurrentIndex()"));
-        assertTrue(service.contains("owner -> owner.appendToQueue(tracks)"));
+        assertTrue(service.contains("playbackQueueMutationOwner().appendToQueue(tracks);"));
         assertFalse(service.contains("playbackQueueManager.appendToQueue(tracks)"));
         assertTrue(queueMutationOwner.contains(
                 "final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOwner.QueuePlayer"));
@@ -5951,16 +5953,16 @@ public final class MainActivityArchitectureContractTest {
                 "Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertFalse(currentReplacementOwner.contains("currentTrackReplacementOperationsProvider"));
         assertFalse(currentReplacementOwner.contains("playbackQueueManagerProvider"));
-        assertTrue(service.contains("owner -> owner.moveQueueTrack(fromIndex, toIndex)"));
+        assertTrue(service.contains("playbackQueueMutationOwner().moveQueueTrack(fromIndex, toIndex);"));
         assertFalse(service.contains("playbackQueueManager.moveQueueTrack(fromIndex, toIndex)"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.moveQueueTrack(fromIndex, toIndex);"));
-        assertTrue(service.contains("owner -> owner.removeTracksById(trackIds)"));
+        assertTrue(service.contains("playbackQueueMutationOwner().removeTracksById(trackIds);"));
         assertFalse(service.contains("playbackQueueManager.removeTracksById(trackIds)"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.removeTracksById(trackIds)"));
-        assertTrue(service.contains("owner -> owner.retainTracksById(trackIdsToKeep)"));
+        assertTrue(service.contains("playbackQueueMutationOwner().retainTracksById(trackIdsToKeep);"));
         assertFalse(service.contains("playbackQueueManager.retainTracksById(trackIdsToKeep)"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.retainTracksById(trackIdsToKeep)"));
-        assertTrue(service.contains("withPlaybackQueueMutationOwner(PlaybackQueueMutationOwner::clearQueue);"));
+        assertTrue(service.contains("playbackQueueMutationOwner().clearQueue();"));
         assertFalse(service.contains("playbackQueueManager.clearQueue()"));
         assertTrue(queueMutationOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
         assertFalse(queueMutationOwner.contains("playbackQueueManager.queueStateSnapshot().isQueueEmpty()"));
@@ -5973,7 +5975,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueManager.replaceQueuedTrack(replacement)"));
         assertFalse(queueMutationOwner.contains("void replaceQueuedTrack(Track replacement)"));
         assertFalse(queueMutationOwner.contains("playbackQueueManager.replaceQueuedTrack(replacement);"));
-        assertTrue(service.contains("owner -> owner.replaceQueuedTrackById(oldTrackId, replacement)"));
+        assertTrue(service.contains("playbackQueueMutationOwner().replaceQueuedTrackById(oldTrackId, replacement);"));
         assertFalse(service.contains("playbackQueueManager.replaceQueuedTrackById(oldTrackId, replacement)"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.replaceQueuedTrackById(oldTrackId, replacement)"));
         assertTrue(service.contains(
@@ -8072,12 +8074,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner;"));
         assertTrue(service.contains("final PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner ="));
         assertTrue(service.contains("new PlaybackControllerMediaItemsOwner("));
-        assertTrue(service.contains(
-                "new PlaybackQueueMutationOwner(\n" +
-                        "                                    playbackQueueManager,\n" +
-                        "                                    playbackQueueStateOwner,\n" +
-                        "                                    EchoPlaybackService.this::stopAndClear\n" +
-                        "                            )"));
+        assertTrue(service.contains("                            playbackQueueMutationOwner()"));
         assertTrue(service.contains("                    playbackControllerMediaItemsOwner,"));
         assertTrue(service.contains("private PlaybackSessionCommandOwner playbackSessionCommandOwner;"));
         assertTrue(service.contains("playbackSessionCommandOwner = new PlaybackSessionCommandOwner("));
