@@ -413,6 +413,21 @@ class PlaybackMediaSourceProviderTest {
     }
 
     @Test
+    fun providerRejectsStreamingMediaItemWhenCacheKeyIsMissing() {
+        val uri = Uri.parse("https://audio.example/current.flac")
+        val track = Track(42L, "Stream", "Artist", "Album", 180_000L, uri, "streaming:netease:42")
+        val missingCacheKeyMediaItem = MediaItem.Builder()
+            .setMediaId("42")
+            .setUri(uri)
+            .build()
+
+        assertFalse(
+            provider(FakeStreamingPlaybackHeaderStore())
+                .mediaItemMatchesTrackForReuse(missingCacheKeyMediaItem, track)
+        )
+    }
+
+    @Test
     fun providerMatchesLocalMediaItemForTrackWithoutCacheKey() {
         val uri = Uri.parse("file:///storage/emulated/0/Music/local.flac")
         val track = Track(7L, "Local", "Artist", "Album", 180_000L, uri, "/storage/emulated/0/Music/local.flac")
