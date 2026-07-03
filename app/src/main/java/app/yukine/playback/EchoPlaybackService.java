@@ -17,7 +17,6 @@ import android.util.Log;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import app.yukine.R;
 import app.yukine.common.EmbeddedArtwork;
@@ -315,8 +314,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                 repository,
                 playbackTransitionStateManager
         );
-        final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier =
-                playbackQueueStateOwner::queueStateSnapshot;
         recordPlaybackStartHistoryAction = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 playbackPlayHistoryRecorder,
                 () -> player != null && player.getPlayWhenReady(),
@@ -325,7 +322,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackPositionManager = new PlaybackPositionManager(
                 queueStore,
                 PlaybackPositionManager.stateProviderFromPlaybackState(
-                        queueStateSupplier,
+                        playbackQueueStateOwner::queueStateSnapshot,
                         playbackPlayerStateOwner::positionMs
                 )
         );
@@ -419,7 +416,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackNotificationForegroundOwner::stopForegroundAndSelf
         );
         playbackNotificationStateOwner = new PlaybackNotificationStateOwner(
-                queueStateSupplier,
+                playbackQueueStateOwner::queueStateSnapshot,
                 playbackPlayerStateOwner::isPlaying,
                 playbackCurrentTrackPreparationRuntimeOwner::preparing,
                 track -> toggleFavoriteUseCase != null && toggleFavoriteUseCase.isFavorite(track),

@@ -2562,3 +2562,31 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackStateSnapshotOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1 Wiring Note - Service Queue Snapshot Supplier Alias
+
+Current audit date: 2026-07-03.
+
+- `EchoPlaybackService` no longer creates a local
+  `final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier`
+  alias during playback owner wiring.
+- The remaining consumers receive the existing
+  `playbackQueueStateOwner::queueStateSnapshot` method reference directly:
+  `PlaybackPositionManager.stateProviderFromPlaybackState(...)` and
+  `PlaybackNotificationStateOwner`.
+- This does not change notification behavior and does not move notification
+  policy. It only removes the service-local forwarding alias.
+- No owner was added. The real reduction is one fewer service wiring supplier
+  alias. The direct `queueStateSnapshot` method-reference count in the service
+  is now 3, so this slice should not be counted as reducing repeated method
+  references.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1421 lines,
+  `private Playback*` field count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, `queueStateSnapshot` references in
+  the service are 3, service `queueStateSupplier` alias references are 0, and
+  `Playback*Owner` production file count is 43.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
