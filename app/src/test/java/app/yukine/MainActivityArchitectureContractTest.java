@@ -1832,6 +1832,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(normalizedPlaybackService.contains(
                 "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
                         + "                this,\n"
+                        + "                playbackQueueManager,"
+        ));
+        assertFalse(normalizedPlaybackService.contains(
+                "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
+                        + "                this,\n"
                         + "                playbackQueueStateOwner::currentTrack,"
         ));
         assertFalse(normalizedPlaybackService.contains(
@@ -2039,9 +2044,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(notificationArtworkManager.contains("interface ArtworkLoader"));
         assertTrue(notificationArtworkManager.contains("interface ArtworkEncoder"));
         assertTrue(notificationArtworkManager.contains("private final NotificationBridge notificationBridge;"));
-        assertTrue(notificationArtworkManager.contains("private final Supplier<Track> currentTrackProvider;"));
+        assertTrue(notificationArtworkManager.contains("private final PlaybackQueueManager playbackQueueManager;"));
+        assertFalse(notificationArtworkManager.contains("private final Supplier<Track> currentTrackProvider;"));
         assertFalse(notificationArtworkManager.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot>"));
         assertFalse(notificationArtworkManager.contains("PlaybackQueueManager.QueueStateSnapshot snapshot"));
+        assertTrue(notificationArtworkManager.contains("playbackQueueManager.queueStateSnapshot()"));
         assertTrue(notificationArtworkManager.contains("private final AtomicInteger artworkGeneration"));
         assertTrue(notificationArtworkManager.contains("artworkGeneration.incrementAndGet();"));
         assertTrue(notificationArtworkManager.contains("notificationBridge.refreshPlaybackSession();"));
@@ -6059,7 +6066,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mirroredTransitionOwner.contains("playbackQueueManager.applyMirroredTransitionIndex("));
         assertFalse(service.contains("playbackQueueStateOwner::queueStateSnapshot"));
         assertEquals(0, countOccurrences(service, "playbackQueueStateOwner::queueStateSnapshot"));
-        assertTrue(service.contains("playbackQueueStateOwner::currentTrack"));
+        assertFalse(service.contains("playbackQueueStateOwner::currentTrack"));
         assertFalse(service.contains("final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier"));
         assertFalse(service.contains("playbackQueueManager.canSkipFailedTrack(failed)"));
         assertFalse(service.contains("playbackQueueManager.canCrossfadeAdvance(repeatMode)"));
@@ -8103,8 +8110,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackCurrentTrackOwner.fromPlaybackQueueManagerProvider(() -> playbackQueueManager)"));
         assertFalse(service.contains("private final PlaybackCurrentTrackOwner playbackCurrentTrackOwner"));
         assertFalse(service.contains("private Track currentTrack()"));
-        assertTrue(service.contains("playbackQueueStateOwner::currentTrack"));
-        assertEquals(1, countOccurrences(service, "playbackQueueStateOwner::currentTrack"));
+        assertFalse(service.contains("playbackQueueStateOwner::currentTrack"));
+        assertEquals(0, countOccurrences(service, "playbackQueueStateOwner::currentTrack"));
         assertFalse(service.contains("final Supplier<Track> currentTrackSupplier = playbackQueueStateOwner::currentTrack;"));
         assertFalse(service.contains("Track track = playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack();"));
         assertEquals(0, countOccurrences(service, "playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
@@ -8590,6 +8597,14 @@ public final class MainActivityArchitectureContractTest {
                 "final PlaybackNotificationArtworkSource playbackNotificationArtworkSource =\n"
                         + "                PlaybackNotificationArtworkSource.fromSupplier("));
         assertTrue(service.contains("                playbackNotificationArtworkSource,"));
+        assertTrue(service.contains(
+                "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
+                        + "                this,\n"
+                        + "                playbackQueueManager,"));
+        assertFalse(service.contains(
+                "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
+                        + "                this,\n"
+                        + "                playbackQueueStateOwner::currentTrack,"));
         assertFalse(service.contains("new PlaybackNotificationManager.ArtworkProvider()"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackNotificationArtworkStateOwner.java")));
         assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackNotificationArtworkStateOwnerTest.java")));

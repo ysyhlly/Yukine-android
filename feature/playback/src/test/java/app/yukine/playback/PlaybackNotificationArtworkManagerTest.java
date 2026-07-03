@@ -8,13 +8,18 @@ import static org.junit.Assert.assertSame;
 import android.graphics.Bitmap;
 import android.net.Uri;
 
+import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackQueueManager;
+import app.yukine.playback.manager.PlaybackQueueStore;
+import app.yukine.playback.manager.PlaybackTransitionStateManager;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
+import java.util.Random;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -26,15 +31,13 @@ public final class PlaybackNotificationArtworkManagerTest {
     @Test
     public void queuedArtworkResultAfterReleaseDoesNotWriteCacheOrNotify() {
         List<Runnable> pending = new ArrayList<>();
-        FakeStateProvider stateProvider = new FakeStateProvider();
         FakeNotificationBridge notificationBridge = new FakeNotificationBridge();
         Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
         byte[] artworkData = new byte[] {1, 2, 3};
         Track track = track(1L);
-        stateProvider.currentTrack = track;
         FakeArtworkLoader artworkLoader = new FakeArtworkLoader(bitmap);
         PlaybackNotificationArtworkManager manager = manager(
-                stateProvider,
+                queueManager(track),
                 notificationBridge,
                 pending,
                 artworkLoader,
@@ -55,15 +58,13 @@ public final class PlaybackNotificationArtworkManagerTest {
     @Test
     public void releaseDuringArtworkDecodeDoesNotWriteCacheOrNotify() {
         List<Runnable> pending = new ArrayList<>();
-        FakeStateProvider stateProvider = new FakeStateProvider();
         FakeNotificationBridge notificationBridge = new FakeNotificationBridge();
         Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
         byte[] artworkData = new byte[] {4, 5, 6};
         Track track = track(2L);
-        stateProvider.currentTrack = track;
         final PlaybackNotificationArtworkManager[] holder = new PlaybackNotificationArtworkManager[1];
         holder[0] = manager(
-                stateProvider,
+                queueManager(track),
                 notificationBridge,
                 pending,
                 ignored -> {
@@ -85,14 +86,12 @@ public final class PlaybackNotificationArtworkManagerTest {
     @Test
     public void releasePreventsFutureArtworkLoad() {
         List<Runnable> pending = new ArrayList<>();
-        FakeStateProvider stateProvider = new FakeStateProvider();
         FakeNotificationBridge notificationBridge = new FakeNotificationBridge();
         Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
         Track track = track(3L);
-        stateProvider.currentTrack = track;
         FakeArtworkLoader artworkLoader = new FakeArtworkLoader(bitmap);
         PlaybackNotificationArtworkManager manager = manager(
-                stateProvider,
+                queueManager(track),
                 notificationBridge,
                 pending,
                 artworkLoader,
@@ -112,14 +111,12 @@ public final class PlaybackNotificationArtworkManagerTest {
     @Test
     public void releaseIsIdempotentAfterQueuedArtworkInvalidation() throws Exception {
         List<Runnable> pending = new ArrayList<>();
-        FakeStateProvider stateProvider = new FakeStateProvider();
         FakeNotificationBridge notificationBridge = new FakeNotificationBridge();
         Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
         Track track = track(5L);
-        stateProvider.currentTrack = track;
         FakeArtworkLoader artworkLoader = new FakeArtworkLoader(bitmap);
         PlaybackNotificationArtworkManager manager = manager(
-                stateProvider,
+                queueManager(track),
                 notificationBridge,
                 pending,
                 artworkLoader,
@@ -144,14 +141,12 @@ public final class PlaybackNotificationArtworkManagerTest {
     @Test
     public void queuedArtworkResultCachesAndRefreshesForCurrentTrack() {
         List<Runnable> pending = new ArrayList<>();
-        FakeStateProvider stateProvider = new FakeStateProvider();
         FakeNotificationBridge notificationBridge = new FakeNotificationBridge();
         Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
         byte[] artworkData = new byte[] {7, 8, 9};
         Track track = track(4L);
-        stateProvider.currentTrack = track;
         PlaybackNotificationArtworkManager manager = manager(
-                stateProvider,
+                queueManager(track),
                 notificationBridge,
                 pending,
                 ignored -> bitmap,
@@ -168,7 +163,7 @@ public final class PlaybackNotificationArtworkManagerTest {
     }
 
     private static PlaybackNotificationArtworkManager manager(
-            Supplier<Track> currentTrackProvider,
+            PlaybackQueueManager playbackQueueManager,
             PlaybackNotificationArtworkManager.NotificationBridge notificationBridge,
             List<Runnable> pending,
             PlaybackNotificationArtworkManager.ArtworkLoader artworkLoader,
@@ -176,12 +171,30 @@ public final class PlaybackNotificationArtworkManagerTest {
     ) {
         return new PlaybackNotificationArtworkManager(
                 RuntimeEnvironment.getApplication(),
-                currentTrackProvider,
+                playbackQueueManager,
                 notificationBridge,
                 pending::add,
                 artworkLoader,
                 artworkEncoder
         );
+    }
+
+    private static PlaybackQueueManager queueManager(Track track) {
+        PlaybackQueueManager queueManager = new PlaybackQueueManager(
+                new FakeQueueStore(),
+                new ArrayList<>(),
+                new NoopQueuePlaybackActions(),
+                null,
+                new NoopStreamingRestoreProvider(),
+                new NoopMirroredQueuePlayer(),
+                null,
+                new PlaybackTransitionStateManager(),
+                new Random(1L)
+        );
+        if (track != null) {
+            queueManager.playQueue(Collections.singletonList(track), 0, -1L);
+        }
+        return queueManager;
     }
 
     private static int artworkGeneration(PlaybackNotificationArtworkManager manager) throws Exception {
@@ -202,15 +215,6 @@ public final class PlaybackNotificationArtworkManagerTest {
                 0L,
                 Uri.parse("content://artwork/" + id)
         );
-    }
-
-    private static final class FakeStateProvider implements Supplier<Track> {
-        private Track currentTrack;
-
-        @Override
-        public Track get() {
-            return currentTrack;
-        }
     }
 
     private static final class FakeNotificationBridge implements PlaybackNotificationArtworkManager.NotificationBridge {
@@ -240,6 +244,79 @@ public final class PlaybackNotificationArtworkManagerTest {
         public Bitmap decode(Uri uri) {
             decodeCalls++;
             return bitmap;
+        }
+    }
+
+    private static final class FakeQueueStore implements PlaybackQueueStore {
+        @Override
+        public PlaybackQueueState load() {
+            return new PlaybackQueueState(Collections.emptyList(), -1);
+        }
+
+        @Override
+        public void save(List<Track> tracks, int currentIndex) {
+        }
+
+        @Override
+        public boolean loadResumeRequested() {
+            return false;
+        }
+
+        @Override
+        public void saveResumeRequested(boolean requested) {
+        }
+
+        @Override
+        public boolean loadPlaybackRestoreEnabled() {
+            return true;
+        }
+
+        @Override
+        public void savePlaybackRestoreEnabled(boolean enabled) {
+        }
+
+        @Override
+        public long loadPlaybackPositionTrackId() {
+            return -1L;
+        }
+
+        @Override
+        public long loadPlaybackPositionMs() {
+            return 0L;
+        }
+
+        @Override
+        public void savePlaybackPosition(long trackId, long positionMs) {
+        }
+    }
+
+    private static final class NoopQueuePlaybackActions implements PlaybackQueueManager.QueuePlaybackActions {
+        @Override
+        public void prepareCurrent(boolean playWhenReady) {
+        }
+
+        @Override
+        public void publishState() {
+        }
+    }
+
+    private static final class NoopStreamingRestoreProvider
+            implements PlaybackQueueManager.StreamingRestoreProvider {
+        @Override
+        public Track restoreTrackForPlayback(Track track) {
+            return track;
+        }
+    }
+
+    private static final class NoopMirroredQueuePlayer implements PlaybackQueueManager.MirroredQueuePlayer {
+        @Override
+        public boolean matchesCurrentQueue() {
+            return false;
+        }
+
+        @Override
+        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
+            return false;
         }
     }
 }
