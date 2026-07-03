@@ -140,6 +140,18 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     @Test
+    public void isQueueEmptyIsDerivedFromLatestQueueStateWithoutLocalState() {
+        PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
+        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManager);
+
+        assertTrue(owner.isQueueEmpty());
+
+        queueManager.playQueue(Collections.singletonList(track(41L)), 0, -1L);
+
+        assertFalse(owner.isQueueEmpty());
+    }
+
+    @Test
     public void delegatesQueueReadsToPlaybackQueueManager() {
         PlaybackRuntimeStateManager runtimeStateManager = playbackRuntimeStateManager();
         runtimeStateManager.setRepeatMode(REPEAT_OFF);
