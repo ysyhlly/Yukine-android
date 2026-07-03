@@ -2418,6 +2418,34 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P2 Boundary Test - Media Library Item Factory Uses Provider
+
+Current audit date: 2026-07-03.
+
+- `PlaybackMediaLibraryDataSourceTest` now covers the real
+  `PlaybackMediaLibraryDataSource.fromRepository(...) -> PlaybackMediaSourceProvider.mediaItemForTrack(...)`
+  path for MediaLibrary media item creation.
+- The test verifies that a streaming track keeps the provider-owned media id,
+  resolved URI, streaming cache key, and caller metadata in the produced
+  `MediaItem`.
+- No owner, resolver facade, cache policy facade, or production wiring was
+  added. The real gain is stronger behavior coverage for the app-layer
+  MediaLibrary boundary that could otherwise bypass `PlaybackMediaSourceProvider`.
+- Current metrics: `EchoPlaybackService.java` is 1422 lines,
+  `private (final )?Playback` count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` production count is 0,
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()`
+  calls in the service are 2, direct `playbackQueueStateOwner.currentTrack()`
+  calls in the service are 0, direct `playbackQueueStateOwner::currentTrack`
+  references in the service are 2, and `Playback*Owner` production file count
+  is 43.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaLibraryDataSourceTest --console=plain
+```
+
 ## P2/P3 Boundary Test - Media Cache Operations
 
 Current audit date: 2026-07-03.
