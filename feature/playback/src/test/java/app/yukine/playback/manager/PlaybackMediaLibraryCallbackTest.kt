@@ -91,6 +91,33 @@ class PlaybackMediaLibraryCallbackTest {
     }
 
     @Test
+    fun controllerQueueForMediaItemsSkipsUnresolvedItemsAndKeepsResolvedOrder() {
+        val callback = PlaybackMediaLibraryCallback(
+            FakeDataSource(
+                listOf(
+                    track(1L, Uri.parse("file:///music/one.flac")),
+                    track(2L, Uri.parse("file:///music/two.flac"))
+                )
+            )
+        )
+
+        val queue = callback.controllerQueueForMediaItems(
+            listOf(
+                MediaItem.Builder().setMediaId("echo:auto:track:404").build(),
+                MediaItem.Builder().setMediaId("echo:auto:track:2").build(),
+                MediaItem.Builder().setMediaId("not-a-track").build(),
+                MediaItem.Builder().setMediaId("1").build()
+            ),
+            startIndex = 3,
+            startPositionMs = 500L
+        )
+
+        assertEquals(listOf(2L, 1L), queue?.tracks?.map { it.id })
+        assertEquals(3, queue?.startIndex)
+        assertEquals(500L, queue?.startPositionMs)
+    }
+
+    @Test
     fun controllerQueueForMediaItemsReturnsNullWhenNothingResolves() {
         val callback = PlaybackMediaLibraryCallback(
             FakeDataSource(listOf(track(1L, Uri.parse("file:///music/one.flac"))))
