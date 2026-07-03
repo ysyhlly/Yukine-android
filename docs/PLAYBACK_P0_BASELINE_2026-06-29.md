@@ -2387,6 +2387,49 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## Batch Verification - P1 Command And Queue State Slices
+
+Current audit date: 2026-07-03.
+
+- This checkpoint covers the recent queue/current-track wiring and command-owner
+  slices: `PlaybackStateSnapshotOwner` queue-state source, service queue
+  snapshot alias removal, `PlaybackPositionManager` current-track adapter,
+  `PlaybackRuntimeStateManager` current-track adapter,
+  `PlaybackQueueManager` API audit, mutation/resolver-cache boundary delta,
+  empty queue clear no-op coverage, and `PlaybackFavoriteCommandOwner`.
+- Batch metrics: `EchoPlaybackService.java` is 1422 lines,
+  `private Playback*` field count is 55 by the current `rg` metric,
+  `fromPlaybackQueueManager` count is 0, direct
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.currentTrack()` calls in the service are
+  5, and `Playback*Owner` production file count is 44.
+- Focused tests run in this batch:
+  - `PlaybackStateSnapshotOwnerTest` plus
+    `MainActivityArchitectureContractTest`.
+  - `PlaybackPositionManagerTest` plus
+    `MainActivityArchitectureContractTest`.
+  - `PlaybackRuntimeStateManagerTest` plus
+    `MainActivityArchitectureContractTest`.
+  - `PlaybackQueueMutationOwnerTest`.
+  - `PlaybackFavoriteCommandOwnerTest` plus
+    `MainActivityArchitectureContractTest`.
+- T2 verification passed:
+
+```powershell
+.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+- Next audit constraints:
+  - Do not treat a new owner as progress unless it removes a state source,
+    interface method, forwarding chain, service policy branch, or adds focused
+    behavior coverage.
+  - Keep auditing `PlaybackQueueManager` and queue snapshot APIs for real
+    external inputs, derivable values, and migration leftovers so queue work
+    does not become call-site relocation only.
+  - Track `EchoPlaybackService` wiring pressure, especially field count,
+    initialization length, and supplier/factory count, so line-count reduction
+    does not become manager/owner accumulation.
+
 ## P1 Owner/Interface Audit - PlaybackQueueManager API
 
 Current audit date: 2026-07-03.
