@@ -5671,9 +5671,9 @@ public final class MainActivityArchitectureContractTest {
                         "                )\n        );\n        playbackSleepTimerCommandOwner"
                 )
         );
-        assertTrue(positionStateProviderWiring.contains(
-                "                        () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack(),\n"));
-        assertFalse(positionStateProviderWiring.contains("                        playbackQueueStateOwner::currentTrack,\n"));
+        assertTrue(positionStateProviderWiring.contains("                        playbackQueueStateOwner::currentTrack,\n"));
+        assertFalse(positionStateProviderWiring.contains(
+                "playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertTrue(service.contains("                        playbackPlayerStateOwner::positionMs"));
         assertFalse(service.contains("new PlaybackPositionManager.StateProvider()"));
         assertFalse(service.contains("private long restoredPositionFor(Track track)"));
@@ -7425,9 +7425,9 @@ public final class MainActivityArchitectureContractTest {
                 normalizedService.indexOf("private final PlaybackRuntimeStateManager playbackRuntimeStateManager ="),
                 normalizedService.indexOf("    private final PlaybackCurrentTrackPreparationRuntimeOwner")
         );
-        assertTrue(runtimeStateProviderWiring.contains(
-                "                            () -> playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()\n"));
-        assertFalse(runtimeStateProviderWiring.contains("playbackQueueStateOwner::currentTrack"));
+        assertTrue(runtimeStateProviderWiring.contains("                            playbackQueueStateOwner::currentTrack\n"));
+        assertFalse(runtimeStateProviderWiring.contains(
+                "playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(service.contains("new PlaybackRuntimeStateManager.StateProvider()"));
         assertTrue(owner.contains("private var shuffleEnabled"));
         assertTrue(owner.contains("private var repeatMode"));
@@ -7947,10 +7947,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private final PlaybackCurrentTrackOwner playbackCurrentTrackOwner"));
         assertFalse(service.contains("private Track currentTrack()"));
         assertTrue(service.contains("playbackQueueStateOwner::currentTrack"));
-        assertEquals(2, countOccurrences(service, "playbackQueueStateOwner::currentTrack"));
+        assertEquals(4, countOccurrences(service, "playbackQueueStateOwner::currentTrack"));
         assertFalse(service.contains("final Supplier<Track> currentTrackSupplier = playbackQueueStateOwner::currentTrack;"));
         assertFalse(service.contains("Track track = playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack();"));
-        assertEquals(2, countOccurrences(service, "playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
+        assertEquals(0, countOccurrences(service, "playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertEquals(0, countOccurrences(service, "playbackQueueStateOwner.currentTrack()"));
         assertFalse(service.contains("private void prepareCurrent(final boolean playWhenReady)"));
         assertTrue(service.contains("private void prepareCurrent(Track track, final boolean playWhenReady)"));

@@ -3476,3 +3476,30 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueCommandOwnerTest --tests app.yukine.playback.PlaybackMediaLibraryDataSourceTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## P1 Wiring Note - Runtime And Position Current Track Suppliers
+
+Current audit date: 2026-07-03.
+
+- `EchoPlaybackService` no longer wires runtime state or playback-position
+  state with handwritten
+  `playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()` suppliers.
+- Both state providers now use the existing
+  `playbackQueueStateOwner::currentTrack` entry point, keeping the queue
+  snapshot read behind `PlaybackQueueStateOwner`.
+- No owner was added. The real reduction is two fewer Service-local
+  snapshot-to-current-track supplier lambdas.
+- `MainActivityArchitectureContractTest` now blocks this direct Service read
+  from returning.
+- Audit metrics after this slice: `EchoPlaybackService.java` is 1327 lines,
+  `private Playback*` field count is 43 by the existing non-final field
+  metric, `playbackQueueStateOwner::queueStateSnapshot` references in the
+  service are 1, direct
+  `playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()` references
+  in the service are 0, and `playbackQueueStateOwner::currentTrack` references
+  in the service are 4.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackRuntimeStateManagerTest --tests app.yukine.playback.PlaybackPositionManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
