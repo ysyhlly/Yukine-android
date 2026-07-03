@@ -2574,6 +2574,34 @@ rg -n "PlaybackMediaSourceResolutionOwner|ResolutionOwner|MediaSourceResolution"
 git diff --check
 ```
 
+## P1 Command Note - Favorite Toggle Owner
+
+Current audit date: 2026-07-03.
+
+- `EchoPlaybackService.toggleCurrentFavorite()` no longer reads the current
+  track and directly decides whether to call `ToggleFavoriteUseCase.toggle(...)`
+  and `publishState()`.
+- `PlaybackFavoriteCommandOwner` now owns that small command behavior:
+  current queue track lookup, favorite toggle delegation, and state publish on
+  a handled toggle.
+- This intentionally adds one `Playback*Owner` production file, but it does
+  not add an `EchoPlaybackService` field. The owner is not pure forwarding; it
+  removes one Service strategy branch and has focused behavior tests for
+  current-track, missing-track, and missing-use-case paths.
+- Notification favorite state remains unchanged: `PlaybackNotificationStateOwner`
+  still asks the injected `ToggleFavoriteUseCase` whether the supplied track is
+  favorite.
+- Metrics after this slice: `EchoPlaybackService.java` is 1422 lines,
+  `private (final )?Playback` count is 55, `fromPlaybackQueueManager` count is
+  0, direct `playbackQueueStateOwner::queueStateSnapshot` references in the
+  service are 1, direct `playbackQueueStateOwner.currentTrack()` calls in the
+  service are 5, and `Playback*Owner` production file count is 44.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackFavoriteCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## P1 Wiring Note - Error Recovery Queue State Source
 
 Current audit date: 2026-07-03.

@@ -71,7 +71,7 @@ public final class MainActivityArchitectureContractTest {
                 "feature/playback/src/main/java/app/yukine/playback/manager/PlaybackMediaSourceProvider.kt"
         );
 
-        assertEquals(42, countFiles("app/src/main/java/app/yukine/playback", "Playback*Owner.java"));
+        assertEquals(43, countFiles("app/src/main/java/app/yukine/playback", "Playback*Owner.java"));
         assertTrue(
                 "EchoPlaybackService should not add more Playback* fields without a narrower owner/interface slice",
                 countOccurrences(service, "\n    private Playback") <= 43
@@ -8278,6 +8278,7 @@ public final class MainActivityArchitectureContractTest {
         String foregroundOwner = read("app/src/main/java/app/yukine/playback/PlaybackNotificationForegroundOwner.java");
         String commandOwner = read("app/src/main/java/app/yukine/playback/PlaybackNotificationCommandOwner.java");
         String stateOwner = read("app/src/main/java/app/yukine/playback/PlaybackNotificationStateOwner.java");
+        String favoriteCommandOwner = read("app/src/main/java/app/yukine/playback/PlaybackFavoriteCommandOwner.java");
         String artworkSource = read("feature/playback/src/main/java/app/yukine/playback/PlaybackNotificationArtworkSource.java");
         String toggleFavoriteUseCase = read("app/src/main/java/app/yukine/ToggleFavoriteUseCase.kt");
 
@@ -8340,7 +8341,18 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(stateOwner.contains("final class PlaybackActiveStateOwner"));
         assertFalse(service.contains("new PlaybackNotificationArtworkManager.StateProvider()"));
         assertTrue(normalizedService.contains("@Inject\n    ToggleFavoriteUseCase toggleFavoriteUseCase;"));
-        assertTrue(service.contains("toggleFavoriteUseCase.toggle(track)"));
+        String toggleCurrentFavoriteMethod = normalizedService.substring(
+                normalizedService.indexOf("    public void toggleCurrentFavorite()"),
+                normalizedService.indexOf("    public void restoreLastPlayback(boolean playWhenRestored)")
+        );
+        assertTrue(toggleCurrentFavoriteMethod.contains("PlaybackFavoriteCommandOwner.toggleCurrentFavorite("));
+        assertFalse(toggleCurrentFavoriteMethod.contains("Track track = playbackQueueStateOwner.currentTrack();"));
+        assertFalse(toggleCurrentFavoriteMethod.contains("toggleFavoriteUseCase.toggle(track)"));
+        assertTrue(favoriteCommandOwner.contains("final class PlaybackFavoriteCommandOwner"));
+        assertTrue(favoriteCommandOwner.contains("queueStateOwner.currentTrack()"));
+        assertTrue(favoriteCommandOwner.contains("toggleFavoriteUseCase.toggle(track)"));
+        assertTrue(favoriteCommandOwner.contains("statePublisher.run();"));
+        assertFalse(service.contains("private PlaybackFavoriteCommandOwner playbackFavoriteCommandOwner;"));
         assertTrue(service.contains("toggleFavoriteUseCase.isFavorite(track)"));
         assertFalse(service.contains("new ToggleFavoriteUseCase("));
         assertFalse(service.contains("repository.setFavorite(track, !repository.isFavorite(track.id));"));

@@ -948,10 +948,11 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void toggleCurrentFavorite() {
-        Track track = playbackQueueStateOwner.currentTrack();
-        if (toggleFavoriteUseCase != null && toggleFavoriteUseCase.toggle(track)) {
-            publishState();
-        }
+        PlaybackFavoriteCommandOwner.toggleCurrentFavorite(
+                playbackQueueStateOwner,
+                toggleFavoriteUseCase,
+                EchoPlaybackService.this::publishState
+        );
     }
 
     public void restoreLastPlayback(boolean playWhenRestored) {
