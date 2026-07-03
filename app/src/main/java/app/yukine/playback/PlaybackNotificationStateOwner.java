@@ -51,7 +51,10 @@ final class PlaybackNotificationStateOwner implements PlaybackNotificationManage
 
     @Override
     public Track currentTrack() {
-        return queueStateOwner == null ? null : queueStateOwner.currentTrack();
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null
+                ? PlaybackQueueManager.QueueStateSnapshot.empty()
+                : queueStateOwner.queueStateSnapshot();
+        return snapshot.getCurrentTrack();
     }
 
     @Override

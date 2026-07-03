@@ -22,7 +22,9 @@ final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvi
         return new PlaybackStateProvider() {
             @Override
             public Track currentTrack() {
-                return queueStateOwner == null ? null : queueStateOwner.currentTrack();
+                return queueStateOwner == null
+                        ? null
+                        : queueStateOwner.queueStateSnapshot().getCurrentTrack();
             }
 
             @Override

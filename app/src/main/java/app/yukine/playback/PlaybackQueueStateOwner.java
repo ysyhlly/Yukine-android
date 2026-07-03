@@ -34,10 +34,6 @@ final class PlaybackQueueStateOwner {
         return snapshot == null ? Collections.emptyList() : snapshot;
     }
 
-    Track currentTrack() {
-        return queueStateSnapshot().getCurrentTrack();
-    }
-
     private PlaybackQueueManager playbackQueueManager() {
         return playbackQueueManager;
     }

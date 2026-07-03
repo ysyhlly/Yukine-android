@@ -5520,12 +5520,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(lyricsStateOwner.contains("private final BooleanSupplier appVisibilitySupplier;"));
         assertTrue(lyricsStateOwner.contains("return appVisibilitySupplier.getAsBoolean();"));
         assertFalse(lyricsStateOwner.contains("PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider"));
-        assertFalse(lyricsStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertTrue(lyricsStateOwner.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(lyricsStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.queueStateSnapshot();"));
         assertFalse(lyricsStateOwner.contains("Supplier<Track> currentTrackSupplier"));
         assertFalse(lyricsStateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertTrue(lyricsStateOwner.contains("PlaybackQueueStateOwner queueStateOwner"));
-        assertTrue(lyricsStateOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertFalse(lyricsStateOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
         assertTrue(lyricsStateOwner.contains("return playbackStateProvider.currentTrack();"));
         assertTrue(lyricsStateOwner.contains("return playbackStateProvider.isPlaying();"));
         assertTrue(lyricsStateOwner.contains("return playbackStateProvider.isPreparing();"));
@@ -6383,8 +6383,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueCommandOwner.hasCurrentTrack()"));
         assertFalse(service.contains("playbackQueueStateOwner.currentTrack()"));
         assertFalse(service.contains("playbackQueueManager.currentTrack();"));
-        assertTrue(queueStateOwner.contains("Track currentTrack()"));
-        assertTrue(queueStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertFalse(queueStateOwner.contains("Track currentTrack()"));
+        assertFalse(queueStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
         assertFalse(queueStateOwner.contains("int currentIndex()"));
         assertFalse(queueStateOwner.contains("return queueStateSnapshot().getCurrentIndex();"));
         assertFalse(queueStateOwner.contains("int queueSize()"));
@@ -8133,7 +8133,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackQueueCommandOwner.prepareCurrent(true);"));
         assertFalse(service.contains("playbackQueueCommandOwner.hasCurrentTrack()"));
         assertFalse(service.contains("playbackQueueManager.currentTrack()"));
-        assertTrue(queueStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertFalse(queueStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
         assertFalse(queueStateOwner.contains("playbackQueueManager::currentTrack"));
         assertFalse(queueOwner.contains("fun clampCurrentIndex(queueSize: Int): Int"));
         assertFalse(queueOwner.contains("fun setClampedCurrentIndex(index: Int, queueSize: Int)"));
@@ -8727,7 +8727,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(stateOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null"));
         assertTrue(stateOwner.contains(": queueStateOwner.queueStateSnapshot();"));
         assertTrue(stateOwner.contains("return snapshot.isQueueEmpty();"));
-        assertTrue(stateOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertTrue(stateOwner.contains("return snapshot.getCurrentTrack();"));
+        assertFalse(stateOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
         assertFalse(stateOwner.contains("queueStateOwner.isQueueEmpty()"));
         assertFalse(stateOwner.contains("queueStateSnapshot().getCurrentTrack()"));
         assertFalse(stateOwner.contains("return queueEmptySupplier == null || queueEmptySupplier.getAsBoolean();"));
