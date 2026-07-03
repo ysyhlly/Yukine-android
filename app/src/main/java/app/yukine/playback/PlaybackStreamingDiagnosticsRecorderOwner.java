@@ -21,14 +21,14 @@ final class PlaybackStreamingDiagnosticsRecorderOwner
 
     @Override
     public void record(PlaybackStateSnapshot snapshot) {
-        PlaybackStreamingDiagnostics diagnostics = streamingDiagnostics();
+        PlaybackStreamingDiagnostics diagnostics = streamingDiagnostics;
         if (diagnostics != null && snapshot != null) {
             diagnostics.recordBuffering(snapshot.currentTrack, snapshot.positionMs);
         }
     }
 
     void record(PlaybackQueueManager.CurrentTrackReplacementRecovery recovery) {
-        PlaybackStreamingDiagnostics diagnostics = streamingDiagnostics();
+        PlaybackStreamingDiagnostics diagnostics = streamingDiagnostics;
         if (diagnostics == null || recovery == null) {
             return;
         }
@@ -37,9 +37,5 @@ final class PlaybackStreamingDiagnosticsRecorderOwner
                 ? ""
                 : streamingQualityProvider.apply(track);
         diagnostics.recordRecovery(track, recovery.getRestoredPositionMs(), quality);
-    }
-
-    private PlaybackStreamingDiagnostics streamingDiagnostics() {
-        return streamingDiagnostics;
     }
 }

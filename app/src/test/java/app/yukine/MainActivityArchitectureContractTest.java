@@ -6289,7 +6289,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(streamingDiagnosticsOwner.contains("private final Function<Track, String> streamingQualityProvider;"));
         assertFalse(streamingDiagnosticsOwner.contains("interface StreamingDiagnosticsOperations"));
         assertFalse(streamingDiagnosticsOwner.contains("StreamingDiagnosticsOperationsProvider"));
-        assertTrue(streamingDiagnosticsOwner.contains("return streamingDiagnostics;"));
+        assertFalse(streamingDiagnosticsOwner.contains("private PlaybackStreamingDiagnostics streamingDiagnostics()"));
         assertFalse(streamingDiagnosticsOwner.contains("streamingDiagnosticsProvider.get()"));
         assertTrue(streamingDiagnosticsOwner.contains("streamingQualityProvider.apply(track)"));
         assertTrue(streamingDiagnosticsOwner.contains("diagnostics.recordBuffering(snapshot.currentTrack, snapshot.positionMs);"));
@@ -7315,7 +7315,7 @@ public final class MainActivityArchitectureContractTest {
                 "private final PlaybackStreamingDiagnostics streamingDiagnostics;"));
         assertFalse(streamingDiagnosticsOwner.contains(
                 "private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsProvider;"));
-        assertTrue(streamingDiagnosticsOwner.contains("return streamingDiagnostics;"));
+        assertFalse(streamingDiagnosticsOwner.contains("private PlaybackStreamingDiagnostics streamingDiagnostics()"));
         assertFalse(streamingDiagnosticsOwner.contains("streamingDiagnosticsProvider.get()"));
         assertFalse(streamingDiagnosticsOwner.contains("interface StreamingDiagnosticsOperations"));
         assertFalse(streamingDiagnosticsOwner.contains("StreamingDiagnosticsOperationsProvider"));
