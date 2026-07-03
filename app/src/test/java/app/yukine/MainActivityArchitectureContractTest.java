@@ -2052,9 +2052,9 @@ public final class MainActivityArchitectureContractTest {
                         "        playbackPrecacheManager = PlaybackPrecacheManager.fromMediaSourceProvider("
                 )
         );
-        assertFalse(normalizedPrecacheStateWiring.contains("                playbackQueueStateOwner,\n"));
-        assertTrue(normalizedPrecacheStateWiring.contains("currentTrackSupplier"));
-        assertTrue(normalizedPrecacheStateWiring.contains("playbackQueueStateOwner::upcomingTracksForPrecache"));
+        assertTrue(normalizedPrecacheStateWiring.contains("                playbackQueueStateOwner,\n"));
+        assertFalse(normalizedPrecacheStateWiring.contains("currentTrackSupplier"));
+        assertFalse(normalizedPrecacheStateWiring.contains("playbackQueueStateOwner::upcomingTracksForPrecache"));
         assertTrue(playbackService.contains("                playbackPrecacheStateOwner,"));
         assertFalse(normalizedPlaybackService.contains(
                 "        playbackPrecacheManager = PlaybackPrecacheManager.fromMediaSourceProvider(\n"
@@ -2184,15 +2184,17 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackPrecacheStateOwner.contains("interface PlayerProvider"));
         assertFalse(playbackPrecacheStateOwner.contains("interface PlayerOperationsProvider"));
         assertTrue(playbackPrecacheStateOwner.contains("import java.util.function.Supplier;"));
-        assertTrue(playbackPrecacheStateOwner.contains("import java.util.function.IntFunction;"));
+        assertFalse(playbackPrecacheStateOwner.contains("import java.util.function.IntFunction;"));
         assertFalse(playbackPrecacheStateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertFalse(playbackPrecacheStateOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
-        assertTrue(playbackPrecacheStateOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
+        assertTrue(playbackPrecacheStateOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertFalse(playbackPrecacheStateOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
         assertTrue(playbackPrecacheStateOwner.contains("private final Supplier<MediaItem> playerMediaItemSupplier;"));
-        assertTrue(playbackPrecacheStateOwner.contains("private final IntFunction<List<Track>> upcomingTracksProvider;"));
+        assertFalse(playbackPrecacheStateOwner.contains("private final IntFunction<List<Track>> upcomingTracksProvider;"));
         assertTrue(playbackPrecacheStateOwner.contains("private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsSupplier;"));
-        assertFalse(playbackPrecacheStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
-        assertTrue(playbackPrecacheStateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
+        assertTrue(playbackPrecacheStateOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertFalse(playbackPrecacheStateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
+        assertTrue(playbackPrecacheStateOwner.contains("queueStateOwner.upcomingTracksForPrecache(maxCount)"));
         assertFalse(playbackPrecacheStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
         assertTrue(playbackPrecacheStateOwner.contains("return playerMediaItemSupplier.get();"));
         assertTrue(playbackPrecacheStateOwner.contains("return streamingDiagnosticsSupplier.get();"));
@@ -7807,7 +7809,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private void setCurrentIndex(int index)"));
         assertFalse(service.contains("private void setClampedCurrentIndex(int index)"));
         assertFalse(service.contains("playbackQueueManager.setClampedCurrentIndex(index);"));
-        assertTrue(service.contains("playbackQueueStateOwner::upcomingTracksForPrecache"));
+        assertFalse(service.contains("playbackQueueStateOwner::upcomingTracksForPrecache"));
         assertFalse(service.contains("playbackQueueManager::upcomingTracksForPrecache"));
         assertTrue(service.contains("owner -> owner.prepareStopAfterAutomaticAdvance(completedIndex)"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex);"));

@@ -8,25 +8,21 @@ import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.function.IntFunction;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateProvider {
-    private final Supplier<Track> currentTrackSupplier;
+    private final PlaybackQueueStateOwner queueStateOwner;
     private final Supplier<MediaItem> playerMediaItemSupplier;
-    private final IntFunction<List<Track>> upcomingTracksProvider;
     private final Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsSupplier;
 
     PlaybackPrecacheStateOwner(
-            Supplier<Track> currentTrackSupplier,
+            PlaybackQueueStateOwner queueStateOwner,
             Supplier<MediaItem> playerMediaItemSupplier,
-            IntFunction<List<Track>> upcomingTracksProvider,
             Supplier<PlaybackStreamingDiagnostics> streamingDiagnosticsSupplier
     ) {
-        this.currentTrackSupplier = currentTrackSupplier;
+        this.queueStateOwner = queueStateOwner;
         this.playerMediaItemSupplier = playerMediaItemSupplier;
-        this.upcomingTracksProvider = upcomingTracksProvider;
         this.streamingDiagnosticsSupplier = streamingDiagnosticsSupplier;
     }
 
@@ -79,7 +75,7 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
 
     @Override
     public Track currentTrack() {
-        return currentTrackSupplier == null ? null : currentTrackSupplier.get();
+        return queueStateOwner == null ? null : queueStateOwner.currentTrack();
     }
 
     @Override
@@ -89,9 +85,9 @@ final class PlaybackPrecacheStateOwner implements PlaybackPrecacheManager.StateP
 
     @Override
     public List<Track> upcomingTracksForPrecache(int maxCount) {
-        List<Track> tracks = upcomingTracksProvider == null
+        List<Track> tracks = queueStateOwner == null
                 ? null
-                : upcomingTracksProvider.apply(maxCount);
+                : queueStateOwner.upcomingTracksForPrecache(maxCount);
         return tracks == null ? Collections.emptyList() : tracks;
     }
 
