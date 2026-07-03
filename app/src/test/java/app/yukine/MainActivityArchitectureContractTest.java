@@ -6729,9 +6729,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(commandOwner.contains("boolean hasCurrentTrack()"));
         assertTrue(commandOwner.contains("Track track = currentTrack();"));
         assertTrue(commandOwner.contains("private Track currentTrack()"));
-        assertTrue(commandOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertTrue(commandOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null"));
+        assertTrue(commandOwner.contains(": queueStateOwner.queueStateSnapshot();"));
+        assertTrue(commandOwner.contains("return snapshot.getCurrentTrack();"));
         assertTrue(commandOwner.contains("missingCurrentTrackAction.run();"));
-        assertFalse(commandOwner.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
+        assertFalse(commandOwner.contains(": queueStateOwner.currentTrack();"));
         assertTrue(commandOwner.contains("playbackPreparer.accept(track, playWhenReady);"));
         assertTrue(commandOwner.contains("statePublisher.run();"));
         assertFalse(commandOwner.contains("stopAndClearCommand.run();"));
