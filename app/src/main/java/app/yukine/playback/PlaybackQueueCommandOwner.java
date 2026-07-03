@@ -36,8 +36,7 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
     }
 
     private boolean prepareCurrentIfAvailable(boolean playWhenReady) {
-        Track track = queueStateOwner == null ? null
-                : queueStateOwner.queueStateSnapshot().getCurrentTrack();
+        Track track = currentTrack();
         if (track == null || playbackPreparer == null) {
             return false;
         }
@@ -46,12 +45,15 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
     }
 
     boolean runIfCurrentTrackMissing(Runnable missingCurrentTrackAction) {
-        boolean missingCurrentTrack = queueStateOwner == null
-                || queueStateOwner.queueStateSnapshot().getCurrentTrack() == null;
+        boolean missingCurrentTrack = currentTrack() == null;
         if (missingCurrentTrack && missingCurrentTrackAction != null) {
             missingCurrentTrackAction.run();
         }
         return missingCurrentTrack;
+    }
+
+    private Track currentTrack() {
+        return queueStateOwner == null ? null : queueStateOwner.currentTrack();
     }
 
     @Override

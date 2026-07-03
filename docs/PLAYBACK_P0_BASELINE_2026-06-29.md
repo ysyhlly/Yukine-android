@@ -3652,3 +3652,24 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## P1 Wiring Note - Queue Command Current Track Source
+
+Current audit date: 2026-07-03.
+
+- `PlaybackQueueCommandOwner` no longer directly unwraps
+  `queueStateOwner.queueStateSnapshot().getCurrentTrack()` when preparing the
+  current item or checking the missing-current fallback.
+- The command owner now reads the current track through the existing
+  `PlaybackQueueStateOwner.currentTrack()` semantic method.
+- No owner was added. The real reduction is two fewer direct snapshot-current
+  dereference chains inside a command owner while keeping
+  `PlaybackQueueStateOwner` as the narrow queue-state reader.
+- `MainActivityArchitectureContractTest` now blocks
+  `PlaybackQueueCommandOwner` from returning to direct
+  `queueStateOwner.queueStateSnapshot().getCurrentTrack()` reads.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
