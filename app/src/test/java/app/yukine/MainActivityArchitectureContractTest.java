@@ -1848,9 +1848,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackSessionRefreshOwnerTest.java")));
         assertFalse(playbackService.contains("PlaybackSessionRefreshOwner"));
         assertFalse(playbackService.contains("playbackSessionRefreshOwner"));
-        assertTrue(playbackService.contains("private PlaybackNotificationArtworkBridgeOwner.SessionRefresher playbackSessionRefresher;"));
+        assertFalse(playbackService.contains("private PlaybackNotificationArtworkBridgeOwner.SessionRefresher playbackSessionRefresher;"));
         assertTrue(playbackService.contains(
-                "playbackSessionRefresher = PlaybackNotificationArtworkBridgeOwner.sessionRefresherFromPlaybackSessionManager("));
+                "final PlaybackNotificationArtworkBridgeOwner.SessionRefresher playbackSessionRefresher =\n"
+                        + "                PlaybackNotificationArtworkBridgeOwner.sessionRefresherFromPlaybackSessionManager("));
         assertFalse(playbackService.contains("private void refreshPlaybackSession()"));
         assertTrue(playbackService.contains("postponePlaybackVisualizationWarmup();"));
         assertTrue(playbackService.contains("private PlaybackStateSnapshotOwner playbackStateSnapshotOwner;"));
@@ -8169,7 +8170,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackSessionRefreshOwner.java")));
         assertFalse(service.contains("PlaybackSessionRefreshOwner"));
         assertFalse(service.contains("playbackSessionRefreshOwner"));
-        assertTrue(service.contains("private PlaybackNotificationArtworkBridgeOwner.SessionRefresher playbackSessionRefresher;"));
+        assertFalse(service.contains("private PlaybackNotificationArtworkBridgeOwner.SessionRefresher playbackSessionRefresher;"));
+        assertTrue(service.contains(
+                "final PlaybackNotificationArtworkBridgeOwner.SessionRefresher playbackSessionRefresher ="));
         assertTrue(notificationArtworkBridgeOwner.contains(
                 "static SessionRefresher sessionRefresherFromPlaybackSessionManager("));
         assertTrue(notificationArtworkBridgeOwner.contains("Supplier<PlaybackSessionManager> playbackSessionManagerSupplier"));

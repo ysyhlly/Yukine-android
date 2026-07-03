@@ -132,7 +132,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private final PlaybackAudioEffectManager audioEffectManager =
             new PlaybackAudioEffectManager(TAG);
     private PlaybackSessionManager playbackSessionManager;
-    private PlaybackNotificationArtworkBridgeOwner.SessionRefresher playbackSessionRefresher;
     private app.yukine.playback.manager.LyricsPublisher playbackLyricsManager;
     private final Consumer<Boolean> statusBarLyricsEnabledAction =
             PlaybackLyricsSettingsStore.statusBarLyricsEnabledActionFromSupplier(() -> playbackLyricsManager);
@@ -420,9 +419,10 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackNotificationArtworkSource,
                 playbackNotificationCommandOwner
         );
-        playbackSessionRefresher = PlaybackNotificationArtworkBridgeOwner.sessionRefresherFromPlaybackSessionManager(
-                () -> playbackSessionManager
-        );
+        final PlaybackNotificationArtworkBridgeOwner.SessionRefresher playbackSessionRefresher =
+                PlaybackNotificationArtworkBridgeOwner.sessionRefresherFromPlaybackSessionManager(
+                        () -> playbackSessionManager
+                );
         playbackLyricsStateOwner = new PlaybackLyricsStateOwner(
                 () -> appVisible,
                 PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState(
