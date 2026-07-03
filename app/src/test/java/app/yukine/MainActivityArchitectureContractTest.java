@@ -69,6 +69,7 @@ public final class MainActivityArchitectureContractTest {
         String downloadRequests = methodBody(mainActivity, "    private void initializeDownloadRequests()");
         String libraryGateway = methodBody(mainActivity, "    private void initializeLibraryGateway()");
         String routeStoresAndStatus = methodBody(mainActivity, "    private void initializeRouteStoresAndStatus()");
+        String playTrackListFromHost = methodBody(mainActivity, "    private void playTrackListFromHost(List<Track> tracks, int index)");
 
         int streamingGatewayStep = onCreate.indexOf("        MainActivityStreamingActionGateway streamingActionGateway = createStreamingActionGateway();");
         int streamingOwnersStep = onCreate.indexOf("        initializeStreamingOwners(streamingActionGateway);");
@@ -119,13 +120,19 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(streamingActionGateway.contains(
                 "                        streamingPlaylistController.onStreamingLoginSuccess(provider);\n"));
         assertTrue(streamingActionGateway.contains("                    if (streamingManualCookieController != null) {"));
+        assertTrue(streamingActionGateway.contains(
+                "                (tracks, index) -> playTrackListFromHost(tracks, index),\n"));
         assertFalse(streamingActionGateway.contains("                settingsStore.languageMode(),\n"));
         assertFalse(streamingActionGateway.contains("                settingsStore,\n"));
         assertFalse(streamingActionGateway.contains("                streamingPlaylistController,\n"));
         assertFalse(streamingActionGateway.contains(
                 "                provider -> streamingPlaylistController.onStreamingLoginSuccess(provider),\n"));
         assertFalse(streamingActionGateway.contains("                streamingManualCookieController,\n"));
+        assertFalse(streamingActionGateway.contains("                playbackStartController,\n"));
+        assertFalse(streamingActionGateway.contains("playbackStartController.playTrackList("));
         assertTrue(libraryGateway.contains("libraryViewModel.bindGateway(libraryGatewayFactory.create("));
+        assertTrue(libraryGateway.contains(
+                "                (tracks, index) -> MainActivityBase.this.playTrackListFromHost(tracks, index),\n"));
         assertTrue(libraryGateway.contains(
                 "                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),\n"));
         assertTrue(libraryGateway.contains(
@@ -138,8 +145,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(libraryRouteActionsArgument >= 0);
         assertFalse(libraryGateway.contains("                () -> settingsStore.languageMode(),\n"));
         assertFalse(libraryGateway.contains("                statusMessageController,\n"));
+        assertFalse(libraryGateway.contains("                playbackStartController,\n"));
+        assertFalse(libraryGateway.contains("playbackStartController.playTrackList("));
         assertFalse(libraryGateway.contains(
                 "                track -> MainActivityBase.this.playlistDialogController.showAddToPlaylist(track),\n"));
+        assertTrue(playTrackListFromHost.contains("if (playbackStartController != null) {"));
+        assertTrue(playTrackListFromHost.contains("playbackStartController.playTrackList(tracks, index);"));
+        assertTrue(playTrackListFromHost.contains("if (playbackStartListener != null) {"));
+        assertTrue(playTrackListFromHost.contains("playbackStartListener.savePendingPlayback("));
+        assertTrue(playTrackListFromHost.contains("tracks == null ? Collections.emptyList() : new ArrayList<>(tracks)"));
+        assertTrue(playTrackListFromHost.contains("playbackStartListener.setStatus(playbackStartListener.resolvingStatus());"));
         assertTrue(nowPlayingGateway.contains("                () -> playbackActionController,\n"));
         assertTrue(nowPlayingGateway.contains("                () -> playbackStore,\n"));
         assertTrue(nowPlayingGateway.contains("                () -> playbackService\n"));
