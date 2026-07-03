@@ -370,6 +370,36 @@ public final class PlaybackPrecacheManagerTest {
         assertEquals(1, stateProvider.upcomingTracksCalls);
     }
 
+    @Test
+    public void upcomingPrecacheSkipsTracksWithoutCachePolicyKey() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                mediaCacheOperations,
+                (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
+                scheduler,
+                new FakeAudioCacheReleaseAction()::releaseAudioCache,
+                executor
+        );
+        Track current = track(1L, "https://example.test/current.mp3");
+        Track localUpcoming = track(2L, "content://media/audio/2", "/music/local.flac");
+        Track streamingUpcoming = track(3L, "https://example.test/upcoming.mp3");
+
+        stateProvider.currentTrack = current;
+        stateProvider.upcomingTracks.add(localUpcoming);
+        stateProvider.upcomingTracks.add(streamingUpcoming);
+        manager.precacheTrack(current);
+        scheduler.runNext();
+        scheduler.runNext();
+        manager.release();
+
+        assertEquals(1, stateProvider.upcomingTracksCalls);
+        assertEquals(3, executor.submittedTaskCount());
+    }
+
     private static Track track(long id, String uri) {
         return track(id, uri, "streaming:test:" + id);
     }
@@ -632,6 +662,10 @@ public final class PlaybackPrecacheManagerTest {
 
         private void runSubmitted(int index) {
             submittedTasks.get(index).run();
+        }
+
+        private int submittedTaskCount() {
+            return submittedTasks.size();
         }
     }
 
