@@ -7158,6 +7158,7 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void playbackHistoryRecordingIsOwnedOutsideEchoPlaybackService() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String normalizedService = service.replace("\r\n", "\n");
         String owner = read("app/src/main/java/app/yukine/playback/PlaybackPlayHistoryRecorder.java");
 
         assertFalse(service.contains("repository.markPlayed("));
@@ -7166,6 +7167,18 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private PlaybackPlayHistoryRecorder playbackPlayHistoryRecorder;"));
         assertTrue(service.contains("private Runnable recordPlaybackStartHistoryAction"));
         assertTrue(service.contains("PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction("));
+        assertTrue(normalizedService.contains(
+                "PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(\n" +
+                        "                playbackPlayHistoryRecorder,\n" +
+                        "                () -> player != null && player.getPlayWhenReady(),\n" +
+                        "                playbackQueueStateOwner\n" +
+                        "        );"));
+        assertFalse(normalizedService.contains(
+                "PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(\n" +
+                        "                playbackPlayHistoryRecorder,\n" +
+                        "                () -> player != null && player.getPlayWhenReady(),\n" +
+                        "                currentTrackSupplier\n" +
+                        "        );"));
         assertTrue(service.contains("final PlaybackPlayHistoryRecorder playbackPlayHistoryRecorder = PlaybackPlayHistoryRecorder.fromRepository("));
         assertFalse(service.contains("() -> playbackPlayHistoryRecorder"));
         assertTrue(service.contains("recordPlaybackStartHistoryAction.run();"));
@@ -7173,6 +7186,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("PlaybackPlayHistoryRecorder.fromRepository("));
         assertTrue(owner.contains("interface HistorySink"));
         assertTrue(owner.contains("static Runnable recordIfPlaybackStartedAction("));
+        assertTrue(owner.contains("PlaybackQueueStateOwner queueStateOwner"));
+        assertTrue(owner.contains("queueStateOwner == null ? null : queueStateOwner.currentTrack()"));
+        assertFalse(owner.contains("Supplier<Track> currentTrack"));
+        assertFalse(owner.contains("currentTrack == null ? null : currentTrack.get()"));
         assertTrue(owner.contains("void recordIfPlaybackStarted(boolean playWhenReady, Track track)"));
         assertTrue(owner.contains("historySink.markPlayed(track.id);"));
         assertTrue(owner.contains("transitionStateManager.lastMarkedTrack()"));
