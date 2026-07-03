@@ -4065,3 +4065,57 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueStateOwnerTest --tests app.yukine.playback.PlaybackStateSnapshotOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## P2/P3 Contract Note - Resolver And Cache Facade Guard
+
+Current audit date: 2026-07-03.
+
+- Read-only boundary check found no production `PlaybackMediaSourceResolutionOwner`,
+  `PlaybackItemResolver`, cache policy owner, cache facade, or precache policy
+  files.
+- `EchoPlaybackService` still enters URI / MediaItem resolution through
+  existing owners and does not call `prepareTrackForPlayback(...)`,
+  `mediaSourceForTrack(...)`, `mediaSourcesForTracks(...)`,
+  `mediaItemForTrack(...)`, or `playbackMediaItemForTrack(...)` directly.
+- `EchoPlaybackService` also does not call cache primitives directly:
+  `cacheKeyForTrack(...)`, `cacheKeyForPrecache(...)`,
+  `cacheDataSourceForTrack(...)`, `contentLengthForCacheKey(...)`,
+  `headersForTrack(...)`, or `audioCache(...)`.
+- The architecture contract now blocks new `Playback*CachePolicy`,
+  `Playback*CacheFacade`, and `Playback*PrecachePolicy` classes in app and
+  feature playback source roots unless a future slice deliberately introduces a
+  clearly named cache policy owner with matching tests.
+- `PlaybackMediaCacheOperations` remains cache-only and still does not expose
+  `MediaItem` matching or track preparation APIs. MediaItem identity stays in
+  `PlaybackMediaSourceProvider`, while cache scheduling stays in
+  `PlaybackPrecacheManager`.
+- The real gain is stronger regression coverage for the resolver/cache boundary
+  without adding runtime wiring, owner count, or Service strategy.
+- Focused coverage: `MainActivityArchitectureContractTest`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1/P3 Batch Audit - Queue Snapshot And Resolver/Cache Contracts
+
+Current audit date: 2026-07-03.
+
+- Batch scope: queue snapshot exposure narrowing plus resolver/cache facade
+  contract hardening.
+- `EchoPlaybackService.java`: 1424 lines.
+- `EchoPlaybackService` `private Playback*` fields: 43.
+- Production playback `fromPlaybackQueueManager(...)` calls: 0.
+- `EchoPlaybackService` `queueStateSnapshot` supplier references: 0.
+- Production playback `Playback*Owner.java` files: 43.
+- Production resolver/cache facade candidates found by source scan:
+  `PlaybackMediaSourceResolutionOwner`, `PlaybackItemResolver`,
+  `Playback*CachePolicy`, `Playback*CacheFacade`, and
+  `Playback*PrecachePolicy`: 0.
+- Focused tests protecting the batch: `PlaybackQueueStateOwnerTest`,
+  `PlaybackStateSnapshotOwnerTest`, and `MainActivityArchitectureContractTest`.
+- Real reductions / guardrails: one fewer playback owner can access the full
+  queue snapshot object, and the architecture contract now blocks cache
+  primitive usage from drifting into `EchoPlaybackService` or into a broad
+  cache/resolution facade.
