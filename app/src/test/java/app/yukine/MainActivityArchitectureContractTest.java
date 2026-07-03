@@ -1962,7 +1962,8 @@ public final class MainActivityArchitectureContractTest {
                         "        playbackVisualizationCacheManager = PlaybackVisualizationCacheManager.fromMediaSourceProvider("
                 )
         );
-        assertTrue(normalizedVisualizationCacheStateWiring.contains("                        playbackQueueManager,\n"));
+        assertTrue(normalizedVisualizationCacheStateWiring.contains("                        playbackQueueStateOwner,\n"));
+        assertFalse(normalizedVisualizationCacheStateWiring.contains("                        playbackQueueManager,\n"));
         assertFalse(normalizedVisualizationCacheStateWiring.contains("currentTrackSupplier"));
         assertTrue(playbackService.contains(
                 "playbackVisualizationCacheManager = PlaybackVisualizationCacheManager.fromMediaSourceProvider("));
@@ -2154,10 +2155,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(visualizationCacheStateOwner.contains("private final Handler mainHandler;"));
         assertFalse(visualizationCacheStateOwner.contains("private final Supplier<Handler> mainHandlerProvider;"));
         assertTrue(visualizationCacheStateOwner.contains("private final Consumer<Runnable> cacheTaskScheduler;"));
-        assertTrue(visualizationCacheStateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
+        assertFalse(visualizationCacheStateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertFalse(visualizationCacheStateOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
-        assertFalse(visualizationCacheStateOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
-        assertTrue(visualizationCacheStateOwner.contains("private final PlaybackQueueManager playbackQueueManager;"));
+        assertTrue(visualizationCacheStateOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertFalse(visualizationCacheStateOwner.contains("private final PlaybackQueueManager playbackQueueManager;"));
         assertFalse(visualizationCacheStateOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
         assertTrue(visualizationCacheStateOwner.contains("return mainHandler;"));
         assertFalse(visualizationCacheStateOwner.contains("return mainHandlerProvider == null ? null : mainHandlerProvider.get();"));
@@ -2165,8 +2166,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(visualizationCacheStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
         assertFalse(visualizationCacheStateOwner.contains(": queueStateOwner.queueStateSnapshot();"));
         assertFalse(visualizationCacheStateOwner.contains("return snapshot.getCurrentTrack();"));
-        assertFalse(visualizationCacheStateOwner.contains("queueStateOwner.currentTrack()"));
-        assertTrue(visualizationCacheStateOwner.contains("return playbackQueueManager == null ? null : playbackQueueManager.queueStateSnapshot().getCurrentTrack();"));
+        assertTrue(visualizationCacheStateOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertFalse(visualizationCacheStateOwner.contains("playbackQueueManager.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(visualizationCacheStateOwner.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(visualizationCacheStateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertFalse(visualizationCacheStateOwner.contains("return currentTrackProvider.currentTrack();"));
@@ -7071,7 +7072,6 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackSessionCommandOwner.java",
                 "PlaybackStateSnapshotOwner.java",
                 "PlaybackPrecacheManager.java",
-                "PlaybackVisualizationCacheStateOwner.java",
                 "PlaybackQueueStateOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.queueStateSnapshot()"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
