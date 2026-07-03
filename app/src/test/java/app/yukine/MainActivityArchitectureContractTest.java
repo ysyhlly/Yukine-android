@@ -1854,7 +1854,8 @@ public final class MainActivityArchitectureContractTest {
                         + "                queueStateSupplier,"));
         assertTrue(playbackService.contains("PlaybackStateSnapshotOwner.fromRuntimeStateManager(playbackRuntimeStateManager)"));
         assertFalse(playbackService.contains("PlaybackStateSnapshotOwner.fromRuntimeStateManagerProvider("));
-        assertTrue(playbackService.contains("PlaybackStateSnapshotOwner.fromVisualizationAnalyzerProvider("));
+        assertTrue(playbackService.contains("PlaybackStateSnapshotOwner.fromVisualizationAnalyzer(playbackVisualizationAnalyzer)"));
+        assertFalse(playbackService.contains("PlaybackStateSnapshotOwner.fromVisualizationAnalyzerProvider("));
         assertTrue(playbackService.contains("return playbackStateSnapshotOwner == null"));
         assertFalse(playbackService.contains("boolean deferVisualGeneration = shouldDeferPlaybackVisualization();"));
         assertFalse(playbackService.contains("waveformSnapshotFor(track, duration, deferVisualGeneration)"));
@@ -1879,7 +1880,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(stateSnapshotOwner.contains("private final DoubleSupplier realtimeBeatProvider;"));
         assertFalse(stateSnapshotOwner.contains("Supplier<PlaybackRuntimeStateManager> runtimeStateManagerProvider"));
         assertTrue(stateSnapshotOwner.contains("static RuntimeStateProvider fromRuntimeStateManager("));
-        assertTrue(stateSnapshotOwner.contains("Supplier<PlaybackVisualizationAnalyzer> visualizationAnalyzerProvider"));
+        assertTrue(stateSnapshotOwner.contains("static VisualizationProvider fromVisualizationAnalyzer("));
+        assertFalse(stateSnapshotOwner.contains("Supplier<PlaybackVisualizationAnalyzer>"));
+        assertFalse(stateSnapshotOwner.contains("visualizationAnalyzerProvider"));
         assertTrue(stateSnapshotOwner.contains("interface RuntimeStateProvider"));
         assertTrue(stateSnapshotOwner.contains("interface VisualizationProvider"));
         assertTrue(stateSnapshotOwner.contains("boolean deferVisualGeneration = visualizationProvider != null"));

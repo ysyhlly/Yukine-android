@@ -148,6 +148,16 @@ public class PlaybackStateSnapshotOwnerTest {
         assertEquals(1.0f, provider.appVolume(), 0.001f);
     }
 
+    @Test
+    public void visualizationProviderUsesEmptySnapshotsWhenAnalyzerIsMissing() {
+        PlaybackStateSnapshotOwner.VisualizationProvider provider =
+                PlaybackStateSnapshotOwner.fromVisualizationAnalyzer(null);
+
+        assertEquals(false, provider.shouldDeferPlaybackVisualization());
+        assertEquals(false, provider.waveformSnapshot(track(), 6000L, true).hasBars());
+        assertEquals(false, provider.spectrumSnapshot(track(), 6000L, true).hasBands());
+    }
+
     private static Track track() {
         return track(42L);
     }

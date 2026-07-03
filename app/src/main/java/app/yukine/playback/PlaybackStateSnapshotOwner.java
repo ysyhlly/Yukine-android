@@ -5,7 +5,6 @@ import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 final class PlaybackStateSnapshotOwner {
     interface PlaybackPositionProvider {
@@ -100,14 +99,14 @@ final class PlaybackStateSnapshotOwner {
         };
     }
 
-    static VisualizationProvider fromVisualizationAnalyzerProvider(
-            Supplier<PlaybackVisualizationAnalyzer> visualizationAnalyzerProvider
+    static VisualizationProvider fromVisualizationAnalyzer(
+            PlaybackVisualizationAnalyzer playbackVisualizationAnalyzer
     ) {
         return new VisualizationProvider() {
             @Override
             public boolean shouldDeferPlaybackVisualization() {
-                PlaybackVisualizationAnalyzer analyzer = playbackVisualizationAnalyzer();
-                return analyzer != null && analyzer.shouldDeferPlaybackVisualization();
+                return playbackVisualizationAnalyzer != null
+                        && playbackVisualizationAnalyzer.shouldDeferPlaybackVisualization();
             }
 
             @Override
@@ -116,10 +115,9 @@ final class PlaybackStateSnapshotOwner {
                     long durationMs,
                     boolean deferGeneration
             ) {
-                PlaybackVisualizationAnalyzer analyzer = playbackVisualizationAnalyzer();
-                return analyzer == null
+                return playbackVisualizationAnalyzer == null
                         ? PlaybackWaveformSnapshot.empty()
-                        : analyzer.waveformSnapshot(track, durationMs, deferGeneration);
+                        : playbackVisualizationAnalyzer.waveformSnapshot(track, durationMs, deferGeneration);
             }
 
             @Override
@@ -128,16 +126,9 @@ final class PlaybackStateSnapshotOwner {
                     long durationMs,
                     boolean deferGeneration
             ) {
-                PlaybackVisualizationAnalyzer analyzer = playbackVisualizationAnalyzer();
-                return analyzer == null
+                return playbackVisualizationAnalyzer == null
                         ? PlaybackSpectrumSnapshot.empty()
-                        : analyzer.spectrumSnapshot(track, durationMs, deferGeneration);
-            }
-
-            private PlaybackVisualizationAnalyzer playbackVisualizationAnalyzer() {
-                return visualizationAnalyzerProvider == null
-                        ? null
-                        : visualizationAnalyzerProvider.get();
+                        : playbackVisualizationAnalyzer.spectrumSnapshot(track, durationMs, deferGeneration);
             }
         };
     }
