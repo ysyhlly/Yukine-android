@@ -5667,7 +5667,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private long restoredPositionFor(Track track)"));
         assertFalse(service.contains("playbackPositionManager.restoredPositionFor(track)"));
         assertFalse(service.contains("playbackQueueManager.restoredPositionFor(track)"));
-        assertTrue(currentPreparationQueueOwner.contains("playbackQueueManager.restoredPositionFor(track);"));
+        assertFalse(currentPreparationQueueOwner.contains("playbackQueueManager.restoredPositionFor(track);"));
+        assertTrue(service.contains("playbackPositionManager::restoredPositionFor"));
         assertTrue(service.contains("private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner"));
         assertTrue(service.contains("PlaybackCurrentTrackPreparationQueueOwner.fromMediaSourceProvider("));
         assertFalse(service.contains("PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager("));
@@ -6455,13 +6456,14 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(currentPreparationQueueOwner.contains("private final Consumer<Track> replaceCurrentQueueTrack;"));
         assertFalse(currentPreparationQueueOwner.contains("private final Function<Track, Long> restoredPositionFor;"));
         assertFalse(currentPreparationQueueOwner.contains("private final Supplier<PlaybackQueueManager.QueuePreparation> queuePreparationForNewPlayer;"));
+        assertTrue(currentPreparationOwner.contains("private final Function<Track, Long> restoredPositionProvider;"));
         assertTrue(currentPreparationQueueOwner.contains("private final Function<List<Track>, List<MediaSource>> mediaSourcesForTracks;"));
         assertFalse(currentPreparationQueueOwner.contains("private final LongConsumer consumeRestoredPositionAfterPrepare;"));
         assertTrue(currentPreparationQueueOwner.contains("PlaybackMediaSourceProvider mediaSourceProvider"));
         assertTrue(currentPreparationQueueOwner.contains("mediaSourceProvider.mediaSourcesForTracks("));
         assertTrue(currentPreparationQueueOwner.contains("metadataProvider == null ? null : metadataProvider::apply"));
         assertTrue(currentPreparationQueueOwner.contains("playbackQueueManager.replaceCurrentQueueTrack(track);"));
-        assertTrue(currentPreparationQueueOwner.contains("playbackQueueManager.restoredPositionFor(track);"));
+        assertFalse(currentPreparationQueueOwner.contains("playbackQueueManager.restoredPositionFor(track);"));
         assertTrue(service.contains("private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner"));
         assertTrue(service.contains("PlaybackCurrentTrackPreparationQueueOwner.fromMediaSourceProvider("));
         assertFalse(service.contains("PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager("));
@@ -6650,7 +6652,6 @@ public final class MainActivityArchitectureContractTest {
                 "queuePreparationForNewPlayer",
                 "queueSnapshot",
                 "queueStateSnapshot",
-                "restoredPositionFor",
                 "upcomingTracksForPrecache"
         ));
         java.util.Set<String> expectedPublicApi = new java.util.TreeSet<>();
@@ -6665,7 +6666,6 @@ public final class MainActivityArchitectureContractTest {
                 "queuePreparationForNewPlayer",
                 "queueSnapshot",
                 "queueStateSnapshot",
-                "restoredPositionFor",
                 "upcomingTracksForPrecache"
         )), queueDerivedReadApi);
         assertFalse(owner.contains("interface QueueProvider"));

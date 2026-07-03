@@ -53,7 +53,7 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
         queueManager.playQueue(Arrays.asList(currentTrack, nextTrack), 0, 3200L);
 
         owner.replaceCurrentQueueTrack(replacement);
-        long positionMs = owner.restoredPositionFor(replacement);
+        long positionMs = positionManager.restoredPositionFor(replacement);
         PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
                 owner.queuePreparationForNewPlayer();
         owner.consumeRestoredPositionAfterPrepare(4300L);
@@ -62,7 +62,7 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
         assertSame(replacement, queuePreparation.currentTrack());
         assertEquals(0, queuePreparation.startIndex());
         assertEquals(null, queuePreparation.mirroredQueueMediaSources());
-        assertEquals(0L, owner.restoredPositionFor(replacement));
+        assertEquals(0L, positionManager.restoredPositionFor(replacement));
         assertEquals(1, store.savePlaybackPositionCalls);
     }
 
@@ -77,7 +77,6 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
 
         owner.replaceCurrentQueueTrack(track(8L));
 
-        assertEquals(0L, owner.restoredPositionFor(track(8L)));
         assertEquals(null, owner.queuePreparationForNewPlayer().currentTrack());
         owner.consumeRestoredPositionAfterPrepare(5100L);
     }
@@ -89,7 +88,6 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
 
         owner.replaceCurrentQueueTrack(track(10L));
 
-        assertEquals(0L, owner.restoredPositionFor(track(10L)));
         assertEquals(null, owner.queuePreparationForNewPlayer().currentTrack());
         owner.consumeRestoredPositionAfterPrepare(7100L);
     }

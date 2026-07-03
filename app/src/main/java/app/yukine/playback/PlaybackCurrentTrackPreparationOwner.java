@@ -12,7 +12,6 @@ import java.util.function.Function;
 final class PlaybackCurrentTrackPreparationOwner {
     interface QueuePreparationController {
         void replaceCurrentQueueTrack(Track track);
-        long restoredPositionFor(Track track);
     }
 
     interface RuntimeStateController {
@@ -73,6 +72,7 @@ final class PlaybackCurrentTrackPreparationOwner {
     private final Function<Track, PlaybackMediaSourceProvider.PlaybackPreparation> playbackPreparationProvider;
     private final Function<Track, MediaSource> mediaSourceResolver;
     private final QueuePreparationController queuePreparationController;
+    private final Function<Track, Long> restoredPositionProvider;
     private final RuntimeStateController runtimeStateController;
     private final Runnable statePublisher;
     private final Consumer<Track> refusalLogger;
@@ -81,6 +81,7 @@ final class PlaybackCurrentTrackPreparationOwner {
             PlaybackMediaSourceProvider mediaSourceProvider,
             Function<Track, MediaMetadata> metadataProvider,
             QueuePreparationController queuePreparationController,
+            Function<Track, Long> restoredPositionProvider,
             RuntimeStateController runtimeStateController,
             Runnable statePublisher,
             Consumer<Track> refusalLogger
@@ -96,6 +97,7 @@ final class PlaybackCurrentTrackPreparationOwner {
                                 metadataProvider == null ? null : metadataProvider::apply
                         ),
                 queuePreparationController,
+                restoredPositionProvider,
                 runtimeStateController,
                 statePublisher,
                 refusalLogger
@@ -106,6 +108,7 @@ final class PlaybackCurrentTrackPreparationOwner {
             Function<Track, PlaybackMediaSourceProvider.PlaybackPreparation> playbackPreparationProvider,
             Function<Track, MediaSource> mediaSourceResolver,
             QueuePreparationController queuePreparationController,
+            Function<Track, Long> restoredPositionProvider,
             RuntimeStateController runtimeStateController,
             Runnable statePublisher,
             Consumer<Track> refusalLogger
@@ -113,6 +116,7 @@ final class PlaybackCurrentTrackPreparationOwner {
         this.playbackPreparationProvider = playbackPreparationProvider;
         this.mediaSourceResolver = mediaSourceResolver;
         this.queuePreparationController = queuePreparationController;
+        this.restoredPositionProvider = restoredPositionProvider;
         this.runtimeStateController = runtimeStateController;
         this.statePublisher = statePublisher;
         this.refusalLogger = refusalLogger;
@@ -140,8 +144,16 @@ final class PlaybackCurrentTrackPreparationOwner {
         }
         return PreparedTrack.playable(
                 preparedTrack,
-                queuePreparationController.restoredPositionFor(preparedTrack),
+                restoredPositionFor(preparedTrack),
                 mediaSourceResolver
         );
+    }
+
+    private long restoredPositionFor(Track track) {
+        if (restoredPositionProvider == null) {
+            return 0L;
+        }
+        Long positionMs = restoredPositionProvider.apply(track);
+        return positionMs == null ? 0L : positionMs;
     }
 }

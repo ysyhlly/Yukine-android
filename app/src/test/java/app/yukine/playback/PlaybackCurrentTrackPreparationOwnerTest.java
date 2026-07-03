@@ -32,7 +32,11 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
                     events.add("source:" + track.id);
                     return null;
                 },
-                new FakeQueuePreparationController(events, 4500L),
+                new FakeQueuePreparationController(events),
+                track -> {
+                    events.add("position:" + track.id);
+                    return 4500L;
+                },
                 new FakeRuntimeStateController(events),
                 () -> events.add("publish"),
                 track -> events.add("refuse:" + track.id)
@@ -78,7 +82,8 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
                     events.add("source:" + track.id);
                     return null;
                 },
-                new FakeQueuePreparationController(events, 4500L),
+                new FakeQueuePreparationController(events),
+                track -> 4500L,
                 new FakeRuntimeStateController(events),
                 () -> events.add("publish"),
                 track -> events.add("refuse:" + track.id)
@@ -107,7 +112,8 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
         PlaybackCurrentTrackPreparationOwner owner = new PlaybackCurrentTrackPreparationOwner(
                 requested -> preparation(requested, null, true, null),
                 requested -> null,
-                new FakeQueuePreparationController(new ArrayList<>(), -1L),
+                new FakeQueuePreparationController(new ArrayList<>()),
+                requested -> -1L,
                 new FakeRuntimeStateController(new ArrayList<>()),
                 () -> {
                 },
@@ -126,7 +132,11 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
                 PlaybackCurrentTrackPreparationOwner.fromMediaSourceProvider(
                         null,
                         requested -> null,
-                        new FakeQueuePreparationController(events, 3000L),
+                        new FakeQueuePreparationController(events),
+                        requested -> {
+                            events.add("position:" + requested.id);
+                            return 3000L;
+                        },
                         new FakeRuntimeStateController(events),
                         () -> events.add("publish"),
                         requested -> events.add("refuse:" + requested.id)
@@ -162,22 +172,14 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
     private static final class FakeQueuePreparationController
             implements PlaybackCurrentTrackPreparationOwner.QueuePreparationController {
         private final List<String> events;
-        private final long restoredPositionMs;
 
-        FakeQueuePreparationController(List<String> events, long restoredPositionMs) {
+        FakeQueuePreparationController(List<String> events) {
             this.events = events;
-            this.restoredPositionMs = restoredPositionMs;
         }
 
         @Override
         public void replaceCurrentQueueTrack(Track track) {
             events.add("replace:" + track.id);
-        }
-
-        @Override
-        public long restoredPositionFor(Track track) {
-            events.add("position:" + track.id);
-            return restoredPositionMs;
         }
     }
 

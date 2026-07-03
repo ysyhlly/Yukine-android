@@ -322,25 +322,6 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun restoredPositionForDelegatesThroughQueueOwner() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        val current = track(1L, durationMs = 10_000L)
-        val streaming = track(2L, dataPath = "streaming:test:2", durationMs = 10_000L)
-        provider.queue.addAll(listOf(current, streaming))
-        val manager = queueManager(store, provider)
-
-        provider.positionManager.setRestoredPosition(current.id, 9900L, explicit = true)
-        assertEquals(8000L, manager.restoredPositionFor(current))
-
-        provider.positionManager.setRestoredPosition(streaming.id, 4000L, explicit = false)
-        assertEquals(0L, manager.restoredPositionFor(streaming))
-
-        provider.positionManager.setRestoredPosition(streaming.id, 4000L, explicit = true)
-        assertEquals(4000L, manager.restoredPositionFor(streaming))
-    }
-
-    @Test
     fun persistCurrentPlaybackPositionUsesPositionOwnerThrottleAndForce() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()

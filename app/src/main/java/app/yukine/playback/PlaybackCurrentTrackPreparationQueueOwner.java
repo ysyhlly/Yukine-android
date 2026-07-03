@@ -78,11 +78,6 @@ final class PlaybackCurrentTrackPreparationQueueOwner
         }
     }
 
-    @Override
-    public long restoredPositionFor(Track track) {
-        return playbackQueueManager == null ? 0L : playbackQueueManager.restoredPositionFor(track);
-    }
-
     PreparedQueue queuePreparationForNewPlayer() {
         PlaybackQueueManager.QueuePreparation queuePreparation = playbackQueueManager == null
                 ? PlaybackQueueManager.QueuePreparation.empty()

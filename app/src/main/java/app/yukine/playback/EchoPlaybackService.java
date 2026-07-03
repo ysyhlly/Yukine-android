@@ -506,6 +506,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 mediaSourceProvider,
                 playbackNotificationManager::mediaMetadataForTrack,
                 playbackCurrentTrackPreparationQueueOwner,
+                playbackPositionManager::restoredPositionFor,
                 playbackCurrentTrackPreparationRuntimeOwner,
                 EchoPlaybackService.this::publishState,
                 track -> Log.w(TAG, "Refusing to prepare empty uri for "

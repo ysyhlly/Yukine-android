@@ -346,10 +346,6 @@ internal class PlaybackQueueManager(
         }
     }
 
-    fun restoredPositionFor(track: Track?): Long {
-        return playbackPositionManager?.restoredPositionFor(track) ?: 0L
-    }
-
     fun persistCurrentPlaybackPosition(force: Boolean) {
         if (playbackPositionManager != null) {
             playbackPositionManager.persistCurrentPosition(force)
