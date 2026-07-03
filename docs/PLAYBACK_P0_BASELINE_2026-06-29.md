@@ -4323,3 +4323,46 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMutationOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P1 Batch Audit - Queue Derived Reads And Position State
+
+Current audit date: 2026-07-03.
+
+- Batch scope since the previous owner/interface audit:
+  `PlaybackQueueStateOwner` gained an explicit `isQueueEmpty()` derived read,
+  `PlaybackQueueMirroredTransitionOwner` and
+  `PlaybackNotificationStateOwner` stopped unpacking full
+  `QueueStateSnapshot` just to read queue emptiness, and
+  `PlaybackPositionManager.stateProviderFromPlaybackState()` now receives a
+  current-track supplier instead of the whole `PlaybackQueueManager`.
+- Current metrics: `EchoPlaybackService.java` is 1317 lines, strict
+  `private Playback*` field count is 43, production
+  `fromPlaybackQueueManager(...)` calls are 0, `queueStateSnapshot()` references
+  in the service are 0, and production `Playback*Owner.java` file count is 43.
+- Real gains:
+  - Two app owners no longer directly read full queue snapshots for a derived
+    empty-queue boolean.
+  - One feature manager no longer depends on `PlaybackQueueManager` or full
+    `queueStateSnapshot()` to read current track for position persistence.
+  - The old `PlaybackPositionManagerTest` queue-manager fixture was deleted,
+    so its focused test now protects the narrower supplier contract.
+- No owner, facade, Service field, or package move was added. Service wiring now
+  has two explicit `playbackQueueStateOwner::currentTrack` suppliers: one for
+  notification artwork and one for position persistence. This is a known
+  short-term tradeoff; do not introduce a snapshot facade to hide it.
+- Remaining current-track snapshot reads in `feature:playback`:
+  `PlaybackRuntimeStateManager.stateProviderFromPlaybackState()` still uses a
+  late-bound queue-manager supplier for replay gain, which is covered by its
+  existing late-bound test; `PlaybackWifiLockManager` still reads current track
+  through `queueStateSnapshot()` and is a safer next low-risk candidate.
+- Focused coverage: `PlaybackQueueStateOwnerTest`,
+  `PlaybackQueueMirroredTransitionOwnerTest`,
+  `PlaybackNotificationStateOwnerTest`, `PlaybackPositionManagerTest`, and
+  `MainActivityArchitectureContractTest`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueStateOwnerTest --tests app.yukine.playback.PlaybackQueueMirroredTransitionOwnerTest --tests app.yukine.playback.PlaybackNotificationStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackPositionManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+.\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```

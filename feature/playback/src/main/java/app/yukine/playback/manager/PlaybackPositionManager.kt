@@ -2,6 +2,7 @@ package app.yukine.playback.manager
 
 import app.yukine.model.Track
 import java.util.function.LongSupplier
+import java.util.function.Supplier
 import kotlin.math.abs
 
 internal class PlaybackPositionManager @JvmOverloads constructor(
@@ -116,10 +117,10 @@ internal class PlaybackPositionManager @JvmOverloads constructor(
     companion object {
         @JvmStatic
         fun stateProviderFromPlaybackState(
-            playbackQueueManager: PlaybackQueueManager?,
+            currentTrackSupplier: Supplier<Track?>?,
             playbackPositionSupplier: LongSupplier?
         ): StateProvider = object : StateProvider {
-            override fun currentTrack(): Track? = playbackQueueManager?.queueStateSnapshot()?.currentTrack
+            override fun currentTrack(): Track? = currentTrackSupplier?.get()
 
             override fun positionMs(): Long = playbackPositionSupplier?.asLong ?: 0L
         }

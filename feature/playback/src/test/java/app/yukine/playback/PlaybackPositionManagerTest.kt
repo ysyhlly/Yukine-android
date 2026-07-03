@@ -4,12 +4,12 @@ import android.net.Uri
 import app.yukine.model.PlaybackQueueState
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackPositionManager
-import app.yukine.playback.manager.PlaybackQueueManager
 import app.yukine.playback.manager.PlaybackQueueStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
 import java.util.function.LongSupplier
+import java.util.function.Supplier
 
 class PlaybackPositionManagerTest {
     @Test
@@ -88,11 +88,14 @@ class PlaybackPositionManagerTest {
     }
 
     @Test
-    fun stateProviderFromPlaybackStateReadsQueueManagerAndPositionSupplier() {
+    fun stateProviderFromPlaybackStateReadsCurrentTrackAndPositionSuppliers() {
         val events = mutableListOf<String>()
         val track = track(23L)
         val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            queueManagerWithCurrent(track),
+            Supplier {
+                events += "track"
+                track
+            },
             LongSupplier {
                 events += "position"
                 321L
@@ -101,14 +104,14 @@ class PlaybackPositionManagerTest {
 
         assertSame(track, provider.currentTrack())
         assertEquals(321L, provider.positionMs())
-        assertEquals(listOf("position"), events)
+        assertEquals(listOf("track", "position"), events)
     }
 
     @Test
     fun stateProviderFromPlaybackStateHandlesMissingCurrentTrack() {
         val missingProvider = PlaybackPositionManager.stateProviderFromPlaybackState(null, null)
         val nullTrackProvider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            queueManagerWithCurrent(null),
+            Supplier<Track?> { null },
             null
         )
 
@@ -157,35 +160,4 @@ class PlaybackPositionManagerTest {
         }
     }
 
-    private fun queueManagerWithCurrent(track: Track?): PlaybackQueueManager {
-        val manager = PlaybackQueueManager(
-            FakeQueueStore(),
-            NoopQueuePlaybackActions,
-            null,
-            NoopStreamingRestoreProvider,
-            NoopMirroredQueuePlayer,
-            null,
-            null
-        )
-        if (track != null) {
-            manager.playQueue(listOf(track), 0, -1L)
-        }
-        return manager
-    }
-
-    private object NoopQueuePlaybackActions : PlaybackQueueManager.QueuePlaybackActions {
-        override fun prepareCurrent(playWhenReady: Boolean) = Unit
-
-        override fun publishState() = Unit
-    }
-
-    private object NoopStreamingRestoreProvider : PlaybackQueueManager.StreamingRestoreProvider {
-        override fun restoreTrackForPlayback(track: Track): Track = track
-    }
-
-    private object NoopMirroredQueuePlayer : PlaybackQueueManager.MirroredQueuePlayer {
-        override fun matchesCurrentQueue(): Boolean = false
-
-        override fun seekTo(index: Int, positionMs: Long, playWhenReady: Boolean): Boolean = false
-    }
 }
