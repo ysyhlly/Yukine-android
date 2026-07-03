@@ -167,6 +167,26 @@ public final class PlaybackVisualizationCacheManagerTest {
     }
 
     @Test
+    public void fullyCachedVisualizationWindowSkipsCacheWriterCreation() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        Track track = track(11L);
+        stateProvider.currentTrack = track;
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        mediaCacheOperations.cachedBytes = 64L * 1024L * 1024L;
+        FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
+        PlaybackVisualizationCacheManager manager =
+                manager(stateProvider, mediaCacheOperations, writerFactory);
+
+        manager.scheduleVisualizationCache(track);
+        shadowOf(Looper.getMainLooper()).idle();
+        stateProvider.scheduledTasks.get(0).run();
+
+        assertEquals(1, stateProvider.scheduledTasks.size());
+        assertEquals(1, mediaCacheOperations.cachedBytesInRangeCalls);
+        assertEquals(0, writerFactory.createCalls);
+    }
+
+    @Test
     public void nonHttpTrackDoesNotScheduleVisualizationCache() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         Track track = track(7L, "content://media/audio/7");
