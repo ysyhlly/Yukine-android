@@ -6405,6 +6405,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueStateOwner.contains("Supplier<List<Track>> queueSnapshotSupplier"));
         assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager>"));
         assertFalse(queueStateOwner.contains("playbackQueueManagerSupplier"));
+        assertFalse(queueStateOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertFalse(queueStateOwner.contains("queueSnapshotOperationsProvider"));
         assertTrue(queueStateOwner.contains("playbackQueueManager == null ? null : playbackQueueManager.queueSnapshot();"));
         assertTrue(queueStateOwner.contains("return snapshot == null ? Collections.emptyList() : snapshot;"));

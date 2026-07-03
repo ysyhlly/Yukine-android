@@ -21,7 +21,6 @@ final class PlaybackQueueStateOwner {
     }
 
     PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
                 ? null
                 : playbackQueueManager.queueStateSnapshot();
@@ -29,12 +28,7 @@ final class PlaybackQueueStateOwner {
     }
 
     List<Track> queueSnapshot() {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         List<Track> snapshot = playbackQueueManager == null ? null : playbackQueueManager.queueSnapshot();
         return snapshot == null ? Collections.emptyList() : snapshot;
-    }
-
-    private PlaybackQueueManager playbackQueueManager() {
-        return playbackQueueManager;
     }
 }
