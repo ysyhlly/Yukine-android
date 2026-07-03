@@ -3,6 +3,7 @@ package app.yukine.playback;
 import android.os.Handler;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.Consumer;
 
@@ -28,8 +29,10 @@ final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizatio
 
     @Override
     public Track currentTrack() {
-        return queueStateOwner == null ? null
-                : queueStateOwner.currentTrack();
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null
+                ? PlaybackQueueManager.QueueStateSnapshot.empty()
+                : queueStateOwner.queueStateSnapshot();
+        return snapshot.getCurrentTrack();
     }
 
     @Override
