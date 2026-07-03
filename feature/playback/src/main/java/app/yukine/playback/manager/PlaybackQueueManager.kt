@@ -596,8 +596,7 @@ internal class PlaybackQueueManager(
         }
         val tracks = ArrayList<Track>(queue.size)
         for (track in queue) {
-            streamingRestoreProvider.restoreTrackForPlayback(track)
-            tracks.add(track)
+            tracks.add(streamingRestoreProvider.restoreTrackForPlayback(track))
         }
         return tracks
     }

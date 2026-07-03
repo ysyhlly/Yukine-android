@@ -9,6 +9,7 @@ import app.yukine.playback.manager.PlaybackRuntimeStateManager
 import app.yukine.playback.manager.PlaybackTransitionStateManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -723,6 +724,7 @@ class PlaybackQueueManagerTest {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
+        val restoredSecond = track(20L, android.net.Uri.parse("content://music/restored-2"))
         restoreQueue(
                 manager,
                 store,
@@ -732,11 +734,13 @@ class PlaybackQueueManagerTest {
                 ),
                 0
         )
+        provider.streamingRestoreProvider.restoredTracks[2L] = restoredSecond
         provider.streamingRestoreProvider.restoredDataPaths.clear()
 
         val tracks = manager.queuePreparationForNewPlayer().mirroredQueueTracks
 
-        assertEquals(listOf(1L, 2L), tracks?.map { it.id })
+        assertEquals(listOf(1L, 20L), tracks?.map { it.id })
+        assertSame(restoredSecond, tracks?.get(1))
         assertEquals(listOf("/music/1", "/music/2"), provider.streamingRestoreProvider.restoredDataPaths)
     }
 
@@ -1264,9 +1268,10 @@ class PlaybackQueueManagerTest {
 
     private class FakeStreamingRestoreProvider : PlaybackQueueManager.StreamingRestoreProvider {
         val restoredDataPaths = mutableListOf<String?>()
+        val restoredTracks = mutableMapOf<Long, Track>()
         override fun restoreTrackForPlayback(track: Track): Track {
             restoredDataPaths.add(track.dataPath)
-            return track
+            return restoredTracks[track.id] ?: track
         }
     }
 
