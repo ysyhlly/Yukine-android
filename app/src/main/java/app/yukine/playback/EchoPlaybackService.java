@@ -472,10 +472,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackRuntimeStateManager,
                 playbackTransitionStateManager
         );
-        final PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner = new PlaybackQueuePersistenceOwner(
-                playbackQueueManager,
-                queueStore
-        );
         playbackCurrentTrackPreparationQueueOwner = new PlaybackCurrentTrackPreparationQueueOwner(
                 playbackQueueManager,
                 mediaSourceProvider,
@@ -636,7 +632,10 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackShutdownLifecycleResourcesOwner = new PlaybackShutdownLifecycleResourcesOwner(
                 () -> EchoPlaybackService.this.persistCurrentPlaybackPosition(true),
-                playbackQueuePersistenceOwner,
+                PlaybackShutdownLifecycleResourcesOwner.playbackQueueLifecycleStore(
+                        playbackQueueManager,
+                        queueStore
+                ),
                 PlaybackShutdownLifecycleResourcesOwner.playbackStateProviderFromPlaybackState(
                         playbackPlayerStateOwner::isPlaying,
                         playbackCurrentTrackPreparationRuntimeOwner::preparing
@@ -753,9 +752,10 @@ public final class EchoPlaybackService extends MediaLibraryService
             playbackShutdownCoordinator.handleTaskRemoved();
         } else {
             persistCurrentPlaybackPosition(true);
-            PlaybackQueuePersistenceOwner persistenceOwner = playbackQueuePersistenceOwner();
-            persistenceOwner.persistQueueState();
-            persistenceOwner.savePlaybackResumeRequested(
+            if (playbackQueueManager != null) {
+                playbackQueueManager.persistQueueState();
+            }
+            savePlaybackResumeRequested(
                     playbackPlayerStateOwner.isPlaying()
                             || playbackCurrentTrackPreparationRuntimeOwner.preparing()
             );
@@ -833,7 +833,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             player.seekTo(0L);
         }
         player.play();
-        playbackQueuePersistenceOwner().requestPlaybackResume();
+        savePlaybackResumeRequested(true);
         acquireWifiLockIfStreamingAction.run();
         publishState();
         startProgressUpdates();
@@ -844,7 +844,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (player != null && playbackPlayerStateOwner.isPlaying()) {
             player.pause();
         }
-        playbackQueuePersistenceOwner().clearPlaybackResumeRequest();
+        savePlaybackResumeRequested(false);
         releaseWifiLockAction.run();
         persistCurrentPlaybackPosition(true);
         publishState();
@@ -1310,11 +1310,8 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
     }
 
-    private PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner() {
-        return new PlaybackQueuePersistenceOwner(
-                playbackQueueManager,
-                new PlaybackQueueStoreImpl(repository)
-        );
+    private void savePlaybackResumeRequested(boolean requested) {
+        new PlaybackQueueStoreImpl(repository).saveResumeRequested(requested);
     }
 
     private boolean reuseMirroredQueueIfAvailable(boolean playWhenReady, long startPositionMs) {
