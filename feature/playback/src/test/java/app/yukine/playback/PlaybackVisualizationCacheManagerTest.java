@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.robolectric.Shadows.shadowOf;
 
+import android.content.Context;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -12,8 +13,12 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.cache.CacheDataSource;
 
+import app.yukine.common.StreamingDataPathParser;
+import app.yukine.data.MusicLibraryRepository;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaCacheOperations;
+import app.yukine.playback.manager.PlaybackMediaSourceProvider;
+import app.yukine.streaming.StreamingPlaybackHeaderStore;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -24,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.RuntimeEnvironment;
 import org.robolectric.RobolectricTestRunner;
 
 @UnstableApi
@@ -236,6 +242,28 @@ public final class PlaybackVisualizationCacheManagerTest {
         assertEquals(0, writerFactory.createCalls);
     }
 
+    @Test
+    public void mediaSourceProviderFactoryUsesProviderResolvedIdentityForScheduling() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        PlaybackMediaSourceProvider mediaSourceProvider = mediaSourceProvider();
+        PlaybackVisualizationCacheManager manager =
+                PlaybackVisualizationCacheManager.fromMediaSourceProvider(stateProvider, mediaSourceProvider);
+        Track visualTrack = track(13L, "https://example.com/shared.mp3");
+
+        stateProvider.currentTrack = track(13L, "https://example.com/shared.mp3");
+        manager.scheduleVisualizationCache(visualTrack);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(1, stateProvider.scheduledTasks.size());
+
+        stateProvider.scheduledTasks.clear();
+        stateProvider.currentTrack = track(13L, "https://example.com/different.mp3");
+        manager.scheduleVisualizationCache(visualTrack);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(0, stateProvider.scheduledTasks.size());
+    }
+
     private static PlaybackVisualizationCacheManager manager(
             FakeStateProvider stateProvider,
             PlaybackVisualizationCacheManager.VisualizationCacheWriterFactory writerFactory
@@ -274,6 +302,15 @@ public final class PlaybackVisualizationCacheManagerTest {
                 180_000L,
                 Uri.parse(uri),
                 "streaming:test:" + id
+        );
+    }
+
+    private static PlaybackMediaSourceProvider mediaSourceProvider() {
+        Context context = RuntimeEnvironment.getApplication();
+        return new PlaybackMediaSourceProvider(
+                context,
+                new MusicLibraryRepository(context, new FakeStreamingDataPathParser()),
+                new FakeStreamingPlaybackHeaderStore()
         );
     }
 
@@ -396,5 +433,43 @@ public final class PlaybackVisualizationCacheManagerTest {
             return Collections.emptyMap();
         }
 
+    }
+
+    private static final class FakeStreamingDataPathParser implements StreamingDataPathParser {
+        @Override
+        public boolean isStreamingTrack(String dataPath) {
+            return dataPath != null && dataPath.startsWith("streaming:");
+        }
+
+        @Override
+        public String providerName(String dataPath) {
+            return "test";
+        }
+
+        @Override
+        public String providerTrackId(String dataPath) {
+            return dataPath == null ? "" : dataPath.substring(dataPath.lastIndexOf(':') + 1);
+        }
+    }
+
+    private static final class FakeStreamingPlaybackHeaderStore implements StreamingPlaybackHeaderStore {
+        @Override
+        public void register(String dataPath, Map<String, String> headers) {
+        }
+
+        @Override
+        public Map<String, String> forDataPath(String dataPath) {
+            return Collections.emptyMap();
+        }
+
+        @Override
+        public boolean restoreForDataPath(String dataPath) {
+            return false;
+        }
+
+        @Override
+        public Track restoredTrackFor(Track track) {
+            return null;
+        }
     }
 }
