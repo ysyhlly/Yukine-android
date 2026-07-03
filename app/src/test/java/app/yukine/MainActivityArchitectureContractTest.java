@@ -68,6 +68,7 @@ public final class MainActivityArchitectureContractTest {
         String nowPlayingGateway = methodBody(mainActivity, "    private void initializeNowPlayingGateways()");
         String downloadRequests = methodBody(mainActivity, "    private void initializeDownloadRequests()");
         String libraryGateway = methodBody(mainActivity, "    private void initializeLibraryGateway()");
+        String routeStoresAndStatus = methodBody(mainActivity, "    private void initializeRouteStoresAndStatus()");
 
         int streamingGatewayStep = onCreate.indexOf("        MainActivityStreamingActionGateway streamingActionGateway = createStreamingActionGateway();");
         int streamingOwnersStep = onCreate.indexOf("        initializeStreamingOwners(streamingActionGateway);");
@@ -75,7 +76,9 @@ public final class MainActivityArchitectureContractTest {
         int nowPlayingGatewayStep = onCreate.indexOf("        initializeNowPlayingGateways();");
         int downloadRequestsStep = onCreate.indexOf("        initializeDownloadRequests();");
         int libraryGatewayStep = onCreate.indexOf("        initializeLibraryGateway();");
+        int platformControllersStep = onCreate.indexOf("        initializePlatformControllers();");
         int playbackLifecycleStep = onCreate.indexOf("        initializePlaybackLifecycleControllers();");
+        int playbackControllersStep = onCreate.indexOf("        initializePlaybackControllers();");
 
         assertTrue(streamingGatewayStep >= 0);
         assertTrue(streamingOwnersStep >= 0);
@@ -85,13 +88,20 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(routeStoresStep < downloadRequestsStep);
         assertTrue(routeStoresStep < libraryGatewayStep);
         assertTrue(routeStoresStep < playbackLifecycleStep);
+        assertTrue(libraryGatewayStep < platformControllersStep);
+        assertTrue(nowPlayingGatewayStep < playbackControllersStep);
         assertTrue(mainActivity.contains("routeController = new MainRouteController(navigationViewModel)"));
+        assertTrue(routeStoresAndStatus.contains("uiShellController = new MainUiShellController(this);"));
+        assertTrue(routeStoresAndStatus.contains("routeController = new MainRouteController(navigationViewModel);"));
+        assertTrue(routeStoresAndStatus.contains("playbackStore = playbackStoreFactory.create(playbackViewModel);"));
+        assertTrue(routeStoresAndStatus.contains("statusMessageController = new StatusMessageController("));
         assertTrue(streamingActionGateway.contains(
                 "                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),\n"));
         assertTrue(streamingActionGateway.contains(
                 "                provider -> streamingPlaylistController.onStreamingLoginSuccess(provider),\n"));
         assertTrue(streamingActionGateway.contains("                    if (streamingManualCookieController != null) {"));
         assertFalse(streamingActionGateway.contains("                settingsStore.languageMode(),\n"));
+        assertFalse(streamingActionGateway.contains("                settingsStore,\n"));
         assertFalse(streamingActionGateway.contains("                streamingPlaylistController,\n"));
         assertFalse(streamingActionGateway.contains("                streamingManualCookieController,\n"));
         assertTrue(libraryGateway.contains("libraryViewModel.bindGateway(libraryGatewayFactory.create("));
@@ -105,6 +115,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(downloadRequests.contains("                () -> trackDownloadManager,\n"));
         assertFalse(downloadRequests.contains("                trackDownloadManager,\n"));
         assertTrue(libraryGateway.contains("                () -> documentPickerController.openAudioFilePicker(),\n"));
+        assertFalse(libraryGateway.contains("                documentPickerController,\n"));
         assertFalse(libraryGateway.contains("                documentPickerController.openAudioFilePicker(),\n"));
         assertFalse(onCreate.contains("initializeLibraryGateway();\n        initializeRouteStoresAndStatus();"));
     }
