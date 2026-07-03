@@ -4119,3 +4119,26 @@ Current audit date: 2026-07-03.
   queue snapshot object, and the architecture contract now blocks cache
   primitive usage from drifting into `EchoPlaybackService` or into a broad
   cache/resolution facade.
+
+## P1 Wiring Note - Queue State Owner Manager Binding
+
+Current audit date: 2026-07-03.
+
+- `EchoPlaybackService` no longer constructs `PlaybackQueueStateOwner` with
+  `() -> playbackQueueManager`.
+- The Service now creates the queue state owner without a queue-manager supplier
+  and binds the actual `PlaybackQueueManager` once, immediately after the
+  manager is constructed in `onCreate`.
+- This keeps the queue state owner as the single queue read boundary while
+  removing one Service-level supplier/lambda forwarding chain.
+- No owner, facade, or Service field was added. The runtime ordering remains:
+  queue state owner exists early for dependent owner construction, then receives
+  the queue manager before playback restore, queue persistence, current-track
+  preparation, notification, lyrics, or precache work can read queue state.
+- Focused coverage: `PlaybackQueueStateOwnerTest` and
+  `MainActivityArchitectureContractTest`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```

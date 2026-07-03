@@ -6348,9 +6348,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("val isAtEndOfQueue: Boolean"));
         assertTrue(owner.contains("get() = currentIndex >= queueSize - 1"));
         assertTrue(service.contains("private final PlaybackQueueStateOwner playbackQueueStateOwner"));
-        assertTrue(service.contains("new PlaybackQueueStateOwner(() -> playbackQueueManager)"));
+        assertTrue(service.contains("new PlaybackQueueStateOwner()"));
+        assertTrue(service.contains("playbackQueueStateOwner.bindPlaybackQueueManager(playbackQueueManager);"));
+        assertFalse(service.contains("new PlaybackQueueStateOwner(() -> playbackQueueManager)"));
         assertFalse(service.contains("PlaybackQueueStateOwner.fromPlaybackQueueManager("));
         assertFalse(queueStateOwner.contains("static PlaybackQueueStateOwner fromPlaybackQueueManager("));
+        assertTrue(queueStateOwner.contains("void bindPlaybackQueueManager(PlaybackQueueManager playbackQueueManager)"));
+        assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier = () -> playbackQueueManager"));
         assertTrue(queueStateOwner.contains("boolean isQueueEmpty()"));
         assertTrue(queueStateOwner.contains("return queueStateSnapshot().isQueueEmpty();"));
         assertFalse(service.contains("playbackQueueStateOwner::isQueueEmpty"));

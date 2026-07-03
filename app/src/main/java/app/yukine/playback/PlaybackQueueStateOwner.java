@@ -8,10 +8,19 @@ import java.util.List;
 import java.util.function.Supplier;
 
 final class PlaybackQueueStateOwner {
+    private PlaybackQueueManager playbackQueueManager;
     private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
+
+    PlaybackQueueStateOwner() {
+        this(null);
+    }
 
     PlaybackQueueStateOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
         this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
+    }
+
+    void bindPlaybackQueueManager(PlaybackQueueManager playbackQueueManager) {
+        this.playbackQueueManager = playbackQueueManager;
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
@@ -61,6 +70,6 @@ final class PlaybackQueueStateOwner {
     }
 
     private PlaybackQueueManager playbackQueueManager() {
-        return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
+        return playbackQueueManagerSupplier == null ? playbackQueueManager : playbackQueueManagerSupplier.get();
     }
 }
