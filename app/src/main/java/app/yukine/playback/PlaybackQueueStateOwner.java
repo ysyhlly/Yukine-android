@@ -50,6 +50,10 @@ final class PlaybackQueueStateOwner {
         return queueStateSnapshot().getHasMultipleTracks();
     }
 
+    boolean isAtEndOfQueue() {
+        return queueStateSnapshot().isAtEndOfQueue();
+    }
+
     private PlaybackQueueManager playbackQueueManager() {
         return playbackQueueManager;
     }

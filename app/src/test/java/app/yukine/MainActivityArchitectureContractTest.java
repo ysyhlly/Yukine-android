@@ -6399,6 +6399,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueStateOwner.contains("return queueStateSnapshot().isQueueEmpty();"));
         assertTrue(queueStateOwner.contains("boolean hasMultipleTracks()"));
         assertTrue(queueStateOwner.contains("return queueStateSnapshot().getHasMultipleTracks();"));
+        assertTrue(queueStateOwner.contains("boolean isAtEndOfQueue()"));
+        assertTrue(queueStateOwner.contains("return queueStateSnapshot().isAtEndOfQueue();"));
         assertTrue(queueStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
         assertFalse(service.contains("playbackQueueStateOwner::isQueueEmpty"));
         assertFalse(service.contains("playbackQueueStateOwner.queueStateSnapshot().isQueueEmpty()"));
@@ -7320,8 +7322,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueStateOwner.contains("failed != null && failed.id != -1L && queueStateSnapshot().getHasMultipleTracks()"));
         assertTrue(queueStateOwner.contains("boolean hasMultipleTracks()"));
         assertTrue(queueStateOwner.contains("return queueStateSnapshot().getHasMultipleTracks();"));
-        assertFalse(queueStateOwner.contains("boolean isAtEndOfQueue()"));
-        assertFalse(queueStateOwner.contains("return queueStateSnapshot().isAtEndOfQueue();"));
+        assertTrue(queueStateOwner.contains("boolean isAtEndOfQueue()"));
+        assertTrue(queueStateOwner.contains("return queueStateSnapshot().isAtEndOfQueue();"));
         assertFalse(owner.contains("fun queueSize(): Int"));
         assertFalse(owner.contains("actions.queueSize() > 1"));
         assertTrue(owner.contains("fun onPlaybackReady()"));
@@ -8408,7 +8410,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(stateOwner.contains("private final DoubleSupplier baseVolumeProvider;"));
         assertTrue(stateOwner.contains("import java.util.function.DoubleSupplier;"));
         assertFalse(stateOwner.contains("import java.util.function.Supplier;"));
-        assertTrue(stateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
+        assertFalse(stateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertFalse(stateOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
         assertFalse(stateOwner.contains("private final BooleanSupplier hasMultipleTracksProvider;"));
         assertFalse(stateOwner.contains("private final BooleanSupplier atEndOfQueueProvider;"));
@@ -8421,12 +8423,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(stateOwner.contains("return playbackStateProvider.getAsBoolean();"));
         assertFalse(stateOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider == null"));
         assertFalse(stateOwner.contains(": queueStateProvider.queueStateSnapshot();"));
-        assertTrue(stateOwner.contains("PlaybackQueueManager.QueueStateSnapshot queueSnapshot = queueStateOwner == null"));
-        assertTrue(stateOwner.contains(": queueStateOwner.queueStateSnapshot();"));
-        assertTrue(stateOwner.contains("if (!queueSnapshot.getHasMultipleTracks())"));
+        assertFalse(stateOwner.contains("PlaybackQueueManager.QueueStateSnapshot queueSnapshot = queueStateOwner == null"));
+        assertFalse(stateOwner.contains(": queueStateOwner.queueStateSnapshot();"));
+        assertTrue(stateOwner.contains("if (queueStateOwner == null || !queueStateOwner.hasMultipleTracks())"));
         assertFalse(stateOwner.contains("if (hasMultipleTracksProvider == null || !hasMultipleTracksProvider.getAsBoolean())"));
         assertFalse(stateOwner.contains("boolean atEndOfQueue = atEndOfQueueProvider != null && atEndOfQueueProvider.getAsBoolean();"));
-        assertTrue(stateOwner.contains("return repeatModeProvider.getAsInt() != REPEAT_OFF || !queueSnapshot.isAtEndOfQueue();"));
+        assertTrue(stateOwner.contains("return repeatModeProvider.getAsInt() != REPEAT_OFF || !queueStateOwner.isAtEndOfQueue();"));
         assertTrue(stateOwner.contains("return baseVolumeProvider == null ? 1.0f : (float) baseVolumeProvider.getAsDouble();"));
     }
 

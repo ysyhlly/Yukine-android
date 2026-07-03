@@ -2571,6 +2571,57 @@ Current audit date: 2026-07-03.
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueStateOwnerTest --tests app.yukine.playback.PlaybackErrorRecoveryCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
 
+## P1 Wiring Note - Crossfade Queue State Read
+
+Current audit date: 2026-07-03.
+
+- `PlaybackCrossfadeStateOwner.canCrossfadeAdvance()` no longer reads the full
+  `PlaybackQueueManager.QueueStateSnapshot`.
+- `PlaybackQueueStateOwner` now exposes the generic derived read
+  `isAtEndOfQueue()` alongside `hasMultipleTracks()`. Crossfade policy remains
+  in `PlaybackCrossfadeStateOwner`.
+- No owner, facade, Service field, constructor parameter, or supplier was
+  added. `EchoPlaybackService` wiring did not change.
+- The real gain is one fewer playback owner with direct access to the full
+  queue snapshot object.
+- Focused coverage: `PlaybackQueueStateOwnerTest`,
+  `PlaybackCrossfadeStateOwnerTest`, and
+  `MainActivityArchitectureContractTest`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueStateOwnerTest --tests app.yukine.playback.PlaybackCrossfadeStateOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
+## P1 Batch Audit - Queue State Derived Reads
+
+Current audit date: 2026-07-03.
+
+- Batch scope: queue mutation clear wiring, error recovery queue state read,
+  and crossfade queue state read.
+- `EchoPlaybackService.java`: 1317 lines.
+- `EchoPlaybackService` fields-only `private Playback*` count: 43.
+- Production playback `fromPlaybackQueueManager(...)` calls: 0.
+- `EchoPlaybackService` `queueStateSnapshot()` references: 0.
+- Production playback `Playback*Owner.java` files: 43.
+- Real reductions in this batch: one fewer `PlaybackQueueMutationOwner`
+  constructor parameter and one fewer Service wiring argument; two fewer
+  playback owners directly read the full queue snapshot object.
+- Remaining direct `PlaybackQueueStateOwner.queueStateSnapshot()` consumers:
+  `PlaybackNotificationStateOwner`, `PlaybackQueueMirroredTransitionOwner`,
+  and `PlaybackStateSnapshotOwner`. Notification remains deferred with P4.
+  `PlaybackStateSnapshotOwner` still legitimately publishes the full playback
+  snapshot. `PlaybackQueueMirroredTransitionOwner` is the next queue-state
+  candidate to inspect before changing.
+- Focused tests protecting the batch: `PlaybackQueueMutationOwnerTest`,
+  `PlaybackQueueStateOwnerTest`, `PlaybackErrorRecoveryCommandOwnerTest`,
+  `PlaybackCrossfadeStateOwnerTest`, and `MainActivityArchitectureContractTest`.
+- T1 verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
 ## P1 Wiring Note - Mirrored Transition Queue State Source
 
 Current audit date: 2026-07-03.
