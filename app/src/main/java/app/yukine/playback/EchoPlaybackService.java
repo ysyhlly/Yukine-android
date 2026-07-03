@@ -14,6 +14,7 @@ import android.os.Looper;
 import android.os.Process;
 import android.util.Log;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -446,12 +447,14 @@ public final class EchoPlaybackService extends MediaLibraryService
                         PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
                                 playbackQueueRuntimeStateManager::playerMirrorsQueue,
                                 () -> player == null ? -1 : player.getMediaItemCount(),
-                                playbackQueueStateOwner::queueSnapshot,
+                                () -> playbackQueueManager == null
+                                        ? Collections.emptyList()
+                                        : playbackQueueManager.queueSnapshot(),
                                 playbackMirroredQueueTrackMatcherOwner::matches
                         ),
                         () -> player != null,
                         playbackCurrentTrackPreparationRuntimeOwner::setPreparing,
-                        playbackQueueStateOwner,
+                        () -> playbackQueueManager,
                         EchoPlaybackService.this::resetWaveformIfTrackChanged,
                         EchoPlaybackService.this::applyPlaybackModeAndParametersToPlayer,
                         (index, positionMs) -> player.seekTo(index, positionMs),
