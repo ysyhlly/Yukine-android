@@ -166,7 +166,10 @@ class PlaybackMediaSourceProviderTest {
         assertEquals("webdav:3:/music/webdav.flac", provider.mediaCacheKeyForTrack(webDav))
         assertEquals("file:///storage/emulated/0/Music/local.flac", provider.mediaCacheKeyForTrack(local))
         assertEquals("", provider.mediaCacheKeyForTrack(localMissingUri))
+        assertEquals("streaming:netease:42", PlaybackMediaSourceProvider.mediaCacheKey("streaming:netease:42", ""))
+        assertEquals("webdav:3:/music/webdav.flac", PlaybackMediaSourceProvider.mediaCacheKey(webDav.dataPath, webDav.contentUri.toString()))
         assertNull(PlaybackMediaSourceProvider.mediaCacheKey("/storage/emulated/0/Music/local.flac", local.contentUri.toString()))
+        assertNull(PlaybackMediaSourceProvider.mediaCacheKey("", local.contentUri.toString()))
         assertNull(PlaybackMediaSourceProvider.mediaCacheKey(null, local.contentUri.toString()))
     }
 

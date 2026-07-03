@@ -2981,3 +2981,31 @@ Current audit date: 2026-07-03.
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackErrorRecoveryCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
 ```
+
+## P2 Boundary Note - Media Cache Key Owner Rules
+
+Current audit date: 2026-07-03.
+
+- No production code changed in this slice. The purpose is to lock the
+  resolver/cache boundary with focused behavior coverage before more migration.
+- `PlaybackMediaSourceProviderTest` now directly covers the static
+  `PlaybackMediaSourceProvider.mediaCacheKey(dataPath, uri)` rules for:
+  streaming placeholders without a resolved URL, WebDAV cache keys, empty
+  data paths, and local file paths.
+- This keeps URI / MediaItem / cache key identity behavior owned by
+  `PlaybackMediaSourceProvider`, while cache operations remain consumed through
+  `PlaybackMediaCacheOperations` by `PlaybackPrecacheManager` and visualization
+  cache code.
+- `PlaybackMediaSourceResolutionOwner` remains absent; no resolver facade or
+  cache policy owner was added.
+- Audit metrics are unchanged from the previous production slice:
+  `EchoPlaybackService.java` is 1430 lines, `private Playback*` field count is
+  43 by the current `rg` metric, `fromPlaybackQueueManager` count is 0, direct
+  `playbackQueueStateOwner::queueStateSnapshot` references in the service are
+  1, direct `playbackQueueStateOwner.currentTrack()` calls in the service are
+  3, and `Playback*Owner` production file count is 44.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest --console=plain
+```
