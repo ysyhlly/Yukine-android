@@ -370,7 +370,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                         player.setVolume(volume);
                     }
                 },
-                () -> withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::skipToNextImmediately),
+                () -> playbackQueueNavigationOwner().skipToNextImmediately(),
                 EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer
         );
         final PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner(
@@ -845,7 +845,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (player == null) {
             playbackQueueCommandOwner.prepareCurrentOrRunFallback(
                     true,
-                    () -> withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::playFirstQueuedTrack)
+                    () -> playbackQueueNavigationOwner().playFirstQueuedTrack()
             );
             return;
         }
@@ -853,7 +853,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             return;
         }
         if (playbackQueueCommandOwner.runIfCurrentTrackMissing(
-                () -> withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::playFirstQueuedTrack)
+                () -> playbackQueueNavigationOwner().playFirstQueuedTrack()
         )) {
             return;
         }
@@ -900,7 +900,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackCrossfadeCommandOwner.startFadeOutThenNext()) {
             return;
         }
-        withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::skipToNextImmediately);
+        playbackQueueNavigationOwner().skipToNextImmediately();
     }
 
     public void skipToPrevious() {
@@ -908,7 +908,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             seekTo(0L);
             return;
         }
-        withPlaybackQueueNavigationOwner(PlaybackQueueNavigationOwner::skipToPrevious);
+        playbackQueueNavigationOwner().skipToPrevious();
     }
 
     public List<Track> queueSnapshot() {
@@ -1292,11 +1292,11 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
     }
 
-    private void withPlaybackQueueNavigationOwner(Consumer<PlaybackQueueNavigationOwner> action) {
-        action.accept(new PlaybackQueueNavigationOwner(
+    private PlaybackQueueNavigationOwner playbackQueueNavigationOwner() {
+        return new PlaybackQueueNavigationOwner(
                 playbackQueueManager,
                 this::onMirroredQueueReused
-        ));
+        );
     }
 
     private void withPlaybackQueueMutationOwner(Consumer<PlaybackQueueMutationOwner> action) {
@@ -1341,10 +1341,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     private boolean reuseMirroredQueueIfAvailable(boolean playWhenReady, long startPositionMs) {
-        return new PlaybackQueueNavigationOwner(
-                playbackQueueManager,
-                this::onMirroredQueueReused
-        ).reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs);
+        return playbackQueueNavigationOwner().reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs);
     }
 
     private void createPlayerIfNeeded() {
