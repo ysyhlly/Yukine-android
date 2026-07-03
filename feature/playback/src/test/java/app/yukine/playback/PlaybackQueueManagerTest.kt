@@ -1011,6 +1011,28 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun removeTracksBeforeCurrentKeepsCurrentTrackAuthorityInQueueManager() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val first = track(1L)
+        val second = track(2L)
+        val current = track(3L)
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(first, second, current), 2)
+
+        assertFalse(manager.removeTracksById(setOf(first.id)))
+
+        val snapshot = manager.queueStateSnapshot()
+        assertEquals(listOf(second.id, current.id), provider.queue.map { it.id })
+        assertEquals(current.id, snapshot.currentTrack?.id)
+        assertEquals(1, snapshot.currentIndex)
+        assertEquals(listOf(second.id, current.id), store.savedTracks.map { it.id })
+        assertEquals(1, store.savedIndex)
+        assertTrue(provider.queuePlaybackActions.published)
+        assertFalse(provider.queuePlaybackActions.prepareCurrentCalled)
+    }
+
+    @Test
     fun persistQueueStateSavesCurrentSnapshotThroughQueueStore() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
