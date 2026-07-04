@@ -104,12 +104,12 @@ data class TrackListAlbumCardUiState(
     val onClick: Runnable
 )
 data class TrackListLabels(
-    val favoriteLabel: String = "\u6536\u85cf",
-    val removeFavoriteLabel: String = "\u53d6\u6d88\u6536\u85cf",
-    val addToPlaylistLabel: String = "\u52a0\u5165\u6b4c\u5355",
-    val editLabel: String = "\u7f16\u8f91",
-    val deleteLabel: String = "\u5220\u9664",
-    val downloadLabel: String = "\u4e0b\u8f7d"
+    val favoriteLabel: String = "收藏",
+    val removeFavoriteLabel: String = "取消收藏",
+    val addToPlaylistLabel: String = "加入歌单",
+    val editLabel: String = "编辑",
+    val deleteLabel: String = "删除",
+    val downloadLabel: String = "下载"
 )
 
 private data class TrackActionSheetState(
@@ -773,15 +773,15 @@ private fun MiniIconBtn(
 
 private fun iconForHeaderAction(label: String): EchoIconKind = when {
     isBackAction(label) -> EchoIconKind.Back
-    label.contains("Play", ignoreCase = true) || label.contains("\u64ad\u653e") -> EchoIconKind.Play
-    label.contains("Sync", ignoreCase = true) || label.contains("\u540c\u6b65") -> EchoIconKind.Sync
-    label.contains("Delete", ignoreCase = true) || label.contains("\u5220\u9664") -> EchoIconKind.Delete
-    label.contains("Import", ignoreCase = true) || label.contains("\u5bfc\u5165") || label.contains("\u5bfc\u51fa") -> EchoIconKind.Import
+    label.contains("Play", ignoreCase = true) || label.contains("播放") -> EchoIconKind.Play
+    label.contains("Sync", ignoreCase = true) || label.contains("同步") -> EchoIconKind.Sync
+    label.contains("Delete", ignoreCase = true) || label.contains("删除") -> EchoIconKind.Delete
+    label.contains("Import", ignoreCase = true) || label.contains("导入") || label.contains("导出") -> EchoIconKind.Import
     else -> EchoIconKind.Action
 }
 
 private fun isBackAction(label: String): Boolean =
-    label.contains("Back", ignoreCase = true) || label.contains("\u8fd4\u56de")
+    label.contains("Back", ignoreCase = true) || label.contains("返回")
 
 private fun iconForLibraryMode(mode: String): EchoIconKind = when (mode) {
     "albums" -> EchoIconKind.Collections

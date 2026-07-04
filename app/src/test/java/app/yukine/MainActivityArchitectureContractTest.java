@@ -647,6 +647,12 @@ public final class MainActivityArchitectureContractTest {
         assertContainsUtf8Chinese(homeDashboard, "心动推荐");
         assertContainsUtf8Chinese(homeDashboard, "连接流媒体账号");
         assertContainsUtf8Chinese(libraryGroups, "播放");
+        assertContainsUtf8Chinese(trackList, "收藏");
+        assertContainsUtf8Chinese(trackList, "取消收藏");
+        assertContainsUtf8Chinese(trackList, "加入歌单");
+        assertContainsUtf8Chinese(trackList, "编辑");
+        assertContainsUtf8Chinese(trackList, "删除");
+        assertContainsUtf8Chinese(trackList, "下载");
         assertContainsUtf8Chinese(trackList, "歌手介绍");
         assertContainsUtf8Chinese(trackList, "全部专辑");
         assertContainsUtf8Chinese(collections, "下载");
