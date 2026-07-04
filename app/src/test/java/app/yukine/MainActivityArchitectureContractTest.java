@@ -87,6 +87,7 @@ public final class MainActivityArchitectureContractTest {
         String nowPlayingGateway = methodBody(mainActivity, "    private void initializeNowPlayingGateways()");
         String downloadRequests = methodBody(mainActivity, "    private void initializeDownloadRequests()");
         String libraryGateway = methodBody(mainActivity, "    private void initializeLibraryGateway()");
+        String platformControllers = methodBody(mainActivity, "    private void initializePlatformControllers()");
         String routeStoresAndStatus = methodBody(mainActivity, "    private void initializeRouteStoresAndStatus()");
         String playbackLifecycleControllers = methodBody(mainActivity, "    private void initializePlaybackLifecycleControllers()");
         String playbackControllers = methodBody(mainActivity, "    private void initializePlaybackControllers()");
@@ -96,6 +97,7 @@ public final class MainActivityArchitectureContractTest {
         String showStreamingCookieDialogIfReady = methodBody(mainActivity, "    private void showStreamingCookieDialogIfReady()");
         String renderNowBarIfReady = methodBody(mainActivity, "    private void renderNowBarIfReady()");
         String openAudioFilePickerIfReady = methodBody(mainActivity, "    private void openAudioFilePickerIfReady()");
+        String importSelectedLuoxueSourceUrisIfReady = methodBody(mainActivity, "    private void importSelectedLuoxueSourceUrisIfReady(List<Uri> uris)");
         String showAddToPlaylistIfReady = methodBody(mainActivity, "    private void showAddToPlaylistIfReady(Track track)");
         String removeQueueTrackIfReady = methodBody(mainActivity, "    private void removeQueueTrackIfReady(Track track)");
         String confirmClearQueueIfReady = methodBody(mainActivity, "    private void confirmClearQueueIfReady()");
@@ -261,6 +263,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(renderNowBarIfReady.contains("nowPlayingStateController.renderNowBar();"));
         assertTrue(openAudioFilePickerIfReady.contains("if (documentPickerController != null) {"));
         assertTrue(openAudioFilePickerIfReady.contains("documentPickerController.openAudioFilePicker();"));
+        assertTrue(importSelectedLuoxueSourceUrisIfReady.contains("if (luoxueSourceImportController != null) {"));
+        assertTrue(importSelectedLuoxueSourceUrisIfReady.contains("luoxueSourceImportController.importSelectedUris(uris);"));
         assertTrue(showAddToPlaylistIfReady.contains("if (playlistDialogController != null) {"));
         assertTrue(showAddToPlaylistIfReady.contains("playlistDialogController.showAddToPlaylist(track);"));
         assertTrue(removeQueueTrackIfReady.contains("if (queueActionController != null) {"));
@@ -313,6 +317,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(nowPlayingGateway.contains("                playbackActionController,\n"));
         assertFalse(nowPlayingGateway.contains("                playbackStore,\n"));
         assertFalse(nowPlayingGateway.contains("                playbackService\n"));
+        assertTrue(platformControllers.contains("                this::importSelectedLuoxueSourceUrisIfReady\n"));
+        assertFalse(platformControllers.contains("                uris -> luoxueSourceImportController.importSelectedUris(uris)\n"));
         assertTrue(downloadRequests.contains("                () -> trackDownloadManager,\n"));
         assertFalse(downloadRequests.contains("                trackDownloadManager,\n"));
         assertTrue(libraryGateway.contains("                this::openAudioFilePickerIfReady,\n"));
@@ -3483,7 +3489,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("this::importSelectedM3uFile"));
         assertTrue(mainActivity.contains("(exportUri, playlistId, playlistName) -> libraryViewModel.exportPlaylistJava(exportUri, playlistId, playlistName)"));
         assertTrue(mainActivity.contains("this::importSelectedPlaylistM3uFile"));
-        assertTrue(mainActivity.contains("uris -> luoxueSourceImportController.importSelectedUris(uris)"));
+        assertTrue(mainActivity.contains("this::importSelectedLuoxueSourceUrisIfReady"));
+        assertFalse(mainActivity.contains("uris -> luoxueSourceImportController.importSelectedUris(uris)"));
         assertTrue(mainDocumentPickerListener.contains("internal class MainDocumentPickerListener("));
         assertTrue(mainDocumentPickerListener.contains(": DocumentPickerController.Listener"));
         assertTrue(mainDocumentPickerListener.contains("audioUrisImporter.importAudioUris(uris)"));

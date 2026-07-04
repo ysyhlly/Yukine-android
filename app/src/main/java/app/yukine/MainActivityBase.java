@@ -372,7 +372,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 this::importSelectedM3uFile,
                 (exportUri, playlistId, playlistName) -> libraryViewModel.exportPlaylistJava(exportUri, playlistId, playlistName),
                 this::importSelectedPlaylistM3uFile,
-                uris -> luoxueSourceImportController.importSelectedUris(uris)
+                this::importSelectedLuoxueSourceUrisIfReady
         ));
         backgroundImagePickerController = new BackgroundImagePickerController(
                 this,
@@ -507,6 +507,12 @@ public abstract class MainActivityBase extends ComponentActivity {
     private void openAudioFilePickerIfReady() {
         if (documentPickerController != null) {
             documentPickerController.openAudioFilePicker();
+        }
+    }
+
+    private void importSelectedLuoxueSourceUrisIfReady(List<Uri> uris) {
+        if (luoxueSourceImportController != null) {
+            luoxueSourceImportController.importSelectedUris(uris);
         }
     }
 
