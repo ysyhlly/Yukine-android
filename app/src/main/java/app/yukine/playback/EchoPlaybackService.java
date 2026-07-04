@@ -349,24 +349,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                 () -> playbackQueueNavigationOwner().skipToNextImmediately(),
                 EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer
         );
-        final PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner(
-                playbackTransitionStateManager::fadeOutAdvancing,
-                () -> player != null,
-                playbackPlayerStateOwner::isPlaying,
-                () -> playbackModeSettingsStore == null
-                        ? REPEAT_ALL
-                        : playbackModeSettingsStore.repeatMode(playbackRuntimeStateManager),
-                queueStateSnapshotSupplier,
-                () -> playbackRuntimeSettingsStore == null
-                        ? 1.0f
-                        : playbackRuntimeSettingsStore.currentTrackVolume(playbackRuntimeStateManager)
-        );
-        playbackCrossfadeAdvanceManager = new PlaybackCrossfadeAdvanceManager(
-                playbackMainHandlerSchedulerOwner,
-                playbackCrossfadeStateOwner,
-                playbackCrossfadeCommandOwner
-        );
-        playbackCrossfadeCommandOwner.bindPlaybackCrossfadeAdvanceManager(playbackCrossfadeAdvanceManager);
         playbackRecoveryScheduler = new PlaybackRecoveryScheduler(
                 task -> playbackTaskScheduler.schedule(
                         PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY,
@@ -468,6 +450,24 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackRuntimeStateManager,
                 playbackTransitionStateManager
         );
+        final PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner(
+                playbackTransitionStateManager::fadeOutAdvancing,
+                () -> player != null,
+                playbackPlayerStateOwner::isPlaying,
+                () -> playbackModeSettingsStore == null
+                        ? REPEAT_ALL
+                        : playbackModeSettingsStore.repeatMode(playbackRuntimeStateManager),
+                playbackQueueManager,
+                () -> playbackRuntimeSettingsStore == null
+                        ? 1.0f
+                        : playbackRuntimeSettingsStore.currentTrackVolume(playbackRuntimeStateManager)
+        );
+        playbackCrossfadeAdvanceManager = new PlaybackCrossfadeAdvanceManager(
+                playbackMainHandlerSchedulerOwner,
+                playbackCrossfadeStateOwner,
+                playbackCrossfadeCommandOwner
+        );
+        playbackCrossfadeCommandOwner.bindPlaybackCrossfadeAdvanceManager(playbackCrossfadeAdvanceManager);
         playbackCurrentTrackPreparationQueueOwner = new PlaybackCurrentTrackPreparationQueueOwner(
                 playbackQueueManager,
                 mediaSourceProvider,
