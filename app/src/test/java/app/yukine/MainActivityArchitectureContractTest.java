@@ -22,6 +22,25 @@ public final class MainActivityArchitectureContractTest {
             "FragmentActivity",
             "ComponentActivity"
     };
+    private static final String[] FEATURE_APP_IMPLEMENTATION_FORBIDDEN_REFERENCES = {
+            "app.yukine.MainActivity",
+            "MainActivityBase",
+            "EchoPlaybackService",
+            "PlaybackServiceConnectionController",
+            "PlaybackServiceHostController",
+            "MainPlaybackServiceHost",
+            "NowPlayingPlaybackServiceStarter",
+            "NowPlayingPlaybackGatewayAdapter",
+            "SettingsPlaybackServiceControlsAdapter",
+            "NowPlayingPlaybackServicePort",
+            "SettingsPlaybackServicePort",
+            "MainRouteController",
+            "MainSettingsStore",
+            "MainPlaybackStore",
+            "MainLibraryGateway",
+            "MainNowPlayingGateway",
+            "MainStreamingActionGateway"
+    };
 
     @Test
     public void playbackServiceDoesNotDependOnMainActivityClass() throws Exception {
@@ -440,6 +459,17 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(gatewayAdapter.contains("interface NowPlayingPlaybackServicePort"));
         assertTrue(settingsRuntimeApplier.contains("SettingsPlaybackServiceControlsProvider"));
         assertFalse(settingsRuntimeApplier.contains("SettingsPlaybackServicePort"));
+    }
+
+    @Test
+    public void featureModulesDoNotDependOnAppImplementationClasses() throws Exception {
+        for (String directory : featureMainSourceDirectories()) {
+            for (Path source : sourceFiles(directory)) {
+                for (String forbidden : FEATURE_APP_IMPLEMENTATION_FORBIDDEN_REFERENCES) {
+                    assertSourceDoesNotContain(source, forbidden);
+                }
+            }
+        }
     }
 
     @Test
@@ -9532,6 +9562,16 @@ public final class MainActivityArchitectureContractTest {
         }
         files.sort(java.util.Comparator.comparing(Path::toString));
         return files;
+    }
+
+    private static String[] featureMainSourceDirectories() {
+        return new String[]{
+                "feature/data/src/main/java",
+                "feature/navigation/src/main/java",
+                "feature/playback/src/main/java",
+                "feature/streaming/src/main/java",
+                "feature/ui-common/src/main/java"
+        };
     }
 
     private static java.util.Set<String> playbackSourceFileNamesContaining(String needle) throws Exception {
