@@ -58,14 +58,10 @@ final class PlaybackQueueCompletionOwner {
         playbackQueueManager.prepareStopAtEndOfQueue();
     }
 
-    void prepareStopAfterAutomaticAdvance(int completedIndex) {
+    void stopAfterAutomaticAdvance(int completedIndex) {
         if (playbackQueueManager != null) {
             playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex);
         }
-    }
-
-    void stopAfterAutomaticAdvance(int completedIndex) {
-        prepareStopAfterAutomaticAdvance(completedIndex);
         run(stopAtEndOfQueueAction);
     }
 

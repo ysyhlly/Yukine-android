@@ -128,18 +128,6 @@ public class PlaybackQueueCompletionOwnerTest {
         assertEquals("", endRuntime.errorMessage());
         assertEquals(Collections.singletonList(false), endStore.savedResumeRequestedValues);
 
-        FakeQueueStore advanceStore = new FakeQueueStore();
-        PlaybackQueueManager advanceManager = queueManagerWithTracks(
-                advanceStore,
-                Arrays.asList(track(3L), track(4L)),
-                1,
-                REPEAT_ALL
-        );
-
-        owner(advanceManager, null).prepareStopAfterAutomaticAdvance(0);
-
-        assertEquals(0, advanceManager.queueStateSnapshot().getCurrentIndex());
-        assertEquals(Collections.singletonList("4:0"), advanceStore.savedPositions);
     }
 
     @Test
@@ -179,7 +167,6 @@ public class PlaybackQueueCompletionOwnerTest {
 
         owner.prepareStopAndClearPlaybackState();
         owner.prepareStopAtEndOfQueue();
-        owner.prepareStopAfterAutomaticAdvance(7);
         assertEquals(Collections.singletonList("stopAndClear"), events);
     }
 
