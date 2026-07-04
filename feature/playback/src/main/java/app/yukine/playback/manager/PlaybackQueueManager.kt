@@ -50,21 +50,6 @@ internal class PlaybackQueueManager(
         val stopAfterAutomaticAdvance: Boolean
     )
 
-    data class QueuePreparation(
-        val currentTrack: Track?,
-        val startIndex: Int,
-        val mirroredQueueTracks: List<Track>?
-    ) {
-        companion object {
-            @JvmStatic
-            fun empty(): QueuePreparation = QueuePreparation(
-                currentTrack = null,
-                startIndex = 0,
-                mirroredQueueTracks = null
-            )
-        }
-    }
-
     data class QueueStateSnapshot(
         val currentTrack: Track?,
         val currentIndex: Int,
@@ -582,33 +567,6 @@ internal class PlaybackQueueManager(
         }
         queuePlaybackActions.publishState()
         return true
-    }
-
-    private fun mirroredQueueTracksForPreparation(): List<Track>? {
-        val queue = this.queue
-        if (queue.isEmpty() || currentTrack() == null) {
-            return null
-        }
-        for (track in queue) {
-            if (track.contentUri == null || track.contentUri.toString().isEmpty()) {
-                return null
-            }
-        }
-        val tracks = ArrayList<Track>(queue.size)
-        for (track in queue) {
-            val restoredTrack = streamingRestoreProvider.restoreTrackForPlayback(track) ?: return null
-            tracks.add(restoredTrack)
-        }
-        return tracks
-    }
-
-    fun queuePreparationForNewPlayer(): QueuePreparation {
-        val track = currentTrack() ?: return QueuePreparation.empty()
-        return QueuePreparation(
-            currentTrack = track,
-            startIndex = currentIndex(),
-            mirroredQueueTracks = mirroredQueueTracksForPreparation()
-        )
     }
 
     private fun replaceAndCollapseQueuedTrack(oldTrackId: Long, replacement: Track): Boolean {

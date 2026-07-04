@@ -6874,10 +6874,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("private fun reuseMirroredQueueAtCurrentIndex(playWhenReady: Boolean): Boolean"));
         assertFalse(owner.contains("\n    fun reuseMirroredQueueAtCurrentIndex(playWhenReady: Boolean): Boolean"));
         assertTrue(owner.contains("if (reuseMirroredQueueAtCurrentIndex(true))"));
-        assertTrue(owner.contains("private fun mirroredQueueTracksForPreparation(): List<Track>?"));
+        assertFalse(owner.contains("private fun mirroredQueueTracksForPreparation(): List<Track>?"));
         assertFalse(owner.contains("\n    fun mirroredQueueTracksForPreparation(): List<Track>?"));
-        assertTrue(owner.contains("data class QueuePreparation"));
-        assertTrue(owner.contains("fun queuePreparationForNewPlayer(): QueuePreparation"));
+        assertFalse(owner.contains("data class QueuePreparation"));
+        assertFalse(owner.contains("fun queuePreparationForNewPlayer(): QueuePreparation"));
         assertFalse(owner.contains("fun acquireWifiLockIfStreaming()"));
         assertFalse(owner.contains("fun startProgressUpdates()"));
         assertFalse(owner.contains("fun resetWaveformIfTrackChanged(track: Track)"));
@@ -7121,7 +7121,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueStateOwner"));
         assertFalse(owner.contains("fun canCrossfadeAdvance(repeatMode: Int): Boolean"));
         assertFalse(owner.contains("private fun safeCurrentIndex(): Int"));
-        assertTrue(owner.contains("startIndex = currentIndex()"));
+        assertFalse(owner.contains("startIndex = currentIndex()"));
         assertFalse(owner.contains("\n    fun safeCurrentIndex(): Int"));
         assertTrue(owner.contains("fun replaceCurrentQueueTrack(replacement: Track?)"));
         assertFalse(owner.contains("fun replaceCurrentQueueTrack(replacement: Track?): Boolean"));
@@ -7159,8 +7159,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private boolean isQueueEmpty()"));
         assertFalse(service.contains("EchoPlaybackService.this.queueStateSnapshot()"));
         assertFalse(service.contains("return queueStateSnapshot().getHasMultipleTracks();"));
-        assertTrue(owner.contains("val startIndex: Int"));
-        assertTrue(owner.contains("startIndex = currentIndex()"));
+        assertFalse(owner.contains("val startIndex: Int"));
+        assertFalse(owner.contains("startIndex = currentIndex()"));
         assertFalse(owner.contains("private fun safeCurrentIndex(): Int"));
         assertFalse(service.contains("queuePreparation.getStartIndex()"));
         assertTrue(service.contains("queuePreparation.startIndex()"));
@@ -7280,13 +7280,18 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(currentPreparationQueueOwner.contains("private final Function<Track, Long> restoredPositionFor;"));
         assertFalse(currentPreparationQueueOwner.contains("private final Supplier<PlaybackQueueManager.QueuePreparation> queuePreparationForNewPlayer;"));
         assertTrue(currentPreparationOwner.contains("private final Function<Track, Long> restoredPositionProvider;"));
+        assertTrue(currentPreparationQueueOwner.contains("private final Function<Track, Track> queueTrackForPreparation;"));
         assertTrue(currentPreparationQueueOwner.contains("private final Function<List<Track>, List<MediaSource>> mediaSourcesForTracks;"));
         assertFalse(currentPreparationQueueOwner.contains("private final LongConsumer consumeRestoredPositionAfterPrepare;"));
         assertTrue(currentPreparationQueueOwner.contains("PlaybackMediaSourceProvider mediaSourceProvider"));
+        assertTrue(currentPreparationQueueOwner.contains("mediaSourceProvider.restoredTrackForPreparation(track)"));
         assertTrue(currentPreparationQueueOwner.contains("mediaSourceProvider.mediaSourcesForTracks("));
         assertTrue(currentPreparationQueueOwner.contains("metadataProvider == null ? null : metadataProvider::apply"));
         assertTrue(currentPreparationQueueOwner.contains("playbackQueueManager.replaceCurrentQueueTrack(track);"));
         assertFalse(currentPreparationQueueOwner.contains("playbackQueueManager.restoredPositionFor(track);"));
+        assertTrue(currentPreparationQueueOwner.contains("playbackQueueManager.queueSnapshot();"));
+        assertTrue(currentPreparationQueueOwner.contains("playbackQueueManager.queueStateSnapshot();"));
+        assertTrue(currentPreparationQueueOwner.contains("PlaybackMediaSourceProvider.isRestorableQueueTrack(track)"));
         assertTrue(service.contains("private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner"));
         assertTrue(service.contains("new PlaybackCurrentTrackPreparationQueueOwner("));
         assertFalse(service.contains("PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager("));
@@ -7298,7 +7303,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private void replaceCurrentQueueTrack(Track track)"));
         assertTrue(service.contains("playbackCurrentTrackPreparationQueueOwner.queuePreparationForNewPlayer()"));
         assertFalse(service.contains("playbackQueueManager.queuePreparationForNewPlayer()"));
-        assertTrue(currentPreparationQueueOwner.contains("playbackQueueManager.queuePreparationForNewPlayer();"));
+        assertFalse(currentPreparationQueueOwner.contains("playbackQueueManager.queuePreparationForNewPlayer();"));
         assertFalse(service.contains("playbackQueueManager.mirroredQueueTracksForPreparation()"));
         assertFalse(service.contains("return playbackQueueManager.matchesMirroredQueue("));
         assertFalse(mirroredPlayerOwner.contains("playbackQueueManager.matchesMirroredQueue("));
@@ -7359,8 +7364,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("\n        streamingRestoreProvider.restoreTrackForPlayback(track)\n"));
         assertTrue(owner.contains("queue[currentIndex()] = streamingRestoreProvider.restoreTrackForPlayback(track) ?: track"));
         assertTrue(owner.contains("queue[targetIndex] = streamingRestoreProvider.restoreTrackForPlayback(track) ?: track"));
-        assertTrue(owner.contains("val restoredTrack = streamingRestoreProvider.restoreTrackForPlayback(track) ?: return null"));
-        assertTrue(owner.contains("tracks.add(restoredTrack)"));
+        assertFalse(owner.contains("val restoredTrack = streamingRestoreProvider.restoreTrackForPlayback(track) ?: return null"));
+        assertFalse(owner.contains("tracks.add(restoredTrack)"));
         assertTrue(owner.contains("val queueTrack = streamingRestoreProvider.restoreTrackForPlayback(track) ?: continue"));
         assertFalse(owner.contains("streamingRestoreProvider.restoreForDataPath(track.dataPath)"));
         assertFalse(service.contains("private PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner;"));
@@ -7560,7 +7565,6 @@ public final class MainActivityArchitectureContractTest {
                 "reuseMirroredQueueIfAvailable"
         ));
         java.util.Set<String> queueDerivedReadApi = new java.util.TreeSet<>(java.util.Arrays.asList(
-                "queuePreparationForNewPlayer",
                 "queueSnapshot",
                 "queueStateSnapshot"
         ));
@@ -7577,7 +7581,6 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(expectedPublicApi, kotlinClassLevelFunNames(owner));
         assertFalse(owner.contains("fun clearQueue(): Boolean"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
-                "queuePreparationForNewPlayer",
                 "queueSnapshot",
                 "queueStateSnapshot"
         )), queueDerivedReadApi);
@@ -7592,6 +7595,7 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackPlayHistoryRecorder.java",
                 "PlaybackStateSnapshotOwner.java",
                 "PlaybackSessionCommandOwner.java",
+                "PlaybackCurrentTrackPreparationQueueOwner.java",
                 "PlaybackShutdownLifecycleResourcesOwner.java",
                 "PlaybackNotificationStateOwner.java",
                 "PlaybackPrecacheManager.java",
@@ -7615,15 +7619,14 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager?.queueStateSnapshot()"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "EchoPlaybackService.java",
+                "PlaybackCurrentTrackPreparationQueueOwner.java",
                 "PlaybackQueueMirroredPlayerOwner.java",
                 "PlaybackShutdownLifecycleResourcesOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.queueSnapshot()"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackPrecacheManager.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.upcomingTracksForPrecache("));
-        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
-                "PlaybackCurrentTrackPreparationQueueOwner.java"
-        )), playbackSourceFileNamesContaining("playbackQueueManager.queuePreparationForNewPlayer()"));
+        assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager.queuePreparationForNewPlayer()"));
         assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager.persistQueueState()"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackCurrentTrackPreparationQueueOwner.java"
@@ -8974,7 +8977,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueOwner.contains("private fun clampCurrentIndex(): Int"));
         assertFalse(queueOwner.contains("\n    fun clampCurrentIndex(): Int"));
         assertFalse(queueOwner.contains("private fun safeCurrentIndex(): Int"));
-        assertTrue(queueOwner.contains("startIndex = currentIndex()"));
+        assertFalse(queueOwner.contains("startIndex = currentIndex()"));
         assertFalse(queueOwner.contains("\n    fun safeCurrentIndex(): Int"));
         assertFalse(queueOwner.contains("private fun setClampedCurrentIndex(index: Int)"));
         assertFalse(queueOwner.contains("\n    fun setClampedCurrentIndex(index: Int)"));

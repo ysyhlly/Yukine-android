@@ -7,6 +7,8 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
@@ -45,6 +47,7 @@ final class PlaybackCurrentTrackPreparationQueueOwner
     }
 
     private final PlaybackQueueManager playbackQueueManager;
+    private final Function<Track, Track> queueTrackForPreparation;
     private final Function<List<Track>, List<MediaSource>> mediaSourcesForTracks;
 
     PlaybackCurrentTrackPreparationQueueOwner(
@@ -54,6 +57,9 @@ final class PlaybackCurrentTrackPreparationQueueOwner
     ) {
         this(
                 playbackQueueManager,
+                track -> mediaSourceProvider == null
+                        ? null
+                        : mediaSourceProvider.restoredTrackForPreparation(track),
                 tracks -> mediaSourceProvider == null
                         ? null
                         : mediaSourceProvider.mediaSourcesForTracks(
@@ -67,7 +73,16 @@ final class PlaybackCurrentTrackPreparationQueueOwner
             PlaybackQueueManager playbackQueueManager,
             Function<List<Track>, List<MediaSource>> mediaSourcesForTracks
     ) {
+        this(playbackQueueManager, null, mediaSourcesForTracks);
+    }
+
+    PlaybackCurrentTrackPreparationQueueOwner(
+            PlaybackQueueManager playbackQueueManager,
+            Function<Track, Track> queueTrackForPreparation,
+            Function<List<Track>, List<MediaSource>> mediaSourcesForTracks
+    ) {
         this.playbackQueueManager = playbackQueueManager;
+        this.queueTrackForPreparation = queueTrackForPreparation;
         this.mediaSourcesForTracks = mediaSourcesForTracks;
     }
 
@@ -79,21 +94,63 @@ final class PlaybackCurrentTrackPreparationQueueOwner
     }
 
     PreparedQueue queuePreparationForNewPlayer() {
-        PlaybackQueueManager.QueuePreparation queuePreparation = playbackQueueManager == null
-                ? PlaybackQueueManager.QueuePreparation.empty()
-                : playbackQueueManager.queuePreparationForNewPlayer();
-        if (queuePreparation == null || queuePreparation.getCurrentTrack() == null) {
+        PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();
+        Track currentTrack = queueStateSnapshot.getCurrentTrack();
+        if (currentTrack == null) {
             return PreparedQueue.empty();
         }
-        List<Track> mirroredQueueTracks = queuePreparation.getMirroredQueueTracks();
+        List<Track> mirroredQueueTracks = mirroredQueueTracksForPreparation(queueStateSnapshot);
         List<MediaSource> mirroredQueueMediaSources =
                 mirroredQueueTracks == null || mirroredQueueTracks.isEmpty() || mediaSourcesForTracks == null
                         ? null
                         : mediaSourcesForTracks.apply(mirroredQueueTracks);
         return new PreparedQueue(
-                queuePreparation.getCurrentTrack(),
-                queuePreparation.getStartIndex(),
+                currentTrack,
+                queueStateSnapshot.getCurrentIndex(),
                 mirroredQueueMediaSources
         );
+    }
+
+    private List<Track> mirroredQueueTracksForPreparation(
+            PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot
+    ) {
+        List<Track> queue = queueSnapshot();
+        if (queue.isEmpty() || queueStateSnapshot.getCurrentTrack() == null) {
+            return null;
+        }
+        List<Track> tracks = new ArrayList<>(queue.size());
+        for (Track track : queue) {
+            Track preparedTrack = preparedQueueTrack(track);
+            if (preparedTrack == null) {
+                return null;
+            }
+            tracks.add(preparedTrack);
+        }
+        return tracks;
+    }
+
+    private Track preparedQueueTrack(Track track) {
+        if (track == null || track.contentUri == null || track.contentUri.toString().isEmpty()) {
+            return null;
+        }
+        if (!PlaybackMediaSourceProvider.isRestorableQueueTrack(track)) {
+            return null;
+        }
+        if (queueTrackForPreparation == null) {
+            return track;
+        }
+        Track preparedTrack = queueTrackForPreparation.apply(track);
+        return preparedTrack == null ? track : preparedTrack;
+    }
+
+    private List<Track> queueSnapshot() {
+        return playbackQueueManager == null ? Collections.emptyList() : playbackQueueManager.queueSnapshot();
+    }
+
+    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
+        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
+                ? null
+                : playbackQueueManager.queueStateSnapshot();
+        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 }

@@ -7,6 +7,7 @@ import androidx.media3.exoplayer.source.MediaSource;
 
 import org.junit.Test;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -15,6 +16,7 @@ import java.util.Random;
 
 import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.playback.manager.PlaybackPositionManager;
 import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackQueueStore;
@@ -24,7 +26,7 @@ import static org.junit.Assert.assertSame;
 
 public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     @Test
-    public void delegatesQueuePreparationToPlaybackQueueManager() {
+    public void queuePreparationReadsQueueStateAfterCurrentReplacement() {
         FakeQueueStore store = new FakeQueueStore();
         PlaybackQueueManager[] queueManagerRef = new PlaybackQueueManager[1];
         PlaybackPositionManager positionManager = new PlaybackPositionManager(
@@ -110,12 +112,77 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     }
 
     @Test
+    public void queuePreparationUsesPreparedQueueTracksBeforeResolvingMediaSources() {
+        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), null);
+        Track first = playableTrack(61L);
+        Track second = playableTrack(62L);
+        Track restoredSecond = playableTrack(620L);
+        List<String> preparedTrackDataPaths = new ArrayList<>();
+        List<List<Track>> requestedTracks = new ArrayList<>();
+        queueManager.playQueue(Arrays.asList(first, second), 0, -1L);
+        PlaybackCurrentTrackPreparationQueueOwner owner =
+                new PlaybackCurrentTrackPreparationQueueOwner(
+                        queueManager,
+                        track -> {
+                            preparedTrackDataPaths.add(track.dataPath);
+                            return track.id == second.id ? restoredSecond : track;
+                        },
+                        tracks -> {
+                            requestedTracks.add(new ArrayList<>(tracks));
+                            return Collections.emptyList();
+                        }
+                );
+
+        PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
+                owner.queuePreparationForNewPlayer();
+
+        assertSame(first, queuePreparation.currentTrack());
+        assertEquals(0, queuePreparation.startIndex());
+        assertEquals(Arrays.asList("/music/61", "/music/62"), preparedTrackDataPaths);
+        assertEquals(1, requestedTracks.size());
+        assertEquals(Arrays.asList(61L, 620L), trackIds(requestedTracks.get(0)));
+    }
+
+    @Test
     public void queuePreparationSkipsMirroredSourcesWhenAnyQueuedTrackLacksPlayableUri() {
         PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), null);
         Track current = playableTrack(31L);
         Track missingUri = trackWithoutPlayableUri(32L);
         int[] mediaSourceRequests = new int[] {0};
         queueManager.playQueue(Arrays.asList(current, missingUri), 0, -1L);
+        PlaybackCurrentTrackPreparationQueueOwner owner =
+                new PlaybackCurrentTrackPreparationQueueOwner(
+                        queueManager,
+                        tracks -> {
+                            mediaSourceRequests[0]++;
+                            return Collections.singletonList(null);
+                        }
+                );
+
+        PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
+                owner.queuePreparationForNewPlayer();
+
+        assertSame(current, queuePreparation.currentTrack());
+        assertEquals(0, queuePreparation.startIndex());
+        assertEquals(null, queuePreparation.mirroredQueueMediaSources());
+        assertEquals(0, mediaSourceRequests[0]);
+    }
+
+    @Test
+    public void queuePreparationSkipsMirroredSourcesWhenQueuedTrackIsNotRestorable() {
+        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), null);
+        Track current = playableTrack(71L);
+        Track missingFile = new Track(
+                72L,
+                "Track 72",
+                "Artist",
+                "Album",
+                10000L,
+                Uri.parse("file:///definitely/missing-72.flac"),
+                "/definitely/missing-72.flac"
+        );
+        int[] mediaSourceRequests = new int[] {0};
+        queueManager.playQueue(Arrays.asList(current, missingFile), 0, -1L);
         PlaybackCurrentTrackPreparationQueueOwner owner =
                 new PlaybackCurrentTrackPreparationQueueOwner(
                         queueManager,
@@ -188,11 +255,30 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     }
 
     @Test
+    public void queuePreparationIsEmptyWithoutCurrentTrack() throws Exception {
+        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), null);
+        queueManager.playQueue(Collections.singletonList(playableTrack(81L)), 0, -1L);
+        setRawCurrentIndex(queueManager, 3);
+        PlaybackCurrentTrackPreparationQueueOwner owner =
+                new PlaybackCurrentTrackPreparationQueueOwner(
+                        queueManager,
+                        tracks -> Collections.singletonList(null)
+                );
+
+        PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
+                owner.queuePreparationForNewPlayer();
+
+        assertEquals(null, queuePreparation.currentTrack());
+        assertEquals(0, queuePreparation.startIndex());
+        assertEquals(null, queuePreparation.mirroredQueueMediaSources());
+    }
+
+    @Test
     public void mediaSourceProviderConstructorFallsBackWhenProviderIsMissing() {
         PlaybackCurrentTrackPreparationQueueOwner owner =
                 new PlaybackCurrentTrackPreparationQueueOwner(
                         null,
-                        null,
+                        (PlaybackMediaSourceProvider) null,
                         track -> null
                 );
 
@@ -250,6 +336,21 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
                 Uri.EMPTY,
                 "/music/" + id
         );
+    }
+
+    private static List<Long> trackIds(List<Track> tracks) {
+        List<Long> ids = new ArrayList<>();
+        for (Track track : tracks) {
+            ids.add(track.id);
+        }
+        return ids;
+    }
+
+    private static void setRawCurrentIndex(PlaybackQueueManager queueManager, int currentIndex)
+            throws Exception {
+        Field field = PlaybackQueueManager.class.getDeclaredField("currentIndex");
+        field.setAccessible(true);
+        field.setInt(queueManager, currentIndex);
     }
 
     private static final class FakeQueueStore implements PlaybackQueueStore {
