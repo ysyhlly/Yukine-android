@@ -7620,6 +7620,18 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackCurrentTrackPreparationQueueOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.replaceCurrentQueueTrack("));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueCompletionOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.preparePlaybackCompletionAction()"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueCompletionOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.prepareStopAndClearPlaybackState()"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueCompletionOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.prepareStopAtEndOfQueue()"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueCompletionOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.prepareStopAfterAutomaticAdvance("));
         String queueStateSnapshot = normalizedOwner.substring(
                 normalizedOwner.indexOf("data class QueueStateSnapshot("),
                 normalizedOwner.indexOf("        companion object {", normalizedOwner.indexOf("data class QueueStateSnapshot("))
