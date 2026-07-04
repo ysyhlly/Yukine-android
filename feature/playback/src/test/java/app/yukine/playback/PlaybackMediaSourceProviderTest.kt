@@ -391,6 +391,53 @@ class PlaybackMediaSourceProviderTest {
     }
 
     @Test
+    fun mediaItemReuseMatcherUsesProviderOwnedMediaItemIdentity() {
+        val uri = Uri.parse("https://audio.example/current.flac")
+        val cacheKey = "streaming:netease:42|url=https://audio.example/current.flac"
+        val mediaItem = MediaItem.Builder()
+            .setMediaId("42")
+            .setUri(uri)
+            .setCustomCacheKey(cacheKey)
+            .build()
+
+        assertTrue(PlaybackMediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, 42L, uri, cacheKey))
+        assertFalse(PlaybackMediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, 43L, uri, cacheKey))
+        assertFalse(
+            PlaybackMediaSourceProvider.mediaItemMatchesTrackForReuse(
+                mediaItem,
+                42L,
+                Uri.parse("https://audio.example/next.flac"),
+                "streaming:netease:42|url=https://audio.example/next.flac"
+            )
+        )
+    }
+
+    @Test
+    fun mediaItemReuseMatcherRejectsMissingLocalConfigurationAndCacheKeyMismatch() {
+        val uri = Uri.parse("https://audio.example/current.flac")
+        val cacheKey = "streaming:netease:42|url=https://audio.example/current.flac"
+        val mediaItem = MediaItem.Builder()
+            .setMediaId("42")
+            .setUri(uri)
+            .setCustomCacheKey(cacheKey)
+            .build()
+        val unresolvedMediaItem = MediaItem.Builder()
+            .setMediaId("42")
+            .build()
+
+        assertFalse(PlaybackMediaSourceProvider.mediaItemMatchesTrackForReuse(null, 42L, uri, cacheKey))
+        assertFalse(PlaybackMediaSourceProvider.mediaItemMatchesTrackForReuse(unresolvedMediaItem, 42L, uri, cacheKey))
+        assertFalse(
+            PlaybackMediaSourceProvider.mediaItemMatchesTrackForReuse(
+                mediaItem,
+                42L,
+                uri,
+                "streaming:netease:42|url=https://audio.example/stale.flac"
+            )
+        )
+    }
+
+    @Test
     fun providerMatchesMediaItemForTrackUsingOwnedCacheKeyRule() {
         val uri = Uri.parse("https://audio.example/current.flac")
         val track = Track(42L, "Stream", "Artist", "Album", 180_000L, uri, "streaming:netease:42")
