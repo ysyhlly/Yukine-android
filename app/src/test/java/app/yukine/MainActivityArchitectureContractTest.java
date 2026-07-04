@@ -88,6 +88,7 @@ public final class MainActivityArchitectureContractTest {
         String downloadRequests = methodBody(mainActivity, "    private void initializeDownloadRequests()");
         String libraryGateway = methodBody(mainActivity, "    private void initializeLibraryGateway()");
         String routeStoresAndStatus = methodBody(mainActivity, "    private void initializeRouteStoresAndStatus()");
+        String playbackControllers = methodBody(mainActivity, "    private void initializePlaybackControllers()");
         String playTrackListFromHost = methodBody(mainActivity, "    private void playTrackListFromHost(List<Track> tracks, int index)");
         String mainLibraryGateway = read("app/src/main/java/app/yukine/MainLibraryGateway.kt")
                 .replace("\r\n", "\n");
@@ -107,9 +108,15 @@ public final class MainActivityArchitectureContractTest {
         int statusMessageControllerAssignment = routeStoresAndStatus.indexOf(
                 "statusMessageController = new StatusMessageController("
         );
+        int nowPlayingStateControllerAssignment = playbackControllers.indexOf(
+                "nowPlayingStateController = new NowPlayingStateController("
+        );
         int libraryRouteActionsArgument = libraryGateway.indexOf("                routeController,\n");
         int libraryStatusCallbackArgument = libraryGateway.indexOf(
                 "                status -> statusMessageController.setStatus(status),\n"
+        );
+        int libraryNowBarRendererArgument = libraryGateway.indexOf(
+                "                () -> nowPlayingStateController.renderNowBar(),\n"
         );
         int documentPickerProviderArgument = libraryGateway.indexOf(
                 "                () -> documentPickerController.openAudioFilePicker(),\n"
@@ -133,6 +140,7 @@ public final class MainActivityArchitectureContractTest {
         );
         assertTrue(routeStoresStep < playbackLifecycleStep);
         assertTrue(libraryGatewayStep < platformControllersStep);
+        assertTrue(libraryGatewayStep < playbackControllersStep);
         assertTrue(nowPlayingGatewayStep < playbackControllersStep);
         assertTrue(mainActivity.contains("routeController = new MainRouteController(navigationViewModel)"));
         assertTrue(routeStoresAndStatus.contains("uiShellController = new MainUiShellController(this);"));
@@ -141,6 +149,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(routeStoresAndStatus.contains("playbackStore = playbackStoreFactory.create(playbackViewModel);"));
         assertTrue(routeStoresAndStatus.contains("statusMessageController = new StatusMessageController("));
         assertTrue(statusMessageControllerAssignment >= 0);
+        assertTrue(nowPlayingStateControllerAssignment >= 0);
         assertTrue(streamingActionGateway.contains(
                 "                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),\n"));
         assertTrue(streamingActionGateway.contains("                    if (streamingPlaylistController != null) {"));
@@ -165,6 +174,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(libraryGateway.contains(
                 "                status -> statusMessageController.setStatus(status),\n"));
         assertTrue(libraryStatusCallbackArgument >= 0);
+        assertTrue(libraryGateway.contains(
+                "                () -> nowPlayingStateController.renderNowBar(),\n"));
+        assertTrue(libraryNowBarRendererArgument >= 0);
         assertTrue(libraryGateway.contains("                    if (MainActivityBase.this.playlistDialogController != null) {"));
         assertTrue(libraryGateway.contains(
                 "                        MainActivityBase.this.playlistDialogController.showAddToPlaylist(track);\n"));
@@ -177,6 +189,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(libraryGateway.contains("                routeController == null"));
         assertFalse(libraryGateway.contains("                () -> settingsStore.languageMode(),\n"));
         assertFalse(libraryGateway.contains("                statusMessageController,\n"));
+        assertFalse(libraryGateway.contains("                nowPlayingStateController,\n"));
+        assertFalse(libraryGateway.contains("                nowPlayingStateController.renderNowBar(),\n"));
         assertFalse(libraryGateway.contains("                playbackStartController,\n"));
         assertFalse(libraryGateway.contains("playbackStartController.playTrackList("));
         assertFalse(libraryGateway.contains(
