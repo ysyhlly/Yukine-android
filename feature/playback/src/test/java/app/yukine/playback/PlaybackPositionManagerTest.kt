@@ -4,15 +4,12 @@ import android.net.Uri
 import app.yukine.model.PlaybackQueueState
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackPositionManager
-import app.yukine.playback.manager.PlaybackQueueManager
 import app.yukine.playback.manager.PlaybackQueueStore
-import app.yukine.playback.manager.PlaybackRuntimeStateManager
-import app.yukine.playback.manager.PlaybackTransitionStateManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
-import java.util.Random
 import java.util.function.LongSupplier
+import java.util.function.Supplier
 
 class PlaybackPositionManagerTest {
     @Test
@@ -91,12 +88,14 @@ class PlaybackPositionManagerTest {
     }
 
     @Test
-    fun stateProviderFromPlaybackStateReadsQueueManagerAndPositionSupplier() {
+    fun stateProviderFromPlaybackStateReadsCurrentTrackAndPositionSuppliers() {
         val events = mutableListOf<String>()
         val track = track(23L)
-        val queueManager = queueManager(track)
         val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            queueManager,
+            Supplier {
+                events += "track"
+                track
+            },
             LongSupplier {
                 events += "position"
                 321L
@@ -105,14 +104,14 @@ class PlaybackPositionManagerTest {
 
         assertSame(track, provider.currentTrack())
         assertEquals(321L, provider.positionMs())
-        assertEquals(listOf("position"), events)
+        assertEquals(listOf("track", "position"), events)
     }
 
     @Test
     fun stateProviderFromPlaybackStateHandlesMissingCurrentTrack() {
         val missingProvider = PlaybackPositionManager.stateProviderFromPlaybackState(null, null)
         val nullTrackProvider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            queueManager(),
+            Supplier { null },
             null
         )
 
@@ -124,15 +123,15 @@ class PlaybackPositionManagerTest {
     @Test
     fun stateProviderFromPlaybackStateReadsLateBoundCurrentTrack() {
         val track = track(24L)
-        val queueManager = queueManager()
+        var currentTrack: Track? = null
         val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            queueManager,
+            Supplier { currentTrack },
             LongSupplier { 420L }
         )
 
         assertEquals(null, provider.currentTrack())
 
-        queueManager.playQueue(listOf(track), 0, -1L)
+        currentTrack = track
 
         assertSame(track, provider.currentTrack())
         assertEquals(420L, provider.positionMs())
@@ -140,26 +139,6 @@ class PlaybackPositionManagerTest {
 
     private fun manager(): PlaybackPositionManager {
         return PlaybackPositionManager(FakeQueueStore(), FakeStateProvider(), MutableClock())
-    }
-
-    private fun queueManager(currentTrack: Track? = null): PlaybackQueueManager {
-        val manager = PlaybackQueueManager(
-            FakeQueueStore(),
-            ArrayList(),
-            NoopQueuePlaybackActions(),
-            null,
-            NoopStreamingRestoreProvider(),
-            NoopMirroredQueuePlayer(),
-            PlaybackRuntimeStateManager(
-                PlaybackRuntimeStateManager.stateProviderFromPlaybackState(null, null, null)
-            ),
-            PlaybackTransitionStateManager(),
-            Random(1L)
-        )
-        if (currentTrack != null) {
-            manager.playQueue(listOf(currentTrack), 0, -1L)
-        }
-        return manager
     }
 
     private fun track(
@@ -196,20 +175,6 @@ class PlaybackPositionManagerTest {
         override fun savePlaybackPosition(trackId: Long, positionMs: Long) {
             savedPositions.add(trackId to positionMs)
         }
-    }
-
-    private class NoopQueuePlaybackActions : PlaybackQueueManager.QueuePlaybackActions {
-        override fun prepareCurrent(playWhenReady: Boolean) {}
-        override fun publishState() {}
-    }
-
-    private class NoopStreamingRestoreProvider : PlaybackQueueManager.StreamingRestoreProvider {
-        override fun restoreTrackForPlayback(track: Track): Track = track
-    }
-
-    private class NoopMirroredQueuePlayer : PlaybackQueueManager.MirroredQueuePlayer {
-        override fun matchesCurrentQueue(): Boolean = false
-        override fun seekTo(index: Int, positionMs: Long, playWhenReady: Boolean): Boolean = false
     }
 
 }
