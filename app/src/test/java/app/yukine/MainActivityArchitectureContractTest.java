@@ -88,6 +88,7 @@ public final class MainActivityArchitectureContractTest {
         String downloadRequests = methodBody(mainActivity, "    private void initializeDownloadRequests()");
         String libraryGateway = methodBody(mainActivity, "    private void initializeLibraryGateway()");
         String platformControllers = methodBody(mainActivity, "    private void initializePlatformControllers()");
+        String navigationRendering = methodBody(mainActivity, "    private void initializeNavigationRendering()");
         String routeStoresAndStatus = methodBody(mainActivity, "    private void initializeRouteStoresAndStatus()");
         String playbackLifecycleControllers = methodBody(mainActivity, "    private void initializePlaybackLifecycleControllers()");
         String playbackControllers = methodBody(mainActivity, "    private void initializePlaybackControllers()");
@@ -99,6 +100,8 @@ public final class MainActivityArchitectureContractTest {
         String openAudioFilePickerIfReady = methodBody(mainActivity, "    private void openAudioFilePickerIfReady()");
         String importSelectedLuoxueSourceUrisIfReady = methodBody(mainActivity, "    private void importSelectedLuoxueSourceUrisIfReady(List<Uri> uris)");
         String showAddToPlaylistIfReady = methodBody(mainActivity, "    private void showAddToPlaylistIfReady(Track track)");
+        String showEditStreamIfReady = methodBody(mainActivity, "    private void showEditStreamIfReady(Track track)");
+        String confirmDeleteTrackIfReady = methodBody(mainActivity, "    private void confirmDeleteTrackIfReady(Track track)");
         String removeQueueTrackIfReady = methodBody(mainActivity, "    private void removeQueueTrackIfReady(Track track)");
         String confirmClearQueueIfReady = methodBody(mainActivity, "    private void confirmClearQueueIfReady()");
         String preResolveNextStreamingTrackIfReady = methodBody(mainActivity, "    private void preResolveNextStreamingTrackIfReady(PlaybackStateSnapshot snapshot)");
@@ -267,6 +270,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(importSelectedLuoxueSourceUrisIfReady.contains("luoxueSourceImportController.importSelectedUris(uris);"));
         assertTrue(showAddToPlaylistIfReady.contains("if (playlistDialogController != null) {"));
         assertTrue(showAddToPlaylistIfReady.contains("playlistDialogController.showAddToPlaylist(track);"));
+        assertTrue(showEditStreamIfReady.contains("if (networkDialogController != null) {"));
+        assertTrue(showEditStreamIfReady.contains("networkDialogController.showEditStream(track);"));
+        assertTrue(confirmDeleteTrackIfReady.contains("if (confirmationDialogController != null) {"));
+        assertTrue(confirmDeleteTrackIfReady.contains("confirmationDialogController.confirmDeleteTrack(track);"));
         assertTrue(removeQueueTrackIfReady.contains("if (queueActionController != null) {"));
         assertTrue(removeQueueTrackIfReady.contains("queueActionController.removeQueueTrack(track);"));
         assertTrue(confirmClearQueueIfReady.contains("if (queueActionController != null) {"));
@@ -303,6 +310,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackControllers.contains("                        this::renderSelectedTabIfReady,\n"));
         assertTrue(playbackControllers.contains(
                 "                                settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),\n"));
+        assertTrue(navigationRendering.contains("                this::showEditStreamIfReady,\n"));
+        assertTrue(navigationRendering.contains("                this::confirmDeleteTrackIfReady,\n"));
+        assertFalse(navigationRendering.contains("                track -> networkDialogController.showEditStream(track),\n"));
+        assertFalse(navigationRendering.contains("                track -> confirmationDialogController.confirmDeleteTrack(track),\n"));
         assertFalse(playbackControllers.contains("                () -> nowPlayingStateController.renderNowBar(),\n"));
         assertFalse(playbackControllers.contains("                    renderSelectedTab();\n"));
         assertFalse(playbackControllers.contains("                track -> playlistDialogController.showAddToPlaylist(track),\n"));
@@ -3528,8 +3539,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("() -> confirmationDialogController.confirmClearPlayHistory()"));
         assertTrue(mainActivity.contains("playHistoryActionController.clearPlayHistory();"));
         assertFalse(mainActivity.contains("new TrackListRenderController.Listener()"));
-        assertTrue(mainActivity.contains("track -> networkDialogController.showEditStream(track)"));
-        assertTrue(mainActivity.contains("track -> confirmationDialogController.confirmDeleteTrack(track)"));
+        assertTrue(mainActivity.contains("this::showEditStreamIfReady"));
+        assertTrue(mainActivity.contains("this::confirmDeleteTrackIfReady"));
+        assertFalse(mainActivity.contains("track -> networkDialogController.showEditStream(track)"));
+        assertFalse(mainActivity.contains("track -> confirmationDialogController.confirmDeleteTrack(track)"));
         assertTrue(mainActivity.contains("(title, tracks) -> confirmationDialogController.confirmDeleteTracks(title, tracks)"));
         assertTrue(mainActivity.contains("networkRequestController.deleteAllStreams();"));
         assertTrue(mainActivity.contains("networkRequestController.deleteTrack(trackId, status);"));

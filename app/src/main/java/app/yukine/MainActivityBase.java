@@ -522,6 +522,18 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
     }
 
+    private void showEditStreamIfReady(Track track) {
+        if (networkDialogController != null) {
+            networkDialogController.showEditStream(track);
+        }
+    }
+
+    private void confirmDeleteTrackIfReady(Track track) {
+        if (confirmationDialogController != null) {
+            confirmationDialogController.confirmDeleteTrack(track);
+        }
+    }
+
     private void removeQueueTrackIfReady(Track track) {
         if (queueActionController != null) {
             queueActionController.removeQueueTrack(track);
@@ -562,8 +574,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                 track -> libraryViewModel.onEvent(new LibraryEvent.AddToPlaylist(track)),
                 track -> downloadRequestController.downloadTrack(track),
                 tracks -> downloadRequestController.downloadTracks(tracks),
-                track -> networkDialogController.showEditStream(track),
-                track -> confirmationDialogController.confirmDeleteTrack(track),
+                this::showEditStreamIfReady,
+                this::confirmDeleteTrackIfReady,
                 state -> publishTrackListChromeState(state)
         ));
     }
