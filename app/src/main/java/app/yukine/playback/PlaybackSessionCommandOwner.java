@@ -7,10 +7,8 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
-import java.util.function.Supplier;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackSessionPlayer;
 
 final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegate {
@@ -22,7 +20,7 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
     private final LongConsumer seekController;
     private final IntConsumer repeatModeController;
     private final ControllerMediaItems controllerMediaItems;
-    private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
+    private final PlaybackQueueStateOwner queueStateOwner;
     private final Function<Track, MediaMetadata> metadataProvider;
 
     PlaybackSessionCommandOwner(
@@ -30,14 +28,14 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
             LongConsumer seekController,
             IntConsumer repeatModeController,
             ControllerMediaItems controllerMediaItems,
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            PlaybackQueueStateOwner queueStateOwner,
             Function<Track, MediaMetadata> metadataProvider
     ) {
         this.playbackCommands = playbackCommands;
         this.seekController = seekController;
         this.repeatModeController = repeatModeController;
         this.controllerMediaItems = controllerMediaItems;
-        this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
+        this.queueStateOwner = queueStateOwner;
         this.metadataProvider = metadataProvider;
     }
 
@@ -83,24 +81,12 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
 
     @Override
     public Track currentTrack() {
-        return queueStateSnapshot().getCurrentTrack();
+        return queueStateOwner == null ? null : queueStateOwner.currentTrack();
     }
 
     @Override
     public MediaMetadata mediaMetadataForTrack(Track track) {
         return metadataProvider.apply(track);
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
-    }
-
-    private PlaybackQueueManager playbackQueueManager() {
-        return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }
 
 }

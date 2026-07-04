@@ -511,7 +511,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 EchoPlaybackService.this::seekTo,
                 EchoPlaybackService.this::setRepeatMode,
                 playbackControllerMediaItemsOwner,
-                () -> playbackQueueManager,
+                playbackQueueStateOwner,
                 playbackNotificationManager::mediaMetadataForTrack
         );
         playbackSessionManager = new PlaybackSessionManager(

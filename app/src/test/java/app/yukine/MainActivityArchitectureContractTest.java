@@ -7147,7 +7147,6 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackQueueMirroredPlayerOwner.java",
                 "PlaybackQueueMutationOwner.java",
-                "PlaybackSessionCommandOwner.java",
                 "PlaybackStateSnapshotOwner.java",
                 "PlaybackPrecacheManager.java",
                 "PlaybackQueueStateOwner.java"
@@ -8498,7 +8497,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("final PlaybackSessionCommandOwner playbackSessionCommandOwner = new PlaybackSessionCommandOwner("));
         assertTrue(service.contains("return new PlaybackSessionPlayer(player, playbackSessionCommandOwner);"));
         assertTrue(normalizedService.contains(
-                "                () -> playbackQueueManager,\n" +
+                "                playbackQueueStateOwner,\n" +
                         "                playbackNotificationManager::mediaMetadataForTrack"));
         assertFalse(service.contains(
                 "                    playbackQueueStateOwner::currentTrack,\n" +
@@ -8533,25 +8532,25 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("import java.util.function.LongConsumer;"));
         assertTrue(commandOwner.contains("import java.util.function.IntConsumer;"));
         assertTrue(commandOwner.contains("import java.util.function.Function;"));
-        assertTrue(commandOwner.contains("import java.util.function.Supplier;"));
-        assertTrue(commandOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
+        assertFalse(commandOwner.contains("import java.util.function.Supplier;"));
+        assertFalse(commandOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertTrue(commandOwner.contains("private final LongConsumer seekController;"));
         assertTrue(commandOwner.contains("private final IntConsumer repeatModeController;"));
         assertTrue(commandOwner.contains("private final Function<Track, MediaMetadata> metadataProvider;"));
         assertFalse(commandOwner.contains("interface StateProvider"));
         assertFalse(commandOwner.contains("stateProvider.currentTrack()"));
         assertFalse(commandOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
-        assertTrue(commandOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertFalse(commandOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
         assertFalse(commandOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.queueStateSnapshot();"));
         assertFalse(commandOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
         assertFalse(commandOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
-        assertFalse(commandOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
-        assertTrue(commandOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
+        assertTrue(commandOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertFalse(commandOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
         assertFalse(commandOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null"));
-        assertTrue(commandOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
+        assertFalse(commandOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
         assertFalse(commandOwner.contains(": queueStateOwner.queueStateSnapshot();"));
         assertFalse(commandOwner.contains("return snapshot.getCurrentTrack();"));
-        assertFalse(commandOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertTrue(commandOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
         assertFalse(commandOwner.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertTrue(commandOwner.contains("playbackCommands.skipToNext();"));
         assertTrue(commandOwner.contains("controllerMediaItems.setControllerMediaItems(mediaItems, startIndex, startPositionMs)"));
