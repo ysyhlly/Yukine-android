@@ -4475,3 +4475,26 @@ NO_FATAL_OR_RUNTIME_EXCEPTION_MATCHES
   Notification, lyrics, shutdown, service lifecycle, and background playback
   changes should use this device for targeted T3 smoke, but the broader playback
   rows in the manual smoke table remain unrun until those flows are exercised.
+
+## P1 Wiring Note - Runtime State Current Track Source
+
+Current audit date: 2026-07-04.
+
+- `PlaybackRuntimeStateManager.stateProviderFromPlaybackState(...)` no longer
+  accepts `PlaybackQueueManager.QueueStateSnapshot`. Its state provider now
+  accepts only a current-track supplier, because runtime state uses that value
+  only for replay-gain volume calculation.
+- Source of truth is unchanged: current track still comes from
+  `PlaybackQueueManager` through the existing service queue snapshot supplier.
+  No new state mirror, owner, facade, Service field, or package move was added.
+- The real gain is a narrower feature playback API and one fewer owner that can
+  accidentally depend on full queue snapshot semantics.
+- Focused coverage:
+  `PlaybackRuntimeStateManagerTest`,
+  `PlaybackStateSnapshotOwnerTest`, and
+  `MainActivityArchitectureContractTest`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackRuntimeStateManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.PlaybackStateSnapshotOwnerTest --console=plain
+```

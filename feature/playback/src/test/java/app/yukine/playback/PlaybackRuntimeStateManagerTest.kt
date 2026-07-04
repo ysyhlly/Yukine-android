@@ -1,7 +1,6 @@
 package app.yukine.playback
 
 import app.yukine.model.Track
-import app.yukine.playback.manager.PlaybackQueueManager
 import app.yukine.playback.manager.PlaybackRuntimeStateManager
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
@@ -222,7 +221,7 @@ class PlaybackRuntimeStateManagerTest {
     }
 
     @Test
-    fun stateProviderFromPlaybackStateDelegatesToPlaybackBoundaryAndQueueSnapshotSupplier() {
+    fun stateProviderFromPlaybackStateDelegatesToPlaybackBoundaryAndCurrentTrackSupplier() {
         val events = mutableListOf<String>()
         val track = track()
         val provider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
@@ -235,52 +234,46 @@ class PlaybackRuntimeStateManagerTest {
                 true
             },
             Supplier {
-                events += "snapshot"
-                queueStateSnapshot(track)
+                events += "track"
+                track
             }
         )
 
         assertNull(provider.player())
         assertTrue(provider.playerMirrorsQueue())
         assertSame(track, provider.currentTrack())
-        assertEquals(listOf("player", "mirrors", "snapshot"), events)
+        assertEquals(listOf("player", "mirrors", "track"), events)
     }
 
     @Test
-    fun stateProviderFromPlaybackStateHandlesMissingQueueSnapshotCurrentTrack() {
+    fun stateProviderFromPlaybackStateHandlesMissingCurrentTrackSupplier() {
         val missingProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(null, null, null)
-        val nullSnapshotProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
+        val nullTrackProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
             null,
             null,
-            Supplier { null }
-        )
-        val emptySnapshotProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
-            null,
-            null,
-            Supplier { PlaybackQueueManager.QueueStateSnapshot.empty() }
+            Supplier<Track?> { null }
         )
 
         assertNull(missingProvider.currentTrack())
         assertEquals(false, missingProvider.playerMirrorsQueue())
-        assertNull(nullSnapshotProvider.currentTrack())
-        assertNull(emptySnapshotProvider.currentTrack())
+        assertNull(nullTrackProvider.currentTrack())
     }
 
     @Test
-    fun stateProviderFromPlaybackStateSupportsLateBoundQueueSnapshotForReplayGain() {
-        var currentSnapshot: PlaybackQueueManager.QueueStateSnapshot? = null
+    fun stateProviderFromPlaybackStateSupportsLateBoundCurrentTrackForReplayGain() {
+        var currentTrack: Track? = null
         val manager = PlaybackRuntimeStateManager(
             PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
                 null,
                 null,
-                Supplier { currentSnapshot }
+                Supplier { currentTrack }
             )
         )
         manager.setAppVolume(0.8f)
 
         assertEquals(0.8f, manager.currentTrackVolume(), 0.0f)
 
-        currentSnapshot = queueStateSnapshot(track(replayGainTrackDb = -6.0f))
+        currentTrack = track(replayGainTrackDb = -6.0f)
 
         assertEquals(0.4f, manager.currentTrackVolume(), 0.01f)
     }
@@ -387,14 +380,6 @@ class PlaybackRuntimeStateManagerTest {
                 0,
                 replayGainTrackDb,
                 replayGainAlbumDb
-            )
-        }
-
-        private fun queueStateSnapshot(track: Track): PlaybackQueueManager.QueueStateSnapshot {
-            return PlaybackQueueManager.QueueStateSnapshot(
-                currentTrack = track,
-                currentIndex = 0,
-                queueSize = 1
             )
         }
 

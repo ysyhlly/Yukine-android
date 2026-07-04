@@ -7446,7 +7446,10 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackRuntimeStateManager.stateProviderFromPlaybackState(\n"
                         + "                            () -> player,\n"
                         + "                            playbackQueueRuntimeStateManager::playerMirrorsQueue,\n"
-                        + "                            queueStateSnapshotSupplier\n"
+                        + "                            () -> {\n"
+                        + "                                PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier.get();\n"
+                        + "                                return snapshot == null ? null : snapshot.getCurrentTrack();\n"
+                        + "                            }\n"
                         + "                    )"));
         assertTrue(normalizedService.contains(
                 "PlaybackPositionManager.stateProviderFromPlaybackState(\n"
@@ -8332,7 +8335,11 @@ public final class MainActivityArchitectureContractTest {
                 normalizedService.indexOf("private final PlaybackRuntimeStateManager playbackRuntimeStateManager ="),
                 normalizedService.indexOf("    private final PlaybackCurrentTrackPreparationRuntimeOwner")
         );
-        assertTrue(runtimeStateProviderWiring.contains("                            queueStateSnapshotSupplier\n"));
+        assertTrue(runtimeStateProviderWiring.contains(
+                "PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier.get();"));
+        assertTrue(runtimeStateProviderWiring.contains(
+                "return snapshot == null ? null : snapshot.getCurrentTrack();"));
+        assertFalse(runtimeStateProviderWiring.contains("                            queueStateSnapshotSupplier\n"));
         assertFalse(runtimeStateProviderWiring.contains("                            playbackQueueStateOwner::currentTrack\n"));
         assertFalse(runtimeStateProviderWiring.contains("                            () -> playbackQueueManager\n"));
         assertFalse(runtimeStateProviderWiring.contains("                            playbackQueueManager\n"));
@@ -8421,16 +8428,17 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("mirroredQueueSupplier: BooleanSupplier?"));
         assertFalse(owner.contains("playbackQueueManagerSupplier: Supplier<PlaybackQueueManager?>?"));
         assertFalse(owner.contains("playbackQueueManager: PlaybackQueueManager?"));
-        assertFalse(owner.contains("currentTrackSupplier: Supplier<Track?>?"));
-        assertTrue(owner.contains("queueStateSnapshotSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
+        assertTrue(owner.contains("currentTrackSupplier: Supplier<Track?>?"));
+        assertFalse(owner.contains("queueStateSnapshotSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
+        assertFalse(owner.contains("PlaybackQueueManager.QueueStateSnapshot"));
         assertFalse(owner.contains("queueStateSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
         assertTrue(owner.contains("override fun player(): ExoPlayer? = playerSupplier?.get()"));
         assertTrue(owner.contains("override fun playerMirrorsQueue(): Boolean = mirroredQueueSupplier?.asBoolean == true"));
         assertFalse(owner.contains("playbackQueueManagerSupplier?.get()?.queueStateSnapshot()?.currentTrack"));
         assertFalse(owner.contains("override fun currentTrack(): Track? = playbackQueueManager?.queueStateSnapshot()?.currentTrack"));
-        assertTrue(owner.contains(
+        assertFalse(owner.contains(
                 "override fun currentTrack(): Track? = queueStateSnapshotSupplier?.get()?.currentTrack"));
-        assertFalse(owner.contains("override fun currentTrack(): Track? = currentTrackSupplier?.get()"));
+        assertTrue(owner.contains("override fun currentTrack(): Track? = currentTrackSupplier?.get()"));
         assertFalse(owner.contains("queueStateSupplier?.get()?.currentTrack"));
     }
 
