@@ -6308,15 +6308,17 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueRestoreOwner.contains("playbackQueueManager.restorePlaybackQueue();"));
         assertTrue(service.contains("playbackQueueRestoreOwner().restoreLastPlayback(playWhenRestored);"));
         assertFalse(service.contains("playbackQueueManager.restoreLastPlayback(playWhenRestored)"));
-        assertTrue(queueRestoreOwner.contains("playbackQueueManager.restoreLastPlayback(playWhenRestored)"));
+        assertTrue(queueRestoreOwner.contains("restorePlaybackQueue();"));
+        assertTrue(queueRestoreOwner.contains("PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();"));
+        assertTrue(queueRestoreOwner.contains("prepareCurrent(playWhenRestored || loadResumeRequested());"));
         assertFalse(service.contains("repository.loadPlaybackResumeRequested()"));
         assertFalse(service.contains("boolean shouldPlay = playWhenRestored ||"));
         assertFalse(service.contains("prepareCurrent(shouldPlay)"));
-        assertTrue(queueManagerOwner.contains("data class RestorePlaybackResult"));
         assertTrue(queueManagerOwner.contains("fun restorePlaybackQueue()"));
         assertFalse(queueManagerOwner.contains("fun restorePlaybackQueue(): QueueStateSnapshot"));
-        assertTrue(queueManagerOwner.contains("fun restoreLastPlayback(playWhenRestored: Boolean): RestorePlaybackResult"));
-        assertTrue(queueManagerOwner.contains("playWhenReady = playWhenRestored || queueStore.loadResumeRequested()"));
+        assertFalse(queueManagerOwner.contains("data class RestorePlaybackResult"));
+        assertFalse(queueManagerOwner.contains("fun restoreLastPlayback(playWhenRestored: Boolean): RestorePlaybackResult"));
+        assertFalse(queueManagerOwner.contains("playWhenReady = playWhenRestored || queueStore.loadResumeRequested()"));
         assertFalse(service.contains("queueStore().save("));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackQueuePositionPersistenceOwner.java")));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackShutdownQueueLifecycleStoreOwner.java")));
@@ -6740,7 +6742,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueNavigationOwner.contains("PlaybackCrossfadeStateOwner.CrossfadeAdvancePolicy"));
         assertTrue(service.contains("playbackQueueRestoreOwner().restoreLastPlayback(playWhenRestored);"));
         assertFalse(service.contains("playbackQueueManager.restoreLastPlayback(playWhenRestored)"));
-        assertTrue(queueRestoreOwner.contains("playbackQueueManager.restoreLastPlayback(playWhenRestored);"));
+        assertTrue(queueRestoreOwner.contains("prepareCurrent(playWhenRestored || loadResumeRequested());"));
         assertTrue(service.contains("playbackQueueRestoreOwner().restorePlaybackQueue();"));
         assertFalse(service.contains("playbackQueueManager.restorePlaybackQueue()"));
         assertTrue(queueRestoreOwner.contains("playbackQueueManager.restorePlaybackQueue();"));
@@ -7557,7 +7559,6 @@ public final class MainActivityArchitectureContractTest {
                 "prepareStopAfterAutomaticAdvance",
                 "prepareStopAndClearPlaybackState",
                 "prepareStopAtEndOfQueue",
-                "restoreLastPlayback",
                 "restorePlaybackQueue"
         ));
         java.util.Set<String> queueMirrorApi = new java.util.TreeSet<>(java.util.Arrays.asList(
@@ -7596,6 +7597,7 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackStateSnapshotOwner.java",
                 "PlaybackSessionCommandOwner.java",
                 "PlaybackCurrentTrackPreparationQueueOwner.java",
+                "PlaybackQueueRestoreOwner.java",
                 "PlaybackShutdownLifecycleResourcesOwner.java",
                 "PlaybackNotificationStateOwner.java",
                 "PlaybackPrecacheManager.java",
@@ -7643,9 +7645,7 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackQueueCompletionOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.prepareStopAfterAutomaticAdvance("));
-        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
-                "PlaybackQueueRestoreOwner.java"
-        )), playbackSourceFileNamesContaining("playbackQueueManager.restoreLastPlayback("));
+        assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager.restoreLastPlayback("));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackQueueRestoreOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.restorePlaybackQueue()"));

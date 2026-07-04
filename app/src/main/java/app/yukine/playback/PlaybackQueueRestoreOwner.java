@@ -22,20 +22,18 @@ final class PlaybackQueueRestoreOwner {
     }
 
     void restoreLastPlayback(boolean playWhenRestored) {
-        PlaybackQueueManager.RestorePlaybackResult restoreResult = playbackQueueManager == null
-                ? PlaybackQueueManager.RestorePlaybackResult.empty()
-                : playbackQueueManager.restoreLastPlayback(playWhenRestored);
-        if (restoreResult == null) {
-            restoreResult = PlaybackQueueManager.RestorePlaybackResult.empty();
-        }
-        if (restoreResult.getShouldCreatePlayer()) {
-            createPlayerIfNeeded();
-        }
-        if (!restoreResult.getShouldPrepare()) {
+        restorePlaybackQueue();
+        PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();
+        if (queueStateSnapshot.isQueueEmpty()) {
             publishState();
             return;
         }
-        prepareCurrent(restoreResult.getPlayWhenReady());
+        createPlayerIfNeeded();
+        if (!queueStateSnapshot.getHasCurrentTrack()) {
+            publishState();
+            return;
+        }
+        prepareCurrent(playWhenRestored || loadResumeRequested());
     }
 
     void restorePlaybackQueue() {
@@ -66,6 +64,17 @@ final class PlaybackQueueRestoreOwner {
         if (queuePlaybackActions != null) {
             queuePlaybackActions.publishState();
         }
+    }
+
+    private boolean loadResumeRequested() {
+        return playbackQueueStore != null && playbackQueueStore.loadResumeRequested();
+    }
+
+    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
+        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
+                ? null
+                : playbackQueueManager.queueStateSnapshot();
+        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 
 }

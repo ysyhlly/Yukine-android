@@ -76,21 +76,6 @@ internal class PlaybackQueueManager(
         }
     }
 
-    data class RestorePlaybackResult(
-        val shouldCreatePlayer: Boolean,
-        val shouldPrepare: Boolean,
-        val playWhenReady: Boolean
-    ) {
-        companion object {
-            @JvmStatic
-            fun empty(): RestorePlaybackResult = RestorePlaybackResult(
-                shouldCreatePlayer = false,
-                shouldPrepare = false,
-                playWhenReady = false
-            )
-        }
-    }
-
     enum class PlaybackCompletionAction {
         STOP_AND_CLEAR,
         STOP_AT_END,
@@ -669,26 +654,6 @@ internal class PlaybackQueueManager(
         clearErrorMessage()
         clearLastMarkedTrack()
         persistQueue()
-    }
-
-    fun restoreLastPlayback(playWhenRestored: Boolean): RestorePlaybackResult {
-        restorePlaybackQueue()
-        val snapshot = queueStateSnapshot()
-        if (snapshot.isQueueEmpty) {
-            return RestorePlaybackResult.empty()
-        }
-        if (!snapshot.hasCurrentTrack) {
-            return RestorePlaybackResult(
-                shouldCreatePlayer = true,
-                shouldPrepare = false,
-                playWhenReady = false
-            )
-        }
-        return RestorePlaybackResult(
-            shouldCreatePlayer = true,
-            shouldPrepare = true,
-            playWhenReady = playWhenRestored || queueStore.loadResumeRequested()
-        )
     }
 
     private fun persistQueue() {

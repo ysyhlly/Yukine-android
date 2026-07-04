@@ -30,6 +30,20 @@ public class PlaybackQueueRestoreOwnerTest {
     }
 
     @Test
+    public void restoresPlaybackPausedWhenResumeIsNotRequested() {
+        List<String> events = new ArrayList<>();
+        FakeQueueStore store = new FakeQueueStore(
+                new PlaybackQueueState(Collections.singletonList(track(11L)), 0),
+                false
+        );
+        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, new FakeRestorePlaybackBoundary(events));
+
+        owner.restoreLastPlayback(false);
+
+        assertEquals("create,prepare:false", String.join(",", events));
+    }
+
+    @Test
     public void publishesStateWhenRestoreDoesNotPreparePlayback() {
         List<String> events = new ArrayList<>();
         FakeQueueStore store = new FakeQueueStore(
@@ -44,6 +58,20 @@ public class PlaybackQueueRestoreOwnerTest {
     }
 
     @Test
+    public void restoresPlaybackUsingPersistedResumeRequest() {
+        List<String> events = new ArrayList<>();
+        FakeQueueStore store = new FakeQueueStore(
+                new PlaybackQueueState(Collections.singletonList(track(21L)), 0),
+                true
+        );
+        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, new FakeRestorePlaybackBoundary(events));
+
+        owner.restoreLastPlayback(false);
+
+        assertEquals("create,prepare:true", String.join(",", events));
+    }
+
+    @Test
     public void nullPlaybackQueueManagerPublishesEmptyRestoreState() {
         List<String> events = new ArrayList<>();
         PlaybackQueueRestoreOwner missingManager =
@@ -55,6 +83,20 @@ public class PlaybackQueueRestoreOwnerTest {
                 );
 
         missingManager.restoreLastPlayback(false);
+
+        assertEquals("publish", String.join(",", events));
+    }
+
+    @Test
+    public void emptyRestoreQueuePublishesStateWithoutCreatingPlayer() {
+        List<String> events = new ArrayList<>();
+        FakeQueueStore store = new FakeQueueStore(
+                new PlaybackQueueState(Collections.emptyList(), -1),
+                false
+        );
+        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, new FakeRestorePlaybackBoundary(events));
+
+        owner.restoreLastPlayback(true);
 
         assertEquals("publish", String.join(",", events));
     }
