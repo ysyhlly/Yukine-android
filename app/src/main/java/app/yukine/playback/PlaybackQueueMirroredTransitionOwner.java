@@ -6,7 +6,6 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BooleanSupplier;
-import java.util.function.Supplier;
 
 final class PlaybackQueueMirroredTransitionOwner {
     static final class Transition {
@@ -38,18 +37,15 @@ final class PlaybackQueueMirroredTransitionOwner {
     }
 
     private final PlaybackQueueManager playbackQueueManager;
-    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;
     private final Runnable currentTrackVolumeApplier;
     private final BooleanSupplier playerMirrorsQueue;
 
     PlaybackQueueMirroredTransitionOwner(
             PlaybackQueueManager playbackQueueManager,
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier,
             Runnable currentTrackVolumeApplier,
             BooleanSupplier playerMirrorsQueue
     ) {
         this.playbackQueueManager = playbackQueueManager;
-        this.queueStateSnapshotSupplier = queueStateSnapshotSupplier;
         this.currentTrackVolumeApplier = currentTrackVolumeApplier;
         this.playerMirrorsQueue = playerMirrorsQueue;
     }
@@ -93,9 +89,9 @@ final class PlaybackQueueMirroredTransitionOwner {
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier == null
+        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
                 ? null
-                : queueStateSnapshotSupplier.get();
+                : playbackQueueManager.queueStateSnapshot();
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 }
