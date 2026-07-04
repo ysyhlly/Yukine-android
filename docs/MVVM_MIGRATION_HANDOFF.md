@@ -3573,6 +3573,10 @@ architecture contract in the same slice.
 - Source-of-truth status is unchanged: queue contents, current index, and restored position still belong to `PlaybackQueueManager`; persisted restore settings and saved queue still come from `PlaybackQueueStore`. No new owner, facade, state mirror, resolver/cache boundary change, notification behavior change, lyrics behavior change, shutdown behavior change, background playback behavior change, or package move was added.
 - Concrete win: one direct Service queue-manager command is removed from lifecycle wiring, and `MainActivityArchitectureContractTest` now keeps `playbackQueueManager.restorePlaybackQueue()` confined to `PlaybackQueueRestoreOwner`.
 - Verification target passed: `.\\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueRestoreOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain`. This run also recompiled app Kotlin/Java. The new owner test proves startup restore loads the queue without invoking create/prepare/publish playback boundaries.
+## NOTE 386 - Core module dependency boundary contract (2026-07-05)
+- Architecture contract slice: `MainActivityArchitectureContractTest` now scans `core:model` and `core:common` main source plus their Gradle files to prevent core modules from depending on app shell, feature implementations, playback manager implementations, concrete playback service classes, or app/feature Gradle modules.
+- Source-of-truth status is unchanged: this is a dependency-direction guard only. It does not add or move owner classes, create state mirrors, change playback/cache/resolve/lyrics/notification behavior, or reorganize packages.
+- Concrete win: future cross-module API extraction has a guardrail that keeps contracts flowing down into core without pulling app implementation back into core. Verification target passed: `.\\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain`.
 ## 2026-06-27 DIRECTION PIVOT: stabilization before more extraction
 
 - New controlling doc: `docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md`.

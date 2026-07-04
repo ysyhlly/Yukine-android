@@ -1068,6 +1068,33 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void coreModulesDoNotDependOnAppOrFeatureImplementations() throws Exception {
+        for (String directory : coreMainSourceDirectories()) {
+            for (Path source : sourceFiles(directory)) {
+                String content = new String(Files.readAllBytes(source), StandardCharsets.UTF_8);
+                for (String forbidden : FEATURE_APP_IMPLEMENTATION_FORBIDDEN_REFERENCES) {
+                    assertSourceDoesNotContain(source, forbidden);
+                }
+                assertFalse(source + " must not import feature implementations", content.contains("import app.yukine.feature."));
+                assertFalse(source + " must not import app data implementations", content.contains("import app.yukine.data."));
+                assertFalse(source + " must not import app navigation implementations", content.contains("import app.yukine.navigation."));
+                assertFalse(source + " must not import app UI implementations", content.contains("import app.yukine.ui."));
+                assertFalse(source + " must not import playback managers", content.contains("import app.yukine.playback.manager."));
+                assertFalse(
+                        source + " must not import app playback implementation classes",
+                        FEATURE_PLAYBACK_IMPLEMENTATION_IMPORT_PATTERN.matcher(content).find()
+                );
+            }
+        }
+
+        for (String buildFile : coreBuildFiles()) {
+            String gradle = read(buildFile);
+            assertFalse(buildFile + " must not depend on :app", gradle.contains("project(\":app\")"));
+            assertFalse(buildFile + " must not depend on feature modules", gradle.contains("project(\":feature"));
+        }
+    }
+
+    @Test
     public void concretePlaybackServiceReferencesStayAtAndroidBoundaries() throws Exception {
         for (Path source : sourceFiles("app/src/main/java/app/yukine")) {
             String normalized = source.toString().replace('\\', '/');
@@ -10962,6 +10989,20 @@ public final class MainActivityArchitectureContractTest {
                 "feature/playback/src/main/java",
                 "feature/streaming/src/main/java",
                 "feature/ui-common/src/main/java"
+        };
+    }
+
+    private static String[] coreMainSourceDirectories() {
+        return new String[]{
+                "core/model/src/main/java",
+                "core/common/src/main/java"
+        };
+    }
+
+    private static String[] coreBuildFiles() {
+        return new String[]{
+                "core/model/build.gradle",
+                "core/common/build.gradle"
         };
     }
 
