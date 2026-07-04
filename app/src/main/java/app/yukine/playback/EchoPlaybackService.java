@@ -294,12 +294,12 @@ public final class EchoPlaybackService extends MediaLibraryService
         recordPlaybackStartHistoryAction = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 playbackPlayHistoryRecorder,
                 () -> player != null && player.getPlayWhenReady(),
-                EchoPlaybackService.this::currentTrackFromQueueStateSnapshot
+                () -> playbackQueueManager
         );
         playbackPositionManager = new PlaybackPositionManager(
                 queueStore,
                 PlaybackPositionManager.stateProviderFromPlaybackState(
-                        playbackQueueManager,
+                        () -> playbackQueueManager,
                         playbackPlayerStateOwner::positionMs
                 )
         );
@@ -1275,13 +1275,6 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackPositionManager != null) {
             playbackPositionManager.persistCurrentPosition(force);
         }
-    }
-
-    private Track currentTrackFromQueueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? null : snapshot.getCurrentTrack();
     }
 
     private void startProgressUpdates() {

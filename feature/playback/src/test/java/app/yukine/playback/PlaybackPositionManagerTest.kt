@@ -10,6 +10,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
 import java.util.function.LongSupplier
+import java.util.function.Supplier
 
 class PlaybackPositionManagerTest {
     @Test
@@ -93,7 +94,10 @@ class PlaybackPositionManagerTest {
         val track = track(23L)
         val queueManager = queueManagerWithCurrent(track)
         val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            queueManager,
+            Supplier {
+                events += "queue"
+                queueManager
+            },
             LongSupplier {
                 events += "position"
                 321L
@@ -102,14 +106,14 @@ class PlaybackPositionManagerTest {
 
         assertSame(track, provider.currentTrack())
         assertEquals(321L, provider.positionMs())
-        assertEquals(listOf("position"), events)
+        assertEquals(listOf("queue", "position"), events)
     }
 
     @Test
     fun stateProviderFromPlaybackStateHandlesMissingQueueManager() {
         val missingProvider = PlaybackPositionManager.stateProviderFromPlaybackState(null, null)
         val nullTrackProvider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            queueManagerWithCurrent(null),
+            Supplier { queueManagerWithCurrent(null) },
             null
         )
 
@@ -121,15 +125,15 @@ class PlaybackPositionManagerTest {
     @Test
     fun stateProviderFromPlaybackStateReadsLateBoundCurrentTrackFromQueueManager() {
         val track = track(24L)
-        val queueManager = queueManagerWithCurrent(null)
+        var queueManager: PlaybackQueueManager? = null
         val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            queueManager,
+            Supplier { queueManager },
             LongSupplier { 420L }
         )
 
         assertEquals(null, provider.currentTrack())
 
-        queueManager.playQueue(listOf(track), 0, 0L)
+        queueManager = queueManagerWithCurrent(track)
 
         assertSame(track, provider.currentTrack())
         assertEquals(420L, provider.positionMs())
