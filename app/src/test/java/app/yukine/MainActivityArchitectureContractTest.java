@@ -3219,7 +3219,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("import java.util.Objects;"));
         assertTrue(playbackPrecacheManager.contains(
                 "this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, \"playbackQueueManager\");"));
-        assertTrue(playbackPrecacheManager.contains("return playbackQueueManager.queueStateSnapshot().getCurrentTrack();"));
+        assertTrue(playbackPrecacheManager.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertTrue(playbackPrecacheManager.contains("private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
+        assertEquals(1, countOccurrences(playbackPrecacheManager, "playbackQueueManager.queueStateSnapshot();"));
+        assertFalse(playbackPrecacheManager.contains("playbackQueueManager.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(playbackPrecacheManager.contains("if (playbackQueueManager == null)"));
         assertFalse(playbackPrecacheManager.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null"));
         assertFalse(playbackPrecacheManager.contains("return snapshot == null ? null : snapshot.getCurrentTrack();"));

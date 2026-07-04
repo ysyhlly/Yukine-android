@@ -278,7 +278,7 @@ final class PlaybackPrecacheManager {
     }
 
     private List<Track> upcomingTracksForPrecache() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager.queueStateSnapshot();
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshot();
         List<Track> queue = playbackQueueManager.queueSnapshot();
         int currentIndex = snapshot.getCurrentIndex();
         if (queue.isEmpty() || currentIndex < 0 || currentIndex >= queue.size()) {
@@ -302,7 +302,11 @@ final class PlaybackPrecacheManager {
     }
 
     private Track currentTrack() {
-        return playbackQueueManager.queueStateSnapshot().getCurrentTrack();
+        return queueStateSnapshot().getCurrentTrack();
+    }
+
+    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
+        return playbackQueueManager.queueStateSnapshot();
     }
 
     @OptIn(markerClass = UnstableApi.class)
