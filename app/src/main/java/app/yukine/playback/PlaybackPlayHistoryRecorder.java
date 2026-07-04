@@ -2,9 +2,11 @@ package app.yukine.playback;
 
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackTransitionStateManager;
 
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 final class PlaybackPlayHistoryRecorder {
     interface HistorySink {
@@ -32,7 +34,7 @@ final class PlaybackPlayHistoryRecorder {
     static Runnable recordIfPlaybackStartedAction(
             PlaybackPlayHistoryRecorder recorder,
             BooleanSupplier playWhenReady,
-            PlaybackQueueStateOwner queueStateOwner
+            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier
     ) {
         return () -> {
             if (recorder == null) {
@@ -40,15 +42,24 @@ final class PlaybackPlayHistoryRecorder {
             }
             recorder.recordIfPlaybackStarted(
                     playWhenReady != null && playWhenReady.getAsBoolean(),
-                    currentTrack(queueStateOwner)
+                    currentTrack(queueStateSnapshotSupplier)
             );
         };
     }
 
-    private static Track currentTrack(PlaybackQueueStateOwner queueStateOwner) {
-        return queueStateOwner == null
+    private static Track currentTrack(
+            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier
+    ) {
+        return queueStateSnapshot(queueStateSnapshotSupplier).getCurrentTrack();
+    }
+
+    private static PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot(
+            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier
+    ) {
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier == null
                 ? null
-                : queueStateOwner.currentTrack();
+                : queueStateSnapshotSupplier.get();
+        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 
     void recordIfPlaybackStarted(boolean playWhenReady, Track track) {

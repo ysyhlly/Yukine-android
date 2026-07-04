@@ -7,15 +7,12 @@ import android.net.Uri;
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
-import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
-import app.yukine.playback.manager.PlaybackQueueStore;
 import app.yukine.playback.manager.PlaybackTransitionStateManager;
 
 public final class PlaybackPlayHistoryRecorderTest {
@@ -56,19 +53,19 @@ public final class PlaybackPlayHistoryRecorderTest {
     public void recordIfPlaybackStartedActionUsesRecorderAndLatestState() {
         FakeHistorySink historySink = new FakeHistorySink();
         AtomicBoolean playWhenReady = new AtomicBoolean(false);
-        PlaybackQueueManager queueManager = playbackQueueManager();
-        queueManager.playQueue(Collections.singletonList(track(1L)), 0, -1L);
+        AtomicReference<PlaybackQueueManager.QueueStateSnapshot> queueSnapshot =
+                new AtomicReference<>(queueSnapshot(track(1L)));
         PlaybackPlayHistoryRecorder recorder = recorder(historySink);
         Runnable action = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 recorder,
                 playWhenReady::get,
-                queueStateOwner(queueManager)
+                queueSnapshot::get
         );
 
         action.run();
         playWhenReady.set(true);
         action.run();
-        queueManager.playQueue(Collections.singletonList(track(2L)), 0, -1L);
+        queueSnapshot.set(queueSnapshot(track(2L)));
         action.run();
 
         assertEquals(list(1L, 2L), historySink.markedTrackIds);
@@ -77,12 +74,10 @@ public final class PlaybackPlayHistoryRecorderTest {
     @Test
     public void recordIfPlaybackStartedActionIgnoresMissingRecorder() {
         AtomicBoolean playWhenReady = new AtomicBoolean(true);
-        PlaybackQueueManager queueManager = playbackQueueManager();
-        queueManager.playQueue(Collections.singletonList(track(1L)), 0, -1L);
         Runnable action = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 null,
                 playWhenReady::get,
-                queueStateOwner(queueManager)
+                () -> queueSnapshot(track(1L))
         );
 
         action.run();
@@ -92,22 +87,8 @@ public final class PlaybackPlayHistoryRecorderTest {
         return new PlaybackPlayHistoryRecorder(historySink, new PlaybackTransitionStateManager());
     }
 
-    private static PlaybackQueueStateOwner queueStateOwner(PlaybackQueueManager queueManager) {
-        return new PlaybackQueueStateOwner(queueManager::queueStateSnapshot);
-    }
-
-    private static PlaybackQueueManager playbackQueueManager() {
-        return new PlaybackQueueManager(
-                new FakeQueueStore(),
-                new ArrayList<>(),
-                new NoopQueuePlaybackActions(),
-                null,
-                new NoopStreamingRestoreProvider(),
-                new NoopMirroredQueuePlayer(),
-                null,
-                new PlaybackTransitionStateManager(),
-                new Random(1L)
-        );
+    private static PlaybackQueueManager.QueueStateSnapshot queueSnapshot(Track currentTrack) {
+        return new PlaybackQueueManager.QueueStateSnapshot(currentTrack, 0, 1);
     }
 
     private static Track track(long id) {
@@ -136,81 +117,6 @@ public final class PlaybackPlayHistoryRecorderTest {
         @Override
         public void markPlayed(long trackId) {
             markedTrackIds.add(trackId);
-        }
-    }
-
-    private static final class FakeQueueStore implements PlaybackQueueStore {
-        @Override
-        public PlaybackQueueState load() {
-            return new PlaybackQueueState(Collections.emptyList(), -1);
-        }
-
-        @Override
-        public void save(List<Track> tracks, int currentIndex) {
-        }
-
-        @Override
-        public boolean loadResumeRequested() {
-            return false;
-        }
-
-        @Override
-        public void saveResumeRequested(boolean requested) {
-        }
-
-        @Override
-        public boolean loadPlaybackRestoreEnabled() {
-            return true;
-        }
-
-        @Override
-        public void savePlaybackRestoreEnabled(boolean enabled) {
-        }
-
-        @Override
-        public long loadPlaybackPositionTrackId() {
-            return -1L;
-        }
-
-        @Override
-        public long loadPlaybackPositionMs() {
-            return 0L;
-        }
-
-        @Override
-        public void savePlaybackPosition(long trackId, long positionMs) {
-        }
-    }
-
-    private static final class NoopQueuePlaybackActions
-            implements PlaybackQueueManager.QueuePlaybackActions {
-        @Override
-        public void prepareCurrent(boolean playWhenReady) {
-        }
-
-        @Override
-        public void publishState() {
-        }
-    }
-
-    private static final class NoopStreamingRestoreProvider
-            implements PlaybackQueueManager.StreamingRestoreProvider {
-        @Override
-        public Track restoreTrackForPlayback(Track track) {
-            return track;
-        }
-    }
-
-    private static final class NoopMirroredQueuePlayer
-            implements PlaybackQueueManager.MirroredQueuePlayer {
-        @Override
-        public boolean matchesCurrentQueue() {
-            return false;
-        }
-
-        @Override
-        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
-            return false;
         }
     }
 }
