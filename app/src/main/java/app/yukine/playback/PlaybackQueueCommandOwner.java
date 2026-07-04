@@ -4,18 +4,19 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlaybackActions {
-    private final PlaybackQueueStateOwner queueStateOwner;
+    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;
     private final BiConsumer<Track, Boolean> playbackPreparer;
     private final Runnable statePublisher;
 
     PlaybackQueueCommandOwner(
-            PlaybackQueueStateOwner queueStateOwner,
+            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier,
             BiConsumer<Track, Boolean> playbackPreparer,
             Runnable statePublisher
     ) {
-        this.queueStateOwner = queueStateOwner;
+        this.queueStateSnapshotSupplier = queueStateSnapshotSupplier;
         this.playbackPreparer = playbackPreparer;
         this.statePublisher = statePublisher;
     }
@@ -53,7 +54,14 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
     }
 
     private Track currentTrack() {
-        return queueStateOwner == null ? null : queueStateOwner.currentTrack();
+        return queueStateSnapshot().getCurrentTrack();
+    }
+
+    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier == null
+                ? null
+                : queueStateSnapshotSupplier.get();
+        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 
     @Override
