@@ -92,6 +92,8 @@ public final class MainActivityArchitectureContractTest {
         String playbackControllers = methodBody(mainActivity, "    private void initializePlaybackControllers()");
         String savePlaybackSettingsIfReady = methodBody(mainActivity, "    private void savePlaybackSettingsIfReady(float playbackSpeed, float appVolume)");
         String playPendingTracksIfReady = methodBody(mainActivity, "    private void playPendingTracksIfReady()");
+        String notifyStreamingLoginSuccessIfReady = methodBody(mainActivity, "    private void notifyStreamingLoginSuccessIfReady(StreamingProviderName provider)");
+        String showStreamingCookieDialogIfReady = methodBody(mainActivity, "    private void showStreamingCookieDialogIfReady()");
         String renderNowBarIfReady = methodBody(mainActivity, "    private void renderNowBarIfReady()");
         String openAudioFilePickerIfReady = methodBody(mainActivity, "    private void openAudioFilePickerIfReady()");
         String showAddToPlaylistIfReady = methodBody(mainActivity, "    private void showAddToPlaylistIfReady(Track track)");
@@ -169,10 +171,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(nowPlayingStateControllerAssignment >= 0);
         assertTrue(streamingActionGateway.contains(
                 "                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),\n"));
-        assertTrue(streamingActionGateway.contains("                    if (streamingPlaylistController != null) {"));
         assertTrue(streamingActionGateway.contains(
-                "                        streamingPlaylistController.onStreamingLoginSuccess(provider);\n"));
-        assertTrue(streamingActionGateway.contains("                    if (streamingManualCookieController != null) {"));
+                "                this::notifyStreamingLoginSuccessIfReady,\n"));
+        assertTrue(streamingActionGateway.contains(
+                "                this::showStreamingCookieDialogIfReady\n"));
         assertTrue(streamingActionGateway.contains(
                 "                (tracks, index) -> playTrackListFromHost(tracks, index),\n"));
         assertFalse(streamingActionGateway.contains("                settingsStore.languageMode(),\n"));
@@ -180,7 +182,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(streamingActionGateway.contains("                streamingPlaylistController,\n"));
         assertFalse(streamingActionGateway.contains(
                 "                provider -> streamingPlaylistController.onStreamingLoginSuccess(provider),\n"));
+        assertFalse(streamingActionGateway.contains("streamingPlaylistController.onStreamingLoginSuccess(provider);"));
+        assertFalse(streamingActionGateway.contains("if (streamingPlaylistController != null)"));
         assertFalse(streamingActionGateway.contains("                streamingManualCookieController,\n"));
+        assertFalse(streamingActionGateway.contains("streamingManualCookieController.showStreamingCookieDialog();"));
+        assertFalse(streamingActionGateway.contains("if (streamingManualCookieController != null)"));
         assertFalse(streamingActionGateway.contains("                playbackStartController,\n"));
         assertFalse(streamingActionGateway.contains("playbackStartController.playTrackList("));
         assertTrue(libraryGateway.contains("libraryViewModel.bindGateway(libraryGatewayFactory.create("));
@@ -247,6 +253,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(savePlaybackSettingsIfReady.contains("settingsStore.setAppVolume(appVolume);"));
         assertTrue(playPendingTracksIfReady.contains("if (playbackStartController != null) {"));
         assertTrue(playPendingTracksIfReady.contains("playbackStartController.playPendingTracksIfNeeded();"));
+        assertTrue(notifyStreamingLoginSuccessIfReady.contains("if (streamingPlaylistController != null) {"));
+        assertTrue(notifyStreamingLoginSuccessIfReady.contains("streamingPlaylistController.onStreamingLoginSuccess(provider);"));
+        assertTrue(showStreamingCookieDialogIfReady.contains("if (streamingManualCookieController != null) {"));
+        assertTrue(showStreamingCookieDialogIfReady.contains("streamingManualCookieController.showStreamingCookieDialog();"));
         assertTrue(renderNowBarIfReady.contains("if (nowPlayingStateController != null) {"));
         assertTrue(renderNowBarIfReady.contains("nowPlayingStateController.renderNowBar();"));
         assertTrue(openAudioFilePickerIfReady.contains("if (documentPickerController != null) {"));

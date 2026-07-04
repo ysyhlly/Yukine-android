@@ -249,17 +249,9 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 launch -> StreamingAuthLauncher.INSTANCE.launch(MainActivityBase.this, launch),
                 (tracks, index) -> playTrackListFromHost(tracks, index),
-                provider -> {
-                    if (streamingPlaylistController != null) {
-                        streamingPlaylistController.onStreamingLoginSuccess(provider);
-                    }
-                },
+                this::notifyStreamingLoginSuccessIfReady,
                 provider -> streamingViewModel.selectStreamingProvider(provider),
-                () -> {
-                    if (streamingManualCookieController != null) {
-                        streamingManualCookieController.showStreamingCookieDialog();
-                    }
-                }
+                this::showStreamingCookieDialogIfReady
         );
     }
 
@@ -491,6 +483,18 @@ public abstract class MainActivityBase extends ComponentActivity {
     private void playPendingTracksIfReady() {
         if (playbackStartController != null) {
             playbackStartController.playPendingTracksIfNeeded();
+        }
+    }
+
+    private void notifyStreamingLoginSuccessIfReady(StreamingProviderName provider) {
+        if (streamingPlaylistController != null) {
+            streamingPlaylistController.onStreamingLoginSuccess(provider);
+        }
+    }
+
+    private void showStreamingCookieDialogIfReady() {
+        if (streamingManualCookieController != null) {
+            streamingManualCookieController.showStreamingCookieDialog();
         }
     }
 
