@@ -257,7 +257,7 @@ public final class MainActivityArchitectureContractTest {
                 "feature/playback/src/main/java/app/yukine/playback/manager/PlaybackMediaSourceProvider.kt"
         );
 
-        assertEquals(41, countFiles("app/src/main/java/app/yukine/playback", "Playback*Owner.java"));
+        assertEquals(40, countFiles("app/src/main/java/app/yukine/playback", "Playback*Owner.java"));
         assertTrue(
                 "EchoPlaybackService should not add more Playback* fields without a narrower owner/interface slice",
                 countPrivatePlaybackFields(service) <= 40
@@ -8666,14 +8666,15 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void playbackProgressUpdateCommandsAreOwnedOutsideEchoPlaybackService() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
-        String commandOwner = read("app/src/main/java/app/yukine/playback/PlaybackProgressUpdateCommandOwner.java");
         String manager = read("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackProgressUpdateManager.kt");
 
         assertFalse(service.contains("new PlaybackProgressUpdateManager.Actions()"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackProgressUpdateCommandOwner.java")));
+        assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackProgressUpdateCommandOwnerTest.java")));
         assertFalse(service.contains("private PlaybackProgressUpdateCommandOwner playbackProgressUpdateCommandOwner;"));
-        assertTrue(service.contains("final PlaybackProgressUpdateCommandOwner playbackProgressUpdateCommandOwner ="));
-        assertTrue(service.contains("new PlaybackProgressUpdateCommandOwner("));
-        assertTrue(service.contains("playbackProgressUpdateCommandOwner"));
+        assertFalse(service.contains("final PlaybackProgressUpdateCommandOwner playbackProgressUpdateCommandOwner ="));
+        assertFalse(service.contains("new PlaybackProgressUpdateCommandOwner("));
+        assertFalse(service.contains("playbackProgressUpdateCommandOwner"));
         assertFalse(
                 service.contains("EchoPlaybackService.this::persistCurrentPlaybackPosition,\r\n"
                         + "                () -> playbackProgressUpdateManager")
@@ -8686,26 +8687,21 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackProgressUpdateStateOwner.java")));
         assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackProgressUpdateStateOwnerTest.java")));
         assertTrue(service.contains("PlaybackProgressUpdateManager.stateProviderFromPlaybackState("));
-        assertTrue(commandOwner.contains("final class PlaybackProgressUpdateCommandOwner implements PlaybackProgressUpdateManager.Actions"));
-        assertFalse(commandOwner.contains("interface StatePublisher"));
-        assertFalse(commandOwner.contains("interface PositionPersister"));
-        assertFalse(commandOwner.contains("interface ProgressUpdateManagerProvider"));
-        assertTrue(commandOwner.contains("private final Runnable statePublisher;"));
-        assertTrue(commandOwner.contains("private final Consumer<Boolean> positionPersister;"));
-        assertFalse(commandOwner.contains("Supplier<PlaybackProgressUpdateManager>"));
-        assertFalse(commandOwner.contains("progressUpdateManagerProvider"));
-        assertTrue(commandOwner.contains("statePublisher.run();"));
-        assertTrue(commandOwner.contains("positionPersister.accept(false);"));
-        assertFalse(commandOwner.contains("progressUpdateManagerProvider.get();"));
-        assertFalse(commandOwner.contains("void startProgressUpdates()"));
-        assertFalse(commandOwner.contains("void stopProgressUpdates()"));
-        assertFalse(commandOwner.contains("manager.startIfNeeded();"));
-        assertFalse(commandOwner.contains("manager.stop();"));
+        assertTrue(service.contains("PlaybackProgressUpdateManager.actionsFromCallbacks("));
+        assertTrue(service.contains("EchoPlaybackService.this::publishState"));
+        assertTrue(service.contains("EchoPlaybackService.this::persistCurrentPlaybackPosition"));
         assertTrue(manager.contains("fun stateProviderFromPlaybackState("));
         assertTrue(manager.contains("playbackStateProvider: BooleanSupplier?"));
         assertTrue(manager.contains("preparingStateProvider: BooleanSupplier?"));
         assertTrue(manager.contains("override fun isPlaying(): Boolean = playbackStateProvider?.asBoolean == true"));
         assertTrue(manager.contains("override fun isPreparing(): Boolean = preparingStateProvider?.asBoolean == true"));
+        assertTrue(manager.contains("fun actionsFromCallbacks("));
+        assertTrue(manager.contains("statePublisher: Runnable?"));
+        assertTrue(manager.contains("positionPersister: Consumer<Boolean>?"));
+        assertTrue(manager.contains("override fun publishState()"));
+        assertTrue(manager.contains("statePublisher?.run()"));
+        assertTrue(manager.contains("override fun persistPlaybackPosition()"));
+        assertTrue(manager.contains("positionPersister?.accept(false)"));
     }
 
     @Test

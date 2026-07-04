@@ -329,18 +329,16 @@ public final class EchoPlaybackService extends MediaLibraryService
                 mediaSourceProvider::isHttpTrack,
                 1500L
         );
-        final PlaybackProgressUpdateCommandOwner playbackProgressUpdateCommandOwner =
-                new PlaybackProgressUpdateCommandOwner(
-                        EchoPlaybackService.this::publishState,
-                        EchoPlaybackService.this::persistCurrentPlaybackPosition
-                );
         playbackProgressUpdateManager = new PlaybackProgressUpdateManager(
                 playbackMainHandlerSchedulerOwner,
                 PlaybackProgressUpdateManager.stateProviderFromPlaybackState(
                         playbackPlayerStateOwner::isPlaying,
                         playbackCurrentTrackPreparationRuntimeOwner::preparing
                 ),
-                playbackProgressUpdateCommandOwner
+                PlaybackProgressUpdateManager.actionsFromCallbacks(
+                        EchoPlaybackService.this::publishState,
+                        EchoPlaybackService.this::persistCurrentPlaybackPosition
+                )
         );
         playbackCrossfadeCommandOwner = new PlaybackCrossfadeCommandOwner(
                 playbackTransitionStateManager::setFadeOutAdvancing,

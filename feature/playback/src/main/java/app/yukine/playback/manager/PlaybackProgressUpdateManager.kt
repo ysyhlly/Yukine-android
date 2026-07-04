@@ -1,6 +1,7 @@
 package app.yukine.playback.manager
 
 import java.util.function.BooleanSupplier
+import java.util.function.Consumer
 
 internal class PlaybackProgressUpdateManager @JvmOverloads constructor(
     private val scheduler: CallbackScheduler,
@@ -34,6 +35,20 @@ internal class PlaybackProgressUpdateManager @JvmOverloads constructor(
             override fun isPlaying(): Boolean = playbackStateProvider?.asBoolean == true
 
             override fun isPreparing(): Boolean = preparingStateProvider?.asBoolean == true
+        }
+
+        @JvmStatic
+        fun actionsFromCallbacks(
+            statePublisher: Runnable?,
+            positionPersister: Consumer<Boolean>?
+        ): Actions = object : Actions {
+            override fun publishState() {
+                statePublisher?.run()
+            }
+
+            override fun persistPlaybackPosition() {
+                positionPersister?.accept(false)
+            }
         }
     }
 
