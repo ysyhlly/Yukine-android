@@ -7632,6 +7632,30 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackQueueCompletionOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.prepareStopAfterAutomaticAdvance("));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueRestoreOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.restoreLastPlayback("));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueRestoreOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.restorePlaybackQueue()"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueRestoreOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.setPlaybackRestoreEnabled("));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueMirroredTransitionOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.applyMirroredTransitionIndex("));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueNavigationOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.reuseMirroredQueueIfAvailable("));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueNavigationOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.skipToNextImmediately()"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueNavigationOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.skipToPrevious()"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueNavigationOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.playFirstQueuedTrack()"));
         String queueStateSnapshot = normalizedOwner.substring(
                 normalizedOwner.indexOf("data class QueueStateSnapshot("),
                 normalizedOwner.indexOf("        companion object {", normalizedOwner.indexOf("data class QueueStateSnapshot("))
