@@ -7387,6 +7387,58 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void playbackQueueStateWiringKeepsOnlyWhitelistedCurrentTrackSuppliers() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String normalizedService = service.replace("\r\n", "\n");
+        String queueStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueStateOwner.java");
+
+        assertTrue(service.contains(
+                "private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier ="));
+        assertTrue(service.contains("new PlaybackQueueStateOwner(queueStateSnapshotSupplier);"));
+        assertTrue(service.contains(
+                "() -> playbackQueueManager == null ? null : playbackQueueManager.queueStateSnapshot()"));
+        assertEquals(1, countOccurrences(service, "playbackQueueManager.queueStateSnapshot()"));
+        assertEquals(0, countOccurrences(service, "playbackQueueManager::queueStateSnapshot"));
+        assertEquals(0, countOccurrences(service, "playbackQueueStateOwner::queueStateSnapshot"));
+        assertTrue(service.contains(
+                "playbackNotificationStateOwner = new PlaybackNotificationStateOwner(\n"
+                        + "                queueStateSnapshotSupplier,"));
+        assertTrue(service.contains(
+                "playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner(\n"
+                        + "                queueStateSnapshotSupplier,"));
+        assertFalse(service.contains(
+                "playbackNotificationStateOwner = new PlaybackNotificationStateOwner(\n"
+                        + "                playbackQueueStateOwner,"));
+        assertFalse(service.contains(
+                "playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner(\n"
+                        + "                playbackQueueManager::queueStateSnapshot,"));
+
+        assertEquals(2, countOccurrences(service, "playbackQueueStateOwner::currentTrack"));
+        assertTrue(normalizedService.contains(
+                "PlaybackRuntimeStateManager.stateProviderFromPlaybackState(\n"
+                        + "                            () -> player,\n"
+                        + "                            playbackQueueRuntimeStateManager::playerMirrorsQueue,\n"
+                        + "                            playbackQueueStateOwner::currentTrack\n"
+                        + "                    )"));
+        assertTrue(normalizedService.contains(
+                "PlaybackPositionManager.stateProviderFromPlaybackState(\n"
+                        + "                        playbackQueueStateOwner::currentTrack,\n"
+                        + "                        playbackPlayerStateOwner::positionMs\n"
+                        + "                )"));
+        assertFalse(service.contains("final Supplier<Track> currentTrackSupplier = playbackQueueStateOwner::currentTrack;"));
+        assertFalse(service.contains("currentTrackSupplier = playbackQueueStateOwner::currentTrack"));
+        assertFalse(service.contains("playbackQueueStateOwner.currentTrack()"));
+        assertFalse(service.contains("playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
+
+        assertFalse(queueStateOwner.contains("interface QueueProvider"));
+        assertFalse(queueStateOwner.contains("PlaybackQueueManager.QueueProvider"));
+        assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("PlaybackQueueManager.QueueProvider"));
+        assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("interface QueueProvider"));
+        assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("PlaybackMediaSourceResolutionOwner"));
+        assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("PlaybackItemResolver"));
+    }
+
+    @Test
     public void playbackQueueManagerPublicApiStaysExplicitlyAudited() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String owner = read("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackQueueManager.kt");
