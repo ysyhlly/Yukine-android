@@ -7487,7 +7487,7 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackRuntimeStateManager.stateProviderFromPlaybackState(\n"
                         + "                            () -> player,\n"
                         + "                            playbackQueueRuntimeStateManager::playerMirrorsQueue,\n"
-                        + "                            EchoPlaybackService.this::currentTrackFromQueueStateSnapshot\n"
+                        + "                            () -> playbackQueueManager\n"
                         + "                    )"));
         assertTrue(normalizedService.contains(
                 "PlaybackPositionManager.stateProviderFromPlaybackState(\n"
@@ -7601,7 +7601,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueMutationOwner.contains("queueStateSnapshot().getCurrentTrack()"));
         assertFalse(queueMutationOwner.contains("queueSnapshot().isEmpty()"));
         assertFalse(queueMutationOwner.contains("fun clearQueue(): Boolean"));
-        assertEquals(new java.util.TreeSet<>(),
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackRuntimeStateManager.kt"
+        )),
                 playbackSourceFileNamesContaining("playbackQueueManagerSupplier?.get()?.queueStateSnapshot()"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackPositionManager.kt"
@@ -8453,15 +8455,14 @@ public final class MainActivityArchitectureContractTest {
                 normalizedService.indexOf("private final PlaybackRuntimeStateManager playbackRuntimeStateManager ="),
                 normalizedService.indexOf("    private final PlaybackCurrentTrackPreparationRuntimeOwner")
         );
-        assertTrue(runtimeStateProviderWiring.contains(
-                "EchoPlaybackService.this::currentTrackFromQueueStateSnapshot"));
+        assertTrue(runtimeStateProviderWiring.contains("                            () -> playbackQueueManager"));
         assertFalse(runtimeStateProviderWiring.contains(
                 "PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier.get();"));
         assertFalse(runtimeStateProviderWiring.contains(
                 "return snapshot == null ? null : snapshot.getCurrentTrack();"));
         assertFalse(runtimeStateProviderWiring.contains("                            queueStateSnapshotSupplier\n"));
         assertFalse(runtimeStateProviderWiring.contains("                            playbackQueueStateOwner::currentTrack\n"));
-        assertFalse(runtimeStateProviderWiring.contains("                            () -> playbackQueueManager\n"));
+        assertFalse(runtimeStateProviderWiring.contains("                            EchoPlaybackService.this::currentTrackFromQueueStateSnapshot\n"));
         assertFalse(runtimeStateProviderWiring.contains("                            playbackQueueManager\n"));
         assertFalse(runtimeStateProviderWiring.contains(
                 "playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
@@ -8546,19 +8547,19 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun stateProviderFromPlaybackState("));
         assertTrue(owner.contains("playerSupplier: Supplier<ExoPlayer?>?"));
         assertTrue(owner.contains("mirroredQueueSupplier: BooleanSupplier?"));
-        assertFalse(owner.contains("playbackQueueManagerSupplier: Supplier<PlaybackQueueManager?>?"));
+        assertTrue(owner.contains("playbackQueueManagerSupplier: Supplier<PlaybackQueueManager?>?"));
         assertFalse(owner.contains("playbackQueueManager: PlaybackQueueManager?"));
-        assertTrue(owner.contains("currentTrackSupplier: Supplier<Track?>?"));
+        assertFalse(owner.contains("currentTrackSupplier: Supplier<Track?>?"));
         assertFalse(owner.contains("queueStateSnapshotSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
         assertFalse(owner.contains("PlaybackQueueManager.QueueStateSnapshot"));
         assertFalse(owner.contains("queueStateSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
         assertTrue(owner.contains("override fun player(): ExoPlayer? = playerSupplier?.get()"));
         assertTrue(owner.contains("override fun playerMirrorsQueue(): Boolean = mirroredQueueSupplier?.asBoolean == true"));
-        assertFalse(owner.contains("playbackQueueManagerSupplier?.get()?.queueStateSnapshot()?.currentTrack"));
+        assertTrue(owner.contains("playbackQueueManagerSupplier?.get()?.queueStateSnapshot()?.currentTrack"));
         assertFalse(owner.contains("override fun currentTrack(): Track? = playbackQueueManager?.queueStateSnapshot()?.currentTrack"));
         assertFalse(owner.contains(
                 "override fun currentTrack(): Track? = queueStateSnapshotSupplier?.get()?.currentTrack"));
-        assertTrue(owner.contains("override fun currentTrack(): Track? = currentTrackSupplier?.get()"));
+        assertFalse(owner.contains("override fun currentTrack(): Track? = currentTrackSupplier?.get()"));
         assertFalse(owner.contains("queueStateSupplier?.get()?.currentTrack"));
     }
 
