@@ -5,16 +5,9 @@ import static org.junit.Assert.assertSame;
 
 import android.net.Uri;
 
-import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
-import app.yukine.playback.manager.PlaybackQueueStore;
 import app.yukine.playback.manager.PlaybackRuntimeStateManager;
-import app.yukine.playback.manager.PlaybackTransitionStateManager;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
 import java.util.function.Supplier;
 import org.junit.Test;
 
@@ -27,7 +20,7 @@ public class PlaybackStateSnapshotOwnerTest {
         FakePlaybackPositionProvider playback = new FakePlaybackPositionProvider(321L, 7000L, true);
         FakeVisualizationProvider visualization = new FakeVisualizationProvider(waveform, spectrum, true);
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
-                queueManagerSupplier(track, 2, 5),
+                queueStateSnapshotSupplier(track, 2, 5),
                 playback,
                 new FakeRuntimeStateProvider(true, "buffering", true, 1, 1.25f, 0.75f),
                 () -> 9000L,
@@ -181,32 +174,12 @@ public class PlaybackStateSnapshotOwnerTest {
         );
     }
 
-    private static Supplier<PlaybackQueueManager> queueManagerSupplier(
+    private static Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier(
             Track currentTrack,
             int currentIndex,
             int queueSize
     ) {
-        PlaybackQueueManager queueManager = playbackQueueManager();
-        List<Track> queue = new ArrayList<>();
-        for (int index = 0; index < queueSize; index++) {
-            queue.add(index == currentIndex ? currentTrack : track(index + 1L));
-        }
-        queueManager.playQueue(queue, currentIndex, -1L);
-        return () -> queueManager;
-    }
-
-    private static PlaybackQueueManager playbackQueueManager() {
-        return new PlaybackQueueManager(
-                new FakeQueueStore(),
-                new ArrayList<>(),
-                new NoopQueuePlaybackActions(),
-                null,
-                new NoopStreamingRestoreProvider(),
-                new NoopMirroredQueuePlayer(),
-                playbackRuntimeStateManager(),
-                new PlaybackTransitionStateManager(),
-                new Random(1L)
-        );
+        return () -> new PlaybackQueueManager.QueueStateSnapshot(currentTrack, currentIndex, queueSize);
     }
 
     private static final class FakePlaybackPositionProvider
@@ -341,78 +314,4 @@ public class PlaybackStateSnapshotOwnerTest {
         }
     }
 
-    private static final class FakeQueueStore implements PlaybackQueueStore {
-        @Override
-        public PlaybackQueueState load() {
-            return new PlaybackQueueState(Collections.emptyList(), -1);
-        }
-
-        @Override
-        public void save(List<Track> tracks, int currentIndex) {
-        }
-
-        @Override
-        public boolean loadResumeRequested() {
-            return false;
-        }
-
-        @Override
-        public void saveResumeRequested(boolean requested) {
-        }
-
-        @Override
-        public boolean loadPlaybackRestoreEnabled() {
-            return true;
-        }
-
-        @Override
-        public void savePlaybackRestoreEnabled(boolean enabled) {
-        }
-
-        @Override
-        public long loadPlaybackPositionTrackId() {
-            return -1L;
-        }
-
-        @Override
-        public long loadPlaybackPositionMs() {
-            return 0L;
-        }
-
-        @Override
-        public void savePlaybackPosition(long trackId, long positionMs) {
-        }
-    }
-
-    private static final class NoopQueuePlaybackActions
-            implements PlaybackQueueManager.QueuePlaybackActions {
-        @Override
-        public void prepareCurrent(boolean playWhenReady) {
-        }
-
-        @Override
-        public void publishState() {
-        }
-    }
-
-    private static final class NoopStreamingRestoreProvider
-            implements PlaybackQueueManager.StreamingRestoreProvider {
-        @Override
-        public Track restoreTrackForPlayback(Track track) {
-            return track;
-        }
-    }
-
-    private static final class NoopMirroredQueuePlayer
-            implements PlaybackQueueManager.MirroredQueuePlayer {
-        @Override
-        public boolean matchesCurrentQueue() {
-            return false;
-        }
-
-        @Override
-        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
-            return false;
-        }
-    }
 }

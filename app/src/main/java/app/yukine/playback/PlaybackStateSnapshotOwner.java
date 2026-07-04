@@ -39,7 +39,7 @@ final class PlaybackStateSnapshotOwner {
         PlaybackSpectrumSnapshot spectrumSnapshot(Track track, long durationMs, boolean deferGeneration);
     }
 
-    private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
+    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;
     private final PlaybackPositionProvider playbackPositionProvider;
     private final RuntimeStateProvider runtimeStateProvider;
     private final LongSupplier sleepTimerProvider;
@@ -48,7 +48,7 @@ final class PlaybackStateSnapshotOwner {
     private final int defaultRepeatMode;
 
     PlaybackStateSnapshotOwner(
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier,
             PlaybackPositionProvider playbackPositionProvider,
             RuntimeStateProvider runtimeStateProvider,
             LongSupplier sleepTimerProvider,
@@ -56,7 +56,7 @@ final class PlaybackStateSnapshotOwner {
             DoubleSupplier realtimeBeatProvider,
             int defaultRepeatMode
     ) {
-        this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
+        this.queueStateSnapshotSupplier = queueStateSnapshotSupplier;
         this.playbackPositionProvider = playbackPositionProvider;
         this.runtimeStateProvider = runtimeStateProvider;
         this.sleepTimerProvider = sleepTimerProvider;
@@ -173,14 +173,9 @@ final class PlaybackStateSnapshotOwner {
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier == null
                 ? null
-                : playbackQueueManager.queueStateSnapshot();
+                : queueStateSnapshotSupplier.get();
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
-    }
-
-    private PlaybackQueueManager playbackQueueManager() {
-        return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }
 }
