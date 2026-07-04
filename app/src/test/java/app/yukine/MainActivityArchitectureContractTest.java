@@ -7455,7 +7455,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private PlaybackRecoveryDiagnosticsRecorderOwner playbackRecoveryDiagnosticsRecorderOwner;"));
         assertFalse(service.contains("new PlaybackRecoveryDiagnosticsRecorderOwner("));
         assertFalse(service.contains("PlaybackStreamingDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider("));
-        assertTrue(service.contains("String quality = mediaSourceProvider == null"));
+        assertFalse(service.contains("String quality = mediaSourceProvider == null"));
+        assertTrue(service.contains("String quality = mediaSourceProvider.streamingQualityForTrack(track);"));
         assertTrue(service.contains("streamingDiagnostics.recordRecovery(track, restoredPositionMs, quality);"));
         assertTrue(service.contains("playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(true)"));
         assertFalse(service.contains("if (playbackRecoveryDiagnosticsRecorderOwner != null)"));
@@ -8496,7 +8497,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("fun isHttpUri(uri: Uri?): Boolean"));
         assertFalse(service.contains("import app.yukine.common.StreamingDataPathMetadata;"));
         assertFalse(service.contains("StreamingDataPathMetadata.quality("));
-        assertTrue(service.contains("String quality = mediaSourceProvider == null"));
+        assertFalse(service.contains("String quality = mediaSourceProvider == null"));
+        assertTrue(service.contains("String quality = mediaSourceProvider.streamingQualityForTrack(track);"));
         assertFalse(service.contains("mediaSourceProvider::prepareTrackForPlayback"));
         assertFalse(service.contains("PlaybackMediaSourceProvider::unplayableMessageForTrack"));
         assertTrue(service.contains("playbackCurrentTrackPreparationOwner().prepareCurrentTrack(track)"));

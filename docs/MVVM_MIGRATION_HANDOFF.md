@@ -3595,6 +3595,11 @@ architecture contract in the same slice.
 - Source-of-truth status is unchanged: route/navigation still belongs to `MainRouteController` / `NavigationViewModel`, playback shell snapshots still belong to `MainPlaybackStore`, and status text still flows through `StatusMessageController`. No owner, facade, state mirror, runtime behavior, package move, playback behavior, notification behavior, lyrics behavior, or shutdown behavior changed.
 - Concrete win: the previous `MainLibraryGatewayFactory` null-route regression now has a direct guard against moving host gateway binding above route/status/store initialization, including the Kotlin non-null `LibraryRouteActions` boundary that receives `routeController` by value.
 - Verification target passed: `.\\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain`.
+## NOTE 390 - Replacement recovery diagnostics require the media-source owner (2026-07-05)
+- Resolver boundary slice: `EchoPlaybackService.replaceCurrentTrackAndResume(...)` no longer treats a missing `PlaybackMediaSourceProvider` as a valid recovery-diagnostics mode. The recovery quality string now comes directly from `mediaSourceProvider.streamingQualityForTrack(track)` after the provider is initialized in `onCreate()`.
+- Source-of-truth status is unchanged and tighter: streaming quality remains owned by `PlaybackMediaSourceProvider`; queue replacement remains owned by `PlaybackCurrentTrackReplacementOwner` / `PlaybackQueueManager`; diagnostics remain in `PlaybackStreamingDiagnostics`. No owner, facade, cache policy, state mirror, notification behavior, lyrics behavior, shutdown behavior, or package move was added.
+- Concrete win: one Service-level missing-owner strategy branch is removed from the resolver/diagnostics boundary, and `MainActivityArchitectureContractTest` now blocks `String quality = mediaSourceProvider == null` from returning.
+- Verification target passed: `.\\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackCurrentTrackReplacementOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain`; this run also recompiled app Kotlin and Java.
 ## 2026-06-27 DIRECTION PIVOT: stabilization before more extraction
 
 - New controlling doc: `docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md`.

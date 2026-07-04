@@ -849,9 +849,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                     if (streamingDiagnostics == null || track == null) {
                         return;
                     }
-                    String quality = mediaSourceProvider == null
-                            ? ""
-                            : mediaSourceProvider.streamingQualityForTrack(track);
+                    String quality = mediaSourceProvider.streamingQualityForTrack(track);
                     streamingDiagnostics.recordRecovery(track, restoredPositionMs, quality);
                 },
                 () -> playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(true)
