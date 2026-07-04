@@ -2611,10 +2611,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackPrecacheManager.contains("PlaybackStreamingDiagnostics streamingDiagnostics();"));
         assertTrue(playbackPrecacheManager.contains("private final PlaybackStreamingDiagnostics streamingDiagnostics;"));
         assertTrue(playbackPrecacheManager.contains("private final PlaybackQueueManager playbackQueueManager;"));
-        assertFalse(playbackPrecacheManager.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertTrue(playbackPrecacheManager.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertTrue(playbackPrecacheManager.contains(
+                "this.queueStateOwner = new PlaybackQueueStateOwner(() -> this.playbackQueueManager);"));
         assertTrue(playbackPrecacheManager.contains("private Track currentTrack()"));
-        assertTrue(playbackPrecacheManager.contains("playbackQueueManager.queueStateSnapshot().getCurrentTrack()"));
-        assertFalse(playbackPrecacheManager.contains("return queueStateOwner.currentTrack();"));
+        assertTrue(playbackPrecacheManager.contains("return queueStateOwner.currentTrack();"));
+        assertFalse(playbackPrecacheManager.contains("playbackQueueManager.queueStateSnapshot().getCurrentTrack()"));
+        assertFalse(playbackPrecacheManager.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(playbackPrecacheManager.contains("stateProvider.currentTrack()"));
         assertTrue(playbackPrecacheManager.contains(
                 "playbackQueueManager.upcomingTracksForPrecache(SEGMENTED_PRECACHE_CONCURRENCY)"));
@@ -7327,7 +7330,6 @@ public final class MainActivityArchitectureContractTest {
         )), queuePrecacheApi);
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackQueueMutationOwner.java",
-                "PlaybackPrecacheManager.java",
                 "PlaybackQueueStateOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.queueStateSnapshot()"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
