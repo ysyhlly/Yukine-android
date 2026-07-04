@@ -355,7 +355,7 @@ class PlaybackQueueManagerTest {
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
 
-        manager.setPlaybackRestoreEnabled(false)
+        store.playbackRestoreEnabled = false
         manager.restorePlaybackQueue()
         val snapshot = manager.queueStateSnapshot()
 
@@ -380,15 +380,20 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun setPlaybackRestoreEnabledPersistsThroughStore() {
+    fun restorePlaybackQueueReadsLatestEnablementFromStoreAtCallTime() {
         val store = FakeQueueStore()
+        store.restore = PlaybackQueueState(listOf(track(1L, android.net.Uri.parse("content://music/1"))), 0)
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
 
-        manager.setPlaybackRestoreEnabled(false)
-        manager.setPlaybackRestoreEnabled(true)
+        store.playbackRestoreEnabled = false
+        manager.restorePlaybackQueue()
+        assertTrue(provider.queue.isEmpty())
 
-        assertEquals(listOf(false, true), store.savedPlaybackRestoreEnabledValues)
+        store.playbackRestoreEnabled = true
+        manager.restorePlaybackQueue()
+
+        assertEquals(listOf(1L), provider.queue.map { it.id })
         assertTrue(store.playbackRestoreEnabled)
     }
 

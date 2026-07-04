@@ -6746,8 +6746,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueRestoreOwner.contains("playbackQueueManager.restorePlaybackQueue();"));
         assertTrue(service.contains("playbackQueueRestoreOwner().setPlaybackRestoreEnabled(enabled);"));
         assertFalse(service.contains("playbackQueueManager.setPlaybackRestoreEnabled(enabled)"));
-        assertTrue(queueRestoreOwner.contains("playbackQueueManager.setPlaybackRestoreEnabled(enabled);"));
+        assertTrue(queueRestoreOwner.contains("playbackQueueStore.savePlaybackRestoreEnabled(enabled);"));
         assertTrue(queueRestoreOwner.contains("private final PlaybackQueueManager playbackQueueManager"));
+        assertTrue(queueRestoreOwner.contains("private final PlaybackQueueStore playbackQueueStore"));
         assertFalse(queueRestoreOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertFalse(queueRestoreOwner.contains("playbackQueueManagerProvider"));
         assertFalse(queueRestoreOwner.contains("interface QueueRestoreOperations"));
@@ -7548,7 +7549,6 @@ public final class MainActivityArchitectureContractTest {
                 "replaceCurrentTrackAndResume",
                 "replaceQueuedTrackById",
                 "retainTracksById",
-                "setPlaybackRestoreEnabled",
                 "skipToNextImmediately",
                 "skipToPrevious"
         ));
@@ -7649,9 +7649,7 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackQueueRestoreOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.restorePlaybackQueue()"));
-        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
-                "PlaybackQueueRestoreOwner.java"
-        )), playbackSourceFileNamesContaining("playbackQueueManager.setPlaybackRestoreEnabled("));
+        assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager.setPlaybackRestoreEnabled("));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackQueueMirroredTransitionOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.applyMirroredTransitionIndex("));
@@ -8236,11 +8234,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("repository.savePlaybackRestoreEnabled("));
         assertTrue(service.contains("playbackQueueRestoreOwner().setPlaybackRestoreEnabled(enabled);"));
         assertFalse(service.contains("playbackQueueManager.setPlaybackRestoreEnabled(enabled)"));
-        assertTrue(restoreOwner.contains("playbackQueueManager.setPlaybackRestoreEnabled(enabled);"));
-        assertTrue(owner.contains("private var playbackRestoreEnabled = queueStore.loadPlaybackRestoreEnabled()"));
-        assertTrue(owner.contains("fun setPlaybackRestoreEnabled(enabled: Boolean)"));
-        assertTrue(owner.contains("queueStore.savePlaybackRestoreEnabled(enabled)"));
-        assertTrue(owner.contains("if (!playbackRestoreEnabled)"));
+        assertTrue(restoreOwner.contains("playbackQueueStore.savePlaybackRestoreEnabled(enabled);"));
+        assertTrue(service.contains("new PlaybackQueueStoreImpl(repository),"));
+        assertFalse(owner.contains("private var playbackRestoreEnabled = queueStore.loadPlaybackRestoreEnabled()"));
+        assertFalse(owner.contains("fun setPlaybackRestoreEnabled(enabled: Boolean)"));
+        assertTrue(owner.contains("if (!queueStore.loadPlaybackRestoreEnabled())"));
         assertTrue(store.contains("fun loadPlaybackRestoreEnabled(): Boolean"));
         assertTrue(store.contains("fun savePlaybackRestoreEnabled(enabled: Boolean)"));
         assertTrue(store.contains("repository.loadPlaybackRestoreEnabled()"));

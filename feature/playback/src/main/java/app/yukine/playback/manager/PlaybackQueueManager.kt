@@ -22,7 +22,6 @@ internal class PlaybackQueueManager(
     private val playbackTransitionStateManager: PlaybackTransitionStateManager? = null,
     private val random: Random = Random()
 ) {
-    private var playbackRestoreEnabled = queueStore.loadPlaybackRestoreEnabled()
     private var currentIndex = -1
 
     interface QueuePlaybackActions {
@@ -124,11 +123,6 @@ internal class PlaybackQueueManager(
         playbackTransitionStateManager,
         Random()
     )
-
-    fun setPlaybackRestoreEnabled(enabled: Boolean) {
-        playbackRestoreEnabled = enabled
-        queueStore.savePlaybackRestoreEnabled(enabled)
-    }
 
     private fun currentIndex(): Int {
         return currentIndex
@@ -647,7 +641,7 @@ internal class PlaybackQueueManager(
     }
 
     fun restorePlaybackQueue() {
-        if (!playbackRestoreEnabled) {
+        if (!queueStore.loadPlaybackRestoreEnabled()) {
             return
         }
         val restored = queueStore.load()

@@ -1269,6 +1269,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackQueueRestoreOwner playbackQueueRestoreOwner() {
         return new PlaybackQueueRestoreOwner(
                 playbackQueueManager,
+                new PlaybackQueueStoreImpl(repository),
                 EchoPlaybackService.this::createPlayerIfNeeded,
                 playbackQueueCommandOwner
         );

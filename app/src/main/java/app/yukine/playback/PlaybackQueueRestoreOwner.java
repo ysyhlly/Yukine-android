@@ -1,18 +1,22 @@
 package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackQueueManager;
+import app.yukine.playback.manager.PlaybackQueueStore;
 
 final class PlaybackQueueRestoreOwner {
     private final PlaybackQueueManager playbackQueueManager;
+    private final PlaybackQueueStore playbackQueueStore;
     private final Runnable createPlayerIfNeeded;
     private final PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions;
 
     PlaybackQueueRestoreOwner(
             PlaybackQueueManager playbackQueueManager,
+            PlaybackQueueStore playbackQueueStore,
             Runnable createPlayerIfNeeded,
             PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions
     ) {
         this.playbackQueueManager = playbackQueueManager;
+        this.playbackQueueStore = playbackQueueStore;
         this.createPlayerIfNeeded = createPlayerIfNeeded;
         this.queuePlaybackActions = queuePlaybackActions;
     }
@@ -41,8 +45,8 @@ final class PlaybackQueueRestoreOwner {
     }
 
     void setPlaybackRestoreEnabled(boolean enabled) {
-        if (playbackQueueManager != null) {
-            playbackQueueManager.setPlaybackRestoreEnabled(enabled);
+        if (playbackQueueStore != null) {
+            playbackQueueStore.savePlaybackRestoreEnabled(enabled);
         }
     }
 

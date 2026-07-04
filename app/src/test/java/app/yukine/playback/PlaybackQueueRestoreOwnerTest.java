@@ -22,7 +22,7 @@ public class PlaybackQueueRestoreOwnerTest {
                 new PlaybackQueueState(Collections.singletonList(track(1L)), 0),
                 false
         );
-        PlaybackQueueRestoreOwner owner = owner(queueManager(store), new FakeRestorePlaybackBoundary(events));
+        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, new FakeRestorePlaybackBoundary(events));
 
         owner.restoreLastPlayback(true);
 
@@ -36,7 +36,7 @@ public class PlaybackQueueRestoreOwnerTest {
                 new PlaybackQueueState(Collections.singletonList(track(2L)), -1),
                 false
         );
-        PlaybackQueueRestoreOwner owner = owner(queueManager(store), new FakeRestorePlaybackBoundary(events));
+        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, new FakeRestorePlaybackBoundary(events));
 
         owner.restoreLastPlayback(true);
 
@@ -48,6 +48,7 @@ public class PlaybackQueueRestoreOwnerTest {
         List<String> events = new ArrayList<>();
         PlaybackQueueRestoreOwner missingManager =
                 new PlaybackQueueRestoreOwner(
+                        null,
                         null,
                         () -> events.add("create"),
                         new FakeRestorePlaybackBoundary(events)
@@ -64,7 +65,7 @@ public class PlaybackQueueRestoreOwnerTest {
                 new PlaybackQueueState(Collections.singletonList(track(3L)), 0),
                 true
         );
-        PlaybackQueueRestoreOwner owner = owner(queueManager(store), null);
+        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, null);
 
         owner.restoreLastPlayback(false);
 
@@ -74,9 +75,9 @@ public class PlaybackQueueRestoreOwnerTest {
     @Test
     public void delegatesRestoreEnabledSetting() {
         FakeQueueStore store = new FakeQueueStore(new PlaybackQueueState(Collections.emptyList(), -1), false);
-        PlaybackQueueRestoreOwner owner = owner(queueManager(store), null);
+        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, null);
         PlaybackQueueRestoreOwner missingManager =
-                new PlaybackQueueRestoreOwner(null, null, null);
+                new PlaybackQueueRestoreOwner(null, null, null, null);
 
         owner.setPlaybackRestoreEnabled(true);
         missingManager.setPlaybackRestoreEnabled(false);
@@ -91,9 +92,9 @@ public class PlaybackQueueRestoreOwnerTest {
                 new PlaybackQueueState(Collections.singletonList(track(4L)), 0),
                 false
         );
-        PlaybackQueueRestoreOwner owner = owner(queueManager(store), null);
+        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, null);
         PlaybackQueueRestoreOwner missingManager =
-                new PlaybackQueueRestoreOwner(null, null, null);
+                new PlaybackQueueRestoreOwner(null, null, null, null);
 
         owner.restorePlaybackQueue();
         missingManager.restorePlaybackQueue();
@@ -103,10 +104,12 @@ public class PlaybackQueueRestoreOwnerTest {
 
     private static PlaybackQueueRestoreOwner owner(
             PlaybackQueueManager queueManager,
+            PlaybackQueueStore queueStore,
             FakeRestorePlaybackBoundary boundary
     ) {
         return new PlaybackQueueRestoreOwner(
                 queueManager,
+                queueStore,
                 boundary == null ? null : boundary::createPlayerIfNeeded,
                 boundary
         );
@@ -194,6 +197,7 @@ public class PlaybackQueueRestoreOwnerTest {
         public void savePlaybackPosition(long trackId, long positionMs) {
         }
     }
+
 
     private static final class FakeRestorePlaybackBoundary
             implements PlaybackQueueManager.QueuePlaybackActions {
