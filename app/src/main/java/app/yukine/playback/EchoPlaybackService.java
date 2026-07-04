@@ -640,7 +640,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 mediaSourceProvider,
                 playbackMainHandlerSchedulerOwner
         );
-        playbackQueueManager.restorePlaybackQueue();
+        playbackQueueRestoreOwner().restoreQueueForStartup();
         playbackNotificationCommandOwner.publishPlaybackNotificationIfWorthy();
         playbackLyricsManager.bind();
         playbackNoisyReceiverManager = new PlaybackNoisyReceiverManager(

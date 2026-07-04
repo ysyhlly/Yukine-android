@@ -114,6 +114,24 @@ public class PlaybackQueueRestoreOwnerTest {
     }
 
     @Test
+    public void startupRestoreOnlyRestoresQueueWithoutPlaybackBoundary() {
+        List<String> events = new ArrayList<>();
+        FakeQueueStore store = new FakeQueueStore(
+                new PlaybackQueueState(Collections.singletonList(track(4L)), 0),
+                true
+        );
+        PlaybackQueueManager queueManager = queueManager(store);
+        PlaybackQueueRestoreOwner owner = owner(queueManager, store, new FakeRestorePlaybackBoundary(events));
+
+        owner.restoreQueueForStartup();
+
+        assertEquals(1, store.loadCalls);
+        assertEquals(1, queueManager.queueStateSnapshot().getQueueSize());
+        assertEquals(0, queueManager.queueStateSnapshot().getCurrentIndex());
+        assertEquals("", String.join(",", events));
+    }
+
+    @Test
     public void delegatesRestoreEnabledSetting() {
         FakeQueueStore store = new FakeQueueStore(new PlaybackQueueState(Collections.emptyList(), -1), false);
         PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, null);

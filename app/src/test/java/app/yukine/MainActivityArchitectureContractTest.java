@@ -6737,8 +6737,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("repository.loadPlaybackPositionMs()"));
         assertFalse(service.contains("repository.savePlaybackPosition("));
         assertFalse(service.contains("repository.savePlaybackResumeRequested("));
-        assertFalse(service.contains("playbackQueueRestoreOwner().restorePlaybackQueue();"));
-        assertTrue(service.contains("playbackQueueManager.restorePlaybackQueue()"));
+        assertTrue(service.contains("playbackQueueRestoreOwner().restoreQueueForStartup();"));
+        assertFalse(service.contains("playbackQueueManager.restorePlaybackQueue()"));
         assertFalse(normalizedService.contains(
                 "if (playbackQueueManager != null) {\n"
                         + "            playbackQueueManager.restorePlaybackQueue();\n"
@@ -6746,6 +6746,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueRestoreOwner.contains("playbackQueueManager.restorePlaybackQueue();"));
         assertTrue(service.contains("playbackQueueRestoreOwner().restoreLastPlayback(playWhenRestored);"));
         assertFalse(service.contains("playbackQueueManager.restoreLastPlayback(playWhenRestored)"));
+        assertTrue(queueRestoreOwner.contains("void restoreQueueForStartup()"));
         assertFalse(queueRestoreOwner.contains("void restorePlaybackQueue()"));
         assertTrue(queueRestoreOwner.contains("PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();"));
         assertTrue(queueRestoreOwner.contains("prepareCurrent(playWhenRestored || loadResumeRequested());"));
@@ -7270,8 +7271,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackQueueRestoreOwner().restoreLastPlayback(playWhenRestored);"));
         assertFalse(service.contains("playbackQueueManager.restoreLastPlayback(playWhenRestored)"));
         assertTrue(queueRestoreOwner.contains("prepareCurrent(playWhenRestored || loadResumeRequested());"));
-        assertFalse(service.contains("playbackQueueRestoreOwner().restorePlaybackQueue();"));
-        assertTrue(service.contains("playbackQueueManager.restorePlaybackQueue()"));
+        assertTrue(service.contains("playbackQueueRestoreOwner().restoreQueueForStartup();"));
+        assertFalse(service.contains("playbackQueueManager.restorePlaybackQueue()"));
         assertTrue(queueRestoreOwner.contains("playbackQueueManager.restorePlaybackQueue();"));
         assertTrue(service.contains("playbackQueueRestoreOwner().setPlaybackRestoreEnabled(enabled);"));
         assertFalse(service.contains("playbackQueueManager.setPlaybackRestoreEnabled(enabled)"));
@@ -8252,8 +8253,7 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager.prepareStopAtEndOfQueue()"));
         assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager.prepareStopAfterAutomaticAdvance("));
         assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager.restoreLastPlayback("));
-        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
-                "EchoPlaybackService.java",
+        assertEquals(new java.util.TreeSet<>(java.util.Collections.singletonList(
                 "PlaybackQueueRestoreOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.restorePlaybackQueue()"));
         assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager.setPlaybackRestoreEnabled("));

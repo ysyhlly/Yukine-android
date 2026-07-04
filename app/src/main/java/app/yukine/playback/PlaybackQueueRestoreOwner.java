@@ -38,6 +38,10 @@ final class PlaybackQueueRestoreOwner {
         prepareCurrent(playWhenRestored || loadResumeRequested());
     }
 
+    void restoreQueueForStartup() {
+        playbackQueueManager.restorePlaybackQueue();
+    }
+
     void setPlaybackRestoreEnabled(boolean enabled) {
         if (playbackQueueStore != null) {
             playbackQueueStore.savePlaybackRestoreEnabled(enabled);
