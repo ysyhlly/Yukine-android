@@ -95,17 +95,17 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     @Test
-    public void returnsEmptyQueueStateWhenManagerIsMissing() {
-        PlaybackQueueStateOwner missingManager = new PlaybackQueueStateOwner();
+    public void returnsEmptyQueueStateWhenSnapshotSupplierIsMissing() {
+        PlaybackQueueStateOwner missingSnapshotSupplier = new PlaybackQueueStateOwner(null);
 
-        assertSame(null, missingManager.currentTrack());
+        assertSame(null, missingSnapshotSupplier.currentTrack());
     }
 
     @Test
-    public void currentTrackReturnsNullWhenManagerIsMissing() {
-        PlaybackQueueStateOwner missingManager = new PlaybackQueueStateOwner();
+    public void currentTrackReturnsNullWhenSnapshotSupplierIsMissing() {
+        PlaybackQueueStateOwner missingSnapshotSupplier = new PlaybackQueueStateOwner(null);
 
-        assertSame(null, missingManager.currentTrack());
+        assertSame(null, missingSnapshotSupplier.currentTrack());
     }
 
     private static Track track(long id) {

@@ -8,10 +8,6 @@ import java.util.function.Supplier;
 final class PlaybackQueueStateOwner {
     private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;
 
-    PlaybackQueueStateOwner() {
-        this((Supplier<PlaybackQueueManager.QueueStateSnapshot>) null);
-    }
-
     PlaybackQueueStateOwner(Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier) {
         this.queueStateSnapshotSupplier = queueStateSnapshotSupplier;
     }

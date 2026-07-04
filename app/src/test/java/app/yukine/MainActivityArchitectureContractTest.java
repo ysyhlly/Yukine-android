@@ -7054,6 +7054,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains(
                 "() -> playbackQueueManager == null ? null : playbackQueueManager.queueStateSnapshot()"));
         assertFalse(service.contains("new PlaybackQueueStateOwner()"));
+        assertFalse(queueStateOwner.contains("PlaybackQueueStateOwner()"));
         assertFalse(service.contains("playbackQueueStateOwner.bindPlaybackQueueManager(playbackQueueManager);"));
         assertFalse(service.contains("PlaybackQueueStateOwner.fromPlaybackQueueManager("));
         assertFalse(queueStateOwner.contains("static PlaybackQueueStateOwner fromPlaybackQueueManager("));
