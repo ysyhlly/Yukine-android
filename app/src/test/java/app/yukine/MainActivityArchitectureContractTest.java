@@ -107,6 +107,7 @@ public final class MainActivityArchitectureContractTest {
         String preResolveNextStreamingTrackIfReady = methodBody(mainActivity, "    private void preResolveNextStreamingTrackIfReady(PlaybackStateSnapshot snapshot)");
         String recoverStreamingBufferingIfReady = methodBody(mainActivity, "    private void recoverStreamingBufferingIfReady(PlaybackStateSnapshot snapshot)");
         String loadCollections = methodBody(mainActivity, "    private void loadCollections()");
+        String allLibraryTracksIfReady = methodBody(mainActivity, "    private List<Track> allLibraryTracksIfReady()");
         String renderSelectedTabIfReady = methodBody(mainActivity, "    private void renderSelectedTabIfReady()");
         String resolveCurrentStreamingQueueTrackIfNeeded = methodBody(mainActivity, "    private boolean resolveCurrentStreamingQueueTrackIfNeeded()");
         String playTrackListFromHost = methodBody(mainActivity, "    private void playTrackListFromHost(List<Track> tracks, int index)");
@@ -289,6 +290,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(loadCollections.contains("renderSelectedTabIfReady();"));
         assertFalse(loadCollections.contains("nowPlayingStateController.renderNowBar();"));
         assertFalse(loadCollections.contains("renderSelectedTab();"));
+        assertTrue(allLibraryTracksIfReady.contains(
+                "return libraryStore == null ? Collections.emptyList() : libraryStore.allTracks();"));
         assertTrue(renderSelectedTabIfReady.contains("if (tabRenderDispatcher != null"));
         assertTrue(renderSelectedTabIfReady.contains("homeDashboardRenderController != null"));
         assertTrue(renderSelectedTabIfReady.contains("queueRenderController != null"));
@@ -309,6 +312,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playHeartbeatRecommendationIfReady.contains("playbackStartController.playHeartbeatRecommendation(presentation);"));
         assertTrue(playbackControllers.contains("                this::renderNowBarIfReady,\n"));
         assertTrue(playbackControllers.contains("                    renderSelectedTabIfReady();\n"));
+        assertTrue(playbackControllers.contains("                this::allLibraryTracksIfReady,\n"));
         assertTrue(playbackControllers.contains("                this::showAddToPlaylistIfReady,\n"));
         assertTrue(playbackControllers.contains("                this::removeQueueTrackIfReady,\n"));
         assertTrue(playbackControllers.contains("                this::confirmClearQueueIfReady,\n"));
@@ -324,6 +328,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(navigationRendering.contains("                track -> confirmationDialogController.confirmDeleteTrack(track),\n"));
         assertFalse(playbackControllers.contains("                () -> nowPlayingStateController.renderNowBar(),\n"));
         assertFalse(playbackControllers.contains("                    renderSelectedTab();\n"));
+        assertFalse(playbackControllers.contains("                () -> libraryStore.allTracks(),\n"));
         assertFalse(playbackControllers.contains("                track -> playlistDialogController.showAddToPlaylist(track),\n"));
         assertFalse(playbackControllers.contains("                track -> queueActionController.removeQueueTrack(track),\n"));
         assertFalse(playbackControllers.contains("                () -> queueActionController.confirmClearQueue(),\n"));

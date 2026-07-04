@@ -609,7 +609,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 this::playTrackListFromHost,
                 () -> loadLibrary(true),
                 () -> navigateToTab(TAB_QUEUE, true, true),
-                () -> libraryStore.allTracks(),
+                this::allLibraryTracksIfReady,
                 () -> navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING_HUB),
                 () -> {
                     routeController.navigateToTab(TAB_COLLECTIONS, true);
@@ -2525,6 +2525,10 @@ public abstract class MainActivityBase extends ComponentActivity {
             return selectedPlaylistTracks;
         }
         return libraryStore.visibleTracks();
+    }
+
+    private List<Track> allLibraryTracksIfReady() {
+        return libraryStore == null ? Collections.emptyList() : libraryStore.allTracks();
     }
 
     private void logHeartbeatSeedMiss(HeartbeatRecommendationSeedRequest request) {
