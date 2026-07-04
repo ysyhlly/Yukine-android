@@ -688,7 +688,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                 PlaybackPlayerStateOwner.mediaItemSupplierFromPlayerSupplier(() -> player),
                 streamingDiagnostics,
                 playbackQueueManager,
-                playbackQueueStateOwner,
                 mediaSourceProvider,
                 playbackMainHandlerSchedulerOwner
         );

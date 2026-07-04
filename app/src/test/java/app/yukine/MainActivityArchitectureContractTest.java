@@ -2650,7 +2650,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("                playbackPrecacheStateOwner,"));
         assertTrue(precacheWiring.contains("                streamingDiagnostics,"));
         assertTrue(precacheWiring.contains("                playbackQueueManager,"));
-        assertTrue(precacheWiring.contains("                playbackQueueStateOwner,"));
+        assertFalse(precacheWiring.contains("                playbackQueueStateOwner,"));
         assertFalse(normalizedPlaybackService.contains(
                 "        playbackPrecacheManager = PlaybackPrecacheManager.fromMediaSourceProvider(\n"
                         + "                playbackPrecacheStateOwner,\n"
@@ -2770,14 +2770,15 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackPrecacheManager.contains("PlaybackStreamingDiagnostics streamingDiagnostics();"));
         assertTrue(playbackPrecacheManager.contains("private final PlaybackStreamingDiagnostics streamingDiagnostics;"));
         assertTrue(playbackPrecacheManager.contains("private final PlaybackQueueManager playbackQueueManager;"));
-        assertTrue(playbackPrecacheManager.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
-        assertTrue(playbackPrecacheManager.contains("PlaybackQueueStateOwner queueStateOwner,"));
-        assertTrue(playbackPrecacheManager.contains("this.queueStateOwner = queueStateOwner;"));
+        assertFalse(playbackPrecacheManager.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertFalse(playbackPrecacheManager.contains("PlaybackQueueStateOwner queueStateOwner,"));
+        assertFalse(playbackPrecacheManager.contains("this.queueStateOwner = queueStateOwner;"));
         assertFalse(playbackPrecacheManager.contains("new PlaybackQueueStateOwner(() -> this.playbackQueueManager)"));
         assertFalse(playbackPrecacheManager.contains("new PlaybackQueueStateOwner(() -> playbackQueueManager)"));
         assertTrue(playbackPrecacheManager.contains("private Track currentTrack()"));
-        assertTrue(playbackPrecacheManager.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
-        assertFalse(playbackPrecacheManager.contains("playbackQueueManager.queueStateSnapshot().getCurrentTrack()"));
+        assertTrue(playbackPrecacheManager.contains("playbackQueueManager.queueStateSnapshot();"));
+        assertTrue(playbackPrecacheManager.contains("return snapshot == null ? null : snapshot.getCurrentTrack();"));
+        assertFalse(playbackPrecacheManager.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
         assertFalse(playbackPrecacheManager.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(playbackPrecacheManager.contains("stateProvider.currentTrack()"));
         assertTrue(playbackPrecacheManager.contains(
@@ -7579,6 +7580,7 @@ public final class MainActivityArchitectureContractTest {
         )), queuePrecacheApi);
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "EchoPlaybackService.java",
+                "PlaybackPrecacheManager.java",
                 "PlaybackQueueMutationOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.queueStateSnapshot()"));
         assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager::queueStateSnapshot"));

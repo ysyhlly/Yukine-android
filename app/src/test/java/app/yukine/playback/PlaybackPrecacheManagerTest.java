@@ -86,7 +86,6 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 null,
-                new PlaybackQueueStateOwner(),
                 mediaCacheOperations,
                 (mediaItem, track) -> false,
                 scheduler
@@ -190,7 +189,6 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
-                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 null,
                 scheduler,
@@ -246,7 +244,6 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
-                queueStateOwner(queueManager),
                 null,
                 null,
                 scheduler,
@@ -286,7 +283,6 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 null,
-                new PlaybackQueueStateOwner(),
                 null,
                 scheduler
         );
@@ -332,7 +328,6 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
-                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> {
                     matchedMediaItems.add(mediaItem);
@@ -374,7 +369,6 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
-                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> {
                     matchedMediaItems.add(mediaItem);
@@ -414,7 +408,6 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
-                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -448,7 +441,6 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
-                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -483,7 +475,6 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
-                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -530,7 +521,6 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
-                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler
@@ -574,7 +564,6 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
-                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -617,7 +606,6 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
-                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -654,7 +642,6 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
-                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -715,16 +702,9 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
-                queueStateOwner(queueManager),
                 mediaSourceProvider,
                 scheduler
         );
-    }
-
-    private static PlaybackQueueStateOwner queueStateOwner(PlaybackQueueManager queueManager) {
-        return queueManager == null
-                ? new PlaybackQueueStateOwner()
-                : new PlaybackQueueStateOwner(queueManager::queueStateSnapshot);
     }
 
     private static PlaybackQueueManager queueManager(Track... tracks) {

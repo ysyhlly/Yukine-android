@@ -52,7 +52,6 @@ final class PlaybackPrecacheManager {
 
     private final Supplier<MediaItem> currentPlayerMediaItemSupplier;
     private final PlaybackQueueManager playbackQueueManager;
-    private final PlaybackQueueStateOwner queueStateOwner;
     private final PlaybackMediaCacheOperations mediaCacheOperations;
     private final PlaybackStreamingDiagnostics streamingDiagnostics;
     private final BiPredicate<MediaItem, Track> mediaItemTrackMatcher;
@@ -73,7 +72,6 @@ final class PlaybackPrecacheManager {
             Supplier<MediaItem> currentPlayerMediaItemSupplier,
             PlaybackStreamingDiagnostics streamingDiagnostics,
             PlaybackQueueManager playbackQueueManager,
-            PlaybackQueueStateOwner queueStateOwner,
             PlaybackMediaCacheOperations mediaCacheOperations,
             BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
             CallbackScheduler callbackScheduler
@@ -82,7 +80,6 @@ final class PlaybackPrecacheManager {
                 currentPlayerMediaItemSupplier,
                 streamingDiagnostics,
                 playbackQueueManager,
-                queueStateOwner,
                 mediaCacheOperations,
                 mediaItemTrackMatcher,
                 callbackScheduler,
@@ -94,7 +91,6 @@ final class PlaybackPrecacheManager {
             Supplier<MediaItem> currentPlayerMediaItemSupplier,
             PlaybackStreamingDiagnostics streamingDiagnostics,
             PlaybackQueueManager playbackQueueManager,
-            PlaybackQueueStateOwner queueStateOwner,
             PlaybackMediaCacheOperations mediaCacheOperations,
             BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
             CallbackScheduler callbackScheduler,
@@ -105,7 +101,6 @@ final class PlaybackPrecacheManager {
                 ? new PlaybackStreamingDiagnostics()
                 : streamingDiagnostics;
         this.playbackQueueManager = playbackQueueManager;
-        this.queueStateOwner = queueStateOwner;
         this.mediaCacheOperations = mediaCacheOperations;
         this.mediaItemTrackMatcher = mediaItemTrackMatcher;
         this.callbackScheduler = callbackScheduler;
@@ -118,7 +113,6 @@ final class PlaybackPrecacheManager {
             Supplier<MediaItem> currentPlayerMediaItemSupplier,
             PlaybackStreamingDiagnostics streamingDiagnostics,
             PlaybackQueueManager playbackQueueManager,
-            PlaybackQueueStateOwner queueStateOwner,
             PlaybackMediaSourceProvider mediaSourceProvider,
             CallbackScheduler callbackScheduler
     ) {
@@ -126,7 +120,6 @@ final class PlaybackPrecacheManager {
                 currentPlayerMediaItemSupplier,
                 streamingDiagnostics,
                 playbackQueueManager,
-                queueStateOwner,
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider),
                 (mediaItem, track) -> mediaSourceProvider != null
                         && mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track),
@@ -276,7 +269,10 @@ final class PlaybackPrecacheManager {
     }
 
     private Track currentTrack() {
-        return queueStateOwner == null ? null : queueStateOwner.currentTrack();
+        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
+                ? null
+                : playbackQueueManager.queueStateSnapshot();
+        return snapshot == null ? null : snapshot.getCurrentTrack();
     }
 
     @OptIn(markerClass = UnstableApi.class)
