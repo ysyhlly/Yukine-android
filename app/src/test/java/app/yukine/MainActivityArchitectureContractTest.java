@@ -373,6 +373,47 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mediaSourceProvider.contains("fun mediaSourcesForTracks("));
         assertTrue(mediaSourceProvider.contains("fun mediaItemForTrack("));
         assertTrue(mediaSourceProvider.contains("fun playbackMediaItemForTrack("));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "audioCache",
+                "cacheDataSourceForTrack",
+                "cacheKeyForTrack",
+                "contentLengthForCacheKey",
+                "continuousCachedBytes",
+                "headersForTrack",
+                "isHttpTrack",
+                "mediaCacheKeyForTrack",
+                "mediaItemForTrack",
+                "mediaItemMatchesTrackForReuse",
+                "mediaSourceFactory",
+                "mediaSourceForTrack",
+                "mediaSourcesForTracks",
+                "prepareTrackForPlayback",
+                "releaseAudioCache",
+                "restoreHeadersForDataPath",
+                "restoreHeadersForTrack",
+                "restoredTrackForPreparation",
+                "streamingQualityForTrack",
+                "tracksShareMediaIdentityForReuse",
+                "tracksShareResolvedUriForReuse"
+        )), kotlinClassLevelFunNames(mediaSourceProvider));
+        String mediaSourceProviderCompanion = mediaSourceProvider.substring(
+                mediaSourceProvider.indexOf("    companion object {")
+        );
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "hasPlayableMediaUri",
+                "isRestorableQueueTrack",
+                "isStreamingPlaceholder",
+                "mediaCacheKey",
+                "mediaItemIdentityMatchesForReuse",
+                "mediaItemMatchesTrackForReuse",
+                "playbackMediaItemForTrack",
+                "unplayableMessageForTrack"
+        )), kotlinPublicFunNames(mediaSourceProviderCompanion));
+        assertFalse(mediaSourceProvider.contains("upcomingTracksForPrecache("));
+        assertFalse(mediaSourceProvider.contains("precacheTrack("));
+        assertFalse(mediaSourceProvider.contains("PrecachePolicy"));
+        assertFalse(mediaSourceProvider.contains("QueueStateSnapshot"));
+        assertFalse(mediaSourceProvider.contains("PlaybackQueueManager"));
     }
 
     @Test
@@ -9523,6 +9564,22 @@ public final class MainActivityArchitectureContractTest {
     }
 
     private static java.util.Set<String> kotlinInterfaceFunNames(String source) {
+        java.util.Set<String> names = new java.util.TreeSet<>();
+        for (String line : source.split("\\R")) {
+            String trimmed = line.trim();
+            if (!trimmed.startsWith("fun ")) {
+                continue;
+            }
+            int nameStart = "fun ".length();
+            int nameEnd = trimmed.indexOf('(', nameStart);
+            if (nameEnd > nameStart) {
+                names.add(trimmed.substring(nameStart, nameEnd));
+            }
+        }
+        return names;
+    }
+
+    private static java.util.Set<String> kotlinPublicFunNames(String source) {
         java.util.Set<String> names = new java.util.TreeSet<>();
         for (String line : source.split("\\R")) {
             String trimmed = line.trim();
