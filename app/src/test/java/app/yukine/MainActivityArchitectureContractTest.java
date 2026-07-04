@@ -487,6 +487,8 @@ public final class MainActivityArchitectureContractTest {
                 "final class PlaybackMediaSourceProviderCacheOperations implements PlaybackMediaCacheOperations"));
         assertFalse(mediaCacheOperations.contains("androidx.media3.common.MediaItem"));
         assertFalse(mediaCacheOperations.contains("mediaItemMatchesTrackForReuse("));
+        assertTrue(mediaCacheOperations.contains("void releaseAudioCache();"));
+        assertTrue(mediaCacheOperations.contains("mediaSourceProvider.releaseAudioCache();"));
         assertFalse(mediaCacheOperations.contains("prepareTrackForPlayback("));
         assertFalse(mediaCacheOperations.contains("mediaSourceForTrack("));
         assertFalse(mediaCacheOperations.contains("mediaSourcesForTracks("));
@@ -2567,8 +2569,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackMediaCacheOperations.contains("String cacheKeyForPrecache(Track track);"));
         assertTrue(playbackMediaCacheOperations.contains("CacheDataSource cacheDataSourceForTrack(Track track);"));
         assertTrue(playbackMediaCacheOperations.contains("long contentLengthForCacheKey(String cacheKey);"));
+        assertTrue(playbackMediaCacheOperations.contains("void releaseAudioCache();"));
         assertTrue(playbackMediaCacheOperations.contains("mediaSourceProvider.cacheKeyForTrack(track)"));
         assertTrue(playbackMediaCacheOperations.contains("mediaSourceProvider.cacheDataSourceForTrack(track)"));
+        assertTrue(playbackMediaCacheOperations.contains("mediaSourceProvider.releaseAudioCache();"));
         assertFalse(playbackService.contains("PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
         assertFalse(playbackService.contains("PlaybackPrecacheManager.audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(playbackPrecacheManager.contains("static PlaybackPrecacheManager fromMediaSourceProvider("));
@@ -2649,7 +2653,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("import java.util.function.Supplier;"));
         assertFalse(playbackPrecacheManager.contains("import java.util.function.Consumer;"));
         assertFalse(playbackPrecacheManager.contains("static Runnable audioCacheReleaseActionFromPrecacheManagerSupplier("));
-        assertTrue(playbackPrecacheManager.contains("private final Runnable audioCacheReleaseAction;"));
+        assertFalse(playbackPrecacheManager.contains("private final Runnable audioCacheReleaseAction;"));
+        assertFalse(playbackPrecacheManager.contains("audioCacheReleaseAction.run();"));
+        assertTrue(playbackPrecacheManager.contains("mediaCacheOperations.releaseAudioCache();"));
         assertFalse(playbackPrecacheManager.contains("implements MediaCacheOperations, AudioCacheReleaser"));
         assertTrue(playbackPrecacheManager.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertTrue(playbackPrecacheManager.contains("private final PlaybackQueueManager playbackQueueManager;"));
@@ -7477,6 +7483,9 @@ public final class MainActivityArchitectureContractTest {
                 "app/src/main/java/app/yukine/playback/PlaybackMirroredQueueTrackMatcherOwner.java"
         );
         String precacheManager = read("app/src/main/java/app/yukine/playback/PlaybackPrecacheManager.java");
+        String mediaCacheOperations = read(
+                "feature/playback/src/main/java/app/yukine/playback/manager/PlaybackMediaCacheOperations.java"
+        );
 
         assertTrue(owner.contains("fun mediaItemMatchesTrackForReuse("));
         assertTrue(owner.contains("fun mediaItemIdentityMatchesForReuse("));
@@ -7627,7 +7636,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("mediaSourceProvider::releaseAudioCache"));
         assertTrue(precacheManager.contains("void releaseAudioCache()"));
         assertTrue(precacheManager.contains("audioCacheReleased.compareAndSet(false, true)"));
-        assertTrue(precacheManager.contains("mediaSourceProvider.releaseAudioCache();"));
+        assertTrue(precacheManager.contains("mediaCacheOperations.releaseAudioCache();"));
+        assertFalse(precacheManager.contains("private final Runnable audioCacheReleaseAction;"));
+        assertTrue(mediaCacheOperations.contains("mediaSourceProvider.releaseAudioCache();"));
         assertFalse(service.contains("mediaSourceProvider.mediaItemMatchesTrackForReuse("));
         assertTrue(mirroredTrackMatcherOwner.contains("PlaybackMediaSourceProvider"));
         assertFalse(service.contains("mediaSourceProvider::mediaItemMatchesTrackForReuse"));

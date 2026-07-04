@@ -26,6 +26,8 @@ public interface PlaybackMediaCacheOperations {
     long cachedBytesInRange(String cacheKey, long position, long length);
 
     CacheDataSource cacheDataSourceForTrack(Track track);
+
+    void releaseAudioCache();
 }
 
 final class PlaybackMediaSourceProviderCacheOperations implements PlaybackMediaCacheOperations {
@@ -113,6 +115,13 @@ final class PlaybackMediaSourceProviderCacheOperations implements PlaybackMediaC
             throw new IllegalStateException("Media cache operations are unavailable");
         }
         return mediaSourceProvider.cacheDataSourceForTrack(track);
+    }
+
+    @Override
+    public void releaseAudioCache() {
+        if (mediaSourceProvider != null) {
+            mediaSourceProvider.releaseAudioCache();
+        }
     }
 
     static long totalBytesFromContentRange(String contentRange) {

@@ -67,6 +67,7 @@ public final class PlaybackMediaCacheOperationsTest {
         assertEquals(0L, operations.cachedBytesInRange("cache-key", 0L, 512L));
         assertEquals(0L, operations.cachedBytesInRange("", 0L, 512L));
         assertEquals(0L, operations.cachedBytesInRange("cache-key", 0L, 0L));
+        operations.releaseAudioCache();
     }
 
     @Test
@@ -250,6 +251,18 @@ public final class PlaybackMediaCacheOperationsTest {
         } finally {
             provider.releaseAudioCache();
         }
+    }
+
+    @Test
+    public void providerBackedOperationsOwnAudioCacheRelease() {
+        PlaybackMediaSourceProvider provider =
+                mediaSourceProvider(new FakeStreamingPlaybackHeaderStore(Collections.emptyMap()));
+        PlaybackMediaCacheOperations operations =
+                PlaybackMediaCacheOperations.fromMediaSourceProvider(provider);
+
+        operations.cacheDataSourceForTrack(track(46L));
+        operations.releaseAudioCache();
+        operations.releaseAudioCache();
     }
 
     private static Track track(long id) {

@@ -81,16 +81,15 @@ public final class PlaybackPrecacheManagerTest {
     public void releaseAudioCacheIsIdempotentAcrossExplicitAndManagerRelease() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        FakeAudioCacheReleaseAction audioCacheReleaseAction = new FakeAudioCacheReleaseAction();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 stateProvider.diagnostics,
                 null,
                 new PlaybackQueueStateOwner(),
-                PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider()),
+                mediaCacheOperations,
                 (mediaItem, track) -> false,
-                scheduler,
-                audioCacheReleaseAction::releaseAudioCache
+                scheduler
         );
 
         manager.releaseAudioCache();
@@ -98,7 +97,7 @@ public final class PlaybackPrecacheManagerTest {
         manager.releaseAudioCache();
         manager.release();
 
-        assertEquals(1, audioCacheReleaseAction.releaseCalls);
+        assertEquals(1, mediaCacheOperations.releaseAudioCacheCalls);
     }
 
     @Test
@@ -195,7 +194,6 @@ public final class PlaybackPrecacheManagerTest {
                 mediaCacheOperations,
                 null,
                 scheduler,
-                new FakeAudioCacheReleaseAction()::releaseAudioCache,
                 executor
         );
 
@@ -252,7 +250,6 @@ public final class PlaybackPrecacheManagerTest {
                 null,
                 null,
                 scheduler,
-                new FakeAudioCacheReleaseAction()::releaseAudioCache,
                 executor
         );
 
@@ -343,7 +340,6 @@ public final class PlaybackPrecacheManagerTest {
                     return true;
                 },
                 scheduler,
-                new FakeAudioCacheReleaseAction()::releaseAudioCache,
                 executor
         );
 
@@ -386,7 +382,6 @@ public final class PlaybackPrecacheManagerTest {
                     return false;
                 },
                 scheduler,
-                new FakeAudioCacheReleaseAction()::releaseAudioCache,
                 executor
         );
 
@@ -423,7 +418,6 @@ public final class PlaybackPrecacheManagerTest {
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
-                new FakeAudioCacheReleaseAction()::releaseAudioCache,
                 executor
         );
         mediaCacheOperations.mediaItemMatchesForReuse = false;
@@ -458,7 +452,6 @@ public final class PlaybackPrecacheManagerTest {
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
-                new FakeAudioCacheReleaseAction()::releaseAudioCache,
                 executor
         );
         mediaCacheOperations.mediaItemMatchesForReuse = false;
@@ -494,7 +487,6 @@ public final class PlaybackPrecacheManagerTest {
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
-                new FakeAudioCacheReleaseAction()::releaseAudioCache,
                 executor
         );
         mediaCacheOperations.mediaItemMatchesForReuse = false;
@@ -541,8 +533,7 @@ public final class PlaybackPrecacheManagerTest {
                 queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
-                scheduler,
-                new FakeAudioCacheReleaseAction()::releaseAudioCache
+                scheduler
         );
         mediaCacheOperations.contentLength = 1024L;
         mediaCacheOperations.cachedBytes = 1024L;
@@ -587,7 +578,6 @@ public final class PlaybackPrecacheManagerTest {
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
-                new FakeAudioCacheReleaseAction()::releaseAudioCache,
                 executor
         );
 
@@ -631,7 +621,6 @@ public final class PlaybackPrecacheManagerTest {
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
-                new FakeAudioCacheReleaseAction()::releaseAudioCache,
                 executor
         );
 
@@ -669,7 +658,6 @@ public final class PlaybackPrecacheManagerTest {
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
-                new FakeAudioCacheReleaseAction()::releaseAudioCache,
                 executor
         );
 
@@ -980,14 +968,6 @@ public final class PlaybackPrecacheManagerTest {
         }
     }
 
-    private static final class FakeAudioCacheReleaseAction {
-        private int releaseCalls;
-
-        public void releaseAudioCache() {
-            releaseCalls++;
-        }
-    }
-
     private static final class FakeMediaCacheOperations implements PlaybackMediaCacheOperations {
         private long contentLength = -1L;
         private long cachedBytes;
@@ -997,6 +977,7 @@ public final class PlaybackPrecacheManagerTest {
         private int contentLengthCalls;
         private int cachedBytesInRangeCalls;
         private int cacheDataSourceForTrackCalls;
+        private int releaseAudioCacheCalls;
         private String lastCachedBytesCacheKey;
         private long lastCachedBytesPosition = -1L;
         private long lastCachedBytesLength = -1L;
@@ -1058,6 +1039,11 @@ public final class PlaybackPrecacheManagerTest {
             lastCacheDataSourceTrack = track;
             cacheDataSourceTracks.add(track);
             return null;
+        }
+
+        @Override
+        public void releaseAudioCache() {
+            releaseAudioCacheCalls++;
         }
 
     }

@@ -438,6 +438,10 @@ public final class PlaybackVisualizationCacheManagerTest {
             return -1L;
         }
 
+        @Override
+        public void releaseAudioCache() {
+        }
+
     }
 
     private static final class FakeStreamingDataPathParser implements StreamingDataPathParser {

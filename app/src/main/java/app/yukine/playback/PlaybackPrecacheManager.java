@@ -57,7 +57,6 @@ final class PlaybackPrecacheManager {
     private final PlaybackStreamingDiagnostics streamingDiagnostics;
     private final BiPredicate<MediaItem, Track> mediaItemTrackMatcher;
     private final CallbackScheduler callbackScheduler;
-    private final Runnable audioCacheReleaseAction;
     private final ThreadPoolExecutor playbackCacheExecutor;
     private final Set<String> activePrecacheRanges =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -77,8 +76,7 @@ final class PlaybackPrecacheManager {
             PlaybackQueueStateOwner queueStateOwner,
             PlaybackMediaCacheOperations mediaCacheOperations,
             BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
-            CallbackScheduler callbackScheduler,
-            Runnable audioCacheReleaseAction
+            CallbackScheduler callbackScheduler
     ) {
         this(
                 currentPlayerMediaItemSupplier,
@@ -88,7 +86,6 @@ final class PlaybackPrecacheManager {
                 mediaCacheOperations,
                 mediaItemTrackMatcher,
                 callbackScheduler,
-                audioCacheReleaseAction,
                 newPlaybackCacheExecutor()
         );
     }
@@ -101,7 +98,6 @@ final class PlaybackPrecacheManager {
             PlaybackMediaCacheOperations mediaCacheOperations,
             BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
             CallbackScheduler callbackScheduler,
-            Runnable audioCacheReleaseAction,
             ThreadPoolExecutor playbackCacheExecutor
     ) {
         this.currentPlayerMediaItemSupplier = currentPlayerMediaItemSupplier;
@@ -113,7 +109,6 @@ final class PlaybackPrecacheManager {
         this.mediaCacheOperations = mediaCacheOperations;
         this.mediaItemTrackMatcher = mediaItemTrackMatcher;
         this.callbackScheduler = callbackScheduler;
-        this.audioCacheReleaseAction = audioCacheReleaseAction;
         this.playbackCacheExecutor = playbackCacheExecutor == null
                 ? newPlaybackCacheExecutor()
                 : playbackCacheExecutor;
@@ -135,12 +130,7 @@ final class PlaybackPrecacheManager {
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider),
                 (mediaItem, track) -> mediaSourceProvider != null
                         && mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track),
-                callbackScheduler,
-                () -> {
-                    if (mediaSourceProvider != null) {
-                        mediaSourceProvider.releaseAudioCache();
-                    }
-                }
+                callbackScheduler
         );
     }
 
@@ -158,8 +148,8 @@ final class PlaybackPrecacheManager {
     }
 
     void releaseAudioCache() {
-        if (audioCacheReleaseAction != null && audioCacheReleased.compareAndSet(false, true)) {
-            audioCacheReleaseAction.run();
+        if (mediaCacheOperations != null && audioCacheReleased.compareAndSet(false, true)) {
+            mediaCacheOperations.releaseAudioCache();
         }
     }
 
