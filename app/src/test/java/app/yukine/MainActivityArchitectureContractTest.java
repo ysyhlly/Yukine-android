@@ -7456,6 +7456,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private PlaybackRecoveryDiagnosticsRecorderOwner playbackRecoveryDiagnosticsRecorderOwner;"));
         assertFalse(service.contains("new PlaybackRecoveryDiagnosticsRecorderOwner("));
         assertFalse(service.contains("PlaybackStreamingDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider("));
+        assertFalse(service.contains("streamingDiagnostics == null"));
         assertFalse(service.contains("String quality = mediaSourceProvider == null"));
         assertTrue(service.contains("String quality = mediaSourceProvider.streamingQualityForTrack(track);"));
         assertTrue(service.contains("streamingDiagnostics.recordRecovery(track, restoredPositionMs, quality);"));

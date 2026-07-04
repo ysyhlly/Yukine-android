@@ -845,7 +845,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         new PlaybackCurrentTrackReplacementOwner(
                 playbackQueueManager,
                 (track, restoredPositionMs) -> {
-                    if (streamingDiagnostics == null || track == null) {
+                    if (track == null) {
                         return;
                     }
                     String quality = mediaSourceProvider.streamingQualityForTrack(track);
