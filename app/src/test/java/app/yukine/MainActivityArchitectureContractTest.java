@@ -9429,18 +9429,23 @@ public final class MainActivityArchitectureContractTest {
                 normalizedService.indexOf("    public void restoreLastPlayback(boolean playWhenRestored)")
         );
         assertTrue(toggleCurrentFavoriteMethod.contains("PlaybackFavoriteCommandOwner.toggleCurrentFavorite("));
-        assertTrue(toggleCurrentFavoriteMethod.contains("                playbackQueueStateOwner,"));
+        assertTrue(toggleCurrentFavoriteMethod.contains("                queueStateSnapshotSupplier,"));
+        assertFalse(toggleCurrentFavoriteMethod.contains("                playbackQueueStateOwner,"));
         assertFalse(toggleCurrentFavoriteMethod.contains("                playbackQueueManager,"));
         assertFalse(toggleCurrentFavoriteMethod.contains("Track track = playbackQueueStateOwner.currentTrack();"));
         assertFalse(toggleCurrentFavoriteMethod.contains("toggleFavoriteUseCase.toggle(track)"));
         assertTrue(favoriteCommandOwner.contains("final class PlaybackFavoriteCommandOwner"));
-        assertFalse(favoriteCommandOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
+        assertTrue(favoriteCommandOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertFalse(favoriteCommandOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null"));
         assertFalse(favoriteCommandOwner.contains(": queueStateOwner.queueStateSnapshot();"));
         assertFalse(favoriteCommandOwner.contains("Track track = snapshot.getCurrentTrack();"));
-        assertTrue(favoriteCommandOwner.contains("PlaybackQueueStateOwner queueStateOwner"));
-        assertTrue(favoriteCommandOwner.contains("queueStateOwner.currentTrack()"));
-        assertTrue(favoriteCommandOwner.contains("private static Track currentTrack(PlaybackQueueStateOwner queueStateOwner)"));
+        assertFalse(favoriteCommandOwner.contains("PlaybackQueueStateOwner queueStateOwner"));
+        assertFalse(favoriteCommandOwner.contains("queueStateOwner.currentTrack()"));
+        assertFalse(favoriteCommandOwner.contains("private static Track currentTrack(PlaybackQueueStateOwner queueStateOwner)"));
+        assertTrue(favoriteCommandOwner.contains(
+                "Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier"));
+        assertTrue(favoriteCommandOwner.contains("return queueStateSnapshot(queueStateSnapshotSupplier).getCurrentTrack();"));
+        assertTrue(favoriteCommandOwner.contains("return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;"));
         assertFalse(favoriteCommandOwner.contains("playbackQueueManager.queueStateSnapshot().getCurrentTrack()"));
         assertTrue(favoriteCommandOwner.contains("toggleFavoriteUseCase.toggle(track)"));
         assertTrue(favoriteCommandOwner.contains("statePublisher.run();"));
