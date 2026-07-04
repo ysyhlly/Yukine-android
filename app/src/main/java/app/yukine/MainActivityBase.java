@@ -452,12 +452,12 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         PlaybackServiceHostController playbackServiceHostController = new PlaybackServiceHostController(
                 playbackServiceHostFactory.create(
-                        () -> settingsStore.playbackSpeed(),
-                        () -> settingsStore.appVolume(),
-                        () -> settingsStore.concurrentPlaybackEnabled(),
-                        () -> settingsStore.statusBarLyricsEnabled(),
-                        () -> settingsStore.playbackRestoreEnabled(),
-                        () -> settingsStore.replayGainEnabled(),
+                        this::playbackSpeedIfReady,
+                        this::appVolumeIfReady,
+                        this::concurrentPlaybackEnabledIfReady,
+                        this::statusBarLyricsEnabledIfReady,
+                        this::playbackRestoreEnabledIfReady,
+                        this::replayGainEnabledIfReady,
                         service -> playbackService = service,
                         () -> playbackService = null,
                         () -> playbackStore.reset(),
@@ -471,6 +471,30 @@ public abstract class MainActivityBase extends ComponentActivity {
                 playbackStateEventController,
                 playbackServiceHostController
         );
+    }
+
+    private float playbackSpeedIfReady() {
+        return settingsStore == null ? 1.0f : settingsStore.playbackSpeed();
+    }
+
+    private float appVolumeIfReady() {
+        return settingsStore == null ? 1.0f : settingsStore.appVolume();
+    }
+
+    private boolean concurrentPlaybackEnabledIfReady() {
+        return settingsStore != null && settingsStore.concurrentPlaybackEnabled();
+    }
+
+    private boolean statusBarLyricsEnabledIfReady() {
+        return settingsStore == null || settingsStore.statusBarLyricsEnabled();
+    }
+
+    private boolean playbackRestoreEnabledIfReady() {
+        return settingsStore == null || settingsStore.playbackRestoreEnabled();
+    }
+
+    private boolean replayGainEnabledIfReady() {
+        return settingsStore == null || settingsStore.replayGainEnabled();
     }
 
     private void savePlaybackSettingsIfReady(float playbackSpeed, float appVolume) {

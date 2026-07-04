@@ -122,6 +122,12 @@ public final class MainActivityArchitectureContractTest {
         String playTrackListFromHost = methodBody(mainActivity, "    private void playTrackListFromHost(List<Track> tracks, int index)");
         String playRecommendationIfReady = methodBody(mainActivity, "    private void playRecommendationIfReady(StreamingRecommendationPresentation presentation)");
         String playHeartbeatRecommendationIfReady = methodBody(mainActivity, "    private void playHeartbeatRecommendationIfReady(StreamingRecommendationPresentation presentation)");
+        String playbackSpeedIfReady = methodBody(mainActivity, "    private float playbackSpeedIfReady()");
+        String appVolumeIfReady = methodBody(mainActivity, "    private float appVolumeIfReady()");
+        String concurrentPlaybackEnabledIfReady = methodBody(mainActivity, "    private boolean concurrentPlaybackEnabledIfReady()");
+        String statusBarLyricsEnabledIfReady = methodBody(mainActivity, "    private boolean statusBarLyricsEnabledIfReady()");
+        String playbackRestoreEnabledIfReady = methodBody(mainActivity, "    private boolean playbackRestoreEnabledIfReady()");
+        String replayGainEnabledIfReady = methodBody(mainActivity, "    private boolean replayGainEnabledIfReady()");
         String mainLibraryGateway = read("app/src/main/java/app/yukine/MainLibraryGateway.kt")
                 .replace("\r\n", "\n");
 
@@ -281,7 +287,19 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackLifecycleControllers.contains("                        this::preResolveNextStreamingTrackIfReady,\n"));
         assertTrue(playbackLifecycleControllers.contains("                        this::recoverStreamingBufferingIfReady,\n"));
         assertTrue(playbackLifecycleControllers.contains("                        this::playPendingTracksIfReady,\n"));
+        assertTrue(playbackLifecycleControllers.contains("                        this::playbackSpeedIfReady,\n"));
+        assertTrue(playbackLifecycleControllers.contains("                        this::appVolumeIfReady,\n"));
+        assertTrue(playbackLifecycleControllers.contains("                        this::concurrentPlaybackEnabledIfReady,\n"));
+        assertTrue(playbackLifecycleControllers.contains("                        this::statusBarLyricsEnabledIfReady,\n"));
+        assertTrue(playbackLifecycleControllers.contains("                        this::playbackRestoreEnabledIfReady,\n"));
+        assertTrue(playbackLifecycleControllers.contains("                        this::replayGainEnabledIfReady,\n"));
         assertFalse(playbackLifecycleControllers.contains("                        this::renderSelectedTab,\n"));
+        assertFalse(playbackLifecycleControllers.contains("                        () -> settingsStore.playbackSpeed(),\n"));
+        assertFalse(playbackLifecycleControllers.contains("                        () -> settingsStore.appVolume(),\n"));
+        assertFalse(playbackLifecycleControllers.contains("                        () -> settingsStore.concurrentPlaybackEnabled(),\n"));
+        assertFalse(playbackLifecycleControllers.contains("                        () -> settingsStore.statusBarLyricsEnabled(),\n"));
+        assertFalse(playbackLifecycleControllers.contains("                        () -> settingsStore.playbackRestoreEnabled(),\n"));
+        assertFalse(playbackLifecycleControllers.contains("                        () -> settingsStore.replayGainEnabled(),\n"));
         assertFalse(playbackLifecycleControllers.contains("                            settingsStore.setPlaybackSpeed(playbackSpeed);\n"));
         assertFalse(playbackLifecycleControllers.contains("                            settingsStore.setAppVolume(appVolume);\n"));
         assertFalse(playbackLifecycleControllers.contains("                        () -> nowPlayingStateController.renderNowBar(),\n"));
@@ -336,6 +354,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(renderSelectedTabIfReady.contains("settingsContextProvider != null"));
         assertTrue(resolveCurrentStreamingQueueTrackIfNeeded.contains(
                 "if (playbackService == null || streamingPlaybackController == null) {"));
+        assertTrue(playbackSpeedIfReady.contains("return settingsStore == null ? 1.0f : settingsStore.playbackSpeed();"));
+        assertTrue(appVolumeIfReady.contains("return settingsStore == null ? 1.0f : settingsStore.appVolume();"));
+        assertTrue(concurrentPlaybackEnabledIfReady.contains("return settingsStore != null && settingsStore.concurrentPlaybackEnabled();"));
+        assertTrue(statusBarLyricsEnabledIfReady.contains("return settingsStore == null || settingsStore.statusBarLyricsEnabled();"));
+        assertTrue(playbackRestoreEnabledIfReady.contains("return settingsStore == null || settingsStore.playbackRestoreEnabled();"));
+        assertTrue(replayGainEnabledIfReady.contains("return settingsStore == null || settingsStore.replayGainEnabled();"));
         assertTrue(playTrackListFromHost.contains("if (playbackStartController != null) {"));
         assertTrue(playTrackListFromHost.contains("playbackStartController.playTrackList(tracks, index);"));
         assertTrue(playTrackListFromHost.contains("if (playbackStartListener != null) {"));
