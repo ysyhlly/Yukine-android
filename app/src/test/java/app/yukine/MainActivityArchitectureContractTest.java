@@ -257,6 +257,19 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(streamingActionGateway.contains("if (streamingManualCookieController != null)"));
         assertFalse(streamingActionGateway.contains("                playbackStartController,\n"));
         assertFalse(streamingActionGateway.contains("playbackStartController.playTrackList("));
+        assertTrue(nowPlayingGateway.contains("                () -> playbackActionController,\n"));
+        assertTrue(nowPlayingGateway.contains("                () -> playbackStore,\n"));
+        assertTrue(nowPlayingGateway.contains("                () -> playbackService\n"));
+        assertFalse(nowPlayingGateway.contains("                playbackActionController,\n"));
+        assertFalse(nowPlayingGateway.contains("                playbackStore,\n"));
+        assertFalse(nowPlayingGateway.contains("                playbackService,\n"));
+        assertTrue(downloadRequests.contains(
+                "                message -> {\n"
+                        + "                    statusMessageController.showFeedback(message);\n"
+                        + "                    return kotlin.Unit.INSTANCE;\n"
+                        + "                }\n"));
+        assertFalse(downloadRequests.contains("                statusMessageController,\n"));
+        assertFalse(downloadRequests.contains("                statusMessageController.showFeedback(message),\n"));
         assertTrue(streamingOwners.contains("return languageModeIfReady();"));
         assertTrue(streamingOwners.contains("                this::languageModeIfReady,\n"));
         assertTrue(streamingOwners.contains("                        this::selectedPlaylistId,\n"));
