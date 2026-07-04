@@ -2,19 +2,18 @@ package app.yukine.playback;
 
 import app.yukine.ToggleFavoriteUseCase;
 import app.yukine.model.Track;
-
-import java.util.function.Supplier;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 final class PlaybackFavoriteCommandOwner {
     private PlaybackFavoriteCommandOwner() {
     }
 
     static void toggleCurrentFavorite(
-            Supplier<Track> currentTrackSupplier,
+            PlaybackQueueManager playbackQueueManager,
             ToggleFavoriteUseCase toggleFavoriteUseCase,
             Runnable statePublisher
     ) {
-        Track track = currentTrack(currentTrackSupplier);
+        Track track = currentTrack(playbackQueueManager);
         if (toggleFavoriteUseCase != null && toggleFavoriteUseCase.toggle(track)) {
             if (statePublisher != null) {
                 statePublisher.run();
@@ -23,8 +22,11 @@ final class PlaybackFavoriteCommandOwner {
     }
 
     private static Track currentTrack(
-            Supplier<Track> currentTrackSupplier
+            PlaybackQueueManager playbackQueueManager
     ) {
-        return currentTrackSupplier == null ? null : currentTrackSupplier.get();
+        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
+                ? null
+                : playbackQueueManager.queueStateSnapshot();
+        return snapshot == null ? null : snapshot.getCurrentTrack();
     }
 }

@@ -7583,6 +7583,7 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "EchoPlaybackService.java",
                 "PlaybackErrorRecoveryCommandOwner.java",
+                "PlaybackFavoriteCommandOwner.java",
                 "PlaybackLyricsStateOwner.java",
                 "PlaybackCrossfadeStateOwner.java",
                 "PlaybackStateSnapshotOwner.java",
@@ -9533,31 +9534,35 @@ public final class MainActivityArchitectureContractTest {
                 normalizedService.indexOf("    public void restoreLastPlayback(boolean playWhenRestored)")
         );
         assertTrue(toggleCurrentFavoriteMethod.contains("PlaybackFavoriteCommandOwner.toggleCurrentFavorite("));
-        assertTrue(toggleCurrentFavoriteMethod.contains(
-                "                EchoPlaybackService.this::currentTrackFromQueueStateSnapshot,"));
+        assertTrue(toggleCurrentFavoriteMethod.contains("                playbackQueueManager,"));
         assertFalse(toggleCurrentFavoriteMethod.contains("                queueStateSnapshotSupplier,"));
         assertFalse(toggleCurrentFavoriteMethod.contains("                playbackQueueStateOwner,"));
-        assertFalse(toggleCurrentFavoriteMethod.contains("                playbackQueueManager,"));
+        assertFalse(toggleCurrentFavoriteMethod.contains(
+                "                EchoPlaybackService.this::currentTrackFromQueueStateSnapshot,"));
         assertFalse(toggleCurrentFavoriteMethod.contains("Track track = playbackQueueStateOwner.currentTrack();"));
         assertFalse(toggleCurrentFavoriteMethod.contains("toggleFavoriteUseCase.toggle(track)"));
         assertTrue(favoriteCommandOwner.contains("final class PlaybackFavoriteCommandOwner"));
-        assertFalse(favoriteCommandOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
+        assertTrue(favoriteCommandOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertFalse(favoriteCommandOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null"));
         assertFalse(favoriteCommandOwner.contains(": queueStateOwner.queueStateSnapshot();"));
         assertFalse(favoriteCommandOwner.contains("Track track = snapshot.getCurrentTrack();"));
         assertFalse(favoriteCommandOwner.contains("PlaybackQueueStateOwner queueStateOwner"));
         assertFalse(favoriteCommandOwner.contains("queueStateOwner.currentTrack()"));
         assertFalse(favoriteCommandOwner.contains("private static Track currentTrack(PlaybackQueueStateOwner queueStateOwner)"));
-        assertTrue(favoriteCommandOwner.contains("Supplier<Track> currentTrackSupplier"));
+        assertTrue(favoriteCommandOwner.contains("PlaybackQueueManager playbackQueueManager"));
         assertFalse(favoriteCommandOwner.contains(
                 "Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier"));
         assertFalse(favoriteCommandOwner.contains("return queueStateSnapshot(queueStateSnapshotSupplier).getCurrentTrack();"));
         assertFalse(favoriteCommandOwner.contains("return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;"));
-        assertTrue(favoriteCommandOwner.contains("currentTrackSupplier == null ? null : currentTrackSupplier.get()"));
-        assertFalse(favoriteCommandOwner.contains("playbackQueueManager.queueStateSnapshot().getCurrentTrack()"));
+        assertTrue(favoriteCommandOwner.contains(
+                "PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null"));
+        assertTrue(favoriteCommandOwner.contains("playbackQueueManager.queueStateSnapshot();"));
+        assertTrue(favoriteCommandOwner.contains("return snapshot == null ? null : snapshot.getCurrentTrack();"));
+        assertFalse(favoriteCommandOwner.contains("currentTrackSupplier == null ? null : currentTrackSupplier.get()"));
         assertTrue(favoriteCommandOwner.contains("toggleFavoriteUseCase.toggle(track)"));
         assertTrue(favoriteCommandOwner.contains("statePublisher.run();"));
         assertFalse(service.contains("private PlaybackFavoriteCommandOwner playbackFavoriteCommandOwner;"));
+        assertEquals(1, countOccurrences(service, "EchoPlaybackService.this::currentTrackFromQueueStateSnapshot"));
         assertTrue(service.contains("toggleFavoriteUseCase.isFavorite(track)"));
         assertFalse(service.contains("new ToggleFavoriteUseCase("));
         assertFalse(service.contains("repository.setFavorite(track, !repository.isFavorite(track.id));"));

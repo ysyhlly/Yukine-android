@@ -912,7 +912,7 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     public void toggleCurrentFavorite() {
         PlaybackFavoriteCommandOwner.toggleCurrentFavorite(
-                EchoPlaybackService.this::currentTrackFromQueueStateSnapshot,
+                playbackQueueManager,
                 toggleFavoriteUseCase,
                 EchoPlaybackService.this::publishState
         );
