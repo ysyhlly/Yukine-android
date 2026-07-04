@@ -2497,7 +2497,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("                playbackPrecacheStateOwner,"));
         assertTrue(precacheWiring.contains("                streamingDiagnostics,"));
         assertTrue(precacheWiring.contains("                playbackQueueManager,"));
-        assertFalse(precacheWiring.contains("                playbackQueueStateOwner,"));
+        assertTrue(precacheWiring.contains("                playbackQueueStateOwner,"));
         assertFalse(normalizedPlaybackService.contains(
                 "        playbackPrecacheManager = PlaybackPrecacheManager.fromMediaSourceProvider(\n"
                         + "                playbackPrecacheStateOwner,\n"
@@ -2616,10 +2616,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("private final PlaybackStreamingDiagnostics streamingDiagnostics;"));
         assertTrue(playbackPrecacheManager.contains("private final PlaybackQueueManager playbackQueueManager;"));
         assertTrue(playbackPrecacheManager.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
-        assertTrue(playbackPrecacheManager.contains(
-                "this.queueStateOwner = new PlaybackQueueStateOwner(() -> this.playbackQueueManager);"));
+        assertTrue(playbackPrecacheManager.contains("PlaybackQueueStateOwner queueStateOwner,"));
+        assertTrue(playbackPrecacheManager.contains("this.queueStateOwner = queueStateOwner;"));
+        assertFalse(playbackPrecacheManager.contains("new PlaybackQueueStateOwner(() -> this.playbackQueueManager)"));
+        assertFalse(playbackPrecacheManager.contains("new PlaybackQueueStateOwner(() -> playbackQueueManager)"));
         assertTrue(playbackPrecacheManager.contains("private Track currentTrack()"));
-        assertTrue(playbackPrecacheManager.contains("return queueStateOwner.currentTrack();"));
+        assertTrue(playbackPrecacheManager.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
         assertFalse(playbackPrecacheManager.contains("playbackQueueManager.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(playbackPrecacheManager.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(playbackPrecacheManager.contains("stateProvider.currentTrack()"));

@@ -86,6 +86,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 null,
+                new PlaybackQueueStateOwner(),
                 PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider()),
                 (mediaItem, track) -> false,
                 scheduler,
@@ -185,10 +186,12 @@ public final class PlaybackPrecacheManagerTest {
         FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
         CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
         Track track = track(1L, "https://example.test/one.mp3");
+        PlaybackQueueManager queueManager = queueManager(track);
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 stateProvider.diagnostics,
-                queueManager(track),
+                queueManager,
+                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 null,
                 scheduler,
@@ -240,10 +243,12 @@ public final class PlaybackPrecacheManagerTest {
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
         CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
         Track track = track(1L, "https://example.test/no-cache-owner.mp3");
+        PlaybackQueueManager queueManager = queueManager(track);
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 stateProvider.diagnostics,
-                queueManager(track),
+                queueManager,
+                queueStateOwner(queueManager),
                 null,
                 null,
                 scheduler,
@@ -284,6 +289,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 null,
+                new PlaybackQueueStateOwner(),
                 null,
                 scheduler
         );
@@ -324,10 +330,12 @@ public final class PlaybackPrecacheManagerTest {
         MediaItem playerMediaItem = PlaybackMediaSourceProvider.playbackMediaItemForTrack(track, null);
         List<MediaItem> matchedMediaItems = new ArrayList<>();
         List<Track> matchedTracks = new ArrayList<>();
+        PlaybackQueueManager queueManager = queueManager(track);
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 stateProvider.diagnostics,
-                queueManager(track),
+                queueManager,
+                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> {
                     matchedMediaItems.add(mediaItem);
@@ -365,10 +373,12 @@ public final class PlaybackPrecacheManagerTest {
         MediaItem playerMediaItem = PlaybackMediaSourceProvider.playbackMediaItemForTrack(playerTrack, null);
         List<MediaItem> matchedMediaItems = new ArrayList<>();
         List<Track> matchedTracks = new ArrayList<>();
+        PlaybackQueueManager queueManager = queueManager(track);
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 stateProvider.diagnostics,
-                queueManager(track),
+                queueManager,
+                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> {
                     matchedMediaItems.add(mediaItem);
@@ -404,10 +414,12 @@ public final class PlaybackPrecacheManagerTest {
         FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
         CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
         Track track = track(1L, "https://example.test/cached.mp3");
+        PlaybackQueueManager queueManager = queueManager(track);
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 stateProvider.diagnostics,
-                queueManager(track),
+                queueManager,
+                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -437,10 +449,12 @@ public final class PlaybackPrecacheManagerTest {
         FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
         CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
         Track track = track(1L, "https://example.test/cache-state-fails.mp3");
+        PlaybackQueueManager queueManager = queueManager(track);
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 stateProvider.diagnostics,
-                queueManager(track),
+                queueManager,
+                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -471,10 +485,12 @@ public final class PlaybackPrecacheManagerTest {
         FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
         CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
         Track track = track(1L, "https://example.test/fails.mp3");
+        PlaybackQueueManager queueManager = queueManager(track);
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 stateProvider.diagnostics,
-                queueManager(track),
+                queueManager,
+                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -517,10 +533,12 @@ public final class PlaybackPrecacheManagerTest {
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
         FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
         Track track = track(1L, "https://example.test/current.mp3");
+        PlaybackQueueManager queueManager = queueManager(track);
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 stateProvider.diagnostics,
-                queueManager(track),
+                queueManager,
+                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -565,6 +583,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
+                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -608,6 +627,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
+                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -645,6 +665,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
+                queueStateOwner(queueManager),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -706,9 +727,16 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
+                queueStateOwner(queueManager),
                 mediaSourceProvider,
                 scheduler
         );
+    }
+
+    private static PlaybackQueueStateOwner queueStateOwner(PlaybackQueueManager queueManager) {
+        return queueManager == null
+                ? new PlaybackQueueStateOwner()
+                : new PlaybackQueueStateOwner(() -> queueManager);
     }
 
     private static PlaybackQueueManager queueManager(Track... tracks) {
