@@ -100,6 +100,7 @@ public final class MainActivityArchitectureContractTest {
         String routeStoresAndStatus = methodBody(mainActivity, "    private void initializeRouteStoresAndStatus()");
         String playbackLifecycleControllers = methodBody(mainActivity, "    private void initializePlaybackLifecycleControllers()");
         String playbackControllers = methodBody(mainActivity, "    private void initializePlaybackControllers()");
+        String streamingOwners = methodBody(mainActivity, "    private void initializeStreamingOwners(MainActivityStreamingActionGateway streamingActionGateway)");
         String savePlaybackSettingsIfReady = methodBody(mainActivity, "    private void savePlaybackSettingsIfReady(float playbackSpeed, float appVolume)");
         String playPendingTracksIfReady = methodBody(mainActivity, "    private void playPendingTracksIfReady()");
         String notifyStreamingLoginSuccessIfReady = methodBody(mainActivity, "    private void notifyStreamingLoginSuccessIfReady(StreamingProviderName provider)");
@@ -128,6 +129,10 @@ public final class MainActivityArchitectureContractTest {
         String statusBarLyricsEnabledIfReady = methodBody(mainActivity, "    private boolean statusBarLyricsEnabledIfReady()");
         String playbackRestoreEnabledIfReady = methodBody(mainActivity, "    private boolean playbackRestoreEnabledIfReady()");
         String replayGainEnabledIfReady = methodBody(mainActivity, "    private boolean replayGainEnabledIfReady()");
+        String languageModeIfReady = methodBody(mainActivity, "    private String languageModeIfReady()");
+        String selectedPlaylistTracksIfReady = methodBody(mainActivity, "    private List<Track> selectedPlaylistTracksIfReady()");
+        String favoriteTracksIfReady = methodBody(mainActivity, "    private List<Track> favoriteTracksIfReady()");
+        String selectedPlaylistName = methodBody(mainActivity, "    private String selectedPlaylistName()");
         String mainLibraryGateway = read("app/src/main/java/app/yukine/MainLibraryGateway.kt")
                 .replace("\r\n", "\n");
 
@@ -237,6 +242,26 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(streamingActionGateway.contains("if (streamingManualCookieController != null)"));
         assertFalse(streamingActionGateway.contains("                playbackStartController,\n"));
         assertFalse(streamingActionGateway.contains("playbackStartController.playTrackList("));
+        assertTrue(streamingOwners.contains("return languageModeIfReady();"));
+        assertTrue(streamingOwners.contains("                this::languageModeIfReady,\n"));
+        assertTrue(streamingOwners.contains("                        this::selectedPlaylistId,\n"));
+        assertTrue(streamingOwners.contains("                        this::selectedPlaylistTracksIfReady,\n"));
+        assertTrue(streamingOwners.contains("                        this::favoriteTracksIfReady,\n"));
+        assertTrue(streamingOwners.contains("                        languageModeIfReady(),\n"));
+        assertFalse(streamingOwners.contains("                () -> settingsStore.languageMode(),\n"));
+        assertFalse(streamingOwners.contains("                        () -> settingsStore.languageMode(),\n"));
+        assertFalse(streamingOwners.contains("                        () -> libraryStore.selectedPlaylistTracks(),\n"));
+        assertFalse(streamingOwners.contains("                        () -> libraryStore.favoriteTracks(),\n"));
+        assertFalse(streamingOwners.contains(
+                "                        settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),\n"));
+        assertTrue(languageModeIfReady.contains(
+                "return settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode();"));
+        assertTrue(selectedPlaylistTracksIfReady.contains(
+                "return libraryStore == null ? Collections.emptyList() : libraryStore.selectedPlaylistTracks();"));
+        assertTrue(favoriteTracksIfReady.contains(
+                "return libraryStore == null ? Collections.emptyList() : libraryStore.favoriteTracks();"));
+        assertTrue(selectedPlaylistName.contains(
+                "return libraryStore == null ? \"\" : libraryStore.selectedPlaylistName(selectedPlaylistId());"));
         assertTrue(libraryGateway.contains("libraryViewModel.bindGateway(libraryGatewayFactory.create("));
         assertTrue(libraryGateway.contains(
                 "                (tracks, index) -> MainActivityBase.this.playTrackListFromHost(tracks, index),\n"));

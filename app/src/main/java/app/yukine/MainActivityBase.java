@@ -797,7 +797,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 new StreamingPlaylistDialogController.LanguageProvider() {
                     @Override
                     public String languageMode() {
-                        return settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode();
+                        return languageModeIfReady();
                     }
 
                     @Override
@@ -826,15 +826,15 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         streamingPlaylistController = new StreamingPlaylistController(
                 streamingViewModel,
-                () -> settingsStore.languageMode(),
+                this::languageModeIfReady,
                 streamingPlaylistListenerFactory.create(
-                        () -> routeController.selectedPlaylistId(),
+                        this::selectedPlaylistId,
                         playlistId -> routeController.setSelectedPlaylistId(playlistId),
                         () -> MainActivityBase.this.loadCollections(),
                         () -> loadLibrary(true),
                         () -> MainActivityBase.this.selectedPlaylistName(),
-                        () -> libraryStore.selectedPlaylistTracks(),
-                        () -> libraryStore.favoriteTracks(),
+                        this::selectedPlaylistTracksIfReady,
+                        this::favoriteTracksIfReady,
                         () -> streamingViewModel.getStreaming().getValue().getSelectedProvider(),
                         (playlistName, tracks) ->
                                 streamingPlaylistDialogController.showStreamingProviderPicker(playlistName, tracks),
@@ -853,7 +853,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 new StreamingPlaylistImportDialogController.LanguageProvider() {
                     @Override
                     public String languageMode() {
-                        return settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode();
+                        return languageModeIfReady();
                     }
 
                     @Override
@@ -870,14 +870,14 @@ public abstract class MainActivityBase extends ComponentActivity {
         streamingManualCookieDialogController = new StreamingManualCookieDialogController(
                 this,
                 key -> AppLanguage.text(
-                        settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                        languageModeIfReady(),
                         key
                 ),
                 (provider, cookieHeader) -> streamingManualCookieController.saveStreamingCookie(provider, cookieHeader)
         );
         streamingManualCookieController = new StreamingManualCookieController(
                 streamingViewModel,
-                () -> settingsStore.languageMode(),
+                this::languageModeIfReady,
                 streamingManualCookieListenerFactory.create(
                         () -> streamingViewModel.getStreaming().getValue().getSelectedProvider(),
                         dialogState -> streamingManualCookieDialogController.show(dialogState),
@@ -885,6 +885,18 @@ public abstract class MainActivityBase extends ComponentActivity {
                         status -> statusMessageController.setStatus(status)
                 )
         );
+    }
+
+    private String languageModeIfReady() {
+        return settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode();
+    }
+
+    private List<Track> selectedPlaylistTracksIfReady() {
+        return libraryStore == null ? Collections.emptyList() : libraryStore.selectedPlaylistTracks();
+    }
+
+    private List<Track> favoriteTracksIfReady() {
+        return libraryStore == null ? Collections.emptyList() : libraryStore.favoriteTracks();
     }
 
     private StreamingSearchRenderController initializeStoresAndDataGateways(
@@ -2392,7 +2404,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private String selectedPlaylistName() {
-        return libraryStore.selectedPlaylistName(selectedPlaylistId());
+        return libraryStore == null ? "" : libraryStore.selectedPlaylistName(selectedPlaylistId());
     }
 
     private PlaylistDialogController createPlaylistDialogController() {
