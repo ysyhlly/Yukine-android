@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Supplier;
 
 import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
@@ -29,7 +30,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
         List<String> events = new ArrayList<>();
         Track track = track(7L);
         PlaybackErrorRecoveryCommandOwner owner = new PlaybackErrorRecoveryCommandOwner(
-                queueStateOwner(track, 2),
+                queueStateSnapshotSupplier(track, 2),
                 playWhenReady -> events.add("prepare:" + playWhenReady),
                 () -> events.add("next"),
                 message -> events.add("error:" + message),
@@ -79,7 +80,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
                 }
         );
         PlaybackErrorRecoveryCommandOwner singleTrackOwner = new PlaybackErrorRecoveryCommandOwner(
-                queueStateOwner(track, 1),
+                queueStateSnapshotSupplier(track, 1),
                 playWhenReady -> {
                 },
                 () -> {
@@ -120,9 +121,9 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "file:" + id);
     }
 
-    private static PlaybackQueueStateOwner queueStateOwner(Track current, int queueSize) {
+    private static Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier(Track current, int queueSize) {
         PlaybackQueueManager queueManager = queueManager(current, queueSize);
-        return new PlaybackQueueStateOwner(queueManager::queueStateSnapshot);
+        return queueManager::queueStateSnapshot;
     }
 
     private static PlaybackQueueManager queueManager(Track current, int queueSize) {

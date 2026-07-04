@@ -34,8 +34,6 @@ public class PlaybackQueueStateOwnerTest {
 
         assertSame(track, owner.currentTrack());
         assertFalse(owner.isQueueEmpty());
-        assertFalse(owner.hasMultipleTracks());
-        assertTrue(owner.isAtEndOfQueue());
     }
 
     @Test
@@ -69,8 +67,6 @@ public class PlaybackQueueStateOwnerTest {
 
         assertSame(second, owner.currentTrack());
         assertFalse(owner.isQueueEmpty());
-        assertTrue(owner.hasMultipleTracks());
-        assertFalse(owner.isAtEndOfQueue());
     }
 
     @Test
@@ -110,8 +106,6 @@ public class PlaybackQueueStateOwnerTest {
 
         assertSame(null, missingManager.currentTrack());
         assertTrue(missingManager.isQueueEmpty());
-        assertFalse(missingManager.hasMultipleTracks());
-        assertFalse(missingManager.isAtEndOfQueue());
     }
 
     @Test
@@ -131,25 +125,6 @@ public class PlaybackQueueStateOwnerTest {
         queueManager.playQueue(Collections.singletonList(track(41L)), 0, -1L);
 
         assertFalse(owner.isQueueEmpty());
-    }
-
-    @Test
-    public void queueBoundaryFlagsAreDerivedFromLatestQueueStateWithoutLocalState() {
-        PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
-        PlaybackQueueStateOwner owner = queueStateOwner(queueManager);
-
-        assertFalse(owner.hasMultipleTracks());
-        assertFalse(owner.isAtEndOfQueue());
-
-        queueManager.playQueue(Arrays.asList(track(51L), track(52L)), 0, -1L);
-
-        assertTrue(owner.hasMultipleTracks());
-        assertFalse(owner.isAtEndOfQueue());
-
-        queueManager.playQueue(Arrays.asList(track(53L), track(54L)), 1, -1L);
-
-        assertTrue(owner.hasMultipleTracks());
-        assertTrue(owner.isAtEndOfQueue());
     }
 
     private static Track track(long id) {

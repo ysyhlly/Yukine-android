@@ -318,7 +318,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackSleepTimerCommandOwner.bindPlaybackSleepTimerManager(playbackSleepTimerManager);
         playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner(
-                playbackQueueStateOwner,
+                queueStateSnapshotSupplier,
                 playbackQueueCommandOwner::prepareCurrent,
                 EchoPlaybackService.this::skipToNext,
                 playbackCurrentTrackPreparationRuntimeOwner::setErrorMessage,
@@ -359,7 +359,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 () -> playbackModeSettingsStore == null
                         ? REPEAT_ALL
                         : playbackModeSettingsStore.repeatMode(playbackRuntimeStateManager),
-                playbackQueueStateOwner,
+                queueStateSnapshotSupplier,
                 () -> playbackRuntimeSettingsStore == null
                         ? 1.0f
                         : playbackRuntimeSettingsStore.currentTrackVolume(playbackRuntimeStateManager)
