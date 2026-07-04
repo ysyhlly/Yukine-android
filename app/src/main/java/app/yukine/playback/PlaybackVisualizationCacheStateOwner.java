@@ -5,19 +5,20 @@ import android.os.Handler;
 import app.yukine.model.Track;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizationCacheManager.StateProvider {
     private final Handler mainHandler;
-    private final PlaybackQueueStateOwner queueStateOwner;
+    private final Supplier<Track> currentTrackSupplier;
     private final Consumer<Runnable> cacheTaskScheduler;
 
     PlaybackVisualizationCacheStateOwner(
             Handler mainHandler,
-            PlaybackQueueStateOwner queueStateOwner,
+            Supplier<Track> currentTrackSupplier,
             Consumer<Runnable> cacheTaskScheduler
     ) {
         this.mainHandler = mainHandler;
-        this.queueStateOwner = queueStateOwner;
+        this.currentTrackSupplier = currentTrackSupplier;
         this.cacheTaskScheduler = cacheTaskScheduler;
     }
 
@@ -28,7 +29,7 @@ final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizatio
 
     @Override
     public Track currentTrack() {
-        return queueStateOwner == null ? null : queueStateOwner.currentTrack();
+        return currentTrackSupplier == null ? null : currentTrackSupplier.get();
     }
 
     @Override
