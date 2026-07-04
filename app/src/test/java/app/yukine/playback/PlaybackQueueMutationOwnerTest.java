@@ -111,6 +111,21 @@ public class PlaybackQueueMutationOwnerTest {
     }
 
     @Test
+    public void retainTracksRunsStopAndClearWhenMutationEmptiesQueue() {
+        FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
+        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);
+        FakeStopAndClearAction stopAndClearAction = new FakeStopAndClearAction();
+        PlaybackQueueMutationOwner owner = owner(queueManager, stopAndClearAction);
+        owner.playQueue(Collections.singletonList(track(12L)), 0, 0L);
+        actions.prepareCurrentCalls = 0;
+
+        owner.retainTracksById(Collections.singleton(99L));
+
+        assertEquals(1, stopAndClearAction.calls);
+        assertEquals(0, actions.prepareCurrentCalls);
+    }
+
+    @Test
     public void playQueueWithUnsetStartPositionDoesNotRestoreSavedPosition() {
         FakeQueueStore store = new FakeQueueStore();
         Track track = track(5L, 10_000L);
