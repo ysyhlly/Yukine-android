@@ -202,13 +202,13 @@ internal class PlaybackRuntimeStateManager(
         fun stateProviderFromPlaybackState(
             playerSupplier: Supplier<ExoPlayer?>?,
             mirroredQueueSupplier: BooleanSupplier?,
-            currentTrackSupplier: Supplier<Track?>?
+            queueStateSnapshotSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?
         ): StateProvider = object : StateProvider {
             override fun player(): ExoPlayer? = playerSupplier?.get()
 
             override fun playerMirrorsQueue(): Boolean = mirroredQueueSupplier?.asBoolean == true
 
-            override fun currentTrack(): Track? = currentTrackSupplier?.get()
+            override fun currentTrack(): Track? = queueStateSnapshotSupplier?.get()?.currentTrack
         }
 
         fun media3RepeatModeForAppRepeatMode(appRepeatMode: Int, playerMirrorsQueue: Boolean): Int {
