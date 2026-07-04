@@ -7584,6 +7584,7 @@ public final class MainActivityArchitectureContractTest {
         )), queuePrecacheApi);
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "EchoPlaybackService.java",
+                "PlaybackErrorRecoveryCommandOwner.java",
                 "PlaybackLyricsStateOwner.java",
                 "PlaybackCrossfadeStateOwner.java",
                 "PlaybackStateSnapshotOwner.java",
@@ -8129,7 +8130,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(errorRecoveryCommandWiring.contains("playbackQueueStateOwner::currentTrack"));
         assertFalse(errorRecoveryCommandWiring.contains("playbackQueueStateOwner::hasMultipleTracks"));
         assertFalse(errorRecoveryCommandWiring.contains("                playbackQueueStateOwner,"));
-        assertTrue(errorRecoveryCommandWiring.contains("                queueStateSnapshotSupplier,"));
+        assertTrue(errorRecoveryCommandWiring.contains(
+                "                PlaybackErrorRecoveryCommandOwner.queueStateSnapshotProvider(() -> playbackQueueManager),"));
+        assertFalse(errorRecoveryCommandWiring.contains("                queueStateSnapshotSupplier,"));
         assertFalse(errorRecoveryCommandWiring.contains("                playbackQueueManager,"));
         assertFalse(service.contains("playbackQueueManager.canSkipFailedTrack(failed)"));
         assertFalse(queueNavigationOwner.contains("playbackQueueManager.canSkipFailedTrack(failed);"));
@@ -9123,7 +9126,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("private PlaybackErrorRecoveryCommandOwner playbackErrorRecoveryCommandOwner;"));
         assertTrue(service.contains("playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner("));
         assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner,"));
-        assertTrue(errorRecoveryWiring.contains("queueStateSnapshotSupplier,"));
+        assertTrue(errorRecoveryWiring.contains(
+                "PlaybackErrorRecoveryCommandOwner.queueStateSnapshotProvider(() -> playbackQueueManager),"));
+        assertFalse(errorRecoveryWiring.contains("queueStateSnapshotSupplier,"));
         assertFalse(errorRecoveryWiring.contains("playbackQueueManager,"));
         assertFalse(errorRecoveryWiring.contains("queueStateSupplier"));
         assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner::currentTrack"));
@@ -9167,7 +9172,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(commandOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertFalse(commandOwner.contains("hasMultipleTracksSupplier.getAsBoolean()"));
         assertFalse(commandOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
-        assertFalse(commandOwner.contains("playbackQueueManager.queueStateSnapshot()"));
+        assertTrue(commandOwner.contains("static Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotProvider("));
+        assertTrue(commandOwner.contains(": playbackQueueManager.queueStateSnapshot();"));
         assertTrue(commandOwner.contains("private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
         assertFalse(commandOwner.contains("return snapshot == null ? null : snapshot.getCurrentTrack();"));
         assertTrue(commandOwner.contains("return queueStateSnapshot().getCurrentTrack();"));

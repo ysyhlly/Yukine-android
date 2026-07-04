@@ -117,6 +117,22 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
         assertFalse(missingQueueManagerOwner.canSkipFailedTrack(track));
     }
 
+    @Test
+    public void queueStateSnapshotProviderDelegatesToQueueManagerAndToleratesMissingManager() {
+        Track track = track(8L);
+        PlaybackQueueManager queueManager = queueManager(track, 2);
+        Supplier<PlaybackQueueManager.QueueStateSnapshot> provider =
+                PlaybackErrorRecoveryCommandOwner.queueStateSnapshotProvider(() -> queueManager);
+
+        PlaybackQueueManager.QueueStateSnapshot snapshot = provider.get();
+
+        assertSame(track, snapshot.getCurrentTrack());
+        assertEquals(0, snapshot.getCurrentIndex());
+        assertEquals(2, snapshot.getQueueSize());
+        assertTrue(PlaybackErrorRecoveryCommandOwner.queueStateSnapshotProvider(null).get().isQueueEmpty());
+        assertTrue(PlaybackErrorRecoveryCommandOwner.queueStateSnapshotProvider(() -> null).get().isQueueEmpty());
+    }
+
     private static Track track(long id) {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "file:" + id);
     }

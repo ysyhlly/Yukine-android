@@ -16,6 +16,19 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
     private final Runnable statePublisher;
     private final BiConsumer<String, Exception> warningLogger;
 
+    static Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotProvider(
+            Supplier<PlaybackQueueManager> queueManagerSource
+    ) {
+        return () -> {
+            PlaybackQueueManager playbackQueueManager = queueManagerSource == null
+                    ? null
+                    : queueManagerSource.get();
+            return playbackQueueManager == null
+                    ? PlaybackQueueManager.QueueStateSnapshot.empty()
+                    : playbackQueueManager.queueStateSnapshot();
+        };
+    }
+
     PlaybackErrorRecoveryCommandOwner(
             Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier,
             Consumer<Boolean> playbackPreparer,
