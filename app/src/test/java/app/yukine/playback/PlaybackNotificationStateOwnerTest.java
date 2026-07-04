@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Supplier;
 
 import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
@@ -27,7 +28,7 @@ public class PlaybackNotificationStateOwnerTest {
         List<String> events = new ArrayList<>();
         Track track = new Track(7L, "Track", "Artist", "Album", 1000L, Uri.EMPTY, "file:7");
         PlaybackNotificationStateOwner owner = new PlaybackNotificationStateOwner(
-                queueStateOwner(track),
+                queueStateSnapshotSupplier(track),
                 () -> {
                     events.add("playing");
                     return true;
@@ -95,7 +96,7 @@ public class PlaybackNotificationStateOwnerTest {
     @Test
     public void returnsEmptyQueueStateWhenQueueManagerIsMissing() {
         PlaybackNotificationStateOwner owner = new PlaybackNotificationStateOwner(
-                new PlaybackQueueStateOwner(),
+                () -> null,
                 null,
                 null,
                 track -> false,
@@ -106,10 +107,10 @@ public class PlaybackNotificationStateOwnerTest {
         assertNull(owner.currentTrack());
     }
 
-    private static PlaybackQueueStateOwner queueStateOwner(Track track) {
+    private static Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier(Track track) {
         PlaybackQueueManager queueManager = playbackQueueManager();
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        return new PlaybackQueueStateOwner(queueManager::queueStateSnapshot);
+        return queueManager::queueStateSnapshot;
     }
 
     private static PlaybackQueueManager playbackQueueManager() {

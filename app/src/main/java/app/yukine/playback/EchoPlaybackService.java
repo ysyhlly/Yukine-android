@@ -111,10 +111,10 @@ public final class EchoPlaybackService extends MediaLibraryService
     private final PlaybackPlayerStateOwner playbackPlayerStateOwner =
             new PlaybackPlayerStateOwner(() -> player);
     private PlaybackQueueManager playbackQueueManager;
+    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier =
+            () -> playbackQueueManager == null ? null : playbackQueueManager.queueStateSnapshot();
     private final PlaybackQueueStateOwner playbackQueueStateOwner =
-            new PlaybackQueueStateOwner(
-                    () -> playbackQueueManager == null ? null : playbackQueueManager.queueStateSnapshot()
-            );
+            new PlaybackQueueStateOwner(queueStateSnapshotSupplier);
     private final PlaybackQueueRuntimeStateManager playbackQueueRuntimeStateManager =
             new PlaybackQueueRuntimeStateManager();
     private final PlaybackQueueCommandOwner playbackQueueCommandOwner =
@@ -398,7 +398,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackNotificationForegroundOwner::stopForegroundAndSelf
         );
         final PlaybackNotificationStateOwner playbackNotificationStateOwner = new PlaybackNotificationStateOwner(
-                playbackQueueStateOwner,
+                queueStateSnapshotSupplier,
                 playbackPlayerStateOwner::isPlaying,
                 playbackCurrentTrackPreparationRuntimeOwner::preparing,
                 track -> toggleFavoriteUseCase != null && toggleFavoriteUseCase.isFavorite(track),
