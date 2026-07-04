@@ -37,10 +37,7 @@ public class PlaybackQueueCompletionOwnerTest {
         );
         actions.clearRecords();
         List<String> events = new ArrayList<>();
-        PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
-                queueManager,
-                new FakeCompletionBoundary(events)
-        );
+        PlaybackQueueCompletionOwner owner = owner(queueManager, events);
 
         owner.playAfterCompletion();
 
@@ -58,7 +55,7 @@ public class PlaybackQueueCompletionOwnerTest {
                 0,
                 REPEAT_OFF
         );
-        PlaybackQueueCompletionOwner owner = owner(queueManager, new FakeCompletionBoundary(events));
+        PlaybackQueueCompletionOwner owner = owner(queueManager, events);
 
         owner.playAfterCompletion();
 
@@ -74,7 +71,7 @@ public class PlaybackQueueCompletionOwnerTest {
                 0,
                 REPEAT_OFF
         );
-        PlaybackQueueCompletionOwner owner = owner(queueManager, new FakeCompletionBoundary(events));
+        PlaybackQueueCompletionOwner owner = owner(queueManager, events);
 
         owner.playAfterCompletion();
 
@@ -86,7 +83,7 @@ public class PlaybackQueueCompletionOwnerTest {
         List<String> events = new ArrayList<>();
         PlaybackQueueCompletionOwner owner = owner(
                 queueManager(new FakeQueueStore(), runtimeStateManager()),
-                new FakeCompletionBoundary(events)
+                events
         );
 
         owner.playAfterCompletion();
@@ -156,7 +153,7 @@ public class PlaybackQueueCompletionOwnerTest {
         );
         List<String> events = new ArrayList<>();
 
-        owner(queueManager, new FakeCompletionBoundary(events)).stopAfterAutomaticAdvance(0);
+        owner(queueManager, events).stopAfterAutomaticAdvance(0);
 
         assertEquals(0, queueManager.queueStateSnapshot().getCurrentIndex());
         assertEquals(Collections.singletonList("4:0"), store.savedPositions);
@@ -166,10 +163,7 @@ public class PlaybackQueueCompletionOwnerTest {
     @Test
     public void stopAfterAutomaticAdvanceWithoutQueueManagerStillStopsAtEnd() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
-                null,
-                new FakeCompletionBoundary(events)
-        );
+        PlaybackQueueCompletionOwner owner = owner(null, events);
 
         owner.stopAfterAutomaticAdvance(7);
 
@@ -179,10 +173,7 @@ public class PlaybackQueueCompletionOwnerTest {
     @Test
     public void missingPlaybackQueueManagerUsesStopAndClearBoundaryOnlyForCompletion() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueCompletionOwner owner = new PlaybackQueueCompletionOwner(
-                null,
-                new FakeCompletionBoundary(events)
-        );
+        PlaybackQueueCompletionOwner owner = owner(null, events);
 
         owner.playAfterCompletion();
 
@@ -209,12 +200,18 @@ public class PlaybackQueueCompletionOwnerTest {
 
     private static PlaybackQueueCompletionOwner owner(
             PlaybackQueueManager queueManager,
-            PlaybackQueueCompletionOwner.CompletionBoundary boundary
+            List<String> events
     ) {
         return new PlaybackQueueCompletionOwner(
                 queueManager,
-                boundary
+                action(events, "stopAndClear"),
+                action(events, "stopAtEnd"),
+                action(events, "skipNext")
         );
+    }
+
+    private static Runnable action(List<String> events, String event) {
+        return events == null ? null : () -> events.add(event);
     }
 
     private static PlaybackQueueManager queueManagerWithTracks(
@@ -422,27 +419,4 @@ public class PlaybackQueueCompletionOwnerTest {
         }
     }
 
-    private static final class FakeCompletionBoundary
-            implements PlaybackQueueCompletionOwner.CompletionBoundary {
-        private final List<String> events;
-
-        private FakeCompletionBoundary(List<String> events) {
-            this.events = events;
-        }
-
-        @Override
-        public void stopAndClear() {
-            events.add("stopAndClear");
-        }
-
-        @Override
-        public void stopAtEndOfQueue() {
-            events.add("stopAtEnd");
-        }
-
-        @Override
-        public void skipToNext() {
-            events.add("skipNext");
-        }
-    }
 }

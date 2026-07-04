@@ -6307,6 +6307,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private final PlaybackQueueCompletionOwner playbackQueueCompletionOwner"));
         assertFalse(service.contains(
                 "private final PlaybackQueueCompletionOwner.CompletionBoundary playbackQueueCompletionBoundary"));
+        assertFalse(service.contains("new PlaybackQueueCompletionOwner.CompletionBoundary"));
+        assertFalse(queueCompletionOwner.contains("interface CompletionBoundary"));
         assertTrue(service.contains("new PlaybackQueueCompletionOwner("));
         assertFalse(service.contains("PlaybackQueueCompletionOwner.fromPlaybackQueueManager("));
         assertFalse(queueCompletionOwner.contains("static PlaybackQueueCompletionOwner fromPlaybackQueueManager("));
@@ -6341,13 +6343,15 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(normalizedService.contains(
                 "return new PlaybackQueueCompletionOwner(\n"
                         + "                playbackQueueManager,\n"
-                        + "                new PlaybackQueueCompletionOwner.CompletionBoundary() {"));
-        assertTrue(queueCompletionBoundaryWiring.contains("public void stopAndClear()"));
-        assertTrue(queueCompletionBoundaryWiring.contains("EchoPlaybackService.this.stopAndClear();"));
-        assertTrue(queueCompletionBoundaryWiring.contains("public void stopAtEndOfQueue()"));
-        assertTrue(queueCompletionBoundaryWiring.contains("EchoPlaybackService.this.stopAtEndOfQueue();"));
-        assertTrue(queueCompletionBoundaryWiring.contains("public void skipToNext()"));
-        assertTrue(queueCompletionBoundaryWiring.contains("EchoPlaybackService.this.skipToNext();"));
+                        + "                EchoPlaybackService.this::stopAndClear,\n"
+                        + "                EchoPlaybackService.this::stopAtEndOfQueue,\n"
+                        + "                EchoPlaybackService.this::skipToNext"));
+        assertFalse(queueCompletionBoundaryWiring.contains("public void stopAndClear()"));
+        assertFalse(queueCompletionBoundaryWiring.contains("public void stopAtEndOfQueue()"));
+        assertFalse(queueCompletionBoundaryWiring.contains("public void skipToNext()"));
+        assertTrue(queueCompletionBoundaryWiring.contains("EchoPlaybackService.this::stopAndClear"));
+        assertTrue(queueCompletionBoundaryWiring.contains("EchoPlaybackService.this::stopAtEndOfQueue"));
+        assertTrue(queueCompletionBoundaryWiring.contains("EchoPlaybackService.this::skipToNext"));
         assertFalse(normalizedService.contains(
                 "new PlaybackQueueCompletionOwner(\n                playbackQueueManager,\n                playbackQueueCompletionBoundary,\n                playbackQueueCommandOwner\n        )"));
         assertFalse(normalizedService.contains("new PlaybackQueueCompletionOwner(\n                () -> playbackQueueManager"));
@@ -6402,6 +6406,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueCompletionOwner.contains("private final BooleanSupplier prepareStopAtEndOfQueue;"));
         assertFalse(queueCompletionOwner.contains("private final IntConsumer prepareStopAfterAutomaticAdvance;"));
         assertTrue(queueCompletionOwner.contains("private final PlaybackQueueManager playbackQueueManager;"));
+        assertTrue(queueCompletionOwner.contains("private final Runnable stopAndClearAction;"));
+        assertTrue(queueCompletionOwner.contains("private final Runnable stopAtEndOfQueueAction;"));
+        assertTrue(queueCompletionOwner.contains("private final Runnable skipToNextAction;"));
         assertFalse(queueCompletionOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
         assertFalse(queueCompletionOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertFalse(queueCompletionOwner.contains(
@@ -6598,8 +6605,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("queuePlaybackActions.prepareCurrent(true)"));
         assertFalse(queueCompletionOwner.contains("completionBoundary.repeatCurrent();"));
         assertFalse(queueCompletionOwner.contains("completionBoundary.prepareCurrent(playWhenReady);"));
-        assertTrue(queueCompletionOwner.contains("completionBoundary.stopAtEndOfQueue();"));
-        assertTrue(queueCompletionOwner.contains("completionBoundary.skipToNext();"));
+        assertFalse(queueCompletionOwner.contains("completionBoundary.stopAtEndOfQueue();"));
+        assertFalse(queueCompletionOwner.contains("completionBoundary.skipToNext();"));
+        assertTrue(queueCompletionOwner.contains("run(stopAtEndOfQueueAction);"));
+        assertTrue(queueCompletionOwner.contains("run(skipToNextAction);"));
         assertTrue(service.contains(
                 "new PlaybackCurrentTrackReplacementOwner(\n                playbackQueueManager,"));
         assertTrue(service.contains(").replaceCurrentTrackAndResume(replacement, positionMs);"));

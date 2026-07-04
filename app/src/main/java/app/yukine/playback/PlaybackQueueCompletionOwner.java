@@ -3,23 +3,21 @@ package app.yukine.playback;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 final class PlaybackQueueCompletionOwner {
-    interface CompletionBoundary {
-        void stopAndClear();
-
-        void stopAtEndOfQueue();
-
-        void skipToNext();
-    }
-
     private final PlaybackQueueManager playbackQueueManager;
-    private final CompletionBoundary completionBoundary;
+    private final Runnable stopAndClearAction;
+    private final Runnable stopAtEndOfQueueAction;
+    private final Runnable skipToNextAction;
 
     PlaybackQueueCompletionOwner(
             PlaybackQueueManager playbackQueueManager,
-            CompletionBoundary completionBoundary
+            Runnable stopAndClearAction,
+            Runnable stopAtEndOfQueueAction,
+            Runnable skipToNextAction
     ) {
         this.playbackQueueManager = playbackQueueManager;
-        this.completionBoundary = completionBoundary;
+        this.stopAndClearAction = stopAndClearAction;
+        this.stopAtEndOfQueueAction = stopAtEndOfQueueAction;
+        this.skipToNextAction = skipToNextAction;
     }
 
     void playAfterCompletion() {
@@ -30,26 +28,18 @@ final class PlaybackQueueCompletionOwner {
             return;
         }
         if (completionAction == PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR) {
-            if (completionBoundary != null) {
-                completionBoundary.stopAndClear();
-            }
+            run(stopAndClearAction);
             return;
         }
         switch (completionAction) {
             case STOP_AT_END:
-                if (completionBoundary != null) {
-                    completionBoundary.stopAtEndOfQueue();
-                }
+                run(stopAtEndOfQueueAction);
                 break;
             case ADVANCE_TO_NEXT:
-                if (completionBoundary != null) {
-                    completionBoundary.skipToNext();
-                }
+                run(skipToNextAction);
                 break;
             default:
-                if (completionBoundary != null) {
-                    completionBoundary.stopAndClear();
-                }
+                run(stopAndClearAction);
                 break;
         }
     }
@@ -76,8 +66,12 @@ final class PlaybackQueueCompletionOwner {
 
     void stopAfterAutomaticAdvance(int completedIndex) {
         prepareStopAfterAutomaticAdvance(completedIndex);
-        if (completionBoundary != null) {
-            completionBoundary.stopAtEndOfQueue();
+        run(stopAtEndOfQueueAction);
+    }
+
+    private static void run(Runnable action) {
+        if (action != null) {
+            action.run();
         }
     }
 }
