@@ -193,6 +193,26 @@ public final class PlaybackVisualizationCacheManagerTest {
     }
 
     @Test
+    public void emptyCacheKeyFromMediaCacheOperationsSkipsVisualizationCache() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        Track track = track(14L);
+        stateProvider.currentTrack = track;
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        mediaCacheOperations.cacheKey = "";
+        FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
+        PlaybackVisualizationCacheManager manager =
+                manager(stateProvider, mediaCacheOperations, writerFactory);
+
+        manager.scheduleVisualizationCache(track);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(1, mediaCacheOperations.cacheKeyForPrecacheCalls);
+        assertEquals(0, mediaCacheOperations.cachedBytesInRangeCalls);
+        assertEquals(0, stateProvider.scheduledTasks.size());
+        assertEquals(0, writerFactory.createCalls);
+    }
+
+    @Test
     public void fullyCachedVisualizationWindowSkipsCacheWriterCreation() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         Track track = track(11L);
