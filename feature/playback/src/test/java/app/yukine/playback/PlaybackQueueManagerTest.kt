@@ -611,6 +611,43 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun skipToPreviousReusesMirroredQueueWithoutPreparingNewMediaSources() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        provider.playbackPositionMsValue = 900L
+        provider.mirroredQueuePlayer.matchesCurrentQueueValue = true
+        provider.mirroredQueuePlayer.seekToValue = true
+        val manager = queueManager(store, provider)
+        restoreQueue(
+                manager,
+                store,
+                listOf(
+                        track(1L, durationMs = 10_000L),
+                        track(2L, durationMs = 10_000L),
+                        track(3L, durationMs = 10_000L)
+                ),
+                0
+        )
+        provider.streamingRestoreProvider.restoredDataPaths.clear()
+
+        val reused = manager.skipToPrevious()
+
+        assertTrue(reused)
+        assertEquals(2, manager.queueStateSnapshot().currentIndex)
+        assertEquals(3L, manager.queueStateSnapshot().currentTrack?.id)
+        assertEquals(2, provider.mirroredQueuePlayer.seekIndex)
+        assertEquals(0L, provider.mirroredQueuePlayer.seekPositionMs)
+        assertTrue(provider.mirroredQueuePlayer.seekPlayWhenReady)
+        assertEquals(listOf(1L, 2L, 3L), store.savedTracks.map { it.id })
+        assertEquals(2, store.savedIndex)
+        assertEquals(listOf(1L to 900L, 3L to 0L), store.savedPositions)
+        assertEquals(listOf("/music/3"), provider.streamingRestoreProvider.restoredDataPaths)
+        assertTrue(store.resumeRequested)
+        assertTrue(provider.queuePlaybackActions.published)
+        assertFalse(provider.prepareCurrentCalled)
+    }
+
+    @Test
     fun skipToPreviousNoOpsWhenQueueIsEmpty() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
@@ -663,6 +700,29 @@ class PlaybackQueueManagerTest {
         assertEquals(1, store.savedIndex)
         assertEquals(listOf(1L to 2400L, 2L to 0L), store.savedPositions)
         assertEquals(listOf("/music/2"), provider.streamingRestoreProvider.restoredDataPaths)
+        assertFalse(provider.prepareCurrentCalled)
+    }
+
+    @Test
+    fun reuseMirroredQueueRequiresMatchingPlayerSnapshotBeforeStateMutation() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        provider.mirroredQueuePlayer.matchesCurrentQueueValue = false
+        provider.mirroredQueuePlayer.seekToValue = true
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(track(1L), track(2L)), 1)
+        provider.streamingRestoreProvider.restoredDataPaths.clear()
+
+        val reused = manager.reuseMirroredQueueIfAvailable(playWhenReady = true, startPositionMs = 4500L)
+
+        assertFalse(reused)
+        assertEquals(2L, manager.queueStateSnapshot().currentTrack?.id)
+        assertEquals(-1, provider.mirroredQueuePlayer.seekIndex)
+        assertEquals(emptyList<Track>(), store.savedTracks)
+        assertTrue(store.savedPositions.isEmpty())
+        assertTrue(provider.streamingRestoreProvider.restoredDataPaths.isEmpty())
+        assertFalse(store.resumeRequested)
+        assertFalse(provider.queuePlaybackActions.published)
         assertFalse(provider.prepareCurrentCalled)
     }
 
@@ -1293,10 +1353,12 @@ class PlaybackQueueManagerTest {
         var seekToValue = false
         var seekIndex = -1
         var seekPositionMs = -1L
+        var seekPlayWhenReady = false
         override fun matchesCurrentQueue(): Boolean = matchesCurrentQueueValue
         override fun seekTo(index: Int, positionMs: Long, playWhenReady: Boolean): Boolean {
             seekIndex = index
             seekPositionMs = positionMs
+            seekPlayWhenReady = playWhenReady
             return seekToValue
         }
     }
