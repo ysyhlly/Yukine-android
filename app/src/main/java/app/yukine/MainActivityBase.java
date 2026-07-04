@@ -510,6 +510,24 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
     }
 
+    private void showAddToPlaylistIfReady(Track track) {
+        if (playlistDialogController != null) {
+            playlistDialogController.showAddToPlaylist(track);
+        }
+    }
+
+    private void removeQueueTrackIfReady(Track track) {
+        if (queueActionController != null) {
+            queueActionController.removeQueueTrack(track);
+        }
+    }
+
+    private void confirmClearQueueIfReady() {
+        if (queueActionController != null) {
+            queueActionController.confirmClearQueue();
+        }
+    }
+
     private void preResolveNextStreamingTrackIfReady(PlaybackStateSnapshot snapshot) {
         if (streamingPlaybackController != null) {
             streamingPlaybackController.preResolveNextStreamingTrack(snapshot);
@@ -569,7 +587,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                     navigateToTab(TAB_LIBRARY, true, true);
                 },
                 this::continueDashboardPlayback,
-                () -> nowPlayingStateController.renderNowBar(),
+                this::renderNowBarIfReady,
                 this::playTrackListFromHost,
                 () -> loadLibrary(true),
                 () -> navigateToTab(TAB_QUEUE, true, true),
@@ -578,7 +596,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> {
                     routeController.navigateToTab(TAB_COLLECTIONS, true);
                     renderCollections();
-                    renderSelectedTab();
+                    renderSelectedTabIfReady();
                 },
                 () -> {
                     refreshUnifiedSearch(false);
@@ -592,9 +610,9 @@ public abstract class MainActivityBase extends ComponentActivity {
         queueRenderController = new QueueRenderController(queueRenderListenerFactory.create(
                 this::playTrackListFromHost,
                 track -> libraryViewModel.onEvent(new LibraryEvent.ToggleFavorite(track)),
-                track -> playlistDialogController.showAddToPlaylist(track),
-                track -> queueActionController.removeQueueTrack(track),
-                () -> queueActionController.confirmClearQueue(),
+                this::showAddToPlaylistIfReady,
+                this::removeQueueTrackIfReady,
+                this::confirmClearQueueIfReady,
                 this::handleAppBack
         ));
         playbackActionController = new PlaybackActionController(
@@ -672,10 +690,13 @@ public abstract class MainActivityBase extends ComponentActivity {
                         this::applyPlaybackActionResult,
                         () -> playbackService != null,
                         (fromIndex, toIndex) -> playbackService.moveQueueTrack(fromIndex, toIndex),
-                        () -> nowPlayingStateController.renderNowBar(),
-                        this::renderSelectedTab,
+                        this::renderNowBarIfReady,
+                        this::renderSelectedTabIfReady,
                         () -> confirmationDialogController.confirmClearQueue(),
-                        () -> AppLanguage.text(settingsStore.languageMode(), "queue.empty"),
+                        () -> AppLanguage.text(
+                                settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                                "queue.empty"
+                        ),
                         status -> statusMessageController.setStatus(status)
                 )
         );
