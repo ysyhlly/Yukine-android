@@ -115,6 +115,8 @@ public class PlaybackShutdownLifecycleResourcesOwnerTest {
         lifecycleStore.savePlaybackResumeRequested(false);
 
         assertEquals(1, store.saveCalls);
+        assertEquals(Collections.singletonList(42L), trackIds(store.lastSavedTracks));
+        assertEquals(0, store.lastSavedIndex);
         assertEquals(2, store.resumeCalls);
         assertFalse(store.lastResumeRequested);
     }
@@ -176,6 +178,8 @@ public class PlaybackShutdownLifecycleResourcesOwnerTest {
         private int saveCalls;
         private int resumeCalls;
         private boolean lastResumeRequested;
+        private List<Track> lastSavedTracks = Collections.emptyList();
+        private int lastSavedIndex = -1;
 
         @Override
         public PlaybackQueueState load() {
@@ -185,6 +189,8 @@ public class PlaybackShutdownLifecycleResourcesOwnerTest {
         @Override
         public void save(List<Track> tracks, int currentIndex) {
             saveCalls++;
+            lastSavedTracks = new ArrayList<>(tracks);
+            lastSavedIndex = currentIndex;
         }
 
         @Override
@@ -225,7 +231,17 @@ public class PlaybackShutdownLifecycleResourcesOwnerTest {
             saveCalls = 0;
             resumeCalls = 0;
             lastResumeRequested = false;
+            lastSavedTracks = Collections.emptyList();
+            lastSavedIndex = -1;
         }
+    }
+
+    private static List<Long> trackIds(List<Track> tracks) {
+        List<Long> ids = new ArrayList<>();
+        for (Track track : tracks) {
+            ids.add(track.id);
+        }
+        return ids;
     }
 
     private static final class NoopQueuePlaybackActions

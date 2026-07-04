@@ -1104,19 +1104,6 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun persistQueueStateSavesCurrentSnapshotThroughQueueStore() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(track(1L), track(2L)), 1)
-
-        manager.persistQueueState()
-
-        assertEquals(listOf(1L, 2L), store.savedTracks.map { it.id })
-        assertEquals(1, store.savedIndex)
-    }
-
-    @Test
     fun queueAdvanceSnapshotIsOwnedByQueueManager() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()

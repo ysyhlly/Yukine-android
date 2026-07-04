@@ -688,10 +688,6 @@ internal class PlaybackQueueManager(
         return false
     }
 
-    fun persistQueueState() {
-        persistQueue()
-    }
-
     fun restorePlaybackQueue() {
         if (!playbackRestoreEnabled) {
             return

@@ -746,7 +746,10 @@ public final class EchoPlaybackService extends MediaLibraryService
             playbackShutdownCoordinator.handleTaskRemoved();
         } else {
             persistCurrentPlaybackPosition(true);
-            PlaybackShutdownLifecycleResourcesOwner.persistQueueState(playbackQueueManager);
+            PlaybackShutdownLifecycleResourcesOwner.persistQueueState(
+                    playbackQueueManager,
+                    new PlaybackQueueStoreImpl(repository)
+            );
             savePlaybackResumeRequested(
                     playbackPlayerStateOwner.isPlaying()
                             || playbackCurrentTrackPreparationRuntimeOwner.preparing()

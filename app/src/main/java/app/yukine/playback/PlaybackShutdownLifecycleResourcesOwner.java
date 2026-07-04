@@ -72,7 +72,7 @@ final class PlaybackShutdownLifecycleResourcesOwner implements PlaybackShutdownC
         return new PlaybackQueueLifecycleStore() {
             @Override
             public void persistQueueState() {
-                PlaybackShutdownLifecycleResourcesOwner.persistQueueState(playbackQueueManager);
+                PlaybackShutdownLifecycleResourcesOwner.persistQueueState(playbackQueueManager, queueStore);
             }
 
             @Override
@@ -84,9 +84,16 @@ final class PlaybackShutdownLifecycleResourcesOwner implements PlaybackShutdownC
         };
     }
 
-    static void persistQueueState(PlaybackQueueManager playbackQueueManager) {
-        if (playbackQueueManager != null) {
-            playbackQueueManager.persistQueueState();
+    static void persistQueueState(
+            PlaybackQueueManager playbackQueueManager,
+            PlaybackQueueStore queueStore
+    ) {
+        if (playbackQueueManager != null && queueStore != null) {
+            PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager.queueStateSnapshot();
+            queueStore.save(
+                    playbackQueueManager.queueSnapshot(),
+                    snapshot == null ? -1 : snapshot.getCurrentIndex()
+            );
         }
     }
 
