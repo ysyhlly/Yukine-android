@@ -7656,6 +7656,27 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackQueueNavigationOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.playFirstQueuedTrack()"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueMutationOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.playQueue("));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueMutationOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.appendToQueue("));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueMutationOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.removeTracksById("));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueMutationOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.retainTracksById("));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueMutationOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.moveQueueTrack("));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackQueueMutationOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.replaceQueuedTrackById("));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackCurrentTrackReplacementOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.replaceCurrentTrackAndResume("));
         String queueStateSnapshot = normalizedOwner.substring(
                 normalizedOwner.indexOf("data class QueueStateSnapshot("),
                 normalizedOwner.indexOf("        companion object {", normalizedOwner.indexOf("data class QueueStateSnapshot("))
