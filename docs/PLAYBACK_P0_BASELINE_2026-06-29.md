@@ -4547,3 +4547,28 @@ Current audit date: 2026-07-04.
   No state mirrors were added or removed; the batch only narrowed feature
   manager input contracts and moved the snapshot-to-current-track unwrap to one
   Service boundary helper.
+
+## P1 Wiring Note - Current Track Command Owners
+
+Current audit date: 2026-07-04.
+
+- `PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(...)` and
+  `PlaybackFavoriteCommandOwner.toggleCurrentFavorite(...)` no longer accept
+  `PlaybackQueueManager.QueueStateSnapshot`. They now accept only a
+  current-track supplier.
+- `EchoPlaybackService` wires both owners through the existing
+  `currentTrackFromQueueStateSnapshot()` boundary helper. The queue/current-track
+  source of truth is unchanged: `PlaybackQueueManager` still owns the queue
+  state, and no additional state mirror was added.
+- The real gain is two fewer app playback owners with access to full queue
+  snapshot semantics, while keeping play-history marking and favorite toggling
+  behind their existing command owners.
+- Focused coverage:
+  `PlaybackPlayHistoryRecorderTest`,
+  `PlaybackFavoriteCommandOwnerTest`, and
+  `MainActivityArchitectureContractTest`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPlayHistoryRecorderTest --tests app.yukine.playback.PlaybackFavoriteCommandOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```

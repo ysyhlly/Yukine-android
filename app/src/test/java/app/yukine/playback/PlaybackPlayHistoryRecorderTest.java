@@ -12,7 +12,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackTransitionStateManager;
 
 public final class PlaybackPlayHistoryRecorderTest {
@@ -53,19 +52,18 @@ public final class PlaybackPlayHistoryRecorderTest {
     public void recordIfPlaybackStartedActionUsesRecorderAndLatestState() {
         FakeHistorySink historySink = new FakeHistorySink();
         AtomicBoolean playWhenReady = new AtomicBoolean(false);
-        AtomicReference<PlaybackQueueManager.QueueStateSnapshot> queueSnapshot =
-                new AtomicReference<>(queueSnapshot(track(1L)));
+        AtomicReference<Track> currentTrack = new AtomicReference<>(track(1L));
         PlaybackPlayHistoryRecorder recorder = recorder(historySink);
         Runnable action = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 recorder,
                 playWhenReady::get,
-                queueSnapshot::get
+                currentTrack::get
         );
 
         action.run();
         playWhenReady.set(true);
         action.run();
-        queueSnapshot.set(queueSnapshot(track(2L)));
+        currentTrack.set(track(2L));
         action.run();
 
         assertEquals(list(1L, 2L), historySink.markedTrackIds);
@@ -77,7 +75,7 @@ public final class PlaybackPlayHistoryRecorderTest {
         Runnable action = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 null,
                 playWhenReady::get,
-                () -> queueSnapshot(track(1L))
+                () -> track(1L)
         );
 
         action.run();
@@ -85,10 +83,6 @@ public final class PlaybackPlayHistoryRecorderTest {
 
     private static PlaybackPlayHistoryRecorder recorder(FakeHistorySink historySink) {
         return new PlaybackPlayHistoryRecorder(historySink, new PlaybackTransitionStateManager());
-    }
-
-    private static PlaybackQueueManager.QueueStateSnapshot queueSnapshot(Track currentTrack) {
-        return new PlaybackQueueManager.QueueStateSnapshot(currentTrack, 0, 1);
     }
 
     private static Track track(long id) {

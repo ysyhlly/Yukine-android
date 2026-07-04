@@ -6,7 +6,6 @@ import static org.junit.Assert.assertSame;
 import app.yukine.FavoriteOperations;
 import app.yukine.ToggleFavoriteUseCase;
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import org.junit.Test;
 
@@ -21,7 +20,7 @@ public class PlaybackFavoriteCommandOwnerTest {
         FakeStatePublisher statePublisher = new FakeStatePublisher();
 
         PlaybackFavoriteCommandOwner.toggleCurrentFavorite(
-                () -> queueSnapshot(track),
+                () -> track,
                 new ToggleFavoriteUseCase(operations),
                 statePublisher::publishState
         );
@@ -38,7 +37,7 @@ public class PlaybackFavoriteCommandOwnerTest {
         FakeStatePublisher statePublisher = new FakeStatePublisher();
 
         PlaybackFavoriteCommandOwner.toggleCurrentFavorite(
-                PlaybackQueueManager.QueueStateSnapshot::empty,
+                () -> null,
                 new ToggleFavoriteUseCase(operations),
                 statePublisher::publishState
         );
@@ -52,16 +51,12 @@ public class PlaybackFavoriteCommandOwnerTest {
         FakeStatePublisher statePublisher = new FakeStatePublisher();
 
         PlaybackFavoriteCommandOwner.toggleCurrentFavorite(
-                () -> queueSnapshot(track(8L)),
+                () -> track(8L),
                 null,
                 statePublisher::publishState
         );
 
         assertEquals(0, statePublisher.publishStateCalls);
-    }
-
-    private static PlaybackQueueManager.QueueStateSnapshot queueSnapshot(Track currentTrack) {
-        return new PlaybackQueueManager.QueueStateSnapshot(currentTrack, 0, 1);
     }
 
     private static Track track(long id) {

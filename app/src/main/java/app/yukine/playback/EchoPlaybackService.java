@@ -297,7 +297,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         recordPlaybackStartHistoryAction = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 playbackPlayHistoryRecorder,
                 () -> player != null && player.getPlayWhenReady(),
-                queueStateSnapshotSupplier
+                EchoPlaybackService.this::currentTrackFromQueueStateSnapshot
         );
         playbackPositionManager = new PlaybackPositionManager(
                 queueStore,
@@ -919,7 +919,7 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     public void toggleCurrentFavorite() {
         PlaybackFavoriteCommandOwner.toggleCurrentFavorite(
-                queueStateSnapshotSupplier,
+                EchoPlaybackService.this::currentTrackFromQueueStateSnapshot,
                 toggleFavoriteUseCase,
                 EchoPlaybackService.this::publishState
         );

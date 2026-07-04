@@ -2,7 +2,6 @@ package app.yukine.playback;
 
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackTransitionStateManager;
 
 import java.util.function.BooleanSupplier;
@@ -34,7 +33,7 @@ final class PlaybackPlayHistoryRecorder {
     static Runnable recordIfPlaybackStartedAction(
             PlaybackPlayHistoryRecorder recorder,
             BooleanSupplier playWhenReady,
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier
+            Supplier<Track> currentTrackSupplier
     ) {
         return () -> {
             if (recorder == null) {
@@ -42,24 +41,15 @@ final class PlaybackPlayHistoryRecorder {
             }
             recorder.recordIfPlaybackStarted(
                     playWhenReady != null && playWhenReady.getAsBoolean(),
-                    currentTrack(queueStateSnapshotSupplier)
+                    currentTrack(currentTrackSupplier)
             );
         };
     }
 
     private static Track currentTrack(
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier
+            Supplier<Track> currentTrackSupplier
     ) {
-        return queueStateSnapshot(queueStateSnapshotSupplier).getCurrentTrack();
-    }
-
-    private static PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot(
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier
-    ) {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier == null
-                ? null
-                : queueStateSnapshotSupplier.get();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
+        return currentTrackSupplier == null ? null : currentTrackSupplier.get();
     }
 
     void recordIfPlaybackStarted(boolean playWhenReady, Track track) {

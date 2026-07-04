@@ -2,7 +2,6 @@ package app.yukine.playback;
 
 import app.yukine.ToggleFavoriteUseCase;
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.Supplier;
 
@@ -11,11 +10,11 @@ final class PlaybackFavoriteCommandOwner {
     }
 
     static void toggleCurrentFavorite(
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier,
+            Supplier<Track> currentTrackSupplier,
             ToggleFavoriteUseCase toggleFavoriteUseCase,
             Runnable statePublisher
     ) {
-        Track track = currentTrack(queueStateSnapshotSupplier);
+        Track track = currentTrack(currentTrackSupplier);
         if (toggleFavoriteUseCase != null && toggleFavoriteUseCase.toggle(track)) {
             if (statePublisher != null) {
                 statePublisher.run();
@@ -24,17 +23,8 @@ final class PlaybackFavoriteCommandOwner {
     }
 
     private static Track currentTrack(
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier
+            Supplier<Track> currentTrackSupplier
     ) {
-        return queueStateSnapshot(queueStateSnapshotSupplier).getCurrentTrack();
-    }
-
-    private static PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot(
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier
-    ) {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier == null
-                ? null
-                : queueStateSnapshotSupplier.get();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
+        return currentTrackSupplier == null ? null : currentTrackSupplier.get();
     }
 }
