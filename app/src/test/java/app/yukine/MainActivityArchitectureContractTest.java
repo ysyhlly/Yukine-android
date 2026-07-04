@@ -7114,6 +7114,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playerStateOwner.contains("PlaybackQueueCommandOwner.PlaybackStateProvider"));
         assertTrue(commandOwner.contains("import java.util.function.BiConsumer;"));
         assertFalse(commandOwner.contains("import java.util.function.Supplier;"));
+        assertFalse(commandOwner.contains("PlaybackQueueCommandOwner(\n"
+                + "            PlaybackQueueManager playbackQueueManager,"));
+        assertFalse(commandOwner.contains("new PlaybackQueueStateOwner(playbackQueueManager)"));
         assertTrue(commandOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
         assertFalse(commandOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
         assertTrue(commandOwner.contains("private final BiConsumer<Track, Boolean> playbackPreparer;"));

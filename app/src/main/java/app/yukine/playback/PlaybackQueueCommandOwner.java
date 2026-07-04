@@ -11,14 +11,6 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
     private final Runnable statePublisher;
 
     PlaybackQueueCommandOwner(
-            PlaybackQueueManager playbackQueueManager,
-            BiConsumer<Track, Boolean> playbackPreparer,
-            Runnable statePublisher
-    ) {
-        this(new PlaybackQueueStateOwner(playbackQueueManager), playbackPreparer, statePublisher);
-    }
-
-    PlaybackQueueCommandOwner(
             PlaybackQueueStateOwner queueStateOwner,
             BiConsumer<Track, Boolean> playbackPreparer,
             Runnable statePublisher
