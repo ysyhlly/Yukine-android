@@ -2,21 +2,14 @@ package app.yukine.playback;
 
 import android.net.Uri;
 
-import androidx.media3.exoplayer.ExoPlayer;
-
-import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
-import app.yukine.playback.manager.PlaybackQueueStore;
-import app.yukine.playback.manager.PlaybackRuntimeStateManager;
-import app.yukine.playback.manager.PlaybackTransitionStateManager;
 
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.Assert.assertEquals;
@@ -38,7 +31,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                     return true;
                 },
                 preparing -> events.add("preparing:" + preparing),
-                queueStateOwner(track),
+                () -> queueStateSnapshot(track),
                 resetTrack -> events.add("waveform:" + resetTrack.id),
                 () -> events.add("apply"),
                 (index, positionMs) -> events.add("seek:" + index + ":" + positionMs),
@@ -74,7 +67,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 () -> true,
                 () -> false,
                 preparing -> events.add("preparing"),
-                queueStateOwner(track(1L)),
+                () -> queueStateSnapshot(track(1L)),
                 track -> events.add("waveform"),
                 () -> events.add("apply"),
                 (index, positionMs) -> events.add("seek"),
@@ -95,7 +88,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 () -> true,
                 () -> true,
                 preparing -> events.add("preparing:" + preparing),
-                queueStateOwner(null),
+                () -> queueStateSnapshot(null),
                 track -> events.add("waveform"),
                 () -> events.add("apply"),
                 (index, positionMs) -> events.add("seek:" + index + ":" + positionMs),
@@ -131,7 +124,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                     return false;
                 },
                 preparing -> events.add("preparing"),
-                queueStateOwner(track(1L)),
+                () -> queueStateSnapshot(track(1L)),
                 track -> events.add("waveform"),
                 () -> events.add("apply"),
                 (index, positionMs) -> events.add("seek"),
@@ -152,7 +145,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 () -> true,
                 () -> true,
                 preparing -> events.add("preparing:" + preparing),
-                queueStateOwner(null),
+                () -> queueStateSnapshot(null),
                 track -> events.add("waveform"),
                 () -> events.add("apply"),
                 (index, positionMs) -> {
@@ -305,124 +298,10 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
         );
     }
 
-    private static PlaybackQueueStateOwner queueStateOwner(Track track) {
-        PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
-        if (track != null) {
-            queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        }
-        return new PlaybackQueueStateOwner(queueManager::queueStateSnapshot);
-    }
-
-    private static PlaybackQueueManager playbackQueueManager(
-            PlaybackRuntimeStateManager runtimeStateManager
-    ) {
-        return new PlaybackQueueManager(
-                new FakeQueueStore(),
-                new ArrayList<>(),
-                new NoopQueuePlaybackActions(),
-                null,
-                new NoopStreamingRestoreProvider(),
-                new NoopMirroredQueuePlayer(),
-                runtimeStateManager,
-                new PlaybackTransitionStateManager(),
-                new Random(1L)
-        );
-    }
-
-    private static PlaybackRuntimeStateManager playbackRuntimeStateManager() {
-        return new PlaybackRuntimeStateManager(
-                new PlaybackRuntimeStateManager.StateProvider() {
-                    @Override
-                    public ExoPlayer player() {
-                        return null;
-                    }
-
-                    @Override
-                    public boolean playerMirrorsQueue() {
-                        return false;
-                    }
-
-                    @Override
-                    public Track currentTrack() {
-                        return null;
-                    }
-                }
-        );
-    }
-
-    private static final class FakeQueueStore implements PlaybackQueueStore {
-        @Override
-        public PlaybackQueueState load() {
-            return new PlaybackQueueState(Collections.emptyList(), -1);
-        }
-
-        @Override
-        public void save(List<Track> tracks, int currentIndex) {
-        }
-
-        @Override
-        public boolean loadResumeRequested() {
-            return false;
-        }
-
-        @Override
-        public void saveResumeRequested(boolean requested) {
-        }
-
-        @Override
-        public boolean loadPlaybackRestoreEnabled() {
-            return true;
-        }
-
-        @Override
-        public void savePlaybackRestoreEnabled(boolean enabled) {
-        }
-
-        @Override
-        public long loadPlaybackPositionTrackId() {
-            return -1L;
-        }
-
-        @Override
-        public long loadPlaybackPositionMs() {
-            return 0L;
-        }
-
-        @Override
-        public void savePlaybackPosition(long trackId, long positionMs) {
-        }
-    }
-
-    private static final class NoopQueuePlaybackActions
-            implements PlaybackQueueManager.QueuePlaybackActions {
-        @Override
-        public void prepareCurrent(boolean playWhenReady) {
-        }
-
-        @Override
-        public void publishState() {
-        }
-    }
-
-    private static final class NoopStreamingRestoreProvider
-            implements PlaybackQueueManager.StreamingRestoreProvider {
-        @Override
-        public Track restoreTrackForPlayback(Track track) {
-            return track;
-        }
-    }
-
-    private static final class NoopMirroredQueuePlayer
-            implements PlaybackQueueManager.MirroredQueuePlayer {
-        @Override
-        public boolean matchesCurrentQueue() {
-            return false;
-        }
-
-        @Override
-        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
-            return false;
-        }
+    private static PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot(Track track) {
+        return track == null
+                ? PlaybackQueueManager.QueueStateSnapshot.empty()
+                : new PlaybackQueueManager.QueueStateSnapshot(track, 0, 1);
     }
 
 }

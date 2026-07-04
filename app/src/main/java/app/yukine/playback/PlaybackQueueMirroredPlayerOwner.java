@@ -15,7 +15,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     private final BooleanSupplier mirroredQueueMatcher;
     private final BooleanSupplier playerAvailability;
     private final Consumer<Boolean> preparingStateController;
-    private final PlaybackQueueStateOwner queueStateOwner;
+    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;
     private final Consumer<Track> waveformResetter;
     private final Runnable playbackParameterApplier;
     private final BiConsumer<Integer, Long> playerSeeker;
@@ -42,7 +42,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
             BooleanSupplier mirroredQueueMatcher,
             BooleanSupplier playerAvailability,
             Consumer<Boolean> preparingStateController,
-            PlaybackQueueStateOwner queueStateOwner,
+            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier,
             Consumer<Track> waveformResetter,
             Runnable playbackParameterApplier,
             BiConsumer<Integer, Long> playerSeeker,
@@ -54,7 +54,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
         this.mirroredQueueMatcher = mirroredQueueMatcher;
         this.playerAvailability = playerAvailability;
         this.preparingStateController = preparingStateController;
-        this.queueStateOwner = queueStateOwner;
+        this.queueStateSnapshotSupplier = queueStateSnapshotSupplier;
         this.waveformResetter = waveformResetter;
         this.playbackParameterApplier = playbackParameterApplier;
         this.playerSeeker = playerSeeker;
@@ -95,7 +95,14 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     }
 
     private Track currentTrack() {
-        return queueStateOwner == null ? null : queueStateOwner.currentTrack();
+        return queueStateSnapshot().getCurrentTrack();
+    }
+
+    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier == null
+                ? null
+                : queueStateSnapshotSupplier.get();
+        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 
     private boolean hasPlayer() {
