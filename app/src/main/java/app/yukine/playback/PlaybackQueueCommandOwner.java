@@ -7,16 +7,16 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlaybackActions {
-    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;
+    private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
     private final BiConsumer<Track, Boolean> playbackPreparer;
     private final Runnable statePublisher;
 
     PlaybackQueueCommandOwner(
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier,
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             BiConsumer<Track, Boolean> playbackPreparer,
             Runnable statePublisher
     ) {
-        this.queueStateSnapshotSupplier = queueStateSnapshotSupplier;
+        this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
         this.playbackPreparer = playbackPreparer;
         this.statePublisher = statePublisher;
     }
@@ -58,9 +58,12 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier == null
+        PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
                 ? null
-                : queueStateSnapshotSupplier.get();
+                : playbackQueueManagerSupplier.get();
+        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
+                ? null
+                : playbackQueueManager.queueStateSnapshot();
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 

@@ -7392,11 +7392,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private PlaybackQueueCommandOwner playbackQueueCommandOwner;"));
         assertTrue(service.contains("final PlaybackQueueCommandOwner playbackQueueCommandOwner ="));
         assertTrue(service.contains("new PlaybackQueueCommandOwner("));
-        assertTrue(service.contains("                    queueStateSnapshotSupplier,"));
+        assertFalse(service.contains("new PlaybackQueueCommandOwner(\n"
+                + "                    queueStateSnapshotSupplier,"));
         assertFalse(service.contains("new PlaybackQueueCommandOwner(\n"
                 + "                    playbackQueueStateOwner,"));
-        assertFalse(service.contains("                () -> playbackQueueManager,\n"
-                + "                    EchoPlaybackService.this::prepareCurrent,"));
+        assertTrue(service.contains("                    () -> playbackQueueManager,"));
         assertTrue(service.contains("EchoPlaybackService.this::stopAndClear"));
         assertTrue(service.contains("playbackQueueCommandOwner"));
         assertTrue(commandOwner.contains("final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlaybackActions"));
@@ -7412,9 +7412,9 @@ public final class MainActivityArchitectureContractTest {
                 + "            PlaybackQueueManager playbackQueueManager,"));
         assertFalse(commandOwner.contains("new PlaybackQueueStateOwner(playbackQueueManager)"));
         assertFalse(commandOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
-        assertTrue(commandOwner.contains(
+        assertFalse(commandOwner.contains(
                 "private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;"));
-        assertFalse(commandOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
+        assertTrue(commandOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
         assertTrue(commandOwner.contains("private final BiConsumer<Track, Boolean> playbackPreparer;"));
         assertTrue(commandOwner.contains("private final Runnable statePublisher;"));
         assertFalse(commandOwner.contains("private final Runnable stopAndClearCommand;"));
@@ -7426,8 +7426,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("private Track currentTrack()"));
         assertFalse(commandOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null"));
         assertFalse(commandOwner.contains(": queueStateOwner.queueStateSnapshot();"));
-        assertFalse(commandOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null"));
-        assertFalse(commandOwner.contains("playbackQueueManager.queueStateSnapshot();"));
+        assertTrue(commandOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null"));
+        assertTrue(commandOwner.contains("playbackQueueManager.queueStateSnapshot();"));
+        assertFalse(commandOwner.contains("queueStateSnapshotSupplier.get();"));
         assertTrue(commandOwner.contains("return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;"));
         assertFalse(commandOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
         assertTrue(commandOwner.contains("missingCurrentTrackAction.run();"));
@@ -7590,6 +7591,7 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackStateSnapshotOwner.java",
                 "PlaybackSessionCommandOwner.java",
                 "PlaybackPrecacheManager.java",
+                "PlaybackQueueCommandOwner.java",
                 "PlaybackQueueMirroredPlayerOwner.java",
                 "PlaybackQueueMirroredTransitionOwner.java",
                 "PlaybackQueueMutationOwner.java"
