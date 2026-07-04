@@ -108,6 +108,7 @@ public final class MainActivityArchitectureContractTest {
         String renderNowBarIfReady = methodBody(mainActivity, "    private void renderNowBarIfReady()");
         String openAudioFilePickerIfReady = methodBody(mainActivity, "    private void openAudioFilePickerIfReady()");
         String importSelectedLuoxueSourceUrisIfReady = methodBody(mainActivity, "    private void importSelectedLuoxueSourceUrisIfReady(List<Uri> uris)");
+        String applyPageBackgroundIfReady = methodBody(mainActivity, "    private void applyPageBackgroundIfReady(String page, Uri uri, BackgroundTransform transform)");
         String showAddToPlaylistIfReady = methodBody(mainActivity, "    private void showAddToPlaylistIfReady(Track track)");
         String showEditStreamIfReady = methodBody(mainActivity, "    private void showEditStreamIfReady(Track track)");
         String confirmDeleteTrackIfReady = methodBody(mainActivity, "    private void confirmDeleteTrackIfReady(Track track)");
@@ -348,6 +349,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(openAudioFilePickerIfReady.contains("documentPickerController.openAudioFilePicker();"));
         assertTrue(importSelectedLuoxueSourceUrisIfReady.contains("if (luoxueSourceImportController != null) {"));
         assertTrue(importSelectedLuoxueSourceUrisIfReady.contains("luoxueSourceImportController.importSelectedUris(uris);"));
+        assertTrue(platformControllers.contains("                        this::applyPageBackgroundIfReady,\n"));
+        assertFalse(platformControllers.contains("(page, uri, transform) -> settingsViewModel.applyPageBackgrounds("));
+        assertFalse(platformControllers.contains("settingsStore.pageBackgrounds().withBackground(page, uri.toString(), transform)"));
+        assertTrue(applyPageBackgroundIfReady.contains("if (settingsStore == null || uri == null) {"));
+        assertTrue(applyPageBackgroundIfReady.contains("settingsViewModel.applyPageBackgrounds("));
+        assertTrue(applyPageBackgroundIfReady.contains("settingsStore.pageBackgrounds().withBackground(page, uri.toString(), transform)"));
         assertTrue(showAddToPlaylistIfReady.contains("if (playlistDialogController != null) {"));
         assertTrue(showAddToPlaylistIfReady.contains("playlistDialogController.showAddToPlaylist(track);"));
         assertTrue(showEditStreamIfReady.contains("if (networkDialogController != null) {"));
@@ -4323,8 +4330,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("public void backgroundImageCopyFailed(String page)"));
         assertTrue(mainActivity.contains("@Inject MainBackgroundImagePickerListenerFactory backgroundImagePickerListenerFactory;"));
         assertTrue(mainActivity.contains("backgroundImagePickerListenerFactory.create("));
-        assertTrue(mainActivity.contains("(page, uri, transform) -> settingsViewModel.applyPageBackgrounds("));
+        assertTrue(mainActivity.contains("this::applyPageBackgroundIfReady"));
+        assertTrue(mainActivity.contains("private void applyPageBackgroundIfReady(String page, Uri uri, BackgroundTransform transform)"));
+        assertTrue(mainActivity.contains("if (settingsStore == null || uri == null) {"));
         assertTrue(mainActivity.contains("settingsStore.pageBackgrounds().withBackground(page, uri.toString(), transform)"));
+        assertFalse(mainActivity.contains("(page, uri, transform) -> settingsViewModel.applyPageBackgrounds("));
         assertTrue(mainActivity.contains("page -> statusMessageController.setStatus(AppLanguage.text("));
         assertTrue(listener.contains("internal class MainBackgroundImagePickerListener("));
         assertTrue(listener.contains(": BackgroundImagePickerController.Listener"));

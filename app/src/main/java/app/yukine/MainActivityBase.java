@@ -377,11 +377,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         backgroundImagePickerController = new BackgroundImagePickerController(
                 this,
                 backgroundImagePickerListenerFactory.create(
-                        (page, uri, transform) -> settingsViewModel.applyPageBackgrounds(
-                                settingsStore.pageBackgrounds().withBackground(page, uri.toString(), transform),
-                                page,
-                                false
-                        ),
+                        this::applyPageBackgroundIfReady,
                         page -> statusMessageController.setStatus(AppLanguage.text(
                                 settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                                 "page.background.copy.failed"
@@ -538,6 +534,17 @@ public abstract class MainActivityBase extends ComponentActivity {
         if (luoxueSourceImportController != null) {
             luoxueSourceImportController.importSelectedUris(uris);
         }
+    }
+
+    private void applyPageBackgroundIfReady(String page, Uri uri, BackgroundTransform transform) {
+        if (settingsStore == null || uri == null) {
+            return;
+        }
+        settingsViewModel.applyPageBackgrounds(
+                settingsStore.pageBackgrounds().withBackground(page, uri.toString(), transform),
+                page,
+                false
+        );
     }
 
     private void showAddToPlaylistIfReady(Track track) {
