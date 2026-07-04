@@ -11,6 +11,10 @@ smoke for local playback, background playback, notification controls, queue
 restore, lyrics, and streaming playback was not executed for that checkpoint;
 record those rows before claiming runtime smoke coverage for a playback slice.
 
+2026-07-04 补充：MuMu 模拟器 `127.0.0.1:7555` 已可用于 T3 smoke。当前已记录
+debug APK 安装、冷启动、`MainActivity` 前台和 `EchoPlaybackService` 绑定的启动
+smoke；完整播放、通知、歌词、恢复和流媒体矩阵仍需按场景单独执行。
+
 ## 0. 执行记录
 
 | 项目 | 记录 |

@@ -4427,3 +4427,51 @@ Current audit date: 2026-07-04.
   `queueStateSnapshot()` usage, `fromPlaybackQueueManager(...)`, owner count,
   and strict Service `private Playback*` field count. No device smoke was run
   because this checkpoint does not change runtime playback behavior.
+
+## P0 Runtime Smoke - MuMu Startup Baseline
+
+Current audit date: 2026-07-04.
+
+- Device: MuMu emulator at `127.0.0.1:7555`, Android 12,
+  model `ALN-AL00`, display `1080x2345`.
+- Scope: debug APK install plus cold start only. This smoke proves the app can
+  be installed, `MainActivity` can reach the foreground, and the startup path can
+  bind `EchoPlaybackService` without a fatal startup exception. It does not
+  cover local playback, background playback, notification actions, queue restore,
+  lyrics, or streaming playback.
+- Build:
+
+```powershell
+.\gradlew.bat :app:assembleDebug --console=plain
+```
+
+Result: `BUILD SUCCESSFUL in 19s`.
+
+- Device smoke:
+
+```powershell
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s 127.0.0.1:7555 install -r app\build\outputs\apk\debug\app-debug.apk
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s 127.0.0.1:7555 shell am force-stop app.yukine
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s 127.0.0.1:7555 logcat -c
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s 127.0.0.1:7555 shell am start -W -n app.yukine/app.yukine.MainActivity
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s 127.0.0.1:7555 shell dumpsys activity activities
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s 127.0.0.1:7555 logcat -d -t 2000
+```
+
+Observed:
+
+```text
+Status: ok
+LaunchState: COLD
+Activity: app.yukine/.MainActivity
+TotalTime: 1355
+WaitTime: 1357
+topResumedActivity=ActivityRecord{... app.yukine/.MainActivity ...}
+connections={ConnectionRecord{... app.yukine/.playback.EchoPlaybackService ...}}
+NO_FATAL_OR_RUNTIME_EXCEPTION_MATCHES
+```
+
+- T3 smoke implication: the emulator is usable for future runtime slices.
+  Notification, lyrics, shutdown, service lifecycle, and background playback
+  changes should use this device for targeted T3 smoke, but the broader playback
+  rows in the manual smoke table remain unrun until those flows are exercised.
