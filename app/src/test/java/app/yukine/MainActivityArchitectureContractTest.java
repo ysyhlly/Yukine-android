@@ -6286,6 +6286,9 @@ public final class MainActivityArchitectureContractTest {
                 "app/src/main/java/app/yukine/playback/PlaybackCurrentTrackPreparationQueueOwner.java"
         );
         String queueRestoreOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueRestoreOwner.java");
+        String shutdownLifecycleResourcesOwner = read(
+                "app/src/main/java/app/yukine/playback/PlaybackShutdownLifecycleResourcesOwner.java"
+        );
 
         assertFalse(service.contains("repository.loadPlaybackQueue()"));
         assertFalse(service.contains("repository.savePlaybackQueue("));
@@ -6317,7 +6320,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackShutdownQueueLifecycleStoreOwner"));
         assertFalse(service.contains("PlaybackQueuePersistenceOwner"));
         assertFalse(service.contains("playbackQueuePersistenceOwner"));
-        assertTrue(service.contains("playbackQueueManager.persistQueueState();"));
+        assertFalse(service.contains("playbackQueueManager.persistQueueState();"));
+        assertTrue(service.contains("PlaybackShutdownLifecycleResourcesOwner.persistQueueState(playbackQueueManager);"));
+        assertEquals(1, countOccurrences(shutdownLifecycleResourcesOwner,
+                "playbackQueueManager.persistQueueState();"));
         assertFalse(service.contains("private void persistPlaybackQueue()"));
         assertTrue(queueManagerOwner.contains("fun persistQueueState()"));
         assertTrue(queueManagerOwner.contains("queueStore.save("));
@@ -7277,7 +7283,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("new PlaybackQueueManager.QueueTrackMatcher()"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
         assertFalse(service.contains("playbackQueueManager.clearQueueState();"));
-        assertTrue(service.contains("playbackQueueManager.persistQueueState();"));
+        assertFalse(service.contains("playbackQueueManager.persistQueueState();"));
+        assertTrue(service.contains("PlaybackShutdownLifecycleResourcesOwner.persistQueueState(playbackQueueManager);"));
         assertFalse(service.contains("queue.isEmpty()"));
         assertFalse(service.contains("queueSize() < 2"));
         assertFalse(service.contains("queue.size() < 2"));
@@ -7580,6 +7587,12 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackCurrentTrackPreparationQueueOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.queuePreparationForNewPlayer()"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackShutdownLifecycleResourcesOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.persistQueueState()"));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackCurrentTrackPreparationQueueOwner.java"
+        )), playbackSourceFileNamesContaining("playbackQueueManager.replaceCurrentQueueTrack("));
         String queueStateSnapshot = normalizedOwner.substring(
                 normalizedOwner.indexOf("data class QueueStateSnapshot("),
                 normalizedOwner.indexOf("        companion object {", normalizedOwner.indexOf("data class QueueStateSnapshot("))
