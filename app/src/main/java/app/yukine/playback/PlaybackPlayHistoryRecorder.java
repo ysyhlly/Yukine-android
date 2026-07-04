@@ -5,6 +5,7 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackTransitionStateManager;
 
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 
 final class PlaybackPlayHistoryRecorder {
@@ -35,22 +36,23 @@ final class PlaybackPlayHistoryRecorder {
             BooleanSupplier playWhenReady,
             PlaybackQueueManager playbackQueueManager
     ) {
+        if (recorder == null) {
+            return () -> {
+            };
+        }
+        PlaybackQueueManager requiredQueueManager =
+                Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         return () -> {
-            if (recorder == null) {
-                return;
-            }
             recorder.recordIfPlaybackStarted(
                     playWhenReady != null && playWhenReady.getAsBoolean(),
-                    currentTrack(playbackQueueManager)
+                    currentTrack(requiredQueueManager)
             );
         };
     }
 
     private static Track currentTrack(PlaybackQueueManager playbackQueueManager) {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? null : snapshot.getCurrentTrack();
+        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager.queueStateSnapshot();
+        return snapshot.getCurrentTrack();
     }
 
     void recordIfPlaybackStarted(boolean playWhenReady, Track track) {

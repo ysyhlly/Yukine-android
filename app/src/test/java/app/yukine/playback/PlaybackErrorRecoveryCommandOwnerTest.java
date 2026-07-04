@@ -66,7 +66,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
     public void handlesMissingOrSingleTrackState() {
         Track track = track(7L);
         PlaybackErrorRecoveryCommandOwner missingStateOwner = new PlaybackErrorRecoveryCommandOwner(
-                null,
+                playbackQueueManager(),
                 playWhenReady -> {
                 },
                 () -> {
@@ -91,7 +91,18 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
                 (message, error) -> {
                 }
         );
-        PlaybackErrorRecoveryCommandOwner missingQueueManagerOwner = new PlaybackErrorRecoveryCommandOwner(
+
+        assertEquals(null, missingStateOwner.currentTrack());
+        assertEquals("track=<null>", missingStateOwner.debugCurrentTrack());
+        assertFalse(missingStateOwner.canSkipFailedTrack(track));
+        assertSame(track, singleTrackOwner.currentTrack());
+        assertEquals("trackId=7, title=Track 7, dataPath=file:7, uri=null", singleTrackOwner.debugCurrentTrack());
+        assertFalse(singleTrackOwner.canSkipFailedTrack(track));
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void constructorRequiresQueueManager() {
+        new PlaybackErrorRecoveryCommandOwner(
                 null,
                 playWhenReady -> {
                 },
@@ -104,16 +115,6 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
                 (message, error) -> {
                 }
         );
-
-        assertEquals(null, missingStateOwner.currentTrack());
-        assertEquals("track=<null>", missingStateOwner.debugCurrentTrack());
-        assertFalse(missingStateOwner.canSkipFailedTrack(track));
-        assertSame(track, singleTrackOwner.currentTrack());
-        assertEquals("trackId=7, title=Track 7, dataPath=file:7, uri=null", singleTrackOwner.debugCurrentTrack());
-        assertFalse(singleTrackOwner.canSkipFailedTrack(track));
-        assertEquals(null, missingQueueManagerOwner.currentTrack());
-        assertEquals("track=<null>", missingQueueManagerOwner.debugCurrentTrack());
-        assertFalse(missingQueueManagerOwner.canSkipFailedTrack(track));
     }
 
     @Test

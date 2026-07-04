@@ -6,6 +6,7 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackNotificationManager;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -24,7 +25,7 @@ final class PlaybackNotificationStateOwner implements PlaybackNotificationManage
             Predicate<Track> favoriteStateProvider,
             Supplier<MediaSession.Token> sessionTokenSupplier
     ) {
-        this.playbackQueueManager = playbackQueueManager;
+        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         this.playingStateProvider = playingStateProvider;
         this.preparingStateProvider = preparingStateProvider;
         this.favoriteStateProvider = favoriteStateProvider;
@@ -62,9 +63,6 @@ final class PlaybackNotificationStateOwner implements PlaybackNotificationManage
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
+        return playbackQueueManager.queueStateSnapshot();
     }
 }

@@ -66,6 +66,15 @@ public class PlaybackFavoriteCommandOwnerTest {
         assertEquals(0, statePublisher.publishStateCalls);
     }
 
+    @Test(expected = NullPointerException.class)
+    public void requiresQueueManager() {
+        PlaybackFavoriteCommandOwner.toggleCurrentFavorite(
+                null,
+                null,
+                null
+        );
+    }
+
     private static Track track(long id) {
         return new Track(
                 id,

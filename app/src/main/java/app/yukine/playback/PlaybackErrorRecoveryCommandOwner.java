@@ -4,6 +4,7 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackErrorRecoveryManager;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -23,7 +24,7 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
             Runnable statePublisher,
             BiConsumer<String, Exception> warningLogger
     ) {
-        this.playbackQueueManager = playbackQueueManager;
+        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         this.playbackPreparer = playbackPreparer;
         this.skipToNextCommand = skipToNextCommand;
         this.errorMessageStore = errorMessageStore;
@@ -84,9 +85,6 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
+        return playbackQueueManager.queueStateSnapshot();
     }
 }

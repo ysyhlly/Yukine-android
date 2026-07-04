@@ -4,6 +4,7 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackLyricsManager;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 
 final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvider {
@@ -19,7 +20,7 @@ final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvi
             BooleanSupplier preparingStateProvider
     ) {
         this.appVisibilitySupplier = appVisibilitySupplier;
-        this.playbackQueueManager = playbackQueueManager;
+        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         this.playingStateProvider = playingStateProvider;
         this.preparingStateProvider = preparingStateProvider;
     }
@@ -45,9 +46,6 @@ final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvi
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
+        return playbackQueueManager.queueStateSnapshot();
     }
 }

@@ -3,6 +3,7 @@ package app.yukine.playback;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.Objects;
 import java.util.function.BiConsumer;
 
 final class PlaybackCurrentTrackReplacementOwner {
@@ -15,15 +16,12 @@ final class PlaybackCurrentTrackReplacementOwner {
             BiConsumer<Track, Long> recoveryDiagnosticsRecorder,
             Runnable recoveryScheduler
     ) {
-        this.playbackQueueManager = playbackQueueManager;
+        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         this.recoveryDiagnosticsRecorder = recoveryDiagnosticsRecorder;
         this.recoveryScheduler = recoveryScheduler;
     }
 
     void replaceCurrentTrackAndResume(Track replacement, long positionMs) {
-        if (playbackQueueManager == null) {
-            return;
-        }
         Long restoredPositionMs =
                 playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs);
         if (restoredPositionMs == null) {

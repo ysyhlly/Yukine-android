@@ -56,6 +56,7 @@ public class PlaybackQueueCommandOwnerTest {
                 (currentTrack, playWhenReady) -> events.add("prepare"),
                 () -> events.add("publish")
         );
+        owner.bindPlaybackQueueManager(queueManagerWithoutCurrent());
 
         owner.prepareCurrent(true);
         owner.publishState();
@@ -64,6 +65,18 @@ public class PlaybackQueueCommandOwnerTest {
         assertTrue(owner.runIfCurrentTrackMissing(() -> events.add("fallback")));
         assertFalse(owner.prepareCurrentOrRunFallback(false, () -> events.add("fallback")));
         assertEquals(java.util.Arrays.asList("publish", "fallback", "fallback"), events);
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void requiresQueueManagerBinding() {
+        PlaybackQueueCommandOwner owner = new PlaybackQueueCommandOwner(
+                (currentTrack, playWhenReady) -> {
+                },
+                () -> {
+                }
+        );
+
+        owner.prepareCurrent(true);
     }
 
     private static PlaybackQueueManager queueManagerWithCurrent(Track currentTrack) {
@@ -78,6 +91,18 @@ public class PlaybackQueueCommandOwnerTest {
         );
         queueManager.playQueue(Collections.singletonList(currentTrack), 0, 0L);
         return queueManager;
+    }
+
+    private static PlaybackQueueManager queueManagerWithoutCurrent() {
+        return new PlaybackQueueManager(
+                new FakeQueueStore(),
+                new NoopQueuePlaybackActions(),
+                null,
+                new NoopStreamingRestoreProvider(),
+                new NoopMirroredQueuePlayer(),
+                null,
+                null
+        );
     }
 
     private static Track track(long id) {

@@ -1647,7 +1647,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             return;
         }
         queueViewModel.bind(
-                playbackQueueSnapshot(),
+                playbackStore == null ? Collections.emptyList() : playbackStore.queueSnapshot(),
                 playbackStore == null ? null : playbackStore.snapshot(),
                 libraryStore == null ? java.util.Collections.<Long>emptySet() : libraryStore.favoriteIds(),
                 settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()
@@ -2522,7 +2522,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             return;
         }
         queueRenderController.render(
-                playbackQueueSnapshot(),
+                playbackStore.queueSnapshot(),
                 playbackStore.snapshot(),
                 libraryStore.favoriteIds(),
                 settingsStore.languageMode()
@@ -2629,7 +2629,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
         StreamingQueueResolveTarget target = streamingViewModel.prepareCurrentStreamingQueueResolveTarget(
                 playbackService.snapshot(),
-                playbackQueueSnapshot()
+                playbackStore == null ? Collections.emptyList() : playbackStore.queueSnapshot()
         );
         return target != null && streamingPlaybackController.resolveAndPlayStreamingTrack(target.getTracks(), target.getIndex());
     }
@@ -2681,13 +2681,15 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void publishPlaybackStore() {
-        if (playbackStore != null) {
+        if (playbackStore != null && playbackService != null) {
             playbackStore.publish(playbackQueueSnapshot());
         }
     }
 
     private List<Track> playbackQueueSnapshot() {
-        return playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot();
+        return playbackService == null
+                ? (playbackStore == null ? Collections.emptyList() : playbackStore.queueSnapshot())
+                : playbackService.queueSnapshot();
     }
 
 }

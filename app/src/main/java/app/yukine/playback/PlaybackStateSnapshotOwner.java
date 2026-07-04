@@ -4,6 +4,7 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 
+import java.util.Objects;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
 
@@ -55,7 +56,7 @@ final class PlaybackStateSnapshotOwner {
             DoubleSupplier realtimeBeatProvider,
             int defaultRepeatMode
     ) {
-        this.playbackQueueManager = playbackQueueManager;
+        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         this.playbackPositionProvider = playbackPositionProvider;
         this.runtimeStateProvider = runtimeStateProvider;
         this.sleepTimerProvider = sleepTimerProvider;
@@ -172,9 +173,6 @@ final class PlaybackStateSnapshotOwner {
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
+        return playbackQueueManager.queueStateSnapshot();
     }
 }

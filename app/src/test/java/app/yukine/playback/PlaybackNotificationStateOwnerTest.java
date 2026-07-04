@@ -69,7 +69,7 @@ public class PlaybackNotificationStateOwnerTest {
     @Test
     public void returnsInactivePlaybackStateWhenSuppliersAreMissing() {
         PlaybackNotificationStateOwner owner = new PlaybackNotificationStateOwner(
-                null,
+                playbackQueueManager(),
                 null,
                 null,
                 track -> false,
@@ -83,7 +83,7 @@ public class PlaybackNotificationStateOwnerTest {
     @Test
     public void returnsEmptyQueueStateWhenQueueSuppliersAreMissing() {
         PlaybackNotificationStateOwner owner = new PlaybackNotificationStateOwner(
-                null,
+                playbackQueueManager(),
                 null,
                 null,
                 track -> false,
@@ -95,17 +95,19 @@ public class PlaybackNotificationStateOwnerTest {
     }
 
     @Test
-    public void returnsEmptyQueueStateWhenQueueManagerIsMissing() {
-        PlaybackNotificationStateOwner owner = new PlaybackNotificationStateOwner(
-                null,
-                null,
-                null,
-                track -> false,
-                () -> null
-        );
-
-        assertTrue(owner.isQueueEmpty());
-        assertNull(owner.currentTrack());
+    public void constructorRequiresQueueManager() {
+        try {
+            new PlaybackNotificationStateOwner(
+                    null,
+                    null,
+                    null,
+                    track -> false,
+                    () -> null
+            );
+        } catch (NullPointerException expected) {
+            return;
+        }
+        throw new AssertionError("Expected NullPointerException");
     }
 
     private static PlaybackQueueManager playbackQueueManager() {

@@ -3,6 +3,8 @@ package app.yukine.playback;
 import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackQueueStore;
 
+import java.util.Objects;
+
 final class PlaybackQueueRestoreOwner {
     private final PlaybackQueueManager playbackQueueManager;
     private final PlaybackQueueStore playbackQueueStore;
@@ -15,16 +17,14 @@ final class PlaybackQueueRestoreOwner {
             Runnable createPlayerIfNeeded,
             PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions
     ) {
-        this.playbackQueueManager = playbackQueueManager;
+        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         this.playbackQueueStore = playbackQueueStore;
         this.createPlayerIfNeeded = createPlayerIfNeeded;
         this.queuePlaybackActions = queuePlaybackActions;
     }
 
     void restoreLastPlayback(boolean playWhenRestored) {
-        if (playbackQueueManager != null) {
-            playbackQueueManager.restorePlaybackQueue();
-        }
+        playbackQueueManager.restorePlaybackQueue();
         PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();
         if (queueStateSnapshot.isQueueEmpty()) {
             publishState();
@@ -67,10 +67,7 @@ final class PlaybackQueueRestoreOwner {
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
+        return playbackQueueManager.queueStateSnapshot();
     }
 
 }

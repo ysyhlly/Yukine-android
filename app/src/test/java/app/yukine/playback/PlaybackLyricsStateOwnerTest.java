@@ -89,11 +89,16 @@ public class PlaybackLyricsStateOwnerTest {
 
     @Test
     public void directPlaybackStateInputsReturnInactiveForMissingSuppliers() {
-        PlaybackLyricsStateOwner owner = new PlaybackLyricsStateOwner(() -> true, null, null, null);
+        PlaybackLyricsStateOwner owner = new PlaybackLyricsStateOwner(() -> true, queueManager(), null, null);
 
         assertNull(owner.currentTrack());
         assertFalse(owner.isPlaying());
         assertFalse(owner.isPreparing());
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void constructorRequiresQueueManager() {
+        new PlaybackLyricsStateOwner(() -> true, null, null, null);
     }
 
     private static PlaybackQueueManager queueManager() {

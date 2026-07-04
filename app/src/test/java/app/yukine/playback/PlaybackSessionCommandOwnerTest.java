@@ -78,11 +78,25 @@ public class PlaybackSessionCommandOwnerTest {
                 repeatMode -> {
                 },
                 (mediaItems, startIndex, startPositionMs) -> false,
-                null,
+                playbackQueueManager(),
                 track -> null
         );
 
         assertNull(owner.currentTrack());
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void constructorRequiresQueueManager() {
+        new PlaybackSessionCommandOwner(
+                new FakePlaybackCommands(new ArrayList<>()),
+                positionMs -> {
+                },
+                repeatMode -> {
+                },
+                (mediaItems, startIndex, startPositionMs) -> false,
+                null,
+                track -> null
+        );
     }
 
     @Test

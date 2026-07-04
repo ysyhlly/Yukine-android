@@ -5,26 +5,20 @@ import androidx.media3.common.Player;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 
 final class PlaybackQueueMirroredTransitionOwner {
     static final class Transition {
-        private final int completedIndex;
         private final boolean stopAfterAutomaticAdvance;
         private final Track currentTrack;
 
         private Transition(
-                int completedIndex,
                 boolean stopAfterAutomaticAdvance,
                 Track currentTrack
         ) {
-            this.completedIndex = completedIndex;
             this.stopAfterAutomaticAdvance = stopAfterAutomaticAdvance;
             this.currentTrack = currentTrack;
-        }
-
-        int completedIndex() {
-            return completedIndex;
         }
 
         boolean stopAfterAutomaticAdvance() {
@@ -45,7 +39,7 @@ final class PlaybackQueueMirroredTransitionOwner {
             Runnable currentTrackVolumeApplier,
             BooleanSupplier playerMirrorsQueue
     ) {
-        this.playbackQueueManager = playbackQueueManager;
+        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         this.currentTrackVolumeApplier = currentTrackVolumeApplier;
         this.playerMirrorsQueue = playerMirrorsQueue;
     }
@@ -59,19 +53,17 @@ final class PlaybackQueueMirroredTransitionOwner {
             int nextIndex,
             int reason
     ) {
-        if (playbackQueueManager == null) {
+        PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();
+        int currentIndex = queueStateSnapshot.getCurrentIndex();
+        int queueSize = queueStateSnapshot.getQueueSize();
+        if (nextIndex < 0 || nextIndex >= queueSize || nextIndex == currentIndex) {
             return null;
         }
-        PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();
-        int completedIndex = queueStateSnapshot.getCurrentIndex();
-        Boolean stopAfterAutomaticAdvance =
+        boolean stopAfterAutomaticAdvance =
                 playbackQueueManager.applyMirroredTransitionIndex(
                         nextIndex,
                         isAutomaticMediaItemAdvance(reason)
                 );
-        if (stopAfterAutomaticAdvance == null) {
-            return null;
-        }
         Track currentTrack = null;
         if (!stopAfterAutomaticAdvance) {
             currentTrack = queueStateSnapshot().getCurrentTrack();
@@ -80,7 +72,6 @@ final class PlaybackQueueMirroredTransitionOwner {
             }
         }
         return new Transition(
-                completedIndex,
                 stopAfterAutomaticAdvance,
                 currentTrack
         );
@@ -91,9 +82,6 @@ final class PlaybackQueueMirroredTransitionOwner {
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
+        return playbackQueueManager.queueStateSnapshot();
     }
 }

@@ -10,6 +10,7 @@ import app.yukine.playback.manager.PlaybackQueueManager;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 
 final class PlaybackCurrentTrackPreparationQueueOwner {
@@ -80,15 +81,9 @@ final class PlaybackCurrentTrackPreparationQueueOwner {
             Function<Track, Track> queueTrackForPreparation,
             Function<List<Track>, List<MediaSource>> mediaSourcesForTracks
     ) {
-        this.playbackQueueManager = playbackQueueManager;
+        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         this.queueTrackForPreparation = queueTrackForPreparation;
         this.mediaSourcesForTracks = mediaSourcesForTracks;
-    }
-
-    void replaceCurrentQueueTrack(Track track) {
-        if (playbackQueueManager != null) {
-            playbackQueueManager.replaceCurrentQueueTrack(track);
-        }
     }
 
     PreparedQueue queuePreparationForNewPlayer() {
@@ -142,13 +137,10 @@ final class PlaybackCurrentTrackPreparationQueueOwner {
     }
 
     private List<Track> queueSnapshot() {
-        return playbackQueueManager == null ? Collections.emptyList() : playbackQueueManager.queueSnapshot();
+        return playbackQueueManager.queueSnapshot();
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
+        return playbackQueueManager.queueStateSnapshot();
     }
 }

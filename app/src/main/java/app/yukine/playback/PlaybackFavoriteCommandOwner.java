@@ -4,6 +4,8 @@ import app.yukine.ToggleFavoriteUseCase;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.Objects;
+
 final class PlaybackFavoriteCommandOwner {
     private PlaybackFavoriteCommandOwner() {
     }
@@ -24,9 +26,8 @@ final class PlaybackFavoriteCommandOwner {
     private static Track currentTrack(
             PlaybackQueueManager playbackQueueManager
     ) {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? null : snapshot.getCurrentTrack();
+        PlaybackQueueManager.QueueStateSnapshot snapshot =
+                Objects.requireNonNull(playbackQueueManager, "playbackQueueManager").queueStateSnapshot();
+        return snapshot.getCurrentTrack();
     }
 }

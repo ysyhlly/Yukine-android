@@ -2,6 +2,8 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.Objects;
+
 final class PlaybackQueueCompletionOwner {
     private final PlaybackQueueManager playbackQueueManager;
     private final Runnable stopAndClearAction;
@@ -14,17 +16,16 @@ final class PlaybackQueueCompletionOwner {
             Runnable stopAtEndOfQueueAction,
             Runnable skipToNextAction
     ) {
-        this.playbackQueueManager = playbackQueueManager;
+        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         this.stopAndClearAction = stopAndClearAction;
         this.stopAtEndOfQueueAction = stopAtEndOfQueueAction;
         this.skipToNextAction = skipToNextAction;
     }
 
     void playAfterCompletion() {
-        PlaybackQueueManager.PlaybackCompletionAction completionAction = playbackQueueManager == null
-                ? PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR
-                : playbackQueueManager.preparePlaybackCompletionAction();
-        if (completionAction == null) {
+        PlaybackQueueManager.PlaybackCompletionAction completionAction =
+                playbackQueueManager.preparePlaybackCompletionAction();
+        if (completionAction == PlaybackQueueManager.PlaybackCompletionAction.REPEAT_CURRENT) {
             return;
         }
         if (completionAction == PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR) {
@@ -33,7 +34,7 @@ final class PlaybackQueueCompletionOwner {
         }
         switch (completionAction) {
             case STOP_AT_END:
-                stopAtEndOfQueue();
+                run(stopAtEndOfQueueAction);
                 break;
             case ADVANCE_TO_NEXT:
                 run(skipToNextAction);
@@ -45,24 +46,8 @@ final class PlaybackQueueCompletionOwner {
     }
 
     void stopAndClearPlayback() {
-        if (playbackQueueManager != null) {
-            playbackQueueManager.prepareStopAndClearPlaybackState();
-        }
+        playbackQueueManager.prepareStopAndClearPlaybackState();
         run(stopAndClearAction);
-    }
-
-    void stopAtEndOfQueue() {
-        if (playbackQueueManager != null) {
-            playbackQueueManager.prepareStopAtEndOfQueue();
-        }
-        run(stopAtEndOfQueueAction);
-    }
-
-    void stopAfterAutomaticAdvance(int completedIndex) {
-        if (playbackQueueManager != null) {
-            playbackQueueManager.prepareStopAfterAutomaticAdvance(completedIndex);
-        }
-        run(stopAtEndOfQueueAction);
     }
 
     private static void run(Runnable action) {

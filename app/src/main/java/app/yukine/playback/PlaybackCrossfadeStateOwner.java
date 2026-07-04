@@ -5,6 +5,7 @@ import static app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF;
 import app.yukine.playback.manager.PlaybackCrossfadeAdvanceManager;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.DoubleSupplier;
 import java.util.function.IntSupplier;
@@ -29,7 +30,7 @@ final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManag
         this.playerAvailabilityProvider = playerAvailabilityProvider;
         this.playbackStateProvider = playbackStateProvider;
         this.repeatModeProvider = repeatModeProvider;
-        this.playbackQueueManager = playbackQueueManager;
+        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         this.baseVolumeProvider = baseVolumeProvider;
     }
 
@@ -63,9 +64,6 @@ final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManag
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
+        return playbackQueueManager.queueStateSnapshot();
     }
 }

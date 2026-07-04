@@ -72,19 +72,18 @@ public class PlaybackQueueRestoreOwnerTest {
     }
 
     @Test
-    public void nullPlaybackQueueManagerPublishesEmptyRestoreState() {
-        List<String> events = new ArrayList<>();
-        PlaybackQueueRestoreOwner missingManager =
-                new PlaybackQueueRestoreOwner(
-                        null,
-                        null,
-                        () -> events.add("create"),
-                        new FakeRestorePlaybackBoundary(events)
-                );
-
-        missingManager.restoreLastPlayback(false);
-
-        assertEquals("publish", String.join(",", events));
+    public void constructorRequiresQueueManager() {
+        try {
+            new PlaybackQueueRestoreOwner(
+                    null,
+                    null,
+                    null,
+                    null
+            );
+        } catch (NullPointerException expected) {
+            return;
+        }
+        throw new AssertionError("Expected NullPointerException");
     }
 
     @Test
@@ -118,11 +117,8 @@ public class PlaybackQueueRestoreOwnerTest {
     public void delegatesRestoreEnabledSetting() {
         FakeQueueStore store = new FakeQueueStore(new PlaybackQueueState(Collections.emptyList(), -1), false);
         PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, null);
-        PlaybackQueueRestoreOwner missingManager =
-                new PlaybackQueueRestoreOwner(null, null, null, null);
 
         owner.setPlaybackRestoreEnabled(true);
-        missingManager.setPlaybackRestoreEnabled(false);
 
         assertEquals(1, store.saveRestoreEnabledCalls);
         assertEquals(true, store.lastRestoreEnabled);

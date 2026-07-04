@@ -61,7 +61,7 @@ public class PlaybackStateSnapshotOwnerTest {
     @Test
     public void fallsBackToEmptySnapshotPiecesWhenDependenciesAreMissing() {
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
-                null,
+                playbackQueueManager(),
                 null,
                 null,
                 null,
@@ -90,11 +90,24 @@ public class PlaybackStateSnapshotOwnerTest {
         assertEquals(0f, snapshot.realtimeBeat, 0.001f);
     }
 
+    @Test(expected = NullPointerException.class)
+    public void constructorRequiresQueueManager() {
+        new PlaybackStateSnapshotOwner(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+        );
+    }
+
     @Test
     public void doesNotReadRealtimeBeatWhenPlaybackIsPaused() {
         CountingBeatProvider beatProvider = new CountingBeatProvider();
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
-                null,
+                playbackQueueManager(),
                 new FakePlaybackPositionProvider(0L, 0L, false),
                 null,
                 null,

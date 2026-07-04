@@ -3,6 +3,7 @@ package app.yukine.playback;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.Objects;
 import java.util.function.BiConsumer;
 
 final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlaybackActions {
@@ -19,7 +20,7 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
     }
 
     void bindPlaybackQueueManager(PlaybackQueueManager playbackQueueManager) {
-        this.playbackQueueManager = playbackQueueManager;
+        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
     }
 
     @Override
@@ -59,10 +60,7 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
+        return Objects.requireNonNull(playbackQueueManager, "playbackQueueManager").queueStateSnapshot();
     }
 
     @Override

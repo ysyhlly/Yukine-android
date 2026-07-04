@@ -65,20 +65,22 @@ public class PlaybackQueueMutationOwnerTest {
     }
 
     @Test
-    public void ignoresNullManagerOrEmptyQueueMutationInputs() {
+    public void requiresQueueManager() {
+        try {
+            new PlaybackQueueMutationOwner(null, null);
+        } catch (NullPointerException expected) {
+            return;
+        }
+        throw new AssertionError("Expected constructor to require a queue manager");
+    }
+
+    @Test
+    public void ignoresEmptyQueueMutationInputs() {
         FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
         PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);
         FakeStopAndClearAction stopAndClearAction = new FakeStopAndClearAction();
-        PlaybackQueueMutationOwner missingManager = new PlaybackQueueMutationOwner(null, null);
         PlaybackQueueMutationOwner owner = owner(queueManager, stopAndClearAction);
 
-        missingManager.playQueue(Collections.singletonList(track(3L)), 0, 0L);
-        missingManager.appendToQueue(Collections.singletonList(track(4L)));
-        missingManager.removeTracksById(Collections.singleton(4L));
-        missingManager.retainTracksById(Collections.singleton(4L));
-        missingManager.clearQueue();
-        missingManager.moveQueueTrack(1, 2);
-        missingManager.replaceQueuedTrackById(9L, track(10L));
         owner.playQueue(null, 0, 0L);
         owner.playQueue(Collections.emptyList(), 0, 0L);
         owner.appendToQueue(null);
@@ -108,6 +110,23 @@ public class PlaybackQueueMutationOwnerTest {
 
         assertEquals(1, stopAndClearAction.calls);
         assertEquals(0, actions.prepareCurrentCalls);
+    }
+
+    @Test
+    public void replaceQueuedTrackCollapseDoesNotRunStopAndClear() {
+        FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
+        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);
+        FakeStopAndClearAction stopAndClearAction = new FakeStopAndClearAction();
+        PlaybackQueueMutationOwner owner = owner(queueManager, stopAndClearAction);
+        owner.playQueue(Arrays.asList(track(4L), track(9L), track(2L)), 0, 0L);
+        actions.prepareCurrentCalls = 0;
+        actions.publishStateCalls = 0;
+
+        owner.replaceQueuedTrackById(4L, track(9L));
+
+        assertTrackIds(Arrays.asList(9L, 2L), queueManager.queueSnapshot());
+        assertEquals(9L, queueManager.queueStateSnapshot().getCurrentTrack().id);
+        assertEquals(0, stopAndClearAction.calls);
     }
 
     @Test

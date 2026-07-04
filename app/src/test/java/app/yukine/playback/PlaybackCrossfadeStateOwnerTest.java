@@ -69,17 +69,20 @@ public class PlaybackCrossfadeStateOwnerTest {
 
     @Test
     public void crossfadeAdvancePolicyUsesQueueStateAndRepeatMode() {
-        PlaybackCrossfadeStateOwner missingQueue = owner(null, PlaybackRepeatMode.REPEAT_ALL);
         PlaybackCrossfadeStateOwner singleTrack = owner(queueManagerWithQueue(1, 0), PlaybackRepeatMode.REPEAT_ALL);
         PlaybackCrossfadeStateOwner repeatOffBeforeEnd = owner(queueManagerWithQueue(2, 0), PlaybackRepeatMode.REPEAT_OFF);
         PlaybackCrossfadeStateOwner repeatOffAtEnd = owner(queueManagerWithQueue(2, 1), PlaybackRepeatMode.REPEAT_OFF);
         PlaybackCrossfadeStateOwner repeatAllAtEnd = owner(queueManagerWithQueue(2, 1), PlaybackRepeatMode.REPEAT_ALL);
 
-        assertFalse(missingQueue.canCrossfadeAdvance());
         assertFalse(singleTrack.canCrossfadeAdvance());
         assertTrue(repeatOffBeforeEnd.canCrossfadeAdvance());
         assertFalse(repeatOffAtEnd.canCrossfadeAdvance());
         assertTrue(repeatAllAtEnd.canCrossfadeAdvance());
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void constructorRequiresQueueManager() {
+        owner(null, PlaybackRepeatMode.REPEAT_ALL);
     }
 
     private static PlaybackCrossfadeStateOwner owner(

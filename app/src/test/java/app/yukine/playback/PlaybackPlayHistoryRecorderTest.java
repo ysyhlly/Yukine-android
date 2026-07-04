@@ -85,6 +85,15 @@ public final class PlaybackPlayHistoryRecorderTest {
         action.run();
     }
 
+    @Test(expected = NullPointerException.class)
+    public void recordIfPlaybackStartedActionRequiresQueueManagerWhenRecorderExists() {
+        PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
+                recorder(new FakeHistorySink()),
+                () -> true,
+                null
+        );
+    }
+
     private static PlaybackPlayHistoryRecorder recorder(FakeHistorySink historySink) {
         return new PlaybackPlayHistoryRecorder(historySink, new PlaybackTransitionStateManager());
     }

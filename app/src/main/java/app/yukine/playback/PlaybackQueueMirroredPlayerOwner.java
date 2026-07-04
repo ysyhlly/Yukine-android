@@ -3,13 +3,13 @@ package app.yukine.playback;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.List;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
-import java.util.Collections;
-import java.util.List;
 import java.util.function.Supplier;
 
 final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.MirroredQueuePlayer {
@@ -95,7 +95,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     }
 
     void bindPlaybackQueueManager(PlaybackQueueManager playbackQueueManager) {
-        this.playbackQueueManager = playbackQueueManager;
+        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
     }
 
     @Override
@@ -133,10 +133,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
+        return Objects.requireNonNull(playbackQueueManager, "playbackQueueManager").queueStateSnapshot();
     }
 
     private boolean hasPlayer() {
@@ -144,9 +141,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     }
 
     private List<Track> queueSnapshot() {
-        return playbackQueueManager == null
-                ? Collections.emptyList()
-                : playbackQueueManager.queueSnapshot();
+        return Objects.requireNonNull(playbackQueueManager, "playbackQueueManager").queueSnapshot();
     }
 
     private static final class MirroredQueueSnapshotMatcher implements BooleanSupplier {

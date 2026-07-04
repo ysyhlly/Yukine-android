@@ -57,7 +57,7 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
         Track nextTrack = track(8L);
         queueManager.playQueue(Arrays.asList(currentTrack, nextTrack), 0, 3200L);
 
-        owner.replaceCurrentQueueTrack(replacement);
+        queueManager.replaceCurrentQueueTrack(replacement);
         long positionMs = positionManager.restoredPositionFor(replacement);
         PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
                 owner.queuePreparationForNewPlayer();
@@ -71,17 +71,18 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     }
 
     @Test
-    public void ignoresMissingPlaybackQueueManager() {
-        PlaybackCurrentTrackPreparationQueueOwner owner = new PlaybackCurrentTrackPreparationQueueOwner(
-                null,
-                tracks -> {
-                    throw new AssertionError("media sources should not be requested without a queue");
-                }
-        );
-
-        owner.replaceCurrentQueueTrack(track(8L));
-
-        assertEquals(null, owner.queuePreparationForNewPlayer().currentTrack());
+    public void constructorRequiresQueueManager() {
+        try {
+            new PlaybackCurrentTrackPreparationQueueOwner(
+                    null,
+                    tracks -> {
+                        throw new AssertionError("should not be called");
+                    }
+            );
+        } catch (NullPointerException expected) {
+            return;
+        }
+        throw new AssertionError("Expected NullPointerException");
     }
 
     @Test
@@ -245,16 +246,6 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     }
 
     @Test
-    public void missingQueueManagerAndMediaResolverSkipsQueueActions() {
-        PlaybackCurrentTrackPreparationQueueOwner owner =
-                new PlaybackCurrentTrackPreparationQueueOwner(null, null);
-
-        owner.replaceCurrentQueueTrack(track(10L));
-
-        assertEquals(null, owner.queuePreparationForNewPlayer().currentTrack());
-    }
-
-    @Test
     public void queuePreparationIsEmptyWithoutCurrentTrack() throws Exception {
         PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), null);
         queueManager.playQueue(Collections.singletonList(playableTrack(81L)), 0, -1L);
@@ -277,7 +268,7 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     public void mediaSourceProviderConstructorFallsBackWhenProviderIsMissing() {
         PlaybackCurrentTrackPreparationQueueOwner owner =
                 new PlaybackCurrentTrackPreparationQueueOwner(
-                        null,
+                        queueManager(new FakeQueueStore(), null),
                         (PlaybackMediaSourceProvider) null,
                         track -> null
                 );

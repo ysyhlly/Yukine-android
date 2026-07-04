@@ -74,18 +74,19 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
     }
 
     @Test
-    public void missingPlaybackQueueManagerSkipsReplacement() {
-        List<String> events = new ArrayList<>();
-        PlaybackCurrentTrackReplacementOwner missingManager =
-                new PlaybackCurrentTrackReplacementOwner(
-                        null,
-                        (track, restoredPositionMs) -> events.add("record"),
-                        () -> events.add("schedule")
-                );
-
-        missingManager.replaceCurrentTrackAndResume(track(11L, "replacement"), 1200L);
-
-        assertEquals(Collections.emptyList(), events);
+    public void requiresQueueManager() {
+        try {
+            new PlaybackCurrentTrackReplacementOwner(
+                    null,
+                    (track, restoredPositionMs) -> {
+                    },
+                    () -> {
+                    }
+            );
+        } catch (NullPointerException expected) {
+            return;
+        }
+        throw new AssertionError("Expected constructor to require a queue manager");
     }
 
     private static PlaybackQueueManager queueManagerWithCurrent(Track current) {

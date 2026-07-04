@@ -16,6 +16,7 @@ import android.util.Log;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -135,8 +136,6 @@ public final class EchoPlaybackService extends MediaLibraryService
             PlaybackLyricsSettingsStore.statusBarLyricsEnabledActionFromSupplier(() -> playbackLyricsManager);
     private PlaybackModeSettingsStore playbackModeSettingsStore;
     private PlaybackStatePublisher playbackStatePublisher;
-    private PlaybackStateSnapshotOwner playbackStateSnapshotOwner;
-    private PlaybackStreamingDiagnosticsRecorderOwner playbackStreamingDiagnosticsRecorderOwner;
     private PlaybackErrorRecoveryCommandOwner playbackErrorRecoveryCommandOwner;
     private PlaybackErrorRecoveryManager playbackErrorRecoveryManager;
     private Runnable recordPlaybackStartHistoryAction = () -> {
@@ -144,8 +143,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackPositionManager playbackPositionManager;
     private PlaybackNotificationManager playbackNotificationManager;
     private PlaybackNotificationCommandOwner playbackNotificationCommandOwner;
-    private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner;
-    private PlaybackCurrentTrackPreparationOwner playbackCurrentTrackPreparationOwner;
     private PlaybackSleepTimerCommandOwner playbackSleepTimerCommandOwner;
     private PlaybackSleepTimerManager playbackSleepTimerManager;
     private PlaybackRealtimeVisualizationOwner playbackRealtimeVisualizationOwner;
@@ -225,7 +222,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 return;
             }
             if (transition.stopAfterAutomaticAdvance()) {
-                playbackQueueCompletionOwner().stopAfterAutomaticAdvance(transition.completedIndex());
+                stopAtEndOfQueueBoundary();
                 return;
             }
             Track track = transition.currentTrack();
@@ -354,45 +351,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                 EchoPlaybackService.this,
                 playbackNotificationForegroundOwner::stopForegroundAndSelf
         );
-        final PlaybackNotificationStateOwner playbackNotificationStateOwner = new PlaybackNotificationStateOwner(
-                playbackQueueManager,
-                playbackPlayerStateOwner::isPlaying,
-                playbackCurrentTrackPreparationRuntimeOwner::preparing,
-                track -> toggleFavoriteUseCase != null && toggleFavoriteUseCase.isFavorite(track),
-                () -> {
-                    MediaLibrarySession session = playbackSessionManager == null ? null : playbackSessionManager.session();
-                    return session == null ? null : session.getPlatformToken();
-                }
-        );
-        final Supplier<Track> currentTrackSupplier = playbackNotificationStateOwner::currentTrack;
-        final PlaybackNotificationArtworkSource playbackNotificationArtworkSource =
-                PlaybackNotificationArtworkSource.fromSupplier(
-                        () -> playbackNotificationArtworkManager
-                );
-        playbackNotificationManager = new PlaybackNotificationManager(
-                this,
-                playbackNotificationForegroundOwner,
-                playbackNotificationStateOwner,
-                () -> playbackLyricsManager,
-                playbackNotificationArtworkSource,
-                playbackNotificationCommandOwner
-        );
-        final PlaybackNotificationArtworkBridgeOwner.SessionRefresher playbackSessionRefresher =
-                PlaybackNotificationArtworkBridgeOwner.sessionRefresherFromPlaybackSessionManager(
-                        () -> playbackSessionManager
-                );
-        final PlaybackLyricsStateOwner playbackLyricsStateOwner = new PlaybackLyricsStateOwner(
-                () -> appVisible,
-                playbackQueueManager,
-                playbackPlayerStateOwner::isPlaying,
-                playbackCurrentTrackPreparationRuntimeOwner::preparing
-        );
-        playbackLyricsManager = new PlaybackLyricsManager(
-                this,
-                playbackLyricsStateOwner,
-                playbackNotificationManager.lyricsNotificationBridge(playbackSessionRefresher)
-        );
-        PlaybackLyricsSettingsStore.fromRepository(repository).restoreInto(playbackLyricsManager);
         final PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner =
                 new PlaybackQueueStreamingRestoreOwner(mediaSourceProvider);
         final PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner =
@@ -433,6 +391,45 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackPositionStateProvider.bindPlaybackQueueManager(playbackQueueManager);
         playbackQueueCommandOwner.bindPlaybackQueueManager(playbackQueueManager);
         playbackQueueMirroredPlayerOwner.bindPlaybackQueueManager(playbackQueueManager);
+        final PlaybackNotificationStateOwner playbackNotificationStateOwner = new PlaybackNotificationStateOwner(
+                playbackQueueManager,
+                playbackPlayerStateOwner::isPlaying,
+                playbackCurrentTrackPreparationRuntimeOwner::preparing,
+                track -> toggleFavoriteUseCase != null && toggleFavoriteUseCase.isFavorite(track),
+                () -> {
+                    MediaLibrarySession session = playbackSessionManager == null ? null : playbackSessionManager.session();
+                    return session == null ? null : session.getPlatformToken();
+                }
+        );
+        final Supplier<Track> currentTrackSupplier = playbackNotificationStateOwner::currentTrack;
+        final PlaybackNotificationArtworkSource playbackNotificationArtworkSource =
+                PlaybackNotificationArtworkSource.fromSupplier(
+                        () -> playbackNotificationArtworkManager
+                );
+        playbackNotificationManager = new PlaybackNotificationManager(
+                this,
+                playbackNotificationForegroundOwner,
+                playbackNotificationStateOwner,
+                () -> playbackLyricsManager,
+                playbackNotificationArtworkSource,
+                playbackNotificationCommandOwner
+        );
+        final PlaybackNotificationArtworkBridgeOwner.SessionRefresher playbackSessionRefresher =
+                PlaybackNotificationArtworkBridgeOwner.sessionRefresherFromPlaybackSessionManager(
+                        () -> playbackSessionManager
+                );
+        final PlaybackLyricsStateOwner playbackLyricsStateOwner = new PlaybackLyricsStateOwner(
+                () -> appVisible,
+                playbackQueueManager,
+                playbackPlayerStateOwner::isPlaying,
+                playbackCurrentTrackPreparationRuntimeOwner::preparing
+        );
+        playbackLyricsManager = new PlaybackLyricsManager(
+                this,
+                playbackLyricsStateOwner,
+                playbackNotificationManager.lyricsNotificationBridge(playbackSessionRefresher)
+        );
+        PlaybackLyricsSettingsStore.fromRepository(repository).restoreInto(playbackLyricsManager);
         playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner(
                 playbackQueueManager,
                 playbackQueueCommandOwner::prepareCurrent,
@@ -465,21 +462,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackCrossfadeCommandOwner
         );
         playbackCrossfadeCommandOwner.bindPlaybackCrossfadeAdvanceManager(playbackCrossfadeAdvanceManager);
-        playbackCurrentTrackPreparationQueueOwner = new PlaybackCurrentTrackPreparationQueueOwner(
-                playbackQueueManager,
-                mediaSourceProvider,
-                playbackNotificationManager::mediaMetadataForTrack
-        );
-        playbackCurrentTrackPreparationOwner = PlaybackCurrentTrackPreparationOwner.fromMediaSourceProvider(
-                mediaSourceProvider,
-                playbackNotificationManager::mediaMetadataForTrack,
-                playbackCurrentTrackPreparationQueueOwner::replaceCurrentQueueTrack,
-                playbackPositionManager::restoredPositionFor,
-                playbackCurrentTrackPreparationRuntimeOwner,
-                EchoPlaybackService.this::publishState,
-                track -> Log.w(TAG, "Refusing to prepare empty uri for "
-                        + playbackErrorRecoveryCommandOwner.debugTrack(track))
-        );
         final PlaybackMediaLibraryCallback playbackMediaLibraryCallback = new PlaybackMediaLibraryCallback(
                 PlaybackMediaLibraryDataSource.fromRepository(
                         getString(R.string.app_name),
@@ -534,15 +516,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                         playbackPlayerStateOwner::isPlaying,
                         realtimeBassDetector
                 );
-        playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner(
-                playbackQueueManager,
-                playbackPlayerStateOwner,
-                PlaybackStateSnapshotOwner.fromRuntimeStateManager(playbackRuntimeStateManager),
-                playbackSleepTimerCommandOwner::sleepTimerRemainingMs,
-                PlaybackStateSnapshotOwner.fromVisualizationAnalyzer(playbackVisualizationAnalyzer),
-                playbackRealtimeVisualizationOwner::beat,
-                REPEAT_ALL
-        );
         PlaybackVisualizationCacheStateOwner playbackVisualizationCacheStateOwner =
                 new PlaybackVisualizationCacheStateOwner(
                         mainHandler,
@@ -671,11 +644,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackNotificationArtworkSource,
                 PlaybackStatePublisherWidgetOwner.fromContext(this)
         );
-        playbackStreamingDiagnosticsRecorderOwner =
-                new PlaybackStreamingDiagnosticsRecorderOwner(
-                        streamingDiagnostics,
-                        mediaSourceProvider::streamingQualityForTrack
-                );
         playbackPrecacheManager = PlaybackPrecacheManager.fromMediaSourceProvider(
                 PlaybackPlayerStateOwner.mediaItemSupplierFromPlayerSupplier(() -> player),
                 streamingDiagnostics,
@@ -877,7 +845,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public boolean hasQueue() {
-        return !queueSnapshot().isEmpty();
+        return snapshot().queueSize > 0;
     }
 
     public List<Track> queueSnapshot() {
@@ -895,7 +863,8 @@ public final class EchoPlaybackService extends MediaLibraryService
     public void replaceCurrentTrackAndResume(Track replacement, long positionMs) {
         new PlaybackCurrentTrackReplacementOwner(
                 playbackQueueManager,
-                playbackStreamingDiagnosticsRecorderOwner::recordRecovery,
+                (track, restoredPositionMs) ->
+                        playbackStreamingDiagnosticsRecorderOwner().recordRecovery(track, restoredPositionMs),
                 () -> playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(true)
         ).replaceCurrentTrackAndResume(replacement, positionMs);
     }
@@ -936,9 +905,9 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public PlaybackStateSnapshot snapshot() {
-        return playbackStateSnapshotOwner == null
+        return playbackQueueManager == null
                 ? PlaybackStateSnapshot.empty()
-                : playbackStateSnapshotOwner.snapshot();
+                : playbackStateSnapshotOwner().snapshot();
     }
 
     public float realtimeBeat() {
@@ -1054,7 +1023,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             return;
         }
         PlaybackCurrentTrackPreparationOwner.PreparedTrack preparedTrack =
-                playbackCurrentTrackPreparationOwner.prepareCurrentTrack(track);
+                playbackCurrentTrackPreparationOwner().prepareCurrentTrack(track);
         if (!preparedTrack.playable()) {
             return;
         }
@@ -1072,7 +1041,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             return;
         }
         PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
-                playbackCurrentTrackPreparationQueueOwner.queuePreparationForNewPlayer();
+                playbackCurrentTrackPreparationQueueOwner().queuePreparationForNewPlayer();
         Track track = queuePreparation.currentTrack();
         if (track == null) {
             return;
@@ -1243,11 +1212,11 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     private void publishBufferingState() {
         if (playbackStatePublisher != null) {
-            playbackStatePublisher.publishBufferingState(playbackStreamingDiagnosticsRecorderOwner);
+            playbackStatePublisher.publishBufferingState(playbackStreamingDiagnosticsRecorderOwner());
             return;
         }
-        if (playbackStreamingDiagnosticsRecorderOwner != null) {
-            playbackStreamingDiagnosticsRecorderOwner.record(snapshot());
+        if (streamingDiagnostics != null) {
+            playbackStreamingDiagnosticsRecorderOwner().record(snapshot());
         }
     }
 
@@ -1271,6 +1240,54 @@ public final class EchoPlaybackService extends MediaLibraryService
         return new PlaybackQueueMutationOwner(
                 playbackQueueManager,
                 EchoPlaybackService.this::stopAndClear
+        );
+    }
+
+    private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner() {
+        return new PlaybackCurrentTrackPreparationQueueOwner(
+                playbackQueueManager,
+                mediaSourceProvider,
+                track -> playbackNotificationManager == null
+                        ? null
+                        : playbackNotificationManager.mediaMetadataForTrack(track)
+        );
+    }
+
+    private PlaybackCurrentTrackPreparationOwner playbackCurrentTrackPreparationOwner() {
+        return PlaybackCurrentTrackPreparationOwner.fromMediaSourceProvider(
+                mediaSourceProvider,
+                track -> playbackNotificationManager == null
+                        ? null
+                        : playbackNotificationManager.mediaMetadataForTrack(track),
+                track -> {
+                    if (playbackQueueManager != null) {
+                        playbackQueueManager.replaceCurrentQueueTrack(track);
+                    }
+                },
+                playbackPositionManager::restoredPositionFor,
+                playbackCurrentTrackPreparationRuntimeOwner,
+                EchoPlaybackService.this::publishState,
+                track -> Log.w(TAG, "Refusing to prepare empty uri for "
+                        + playbackErrorRecoveryCommandOwner.debugTrack(track))
+        );
+    }
+
+    private PlaybackStateSnapshotOwner playbackStateSnapshotOwner() {
+        return new PlaybackStateSnapshotOwner(
+                playbackQueueManager,
+                playbackPlayerStateOwner,
+                PlaybackStateSnapshotOwner.fromRuntimeStateManager(playbackRuntimeStateManager),
+                playbackSleepTimerCommandOwner::sleepTimerRemainingMs,
+                PlaybackStateSnapshotOwner.fromVisualizationAnalyzer(playbackVisualizationAnalyzer),
+                () -> playbackRealtimeVisualizationOwner == null ? 0d : playbackRealtimeVisualizationOwner.beat(),
+                REPEAT_ALL
+        );
+    }
+
+    private PlaybackStreamingDiagnosticsRecorderOwner playbackStreamingDiagnosticsRecorderOwner() {
+        return new PlaybackStreamingDiagnosticsRecorderOwner(
+                streamingDiagnostics,
+                track -> mediaSourceProvider == null ? "" : mediaSourceProvider.streamingQualityForTrack(track)
         );
     }
 

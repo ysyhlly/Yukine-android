@@ -85,6 +85,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     @Test
     public void seekSkipsWaveformResetWhenCurrentTrackIsMissing() {
         List<String> events = new ArrayList<>();
+        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore());
         PlaybackQueueMirroredPlayerOwner owner = new PlaybackQueueMirroredPlayerOwner(
                 () -> true,
                 () -> true,
@@ -97,6 +98,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 enabled -> events.add("mirror"),
                 error -> events.add("log")
         );
+        owner.bindPlaybackQueueManager(queueManager);
 
         assertTrue(owner.seekTo(1, 1200L, false));
 
@@ -140,6 +142,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     @Test
     public void seekFailureClearsMirroredQueueState() {
         List<String> events = new ArrayList<>();
+        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore());
         PlaybackQueueMirroredPlayerOwner owner = new PlaybackQueueMirroredPlayerOwner(
                 () -> true,
                 () -> true,
@@ -154,6 +157,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 enabled -> events.add("mirror:" + enabled),
                 error -> events.add("log:" + error.getMessage())
         );
+        owner.bindPlaybackQueueManager(queueManager);
 
         assertFalse(owner.seekTo(3, 4000L, true));
 
@@ -285,9 +289,43 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     }
 
     @Test
+    public void matchesCurrentQueueRequiresQueueManagerBinding() {
+        PlaybackQueueMirroredPlayerOwner owner = new PlaybackQueueMirroredPlayerOwner(
+                () -> true,
+                () -> 1,
+                (index, track) -> true,
+                () -> true,
+                preparing -> {
+                },
+                resetTrack -> {
+                },
+                () -> {
+                },
+                (index, positionMs) -> {
+                },
+                playWhenReady -> {
+                },
+                () -> {
+                },
+                enabled -> {
+                },
+                error -> {
+                }
+        );
+
+        try {
+            owner.matchesCurrentQueue();
+        } catch (NullPointerException expected) {
+            return;
+        }
+        throw new AssertionError("Expected matchesCurrentQueue to require a bound queue manager");
+    }
+
+    @Test
     public void convenienceConstructorReadsBoundQueueSnapshotForMirroredMatcher() {
         FakeQueueStore store = new FakeQueueStore();
         PlaybackQueueManager queueManager = queueManager(store);
+        PlaybackQueueManager emptyQueueManager = queueManager(new FakeQueueStore());
         Track track = track(11L);
         List<String> events = new ArrayList<>();
         PlaybackQueueMirroredPlayerOwner owner = new PlaybackQueueMirroredPlayerOwner(
@@ -307,6 +345,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 enabled -> events.add("mirror"),
                 error -> events.add("log")
         );
+        owner.bindPlaybackQueueManager(emptyQueueManager);
 
         assertFalse(owner.matchesCurrentQueue());
         assertEquals(Collections.emptyList(), events);
@@ -322,6 +361,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     public void bindPlaybackQueueManagerReadsCurrentTrackFromQueueManager() {
         FakeQueueStore store = new FakeQueueStore();
         PlaybackQueueManager queueManager = queueManager(store);
+        PlaybackQueueManager emptyQueueManager = queueManager(new FakeQueueStore());
         Track track = track(12L);
         List<String> events = new ArrayList<>();
         PlaybackQueueMirroredPlayerOwner owner = new PlaybackQueueMirroredPlayerOwner(
@@ -336,6 +376,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 enabled -> events.add("mirror:" + enabled),
                 error -> events.add("log:" + error.getMessage())
         );
+        owner.bindPlaybackQueueManager(emptyQueueManager);
 
         assertTrue(owner.seekTo(0, 0L, false));
         assertEquals(

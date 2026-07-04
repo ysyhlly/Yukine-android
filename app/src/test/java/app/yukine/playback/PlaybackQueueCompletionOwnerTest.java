@@ -48,17 +48,26 @@ public class PlaybackQueueCompletionOwnerTest {
 
     @Test
     public void routesStopAtEndCompletionThroughQueuePreparationAndBoundary() {
+        FakeQueueStore store = new FakeQueueStore();
+        PlaybackRuntimeStateManager runtimeStateManager = runtimeStateManager();
+        runtimeStateManager.setPreparing(true);
+        Track current = track(1L);
         List<String> events = new ArrayList<>();
         PlaybackQueueManager queueManager = queueManagerWithTracks(
-                new FakeQueueStore(),
-                Collections.singletonList(track(1L)),
+                store,
+                Collections.singletonList(current),
                 0,
-                REPEAT_OFF
+                REPEAT_OFF,
+                runtimeStateManager
         );
         PlaybackQueueCompletionOwner owner = owner(queueManager, events);
 
         owner.playAfterCompletion();
 
+        assertEquals(0, queueManager.queueStateSnapshot().getCurrentIndex());
+        assertEquals(1L, queueManager.queueStateSnapshot().getCurrentTrack().id);
+        assertEquals(Collections.singletonList(false), store.savedResumeRequestedValues);
+        assertFalse(runtimeStateManager.preparing());
         assertEquals(Collections.singletonList("stopAtEnd"), events);
     }
 
@@ -92,41 +101,13 @@ public class PlaybackQueueCompletionOwnerTest {
     }
 
     @Test
-    public void stopAfterAutomaticAdvancePreparesQueueAndStopsAtEnd() {
-        FakeQueueStore store = new FakeQueueStore();
-        PlaybackQueueManager queueManager = queueManagerWithTracks(
-                store,
-                Arrays.asList(track(3L), track(4L)),
-                1,
-                REPEAT_ALL
-        );
-        List<String> events = new ArrayList<>();
-
-        owner(queueManager, events).stopAfterAutomaticAdvance(0);
-
-        assertEquals(0, queueManager.queueStateSnapshot().getCurrentIndex());
-        assertEquals(Collections.singletonList("4:0"), store.savedPositions);
-        assertEquals(Collections.singletonList("stopAtEnd"), events);
-    }
-
-    @Test
-    public void stopAfterAutomaticAdvanceWithoutQueueManagerStillStopsAtEnd() {
-        List<String> events = new ArrayList<>();
-        PlaybackQueueCompletionOwner owner = owner(null, events);
-
-        owner.stopAfterAutomaticAdvance(7);
-
-        assertEquals(Collections.singletonList("stopAtEnd"), events);
-    }
-
-    @Test
-    public void missingPlaybackQueueManagerUsesStopAndClearBoundaryOnlyForCompletion() {
-        List<String> events = new ArrayList<>();
-        PlaybackQueueCompletionOwner owner = owner(null, events);
-
-        owner.playAfterCompletion();
-
-        assertEquals(Collections.singletonList("stopAndClear"), events);
+    public void requiresQueueManager() {
+        try {
+            owner(null, new ArrayList<>());
+        } catch (NullPointerException expected) {
+            return;
+        }
+        throw new AssertionError("Expected constructor to require a queue manager");
     }
 
     @Test
@@ -152,29 +133,6 @@ public class PlaybackQueueCompletionOwnerTest {
         assertEquals(Collections.singletonList(false), store.savedResumeRequestedValues);
         assertFalse(runtimeStateManager.preparing());
         assertEquals(Collections.singletonList("stopAndClear"), events);
-    }
-
-    @Test
-    public void stopAtEndOfQueuePreparesQueueBeforeBoundary() {
-        FakeQueueStore store = new FakeQueueStore();
-        PlaybackRuntimeStateManager runtimeStateManager = runtimeStateManager();
-        runtimeStateManager.setPreparing(true);
-        PlaybackQueueManager queueManager = queueManagerWithTracks(
-                store,
-                Arrays.asList(track(7L), track(8L)),
-                1,
-                REPEAT_OFF,
-                runtimeStateManager
-        );
-        List<String> events = new ArrayList<>();
-
-        owner(queueManager, events).stopAtEndOfQueue();
-
-        assertEquals(1, queueManager.queueStateSnapshot().getCurrentIndex());
-        assertEquals(8L, queueManager.queueStateSnapshot().getCurrentTrack().id);
-        assertEquals(Collections.singletonList(false), store.savedResumeRequestedValues);
-        assertFalse(runtimeStateManager.preparing());
-        assertEquals(Collections.singletonList("stopAtEnd"), events);
     }
 
     @Test
