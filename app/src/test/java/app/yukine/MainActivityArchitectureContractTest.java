@@ -197,9 +197,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(libraryGateway.contains(
                 "                this::renderSelectedTabIfReady,\n"));
         assertTrue(librarySelectedTabRendererArgument >= 0);
-        assertTrue(libraryGateway.contains("                    if (MainActivityBase.this.playlistDialogController != null) {"));
         assertTrue(libraryGateway.contains(
-                "                        MainActivityBase.this.playlistDialogController.showAddToPlaylist(track);\n"));
+                "                this::showAddToPlaylistIfReady,\n"));
+        assertFalse(libraryGateway.contains("MainActivityBase.this.playlistDialogController"));
+        assertFalse(libraryGateway.contains("playlistDialogController.showAddToPlaylist(track);"));
+        assertFalse(libraryGateway.contains("                    if (playlistDialogController != null) {"));
+        assertFalse(libraryGateway.contains("                    if (MainActivityBase.this.playlistDialogController != null) {"));
         assertTrue(libraryGateway.contains("                routeController,\n"));
         assertTrue(libraryRouteActionsArgument >= 0);
         assertTrue(mainLibraryGateway.contains("        routeActions: LibraryRouteActions,\n"));
