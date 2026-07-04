@@ -122,7 +122,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
 
     private static PlaybackQueueStateOwner queueStateOwner(Track current, int queueSize) {
         PlaybackQueueManager queueManager = queueManager(current, queueSize);
-        return new PlaybackQueueStateOwner(() -> queueManager);
+        return new PlaybackQueueStateOwner(queueManager::queueStateSnapshot);
     }
 
     private static PlaybackQueueManager queueManager(Track current, int queueSize) {

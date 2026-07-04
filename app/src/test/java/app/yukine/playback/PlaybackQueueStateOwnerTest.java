@@ -39,12 +39,15 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     @Test
-    public void supplierBackedOwnerReadsLateBoundQueueManager() {
+    public void supplierBackedOwnerReadsLateBoundQueueStateSnapshot() {
         Track track = track(13L);
         PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
         AtomicReference<PlaybackQueueManager> queueManagerRef = new AtomicReference<>();
-        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManagerRef::get);
+        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(() -> {
+            PlaybackQueueManager latestQueueManager = queueManagerRef.get();
+            return latestQueueManager == null ? null : latestQueueManager.queueStateSnapshot();
+        });
 
         assertSame(null, owner.currentTrack());
         assertTrue(owner.isQueueEmpty());
@@ -154,7 +157,7 @@ public class PlaybackQueueStateOwnerTest {
     }
 
     private static PlaybackQueueStateOwner queueStateOwner(PlaybackQueueManager queueManager) {
-        return new PlaybackQueueStateOwner(() -> queueManager);
+        return new PlaybackQueueStateOwner(queueManager::queueStateSnapshot);
     }
 
     private static PlaybackQueueManager playbackQueueManager(

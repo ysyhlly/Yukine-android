@@ -109,7 +109,7 @@ public class PlaybackNotificationStateOwnerTest {
     private static PlaybackQueueStateOwner queueStateOwner(Track track) {
         PlaybackQueueManager queueManager = playbackQueueManager();
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        return new PlaybackQueueStateOwner(() -> queueManager);
+        return new PlaybackQueueStateOwner(queueManager::queueStateSnapshot);
     }
 
     private static PlaybackQueueManager playbackQueueManager() {

@@ -736,7 +736,7 @@ public final class PlaybackPrecacheManagerTest {
     private static PlaybackQueueStateOwner queueStateOwner(PlaybackQueueManager queueManager) {
         return queueManager == null
                 ? new PlaybackQueueStateOwner()
-                : new PlaybackQueueStateOwner(() -> queueManager);
+                : new PlaybackQueueStateOwner(queueManager::queueStateSnapshot);
     }
 
     private static PlaybackQueueManager queueManager(Track... tracks) {

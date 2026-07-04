@@ -26,7 +26,7 @@ public class PlaybackQueueCommandOwnerTest {
         PlaybackQueueManager queueManager = queueManager();
         queueManager.playQueue(Collections.singletonList(track), 0, 0L);
         PlaybackQueueCommandOwner owner = new PlaybackQueueCommandOwner(
-                new PlaybackQueueStateOwner(() -> queueManager),
+                new PlaybackQueueStateOwner(queueManager::queueStateSnapshot),
                 (currentTrack, playWhenReady) -> events.add("prepare:" + currentTrack.id + ":" + playWhenReady),
                 () -> events.add("publish")
         );

@@ -112,7 +112,9 @@ public final class EchoPlaybackService extends MediaLibraryService
             new PlaybackPlayerStateOwner(() -> player);
     private PlaybackQueueManager playbackQueueManager;
     private final PlaybackQueueStateOwner playbackQueueStateOwner =
-            new PlaybackQueueStateOwner(() -> playbackQueueManager);
+            new PlaybackQueueStateOwner(
+                    () -> playbackQueueManager == null ? null : playbackQueueManager.queueStateSnapshot()
+            );
     private final PlaybackQueueRuntimeStateManager playbackQueueRuntimeStateManager =
             new PlaybackQueueRuntimeStateManager();
     private final PlaybackQueueCommandOwner playbackQueueCommandOwner =

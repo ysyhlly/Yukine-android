@@ -73,7 +73,7 @@ public class PlaybackFavoriteCommandOwnerTest {
     }
 
     private PlaybackQueueStateOwner queueStateOwner(PlaybackQueueManager queueManager) {
-        return new PlaybackQueueStateOwner(() -> queueManager);
+        return new PlaybackQueueStateOwner(queueManager::queueStateSnapshot);
     }
 
     private PlaybackQueueManager queueManager() {

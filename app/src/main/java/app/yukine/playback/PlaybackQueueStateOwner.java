@@ -6,21 +6,20 @@ import app.yukine.playback.manager.PlaybackQueueManager;
 import java.util.function.Supplier;
 
 final class PlaybackQueueStateOwner {
-    private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
+    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;
 
     PlaybackQueueStateOwner() {
-        this((Supplier<PlaybackQueueManager>) null);
+        this((Supplier<PlaybackQueueManager.QueueStateSnapshot>) null);
     }
 
-    PlaybackQueueStateOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
-        this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
+    PlaybackQueueStateOwner(Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier) {
+        this.queueStateSnapshotSupplier = queueStateSnapshotSupplier;
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier == null
                 ? null
-                : playbackQueueManager.queueStateSnapshot();
+                : queueStateSnapshotSupplier.get();
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 
@@ -38,9 +37,5 @@ final class PlaybackQueueStateOwner {
 
     boolean isAtEndOfQueue() {
         return queueStateSnapshot().isAtEndOfQueue();
-    }
-
-    private PlaybackQueueManager playbackQueueManager() {
-        return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }
 }

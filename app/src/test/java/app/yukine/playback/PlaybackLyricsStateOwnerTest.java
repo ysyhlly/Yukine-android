@@ -26,7 +26,7 @@ public class PlaybackLyricsStateOwnerTest {
         Track track = new Track(13L, "Track", "Artist", "Album", 1000L, Uri.EMPTY, "file:13");
         PlaybackQueueManager queueManager = queueManager();
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        PlaybackQueueStateOwner queueStateOwner = new PlaybackQueueStateOwner(() -> queueManager);
+        PlaybackQueueStateOwner queueStateOwner = new PlaybackQueueStateOwner(queueManager::queueStateSnapshot);
         PlaybackLyricsStateOwner owner = new PlaybackLyricsStateOwner(
                 () -> {
                     events.add("visible");
@@ -63,7 +63,7 @@ public class PlaybackLyricsStateOwnerTest {
         Track track = new Track(14L, "Track", "Artist", "Album", 1000L, Uri.EMPTY, "file:14");
         PlaybackQueueManager queueManager = queueManager();
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        PlaybackQueueStateOwner queueStateOwner = new PlaybackQueueStateOwner(() -> queueManager);
+        PlaybackQueueStateOwner queueStateOwner = new PlaybackQueueStateOwner(queueManager::queueStateSnapshot);
         PlaybackLyricsStateOwner owner = new PlaybackLyricsStateOwner(
                 () -> true,
                 queueStateOwner,
