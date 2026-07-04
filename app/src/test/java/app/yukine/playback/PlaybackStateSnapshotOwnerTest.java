@@ -5,10 +5,16 @@ import static org.junit.Assert.assertSame;
 
 import android.net.Uri;
 
+import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
+import app.yukine.playback.manager.PlaybackQueueStore;
 import app.yukine.playback.manager.PlaybackRuntimeStateManager;
-import java.util.function.Supplier;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 import org.junit.Test;
 
 public class PlaybackStateSnapshotOwnerTest {
@@ -20,7 +26,7 @@ public class PlaybackStateSnapshotOwnerTest {
         FakePlaybackPositionProvider playback = new FakePlaybackPositionProvider(321L, 7000L, true);
         FakeVisualizationProvider visualization = new FakeVisualizationProvider(waveform, spectrum, true);
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
-                queueStateSnapshotSupplier(track, 2, 5),
+                queueManagerWithSnapshot(track, 2, 5),
                 playback,
                 new FakeRuntimeStateProvider(true, "buffering", true, 1, 1.25f, 0.75f),
                 () -> 9000L,
@@ -88,7 +94,7 @@ public class PlaybackStateSnapshotOwnerTest {
     public void doesNotReadRealtimeBeatWhenPlaybackIsPaused() {
         CountingBeatProvider beatProvider = new CountingBeatProvider();
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
-                () -> null,
+                null,
                 new FakePlaybackPositionProvider(0L, 0L, false),
                 null,
                 null,
@@ -174,12 +180,100 @@ public class PlaybackStateSnapshotOwnerTest {
         );
     }
 
-    private static Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier(
+    private static PlaybackQueueManager queueManagerWithSnapshot(
             Track currentTrack,
             int currentIndex,
             int queueSize
     ) {
-        return () -> new PlaybackQueueManager.QueueStateSnapshot(currentTrack, currentIndex, queueSize);
+        if (currentTrack == null || currentIndex < 0 || currentIndex >= queueSize || queueSize <= 0) {
+            return null;
+        }
+        PlaybackQueueManager queueManager = playbackQueueManager();
+        List<Track> queue = new ArrayList<>();
+        for (int index = 0; index < queueSize; index++) {
+            queue.add(index == currentIndex ? currentTrack : track(1000L + index));
+        }
+        queueManager.playQueue(queue, currentIndex, 0L);
+        return queueManager;
+    }
+
+    private static PlaybackQueueManager playbackQueueManager() {
+        return new PlaybackQueueManager(
+                new FakeQueueStore(),
+                new NoopQueuePlaybackActions(),
+                null,
+                track -> track,
+                new NoopMirroredQueuePlayer(),
+                playbackRuntimeStateManager(),
+                null
+        );
+    }
+
+    private static final class FakeQueueStore implements PlaybackQueueStore {
+        @Override
+        public PlaybackQueueState load() {
+            return new PlaybackQueueState(Collections.emptyList(), -1);
+        }
+
+        @Override
+        public void save(List<Track> tracks, int currentIndex) {
+        }
+
+        @Override
+        public boolean loadResumeRequested() {
+            return false;
+        }
+
+        @Override
+        public void saveResumeRequested(boolean requested) {
+        }
+
+        @Override
+        public boolean loadPlaybackRestoreEnabled() {
+            return true;
+        }
+
+        @Override
+        public void savePlaybackRestoreEnabled(boolean enabled) {
+        }
+
+        @Override
+        public long loadPlaybackPositionTrackId() {
+            return -1L;
+        }
+
+        @Override
+        public long loadPlaybackPositionMs() {
+            return 0L;
+        }
+
+        @Override
+        public void savePlaybackPosition(long trackId, long positionMs) {
+        }
+    }
+
+    private static final class NoopQueuePlaybackActions
+            implements PlaybackQueueManager.QueuePlaybackActions {
+        @Override
+        public void prepareCurrent(boolean playWhenReady) {
+        }
+
+        @Override
+        public void publishState() {
+        }
+    }
+
+    private static final class NoopMirroredQueuePlayer
+            implements PlaybackQueueManager.MirroredQueuePlayer {
+        @Override
+        public boolean matchesCurrentQueue() {
+            return false;
+        }
+
+        @Override
+        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
+            return false;
+        }
     }
 
     private static final class FakePlaybackPositionProvider

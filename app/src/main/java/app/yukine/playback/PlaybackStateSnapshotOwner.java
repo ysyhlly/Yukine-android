@@ -6,7 +6,6 @@ import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 final class PlaybackStateSnapshotOwner {
     interface PlaybackPositionProvider {
@@ -39,7 +38,7 @@ final class PlaybackStateSnapshotOwner {
         PlaybackSpectrumSnapshot spectrumSnapshot(Track track, long durationMs, boolean deferGeneration);
     }
 
-    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;
+    private final PlaybackQueueManager playbackQueueManager;
     private final PlaybackPositionProvider playbackPositionProvider;
     private final RuntimeStateProvider runtimeStateProvider;
     private final LongSupplier sleepTimerProvider;
@@ -48,7 +47,7 @@ final class PlaybackStateSnapshotOwner {
     private final int defaultRepeatMode;
 
     PlaybackStateSnapshotOwner(
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier,
+            PlaybackQueueManager playbackQueueManager,
             PlaybackPositionProvider playbackPositionProvider,
             RuntimeStateProvider runtimeStateProvider,
             LongSupplier sleepTimerProvider,
@@ -56,7 +55,7 @@ final class PlaybackStateSnapshotOwner {
             DoubleSupplier realtimeBeatProvider,
             int defaultRepeatMode
     ) {
-        this.queueStateSnapshotSupplier = queueStateSnapshotSupplier;
+        this.playbackQueueManager = playbackQueueManager;
         this.playbackPositionProvider = playbackPositionProvider;
         this.runtimeStateProvider = runtimeStateProvider;
         this.sleepTimerProvider = sleepTimerProvider;
@@ -173,9 +172,9 @@ final class PlaybackStateSnapshotOwner {
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier == null
+        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
                 ? null
-                : queueStateSnapshotSupplier.get();
+                : playbackQueueManager.queueStateSnapshot();
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 }
