@@ -90,10 +90,14 @@ public final class MainActivityArchitectureContractTest {
         String routeStoresAndStatus = methodBody(mainActivity, "    private void initializeRouteStoresAndStatus()");
         String playbackLifecycleControllers = methodBody(mainActivity, "    private void initializePlaybackLifecycleControllers()");
         String playbackControllers = methodBody(mainActivity, "    private void initializePlaybackControllers()");
+        String savePlaybackSettingsIfReady = methodBody(mainActivity, "    private void savePlaybackSettingsIfReady(float playbackSpeed, float appVolume)");
         String playPendingTracksIfReady = methodBody(mainActivity, "    private void playPendingTracksIfReady()");
         String renderNowBarIfReady = methodBody(mainActivity, "    private void renderNowBarIfReady()");
         String preResolveNextStreamingTrackIfReady = methodBody(mainActivity, "    private void preResolveNextStreamingTrackIfReady(PlaybackStateSnapshot snapshot)");
         String recoverStreamingBufferingIfReady = methodBody(mainActivity, "    private void recoverStreamingBufferingIfReady(PlaybackStateSnapshot snapshot)");
+        String loadCollections = methodBody(mainActivity, "    private void loadCollections()");
+        String renderSelectedTabIfReady = methodBody(mainActivity, "    private void renderSelectedTabIfReady()");
+        String resolveCurrentStreamingQueueTrackIfNeeded = methodBody(mainActivity, "    private boolean resolveCurrentStreamingQueueTrackIfNeeded()");
         String playTrackListFromHost = methodBody(mainActivity, "    private void playTrackListFromHost(List<Track> tracks, int index)");
         String mainLibraryGateway = read("app/src/main/java/app/yukine/MainLibraryGateway.kt")
                 .replace("\r\n", "\n");
@@ -201,16 +205,25 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(libraryGateway.contains("playbackStartController.playTrackList("));
         assertFalse(libraryGateway.contains(
                 "                track -> MainActivityBase.this.playlistDialogController.showAddToPlaylist(track),\n"));
+        assertTrue(playbackLifecycleControllers.contains("                        this::savePlaybackSettingsIfReady,\n"));
+        assertTrue(playbackLifecycleControllers.contains("                        this::loadCollections,\n"));
         assertTrue(playbackLifecycleControllers.contains("                        this::renderNowBarIfReady,\n"));
+        assertTrue(playbackLifecycleControllers.contains("                        this::renderSelectedTabIfReady,\n"));
         assertTrue(playbackLifecycleControllers.contains("                        this::preResolveNextStreamingTrackIfReady,\n"));
         assertTrue(playbackLifecycleControllers.contains("                        this::recoverStreamingBufferingIfReady,\n"));
         assertTrue(playbackLifecycleControllers.contains("                        this::playPendingTracksIfReady,\n"));
+        assertFalse(playbackLifecycleControllers.contains("                        this::renderSelectedTab,\n"));
+        assertFalse(playbackLifecycleControllers.contains("                            settingsStore.setPlaybackSpeed(playbackSpeed);\n"));
+        assertFalse(playbackLifecycleControllers.contains("                            settingsStore.setAppVolume(appVolume);\n"));
         assertFalse(playbackLifecycleControllers.contains("                        () -> nowPlayingStateController.renderNowBar(),\n"));
         assertFalse(playbackLifecycleControllers.contains("                        () -> playbackStartController.playPendingTracksIfNeeded(),\n"));
         assertFalse(playbackLifecycleControllers.contains(
                 "                        snapshot -> streamingPlaybackController.preResolveNextStreamingTrack(snapshot),\n"));
         assertFalse(playbackLifecycleControllers.contains(
                 "                        snapshot -> streamingPlaybackController.recoverStreamingBuffering(snapshot),\n"));
+        assertTrue(savePlaybackSettingsIfReady.contains("if (settingsStore != null) {"));
+        assertTrue(savePlaybackSettingsIfReady.contains("settingsStore.setPlaybackSpeed(playbackSpeed);"));
+        assertTrue(savePlaybackSettingsIfReady.contains("settingsStore.setAppVolume(appVolume);"));
         assertTrue(playPendingTracksIfReady.contains("if (playbackStartController != null) {"));
         assertTrue(playPendingTracksIfReady.contains("playbackStartController.playPendingTracksIfNeeded();"));
         assertTrue(renderNowBarIfReady.contains("if (nowPlayingStateController != null) {"));
@@ -219,6 +232,19 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(preResolveNextStreamingTrackIfReady.contains("streamingPlaybackController.preResolveNextStreamingTrack(snapshot);"));
         assertTrue(recoverStreamingBufferingIfReady.contains("if (streamingPlaybackController != null) {"));
         assertTrue(recoverStreamingBufferingIfReady.contains("streamingPlaybackController.recoverStreamingBuffering(snapshot);"));
+        assertTrue(loadCollections.contains("if (libraryStore == null) {"));
+        assertTrue(loadCollections.contains("renderNowBarIfReady();"));
+        assertTrue(loadCollections.contains("renderSelectedTabIfReady();"));
+        assertFalse(loadCollections.contains("nowPlayingStateController.renderNowBar();"));
+        assertFalse(loadCollections.contains("renderSelectedTab();"));
+        assertTrue(renderSelectedTabIfReady.contains("if (tabRenderDispatcher != null"));
+        assertTrue(renderSelectedTabIfReady.contains("homeDashboardRenderController != null"));
+        assertTrue(renderSelectedTabIfReady.contains("queueRenderController != null"));
+        assertTrue(renderSelectedTabIfReady.contains("libraryStore != null"));
+        assertTrue(renderSelectedTabIfReady.contains("networkRenderCoordinator != null"));
+        assertTrue(renderSelectedTabIfReady.contains("settingsContextProvider != null"));
+        assertTrue(resolveCurrentStreamingQueueTrackIfNeeded.contains(
+                "if (playbackService == null || streamingPlaybackController == null) {"));
         assertTrue(playTrackListFromHost.contains("if (playbackStartController != null) {"));
         assertTrue(playTrackListFromHost.contains("playbackStartController.playTrackList(tracks, index);"));
         assertTrue(playTrackListFromHost.contains("if (playbackStartListener != null) {"));

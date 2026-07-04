@@ -449,15 +449,12 @@ public abstract class MainActivityBase extends ComponentActivity {
                 playbackStateEventListenerFactory.create(
                         this::selectedTab,
                         () -> lyricsViewModel == null ? -1L : lyricsViewModel.trackId(),
-                        (playbackSpeed, appVolume) -> {
-                            settingsStore.setPlaybackSpeed(playbackSpeed);
-                            settingsStore.setAppVolume(appVolume);
-                        },
+                        this::savePlaybackSettingsIfReady,
                         this::loadLyrics,
                         this::loadCollections,
                         this::renderNowBarIfReady,
                         snapshot -> homeDashboardViewModel.updatePlayback(snapshot),
-                        this::renderSelectedTab,
+                        this::renderSelectedTabIfReady,
                         this::updateNowPlayingContent,
                         this::preResolveNextStreamingTrackIfReady,
                         this::recoverStreamingBufferingIfReady,
@@ -477,7 +474,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         () -> playbackService = null,
                         () -> playbackStore.reset(),
                         this::playPendingTracksIfReady,
-                        this::renderSelectedTab,
+                        this::renderSelectedTabIfReady,
                         this::renderNowBarIfReady
                 )
         );
@@ -486,6 +483,13 @@ public abstract class MainActivityBase extends ComponentActivity {
                 playbackStateEventController,
                 playbackServiceHostController
         );
+    }
+
+    private void savePlaybackSettingsIfReady(float playbackSpeed, float appVolume) {
+        if (settingsStore != null) {
+            settingsStore.setPlaybackSpeed(playbackSpeed);
+            settingsStore.setAppVolume(appVolume);
+        }
     }
 
     private void playPendingTracksIfReady() {
@@ -1785,15 +1789,21 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void loadCollections() {
+        if (libraryStore == null) {
+            return;
+        }
         libraryViewModel.loadCollectionsJava(selectedPlaylistId(), result -> {
+            if (libraryStore == null) {
+                return;
+            }
             routeController.setSelectedPlaylistId(result.getSelectedPlaylistId());
             libraryStore.applyCollections(result);
-            nowPlayingStateController.renderNowBar();
+            renderNowBarIfReady();
             if (TAB_COLLECTIONS.equals(selectedTab())
                     || (TAB_LIBRARY.equals(selectedTab()) && LIBRARY_PLAYLISTS.equals(libraryMode()))
                     || TAB_NETWORK.equals(selectedTab())
                     || TAB_SETTINGS.equals(selectedTab())) {
-                renderSelectedTab();
+                renderSelectedTabIfReady();
             }
         });
     }
@@ -2054,6 +2064,17 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
         renderSelectedTabForNavHostState();
         syncNavHostState();
+    }
+
+    private void renderSelectedTabIfReady() {
+        if (tabRenderDispatcher != null
+                && homeDashboardRenderController != null
+                && queueRenderController != null
+                && libraryStore != null
+                && networkRenderCoordinator != null
+                && settingsContextProvider != null) {
+            renderSelectedTab();
+        }
     }
 
     private void renderHome() {
@@ -2493,7 +2514,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private boolean resolveCurrentStreamingQueueTrackIfNeeded() {
-        if (playbackService == null) {
+        if (playbackService == null || streamingPlaybackController == null) {
             return false;
         }
         StreamingQueueResolveTarget target = streamingViewModel.prepareCurrentStreamingQueueResolveTarget(
