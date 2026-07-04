@@ -104,6 +104,7 @@ public final class MainActivityArchitectureContractTest {
         String confirmDeleteTrackIfReady = methodBody(mainActivity, "    private void confirmDeleteTrackIfReady(Track track)");
         String removeQueueTrackIfReady = methodBody(mainActivity, "    private void removeQueueTrackIfReady(Track track)");
         String confirmClearQueueIfReady = methodBody(mainActivity, "    private void confirmClearQueueIfReady()");
+        String showClearQueueConfirmationIfReady = methodBody(mainActivity, "    private void showClearQueueConfirmationIfReady()");
         String preResolveNextStreamingTrackIfReady = methodBody(mainActivity, "    private void preResolveNextStreamingTrackIfReady(PlaybackStateSnapshot snapshot)");
         String recoverStreamingBufferingIfReady = methodBody(mainActivity, "    private void recoverStreamingBufferingIfReady(PlaybackStateSnapshot snapshot)");
         String loadCollections = methodBody(mainActivity, "    private void loadCollections()");
@@ -281,6 +282,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(removeQueueTrackIfReady.contains("queueActionController.removeQueueTrack(track);"));
         assertTrue(confirmClearQueueIfReady.contains("if (queueActionController != null) {"));
         assertTrue(confirmClearQueueIfReady.contains("queueActionController.confirmClearQueue();"));
+        assertTrue(showClearQueueConfirmationIfReady.contains("if (confirmationDialogController != null) {"));
+        assertTrue(showClearQueueConfirmationIfReady.contains("confirmationDialogController.confirmClearQueue();"));
         assertTrue(preResolveNextStreamingTrackIfReady.contains("if (streamingPlaybackController != null) {"));
         assertTrue(preResolveNextStreamingTrackIfReady.contains("streamingPlaybackController.preResolveNextStreamingTrack(snapshot);"));
         assertTrue(recoverStreamingBufferingIfReady.contains("if (streamingPlaybackController != null) {"));
@@ -316,6 +319,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackControllers.contains("                this::showAddToPlaylistIfReady,\n"));
         assertTrue(playbackControllers.contains("                this::removeQueueTrackIfReady,\n"));
         assertTrue(playbackControllers.contains("                this::confirmClearQueueIfReady,\n"));
+        assertTrue(playbackControllers.contains("                        this::showClearQueueConfirmationIfReady,\n"));
         assertTrue(playbackControllers.contains("                this::playRecommendationIfReady,\n"));
         assertTrue(playbackControllers.contains("                this::playHeartbeatRecommendationIfReady,\n"));
         assertTrue(playbackControllers.contains("                        this::renderNowBarIfReady,\n"));
@@ -332,6 +336,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackControllers.contains("                track -> playlistDialogController.showAddToPlaylist(track),\n"));
         assertFalse(playbackControllers.contains("                track -> queueActionController.removeQueueTrack(track),\n"));
         assertFalse(playbackControllers.contains("                () -> queueActionController.confirmClearQueue(),\n"));
+        assertFalse(playbackControllers.contains("                        () -> confirmationDialogController.confirmClearQueue(),\n"));
         assertFalse(playbackControllers.contains("                presentation -> playbackStartController.playRecommendation(presentation),\n"));
         assertFalse(playbackControllers.contains("                presentation -> playbackStartController.playHeartbeatRecommendation(presentation),\n"));
         assertFalse(playbackControllers.contains("                        () -> nowPlayingStateController.renderNowBar(),\n"));
@@ -2049,7 +2054,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("(fromIndex, toIndex) -> playbackService.moveQueueTrack(fromIndex, toIndex)"));
         assertTrue(mainActivity.contains("this::renderNowBarIfReady"));
         assertTrue(mainActivity.contains("this::renderSelectedTabIfReady"));
-        assertTrue(mainActivity.contains("() -> confirmationDialogController.confirmClearQueue()"));
+        assertTrue(mainActivity.contains("this::showClearQueueConfirmationIfReady"));
+        assertFalse(mainActivity.contains("() -> confirmationDialogController.confirmClearQueue()"));
         assertTrue(mainActivity.contains("settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()"));
         assertTrue(mainActivity.contains("status -> statusMessageController.setStatus(status)"));
         assertTrue(mainQueueActionListener.contains("internal class MainQueueActionListener("));

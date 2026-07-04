@@ -546,6 +546,12 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
     }
 
+    private void showClearQueueConfirmationIfReady() {
+        if (confirmationDialogController != null) {
+            confirmationDialogController.confirmClearQueue();
+        }
+    }
+
     private void preResolveNextStreamingTrackIfReady(PlaybackStateSnapshot snapshot) {
         if (streamingPlaybackController != null) {
             streamingPlaybackController.preResolveNextStreamingTrack(snapshot);
@@ -710,7 +716,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         (fromIndex, toIndex) -> playbackService.moveQueueTrack(fromIndex, toIndex),
                         this::renderNowBarIfReady,
                         this::renderSelectedTabIfReady,
-                        () -> confirmationDialogController.confirmClearQueue(),
+                        this::showClearQueueConfirmationIfReady,
                         () -> AppLanguage.text(
                                 settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                                 "queue.empty"
