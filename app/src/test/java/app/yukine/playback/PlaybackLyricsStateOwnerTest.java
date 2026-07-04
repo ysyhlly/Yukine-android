@@ -31,7 +31,7 @@ public class PlaybackLyricsStateOwnerTest {
                     events.add("visible");
                     return true;
                 },
-                queueManager::queueStateSnapshot,
+                queueManager,
                 () -> {
                     events.add("playing");
                     return false;
@@ -64,7 +64,7 @@ public class PlaybackLyricsStateOwnerTest {
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
         PlaybackLyricsStateOwner owner = new PlaybackLyricsStateOwner(
                 () -> true,
-                queueManager::queueStateSnapshot,
+                queueManager,
                 () -> {
                     events.add("playing");
                     return false;

@@ -5,22 +5,21 @@ import app.yukine.playback.manager.PlaybackLyricsManager;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BooleanSupplier;
-import java.util.function.Supplier;
 
 final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvider {
     private final BooleanSupplier appVisibilitySupplier;
-    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;
+    private final PlaybackQueueManager playbackQueueManager;
     private final BooleanSupplier playingStateProvider;
     private final BooleanSupplier preparingStateProvider;
 
     PlaybackLyricsStateOwner(
             BooleanSupplier appVisibilitySupplier,
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier,
+            PlaybackQueueManager playbackQueueManager,
             BooleanSupplier playingStateProvider,
             BooleanSupplier preparingStateProvider
     ) {
         this.appVisibilitySupplier = appVisibilitySupplier;
-        this.queueStateSnapshotSupplier = queueStateSnapshotSupplier;
+        this.playbackQueueManager = playbackQueueManager;
         this.playingStateProvider = playingStateProvider;
         this.preparingStateProvider = preparingStateProvider;
     }
@@ -46,9 +45,9 @@ final class PlaybackLyricsStateOwner implements PlaybackLyricsManager.StateProvi
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier == null
+        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
                 ? null
-                : queueStateSnapshotSupplier.get();
+                : playbackQueueManager.queueStateSnapshot();
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 }
