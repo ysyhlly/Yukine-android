@@ -4,6 +4,7 @@ import android.net.Uri
 import app.yukine.model.PlaybackQueueState
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackPositionManager
+import app.yukine.playback.manager.PlaybackQueueManager
 import app.yukine.playback.manager.PlaybackQueueStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
@@ -88,13 +89,13 @@ class PlaybackPositionManagerTest {
     }
 
     @Test
-    fun stateProviderFromPlaybackStateReadsCurrentTrackAndPositionSuppliers() {
+    fun stateProviderFromPlaybackStateReadsQueueSnapshotAndPositionSuppliers() {
         val events = mutableListOf<String>()
         val track = track(23L)
         val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
             Supplier {
-                events += "track"
-                track
+                events += "snapshot"
+                queueStateSnapshot(track)
             },
             LongSupplier {
                 events += "position"
@@ -104,34 +105,39 @@ class PlaybackPositionManagerTest {
 
         assertSame(track, provider.currentTrack())
         assertEquals(321L, provider.positionMs())
-        assertEquals(listOf("track", "position"), events)
+        assertEquals(listOf("snapshot", "position"), events)
     }
 
     @Test
-    fun stateProviderFromPlaybackStateHandlesMissingCurrentTrack() {
+    fun stateProviderFromPlaybackStateHandlesMissingQueueSnapshot() {
         val missingProvider = PlaybackPositionManager.stateProviderFromPlaybackState(null, null)
-        val nullTrackProvider = PlaybackPositionManager.stateProviderFromPlaybackState(
+        val nullSnapshotProvider = PlaybackPositionManager.stateProviderFromPlaybackState(
             Supplier { null },
+            null
+        )
+        val emptySnapshotProvider = PlaybackPositionManager.stateProviderFromPlaybackState(
+            Supplier { PlaybackQueueManager.QueueStateSnapshot.empty() },
             null
         )
 
         assertEquals(null, missingProvider.currentTrack())
         assertEquals(0L, missingProvider.positionMs())
-        assertEquals(null, nullTrackProvider.currentTrack())
+        assertEquals(null, nullSnapshotProvider.currentTrack())
+        assertEquals(null, emptySnapshotProvider.currentTrack())
     }
 
     @Test
     fun stateProviderFromPlaybackStateReadsLateBoundCurrentTrack() {
         val track = track(24L)
-        var currentTrack: Track? = null
+        var queueStateSnapshot: PlaybackQueueManager.QueueStateSnapshot? = null
         val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            Supplier { currentTrack },
+            Supplier { queueStateSnapshot },
             LongSupplier { 420L }
         )
 
         assertEquals(null, provider.currentTrack())
 
-        currentTrack = track
+        queueStateSnapshot = queueStateSnapshot(track)
 
         assertSame(track, provider.currentTrack())
         assertEquals(420L, provider.positionMs())
@@ -147,6 +153,10 @@ class PlaybackPositionManagerTest {
         dataPath: String = "/music/$id"
     ): Track {
         return Track(id, "Track $id", "Artist", "Album", durationMs, Uri.EMPTY, dataPath)
+    }
+
+    private fun queueStateSnapshot(track: Track): PlaybackQueueManager.QueueStateSnapshot {
+        return PlaybackQueueManager.QueueStateSnapshot(track, 0, 1)
     }
 
     private class MutableClock(var now: Long = 0L) : LongSupplier {
