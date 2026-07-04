@@ -507,7 +507,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         PlaybackVisualizationCacheStateOwner playbackVisualizationCacheStateOwner =
                 new PlaybackVisualizationCacheStateOwner(
                         mainHandler,
-                        currentTrackSupplier,
+                        playbackQueueManager,
                         task -> visualizationTaskScheduler.schedule(PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE, task)
                 );
         playbackVisualizationCacheManager = PlaybackVisualizationCacheManager.fromMediaSourceProvider(

@@ -3,22 +3,23 @@ package app.yukine.playback;
 import android.os.Handler;
 
 import app.yukine.model.Track;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizationCacheManager.StateProvider {
     private final Handler mainHandler;
-    private final Supplier<Track> currentTrackSupplier;
+    private final PlaybackQueueManager playbackQueueManager;
     private final Consumer<Runnable> cacheTaskScheduler;
 
     PlaybackVisualizationCacheStateOwner(
             Handler mainHandler,
-            Supplier<Track> currentTrackSupplier,
+            PlaybackQueueManager playbackQueueManager,
             Consumer<Runnable> cacheTaskScheduler
     ) {
         this.mainHandler = mainHandler;
-        this.currentTrackSupplier = currentTrackSupplier;
+        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         this.cacheTaskScheduler = cacheTaskScheduler;
     }
 
@@ -29,7 +30,7 @@ final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizatio
 
     @Override
     public Track currentTrack() {
-        return currentTrackSupplier == null ? null : currentTrackSupplier.get();
+        return queueStateSnapshot().getCurrentTrack();
     }
 
     @Override
@@ -37,5 +38,9 @@ final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizatio
         if (cacheTaskScheduler != null) {
             cacheTaskScheduler.accept(task);
         }
+    }
+
+    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
+        return playbackQueueManager.queueStateSnapshot();
     }
 }
