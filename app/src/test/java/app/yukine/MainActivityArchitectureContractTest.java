@@ -318,10 +318,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(rawExists("feature/ui-common/src/main/java/app/yukine/ui/HomeDashboardScreen.kt"));
         assertTrue(rawExists("feature/ui-common/src/main/java/app/yukine/ui/LibraryGroupsScreen.kt"));
         assertTrue(rawExists("feature/ui-common/src/main/java/app/yukine/ui/TrackListScreen.kt"));
+        assertTrue(rawExists("feature/ui-common/src/main/java/app/yukine/ui/CollectionsScreen.kt"));
 
         String homeDashboard = read("feature/ui-common/src/main/java/app/yukine/ui/HomeDashboardScreen.kt");
         String libraryGroups = read("feature/ui-common/src/main/java/app/yukine/ui/LibraryGroupsScreen.kt");
         String trackList = read("feature/ui-common/src/main/java/app/yukine/ui/TrackListScreen.kt");
+        String collections = read("feature/ui-common/src/main/java/app/yukine/ui/CollectionsScreen.kt");
 
         assertContainsUtf8Chinese(homeDashboard, "今天想听点什么？");
         assertContainsUtf8Chinese(homeDashboard, "今日回声");
@@ -344,9 +346,11 @@ public final class MainActivityArchitectureContractTest {
         assertContainsUtf8Chinese(libraryGroups, "播放");
         assertContainsUtf8Chinese(trackList, "歌手介绍");
         assertContainsUtf8Chinese(trackList, "全部专辑");
+        assertContainsUtf8Chinese(collections, "下载");
         assertNoCommonMojibake(homeDashboard);
         assertNoCommonMojibake(libraryGroups);
         assertNoCommonMojibake(trackList);
+        assertNoCommonMojibake(collections);
     }
 
     @Test
@@ -9963,7 +9967,8 @@ public final class MainActivityArchitectureContractTest {
         for (String phrase : new String[]{
                 "今天想听点什么？", "今日回声", "继续最近播放", "继续播放", "队列",
                 "随机", "收藏", "搜索", "刷新", "正在播放", "最近播放", "查看全部",
-                "添加音乐后开始聆听", "暂无最近播放", "本周回声", "歌手介绍", "全部专辑"
+                "添加音乐后开始聆听", "暂无最近播放", "本周回声", "歌手介绍", "全部专辑",
+                "下载"
         }) {
             assertFalse(source.contains(utf8ReadAsGbk(phrase)));
         }
