@@ -18,6 +18,10 @@ internal class MainPlaybackStore(
         return viewModel.replacePlaybackSnapshot(snapshot)
     }
 
+    fun queueSnapshot(): List<Track> {
+        return ArrayList(viewModel.playback.value.queue)
+    }
+
     fun reset() {
         viewModel.resetPlayback()
     }

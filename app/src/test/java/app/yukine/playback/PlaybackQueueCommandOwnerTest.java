@@ -22,10 +22,10 @@ public class PlaybackQueueCommandOwnerTest {
         Track track = track(7L);
         PlaybackQueueManager queueManager = queueManagerWithCurrent(track);
         PlaybackQueueCommandOwner owner = new PlaybackQueueCommandOwner(
-                () -> queueManager,
                 (currentTrack, playWhenReady) -> events.add("prepare:" + currentTrack.id + ":" + playWhenReady),
                 () -> events.add("publish")
         );
+        owner.bindPlaybackQueueManager(queueManager);
 
         owner.prepareCurrent(true);
         owner.publishState();
@@ -53,7 +53,6 @@ public class PlaybackQueueCommandOwnerTest {
     public void ignoresPrepareWhenCurrentTrackIsMissing() {
         List<String> events = new ArrayList<>();
         PlaybackQueueCommandOwner owner = new PlaybackQueueCommandOwner(
-                () -> null,
                 (currentTrack, playWhenReady) -> events.add("prepare"),
                 () -> events.add("publish")
         );

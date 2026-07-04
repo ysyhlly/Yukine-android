@@ -10,10 +10,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 final class PlaybackCurrentTrackPreparationOwner {
-    interface QueuePreparationController {
-        void replaceCurrentQueueTrack(Track track);
-    }
-
     interface RuntimeStateController {
         void setPreparing(boolean preparing);
         void setErrorMessage(String message);
@@ -71,7 +67,7 @@ final class PlaybackCurrentTrackPreparationOwner {
 
     private final Function<Track, PlaybackMediaSourceProvider.PlaybackPreparation> playbackPreparationProvider;
     private final Function<Track, MediaSource> mediaSourceResolver;
-    private final QueuePreparationController queuePreparationController;
+    private final Consumer<Track> currentQueueTrackReplacer;
     private final Function<Track, Long> restoredPositionProvider;
     private final RuntimeStateController runtimeStateController;
     private final Runnable statePublisher;
@@ -80,7 +76,7 @@ final class PlaybackCurrentTrackPreparationOwner {
     static PlaybackCurrentTrackPreparationOwner fromMediaSourceProvider(
             PlaybackMediaSourceProvider mediaSourceProvider,
             Function<Track, MediaMetadata> metadataProvider,
-            QueuePreparationController queuePreparationController,
+            Consumer<Track> currentQueueTrackReplacer,
             Function<Track, Long> restoredPositionProvider,
             RuntimeStateController runtimeStateController,
             Runnable statePublisher,
@@ -96,7 +92,7 @@ final class PlaybackCurrentTrackPreparationOwner {
                                 track,
                                 metadataProvider == null ? null : metadataProvider::apply
                         ),
-                queuePreparationController,
+                currentQueueTrackReplacer,
                 restoredPositionProvider,
                 runtimeStateController,
                 statePublisher,
@@ -107,7 +103,7 @@ final class PlaybackCurrentTrackPreparationOwner {
     PlaybackCurrentTrackPreparationOwner(
             Function<Track, PlaybackMediaSourceProvider.PlaybackPreparation> playbackPreparationProvider,
             Function<Track, MediaSource> mediaSourceResolver,
-            QueuePreparationController queuePreparationController,
+            Consumer<Track> currentQueueTrackReplacer,
             Function<Track, Long> restoredPositionProvider,
             RuntimeStateController runtimeStateController,
             Runnable statePublisher,
@@ -115,7 +111,7 @@ final class PlaybackCurrentTrackPreparationOwner {
     ) {
         this.playbackPreparationProvider = playbackPreparationProvider;
         this.mediaSourceResolver = mediaSourceResolver;
-        this.queuePreparationController = queuePreparationController;
+        this.currentQueueTrackReplacer = currentQueueTrackReplacer;
         this.restoredPositionProvider = restoredPositionProvider;
         this.runtimeStateController = runtimeStateController;
         this.statePublisher = statePublisher;
@@ -127,8 +123,8 @@ final class PlaybackCurrentTrackPreparationOwner {
                 ? null
                 : playbackPreparationProvider.apply(track);
         Track restoredTrack = preparation == null ? null : preparation.getRestoredTrack();
-        if (restoredTrack != null) {
-            queuePreparationController.replaceCurrentQueueTrack(restoredTrack);
+        if (restoredTrack != null && currentQueueTrackReplacer != null) {
+            currentQueueTrackReplacer.accept(restoredTrack);
         }
         Track preparedTrack = preparation == null ? track : preparation.getTrack();
         if (preparedTrack == null) {

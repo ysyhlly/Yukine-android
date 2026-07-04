@@ -6,7 +6,6 @@ import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackTransitionStateManager;
 
 import java.util.function.BooleanSupplier;
-import java.util.function.Supplier;
 
 final class PlaybackPlayHistoryRecorder {
     interface HistorySink {
@@ -34,7 +33,7 @@ final class PlaybackPlayHistoryRecorder {
     static Runnable recordIfPlaybackStartedAction(
             PlaybackPlayHistoryRecorder recorder,
             BooleanSupplier playWhenReady,
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
+            PlaybackQueueManager playbackQueueManager
     ) {
         return () -> {
             if (recorder == null) {
@@ -42,17 +41,12 @@ final class PlaybackPlayHistoryRecorder {
             }
             recorder.recordIfPlaybackStarted(
                     playWhenReady != null && playWhenReady.getAsBoolean(),
-                    currentTrack(playbackQueueManagerSupplier)
+                    currentTrack(playbackQueueManager)
             );
         };
     }
 
-    private static Track currentTrack(
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
-    ) {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
-                ? null
-                : playbackQueueManagerSupplier.get();
+    private static Track currentTrack(PlaybackQueueManager playbackQueueManager) {
         PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
                 ? null
                 : playbackQueueManager.queueStateSnapshot();

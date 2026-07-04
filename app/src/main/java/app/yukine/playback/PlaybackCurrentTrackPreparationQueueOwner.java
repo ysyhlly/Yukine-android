@@ -12,8 +12,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-final class PlaybackCurrentTrackPreparationQueueOwner
-        implements PlaybackCurrentTrackPreparationOwner.QueuePreparationController {
+final class PlaybackCurrentTrackPreparationQueueOwner {
     static final class PreparedQueue {
         private final Track currentTrack;
         private final int startIndex;
@@ -86,8 +85,7 @@ final class PlaybackCurrentTrackPreparationQueueOwner
         this.mediaSourcesForTracks = mediaSourcesForTracks;
     }
 
-    @Override
-    public void replaceCurrentQueueTrack(Track track) {
+    void replaceCurrentQueueTrack(Track track) {
         if (playbackQueueManager != null) {
             playbackQueueManager.replaceCurrentQueueTrack(track);
         }

@@ -94,7 +94,7 @@ class PlaybackActionControllerTest {
 
         override fun serviceConnected(): Boolean = true
         override fun snapshot(): PlaybackStateSnapshot? = snapshot
-        override fun queueSnapshot(): List<Track> = emptyList()
+        override fun hasQueue(): Boolean = false
         override fun skipToPrevious() {
             calls += "previous"
         }

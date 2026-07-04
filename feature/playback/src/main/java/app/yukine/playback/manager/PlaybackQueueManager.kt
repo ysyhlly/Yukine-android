@@ -6,7 +6,6 @@ import app.yukine.playback.PlaybackRepeatMode.REPEAT_ONE
 import app.yukine.model.Track
 import java.util.ArrayList
 import java.util.Collections
-import java.util.HashSet
 import java.util.LinkedList
 import java.util.Random
 import java.util.concurrent.CopyOnWriteArrayList
@@ -37,17 +36,6 @@ internal class PlaybackQueueManager(
         fun matchesCurrentQueue(): Boolean
         fun seekTo(index: Int, positionMs: Long, playWhenReady: Boolean): Boolean
     }
-
-    data class CurrentTrackReplacementRecovery(
-        val track: Track,
-        val restoredPositionMs: Long,
-        val playWhenReady: Boolean
-    )
-
-    data class MirroredTransitionResult(
-        val completedIndex: Int,
-        val stopAfterAutomaticAdvance: Boolean
-    )
 
     data class QueueStateSnapshot(
         val currentTrack: Track?,
@@ -117,18 +105,17 @@ internal class PlaybackQueueManager(
         currentIndex = index
     }
 
-    fun applyMirroredTransitionIndex(nextIndex: Int, automaticAdvance: Boolean): MirroredTransitionResult? {
+    fun applyMirroredTransitionIndex(nextIndex: Int, automaticAdvance: Boolean): Boolean? {
         val queue = this.queue
         if (nextIndex < 0 || nextIndex >= queue.size || nextIndex == currentIndex()) {
             return null
         }
-        val completedIndex = currentIndex()
         if (automaticAdvance && repeatMode() == REPEAT_OFF) {
-            return MirroredTransitionResult(completedIndex, stopAfterAutomaticAdvance = true)
+            return true
         }
         setCurrentIndex(nextIndex)
         prepareMirroredTransitionPlaybackState()
-        return MirroredTransitionResult(completedIndex, stopAfterAutomaticAdvance = false)
+        return false
     }
 
     fun playQueue(tracks: List<Track>, startIndex: Int, startPositionMs: Long) {
@@ -386,19 +373,6 @@ internal class PlaybackQueueManager(
         return false
     }
 
-    fun retainTracksById(trackIdsToKeep: Set<Long>): Boolean {
-        if (trackIdsToKeep.isEmpty() || queue.isEmpty()) {
-            return false
-        }
-        val trackIdsToRemove = HashSet<Long>()
-        for (track in queue) {
-            if (!trackIdsToKeep.contains(track.id)) {
-                trackIdsToRemove.add(track.id)
-            }
-        }
-        return removeTracksById(trackIdsToRemove)
-    }
-
     private fun replaceQueuedTrack(replacement: Track) {
         val queue = this.queue
         if (queue.isEmpty()) {
@@ -477,7 +451,7 @@ internal class PlaybackQueueManager(
         return false
     }
 
-    fun replaceCurrentTrackAndResume(replacement: Track?, positionMs: Long): CurrentTrackReplacementRecovery? {
+    fun replaceCurrentTrackAndResume(replacement: Track?, positionMs: Long): Long? {
         val queue = this.queue
         if (replacement == null || currentIndex() < 0 || currentIndex() >= queue.size) {
             return null
@@ -495,7 +469,7 @@ internal class PlaybackQueueManager(
         clearLastMarkedTrack()
         val restoredPositionMs = setExplicitRestoredPosition(replacement, resumePositionMs)
         persistQueue()
-        return CurrentTrackReplacementRecovery(replacement, restoredPositionMs, playWhenReady = true)
+        return restoredPositionMs
     }
 
     fun replaceCurrentQueueTrack(replacement: Track?) {
@@ -744,28 +718,6 @@ internal class PlaybackQueueManager(
             currentIndex = index,
             queueSize = queue.size
         )
-    }
-
-    fun upcomingTracksForPrecache(maxCount: Int): List<Track> {
-        val queue = this.queue
-        val currentIndex = currentIndex()
-        if (queue.isEmpty() || currentIndex < 0 || maxCount <= 0) {
-            return emptyList()
-        }
-        val count = minOf(queue.size, maxCount)
-        val tracks = ArrayList<Track>()
-        for (offset in 1..count) {
-            val rawIndex = currentIndex + offset
-            if (rawIndex >= queue.size && repeatMode() == REPEAT_OFF) {
-                break
-            }
-            val index = rawIndex % queue.size
-            if (index == currentIndex) {
-                continue
-            }
-            tracks.add(queue[index])
-        }
-        return Collections.unmodifiableList(tracks)
     }
 
     private object NoopQueuePlaybackActions : QueuePlaybackActions {

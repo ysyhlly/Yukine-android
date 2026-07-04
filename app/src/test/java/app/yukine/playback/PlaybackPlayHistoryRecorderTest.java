@@ -11,7 +11,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
@@ -57,18 +56,18 @@ public final class PlaybackPlayHistoryRecorderTest {
     public void recordIfPlaybackStartedActionUsesRecorderAndLatestState() {
         FakeHistorySink historySink = new FakeHistorySink();
         AtomicBoolean playWhenReady = new AtomicBoolean(false);
-        AtomicReference<PlaybackQueueManager> queueManager = new AtomicReference<>(queueManagerWithTrack(track(1L)));
+        PlaybackQueueManager queueManager = queueManagerWithTrack(track(1L));
         PlaybackPlayHistoryRecorder recorder = recorder(historySink);
         Runnable action = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 recorder,
                 playWhenReady::get,
-                queueManager::get
+                queueManager
         );
 
         action.run();
         playWhenReady.set(true);
         action.run();
-        queueManager.set(queueManagerWithTrack(track(2L)));
+        queueManager.playQueue(Collections.singletonList(track(2L)), 0, 0L);
         action.run();
 
         assertEquals(list(1L, 2L), historySink.markedTrackIds);
@@ -80,7 +79,7 @@ public final class PlaybackPlayHistoryRecorderTest {
         Runnable action = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
                 null,
                 playWhenReady::get,
-                () -> queueManagerWithTrack(track(1L))
+                queueManagerWithTrack(track(1L))
         );
 
         action.run();

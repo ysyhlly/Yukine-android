@@ -224,7 +224,7 @@ class PlaybackRuntimeStateManagerTest {
     }
 
     @Test
-    fun stateProviderFromPlaybackStateDelegatesToPlaybackBoundaryAndQueueManagerSupplier() {
+    fun stateProviderFromPlaybackStateDelegatesToPlaybackBoundaryAndBoundQueueManager() {
         val events = mutableListOf<String>()
         val track = track()
         val queueManager = queueManagerWithTrack(track)
@@ -236,27 +236,24 @@ class PlaybackRuntimeStateManagerTest {
             BooleanSupplier {
                 events += "mirrors"
                 true
-            },
-            Supplier {
-                events += "queue"
-                queueManager
             }
         )
+        provider.bindPlaybackQueueManager(queueManager)
 
         assertNull(provider.player())
         assertTrue(provider.playerMirrorsQueue())
         assertSame(track, provider.currentTrack())
-        assertEquals(listOf("player", "mirrors", "queue"), events)
+        assertEquals(listOf("player", "mirrors"), events)
     }
 
     @Test
-    fun stateProviderFromPlaybackStateHandlesMissingQueueManagerSupplier() {
-        val missingProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(null, null, null)
+    fun stateProviderFromPlaybackStateHandlesMissingQueueManagerBinding() {
+        val missingProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(null, null)
         val nullTrackProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
             null,
-            null,
-            Supplier<PlaybackQueueManager?> { null }
+            null
         )
+        nullTrackProvider.bindPlaybackQueueManager(null)
 
         assertNull(missingProvider.currentTrack())
         assertEquals(false, missingProvider.playerMirrorsQueue())
@@ -265,19 +262,18 @@ class PlaybackRuntimeStateManagerTest {
 
     @Test
     fun stateProviderFromPlaybackStateSupportsLateBoundCurrentTrackForReplayGain() {
-        var currentTrack: Track? = null
+        val provider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
+            null,
+            null
+        )
         val manager = PlaybackRuntimeStateManager(
-            PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
-                null,
-                null,
-                Supplier { queueManagerWithTrack(currentTrack) }
-            )
+            provider
         )
         manager.setAppVolume(0.8f)
 
         assertEquals(0.8f, manager.currentTrackVolume(), 0.0f)
 
-        currentTrack = track(replayGainTrackDb = -6.0f)
+        provider.bindPlaybackQueueManager(queueManagerWithTrack(track(replayGainTrackDb = -6.0f)))
 
         assertEquals(0.4f, manager.currentTrackVolume(), 0.01f)
     }

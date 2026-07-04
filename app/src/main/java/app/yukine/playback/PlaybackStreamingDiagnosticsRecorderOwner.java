@@ -2,8 +2,6 @@ package app.yukine.playback;
 
 import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
-import app.yukine.playback.manager.PlaybackQueueManager;
-
 import java.util.function.Function;
 
 final class PlaybackStreamingDiagnosticsRecorderOwner
@@ -27,15 +25,14 @@ final class PlaybackStreamingDiagnosticsRecorderOwner
         }
     }
 
-    void record(PlaybackQueueManager.CurrentTrackReplacementRecovery recovery) {
+    void recordRecovery(Track track, long restoredPositionMs) {
         PlaybackStreamingDiagnostics diagnostics = streamingDiagnostics;
-        if (diagnostics == null || recovery == null) {
+        if (diagnostics == null || track == null) {
             return;
         }
-        Track track = recovery.getTrack();
         String quality = streamingQualityProvider == null
                 ? ""
                 : streamingQualityProvider.apply(track);
-        diagnostics.recordRecovery(track, recovery.getRestoredPositionMs(), quality);
+        diagnostics.recordRecovery(track, restoredPositionMs, quality);
     }
 }

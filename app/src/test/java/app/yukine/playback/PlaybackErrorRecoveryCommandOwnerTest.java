@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
-import java.util.function.Supplier;
 
 import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
@@ -30,7 +29,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
         List<String> events = new ArrayList<>();
         Track track = track(7L);
         PlaybackErrorRecoveryCommandOwner owner = new PlaybackErrorRecoveryCommandOwner(
-                queueStateSnapshotSupplier(track, 2),
+                queueManager(track, 2),
                 playWhenReady -> events.add("prepare:" + playWhenReady),
                 () -> events.add("next"),
                 message -> events.add("error:" + message),
@@ -80,7 +79,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
                 }
         );
         PlaybackErrorRecoveryCommandOwner singleTrackOwner = new PlaybackErrorRecoveryCommandOwner(
-                queueStateSnapshotSupplier(track, 1),
+                queueManager(track, 1),
                 playWhenReady -> {
                 },
                 () -> {
@@ -118,28 +117,31 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
     }
 
     @Test
-    public void queueStateSnapshotProviderDelegatesToQueueManagerAndToleratesMissingManager() {
+    public void readsCurrentTrackDirectlyFromPlaybackQueueManager() {
         Track track = track(8L);
         PlaybackQueueManager queueManager = queueManager(track, 2);
-        Supplier<PlaybackQueueManager.QueueStateSnapshot> provider =
-                PlaybackErrorRecoveryCommandOwner.queueStateSnapshotProvider(() -> queueManager);
+        PlaybackErrorRecoveryCommandOwner owner = new PlaybackErrorRecoveryCommandOwner(
+                queueManager,
+                playWhenReady -> {
+                },
+                () -> {
+                },
+                message -> {
+                },
+                () -> {
+                },
+                (message, error) -> {
+                }
+        );
+        Track replacement = track(18L);
 
-        PlaybackQueueManager.QueueStateSnapshot snapshot = provider.get();
-
-        assertSame(track, snapshot.getCurrentTrack());
-        assertEquals(0, snapshot.getCurrentIndex());
-        assertEquals(2, snapshot.getQueueSize());
-        assertTrue(PlaybackErrorRecoveryCommandOwner.queueStateSnapshotProvider(null).get().isQueueEmpty());
-        assertTrue(PlaybackErrorRecoveryCommandOwner.queueStateSnapshotProvider(() -> null).get().isQueueEmpty());
+        assertSame(track, owner.currentTrack());
+        queueManager.playQueue(java.util.Arrays.asList(replacement, track(19L)), 0, -1L);
+        assertSame(replacement, owner.currentTrack());
     }
 
     private static Track track(long id) {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "file:" + id);
-    }
-
-    private static Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier(Track current, int queueSize) {
-        PlaybackQueueManager queueManager = queueManager(current, queueSize);
-        return queueManager::queueStateSnapshot;
     }
 
     private static PlaybackQueueManager queueManager(Track current, int queueSize) {

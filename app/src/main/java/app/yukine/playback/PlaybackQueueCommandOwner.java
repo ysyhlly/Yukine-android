@@ -4,21 +4,22 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlaybackActions {
-    private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
+    private PlaybackQueueManager playbackQueueManager;
     private final BiConsumer<Track, Boolean> playbackPreparer;
     private final Runnable statePublisher;
 
     PlaybackQueueCommandOwner(
-            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             BiConsumer<Track, Boolean> playbackPreparer,
             Runnable statePublisher
     ) {
-        this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
         this.playbackPreparer = playbackPreparer;
         this.statePublisher = statePublisher;
+    }
+
+    void bindPlaybackQueueManager(PlaybackQueueManager playbackQueueManager) {
+        this.playbackQueueManager = playbackQueueManager;
     }
 
     @Override
@@ -58,9 +59,6 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
-                ? null
-                : playbackQueueManagerSupplier.get();
         PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
                 ? null
                 : playbackQueueManager.queueStateSnapshot();

@@ -701,7 +701,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                         this::adaptiveStreamingQuality,
                         this::selectedStreamingQuality,
-                        this::playbackQueueSnapshot,
+                        () -> playbackStore == null ? Collections.emptyList() : playbackStore.queueSnapshot(),
                         snapshot -> heartbeatRecommendationController.maybeAppendHeartbeatRecommendations(snapshot),
                         this::applyPlaybackActionResult,
                         status -> statusMessageController.setStatus(status)

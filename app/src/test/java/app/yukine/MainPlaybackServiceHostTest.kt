@@ -115,6 +115,8 @@ class MainPlaybackServiceHostTest {
 
         override fun snapshot(): PlaybackStateSnapshot? = null
 
+        override fun hasQueue(): Boolean = false
+
         override fun queueSnapshot(): List<Track> = emptyList()
 
         override fun skipToPrevious() = Unit

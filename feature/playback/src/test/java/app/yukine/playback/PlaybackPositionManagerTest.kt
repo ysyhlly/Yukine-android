@@ -10,7 +10,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
 import java.util.function.LongSupplier
-import java.util.function.Supplier
 
 class PlaybackPositionManagerTest {
     @Test
@@ -89,33 +88,30 @@ class PlaybackPositionManagerTest {
     }
 
     @Test
-    fun stateProviderFromPlaybackStateReadsQueueManagerAndPositionSupplier() {
+    fun stateProviderFromPlaybackStateReadsBoundQueueManagerAndPositionSupplier() {
         val events = mutableListOf<String>()
         val track = track(23L)
         val queueManager = queueManagerWithCurrent(track)
         val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            Supplier {
-                events += "queue"
-                queueManager
-            },
             LongSupplier {
                 events += "position"
                 321L
             }
         )
+        provider.bindPlaybackQueueManager(queueManager)
 
         assertSame(track, provider.currentTrack())
         assertEquals(321L, provider.positionMs())
-        assertEquals(listOf("queue", "position"), events)
+        assertEquals(listOf("position"), events)
     }
 
     @Test
     fun stateProviderFromPlaybackStateHandlesMissingQueueManager() {
-        val missingProvider = PlaybackPositionManager.stateProviderFromPlaybackState(null, null)
+        val missingProvider = PlaybackPositionManager.stateProviderFromPlaybackState(null)
         val nullTrackProvider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            Supplier { queueManagerWithCurrent(null) },
             null
         )
+        nullTrackProvider.bindPlaybackQueueManager(queueManagerWithCurrent(null))
 
         assertEquals(null, missingProvider.currentTrack())
         assertEquals(0L, missingProvider.positionMs())
@@ -125,15 +121,13 @@ class PlaybackPositionManagerTest {
     @Test
     fun stateProviderFromPlaybackStateReadsLateBoundCurrentTrackFromQueueManager() {
         val track = track(24L)
-        var queueManager: PlaybackQueueManager? = null
         val provider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            Supplier { queueManager },
             LongSupplier { 420L }
         )
 
         assertEquals(null, provider.currentTrack())
 
-        queueManager = queueManagerWithCurrent(track)
+        provider.bindPlaybackQueueManager(queueManagerWithCurrent(track))
 
         assertSame(track, provider.currentTrack())
         assertEquals(420L, provider.positionMs())

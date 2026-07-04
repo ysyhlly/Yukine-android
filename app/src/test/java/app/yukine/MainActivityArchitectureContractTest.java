@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -41,6 +42,9 @@ public final class MainActivityArchitectureContractTest {
             "MainNowPlayingGateway",
             "MainStreamingActionGateway"
     };
+    private static final Pattern FEATURE_PLAYBACK_IMPLEMENTATION_IMPORT_PATTERN = Pattern.compile(
+            "(?m)^import\\s+app\\.yukine\\.playback\\.(EchoPlaybackService|Playback[A-Za-z0-9]+Owner)\\b"
+    );
 
     @Test
     public void playbackServiceDoesNotDependOnMainActivityClass() throws Exception {
@@ -333,6 +337,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(documentPickerProviderArgument >= 0);
         assertFalse(libraryGateway.contains(
                 "                () -> documentPickerController.openAudioFilePicker(),\n"));
+        assertTrue(playbackLifecycleControllers.contains(
+                "playbackStateEventController = new PlaybackStateEventController("));
+        assertTrue(playbackLifecycleControllers.contains("                playbackStore,\n"));
+        assertFalse(playbackLifecycleControllers.contains("                () -> playbackStore,\n"));
+        assertTrue(playbackLifecycleControllers.contains("                this::playbackQueueSnapshot,\n"));
+        assertTrue(playbackLifecycleControllers.contains(
+                "                        status -> statusMessageController.setStatus(status)\n"));
+        assertFalse(playbackLifecycleControllers.contains("                statusMessageController,\n"));
+        assertFalse(playbackLifecycleControllers.contains(
+                "                        statusMessageController.setStatus(status),\n"));
         assertTrue(playbackLifecycleControllers.contains("                        this::savePlaybackSettingsIfReady,\n"));
         assertTrue(playbackLifecycleControllers.contains("                        this::loadCollections,\n"));
         assertTrue(playbackLifecycleControllers.contains("                        this::renderNowBarIfReady,\n"));
@@ -757,6 +771,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(settingsPlaybackServiceControlsAdapter.contains("SettingsPlaybackServicePort"));
         assertFalse(mainPlaybackServiceHost.contains("EchoPlaybackService"));
         assertTrue(playbackServiceHostPort.contains("interface PlaybackServiceHostPort : NowPlayingPlaybackServicePort, SettingsPlaybackServicePort"));
+        assertTrue(playbackServiceHostPort.contains("fun queueSnapshot(): List<Track>"));
     }
 
     @Test
@@ -777,8 +792,13 @@ public final class MainActivityArchitectureContractTest {
         String settingsRuntimeApplier = read("app/src/main/java/app/yukine/SettingsRuntimeApplier.kt");
         assertTrue(nowPlayingViewModel.contains("interface NowPlayingPlaybackGateway"));
         assertTrue(nowPlayingViewModel.contains("private var playbackGateway: NowPlayingPlaybackGateway?"));
+        assertTrue(nowPlayingViewModel.contains("fun hasQueue(): Boolean"));
+        assertFalse(nowPlayingViewModel.contains("fun queueSnapshot(): List<Track>"));
+        assertFalse(nowPlayingViewModel.contains("player.queueSnapshot().isNotEmpty()"));
         assertFalse(nowPlayingViewModel.contains("NowPlayingPlaybackServicePort"));
         assertTrue(gatewayAdapter.contains("interface NowPlayingPlaybackServicePort"));
+        assertTrue(gatewayAdapter.contains("fun hasQueue(): Boolean"));
+        assertFalse(gatewayAdapter.contains("fun queueSnapshot(): List<Track>"));
         assertTrue(settingsRuntimeApplier.contains("SettingsPlaybackServiceControlsProvider"));
         assertFalse(settingsRuntimeApplier.contains("SettingsPlaybackServicePort"));
     }
@@ -790,6 +810,19 @@ public final class MainActivityArchitectureContractTest {
                 for (String forbidden : FEATURE_APP_IMPLEMENTATION_FORBIDDEN_REFERENCES) {
                     assertSourceDoesNotContain(source, forbidden);
                 }
+            }
+        }
+    }
+
+    @Test
+    public void featureModulesDoNotImportAppPlaybackImplementations() throws Exception {
+        for (String directory : featureMainSourceDirectories()) {
+            for (Path source : sourceFiles(directory)) {
+                String content = new String(Files.readAllBytes(source), StandardCharsets.UTF_8);
+                assertFalse(
+                        source + " must not import app playback implementation classes",
+                        FEATURE_PLAYBACK_IMPLEMENTATION_IMPORT_PATTERN.matcher(content).find()
+                );
             }
         }
     }
@@ -1635,6 +1668,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(nowPlayingViewModel.contains("player.appendToQueue(tracks)"));
         assertTrue(nowPlayingViewModel.contains("fun replaceCurrentTrackAndResume(track: Track?, positionMs: Long)"));
         assertTrue(nowPlayingViewModel.contains("player.replaceCurrentTrackAndResume(track, positionMs)"));
+        assertTrue(nowPlayingViewModel.contains("return player.serviceConnected() && player.hasQueue()"));
+        assertFalse(nowPlayingViewModel.contains("return player.serviceConnected() && player.queueSnapshot().isNotEmpty()"));
         assertFalse(nowPlayingViewModel.contains("!player.serviceConnected() || updated == null"));
         assertFalse(nowPlayingViewModel.contains("!player.serviceConnected() || track == null"));
         assertFalse(nowPlayingViewModel.contains("!player.serviceConnected() || tracks.isNullOrEmpty()"));
@@ -2029,6 +2064,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(nowPlayingPlaybackGatewayAdapter.contains("serviceStarter(PlaybackServiceActions.PREVIOUS)"));
         assertTrue(nowPlayingPlaybackGatewayAdapter.contains("serviceStarter(PlaybackServiceActions.NEXT)"));
         assertTrue(nowPlayingPlaybackGatewayAdapter.contains("serviceStarter(null)"));
+        assertTrue(nowPlayingPlaybackGatewayAdapter.contains("override fun hasQueue(): Boolean = service()?.hasQueue() == true"));
+        assertFalse(nowPlayingPlaybackGatewayAdapter.contains("override fun queueSnapshot(): List<Track>"));
         assertTrue(nowPlayingPlaybackGatewayAdapter.contains("service()?.playQueue(tracks, index)"));
         assertTrue(nowPlayingPlaybackGatewayAdapter.contains("fun warmPlaybackTrack(track: Track)"));
         assertTrue(nowPlayingPlaybackGatewayAdapter.contains("service()?.warmPlaybackTrack(track)"));
@@ -2226,6 +2263,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackStore.contains("fun snapshot(): PlaybackStateSnapshot"));
         assertTrue(playbackStore.contains("viewModel.playback.value.snapshot"));
         assertTrue(playbackStore.contains("viewModel.replacePlaybackSnapshot(snapshot)"));
+        assertTrue(playbackStore.contains("fun queueSnapshot(): List<Track>"));
+        assertTrue(playbackStore.contains("ArrayList(viewModel.playback.value.queue)"));
         assertTrue(playbackStore.contains("fun publish(queue: List<Track>)"));
         assertTrue(playbackStore.contains("viewModel.updatePlayback(snapshot(), queue)"));
         assertTrue(mainActivity.contains("private PlaybackViewModel playbackViewModel;"));
@@ -2685,6 +2724,7 @@ public final class MainActivityArchitectureContractTest {
                         + "                playbackQueueStateOwner::upcomingTracksForPrecache,"
         ));
         assertFalse(playbackService.contains("playbackQueueManager::upcomingTracksForPrecache"));
+        assertTrue(precacheWiring.contains("                playbackRuntimeStateManager,"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackPrecachePlayerMediaItemOwner.java")));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackPrecacheStateOwner.java")));
         assertFalse(playbackService.contains("PlaybackPrecachePlayerMediaItemOwner"));
@@ -2809,7 +2849,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackPrecacheManager.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
         assertFalse(playbackPrecacheManager.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(playbackPrecacheManager.contains("stateProvider.currentTrack()"));
-        assertTrue(playbackPrecacheManager.contains(
+        assertTrue(playbackPrecacheManager.contains("private final PlaybackRuntimeStateManager playbackRuntimeStateManager;"));
+        assertTrue(playbackPrecacheManager.contains("List<Track> queue = playbackQueueManager.queueSnapshot();"));
+        assertTrue(playbackPrecacheManager.contains("playbackRuntimeStateManager.repeatMode() == REPEAT_OFF"));
+        assertTrue(playbackPrecacheManager.contains("return Collections.unmodifiableList(tracks);"));
+        assertFalse(playbackPrecacheManager.contains(
                 "playbackQueueManager.upcomingTracksForPrecache(SEGMENTED_PRECACHE_CONCURRENCY)"));
         assertFalse(playbackPrecacheManager.contains(
                 "queueStateOwner.upcomingTracksForPrecache(SEGMENTED_PRECACHE_CONCURRENCY)"));
@@ -5487,7 +5531,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("() -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()"));
         assertTrue(mainActivity.contains("this::adaptiveStreamingQuality"));
         assertTrue(mainActivity.contains("this::selectedStreamingQuality"));
-        assertTrue(mainActivity.contains("this::playbackQueueSnapshot"));
+        assertTrue(mainActivity.contains("() -> playbackStore == null ? Collections.emptyList() : playbackStore.queueSnapshot()"));
+        assertFalse(mainActivity.contains("streamingPlaybackListenerFactory.create(\n                        () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),\n                        this::adaptiveStreamingQuality,\n                        this::selectedStreamingQuality,\n                        this::playbackQueueSnapshot,"));
         assertTrue(mainActivity.contains("snapshot -> heartbeatRecommendationController.maybeAppendHeartbeatRecommendations(snapshot)"));
         assertTrue(mainActivity.contains("this::applyPlaybackActionResult"));
         assertTrue(mainActivity.contains("status -> statusMessageController.setStatus(status)"));
@@ -6303,12 +6348,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("repository.loadPlaybackPositionMs()"));
         assertFalse(service.contains("repository.savePlaybackPosition("));
         assertFalse(service.contains("repository.savePlaybackResumeRequested("));
-        assertTrue(service.contains("playbackQueueRestoreOwner().restorePlaybackQueue();"));
-        assertFalse(service.contains("playbackQueueManager.restorePlaybackQueue()"));
+        assertFalse(service.contains("playbackQueueRestoreOwner().restorePlaybackQueue();"));
+        assertTrue(service.contains("playbackQueueManager.restorePlaybackQueue()"));
         assertTrue(queueRestoreOwner.contains("playbackQueueManager.restorePlaybackQueue();"));
         assertTrue(service.contains("playbackQueueRestoreOwner().restoreLastPlayback(playWhenRestored);"));
         assertFalse(service.contains("playbackQueueManager.restoreLastPlayback(playWhenRestored)"));
-        assertTrue(queueRestoreOwner.contains("restorePlaybackQueue();"));
+        assertFalse(queueRestoreOwner.contains("void restorePlaybackQueue()"));
         assertTrue(queueRestoreOwner.contains("PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();"));
         assertTrue(queueRestoreOwner.contains("prepareCurrent(playWhenRestored || loadResumeRequested());"));
         assertFalse(service.contains("repository.loadPlaybackResumeRequested()"));
@@ -6359,28 +6404,33 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackPositionStateOwner.java")));
         assertFalse(service.contains("PlaybackPositionStateOwner"));
         assertTrue(service.contains("PlaybackPositionManager.stateProviderFromPlaybackState("));
-        String positionStateProviderWiring = normalizedService.substring(
-                normalizedService.indexOf("PlaybackPositionManager.stateProviderFromPlaybackState("),
-                normalizedService.indexOf(
-                        "                )\n        );\n        playbackSleepTimerCommandOwner"
-                )
-        );
-        assertTrue(positionStateProviderWiring.contains(
-                "                        () -> playbackQueueManager,\n"));
-        assertFalse(positionStateProviderWiring.contains("                        queueStateSnapshotSupplier,\n"));
-        assertFalse(positionStateProviderWiring.contains("                        playbackQueueManager,\n"));
-        assertFalse(positionStateProviderWiring.contains(
-                "                        EchoPlaybackService.this::currentTrackFromQueueStateSnapshot,\n"));
-        assertFalse(positionStateProviderWiring.contains(
-                "playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
+        assertTrue(normalizedService.contains(
+                "final PlaybackPositionManager.PlaybackStateProvider playbackPositionStateProvider =\n"
+                        + "                PlaybackPositionManager.stateProviderFromPlaybackState(\n"
+                        + "                        playbackPlayerStateOwner::positionMs\n"
+                        + "                );"));
+        assertFalse(normalizedService.contains(
+                "PlaybackPositionManager.stateProviderFromPlaybackState(\n"
+                        + "                        () -> playbackQueueManager,\n"));
         assertTrue(service.contains("                        playbackPlayerStateOwner::positionMs"));
-        assertTrue(positionOwner.contains("playbackQueueManagerSupplier: Supplier<PlaybackQueueManager?>?"));
-        assertTrue(positionOwner.contains("playbackQueueManagerSupplier?.get()?.queueStateSnapshot()?.currentTrack"));
+        assertTrue(service.contains(
+                "final PlaybackPositionManager.PlaybackStateProvider playbackPositionStateProvider ="));
+        assertTrue(service.indexOf("playbackQueueManager = new PlaybackQueueManager(")
+                < service.indexOf("playbackPositionStateProvider.bindPlaybackQueueManager(playbackQueueManager);"));
+        assertTrue(service.contains("playbackPositionStateProvider.bindPlaybackQueueManager(playbackQueueManager);"));
+        assertFalse(positionOwner.contains("import java.util.function.Supplier"));
+        assertTrue(positionOwner.contains("class PlaybackStateProvider("));
+        assertTrue(positionOwner.contains("private var playbackQueueManager: PlaybackQueueManager? = null"));
+        assertTrue(positionOwner.contains("fun bindPlaybackQueueManager(playbackQueueManager: PlaybackQueueManager?)"));
+        assertFalse(positionOwner.contains("playbackQueueManagerSupplier: Supplier<PlaybackQueueManager?>?"));
         assertFalse(positionOwner.contains("currentTrackSupplier: Supplier<Track?>?"));
         assertFalse(positionOwner.contains("queueStateSnapshotSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
         assertFalse(positionOwner.contains(
                 "override fun currentTrack(): Track? = queueStateSnapshotSupplier?.get()?.currentTrack"));
         assertFalse(positionOwner.contains("override fun currentTrack(): Track? = currentTrackSupplier?.get()"));
+        assertTrue(positionOwner.contains(
+                "override fun currentTrack(): Track? =\n            playbackQueueManager?.queueStateSnapshot()?.currentTrack"));
+        assertFalse(positionOwner.contains("playbackQueueManagerSupplier?.get()?.queueStateSnapshot()?.currentTrack"));
         assertFalse(service.contains("new PlaybackPositionManager.StateProvider()"));
         assertFalse(service.contains("private long restoredPositionFor(Track track)"));
         assertFalse(service.contains("playbackPositionManager.restoredPositionFor(track)"));
@@ -6418,14 +6468,14 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(positionOwner.contains("queueStateSnapshotSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
         assertFalse(positionOwner.contains("queueStateSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
         assertFalse(positionOwner.contains("queueManagerSupplier: Supplier<PlaybackQueueManager?>?"));
-        assertTrue(positionOwner.contains("playbackQueueManagerSupplier: Supplier<PlaybackQueueManager?>?"));
+        assertFalse(positionOwner.contains("playbackQueueManagerSupplier: Supplier<PlaybackQueueManager?>?"));
         assertTrue(positionOwner.contains("playbackPositionSupplier: LongSupplier?"));
         assertFalse(positionOwner.contains(
                 "override fun currentTrack(): Track? = queueStateSnapshotSupplier?.get()?.currentTrack"));
         assertFalse(positionOwner.contains("override fun currentTrack(): Track? = currentTrackSupplier?.get()"));
         assertFalse(positionOwner.contains(
                 "override fun currentTrack(): Track? = queueManagerSupplier?.get()?.queueStateSnapshot()?.currentTrack"));
-        assertTrue(positionOwner.contains(
+        assertFalse(positionOwner.contains(
                 "override fun currentTrack(): Track? =\n                playbackQueueManagerSupplier?.get()?.queueStateSnapshot()?.currentTrack"));
         assertFalse(positionOwner.contains("queueStateSupplier?.get()?.currentTrack"));
         assertTrue(positionOwner.contains("override fun positionMs(): Long = playbackPositionSupplier?.asLong ?: 0L"));
@@ -6553,10 +6603,14 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueCompletionBoundaryWiring.contains("EchoPlaybackService.this.prepareCurrent(playWhenReady);"));
         assertTrue(normalizedService.contains(
                 "playbackQueueCompletionOwner().playAfterCompletion();"));
-        assertTrue(normalizedService.contains(
+        assertFalse(normalizedService.contains(
                 "playbackQueueCompletionOwner().prepareStopAndClearPlaybackState();"));
-        assertTrue(normalizedService.contains(
+        assertFalse(normalizedService.contains(
                 "playbackQueueCompletionOwner().prepareStopAtEndOfQueue();"));
+        assertFalse(normalizedService.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
+        assertFalse(normalizedService.contains("playbackQueueManager.prepareStopAtEndOfQueue();"));
+        assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
+        assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAtEndOfQueue();"));
         assertTrue(normalizedService.contains(
                 "playbackQueueCompletionOwner().stopAfterAutomaticAdvance(transition.completedIndex());"));
         assertFalse(normalizedService.contains(
@@ -6568,14 +6622,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(normalizedService.contains(
                 "return new PlaybackQueueCompletionOwner(\n"
                         + "                playbackQueueManager,\n"
-                        + "                EchoPlaybackService.this::stopAndClear,\n"
-                        + "                EchoPlaybackService.this::stopAtEndOfQueue,\n"
+                        + "                EchoPlaybackService.this::stopAndClearBoundary,\n"
+                        + "                EchoPlaybackService.this::stopAtEndOfQueueBoundary,\n"
                         + "                EchoPlaybackService.this::skipToNext"));
         assertFalse(queueCompletionBoundaryWiring.contains("public void stopAndClear()"));
         assertFalse(queueCompletionBoundaryWiring.contains("public void stopAtEndOfQueue()"));
         assertFalse(queueCompletionBoundaryWiring.contains("public void skipToNext()"));
-        assertTrue(queueCompletionBoundaryWiring.contains("EchoPlaybackService.this::stopAndClear"));
-        assertTrue(queueCompletionBoundaryWiring.contains("EchoPlaybackService.this::stopAtEndOfQueue"));
+        assertTrue(queueCompletionBoundaryWiring.contains("EchoPlaybackService.this::stopAndClearBoundary"));
+        assertTrue(queueCompletionBoundaryWiring.contains("EchoPlaybackService.this::stopAtEndOfQueueBoundary"));
         assertTrue(queueCompletionBoundaryWiring.contains("EchoPlaybackService.this::skipToNext"));
         assertFalse(normalizedService.contains(
                 "new PlaybackQueueCompletionOwner(\n                playbackQueueManager,\n                playbackQueueCompletionBoundary,\n                playbackQueueCommandOwner\n        )"));
@@ -6638,6 +6692,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueCompletionOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertFalse(queueCompletionOwner.contains(
                 "Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
+        assertTrue(queueCompletionOwner.contains("void stopAndClearPlayback()"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
         assertFalse(queueCompletionOwner.contains("queueCompletionOperationsProvider"));
         assertFalse(queueCompletionOwner.contains("playbackQueueManagerProvider"));
@@ -6652,8 +6707,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(currentReplacementOwner.contains("private final PlaybackQueueManager playbackQueueManager;"));
         assertFalse(currentReplacementOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
         assertTrue(currentReplacementOwner.contains(
-                "private final Consumer<PlaybackQueueManager.CurrentTrackReplacementRecovery> recoveryDiagnosticsRecorder;"));
-        assertTrue(currentReplacementOwner.contains("private final Consumer<Boolean> recoveryScheduler;"));
+                "private final BiConsumer<Track, Long> recoveryDiagnosticsRecorder;"));
+        assertTrue(currentReplacementOwner.contains("private final Runnable recoveryScheduler;"));
         assertFalse(currentReplacementOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertFalse(currentReplacementOwner.contains(
                 "Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
@@ -6667,7 +6722,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueMutationOwner.contains("playbackQueueManager.removeTracksById(trackIds)"));
         assertTrue(service.contains("playbackQueueMutationOwner().retainTracksById(trackIdsToKeep);"));
         assertFalse(service.contains("playbackQueueManager.retainTracksById(trackIdsToKeep)"));
-        assertTrue(queueMutationOwner.contains("playbackQueueManager.retainTracksById(trackIdsToKeep)"));
+        assertFalse(queueMutationOwner.contains("playbackQueueManager.retainTracksById(trackIdsToKeep)"));
+        assertFalse(owner.contains("fun retainTracksById(trackIdsToKeep: Set<Long>): Boolean"));
+        assertTrue(queueMutationOwner.contains("playbackQueueManager.queueSnapshot()"));
+        assertTrue(queueMutationOwner.contains("Set<Long> trackIdsToRemove = new HashSet<>();"));
+        assertTrue(queueMutationOwner.contains("playbackQueueManager.removeTracksById(trackIdsToRemove)"));
         assertTrue(service.contains("playbackQueueMutationOwner().clearQueue();"));
         assertFalse(service.contains("playbackQueueManager.clearQueue()"));
         assertFalse(queueMutationOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
@@ -6743,8 +6802,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackQueueRestoreOwner().restoreLastPlayback(playWhenRestored);"));
         assertFalse(service.contains("playbackQueueManager.restoreLastPlayback(playWhenRestored)"));
         assertTrue(queueRestoreOwner.contains("prepareCurrent(playWhenRestored || loadResumeRequested());"));
-        assertTrue(service.contains("playbackQueueRestoreOwner().restorePlaybackQueue();"));
-        assertFalse(service.contains("playbackQueueManager.restorePlaybackQueue()"));
+        assertFalse(service.contains("playbackQueueRestoreOwner().restorePlaybackQueue();"));
+        assertTrue(service.contains("playbackQueueManager.restorePlaybackQueue()"));
         assertTrue(queueRestoreOwner.contains("playbackQueueManager.restorePlaybackQueue();"));
         assertTrue(service.contains("playbackQueueRestoreOwner().setPlaybackRestoreEnabled(enabled);"));
         assertFalse(service.contains("playbackQueueManager.setPlaybackRestoreEnabled(enabled)"));
@@ -6791,10 +6850,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueManager.savePlaybackResumeRequested(true)"));
         assertTrue(service.contains("savePlaybackResumeRequested(false);"));
         assertFalse(service.contains("playbackQueueManager.savePlaybackResumeRequested(false)"));
-        assertTrue(service.contains(
+        assertFalse(service.contains(
                 "playbackQueueCompletionOwner().prepareStopAndClearPlaybackState();"));
         assertFalse(service.contains("queueStopPrepared"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAndClearPlaybackState()"));
+        assertTrue(service.contains("playbackQueueCompletionOwner().stopAndClearPlayback();"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
         assertFalse(queueCompletionOwner.contains("completionBoundary.prepareStopAndClearFallbackState();"));
         assertFalse(service.contains("prepareStopAndClearFallbackState()"));
@@ -6804,10 +6864,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueManager.playbackCompletionAction()"));
         assertFalse(service.contains("playbackQueueManager.preparePlaybackCompletionAction()"));
         assertFalse(service.contains("playbackQueueManager.preparePlaybackCompletion(completionAction)"));
-        assertTrue(service.contains(
+        assertFalse(service.contains(
                 "playbackQueueCompletionOwner().prepareStopAtEndOfQueue();"));
         assertFalse(service.contains("if (!new PlaybackQueueCompletionOwner("));
         assertFalse(service.contains("playbackQueueManager.prepareStopAtEndOfQueue()"));
+        assertTrue(queueCompletionOwner.contains("void stopAtEndOfQueue()"));
+        assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAtEndOfQueue();"));
         assertTrue(service.contains(
                 "playbackQueueCompletionOwner().stopAfterAutomaticAdvance(transition.completedIndex());"));
         assertFalse(service.contains("playbackQueueCompletionOwner().prepareStopAfterAutomaticAdvance(completedIndex);"));
@@ -6843,8 +6905,8 @@ public final class MainActivityArchitectureContractTest {
                 "new PlaybackCurrentTrackReplacementOwner(\n                    () -> playbackQueueManager"));
         assertFalse(service.contains("playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs)"));
         assertTrue(currentReplacementOwner.contains("playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs);"));
-        assertTrue(currentReplacementOwner.contains("recoveryDiagnosticsRecorder.accept(recovery);"));
-        assertTrue(currentReplacementOwner.contains("recoveryScheduler.accept(recovery.getPlayWhenReady());"));
+        assertTrue(currentReplacementOwner.contains("recoveryDiagnosticsRecorder.accept(replacement, restoredPositionMs);"));
+        assertTrue(currentReplacementOwner.contains("recoveryScheduler.run();"));
         assertTrue(service.contains(
                 "if (reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs))"));
         assertTrue(service.contains("private boolean reuseMirroredQueueIfAvailable(boolean playWhenReady, long startPositionMs)"));
@@ -6863,8 +6925,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackStreamingDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider("));
         assertFalse(streamingDiagnosticsOwner.contains("static PlaybackStreamingDiagnosticsRecorderOwner fromStreamingDiagnosticsProvider("));
         assertTrue(service.contains("mediaSourceProvider::streamingQualityForTrack"));
-        assertTrue(service.contains("playbackStreamingDiagnosticsRecorderOwner.record(recovery)"));
-        assertTrue(service.contains("playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(playWhenReady)"));
+        assertTrue(service.contains("playbackStreamingDiagnosticsRecorderOwner::recordRecovery"));
+        assertTrue(service.contains("playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(true)"));
         assertFalse(service.contains("if (playbackRecoveryDiagnosticsRecorderOwner != null)"));
         assertFalse(service.contains("if (playbackRecoveryScheduler != null)"));
         assertTrue(service.contains("acquireWifiLockIfStreamingAction.run();"));
@@ -6891,21 +6953,23 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("fun recordStreamingRecovery(track: Track, restoredPositionMs: Long)"));
         assertFalse(owner.contains("fun schedulePrepareCurrent(playWhenReady: Boolean)"));
         assertTrue(service.contains("private void onMirroredQueueReused(boolean playWhenReady)"));
-        assertTrue(service.contains("playbackStreamingDiagnosticsRecorderOwner.record(recovery)"));
+        assertTrue(service.contains("playbackStreamingDiagnosticsRecorderOwner::recordRecovery"));
         assertFalse(service.contains("streamingDiagnostics.recordRecovery("));
         assertTrue(service.contains("PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY"));
-        assertTrue(service.contains("playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(playWhenReady)"));
-        assertTrue(currentReplacementOwner.contains(
-                "recoveryScheduler.accept(recovery.getPlayWhenReady());"));
+        assertTrue(service.contains("playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(true)"));
+        assertTrue(currentReplacementOwner.contains("recoveryScheduler.run();"));
         assertFalse(service.contains("() -> mainHandler.post(() -> prepareCurrent(recovery.getPlayWhenReady()))"));
         assertFalse(service.contains("private PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner;"));
         assertTrue(service.contains("final PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner ="));
         assertTrue(service.contains("new PlaybackQueueMirroredPlayerOwner("));
-        assertTrue(service.contains("PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher("));
+        assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher("));
+        assertTrue(service.contains("playbackQueueRuntimeStateManager::playerMirrorsQueue,"));
+        assertTrue(service.contains("() -> player == null ? -1 : player.getMediaItemCount(),"));
+        assertTrue(service.contains("playbackMirroredQueueTrackMatcherOwner::matches,"));
         assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManager("));
         assertFalse(owner.contains("static BooleanSupplier fromPlaybackQueueManager("));
         assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManagerProvider("));
-        assertTrue(normalizedService.contains(
+        assertFalse(normalizedService.contains(
                 "                        PlaybackQueueMirroredPlayerOwner.queueStateSnapshotProvider(() -> playbackQueueManager),\n" +
                 "                        EchoPlaybackService.this::resetWaveformIfTrackChanged,"));
         assertFalse(normalizedService.contains(
@@ -6916,10 +6980,16 @@ public final class MainActivityArchitectureContractTest {
                 "                        EchoPlaybackService.this::resetWaveformIfTrackChanged,"));
         assertFalse(service.contains("playbackQueueStateOwner::queueSnapshot"));
         assertEquals(1, countOccurrences(service, "playbackQueueManager.queueSnapshot()"));
-        assertTrue(service.contains("PlaybackQueueMirroredPlayerOwner.queueSnapshotProvider(() -> playbackQueueManager)"));
-        assertTrue(service.contains("PlaybackQueueMirroredPlayerOwner.queueStateSnapshotProvider(() -> playbackQueueManager)"));
+        assertFalse(service.contains(
+                "final PlaybackQueueMirroredPlayerOwner.QueueSnapshotProvider playbackQueueSnapshotProvider ="));
+        assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.queueSnapshotProvider();"));
+        assertFalse(service.contains("playbackQueueSnapshotProvider,"));
+        assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.queueSnapshotProvider(() -> playbackQueueManager)"));
+        assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.queueStateSnapshotProvider(() -> playbackQueueManager)"));
         assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.queueSnapshotProvider(playbackQueueManager)"));
         assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.queueStateSnapshotProvider(playbackQueueManager)"));
+        assertFalse(service.contains("playbackQueueSnapshotProvider.bindPlaybackQueueManager(playbackQueueManager);"));
+        assertTrue(service.contains("playbackQueueMirroredPlayerOwner.bindPlaybackQueueManager(playbackQueueManager);"));
         assertFalse(normalizedService.contains(
                 "() -> playbackQueueManager == null\n"
                         + "                                        ? Collections.emptyList()\n"
@@ -6975,7 +7045,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(streamingDiagnosticsOwner.contains("streamingQualityProvider.apply(track)"));
         assertTrue(streamingDiagnosticsOwner.contains("diagnostics.recordBuffering(snapshot.currentTrack, snapshot.positionMs);"));
         assertTrue(streamingDiagnosticsOwner.contains(
-                "diagnostics.recordRecovery(track, recovery.getRestoredPositionMs(), quality);"));
+                "diagnostics.recordRecovery(track, restoredPositionMs, quality);"));
         assertTrue(mirroredPlayerOwner.contains("final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.MirroredQueuePlayer"));
         assertFalse(mirroredPlayerOwner.contains("interface MirroredQueueMatcher"));
         assertFalse(mirroredPlayerOwner.contains("interface MirrorStateProvider"));
@@ -6984,6 +7054,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredPlayerOwner.contains("interface PlaybackQueueManagerProvider"));
         assertFalse(mirroredPlayerOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertTrue(mirroredPlayerOwner.contains("Supplier<List<Track>> queueSnapshotProvider"));
+        assertFalse(mirroredPlayerOwner.contains("static QueueSnapshotProvider queueSnapshotProvider()"));
+        assertFalse(mirroredPlayerOwner.contains("static Supplier<List<Track>> queueSnapshotProvider("));
+        assertFalse(mirroredPlayerOwner.contains("return new QueueSnapshotProvider();"));
         assertFalse(mirroredPlayerOwner.contains("playbackQueueManagerProvider"));
         assertFalse(mirroredPlayerOwner.contains("interface MirroredQueueOperations"));
         assertFalse(mirroredPlayerOwner.contains("MirroredQueueOperations"));
@@ -7016,10 +7089,20 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredPlayerOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
         assertFalse(mirroredPlayerOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertFalse(mirroredPlayerOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
-        assertTrue(mirroredPlayerOwner.contains(
+        assertFalse(mirroredPlayerOwner.contains(
                 "private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;"));
-        assertTrue(mirroredPlayerOwner.contains(
+        assertFalse(mirroredPlayerOwner.contains(
                 "static Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotProvider("));
+        assertTrue(mirroredPlayerOwner.contains("private PlaybackQueueManager playbackQueueManager;"));
+        assertFalse(mirroredPlayerOwner.contains(
+                "static final class QueueSnapshotProvider implements Supplier<List<Track>> {"));
+        assertTrue(mirroredPlayerOwner.contains("this::queueSnapshot"));
+        assertTrue(mirroredPlayerOwner.contains("return playbackQueueManager == null"));
+        assertTrue(mirroredPlayerOwner.contains("? Collections.emptyList()"));
+        assertTrue(mirroredPlayerOwner.contains(": playbackQueueManager.queueSnapshot();"));
+        assertTrue(mirroredPlayerOwner.contains(
+                "void bindPlaybackQueueManager(PlaybackQueueManager playbackQueueManager)"));
+        assertTrue(mirroredPlayerOwner.contains("private List<Track> queueSnapshot()"));
         assertTrue(mirroredPlayerOwner.contains("private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
         assertFalse(mirroredPlayerOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null"));
         assertTrue(mirroredPlayerOwner.contains("return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;"));
@@ -7028,6 +7111,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredPlayerOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
         assertTrue(mirroredPlayerOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
         assertFalse(mirroredPlayerOwner.contains("queueStateOwner.queueStateSnapshot().getCurrentTrack()"));
+        assertFalse(mirroredPlayerOwner.contains("queueStateSnapshotSupplier.get();"));
         assertTrue(mirroredPlayerOwner.contains("private final Consumer<Track> waveformResetter;"));
         assertTrue(mirroredPlayerOwner.contains("private final Runnable playbackParameterApplier;"));
         assertTrue(mirroredPlayerOwner.contains("private final BiConsumer<Integer, Long> playerSeeker;"));
@@ -7137,8 +7221,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("fun persistQueueState()"));
         assertFalse(owner.contains("private fun isAtEndOfQueue(): Boolean"));
         assertTrue(owner.contains("repeatMode() == REPEAT_OFF && queueStateSnapshot().isAtEndOfQueue"));
-        assertTrue(owner.contains("data class MirroredTransitionResult"));
-        assertTrue(owner.contains("fun applyMirroredTransitionIndex(nextIndex: Int, automaticAdvance: Boolean): MirroredTransitionResult?"));
+        assertFalse(owner.contains("data class MirroredTransitionResult"));
+        assertTrue(owner.contains("fun applyMirroredTransitionIndex(nextIndex: Int, automaticAdvance: Boolean): Boolean?"));
         assertFalse(service.contains("private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
         assertFalse(service.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
         assertTrue(stateSnapshotOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
@@ -7260,12 +7344,16 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredTransitionOwner.contains("PlaybackRuntimeStateManager"));
         assertFalse(mirroredTransitionOwner.contains("interface RuntimeStateManagerProvider"));
         assertTrue(mirroredTransitionOwner.contains("playbackQueueManager.applyMirroredTransitionIndex("));
+        assertTrue(mirroredTransitionOwner.contains("Boolean stopAfterAutomaticAdvance ="));
+        assertFalse(mirroredTransitionOwner.contains("PlaybackQueueManager.MirroredTransitionResult result ="));
         assertFalse(mirroredTransitionOwner.contains("playbackQueueManager.prepareMirroredTransitionPlaybackState();"));
         assertTrue(mirroredTransitionOwner.contains("currentTrackVolumeApplier.run();"));
         assertFalse(mirroredTransitionOwner.contains("manager.applyCurrentTrackVolumeToPlayer();"));
-        assertTrue(currentPreparationOwner.contains("queuePreparationController.replaceCurrentQueueTrack(restoredTrack);"));
+        assertTrue(currentPreparationOwner.contains("currentQueueTrackReplacer.accept(restoredTrack);"));
+        assertTrue(currentPreparationOwner.contains("private final Consumer<Track> currentQueueTrackReplacer;"));
+        assertFalse(currentPreparationOwner.contains("interface QueuePreparationController"));
         assertTrue(currentPreparationQueueOwner.contains("final class PlaybackCurrentTrackPreparationQueueOwner"));
-        assertTrue(currentPreparationQueueOwner.contains(
+        assertFalse(currentPreparationQueueOwner.contains(
                 "implements PlaybackCurrentTrackPreparationOwner.QueuePreparationController"));
         assertFalse(currentPreparationQueueOwner.contains("interface PlaybackQueueManagerProvider"));
         assertTrue(currentPreparationQueueOwner.contains("private final PlaybackQueueManager playbackQueueManager;"));
@@ -7297,6 +7385,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(currentPreparationQueueOwner.contains("PlaybackMediaSourceProvider.isRestorableQueueTrack(track)"));
         assertTrue(service.contains("private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner"));
         assertTrue(service.contains("new PlaybackCurrentTrackPreparationQueueOwner("));
+        assertTrue(service.contains("playbackCurrentTrackPreparationQueueOwner::replaceCurrentQueueTrack"));
         assertFalse(service.contains("PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager("));
         assertFalse(currentPreparationQueueOwner.contains("static PlaybackCurrentTrackPreparationQueueOwner fromPlaybackQueueManager("));
         assertFalse(currentPreparationQueueOwner.contains("static PlaybackCurrentTrackPreparationQueueOwner fromMediaSourceProvider("));
@@ -7313,6 +7402,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredPlayerOwner.contains("playbackQueueManager::matchesMirroredQueue"));
         assertFalse(service.contains("new PlaybackQueueManager.QueueTrackMatcher()"));
         assertFalse(service.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
+        assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
         assertFalse(service.contains("playbackQueueManager.clearQueueState();"));
         assertFalse(service.contains("playbackQueueManager.persistQueueState();"));
         assertTrue(service.contains("PlaybackShutdownLifecycleResourcesOwner.persistQueueState("));
@@ -7401,14 +7491,21 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("queueProvider.isPlaying()"));
         assertFalse(owner.contains("queuePlaybackActions.isPlaying()"));
         assertFalse(service.contains("new PlaybackQueueManager.QueuePlaybackActions()"));
+        String queueCommandWiring = service.substring(
+                service.indexOf("private final PlaybackQueueCommandOwner playbackQueueCommandOwner ="),
+                service.indexOf("    private final PlaybackRuntimeStateManager playbackRuntimeStateManager =")
+        );
         assertFalse(service.contains("private PlaybackQueueCommandOwner playbackQueueCommandOwner;"));
         assertTrue(service.contains("final PlaybackQueueCommandOwner playbackQueueCommandOwner ="));
-        assertTrue(service.contains("new PlaybackQueueCommandOwner("));
-        assertFalse(service.contains("new PlaybackQueueCommandOwner(\n"
+        assertTrue(queueCommandWiring.contains("new PlaybackQueueCommandOwner("));
+        assertFalse(queueCommandWiring.contains("new PlaybackQueueCommandOwner(\n"
                 + "                    queueStateSnapshotSupplier,"));
-        assertFalse(service.contains("new PlaybackQueueCommandOwner(\n"
+        assertFalse(queueCommandWiring.contains("new PlaybackQueueCommandOwner(\n"
                 + "                    playbackQueueStateOwner,"));
-        assertTrue(service.contains("                    () -> playbackQueueManager,"));
+        assertFalse(queueCommandWiring.contains("                    () -> playbackQueueManager,"));
+        assertTrue(service.indexOf("playbackQueueManager = new PlaybackQueueManager(")
+                < service.indexOf("playbackQueueCommandOwner.bindPlaybackQueueManager(playbackQueueManager);"));
+        assertTrue(service.contains("playbackQueueCommandOwner.bindPlaybackQueueManager(playbackQueueManager);"));
         assertTrue(service.contains("EchoPlaybackService.this::stopAndClear"));
         assertTrue(service.contains("playbackQueueCommandOwner"));
         assertTrue(commandOwner.contains("final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlaybackActions"));
@@ -7419,14 +7516,16 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(commandOwner.contains("private final PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands;"));
         assertFalse(playerStateOwner.contains("PlaybackQueueCommandOwner.PlaybackStateProvider"));
         assertTrue(commandOwner.contains("import java.util.function.BiConsumer;"));
-        assertTrue(commandOwner.contains("import java.util.function.Supplier;"));
+        assertFalse(commandOwner.contains("import java.util.function.Supplier;"));
         assertFalse(commandOwner.contains("PlaybackQueueCommandOwner(\n"
                 + "            PlaybackQueueManager playbackQueueManager,"));
         assertFalse(commandOwner.contains("new PlaybackQueueStateOwner(playbackQueueManager)"));
         assertFalse(commandOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
         assertFalse(commandOwner.contains(
                 "private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;"));
-        assertTrue(commandOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
+        assertFalse(commandOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
+        assertTrue(commandOwner.contains("private PlaybackQueueManager playbackQueueManager;"));
+        assertTrue(commandOwner.contains("void bindPlaybackQueueManager(PlaybackQueueManager playbackQueueManager)"));
         assertTrue(commandOwner.contains("private final BiConsumer<Track, Boolean> playbackPreparer;"));
         assertTrue(commandOwner.contains("private final Runnable statePublisher;"));
         assertFalse(commandOwner.contains("private final Runnable stopAndClearCommand;"));
@@ -7497,16 +7596,20 @@ public final class MainActivityArchitectureContractTest {
 
         assertEquals(0, countOccurrences(service, "playbackQueueStateOwner::currentTrack"));
         assertTrue(normalizedService.contains(
-                "PlaybackRuntimeStateManager.stateProviderFromPlaybackState(\n"
-                        + "                            () -> player,\n"
-                        + "                            playbackQueueRuntimeStateManager::playerMirrorsQueue,\n"
-                        + "                            () -> playbackQueueManager\n"
-                        + "                    )"));
+                "private final PlaybackRuntimeStateManager.PlaybackStateProvider playbackRuntimeStateProvider =\n"
+                        + "            PlaybackRuntimeStateManager.stateProviderFromPlaybackState(\n"
+                        + "                    () -> player,\n"
+                        + "                    playbackQueueRuntimeStateManager::playerMirrorsQueue\n"
+                        + "            );"));
+        assertTrue(normalizedService.contains(
+                "private final PlaybackRuntimeStateManager playbackRuntimeStateManager =\n"
+                        + "            new PlaybackRuntimeStateManager(playbackRuntimeStateProvider);"));
         assertTrue(normalizedService.contains(
                 "PlaybackPositionManager.stateProviderFromPlaybackState(\n"
-                        + "                        () -> playbackQueueManager,\n"
                         + "                        playbackPlayerStateOwner::positionMs\n"
                 + "                )"));
+        assertTrue(normalizedService.contains("playbackRuntimeStateProvider.bindPlaybackQueueManager(playbackQueueManager);"));
+        assertTrue(normalizedService.contains("playbackPositionStateProvider.bindPlaybackQueueManager(playbackQueueManager);"));
         assertFalse(service.contains("private Track currentTrackFromQueueStateSnapshot()"));
         assertEquals(0, countOccurrences(service,
                 "PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null"));
@@ -7550,7 +7653,6 @@ public final class MainActivityArchitectureContractTest {
                 "replaceCurrentQueueTrack",
                 "replaceCurrentTrackAndResume",
                 "replaceQueuedTrackById",
-                "retainTracksById",
                 "skipToNextImmediately",
                 "skipToPrevious"
         ));
@@ -7569,15 +7671,11 @@ public final class MainActivityArchitectureContractTest {
                 "queueSnapshot",
                 "queueStateSnapshot"
         ));
-        java.util.Set<String> queuePrecacheApi = new java.util.TreeSet<>(java.util.Arrays.asList(
-                "upcomingTracksForPrecache"
-        ));
         java.util.Set<String> expectedPublicApi = new java.util.TreeSet<>();
         expectedPublicApi.addAll(queueMutationApi);
         expectedPublicApi.addAll(queueRestoreAndPersistenceApi);
         expectedPublicApi.addAll(queueMirrorApi);
         expectedPublicApi.addAll(queueDerivedReadApi);
-        expectedPublicApi.addAll(queuePrecacheApi);
 
         assertEquals(expectedPublicApi, kotlinClassLevelFunNames(owner));
         assertFalse(owner.contains("fun clearQueue(): Boolean"));
@@ -7585,9 +7683,6 @@ public final class MainActivityArchitectureContractTest {
                 "queueSnapshot",
                 "queueStateSnapshot"
         )), queueDerivedReadApi);
-        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
-                "upcomingTracksForPrecache"
-        )), queuePrecacheApi);
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackErrorRecoveryCommandOwner.java",
                 "PlaybackFavoriteCommandOwner.java",
@@ -7613,21 +7708,21 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueMutationOwner.contains("queueStateSnapshot().getCurrentTrack()"));
         assertFalse(queueMutationOwner.contains("queueSnapshot().isEmpty()"));
         assertFalse(queueMutationOwner.contains("fun clearQueue(): Boolean"));
+        assertEquals(new java.util.TreeSet<>(),
+                playbackSourceFileNamesContaining("playbackQueueManagerSupplier?.get()?.queueStateSnapshot()"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackPositionManager.kt",
                 "PlaybackRuntimeStateManager.kt"
-        )),
-                playbackSourceFileNamesContaining("playbackQueueManagerSupplier?.get()?.queueStateSnapshot()"));
-        assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager?.queueStateSnapshot()"));
+        )), playbackSourceFileNamesContaining("playbackQueueManager?.queueStateSnapshot()"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "EchoPlaybackService.java",
                 "PlaybackCurrentTrackPreparationQueueOwner.java",
+                "PlaybackPrecacheManager.java",
+                "PlaybackQueueMutationOwner.java",
                 "PlaybackQueueMirroredPlayerOwner.java",
                 "PlaybackShutdownLifecycleResourcesOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.queueSnapshot()"));
-        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
-                "PlaybackPrecacheManager.java"
-        )), playbackSourceFileNamesContaining("playbackQueueManager.upcomingTracksForPrecache("));
+        assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager.upcomingTracksForPrecache("));
         assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager.queuePreparationForNewPlayer()"));
         assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager.persistQueueState()"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
@@ -7636,10 +7731,10 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackQueueCompletionOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.preparePlaybackCompletionAction()"));
-        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+        assertEquals(new java.util.TreeSet<>(java.util.Collections.singletonList(
                 "PlaybackQueueCompletionOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.prepareStopAndClearPlaybackState()"));
-        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+        assertEquals(new java.util.TreeSet<>(java.util.Collections.singletonList(
                 "PlaybackQueueCompletionOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.prepareStopAtEndOfQueue()"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
@@ -7647,6 +7742,7 @@ public final class MainActivityArchitectureContractTest {
         )), playbackSourceFileNamesContaining("playbackQueueManager.prepareStopAfterAutomaticAdvance("));
         assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager.restoreLastPlayback("));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "EchoPlaybackService.java",
                 "PlaybackQueueRestoreOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.restorePlaybackQueue()"));
         assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager.setPlaybackRestoreEnabled("));
@@ -7674,9 +7770,8 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackQueueMutationOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.removeTracksById("));
-        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
-                "PlaybackQueueMutationOwner.java"
-        )), playbackSourceFileNamesContaining("playbackQueueManager.retainTracksById("));
+        assertEquals(new java.util.TreeSet<>(),
+                playbackSourceFileNamesContaining("playbackQueueManager.retainTracksById("));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackQueueMutationOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.moveQueueTrack("));
@@ -7737,7 +7832,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(streamingRestoreProvider.contains("mediaItem"));
         String mirroredQueuePlayer = normalizedOwner.substring(
                 normalizedOwner.indexOf("interface MirroredQueuePlayer"),
-                normalizedOwner.indexOf("data class CurrentTrackReplacementRecovery"));
+                normalizedOwner.indexOf("data class QueueStateSnapshot"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "matchesCurrentQueue",
                 "seekTo"
@@ -7849,21 +7944,24 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(preparationOwner.contains("private final Function<Track, MediaSource> mediaSourceResolver;"));
         assertFalse(preparationOwner.contains("interface RestoredTrackProvider"));
         assertFalse(preparationOwner.contains("interface UnplayableMessageProvider"));
-        assertTrue(preparationOwner.contains("interface QueuePreparationController"));
+        assertFalse(preparationOwner.contains("interface QueuePreparationController"));
         assertTrue(preparationOwner.contains("interface RuntimeStateController"));
         assertFalse(preparationOwner.contains("interface StatePublisher"));
         assertFalse(preparationOwner.contains("interface RefusalLogger"));
+        assertTrue(preparationOwner.contains("private final Consumer<Track> currentQueueTrackReplacer;"));
         assertTrue(preparationOwner.contains("private final Runnable statePublisher;"));
         assertTrue(preparationOwner.contains("private final Consumer<Track> refusalLogger;"));
         assertTrue(preparationOwner.contains("playbackPreparationProvider.apply(track)"));
         assertTrue(preparationOwner.contains("return mediaSourceResolver.apply(track);"));
         assertTrue(preparationOwner.contains("preparation.getUnplayableMessage()"));
-        assertTrue(preparationOwner.contains("queuePreparationController.replaceCurrentQueueTrack(restoredTrack)"));
+        assertTrue(preparationOwner.contains("currentQueueTrackReplacer.accept(restoredTrack)"));
         assertTrue(preparationOwner.contains("runtimeStateController.setErrorMessage(unplayableMessage)"));
         assertTrue(preparationOwner.contains("refusalLogger.accept(preparedTrack);"));
         assertTrue(preparationOwner.contains("statePublisher.run();"));
         assertTrue(preparationQueueOwner.contains(
                 "final class PlaybackCurrentTrackPreparationQueueOwner"));
+        assertFalse(preparationQueueOwner.contains(
+                "implements PlaybackCurrentTrackPreparationOwner.QueuePreparationController"));
         assertTrue(preparationRuntimeOwner.contains(
                 "final class PlaybackCurrentTrackPreparationRuntimeOwner"));
         assertTrue(preparationRuntimeOwner.contains(
@@ -7887,6 +7985,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(preparationRuntimeOwner.contains("setErrorMessage(\"Unable to open this track.\");"));
         assertTrue(preparationRuntimeOwner.contains("return preparing != null && preparing.getAsBoolean();"));
         assertTrue(service.contains("new PlaybackCurrentTrackPreparationQueueOwner("));
+        assertTrue(service.contains("playbackCurrentTrackPreparationQueueOwner::replaceCurrentQueueTrack"));
         assertFalse(service.contains("PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager("));
         assertTrue(preparationQueueOwner.contains("PlaybackMediaSourceProvider mediaSourceProvider"));
         assertTrue(preparationQueueOwner.contains("mediaSourceProvider.mediaSourcesForTracks("));
@@ -8192,14 +8291,16 @@ public final class MainActivityArchitectureContractTest {
                 service.indexOf("playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner("),
                 service.indexOf("        playbackErrorRecoveryManager = new PlaybackErrorRecoveryManager(")
         );
+        assertTrue(service.indexOf("playbackQueueManager = new PlaybackQueueManager(")
+                < service.indexOf("playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner("));
         assertFalse(errorRecoveryCommandWiring.contains("queueStateSupplier"));
         assertFalse(errorRecoveryCommandWiring.contains("playbackQueueStateOwner::currentTrack"));
         assertFalse(errorRecoveryCommandWiring.contains("playbackQueueStateOwner::hasMultipleTracks"));
         assertFalse(errorRecoveryCommandWiring.contains("                playbackQueueStateOwner,"));
-        assertTrue(errorRecoveryCommandWiring.contains(
+        assertFalse(errorRecoveryCommandWiring.contains(
                 "                PlaybackErrorRecoveryCommandOwner.queueStateSnapshotProvider(() -> playbackQueueManager),"));
         assertFalse(errorRecoveryCommandWiring.contains("                queueStateSnapshotSupplier,"));
-        assertFalse(errorRecoveryCommandWiring.contains("                playbackQueueManager,"));
+        assertTrue(errorRecoveryCommandWiring.contains("                playbackQueueManager,"));
         assertFalse(service.contains("playbackQueueManager.canSkipFailedTrack(failed)"));
         assertFalse(queueNavigationOwner.contains("playbackQueueManager.canSkipFailedTrack(failed);"));
         assertTrue(owner.contains("class PlaybackErrorRecoveryManager"));
@@ -8257,7 +8358,15 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private PlaybackPlayHistoryRecorder playbackPlayHistoryRecorder;"));
         assertTrue(service.contains("private Runnable recordPlaybackStartHistoryAction"));
         assertTrue(service.contains("PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction("));
+        assertTrue(service.indexOf("playbackQueueManager = new PlaybackQueueManager(")
+                < service.indexOf("recordPlaybackStartHistoryAction = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction("));
         assertTrue(normalizedService.contains(
+                "PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(\n" +
+                        "                playbackPlayHistoryRecorder,\n" +
+                        "                () -> player != null && player.getPlayWhenReady(),\n" +
+                        "                playbackQueueManager\n" +
+                        "        );"));
+        assertFalse(normalizedService.contains(
                 "PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(\n" +
                         "                playbackPlayHistoryRecorder,\n" +
                         "                () -> player != null && player.getPlayWhenReady(),\n" +
@@ -8290,7 +8399,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("interface HistorySink"));
         assertTrue(owner.contains("static Runnable recordIfPlaybackStartedAction("));
         assertFalse(owner.contains("PlaybackQueueStateOwner queueStateOwner"));
-        assertTrue(owner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
+        assertFalse(owner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertFalse(owner.contains("Supplier<Track> currentTrackSupplier"));
         assertFalse(owner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier"));
         assertFalse(owner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateOwner == null"));
@@ -8301,11 +8410,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("private static Track currentTrack(PlaybackQueueStateOwner queueStateOwner)"));
         assertFalse(owner.contains("return queueStateSnapshot(queueStateSnapshotSupplier).getCurrentTrack();"));
         assertFalse(owner.contains("return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;"));
-        assertTrue(owner.contains("PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null"));
+        assertFalse(owner.contains("PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null"));
+        assertTrue(owner.contains("private static Track currentTrack(PlaybackQueueManager playbackQueueManager)"));
         assertTrue(owner.contains("playbackQueueManager.queueStateSnapshot();"));
         assertTrue(owner.contains("return snapshot == null ? null : snapshot.getCurrentTrack();"));
         assertFalse(owner.contains("playbackQueueManager.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(owner.contains("currentTrackSupplier == null ? null : currentTrackSupplier.get()"));
+        assertFalse(owner.contains("import java.util.function.Supplier;"));
         assertTrue(owner.contains("void recordIfPlaybackStarted(boolean playWhenReady, Track track)"));
         assertTrue(owner.contains("historySink.markPlayed(track.id);"));
         assertTrue(owner.contains("transitionStateManager.lastMarkedTrack()"));
@@ -8461,10 +8572,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackRuntimeStateOwner"));
         assertTrue(service.contains("PlaybackRuntimeStateManager.stateProviderFromPlaybackState("));
         String runtimeStateProviderWiring = normalizedService.substring(
-                normalizedService.indexOf("private final PlaybackRuntimeStateManager playbackRuntimeStateManager ="),
+                normalizedService.indexOf("private final PlaybackRuntimeStateManager.PlaybackStateProvider playbackRuntimeStateProvider ="),
                 normalizedService.indexOf("    private final PlaybackCurrentTrackPreparationRuntimeOwner")
         );
-        assertTrue(runtimeStateProviderWiring.contains("                            () -> playbackQueueManager"));
+        assertTrue(runtimeStateProviderWiring.contains("private final PlaybackRuntimeStateManager.PlaybackStateProvider playbackRuntimeStateProvider ="));
+        assertTrue(runtimeStateProviderWiring.contains("PlaybackRuntimeStateManager.stateProviderFromPlaybackState("));
+        assertFalse(runtimeStateProviderWiring.contains("                            () -> playbackQueueManager"));
         assertFalse(runtimeStateProviderWiring.contains(
                 "PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier.get();"));
         assertFalse(runtimeStateProviderWiring.contains(
@@ -8476,6 +8589,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(runtimeStateProviderWiring.contains(
                 "playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
         assertFalse(service.contains("new PlaybackRuntimeStateManager.StateProvider()"));
+        assertTrue(service.indexOf("playbackQueueManager = new PlaybackQueueManager(")
+                < service.indexOf("playbackRuntimeStateProvider.bindPlaybackQueueManager(playbackQueueManager);"));
+        assertTrue(service.contains("playbackRuntimeStateProvider.bindPlaybackQueueManager(playbackQueueManager);"));
         assertTrue(owner.contains("private var shuffleEnabled"));
         assertTrue(owner.contains("private var repeatMode"));
         assertTrue(owner.contains("fun setShuffleEnabled(enabled: Boolean)"));
@@ -8554,18 +8670,21 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("fun errorMessage(): String"));
         assertFalse(owner.contains("fun queueIsEmpty(): Boolean"));
         assertTrue(owner.contains("fun stateProviderFromPlaybackState("));
+        assertTrue(owner.contains("class PlaybackStateProvider("));
         assertTrue(owner.contains("playerSupplier: Supplier<ExoPlayer?>?"));
         assertTrue(owner.contains("mirroredQueueSupplier: BooleanSupplier?"));
-        assertTrue(owner.contains("playbackQueueManagerSupplier: Supplier<PlaybackQueueManager?>?"));
-        assertFalse(owner.contains("playbackQueueManager: PlaybackQueueManager?"));
+        assertFalse(owner.contains("playbackQueueManagerSupplier: Supplier<PlaybackQueueManager?>?"));
+        assertTrue(owner.contains("private var playbackQueueManager: PlaybackQueueManager? = null"));
+        assertTrue(owner.contains("fun bindPlaybackQueueManager(playbackQueueManager: PlaybackQueueManager?)"));
         assertFalse(owner.contains("currentTrackSupplier: Supplier<Track?>?"));
         assertFalse(owner.contains("queueStateSnapshotSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
         assertFalse(owner.contains("PlaybackQueueManager.QueueStateSnapshot"));
         assertFalse(owner.contains("queueStateSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?"));
         assertTrue(owner.contains("override fun player(): ExoPlayer? = playerSupplier?.get()"));
         assertTrue(owner.contains("override fun playerMirrorsQueue(): Boolean = mirroredQueueSupplier?.asBoolean == true"));
-        assertTrue(owner.contains("playbackQueueManagerSupplier?.get()?.queueStateSnapshot()?.currentTrack"));
-        assertFalse(owner.contains("override fun currentTrack(): Track? = playbackQueueManager?.queueStateSnapshot()?.currentTrack"));
+        assertFalse(owner.contains("playbackQueueManagerSupplier?.get()?.queueStateSnapshot()?.currentTrack"));
+        assertTrue(owner.contains(
+                "override fun currentTrack(): Track? =\n            playbackQueueManager?.queueStateSnapshot()?.currentTrack"));
         assertFalse(owner.contains(
                 "override fun currentTrack(): Track? = queueStateSnapshotSupplier?.get()?.currentTrack"));
         assertFalse(owner.contains("override fun currentTrack(): Track? = currentTrackSupplier?.get()"));
@@ -9198,10 +9317,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("private PlaybackErrorRecoveryCommandOwner playbackErrorRecoveryCommandOwner;"));
         assertTrue(service.contains("playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner("));
         assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner,"));
-        assertTrue(errorRecoveryWiring.contains(
+        assertTrue(service.indexOf("playbackQueueManager = new PlaybackQueueManager(")
+                < service.indexOf("playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner("));
+        assertFalse(errorRecoveryWiring.contains(
                 "PlaybackErrorRecoveryCommandOwner.queueStateSnapshotProvider(() -> playbackQueueManager),"));
         assertFalse(errorRecoveryWiring.contains("queueStateSnapshotSupplier,"));
-        assertFalse(errorRecoveryWiring.contains("playbackQueueManager,"));
+        assertTrue(errorRecoveryWiring.contains("playbackQueueManager,"));
         assertFalse(errorRecoveryWiring.contains("queueStateSupplier"));
         assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner::currentTrack"));
         assertFalse(errorRecoveryWiring.contains("playbackQueueStateOwner::hasMultipleTracks"));
@@ -9236,15 +9357,15 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(commandOwner.contains("private final Supplier<Track> currentTrackSupplier;"));
         assertFalse(commandOwner.contains("private final BooleanSupplier hasMultipleTracksSupplier;"));
         assertFalse(commandOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier;"));
-        assertTrue(commandOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;"));
+        assertFalse(commandOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;"));
         assertFalse(commandOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
-        assertFalse(commandOwner.contains("private final PlaybackQueueManager playbackQueueManager;"));
+        assertTrue(commandOwner.contains("private final PlaybackQueueManager playbackQueueManager;"));
         assertTrue(commandOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
-        assertTrue(commandOwner.contains("import java.util.function.Supplier;"));
+        assertFalse(commandOwner.contains("import java.util.function.Supplier;"));
         assertFalse(commandOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertFalse(commandOwner.contains("hasMultipleTracksSupplier.getAsBoolean()"));
         assertFalse(commandOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
-        assertTrue(commandOwner.contains("static Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotProvider("));
+        assertFalse(commandOwner.contains("static Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotProvider("));
         assertTrue(commandOwner.contains(": playbackQueueManager.queueStateSnapshot();"));
         assertTrue(commandOwner.contains("private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
         assertFalse(commandOwner.contains("return snapshot == null ? null : snapshot.getCurrentTrack();"));

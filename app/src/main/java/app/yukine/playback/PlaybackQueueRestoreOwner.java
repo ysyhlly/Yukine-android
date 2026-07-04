@@ -22,7 +22,9 @@ final class PlaybackQueueRestoreOwner {
     }
 
     void restoreLastPlayback(boolean playWhenRestored) {
-        restorePlaybackQueue();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.restorePlaybackQueue();
+        }
         PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();
         if (queueStateSnapshot.isQueueEmpty()) {
             publishState();
@@ -34,12 +36,6 @@ final class PlaybackQueueRestoreOwner {
             return;
         }
         prepareCurrent(playWhenRestored || loadResumeRequested());
-    }
-
-    void restorePlaybackQueue() {
-        if (playbackQueueManager != null) {
-            playbackQueueManager.restorePlaybackQueue();
-        }
     }
 
     void setPlaybackRestoreEnabled(boolean enabled) {

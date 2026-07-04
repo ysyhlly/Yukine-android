@@ -91,7 +91,7 @@ class MainNetworkActionsListenerTest {
 
         override fun serviceConnected(): Boolean = true
         override fun snapshot(): PlaybackStateSnapshot? = null
-        override fun queueSnapshot(): List<Track> = emptyList()
+        override fun hasQueue(): Boolean = false
         override fun skipToPrevious() = Unit
         override fun skipToNext() = Unit
         override fun seekTo(positionMs: Long) = Unit

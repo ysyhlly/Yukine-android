@@ -113,7 +113,7 @@ class QueueActionControllerTest {
 
         override fun serviceConnected(): Boolean = connected
         override fun snapshot(): PlaybackStateSnapshot? = PlaybackStateSnapshot.empty()
-        override fun queueSnapshot(): List<Track> = queue
+        override fun hasQueue(): Boolean = queue.isNotEmpty()
         override fun skipToPrevious() {}
         override fun skipToNext() {}
         override fun seekTo(positionMs: Long) {}

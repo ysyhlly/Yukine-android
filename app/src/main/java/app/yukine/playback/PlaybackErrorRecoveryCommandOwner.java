@@ -6,38 +6,24 @@ import app.yukine.playback.manager.PlaybackQueueManager;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryManager.Actions {
-    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;
+    private final PlaybackQueueManager playbackQueueManager;
     private final Consumer<Boolean> playbackPreparer;
     private final Runnable skipToNextCommand;
     private final Consumer<String> errorMessageStore;
     private final Runnable statePublisher;
     private final BiConsumer<String, Exception> warningLogger;
 
-    static Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotProvider(
-            Supplier<PlaybackQueueManager> queueManagerSource
-    ) {
-        return () -> {
-            PlaybackQueueManager playbackQueueManager = queueManagerSource == null
-                    ? null
-                    : queueManagerSource.get();
-            return playbackQueueManager == null
-                    ? PlaybackQueueManager.QueueStateSnapshot.empty()
-                    : playbackQueueManager.queueStateSnapshot();
-        };
-    }
-
     PlaybackErrorRecoveryCommandOwner(
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier,
+            PlaybackQueueManager playbackQueueManager,
             Consumer<Boolean> playbackPreparer,
             Runnable skipToNextCommand,
             Consumer<String> errorMessageStore,
             Runnable statePublisher,
             BiConsumer<String, Exception> warningLogger
     ) {
-        this.queueStateSnapshotSupplier = queueStateSnapshotSupplier;
+        this.playbackQueueManager = playbackQueueManager;
         this.playbackPreparer = playbackPreparer;
         this.skipToNextCommand = skipToNextCommand;
         this.errorMessageStore = errorMessageStore;
@@ -98,9 +84,9 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier == null
+        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
                 ? null
-                : queueStateSnapshotSupplier.get();
+                : playbackQueueManager.queueStateSnapshot();
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 }

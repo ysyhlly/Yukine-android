@@ -28,34 +28,34 @@ final class PlaybackQueueCompletionOwner {
             return;
         }
         if (completionAction == PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR) {
-            run(stopAndClearAction);
+            stopAndClearPlayback();
             return;
         }
         switch (completionAction) {
             case STOP_AT_END:
-                run(stopAtEndOfQueueAction);
+                stopAtEndOfQueue();
                 break;
             case ADVANCE_TO_NEXT:
                 run(skipToNextAction);
                 break;
             default:
-                run(stopAndClearAction);
+                stopAndClearPlayback();
                 break;
         }
     }
 
-    void prepareStopAndClearPlaybackState() {
-        if (playbackQueueManager == null) {
-            return;
+    void stopAndClearPlayback() {
+        if (playbackQueueManager != null) {
+            playbackQueueManager.prepareStopAndClearPlaybackState();
         }
-        playbackQueueManager.prepareStopAndClearPlaybackState();
+        run(stopAndClearAction);
     }
 
-    void prepareStopAtEndOfQueue() {
-        if (playbackQueueManager == null) {
-            return;
+    void stopAtEndOfQueue() {
+        if (playbackQueueManager != null) {
+            playbackQueueManager.prepareStopAtEndOfQueue();
         }
-        playbackQueueManager.prepareStopAtEndOfQueue();
+        run(stopAtEndOfQueueAction);
     }
 
     void stopAfterAutomaticAdvance(int completedIndex) {

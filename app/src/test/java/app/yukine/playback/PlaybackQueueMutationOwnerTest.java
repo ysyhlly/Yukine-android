@@ -126,6 +126,25 @@ public class PlaybackQueueMutationOwnerTest {
     }
 
     @Test
+    public void retainTracksMatchingWholeQueueDoesNothing() {
+        FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
+        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);
+        FakeStopAndClearAction stopAndClearAction = new FakeStopAndClearAction();
+        PlaybackQueueMutationOwner owner = owner(queueManager, stopAndClearAction);
+        owner.playQueue(Arrays.asList(track(21L), track(22L)), 1, 0L);
+        actions.prepareCurrentCalls = 0;
+        actions.publishStateCalls = 0;
+
+        owner.retainTracksById(new HashSet<>(Arrays.asList(21L, 22L)));
+
+        assertTrackIds(Arrays.asList(21L, 22L), queueManager.queueSnapshot());
+        assertEquals(22L, queueManager.queueStateSnapshot().getCurrentTrack().id);
+        assertEquals(0, actions.prepareCurrentCalls);
+        assertEquals(0, actions.publishStateCalls);
+        assertEquals(0, stopAndClearAction.calls);
+    }
+
+    @Test
     public void playQueueWithUnsetStartPositionDoesNotRestoreSavedPosition() {
         FakeQueueStore store = new FakeQueueStore();
         Track track = track(5L, 10_000L);

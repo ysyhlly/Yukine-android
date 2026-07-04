@@ -6,7 +6,7 @@ import app.yukine.playback.service.PlaybackServiceActions
 
 interface NowPlayingPlaybackServicePort {
     fun snapshot(): PlaybackStateSnapshot?
-    fun queueSnapshot(): List<Track>
+    fun hasQueue(): Boolean
     fun skipToPrevious()
     fun skipToNext()
     fun seekTo(positionMs: Long)
@@ -44,7 +44,7 @@ internal class NowPlayingPlaybackGatewayAdapter(
 
     override fun snapshot(): PlaybackStateSnapshot? = service()?.snapshot()
 
-    override fun queueSnapshot(): List<Track> = service()?.queueSnapshot().orEmpty()
+    override fun hasQueue(): Boolean = service()?.hasQueue() == true
 
     override fun skipToPrevious() {
         val service = service()

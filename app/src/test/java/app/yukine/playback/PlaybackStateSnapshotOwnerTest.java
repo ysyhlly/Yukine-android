@@ -176,7 +176,7 @@ public class PlaybackStateSnapshotOwnerTest {
 
     private static PlaybackRuntimeStateManager playbackRuntimeStateManager() {
         return new PlaybackRuntimeStateManager(
-                PlaybackRuntimeStateManager.stateProviderFromPlaybackState(null, null, null)
+                PlaybackRuntimeStateManager.stateProviderFromPlaybackState(null, null)
         );
     }
 

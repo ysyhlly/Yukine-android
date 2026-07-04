@@ -128,22 +128,6 @@ public class PlaybackQueueRestoreOwnerTest {
         assertEquals(true, store.lastRestoreEnabled);
     }
 
-    @Test
-    public void delegatesQueueRestoreSnapshot() {
-        FakeQueueStore store = new FakeQueueStore(
-                new PlaybackQueueState(Collections.singletonList(track(4L)), 0),
-                false
-        );
-        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, null);
-        PlaybackQueueRestoreOwner missingManager =
-                new PlaybackQueueRestoreOwner(null, null, null, null);
-
-        owner.restorePlaybackQueue();
-        missingManager.restorePlaybackQueue();
-
-        assertEquals(1, store.loadCalls);
-    }
-
     private static PlaybackQueueRestoreOwner owner(
             PlaybackQueueManager queueManager,
             PlaybackQueueStore queueStore,

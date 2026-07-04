@@ -57,7 +57,7 @@ data class PlaybackActionResultUi(
 interface NowPlayingPlaybackGateway {
     fun serviceConnected(): Boolean
     fun snapshot(): PlaybackStateSnapshot?
-    fun queueSnapshot(): List<Track>
+    fun hasQueue(): Boolean
     fun skipToPrevious()
     fun skipToNext()
     fun seekTo(positionMs: Long)
@@ -236,7 +236,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun hasQueue(): Boolean {
         val player = playbackGateway ?: return false
-        return player.serviceConnected() && player.queueSnapshot().isNotEmpty()
+        return player.serviceConnected() && player.hasQueue()
     }
 
     fun clearQueue(): PlaybackActionResultUi {

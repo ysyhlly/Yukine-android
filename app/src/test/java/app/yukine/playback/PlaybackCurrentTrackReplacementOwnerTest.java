@@ -22,8 +22,8 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
         PlaybackCurrentTrackReplacementOwner owner =
                 new PlaybackCurrentTrackReplacementOwner(
                         queueManager,
-                        recovery -> events.add("record:" + recovery.getRestoredPositionMs()),
-                        playWhenReady -> events.add("schedule:" + playWhenReady)
+                        (track, restoredPositionMs) -> events.add("record:" + restoredPositionMs),
+                        () -> events.add("schedule")
                 );
 
         owner.replaceCurrentTrackAndResume(track(7L, "replacement"), 1800L);
@@ -31,7 +31,7 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
         assertEquals(
                 Arrays.asList(
                         "record:0",
-                        "schedule:true"
+                        "schedule"
                 ),
                 events
         );
@@ -46,8 +46,8 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
         PlaybackCurrentTrackReplacementOwner owner =
                 new PlaybackCurrentTrackReplacementOwner(
                         queueManager,
-                        recorded -> events.add("record"),
-                        playWhenReady -> events.add("schedule")
+                        (track, restoredPositionMs) -> events.add("record"),
+                        () -> events.add("schedule")
                 );
 
         owner.replaceCurrentTrackAndResume(track(8L, "same"), 2200L);
@@ -79,8 +79,8 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
         PlaybackCurrentTrackReplacementOwner missingManager =
                 new PlaybackCurrentTrackReplacementOwner(
                         null,
-                        recorded -> events.add("record"),
-                        playWhenReady -> events.add("schedule")
+                        (track, restoredPositionMs) -> events.add("record"),
+                        () -> events.add("schedule")
                 );
 
         missingManager.replaceCurrentTrackAndResume(track(11L, "replacement"), 1200L);

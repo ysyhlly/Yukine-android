@@ -304,7 +304,7 @@ class NowPlayingViewModelTest {
 
         override fun snapshot(): PlaybackStateSnapshot? = snapshot
 
-        override fun queueSnapshot(): List<Track> = queue
+        override fun hasQueue(): Boolean = queue.isNotEmpty()
 
         override fun skipToPrevious() {
             calls.add("previous")

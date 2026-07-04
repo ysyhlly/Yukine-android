@@ -7,6 +7,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
@@ -32,7 +33,7 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
                     events.add("source:" + track.id);
                     return null;
                 },
-                new FakeQueuePreparationController(events),
+                queueTrackReplacer(events),
                 track -> {
                     events.add("position:" + track.id);
                     return 4500L;
@@ -82,7 +83,7 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
                     events.add("source:" + track.id);
                     return null;
                 },
-                new FakeQueuePreparationController(events),
+                queueTrackReplacer(events),
                 track -> 4500L,
                 new FakeRuntimeStateController(events),
                 () -> events.add("publish"),
@@ -112,7 +113,7 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
         PlaybackCurrentTrackPreparationOwner owner = new PlaybackCurrentTrackPreparationOwner(
                 requested -> preparation(requested, null, true, null),
                 requested -> null,
-                new FakeQueuePreparationController(new ArrayList<>()),
+                queueTrackReplacer(new ArrayList<>()),
                 requested -> -1L,
                 new FakeRuntimeStateController(new ArrayList<>()),
                 () -> {
@@ -132,7 +133,7 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
                 PlaybackCurrentTrackPreparationOwner.fromMediaSourceProvider(
                         null,
                         requested -> null,
-                        new FakeQueuePreparationController(events),
+                        queueTrackReplacer(events),
                         requested -> {
                             events.add("position:" + requested.id);
                             return 3000L;
@@ -169,18 +170,10 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, uri, "streaming:netease:" + id);
     }
 
-    private static final class FakeQueuePreparationController
-            implements PlaybackCurrentTrackPreparationOwner.QueuePreparationController {
-        private final List<String> events;
-
-        FakeQueuePreparationController(List<String> events) {
-            this.events = events;
-        }
-
-        @Override
-        public void replaceCurrentQueueTrack(Track track) {
+    private static Consumer<Track> queueTrackReplacer(List<String> events) {
+        return track -> {
             events.add("replace:" + track.id);
-        }
+        };
     }
 
     private static final class FakeRuntimeStateController

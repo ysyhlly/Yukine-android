@@ -553,7 +553,7 @@ public final class PlaybackPrecacheManagerTest {
         Track first = track(1L, "https://example.test/first.mp3");
         Track second = track(2L, "https://example.test/second.mp3");
         Track current = track(3L, "https://example.test/current.mp3");
-        PlaybackQueueManager queueManager = queueManager(
+        QueueFixture fixture = queueFixture(
                 2,
                 REPEAT_ALL,
                 first,
@@ -563,7 +563,8 @@ public final class PlaybackPrecacheManagerTest {
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 stateProvider.diagnostics,
-                queueManager,
+                fixture.queueManager,
+                fixture.runtimeStateManager,
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -595,7 +596,7 @@ public final class PlaybackPrecacheManagerTest {
         Track first = track(1L, "https://example.test/first.mp3");
         Track current = track(2L, "https://example.test/current.mp3");
         Track upcoming = track(3L, "https://example.test/upcoming.mp3");
-        PlaybackQueueManager queueManager = queueManager(
+        QueueFixture fixture = queueFixture(
                 1,
                 REPEAT_OFF,
                 first,
@@ -605,7 +606,8 @@ public final class PlaybackPrecacheManagerTest {
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 stateProvider.diagnostics,
-                queueManager,
+                fixture.queueManager,
+                fixture.runtimeStateManager,
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -702,6 +704,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
+                null,
                 mediaSourceProvider,
                 scheduler
         );
@@ -712,6 +715,10 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     private static PlaybackQueueManager queueManager(int startIndex, int repeatMode, Track... tracks) {
+        return queueFixture(startIndex, repeatMode, tracks).queueManager;
+    }
+
+    private static QueueFixture queueFixture(int startIndex, int repeatMode, Track... tracks) {
         PlaybackRuntimeStateManager runtimeStateManager = playbackRuntimeStateManager();
         runtimeStateManager.setRepeatMode(repeatMode);
         PlaybackQueueManager queueManager = new PlaybackQueueManager(
@@ -728,7 +735,7 @@ public final class PlaybackPrecacheManagerTest {
         if (tracks != null && tracks.length > 0) {
             queueManager.playQueue(java.util.Arrays.asList(tracks), startIndex, -1L);
         }
-        return queueManager;
+        return new QueueFixture(queueManager, runtimeStateManager);
     }
 
     private static PlaybackRuntimeStateManager playbackRuntimeStateManager() {
@@ -839,6 +846,19 @@ public final class PlaybackPrecacheManagerTest {
 
         @Override
         public void savePlaybackPosition(long trackId, long positionMs) {
+        }
+    }
+
+    private static final class QueueFixture {
+        private final PlaybackQueueManager queueManager;
+        private final PlaybackRuntimeStateManager runtimeStateManager;
+
+        private QueueFixture(
+                PlaybackQueueManager queueManager,
+                PlaybackRuntimeStateManager runtimeStateManager
+        ) {
+            this.queueManager = queueManager;
+            this.runtimeStateManager = runtimeStateManager;
         }
     }
 

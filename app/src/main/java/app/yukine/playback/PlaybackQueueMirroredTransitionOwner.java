@@ -62,24 +62,26 @@ final class PlaybackQueueMirroredTransitionOwner {
         if (playbackQueueManager == null) {
             return null;
         }
-        PlaybackQueueManager.MirroredTransitionResult result =
+        PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();
+        int completedIndex = queueStateSnapshot.getCurrentIndex();
+        Boolean stopAfterAutomaticAdvance =
                 playbackQueueManager.applyMirroredTransitionIndex(
                         nextIndex,
                         isAutomaticMediaItemAdvance(reason)
                 );
-        if (result == null) {
+        if (stopAfterAutomaticAdvance == null) {
             return null;
         }
         Track currentTrack = null;
-        if (!result.getStopAfterAutomaticAdvance()) {
+        if (!stopAfterAutomaticAdvance) {
             currentTrack = queueStateSnapshot().getCurrentTrack();
             if (currentTrackVolumeApplier != null) {
                 currentTrackVolumeApplier.run();
             }
         }
         return new Transition(
-                result.getCompletedIndex(),
-                result.getStopAfterAutomaticAdvance(),
+                completedIndex,
+                stopAfterAutomaticAdvance,
                 currentTrack
         );
     }

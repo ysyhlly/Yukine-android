@@ -92,45 +92,6 @@ public class PlaybackQueueCompletionOwnerTest {
     }
 
     @Test
-    public void delegatesStopPreparationsToQueueManager() {
-        FakeQueueStore stopStore = new FakeQueueStore();
-        PlaybackRuntimeStateManager stopRuntime = runtimeStateManager();
-        stopRuntime.setPreparing(true);
-        stopRuntime.setErrorMessage("stale");
-        PlaybackQueueManager stopManager = queueManagerWithTracks(
-                stopStore,
-                Collections.singletonList(track(1L)),
-                0,
-                REPEAT_ALL,
-                stopRuntime
-        );
-
-        owner(stopManager, null).prepareStopAndClearPlaybackState();
-        assertTrue(stopManager.queueStateSnapshot().isQueueEmpty());
-        assertFalse(stopRuntime.preparing());
-        assertEquals("", stopRuntime.errorMessage());
-        assertEquals(Collections.singletonList(false), stopStore.savedResumeRequestedValues);
-
-        FakeQueueStore endStore = new FakeQueueStore();
-        PlaybackRuntimeStateManager endRuntime = runtimeStateManager();
-        endRuntime.setPreparing(true);
-        endRuntime.setErrorMessage("stale");
-        PlaybackQueueManager endManager = queueManagerWithTracks(
-                endStore,
-                Collections.singletonList(track(2L)),
-                0,
-                REPEAT_OFF,
-                endRuntime
-        );
-
-        owner(endManager, null).prepareStopAtEndOfQueue();
-        assertFalse(endRuntime.preparing());
-        assertEquals("", endRuntime.errorMessage());
-        assertEquals(Collections.singletonList(false), endStore.savedResumeRequestedValues);
-
-    }
-
-    @Test
     public void stopAfterAutomaticAdvancePreparesQueueAndStopsAtEnd() {
         FakeQueueStore store = new FakeQueueStore();
         PlaybackQueueManager queueManager = queueManagerWithTracks(
@@ -165,9 +126,55 @@ public class PlaybackQueueCompletionOwnerTest {
 
         owner.playAfterCompletion();
 
-        owner.prepareStopAndClearPlaybackState();
-        owner.prepareStopAtEndOfQueue();
         assertEquals(Collections.singletonList("stopAndClear"), events);
+    }
+
+    @Test
+    public void stopAndClearPlaybackPreparesQueueBeforeBoundary() {
+        FakeQueueStore store = new FakeQueueStore();
+        PlaybackRuntimeStateManager runtimeStateManager = runtimeStateManager();
+        runtimeStateManager.setPreparing(true);
+        PlaybackQueueManager queueManager = queueManagerWithTracks(
+                store,
+                Arrays.asList(track(5L), track(6L)),
+                1,
+                REPEAT_ALL,
+                runtimeStateManager
+        );
+        List<String> events = new ArrayList<>();
+
+        owner(queueManager, events).stopAndClearPlayback();
+
+        assertTrue(queueManager.queueStateSnapshot().isQueueEmpty());
+        assertEquals(-1, queueManager.queueStateSnapshot().getCurrentIndex());
+        assertTrue(store.savedTracks.isEmpty());
+        assertEquals(-1, store.savedIndex);
+        assertEquals(Collections.singletonList(false), store.savedResumeRequestedValues);
+        assertFalse(runtimeStateManager.preparing());
+        assertEquals(Collections.singletonList("stopAndClear"), events);
+    }
+
+    @Test
+    public void stopAtEndOfQueuePreparesQueueBeforeBoundary() {
+        FakeQueueStore store = new FakeQueueStore();
+        PlaybackRuntimeStateManager runtimeStateManager = runtimeStateManager();
+        runtimeStateManager.setPreparing(true);
+        PlaybackQueueManager queueManager = queueManagerWithTracks(
+                store,
+                Arrays.asList(track(7L), track(8L)),
+                1,
+                REPEAT_OFF,
+                runtimeStateManager
+        );
+        List<String> events = new ArrayList<>();
+
+        owner(queueManager, events).stopAtEndOfQueue();
+
+        assertEquals(1, queueManager.queueStateSnapshot().getCurrentIndex());
+        assertEquals(8L, queueManager.queueStateSnapshot().getCurrentTrack().id);
+        assertEquals(Collections.singletonList(false), store.savedResumeRequestedValues);
+        assertFalse(runtimeStateManager.preparing());
+        assertEquals(Collections.singletonList("stopAtEnd"), events);
     }
 
     @Test

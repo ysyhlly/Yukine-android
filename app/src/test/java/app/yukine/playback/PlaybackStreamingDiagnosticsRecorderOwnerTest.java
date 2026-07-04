@@ -6,7 +6,6 @@ import android.net.Uri;
 
 import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
-import app.yukine.playback.manager.PlaybackQueueManager;
 import org.junit.Test;
 
 public class PlaybackStreamingDiagnosticsRecorderOwnerTest {
@@ -32,7 +31,7 @@ public class PlaybackStreamingDiagnosticsRecorderOwnerTest {
                 requestedTrack -> requestedTrack == track ? "lossless" : ""
         );
 
-        owner.record(new PlaybackQueueManager.CurrentTrackReplacementRecovery(track, 1200L, true));
+        owner.recordRecovery(track, 1200L);
 
         PlaybackStreamingDiagnostics.Snapshot snapshot = diagnostics.snapshot();
         assertEquals(1, snapshot.recoveryEvents);
@@ -49,9 +48,9 @@ public class PlaybackStreamingDiagnosticsRecorderOwnerTest {
         PlaybackStreamingDiagnosticsRecorderOwner owner =
                 new PlaybackStreamingDiagnosticsRecorderOwner(diagnostics, track -> "high");
 
-        missingDiagnosticsOwner.record(new PlaybackQueueManager.CurrentTrackReplacementRecovery(track(), 1L, true));
+        missingDiagnosticsOwner.recordRecovery(track(), 1L);
         missingDiagnosticsOwner.record(PlaybackStateSnapshot.empty());
-        owner.record((PlaybackQueueManager.CurrentTrackReplacementRecovery) null);
+        owner.recordRecovery(null, 1L);
         owner.record((PlaybackStateSnapshot) null);
 
         assertEquals(0, diagnostics.snapshot().recoveryEvents);
@@ -65,7 +64,7 @@ public class PlaybackStreamingDiagnosticsRecorderOwnerTest {
         PlaybackStreamingDiagnosticsRecorderOwner owner =
                 new PlaybackStreamingDiagnosticsRecorderOwner(diagnostics, null);
 
-        owner.record(new PlaybackQueueManager.CurrentTrackReplacementRecovery(track, 1200L, true));
+        owner.recordRecovery(track, 1200L);
 
         assertEquals("", diagnostics.snapshot().recentEvents.get(0).quality);
     }

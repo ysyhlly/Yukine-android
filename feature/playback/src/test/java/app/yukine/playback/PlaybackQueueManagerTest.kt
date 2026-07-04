@@ -50,6 +50,22 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun playFirstQueuedTrackPreservesExistingResumeRequestedState() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+        manager.playQueue(listOf(track(7L), track(8L)), 1, 0L)
+        provider.queuePlaybackActions.prepareCurrentCalled = false
+        store.resumeRequested = false
+
+        manager.playFirstQueuedTrack()
+
+        assertEquals(0, manager.queueStateSnapshot().currentIndex)
+        assertTrue(provider.prepareCurrentCalled)
+        assertFalse(store.resumeRequested)
+    }
+
+    @Test
     fun playQueueUsesExplicitStartPositionForImmediateRestore() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
@@ -150,51 +166,6 @@ class PlaybackQueueManagerTest {
             PlaybackQueueManager.PlaybackCompletionAction.ADVANCE_TO_NEXT,
             manager.preparePlaybackCompletionAction()
         )
-    }
-
-    @Test
-    fun upcomingTracksForPrecacheStopsAtQueueEndWhenRepeatOff() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(track(1L), track(2L), track(3L)), 1)
-        provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF)
-
-        assertEquals(
-            listOf(3L),
-            manager.upcomingTracksForPrecache(4).map { it.id }
-        )
-    }
-
-    @Test
-    fun upcomingTracksForPrecacheWrapsAndSkipsCurrentWhenRepeatAll() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(track(1L), track(2L), track(3L)), 2)
-        provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_ALL)
-
-        assertEquals(
-            listOf(1L, 2L),
-            manager.upcomingTracksForPrecache(4).map { it.id }
-        )
-    }
-
-    @Test
-    fun upcomingTracksForPrecacheIsOwnedByQueueManagerAndDefensive() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(track(1L), track(2L), track(3L)), 0)
-        provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_ALL)
-
-        val upcoming = manager.upcomingTracksForPrecache(2)
-        provider.queue.clear()
-
-        assertEquals(listOf(2L, 3L), upcoming.map { it.id })
-        assertThrows(UnsupportedOperationException::class.java) {
-            (upcoming as MutableList<Track>).add(track(4L))
-        }
     }
 
     @Test
@@ -679,9 +650,7 @@ class PlaybackQueueManagerTest {
 
         assertEquals(2L, provider.queue.first().id)
         assertEquals(1200L, provider.positionManager.restoredPositionFor(replacement))
-        assertEquals(replacement, recovery.track)
-        assertEquals(1200L, recovery.restoredPositionMs)
-        assertTrue(recovery.playWhenReady)
+        assertEquals(1200L, recovery)
     }
 
     @Test
@@ -965,14 +934,12 @@ class PlaybackQueueManagerTest {
         assertEquals(1, manager.queueStateSnapshot().currentIndex)
 
         val manualTransition = manager.applyMirroredTransitionIndex(2, automaticAdvance = false)
-        assertEquals(1, manualTransition?.completedIndex)
-        assertEquals(false, manualTransition?.stopAfterAutomaticAdvance)
+        assertEquals(false, manualTransition)
         assertEquals(2, manager.queueStateSnapshot().currentIndex)
 
         provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF)
         val automaticTransition = manager.applyMirroredTransitionIndex(0, automaticAdvance = true)
-        assertEquals(2, automaticTransition?.completedIndex)
-        assertEquals(true, automaticTransition?.stopAfterAutomaticAdvance)
+        assertEquals(true, automaticTransition)
         assertEquals(2, manager.queueStateSnapshot().currentIndex)
     }
 

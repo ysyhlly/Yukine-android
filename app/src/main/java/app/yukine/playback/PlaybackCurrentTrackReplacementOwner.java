@@ -3,17 +3,17 @@ package app.yukine.playback;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 final class PlaybackCurrentTrackReplacementOwner {
     private final PlaybackQueueManager playbackQueueManager;
-    private final Consumer<PlaybackQueueManager.CurrentTrackReplacementRecovery> recoveryDiagnosticsRecorder;
-    private final Consumer<Boolean> recoveryScheduler;
+    private final BiConsumer<Track, Long> recoveryDiagnosticsRecorder;
+    private final Runnable recoveryScheduler;
 
     PlaybackCurrentTrackReplacementOwner(
             PlaybackQueueManager playbackQueueManager,
-            Consumer<PlaybackQueueManager.CurrentTrackReplacementRecovery> recoveryDiagnosticsRecorder,
-            Consumer<Boolean> recoveryScheduler
+            BiConsumer<Track, Long> recoveryDiagnosticsRecorder,
+            Runnable recoveryScheduler
     ) {
         this.playbackQueueManager = playbackQueueManager;
         this.recoveryDiagnosticsRecorder = recoveryDiagnosticsRecorder;
@@ -24,16 +24,16 @@ final class PlaybackCurrentTrackReplacementOwner {
         if (playbackQueueManager == null) {
             return;
         }
-        PlaybackQueueManager.CurrentTrackReplacementRecovery recovery =
+        Long restoredPositionMs =
                 playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs);
-        if (recovery == null) {
+        if (restoredPositionMs == null) {
             return;
         }
         if (recoveryDiagnosticsRecorder != null) {
-            recoveryDiagnosticsRecorder.accept(recovery);
+            recoveryDiagnosticsRecorder.accept(replacement, restoredPositionMs);
         }
         if (recoveryScheduler != null) {
-            recoveryScheduler.accept(recovery.getPlayWhenReady());
+            recoveryScheduler.run();
         }
     }
 }

@@ -1,5 +1,6 @@
 package app.yukine.playback;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -47,10 +48,16 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
     }
 
     void retainTracksById(Set<Long> trackIdsToKeep) {
-        if (trackIdsToKeep == null || trackIdsToKeep.isEmpty()) {
+        if (trackIdsToKeep == null || trackIdsToKeep.isEmpty() || playbackQueueManager == null) {
             return;
         }
-        if (playbackQueueManager != null && playbackQueueManager.retainTracksById(trackIdsToKeep)) {
+        Set<Long> trackIdsToRemove = new HashSet<>();
+        for (Track track : playbackQueueManager.queueSnapshot()) {
+            if (!trackIdsToKeep.contains(track.id)) {
+                trackIdsToRemove.add(track.id);
+            }
+        }
+        if (!trackIdsToRemove.isEmpty() && playbackQueueManager.removeTracksById(trackIdsToRemove)) {
             stopAndClear();
         }
     }

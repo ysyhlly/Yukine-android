@@ -24,6 +24,7 @@ class NowPlayingPlaybackGatewayAdapterTest {
         gateway.pause()
 
         assertTrue(gateway.serviceConnected())
+        assertTrue(gateway.hasQueue())
         assertEquals(listOf<String?>(null), startedActions)
         assertEquals(
             listOf("playQueue:1:0", "warm:7", "next", "pause"),
@@ -58,7 +59,7 @@ class NowPlayingPlaybackGatewayAdapterTest {
         val calls = mutableListOf<String>()
 
         override fun snapshot(): PlaybackStateSnapshot? = null
-        override fun queueSnapshot(): List<Track> = emptyList()
+        override fun hasQueue(): Boolean = true
         override fun skipToPrevious() {
             calls += "previous"
         }
