@@ -52,6 +52,19 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
         };
     }
 
+    static Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotProvider(
+            Supplier<PlaybackQueueManager> queueManagerSource
+    ) {
+        return () -> {
+            PlaybackQueueManager playbackQueueManager = queueManagerSource == null
+                    ? null
+                    : queueManagerSource.get();
+            return playbackQueueManager == null
+                    ? PlaybackQueueManager.QueueStateSnapshot.empty()
+                    : playbackQueueManager.queueStateSnapshot();
+        };
+    }
+
     PlaybackQueueMirroredPlayerOwner(
             BooleanSupplier mirroredQueueMatcher,
             BooleanSupplier playerAvailability,

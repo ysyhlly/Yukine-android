@@ -312,6 +312,24 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
         assertEquals(Collections.singletonList(track), provider.get());
     }
 
+    @Test
+    public void queueStateSnapshotProviderDelegatesToQueueManagerAndToleratesMissingManager() {
+        FakeQueueStore store = new FakeQueueStore();
+        PlaybackQueueManager queueManager = queueManager(store);
+        Track track = track(12L);
+        queueManager.playQueue(Collections.singletonList(track), 0, -1L);
+        Supplier<PlaybackQueueManager.QueueStateSnapshot> provider =
+                PlaybackQueueMirroredPlayerOwner.queueStateSnapshotProvider(() -> queueManager);
+
+        PlaybackQueueManager.QueueStateSnapshot snapshot = provider.get();
+
+        assertEquals(track, snapshot.getCurrentTrack());
+        assertEquals(0, snapshot.getCurrentIndex());
+        assertEquals(1, snapshot.getQueueSize());
+        assertTrue(PlaybackQueueMirroredPlayerOwner.queueStateSnapshotProvider(null).get().isQueueEmpty());
+        assertTrue(PlaybackQueueMirroredPlayerOwner.queueStateSnapshotProvider(() -> null).get().isQueueEmpty());
+    }
+
     private static PlaybackQueueManager queueManager(FakeQueueStore store) {
         return new PlaybackQueueManager(
                 store,
