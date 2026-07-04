@@ -770,7 +770,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             } else if (effect == SettingsEffect.OpenAudioFolderPicker.INSTANCE) {
                 documentPickerController.openAudioFolderPicker();
             } else if (effect == SettingsEffect.ReloadCurrentLyrics.INSTANCE) {
-                lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode());
+                lyricsViewModel.reloadCurrentLyrics(languageModeIfReady());
             } else if (effect instanceof SettingsEffect.StartSleepTimer) {
                 applyPlaybackActionResult(nowPlayingViewModel.startSleepTimer(((SettingsEffect.StartSleepTimer) effect).getMinutes()));
             } else if (effect == SettingsEffect.CancelSleepTimer.INSTANCE) {

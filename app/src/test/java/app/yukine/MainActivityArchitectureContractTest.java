@@ -4188,7 +4188,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("statusMessageController.setStatus(((SettingsEffect.ShowStatus) effect).getMessage())"));
         assertTrue(mainActivity.contains("documentPickerController.openAudioFilePicker();"));
         assertTrue(mainActivity.contains("documentPickerController.openAudioFolderPicker();"));
-        assertTrue(mainActivity.contains("lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode())"));
+        assertTrue(mainActivity.contains("lyricsViewModel.reloadCurrentLyrics(languageModeIfReady())"));
+        assertFalse(mainActivity.contains("lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode())"));
         assertTrue(mainActivity.contains("backgroundImagePickerController.open(((SettingsEffect.ChoosePageBackground) effect).getPage())"));
         assertTrue(mainActivity.contains("backupRestoreLauncher.exportBackup();"));
         assertTrue(mainActivity.contains("backupRestoreLauncher.importBackup();"));
@@ -4230,7 +4231,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("statusMessageController.setStatus(((SettingsEffect.ShowStatus) effect).getMessage())"));
         assertTrue(mainActivity.contains("documentPickerController.openAudioFilePicker();"));
         assertTrue(mainActivity.contains("documentPickerController.openAudioFolderPicker();"));
-        assertTrue(mainActivity.contains("lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode())"));
+        assertTrue(mainActivity.contains("lyricsViewModel.reloadCurrentLyrics(languageModeIfReady())"));
+        assertFalse(mainActivity.contains("lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode())"));
         assertTrue(mainActivity.contains("backgroundImagePickerController.open(((SettingsEffect.ChoosePageBackground) effect).getPage())"));
         assertTrue(mainActivity.contains("backupRestoreLauncher.exportBackup();"));
         assertTrue(mainActivity.contains("backupRestoreLauncher.importBackup();"));
@@ -4509,7 +4511,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("settingsActionController::setStatusBarLyricsEnabled"));
         assertFalse(mainActivity.contains("settingsActionController::setFloatingLyricsEnabled"));
         assertFalse(mainActivity.contains("settingsActionController::applyStreamingGatewayEndpoint"));
-        assertTrue(mainActivity.contains("lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode())"));
+        assertTrue(mainActivity.contains("lyricsViewModel.reloadCurrentLyrics(languageModeIfReady())"));
+        assertFalse(mainActivity.contains("lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode())"));
         assertTrue(mainActivity.contains("applyPlaybackActionResult(nowPlayingViewModel.startSleepTimer(((SettingsEffect.StartSleepTimer) effect).getMinutes()))"));
         assertTrue(mainActivity.contains("applyPlaybackActionResult(nowPlayingViewModel.cancelSleepTimer())"));
         assertTrue(mainActivity.contains("applyStreamingGatewayEndpoint(((SettingsEffect.ApplyStreamingGatewayEndpoint) effect).getEndpoint())"));
@@ -5802,7 +5805,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("this::neteaseProviderTrackIdForLyrics"));
         assertFalse(mainActivity.contains("this::setStatus"));
         assertFalse(mainActivity.contains("settingsActionController::reloadCurrentLyrics"));
-        assertTrue(mainActivity.contains("lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode())"));
+        assertTrue(mainActivity.contains("lyricsViewModel.reloadCurrentLyrics(languageModeIfReady())"));
+        assertFalse(mainActivity.contains("lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode())"));
         assertTrue(mainActivity.contains("() -> lyricsViewModel == null ? new LyricsState() : lyricsViewModel.stateSnapshot()"));
         assertTrue(mainNowPlayingStateListener.contains("lyricsStateSource.lyricsState()"));
         assertFalse(mainActivity.contains("private LyricsState lyricsState()"));
