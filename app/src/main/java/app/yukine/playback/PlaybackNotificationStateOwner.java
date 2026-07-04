@@ -11,20 +11,20 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 final class PlaybackNotificationStateOwner implements PlaybackNotificationManager.StateProvider {
-    private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;
+    private final PlaybackQueueManager playbackQueueManager;
     private final BooleanSupplier playingStateProvider;
     private final BooleanSupplier preparingStateProvider;
     private final Predicate<Track> favoriteStateProvider;
     private final Supplier<MediaSession.Token> sessionTokenSupplier;
 
     PlaybackNotificationStateOwner(
-            Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier,
+            PlaybackQueueManager playbackQueueManager,
             BooleanSupplier playingStateProvider,
             BooleanSupplier preparingStateProvider,
             Predicate<Track> favoriteStateProvider,
             Supplier<MediaSession.Token> sessionTokenSupplier
     ) {
-        this.queueStateSnapshotSupplier = queueStateSnapshotSupplier;
+        this.playbackQueueManager = playbackQueueManager;
         this.playingStateProvider = playingStateProvider;
         this.preparingStateProvider = preparingStateProvider;
         this.favoriteStateProvider = favoriteStateProvider;
@@ -62,9 +62,9 @@ final class PlaybackNotificationStateOwner implements PlaybackNotificationManage
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier == null
+        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
                 ? null
-                : queueStateSnapshotSupplier.get();
+                : playbackQueueManager.queueStateSnapshot();
         return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;
     }
 }
