@@ -306,13 +306,22 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("headersForTrack("));
         assertFalse(service.contains("audioCache("));
         assertTrue(service.contains("PlaybackPrecacheManager.fromMediaSourceProvider("));
+        assertEquals(1, countOccurrences(service, "PlaybackPrecacheManager.fromMediaSourceProvider("));
         assertFalse(service.contains("PlaybackPrecacheManager.mediaCacheOperationsFromMediaSourceProvider("));
         assertFalse(service.contains("PlaybackPrecacheManager.audioCacheReleaseActionFromMediaSourceProvider("));
         assertFalse(service.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider("));
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+                "PlaybackPrecacheManager.java",
+                "PlaybackVisualizationCacheManager.java"
+        )), playbackSourceFileNamesContaining("PlaybackMediaCacheOperations.fromMediaSourceProvider("));
+        assertEquals(new java.util.TreeSet<>(java.util.Collections.singletonList(
+                "EchoPlaybackService.java"
+        )), playbackSourceFileNamesContaining("PlaybackPrecacheManager.fromMediaSourceProvider("));
         assertTrue(precacheManager.contains("private final PlaybackMediaCacheOperations mediaCacheOperations;"));
         assertTrue(precacheManager.contains("private final BiPredicate<MediaItem, Track> mediaItemTrackMatcher;"));
         assertFalse(precacheManager.contains("private final PlaybackMediaSourceProvider"));
         assertTrue(precacheManager.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)"));
+        assertEquals(1, countOccurrences(precacheManager, "PlaybackMediaCacheOperations.fromMediaSourceProvider("));
         assertTrue(precacheManager.contains("mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track)"));
         assertFalse(precacheManager.contains("prepareTrackForPlayback("));
         assertFalse(precacheManager.contains("mediaSourceForTrack("));
@@ -326,6 +335,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(visualizationCacheManager.contains("private final PlaybackMediaSourceProvider"));
         assertFalse(visualizationCacheManager.contains("mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(visualizationCacheManager.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)"));
+        assertEquals(1, countOccurrences(
+                visualizationCacheManager,
+                "PlaybackMediaCacheOperations.fromMediaSourceProvider("
+        ));
         assertTrue(mediaCacheOperations.contains("public interface PlaybackMediaCacheOperations"));
         assertTrue(mediaCacheOperations.contains(
                 "final class PlaybackMediaSourceProviderCacheOperations implements PlaybackMediaCacheOperations"));
