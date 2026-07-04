@@ -2800,7 +2800,8 @@ public final class MainActivityArchitectureContractTest {
                         + "                PlaybackStateSnapshotOwner.fromVisualizationAnalyzer(playbackVisualizationAnalyzer),\n"
                         + "                () -> playbackRealtimeVisualizationOwner().beat()\n"
                         + "        );"));
-        assertTrue(playbackService.contains("return playbackQueueManager == null"));
+        assertFalse(playbackService.contains("return playbackQueueManager == null"));
+        assertTrue(playbackService.contains("return playbackStateSnapshotOwner().snapshot();"));
         assertFalse(playbackService.contains("boolean deferVisualGeneration = shouldDeferPlaybackVisualization();"));
         assertFalse(playbackService.contains("waveformSnapshotFor(track, duration, deferVisualGeneration)"));
         assertFalse(playbackService.contains("spectrumSnapshotFor(track, duration, deferVisualGeneration)"));
@@ -7686,7 +7687,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackQueueSnapshotOwner"));
         assertFalse(service.contains("playbackQueueSnapshotOwner"));
         assertFalse(service.contains("return playbackQueueStateOwner.queueSnapshot();"));
-        assertTrue(service.contains("return playbackQueueManager == null ? Collections.emptyList() : playbackQueueManager.queueSnapshot();"));
+        assertFalse(service.contains("return playbackQueueManager == null ? Collections.emptyList() : playbackQueueManager.queueSnapshot();"));
+        assertTrue(service.contains("return playbackQueueManager.queueSnapshot();"));
         assertFalse(service.contains("Collections.unmodifiableList(new ArrayList<>(queue))"));
         assertFalse(service.contains("return new ArrayList<>(queue);"));
         assertTrue(owner.contains("fun queueStateSnapshot(): QueueStateSnapshot"));
@@ -8422,7 +8424,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("\n    fun canCrossfadeAdvance("));
         assertFalse(service.contains("playbackQueueManager.currentTrack()"));
         assertFalse(service.contains("playbackQueueManager.currentTrack()"));
-        assertFalse(service.contains("return playbackQueueManager.queueSnapshot();"));
+        assertEquals(1, countOccurrences(service, "return playbackQueueManager.queueSnapshot();"));
         assertEquals(0, countOccurrences(service, "playbackQueueManager.queueStateSnapshot()"));
     }
 

@@ -14,7 +14,6 @@ import android.os.Looper;
 import android.os.Process;
 import android.util.Log;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -831,7 +830,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public List<Track> queueSnapshot() {
-        return playbackQueueManager == null ? Collections.emptyList() : playbackQueueManager.queueSnapshot();
+        return playbackQueueManager.queueSnapshot();
     }
 
     public void moveQueueTrack(int fromIndex, int toIndex) {
@@ -892,9 +891,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public PlaybackStateSnapshot snapshot() {
-        return playbackQueueManager == null
-                ? PlaybackStateSnapshot.empty()
-                : playbackStateSnapshotOwner().snapshot();
+        return playbackStateSnapshotOwner().snapshot();
     }
 
     public float realtimeBeat() {
