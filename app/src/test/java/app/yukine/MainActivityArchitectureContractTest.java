@@ -146,8 +146,14 @@ public final class MainActivityArchitectureContractTest {
         int platformControllersStep = onCreate.indexOf("        initializePlatformControllers();");
         int playbackLifecycleStep = onCreate.indexOf("        initializePlaybackLifecycleControllers();");
         int playbackControllersStep = onCreate.indexOf("        initializePlaybackControllers();");
+        int uiShellControllerAssignment = routeStoresAndStatus.indexOf(
+                "uiShellController = new MainUiShellController(this);"
+        );
         int routeControllerAssignment = routeStoresAndStatus.indexOf(
                 "routeController = new MainRouteController(navigationViewModel);"
+        );
+        int playbackStoreAssignment = routeStoresAndStatus.indexOf(
+                "playbackStore = playbackStoreFactory.create(playbackViewModel);"
         );
         int statusMessageControllerAssignment = routeStoresAndStatus.indexOf(
                 "statusMessageController = new StatusMessageController("
@@ -203,12 +209,20 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackLifecycleStep < playbackControllersStep);
         assertTrue(nowPlayingGatewayStep < playbackControllersStep);
         assertTrue(mainActivity.contains("routeController = new MainRouteController(navigationViewModel)"));
+        assertTrue(uiShellControllerAssignment >= 0);
+        assertTrue(playbackStoreAssignment >= 0);
         assertTrue(routeStoresAndStatus.contains("uiShellController = new MainUiShellController(this);"));
         assertTrue(routeStoresAndStatus.contains("routeController = new MainRouteController(navigationViewModel);"));
         assertTrue(routeControllerAssignment >= 0);
         assertTrue(routeStoresAndStatus.contains("playbackStore = playbackStoreFactory.create(playbackViewModel);"));
         assertTrue(routeStoresAndStatus.contains("statusMessageController = new StatusMessageController("));
         assertTrue(statusMessageControllerAssignment >= 0);
+        assertTrue(
+                "Route/status host fields must be created before callbacks capture them",
+                uiShellControllerAssignment < routeControllerAssignment
+                        && routeControllerAssignment < playbackStoreAssignment
+                        && playbackStoreAssignment < statusMessageControllerAssignment
+        );
         assertTrue(nowPlayingStateControllerAssignment >= 0);
         assertTrue(libraryStoreAssignment >= 0);
         assertTrue(settingsStoreLoad >= 0);
