@@ -117,10 +117,10 @@ internal class PlaybackPositionManager @JvmOverloads constructor(
     companion object {
         @JvmStatic
         fun stateProviderFromPlaybackState(
-            queueStateSnapshotSupplier: Supplier<PlaybackQueueManager.QueueStateSnapshot?>?,
+            currentTrackSupplier: Supplier<Track?>?,
             playbackPositionSupplier: LongSupplier?
         ): StateProvider = object : StateProvider {
-            override fun currentTrack(): Track? = queueStateSnapshotSupplier?.get()?.currentTrack
+            override fun currentTrack(): Track? = currentTrackSupplier?.get()
 
             override fun positionMs(): Long = playbackPositionSupplier?.asLong ?: 0L
         }

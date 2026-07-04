@@ -126,10 +126,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                     PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
                             () -> player,
                             playbackQueueRuntimeStateManager::playerMirrorsQueue,
-                            () -> {
-                                PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier.get();
-                                return snapshot == null ? null : snapshot.getCurrentTrack();
-                            }
+                            EchoPlaybackService.this::currentTrackFromQueueStateSnapshot
                     )
             );
     private final PlaybackCurrentTrackPreparationRuntimeOwner playbackCurrentTrackPreparationRuntimeOwner =
@@ -305,7 +302,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackPositionManager = new PlaybackPositionManager(
                 queueStore,
                 PlaybackPositionManager.stateProviderFromPlaybackState(
-                        queueStateSnapshotSupplier,
+                        EchoPlaybackService.this::currentTrackFromQueueStateSnapshot,
                         playbackPlayerStateOwner::positionMs
                 )
         );
@@ -1285,6 +1282,11 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackPositionManager != null) {
             playbackPositionManager.persistCurrentPosition(force);
         }
+    }
+
+    private Track currentTrackFromQueueStateSnapshot() {
+        PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateSnapshotSupplier.get();
+        return snapshot == null ? null : snapshot.getCurrentTrack();
     }
 
     private void startProgressUpdates() {

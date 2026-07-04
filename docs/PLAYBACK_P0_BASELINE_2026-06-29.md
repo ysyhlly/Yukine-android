@@ -4498,3 +4498,52 @@ Current audit date: 2026-07-04.
 ```powershell
 .\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackRuntimeStateManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.PlaybackStateSnapshotOwnerTest --console=plain
 ```
+
+## P1 Wiring Note - Position State Current Track Source
+
+Current audit date: 2026-07-04.
+
+- `PlaybackPositionManager.stateProviderFromPlaybackState(...)` no longer
+  accepts `PlaybackQueueManager.QueueStateSnapshot`. Its state provider now
+  accepts only a current-track supplier and a playback-position supplier.
+- `EchoPlaybackService` now derives current track for both runtime state and
+  position state through one private boundary helper,
+  `currentTrackFromQueueStateSnapshot()`, instead of passing full queue
+  snapshots into those feature managers.
+- Source of truth is unchanged: current track still comes from
+  `PlaybackQueueManager` through the existing service queue snapshot supplier.
+  No new state mirror, owner, facade, Service field, or package move was added.
+- The real gain is one fewer feature playback manager with access to full queue
+  snapshot semantics, plus one shared Service boundary helper instead of two
+  separate current-track snapshot-unwrapping call sites.
+- Focused coverage:
+  `PlaybackPositionManagerTest`, `PlaybackRuntimeStateManagerTest`, and
+  `MainActivityArchitectureContractTest`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackPositionManagerTest --tests app.yukine.playback.PlaybackRuntimeStateManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+```
+
+## P1 Batch Audit - Current Track Supplier Narrowing
+
+Current audit date: 2026-07-04.
+
+- Batch scope: runtime replay-gain current-track state plus playback-position
+  current-track persistence state.
+- `EchoPlaybackService.java`: 1385 lines.
+- `EchoPlaybackService` strict `private Playback*` fields: 40.
+- `EchoPlaybackService` strict `private Playback*Owner` fields: 17.
+- `EchoPlaybackService` final-inclusive `private Playback*` declarations: 50.
+- `EchoPlaybackService` final-inclusive `private Playback*Owner` declarations:
+  20.
+- Production playback `fromPlaybackQueueManager(...)` calls: 0.
+- `EchoPlaybackService` `queueStateSnapshot` string references: 14.
+- Production playback `Playback*Owner.java` / `Playback*Owner.kt` files: 40.
+- `PlaybackRuntimeStateManager` and `PlaybackPositionManager` no longer contain
+  `PlaybackQueueManager.QueueStateSnapshot`, `queueStateSnapshotSupplier`, or
+  `queueStateSnapshotSupplier?.get()?.currentTrack`.
+- Source of truth: `PlaybackQueueManager` remains the queue/current-track source.
+  No state mirrors were added or removed; the batch only narrowed feature
+  manager input contracts and moved the snapshot-to-current-track unwrap to one
+  Service boundary helper.
