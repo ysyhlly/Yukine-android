@@ -310,7 +310,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
         if (track != null) {
             queueManager.playQueue(Collections.singletonList(track), 0, -1L);
         }
-        return new PlaybackQueueStateOwner(queueManager);
+        return new PlaybackQueueStateOwner(() -> queueManager);
     }
 
     private static PlaybackQueueManager playbackQueueManager(

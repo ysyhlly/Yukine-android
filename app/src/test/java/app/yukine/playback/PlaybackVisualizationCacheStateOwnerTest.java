@@ -70,7 +70,7 @@ public class PlaybackVisualizationCacheStateOwnerTest {
     }
 
     private static PlaybackQueueStateOwner queueStateOwner(PlaybackQueueManager queueManager) {
-        return new PlaybackQueueStateOwner(queueManager);
+        return new PlaybackQueueStateOwner(() -> queueManager);
     }
 
     private static PlaybackQueueManager playbackQueueManager() {

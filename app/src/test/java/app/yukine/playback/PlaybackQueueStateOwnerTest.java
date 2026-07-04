@@ -30,7 +30,7 @@ public class PlaybackQueueStateOwnerTest {
         Track track = track(12L);
         PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
         queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManager);
+        PlaybackQueueStateOwner owner = queueStateOwner(queueManager);
 
         assertSame(track, owner.currentTrack());
         assertFalse(owner.isQueueEmpty());
@@ -62,8 +62,7 @@ public class PlaybackQueueStateOwnerTest {
         Track second = track(2L);
         Track third = track(3L);
         queueManager.playQueue(Arrays.asList(first, second, third), 1, -1L);
-        PlaybackQueueStateOwner owner =
-                new PlaybackQueueStateOwner(queueManager);
+        PlaybackQueueStateOwner owner = queueStateOwner(queueManager);
 
         assertSame(second, owner.currentTrack());
         assertFalse(owner.isQueueEmpty());
@@ -78,7 +77,7 @@ public class PlaybackQueueStateOwnerTest {
         Track second = track(22L);
         Track replacement = track(23L);
         queueManager.playQueue(Arrays.asList(first, second), 0, -1L);
-        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManager);
+        PlaybackQueueStateOwner owner = queueStateOwner(queueManager);
 
         assertSame(first, owner.currentTrack());
 
@@ -93,7 +92,7 @@ public class PlaybackQueueStateOwnerTest {
         Track first = track(31L);
         Track replacement = track(32L);
         queueManager.playQueue(Collections.singletonList(first), 0, -1L);
-        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManager);
+        PlaybackQueueStateOwner owner = queueStateOwner(queueManager);
 
         assertSame(first, owner.currentTrack());
 
@@ -122,7 +121,7 @@ public class PlaybackQueueStateOwnerTest {
     @Test
     public void isQueueEmptyIsDerivedFromLatestQueueStateWithoutLocalState() {
         PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
-        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManager);
+        PlaybackQueueStateOwner owner = queueStateOwner(queueManager);
 
         assertTrue(owner.isQueueEmpty());
 
@@ -134,7 +133,7 @@ public class PlaybackQueueStateOwnerTest {
     @Test
     public void queueBoundaryFlagsAreDerivedFromLatestQueueStateWithoutLocalState() {
         PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
-        PlaybackQueueStateOwner owner = new PlaybackQueueStateOwner(queueManager);
+        PlaybackQueueStateOwner owner = queueStateOwner(queueManager);
 
         assertFalse(owner.hasMultipleTracks());
         assertFalse(owner.isAtEndOfQueue());
@@ -152,6 +151,10 @@ public class PlaybackQueueStateOwnerTest {
 
     private static Track track(long id) {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "file:" + id);
+    }
+
+    private static PlaybackQueueStateOwner queueStateOwner(PlaybackQueueManager queueManager) {
+        return new PlaybackQueueStateOwner(() -> queueManager);
     }
 
     private static PlaybackQueueManager playbackQueueManager(

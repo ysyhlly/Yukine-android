@@ -103,7 +103,7 @@ public class PlaybackCrossfadeStateOwnerTest {
             queue.add(track(index + 1L));
         }
         queueManager.playQueue(queue, currentIndex, -1L);
-        return new PlaybackQueueStateOwner(queueManager);
+        return new PlaybackQueueStateOwner(() -> queueManager);
     }
 
     private static Track track(long id) {

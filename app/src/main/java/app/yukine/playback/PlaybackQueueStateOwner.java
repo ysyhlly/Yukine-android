@@ -12,10 +12,6 @@ final class PlaybackQueueStateOwner {
         this((Supplier<PlaybackQueueManager>) null);
     }
 
-    PlaybackQueueStateOwner(PlaybackQueueManager playbackQueueManager) {
-        this(() -> playbackQueueManager);
-    }
-
     PlaybackQueueStateOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
         this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
     }

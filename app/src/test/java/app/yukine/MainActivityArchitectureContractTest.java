@@ -6768,8 +6768,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueStateOwner.contains("static PlaybackQueueStateOwner fromPlaybackQueueManager("));
         assertTrue(queueStateOwner.contains("import java.util.function.Supplier;"));
         assertTrue(queueStateOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
-        assertTrue(queueStateOwner.contains("PlaybackQueueStateOwner(PlaybackQueueManager playbackQueueManager)"));
+        assertFalse(queueStateOwner.contains("PlaybackQueueStateOwner(PlaybackQueueManager playbackQueueManager)"));
         assertTrue(queueStateOwner.contains("PlaybackQueueStateOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier)"));
+        assertFalse(queueStateOwner.contains("this(() -> playbackQueueManager);"));
         assertFalse(queueStateOwner.contains("void bindPlaybackQueueManager("));
         assertTrue(queueStateOwner.contains(
                 "return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();"));
