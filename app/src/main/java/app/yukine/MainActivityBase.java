@@ -592,11 +592,11 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         recommendationActionCallbacks = recommendationActionCallbacksFactory.create(
                 status -> statusMessageController.setStatus(status),
-                presentation -> playbackStartController.playRecommendation(presentation),
+                this::playRecommendationIfReady,
                 provider -> heartbeatSeedBinder == null
                         ? new HeartbeatRecommendationSeedRequest()
                         : heartbeatSeedBinder.request(provider),
-                presentation -> playbackStartController.playHeartbeatRecommendation(presentation),
+                this::playHeartbeatRecommendationIfReady,
                 this::logHeartbeatSeedMiss
         );
         homeDashboardRenderController = new HomeDashboardRenderController(homeDashboardViewModel, homeDashboardRenderListenerFactory.create(
@@ -652,7 +652,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                                 : heartbeatSeedBinder.request(provider),
                         () -> streamingRecommendationViewModel.stopHeartbeatRecommendationMode(),
                         presentation -> nowPlayingViewModel.appendToQueue(presentation.getTracks()),
-                        presentation -> playbackStartController.playHeartbeatRecommendation(presentation),
+                        this::playHeartbeatRecommendationIfReady,
                         this::logHeartbeatSeedMiss,
                         status -> statusMessageController.setStatus(status)
                 )
@@ -1372,6 +1372,18 @@ public abstract class MainActivityBase extends ComponentActivity {
             );
             playbackStartListener.setStatus(playbackStartListener.resolvingStatus());
             return;
+        }
+    }
+
+    private void playRecommendationIfReady(StreamingRecommendationPresentation presentation) {
+        if (playbackStartController != null) {
+            playbackStartController.playRecommendation(presentation);
+        }
+    }
+
+    private void playHeartbeatRecommendationIfReady(StreamingRecommendationPresentation presentation) {
+        if (playbackStartController != null) {
+            playbackStartController.playHeartbeatRecommendation(presentation);
         }
     }
 

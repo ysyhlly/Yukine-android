@@ -110,6 +110,8 @@ public final class MainActivityArchitectureContractTest {
         String renderSelectedTabIfReady = methodBody(mainActivity, "    private void renderSelectedTabIfReady()");
         String resolveCurrentStreamingQueueTrackIfNeeded = methodBody(mainActivity, "    private boolean resolveCurrentStreamingQueueTrackIfNeeded()");
         String playTrackListFromHost = methodBody(mainActivity, "    private void playTrackListFromHost(List<Track> tracks, int index)");
+        String playRecommendationIfReady = methodBody(mainActivity, "    private void playRecommendationIfReady(StreamingRecommendationPresentation presentation)");
+        String playHeartbeatRecommendationIfReady = methodBody(mainActivity, "    private void playHeartbeatRecommendationIfReady(StreamingRecommendationPresentation presentation)");
         String mainLibraryGateway = read("app/src/main/java/app/yukine/MainLibraryGateway.kt")
                 .replace("\r\n", "\n");
 
@@ -301,11 +303,17 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playTrackListFromHost.contains("playbackStartListener.savePendingPlayback("));
         assertTrue(playTrackListFromHost.contains("tracks == null ? Collections.emptyList() : new ArrayList<>(tracks)"));
         assertTrue(playTrackListFromHost.contains("playbackStartListener.setStatus(playbackStartListener.resolvingStatus());"));
+        assertTrue(playRecommendationIfReady.contains("if (playbackStartController != null) {"));
+        assertTrue(playRecommendationIfReady.contains("playbackStartController.playRecommendation(presentation);"));
+        assertTrue(playHeartbeatRecommendationIfReady.contains("if (playbackStartController != null) {"));
+        assertTrue(playHeartbeatRecommendationIfReady.contains("playbackStartController.playHeartbeatRecommendation(presentation);"));
         assertTrue(playbackControllers.contains("                this::renderNowBarIfReady,\n"));
         assertTrue(playbackControllers.contains("                    renderSelectedTabIfReady();\n"));
         assertTrue(playbackControllers.contains("                this::showAddToPlaylistIfReady,\n"));
         assertTrue(playbackControllers.contains("                this::removeQueueTrackIfReady,\n"));
         assertTrue(playbackControllers.contains("                this::confirmClearQueueIfReady,\n"));
+        assertTrue(playbackControllers.contains("                this::playRecommendationIfReady,\n"));
+        assertTrue(playbackControllers.contains("                this::playHeartbeatRecommendationIfReady,\n"));
         assertTrue(playbackControllers.contains("                        this::renderNowBarIfReady,\n"));
         assertTrue(playbackControllers.contains("                        this::renderSelectedTabIfReady,\n"));
         assertTrue(playbackControllers.contains(
@@ -319,6 +327,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackControllers.contains("                track -> playlistDialogController.showAddToPlaylist(track),\n"));
         assertFalse(playbackControllers.contains("                track -> queueActionController.removeQueueTrack(track),\n"));
         assertFalse(playbackControllers.contains("                () -> queueActionController.confirmClearQueue(),\n"));
+        assertFalse(playbackControllers.contains("                presentation -> playbackStartController.playRecommendation(presentation),\n"));
+        assertFalse(playbackControllers.contains("                presentation -> playbackStartController.playHeartbeatRecommendation(presentation),\n"));
         assertFalse(playbackControllers.contains("                        () -> nowPlayingStateController.renderNowBar(),\n"));
         assertFalse(playbackControllers.contains("                        this::renderSelectedTab,\n"));
         assertFalse(playbackControllers.contains("                        () -> AppLanguage.text(settingsStore.languageMode(), \"queue.empty\"),\n"));
@@ -1674,7 +1684,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("libraryViewModel.onEvent(new LibraryEvent.PlayTrackList(playAt.getTracks(), playAt.getIndex()))"));
         assertTrue(mainActivity.contains("queueActionController.moveQueueTrack(move.getFromIndex(), move.getToIndex())"));
         assertTrue(mainActivity.contains("playbackStartController.playPendingTracksIfNeeded()"));
-        assertTrue(mainActivity.contains("presentation -> playbackStartController.playHeartbeatRecommendation(presentation)"));
+        assertTrue(mainActivity.contains("this::playHeartbeatRecommendationIfReady"));
+        assertFalse(mainActivity.contains("presentation -> playbackStartController.playHeartbeatRecommendation(presentation)"));
         assertFalse(mainActivity.contains("playHeartbeatRecommendationTracks("));
         assertFalse(mainActivity.contains("playHeartbeatRecommendationTrackList("));
         assertFalse(mainActivity.contains("private void playTrackListInternal("));
@@ -1723,8 +1734,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("new RecommendationActionCallbacks() {"));
         assertTrue(mainActivity.contains("@Inject MainRecommendationActionCallbacksFactory recommendationActionCallbacksFactory;"));
         assertTrue(mainActivity.contains("recommendationActionCallbacks = recommendationActionCallbacksFactory.create("));
-        assertTrue(mainActivity.contains("presentation -> playbackStartController.playRecommendation(presentation)"));
-        assertTrue(mainActivity.contains("presentation -> playbackStartController.playHeartbeatRecommendation(presentation)"));
+        assertTrue(mainActivity.contains("this::playRecommendationIfReady"));
+        assertTrue(mainActivity.contains("this::playHeartbeatRecommendationIfReady"));
+        assertFalse(mainActivity.contains("presentation -> playbackStartController.playRecommendation(presentation)"));
+        assertFalse(mainActivity.contains("presentation -> playbackStartController.playHeartbeatRecommendation(presentation)"));
         assertTrue(mainActivity.contains("this::logHeartbeatSeedMiss"));
         assertTrue(mainRecommendationActionCallbacks.contains("internal class MainRecommendationActionCallbacks("));
         assertTrue(mainRecommendationActionCallbacks.contains(": RecommendationActionCallbacks"));
@@ -1832,7 +1845,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains(": heartbeatSeedBinder.request(provider)"));
         assertTrue(mainActivity.contains("() -> streamingRecommendationViewModel.stopHeartbeatRecommendationMode()"));
         assertTrue(mainActivity.contains("presentation -> nowPlayingViewModel.appendToQueue(presentation.getTracks())"));
-        assertTrue(mainActivity.contains("presentation -> playbackStartController.playHeartbeatRecommendation(presentation)"));
+        assertTrue(mainActivity.contains("this::playHeartbeatRecommendationIfReady"));
+        assertFalse(mainActivity.contains("presentation -> playbackStartController.playHeartbeatRecommendation(presentation)"));
         assertTrue(mainActivity.contains("this::logHeartbeatSeedMiss"));
         assertTrue(mainActivity.contains("status -> statusMessageController.setStatus(status)"));
         assertTrue(mainHeartbeatRecommendationListener.contains("internal class MainHeartbeatRecommendationListener("));
