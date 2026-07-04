@@ -318,8 +318,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 status -> statusMessageController.setStatus(status),
                 (trackId, favorite) -> viewModel.setFavorite(trackId, favorite),
-                () -> nowPlayingStateController.renderNowBar(),
-                this::renderSelectedTab,
+                this::renderNowBarIfReady,
+                this::renderSelectedTabIfReady,
                 this::loadCollections,
                 track -> {
                     if (MainActivityBase.this.playlistDialogController != null) {
@@ -328,7 +328,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 },
                 routeController,
                 this::applySearch,
-                () -> documentPickerController.openAudioFilePicker(),
+                this::openAudioFilePickerIfReady,
                 allowCachedFirst -> loadLibrary(allowCachedFirst)
         ));
     }
@@ -501,6 +501,12 @@ public abstract class MainActivityBase extends ComponentActivity {
     private void renderNowBarIfReady() {
         if (nowPlayingStateController != null) {
             nowPlayingStateController.renderNowBar();
+        }
+    }
+
+    private void openAudioFilePickerIfReady() {
+        if (documentPickerController != null) {
+            documentPickerController.openAudioFilePicker();
         }
     }
 

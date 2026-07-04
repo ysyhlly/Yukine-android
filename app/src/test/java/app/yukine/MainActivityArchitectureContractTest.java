@@ -93,6 +93,7 @@ public final class MainActivityArchitectureContractTest {
         String savePlaybackSettingsIfReady = methodBody(mainActivity, "    private void savePlaybackSettingsIfReady(float playbackSpeed, float appVolume)");
         String playPendingTracksIfReady = methodBody(mainActivity, "    private void playPendingTracksIfReady()");
         String renderNowBarIfReady = methodBody(mainActivity, "    private void renderNowBarIfReady()");
+        String openAudioFilePickerIfReady = methodBody(mainActivity, "    private void openAudioFilePickerIfReady()");
         String preResolveNextStreamingTrackIfReady = methodBody(mainActivity, "    private void preResolveNextStreamingTrackIfReady(PlaybackStateSnapshot snapshot)");
         String recoverStreamingBufferingIfReady = methodBody(mainActivity, "    private void recoverStreamingBufferingIfReady(PlaybackStateSnapshot snapshot)");
         String loadCollections = methodBody(mainActivity, "    private void loadCollections()");
@@ -125,10 +126,13 @@ public final class MainActivityArchitectureContractTest {
                 "                status -> statusMessageController.setStatus(status),\n"
         );
         int libraryNowBarRendererArgument = libraryGateway.indexOf(
-                "                () -> nowPlayingStateController.renderNowBar(),\n"
+                "                this::renderNowBarIfReady,\n"
+        );
+        int librarySelectedTabRendererArgument = libraryGateway.indexOf(
+                "                this::renderSelectedTabIfReady,\n"
         );
         int documentPickerProviderArgument = libraryGateway.indexOf(
-                "                () -> documentPickerController.openAudioFilePicker(),\n"
+                "                this::openAudioFilePickerIfReady,\n"
         );
 
         assertTrue(streamingGatewayStep >= 0);
@@ -185,8 +189,11 @@ public final class MainActivityArchitectureContractTest {
                 "                status -> statusMessageController.setStatus(status),\n"));
         assertTrue(libraryStatusCallbackArgument >= 0);
         assertTrue(libraryGateway.contains(
-                "                () -> nowPlayingStateController.renderNowBar(),\n"));
+                "                this::renderNowBarIfReady,\n"));
         assertTrue(libraryNowBarRendererArgument >= 0);
+        assertTrue(libraryGateway.contains(
+                "                this::renderSelectedTabIfReady,\n"));
+        assertTrue(librarySelectedTabRendererArgument >= 0);
         assertTrue(libraryGateway.contains("                    if (MainActivityBase.this.playlistDialogController != null) {"));
         assertTrue(libraryGateway.contains(
                 "                        MainActivityBase.this.playlistDialogController.showAddToPlaylist(track);\n"));
@@ -200,11 +207,19 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(libraryGateway.contains("                () -> settingsStore.languageMode(),\n"));
         assertFalse(libraryGateway.contains("                statusMessageController,\n"));
         assertFalse(libraryGateway.contains("                nowPlayingStateController,\n"));
+        assertFalse(libraryGateway.contains(
+                "                () -> nowPlayingStateController.renderNowBar(),\n"));
+        assertFalse(libraryGateway.contains("                this::renderSelectedTab,\n"));
         assertFalse(libraryGateway.contains("                nowPlayingStateController.renderNowBar(),\n"));
         assertFalse(libraryGateway.contains("                playbackStartController,\n"));
         assertFalse(libraryGateway.contains("playbackStartController.playTrackList("));
         assertFalse(libraryGateway.contains(
                 "                track -> MainActivityBase.this.playlistDialogController.showAddToPlaylist(track),\n"));
+        assertTrue(libraryGateway.contains(
+                "                this::openAudioFilePickerIfReady,\n"));
+        assertTrue(documentPickerProviderArgument >= 0);
+        assertFalse(libraryGateway.contains(
+                "                () -> documentPickerController.openAudioFilePicker(),\n"));
         assertTrue(playbackLifecycleControllers.contains("                        this::savePlaybackSettingsIfReady,\n"));
         assertTrue(playbackLifecycleControllers.contains("                        this::loadCollections,\n"));
         assertTrue(playbackLifecycleControllers.contains("                        this::renderNowBarIfReady,\n"));
@@ -228,6 +243,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playPendingTracksIfReady.contains("playbackStartController.playPendingTracksIfNeeded();"));
         assertTrue(renderNowBarIfReady.contains("if (nowPlayingStateController != null) {"));
         assertTrue(renderNowBarIfReady.contains("nowPlayingStateController.renderNowBar();"));
+        assertTrue(openAudioFilePickerIfReady.contains("if (documentPickerController != null) {"));
+        assertTrue(openAudioFilePickerIfReady.contains("documentPickerController.openAudioFilePicker();"));
         assertTrue(preResolveNextStreamingTrackIfReady.contains("if (streamingPlaybackController != null) {"));
         assertTrue(preResolveNextStreamingTrackIfReady.contains("streamingPlaybackController.preResolveNextStreamingTrack(snapshot);"));
         assertTrue(recoverStreamingBufferingIfReady.contains("if (streamingPlaybackController != null) {"));
@@ -259,7 +276,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(nowPlayingGateway.contains("                playbackService\n"));
         assertTrue(downloadRequests.contains("                () -> trackDownloadManager,\n"));
         assertFalse(downloadRequests.contains("                trackDownloadManager,\n"));
-        assertTrue(libraryGateway.contains("                () -> documentPickerController.openAudioFilePicker(),\n"));
+        assertTrue(libraryGateway.contains("                this::openAudioFilePickerIfReady,\n"));
         assertTrue(documentPickerProviderArgument >= 0);
         assertTrue(libraryRouteActionsArgument < documentPickerProviderArgument);
         assertFalse(libraryGateway.contains("                documentPickerController,\n"));
@@ -4392,7 +4409,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("status -> statusMessageController.setStatus(status)"));
         assertTrue(mainActivity.contains("(trackId, favorite) -> viewModel.setFavorite(trackId, favorite)"));
         assertTrue(mainActivity.contains("routeController,"));
-        assertTrue(mainActivity.contains("() -> documentPickerController.openAudioFilePicker()"));
+        assertTrue(mainActivity.contains("this::openAudioFilePickerIfReady"));
         assertFalse(mainActivity.contains("libraryViewModel.bindGateway(new LibraryGateway() {"));
         assertFalse(mainActivity.contains("statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), key));"));
         assertTrue(mainLibraryGateway.contains("internal fun interface MainLibraryGatewayFactory"));
