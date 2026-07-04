@@ -235,6 +235,7 @@ public final class MainActivityArchitectureContractTest {
         int networkRenderCoordinatorAssignment = networkRendering.indexOf(
                 "        networkRenderCoordinator = new NetworkRenderCoordinator("
         );
+        String beforeRouteStores = routeStoresStep < 0 ? "" : onCreate.substring(0, routeStoresStep);
 
         assertTrue(streamingGatewayStep >= 0);
         assertTrue(streamingOwnersStep >= 0);
@@ -253,6 +254,22 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(
                 "Route/status shell must be initialized before binding MainLibraryGateway non-null host actions",
                 routeStoresStep < libraryGatewayStep
+        );
+        assertFalse(
+                "Now-playing gateway must not capture app-shell host fields before route/status/store creation",
+                beforeRouteStores.contains("initializeNowPlayingGateways();")
+        );
+        assertFalse(
+                "Download request wiring must not capture status host callbacks before route/status/store creation",
+                beforeRouteStores.contains("initializeDownloadRequests();")
+        );
+        assertFalse(
+                "Library gateway must not pass the non-null routeController host field before it is assigned",
+                beforeRouteStores.contains("initializeLibraryGateway();")
+        );
+        assertFalse(
+                "Playback lifecycle wiring must not receive playbackStore/status callbacks before route/status/store creation",
+                beforeRouteStores.contains("initializePlaybackLifecycleControllers();")
         );
         assertTrue(routeStoresStep < platformControllersStep);
         assertTrue(routeStoresStep < playbackLifecycleStep);
