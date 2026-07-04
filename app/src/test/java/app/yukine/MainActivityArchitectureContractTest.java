@@ -87,6 +87,14 @@ public final class MainActivityArchitectureContractTest {
         String nowPlayingGateway = methodBody(mainActivity, "    private void initializeNowPlayingGateways()");
         String downloadRequests = methodBody(mainActivity, "    private void initializeDownloadRequests()");
         String libraryGateway = methodBody(mainActivity, "    private void initializeLibraryGateway()");
+        String storesAndDataGateways = methodBody(
+                mainActivity,
+                "    private StreamingSearchRenderController initializeStoresAndDataGateways("
+        );
+        String renderOwners = methodBody(
+                mainActivity,
+                "    private void initializeRenderOwners(StreamingSearchRenderController streamingSearchRenderController)"
+        );
         String platformControllers = methodBody(mainActivity, "    private void initializePlatformControllers()");
         String navigationRendering = methodBody(mainActivity, "    private void initializeNavigationRendering()");
         String routeStoresAndStatus = methodBody(mainActivity, "    private void initializeRouteStoresAndStatus()");
@@ -148,6 +156,18 @@ public final class MainActivityArchitectureContractTest {
         int documentPickerProviderArgument = libraryGateway.indexOf(
                 "                this::openAudioFilePickerIfReady,\n"
         );
+        int libraryStoreAssignment = storesAndDataGateways.indexOf(
+                "        libraryStore = libraryStoreFactory.create(viewModel);"
+        );
+        int settingsStoreLoad = storesAndDataGateways.indexOf(
+                "        settingsStore.load(loadSettingsPreferencesUseCase.execute());"
+        );
+        int playlistDialogAssignment = storesAndDataGateways.indexOf(
+                "        playlistDialogController = createPlaylistDialogController();"
+        );
+        int renderOwnersCall = storesAndDataGateways.indexOf(
+                "        initializeRenderOwners(streamingSearchRenderController);"
+        );
 
         assertTrue(streamingGatewayStep >= 0);
         assertTrue(streamingOwnersStep >= 0);
@@ -178,6 +198,19 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(routeStoresAndStatus.contains("statusMessageController = new StatusMessageController("));
         assertTrue(statusMessageControllerAssignment >= 0);
         assertTrue(nowPlayingStateControllerAssignment >= 0);
+        assertTrue(libraryStoreAssignment >= 0);
+        assertTrue(settingsStoreLoad >= 0);
+        assertTrue(playlistDialogAssignment >= 0);
+        assertTrue(renderOwnersCall >= 0);
+        assertTrue(
+                "Playlist dialog owner must exist before playlists/collections render listeners capture it",
+                libraryStoreAssignment < settingsStoreLoad
+                        && settingsStoreLoad < playlistDialogAssignment
+                        && playlistDialogAssignment < renderOwnersCall
+        );
+        assertTrue(renderOwners.contains("libraryPlaylistsRenderController = new LibraryPlaylistsRenderController("));
+        assertTrue(renderOwners.contains("collectionsRenderController = new CollectionsRenderController("));
+        assertFalse(renderOwners.contains("playlistDialogController = createPlaylistDialogController();"));
         assertTrue(streamingActionGateway.contains(
                 "                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),\n"));
         assertTrue(streamingActionGateway.contains(

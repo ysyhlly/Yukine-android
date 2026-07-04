@@ -869,6 +869,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         libraryStore = libraryStoreFactory.create(viewModel);
         settingsStore.load(loadSettingsPreferencesUseCase.execute());
         libraryViewModel.bindPlaylistActionGateway(libraryPlaylistActionGateway);
+        playlistDialogController = createPlaylistDialogController();
         playHistoryActionController = playHistoryActionControllerFactory.create(
                 libraryViewModel,
                 () -> settingsStore.languageMode(),
@@ -1015,7 +1016,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> permissionController
         );
         settingsViewModel.bindRuntimeEffectListener(settingsRuntimeApplier::apply);
-        playlistDialogController = createPlaylistDialogController();
     }
 
     private void initializeNetworkOwners(StreamingSearchRenderController streamingSearchRenderController) {
