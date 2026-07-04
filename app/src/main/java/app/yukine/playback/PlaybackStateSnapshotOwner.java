@@ -45,7 +45,6 @@ final class PlaybackStateSnapshotOwner {
     private final LongSupplier sleepTimerProvider;
     private final VisualizationProvider visualizationProvider;
     private final DoubleSupplier realtimeBeatProvider;
-    private final int defaultRepeatMode;
 
     PlaybackStateSnapshotOwner(
             PlaybackQueueManager playbackQueueManager,
@@ -53,50 +52,50 @@ final class PlaybackStateSnapshotOwner {
             RuntimeStateProvider runtimeStateProvider,
             LongSupplier sleepTimerProvider,
             VisualizationProvider visualizationProvider,
-            DoubleSupplier realtimeBeatProvider,
-            int defaultRepeatMode
+            DoubleSupplier realtimeBeatProvider
     ) {
         this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         this.playbackPositionProvider = playbackPositionProvider;
-        this.runtimeStateProvider = runtimeStateProvider;
+        this.runtimeStateProvider = Objects.requireNonNull(runtimeStateProvider, "runtimeStateProvider");
         this.sleepTimerProvider = sleepTimerProvider;
-        this.visualizationProvider = visualizationProvider;
+        this.visualizationProvider = Objects.requireNonNull(visualizationProvider, "visualizationProvider");
         this.realtimeBeatProvider = realtimeBeatProvider;
-        this.defaultRepeatMode = defaultRepeatMode;
     }
 
     static RuntimeStateProvider fromRuntimeStateManager(
             PlaybackRuntimeStateManager runtimeStateManager
     ) {
+        PlaybackRuntimeStateManager runtimeStateOwner =
+                Objects.requireNonNull(runtimeStateManager, "runtimeStateManager");
         return new RuntimeStateProvider() {
             @Override
             public boolean preparing() {
-                return runtimeStateManager != null && runtimeStateManager.preparing();
+                return runtimeStateOwner.preparing();
             }
 
             @Override
             public String errorMessage() {
-                return runtimeStateManager == null ? "" : runtimeStateManager.errorMessage();
+                return runtimeStateOwner.errorMessage();
             }
 
             @Override
             public boolean shuffleEnabled() {
-                return runtimeStateManager != null && runtimeStateManager.shuffleEnabled();
+                return runtimeStateOwner.shuffleEnabled();
             }
 
             @Override
             public int repeatMode() {
-                return runtimeStateManager == null ? 0 : runtimeStateManager.repeatMode();
+                return runtimeStateOwner.repeatMode();
             }
 
             @Override
             public float playbackSpeed() {
-                return runtimeStateManager == null ? 1.0f : runtimeStateManager.playbackSpeed();
+                return runtimeStateOwner.playbackSpeed();
             }
 
             @Override
             public float appVolume() {
-                return runtimeStateManager == null ? 1.0f : runtimeStateManager.appVolume();
+                return runtimeStateOwner.appVolume();
             }
         };
     }
@@ -104,11 +103,12 @@ final class PlaybackStateSnapshotOwner {
     static VisualizationProvider fromVisualizationAnalyzer(
             PlaybackVisualizationAnalyzer playbackVisualizationAnalyzer
     ) {
+        PlaybackVisualizationAnalyzer visualizationAnalyzer =
+                Objects.requireNonNull(playbackVisualizationAnalyzer, "playbackVisualizationAnalyzer");
         return new VisualizationProvider() {
             @Override
             public boolean shouldDeferPlaybackVisualization() {
-                return playbackVisualizationAnalyzer != null
-                        && playbackVisualizationAnalyzer.shouldDeferPlaybackVisualization();
+                return visualizationAnalyzer.shouldDeferPlaybackVisualization();
             }
 
             @Override
@@ -117,9 +117,7 @@ final class PlaybackStateSnapshotOwner {
                     long durationMs,
                     boolean deferGeneration
             ) {
-                return playbackVisualizationAnalyzer == null
-                        ? PlaybackWaveformSnapshot.empty()
-                        : playbackVisualizationAnalyzer.waveformSnapshot(track, durationMs, deferGeneration);
+                return visualizationAnalyzer.waveformSnapshot(track, durationMs, deferGeneration);
             }
 
             @Override
@@ -128,9 +126,7 @@ final class PlaybackStateSnapshotOwner {
                     long durationMs,
                     boolean deferGeneration
             ) {
-                return playbackVisualizationAnalyzer == null
-                        ? PlaybackSpectrumSnapshot.empty()
-                        : playbackVisualizationAnalyzer.spectrumSnapshot(track, durationMs, deferGeneration);
+                return visualizationAnalyzer.spectrumSnapshot(track, durationMs, deferGeneration);
             }
         };
     }
@@ -144,14 +140,11 @@ final class PlaybackStateSnapshotOwner {
         long playbackDurationMs = playbackPositionProvider == null ? 0L : playbackPositionProvider.durationMs();
         boolean playing = playbackPositionProvider != null && playbackPositionProvider.isPlaying();
         long durationMs = track == null ? 0L : Math.max(track.durationMs, playbackDurationMs);
-        boolean deferVisualGeneration = visualizationProvider != null
-                && visualizationProvider.shouldDeferPlaybackVisualization();
-        PlaybackWaveformSnapshot waveform = visualizationProvider == null
-                ? PlaybackWaveformSnapshot.empty()
-                : visualizationProvider.waveformSnapshot(track, durationMs, deferVisualGeneration);
-        PlaybackSpectrumSnapshot spectrum = visualizationProvider == null
-                ? PlaybackSpectrumSnapshot.empty()
-                : visualizationProvider.spectrumSnapshot(track, durationMs, deferVisualGeneration);
+        boolean deferVisualGeneration = visualizationProvider.shouldDeferPlaybackVisualization();
+        PlaybackWaveformSnapshot waveform =
+                visualizationProvider.waveformSnapshot(track, durationMs, deferVisualGeneration);
+        PlaybackSpectrumSnapshot spectrum =
+                visualizationProvider.spectrumSnapshot(track, durationMs, deferVisualGeneration);
         return new PlaybackStateSnapshot(
                 track,
                 currentIndex,
@@ -159,12 +152,12 @@ final class PlaybackStateSnapshotOwner {
                 positionMs,
                 durationMs,
                 playing,
-                runtimeStateProvider != null && runtimeStateProvider.preparing(),
-                runtimeStateProvider == null ? "" : runtimeStateProvider.errorMessage(),
-                runtimeStateProvider != null && runtimeStateProvider.shuffleEnabled(),
-                runtimeStateProvider == null ? defaultRepeatMode : runtimeStateProvider.repeatMode(),
-                runtimeStateProvider == null ? 1.0f : runtimeStateProvider.playbackSpeed(),
-                runtimeStateProvider == null ? 1.0f : runtimeStateProvider.appVolume(),
+                runtimeStateProvider.preparing(),
+                runtimeStateProvider.errorMessage(),
+                runtimeStateProvider.shuffleEnabled(),
+                runtimeStateProvider.repeatMode(),
+                runtimeStateProvider.playbackSpeed(),
+                runtimeStateProvider.appVolume(),
                 sleepTimerProvider == null ? 0L : sleepTimerProvider.getAsLong(),
                 waveform,
                 spectrum,

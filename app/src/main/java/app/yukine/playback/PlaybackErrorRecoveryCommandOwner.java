@@ -41,7 +41,7 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
     public boolean canSkipFailedTrack(Track failed) {
         return failed != null
                 && failed.id != -1L
-                && queueStateSnapshot().getHasMultipleTracks();
+                && queueStateSnapshot().getQueueSize() >= 2;
     }
 
     @Override

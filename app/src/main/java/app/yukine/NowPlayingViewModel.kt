@@ -55,9 +55,7 @@ data class PlaybackActionResultUi(
 )
 
 interface NowPlayingPlaybackGateway {
-    fun serviceConnected(): Boolean
     fun snapshot(): PlaybackStateSnapshot?
-    fun hasQueue(): Boolean
     fun skipToPrevious()
     fun skipToNext()
     fun seekTo(positionMs: Long)
@@ -224,7 +222,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun removeQueueTrack(track: Track?): PlaybackActionResultUi {
         val player = playbackGateway ?: return statusOnly("Queue is not connected")
-        if (!player.serviceConnected()) {
+        if (!player.connected()) {
             return statusOnly("Queue is not connected")
         }
         if (track == null) {
@@ -236,12 +234,12 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun hasQueue(): Boolean {
         val player = playbackGateway ?: return false
-        return player.serviceConnected() && player.hasQueue()
+        return (player.snapshot()?.queueSize ?: 0) > 0
     }
 
     fun clearQueue(): PlaybackActionResultUi {
         val player = playbackGateway ?: return statusOnly("Queue is not connected")
-        if (!player.serviceConnected()) {
+        if (!player.connected()) {
             return statusOnly("Queue is not connected")
         }
         player.clearQueue()
@@ -290,7 +288,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun startSleepTimer(minutes: Int): PlaybackActionResultUi {
         val player = playbackGateway ?: return statusOnly("Playback service is not connected")
-        if (!player.serviceConnected()) {
+        if (!player.connected()) {
             return statusOnly("Playback service is not connected")
         }
         player.startSleepTimerMinutes(minutes)
@@ -306,7 +304,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun cancelSleepTimer(): PlaybackActionResultUi {
         val player = playbackGateway ?: return statusOnly("Playback service is not connected")
-        if (!player.serviceConnected()) {
+        if (!player.connected()) {
             return statusOnly("Playback service is not connected")
         }
         player.cancelSleepTimer()
@@ -322,7 +320,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun playTrackList(tracks: List<Track>?, index: Int): PlaybackActionResultUi {
         val player = playbackGateway ?: return statusOnly("Playback service is not connected")
-        if (!player.serviceConnected()) {
+        if (!player.connected()) {
             return statusOnly("Playback service is not connected")
         }
         if (tracks.isNullOrEmpty()) {
@@ -337,7 +335,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         fallbackTracks: List<Track>?
     ): PlaybackActionResultUi {
         val player = playbackGateway ?: return statusOnly("Playback service is not connected")
-        if (!player.serviceConnected()) {
+        if (!player.connected()) {
             return statusOnly("Playback service is not connected")
         }
         if (playbackState != null && playbackState.playing) {
@@ -352,7 +350,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun toggleShuffle(playbackState: PlaybackStateSnapshot?): PlaybackActionResultUi {
         val player = playbackGateway ?: return statusOnly("Playback service is not connected")
-        if (!player.serviceConnected()) {
+        if (!player.connected()) {
             return statusOnly("Playback service is not connected")
         }
         player.setShuffleEnabled(playbackState == null || !playbackState.shuffleEnabled)
@@ -361,7 +359,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun cycleRepeat(): PlaybackActionResultUi {
         val player = playbackGateway ?: return statusOnly("Playback service is not connected")
-        if (!player.serviceConnected()) {
+        if (!player.connected()) {
             return statusOnly("Playback service is not connected")
         }
         player.cycleRepeatMode()
@@ -370,7 +368,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun cycleBottomPlaybackMode(playbackState: PlaybackStateSnapshot?): PlaybackActionResultUi {
         val player = playbackGateway ?: return statusOnly("Playback service is not connected")
-        if (!player.serviceConnected()) {
+        if (!player.connected()) {
             return statusOnly("Playback service is not connected")
         }
         val shuffleEnabled = playbackState?.shuffleEnabled == true
@@ -395,6 +393,8 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         }
         return PlaybackActionResultUi(player.snapshot(), null, false, false, true, false)
     }
+
+    private fun NowPlayingPlaybackGateway.connected(): Boolean = snapshot() != null
 
     private fun toggleLyrics() {
         val current = _uiState.value

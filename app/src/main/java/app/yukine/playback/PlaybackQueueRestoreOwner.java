@@ -26,12 +26,12 @@ final class PlaybackQueueRestoreOwner {
     void restoreLastPlayback(boolean playWhenRestored) {
         playbackQueueManager.restorePlaybackQueue();
         PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();
-        if (queueStateSnapshot.isQueueEmpty()) {
+        if (queueStateSnapshot.getQueueSize() <= 0) {
             publishState();
             return;
         }
         createPlayerIfNeeded();
-        if (!queueStateSnapshot.getHasCurrentTrack()) {
+        if (queueStateSnapshot.getCurrentTrack() == null) {
             publishState();
             return;
         }

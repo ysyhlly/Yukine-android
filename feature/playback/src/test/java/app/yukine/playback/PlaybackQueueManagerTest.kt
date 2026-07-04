@@ -322,7 +322,7 @@ class PlaybackQueueManagerTest {
         val snapshot = manager.queueStateSnapshot()
 
         assertTrue(provider.queue.isEmpty())
-        assertTrue(snapshot.isQueueEmpty)
+        assertEquals(0, snapshot.queueSize)
         assertEquals(-1, snapshot.currentIndex)
     }
 
@@ -338,7 +338,7 @@ class PlaybackQueueManagerTest {
         val snapshot = manager.queueStateSnapshot()
 
         assertTrue(provider.queue.isEmpty())
-        assertTrue(snapshot.isQueueEmpty)
+        assertEquals(0, snapshot.queueSize)
     }
 
     @Test
@@ -382,8 +382,6 @@ class PlaybackQueueManagerTest {
         assertEquals(2L, snapshot.currentTrack?.id)
         assertEquals(0, snapshot.currentIndex)
         assertEquals(2, snapshot.queueSize)
-        assertFalse(snapshot.isQueueEmpty)
-        assertTrue(snapshot.hasCurrentTrack)
     }
 
     @Test
@@ -412,7 +410,7 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun queueStateSnapshotOwnsSourceStateAndDerivedReads() {
+    fun queueStateSnapshotOwnsSourceState() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
@@ -423,10 +421,6 @@ class PlaybackQueueManagerTest {
         assertEquals(1L, first.currentTrack?.id)
         assertEquals(0, first.currentIndex)
         assertEquals(2, first.queueSize)
-        assertFalse(first.isQueueEmpty)
-        assertTrue(first.hasCurrentTrack)
-        assertTrue(first.hasMultipleTracks)
-        assertFalse(first.isAtEndOfQueue)
 
         manager.skipToNextImmediately()
         val second = manager.queueStateSnapshot()
@@ -434,10 +428,6 @@ class PlaybackQueueManagerTest {
         assertEquals(2L, second.currentTrack?.id)
         assertEquals(1, second.currentIndex)
         assertEquals(2, second.queueSize)
-        assertFalse(second.isQueueEmpty)
-        assertTrue(second.hasCurrentTrack)
-        assertTrue(second.hasMultipleTracks)
-        assertTrue(second.isAtEndOfQueue)
     }
 
     @Test
@@ -693,14 +683,12 @@ class PlaybackQueueManagerTest {
         val manager = queueManager(store, provider)
 
         assertEquals(-1, manager.queueStateSnapshot().currentIndex)
-        assertTrue(manager.queueStateSnapshot().isQueueEmpty)
         assertEquals(0, manager.queueStateSnapshot().queueSize)
 
         setRawCurrentIndex(manager, 7)
         assertEquals(7, manager.queueStateSnapshot().currentIndex)
 
         provider.queue.addAll(listOf(track(1L), track(2L), track(3L)))
-        assertFalse(manager.queueStateSnapshot().isQueueEmpty)
         assertEquals(3, manager.queueStateSnapshot().queueSize)
         provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF)
 
@@ -755,36 +743,6 @@ class PlaybackQueueManagerTest {
         assertEquals(2L, snapshot.currentTrack?.id)
         assertEquals(1, snapshot.currentIndex)
         assertEquals(2, snapshot.queueSize)
-        assertFalse(snapshot.isQueueEmpty)
-        assertTrue(snapshot.hasCurrentTrack)
-        assertTrue(snapshot.hasMultipleTracks)
-        assertTrue(snapshot.isAtEndOfQueue)
-    }
-
-    @Test
-    fun queueStateSnapshotBooleansAreDerivedFromSourceFields() {
-        val empty = PlaybackQueueManager.QueueStateSnapshot(
-            currentTrack = null,
-            currentIndex = -1,
-            queueSize = 0
-        )
-        assertTrue(empty.isQueueEmpty)
-        assertFalse(empty.hasCurrentTrack)
-        assertFalse(empty.hasMultipleTracks)
-        assertFalse(empty.isAtEndOfQueue)
-
-        val middle = PlaybackQueueManager.QueueStateSnapshot(
-            currentTrack = track(1L),
-            currentIndex = 0,
-            queueSize = 2
-        )
-        assertFalse(middle.isQueueEmpty)
-        assertTrue(middle.hasCurrentTrack)
-        assertTrue(middle.hasMultipleTracks)
-        assertFalse(middle.isAtEndOfQueue)
-
-        val end = middle.copy(currentIndex = 1)
-        assertTrue(end.isAtEndOfQueue)
     }
 
     @Test
@@ -794,10 +752,6 @@ class PlaybackQueueManagerTest {
         assertEquals(null, snapshot.currentTrack)
         assertEquals(-1, snapshot.currentIndex)
         assertEquals(0, snapshot.queueSize)
-        assertTrue(snapshot.isQueueEmpty)
-        assertFalse(snapshot.hasCurrentTrack)
-        assertFalse(snapshot.hasMultipleTracks)
-        assertFalse(snapshot.isAtEndOfQueue)
     }
 
     @Test
@@ -813,10 +767,6 @@ class PlaybackQueueManagerTest {
         assertEquals(null, snapshot.currentTrack)
         assertEquals(3, snapshot.currentIndex)
         assertEquals(1, snapshot.queueSize)
-        assertFalse(snapshot.isQueueEmpty)
-        assertFalse(snapshot.hasCurrentTrack)
-        assertFalse(snapshot.hasMultipleTracks)
-        assertTrue(snapshot.isAtEndOfQueue)
     }
 
     @Test
@@ -830,10 +780,6 @@ class PlaybackQueueManagerTest {
         assertEquals(null, snapshot.currentTrack)
         assertEquals(-1, snapshot.currentIndex)
         assertEquals(0, snapshot.queueSize)
-        assertTrue(snapshot.isQueueEmpty)
-        assertFalse(snapshot.hasCurrentTrack)
-        assertFalse(snapshot.hasMultipleTracks)
-        assertFalse(snapshot.isAtEndOfQueue)
     }
 
     @Test
@@ -887,30 +833,28 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun queueAdvanceSnapshotIsOwnedByQueueManager() {
+    fun queueAdvanceSourceSnapshotIsOwnedByQueueManager() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
 
-        assertFalse(manager.queueStateSnapshot().hasMultipleTracks)
-        assertFalse(manager.queueStateSnapshot().isAtEndOfQueue)
+        assertEquals(0, manager.queueStateSnapshot().queueSize)
 
         provider.queue.add(track(1L))
-        assertFalse(manager.queueStateSnapshot().hasMultipleTracks)
-        assertFalse(manager.queueStateSnapshot().isAtEndOfQueue)
+        assertEquals(1, manager.queueStateSnapshot().queueSize)
         restoreQueue(manager, store, listOf(track(1L)), 0)
-        assertTrue(manager.queueStateSnapshot().isAtEndOfQueue)
+        assertEquals(0, manager.queueStateSnapshot().currentIndex)
 
         provider.queue.clear()
         provider.queue.addAll(listOf(track(1L), track(2L), track(3L)))
-        assertTrue(manager.queueStateSnapshot().hasMultipleTracks)
-        assertFalse(manager.queueStateSnapshot().isAtEndOfQueue)
+        assertEquals(3, manager.queueStateSnapshot().queueSize)
 
         restoreQueue(manager, store, listOf(track(1L), track(2L), track(3L)), 2)
-        assertTrue(manager.queueStateSnapshot().isAtEndOfQueue)
+        assertEquals(2, manager.queueStateSnapshot().currentIndex)
 
         restoreQueue(manager, store, listOf(track(1L), track(2L), track(3L)), 4)
-        assertTrue(manager.queueStateSnapshot().isAtEndOfQueue)
+        val outOfRangeEnd = manager.queueStateSnapshot()
+        assertTrue(outOfRangeEnd.currentIndex >= outOfRangeEnd.queueSize - 1)
     }
 
     @Test

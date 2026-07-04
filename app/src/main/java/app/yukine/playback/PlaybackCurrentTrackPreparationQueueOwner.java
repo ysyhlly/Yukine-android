@@ -57,15 +57,8 @@ final class PlaybackCurrentTrackPreparationQueueOwner {
     ) {
         this(
                 playbackQueueManager,
-                track -> mediaSourceProvider == null
-                        ? null
-                        : mediaSourceProvider.restoredTrackForPreparation(track),
-                tracks -> mediaSourceProvider == null
-                        ? null
-                        : mediaSourceProvider.mediaSourcesForTracks(
-                                tracks,
-                                metadataProvider == null ? null : metadataProvider::apply
-                        )
+                queueTrackForPreparation(mediaSourceProvider),
+                mediaSourcesForTracks(mediaSourceProvider, metadataProvider)
         );
     }
 
@@ -142,5 +135,25 @@ final class PlaybackCurrentTrackPreparationQueueOwner {
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
         return playbackQueueManager.queueStateSnapshot();
+    }
+
+    private static Function<Track, Track> queueTrackForPreparation(
+            PlaybackMediaSourceProvider mediaSourceProvider
+    ) {
+        PlaybackMediaSourceProvider mediaSourceOwner =
+                Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider");
+        return mediaSourceOwner::restoredTrackForPreparation;
+    }
+
+    private static Function<List<Track>, List<MediaSource>> mediaSourcesForTracks(
+            PlaybackMediaSourceProvider mediaSourceProvider,
+            Function<Track, MediaMetadata> metadataProvider
+    ) {
+        PlaybackMediaSourceProvider mediaSourceOwner =
+                Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider");
+        return tracks -> mediaSourceOwner.mediaSourcesForTracks(
+                tracks,
+                metadataProvider == null ? null : metadataProvider::apply
+        );
     }
 }

@@ -298,13 +298,13 @@ class NowPlayingViewModelTest {
     ) : NowPlayingPlaybackGateway {
         val calls = ArrayList<String>()
         var queue: List<Track> = emptyList()
+            set(value) {
+                field = value
+                snapshot = playbackSnapshotForQueue(value)
+            }
         private var snapshot = PlaybackStateSnapshot.empty()
 
-        override fun serviceConnected(): Boolean = connected
-
-        override fun snapshot(): PlaybackStateSnapshot? = snapshot
-
-        override fun hasQueue(): Boolean = queue.isNotEmpty()
+        override fun snapshot(): PlaybackStateSnapshot? = if (connected) snapshot else null
 
         override fun skipToPrevious() {
             calls.add("previous")
@@ -380,6 +380,25 @@ class NowPlayingViewModelTest {
 
         override fun moveQueueTrack(fromIndex: Int, toIndex: Int) {
             calls.add("move:$fromIndex:$toIndex")
+        }
+
+        private fun playbackSnapshotForQueue(queue: List<Track>): PlaybackStateSnapshot {
+            val current = queue.firstOrNull() ?: return PlaybackStateSnapshot.empty()
+            return PlaybackStateSnapshot(
+                current,
+                0,
+                queue.size,
+                0L,
+                current.durationMs,
+                false,
+                false,
+                "",
+                false,
+                PlaybackRepeatMode.REPEAT_ALL,
+                1.0f,
+                1.0f,
+                0L
+            )
         }
     }
 }

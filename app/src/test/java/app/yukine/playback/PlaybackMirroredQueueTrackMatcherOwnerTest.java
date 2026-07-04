@@ -2,6 +2,7 @@ package app.yukine.playback;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -65,15 +66,18 @@ public class PlaybackMirroredQueueTrackMatcherOwnerTest {
     }
 
     @Test
-    public void mediaSourceProviderConstructorIsSafeWhenProviderIsMissing() {
-        MediaItem mediaItem = new MediaItem.Builder().setUri("https://example.test/one.mp3").build();
-        PlaybackMirroredQueueTrackMatcherOwner owner =
-                new PlaybackMirroredQueueTrackMatcherOwner(
-                        () -> playerWithMediaItem(mediaItem),
+    public void mediaSourceProviderConstructorRequiresMediaSourceProvider() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackMirroredQueueTrackMatcherOwner(
+                        () -> playerWithMediaItem(
+                                new MediaItem.Builder().setUri("https://example.test/one.mp3").build()
+                        ),
                         null
-                );
+                )
+        );
 
-        assertEquals(false, owner.matches(0, track()));
+        assertEquals("mediaSourceProvider", error.getMessage());
     }
 
     @Test

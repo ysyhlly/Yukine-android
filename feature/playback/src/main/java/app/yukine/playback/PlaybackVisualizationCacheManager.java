@@ -12,6 +12,7 @@ import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -46,7 +47,9 @@ final class PlaybackVisualizationCacheManager {
     ) {
         return new PlaybackVisualizationCacheManager(
                 stateProvider,
-                PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider)
+                PlaybackMediaCacheOperations.fromMediaSourceProvider(
+                        Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider")
+                )
         );
     }
 
@@ -63,7 +66,7 @@ final class PlaybackVisualizationCacheManager {
             VisualizationCacheWriterFactory cacheWriterFactory
     ) {
         this.stateProvider = stateProvider;
-        this.mediaCacheOperations = mediaCacheOperations;
+        this.mediaCacheOperations = Objects.requireNonNull(mediaCacheOperations, "mediaCacheOperations");
         this.cacheWriterFactory = cacheWriterFactory == null ? this::createCacheWriter : cacheWriterFactory;
     }
 
@@ -147,9 +150,6 @@ final class PlaybackVisualizationCacheManager {
     }
 
     private String cacheKeyForVisualization(Track track) {
-        if (mediaCacheOperations == null) {
-            return null;
-        }
         String cacheKey = mediaCacheOperations.cacheKeyForPrecache(track);
         return cacheKey == null || cacheKey.isEmpty() ? null : cacheKey;
     }
@@ -158,7 +158,6 @@ final class PlaybackVisualizationCacheManager {
         return current != null
                 && candidate != null
                 && current.id == candidate.id
-                && mediaCacheOperations != null
                 && mediaCacheOperations.tracksShareResolvedUriForReuse(current, candidate);
     }
 

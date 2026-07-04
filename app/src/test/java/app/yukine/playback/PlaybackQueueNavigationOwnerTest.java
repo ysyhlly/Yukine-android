@@ -3,6 +3,7 @@ package app.yukine.playback;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import android.net.Uri;
 
@@ -57,20 +58,13 @@ public class PlaybackQueueNavigationOwnerTest {
     }
 
     @Test
-    public void ignoresMissingPlaybackQueueManager() {
-        List<Boolean> reuseNotifications = new ArrayList<>();
-        PlaybackQueueNavigationOwner missingManager =
-                new PlaybackQueueNavigationOwner(
-                        null,
-                        reuseNotifications::add
-                );
-
-        missingManager.skipToNextImmediately();
-        missingManager.playFirstQueuedTrack();
-        missingManager.skipToPrevious();
-        missingManager.reuseMirroredQueueIfAvailable(false, 300L);
-
-        assertEquals(Collections.emptyList(), reuseNotifications);
+    public void constructorRequiresPlaybackQueueManager() {
+        try {
+            new PlaybackQueueNavigationOwner(null, null);
+            fail("Expected NullPointerException");
+        } catch (NullPointerException error) {
+            assertEquals("playbackQueueManager", error.getMessage());
+        }
     }
 
     @Test

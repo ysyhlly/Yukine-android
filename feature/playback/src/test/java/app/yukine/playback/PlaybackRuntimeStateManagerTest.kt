@@ -11,6 +11,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.lang.reflect.Proxy
@@ -247,17 +248,19 @@ class PlaybackRuntimeStateManagerTest {
     }
 
     @Test
-    fun stateProviderFromPlaybackStateHandlesMissingQueueManagerBinding() {
-        val missingProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(null, null)
-        val nullTrackProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
-            null,
-            null
-        )
-        nullTrackProvider.bindPlaybackQueueManager(null)
+    fun stateProviderFromPlaybackStateRequiresBindingButAllowsEmptyQueueManager() {
+        val unboundProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(null, null)
+        val emptyQueueProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(null, null)
+        emptyQueueProvider.bindPlaybackQueueManager(queueManagerWithTrack(null))
 
-        assertNull(missingProvider.currentTrack())
-        assertEquals(false, missingProvider.playerMirrorsQueue())
-        assertNull(nullTrackProvider.currentTrack())
+        assertEquals(
+            "playbackQueueManager",
+            assertThrows(IllegalStateException::class.java) {
+                unboundProvider.currentTrack()
+            }.message
+        )
+        assertEquals(false, unboundProvider.playerMirrorsQueue())
+        assertNull(emptyQueueProvider.currentTrack())
     }
 
     @Test
@@ -271,7 +274,12 @@ class PlaybackRuntimeStateManagerTest {
         )
         manager.setAppVolume(0.8f)
 
-        assertEquals(0.8f, manager.currentTrackVolume(), 0.0f)
+        assertEquals(
+            "playbackQueueManager",
+            assertThrows(IllegalStateException::class.java) {
+                manager.currentTrackVolume()
+            }.message
+        )
 
         provider.bindPlaybackQueueManager(queueManagerWithTrack(track(replayGainTrackDb = -6.0f)))
 

@@ -16,6 +16,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 public class PlaybackCurrentTrackPreparationOwnerTest {
@@ -126,11 +127,11 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
     }
 
     @Test
-    public void mediaSourceProviderFactoryFallsBackWhenProviderIsMissing() {
+    public void mediaSourceProviderFactoryRequiresMediaSourceProvider() {
         List<String> events = new ArrayList<>();
-        Track track = track(4L, Uri.parse("file:///music/local.flac"));
-        PlaybackCurrentTrackPreparationOwner owner =
-                PlaybackCurrentTrackPreparationOwner.fromMediaSourceProvider(
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> PlaybackCurrentTrackPreparationOwner.fromMediaSourceProvider(
                         null,
                         requested -> null,
                         queueTrackReplacer(events),
@@ -141,15 +142,11 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
                         new FakeRuntimeStateController(events),
                         () -> events.add("publish"),
                         requested -> events.add("refuse:" + requested.id)
-                );
+                )
+        );
 
-        PlaybackCurrentTrackPreparationOwner.PreparedTrack prepared = owner.prepareCurrentTrack(track);
-
-        assertTrue(prepared.playable());
-        assertSame(track, prepared.track());
-        assertEquals(3000L, prepared.startPositionMs());
-        assertNull(prepared.mediaSource());
-        assertEquals(Arrays.asList("position:4"), events);
+        assertEquals("mediaSourceProvider", error.getMessage());
+        assertTrue(events.isEmpty());
     }
 
     private static PlaybackMediaSourceProvider.PlaybackPreparation preparation(

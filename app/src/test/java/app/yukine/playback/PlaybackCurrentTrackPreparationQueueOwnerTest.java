@@ -23,6 +23,7 @@ import app.yukine.playback.manager.PlaybackQueueStore;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 
 public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     @Test
@@ -265,15 +266,17 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     }
 
     @Test
-    public void mediaSourceProviderConstructorFallsBackWhenProviderIsMissing() {
-        PlaybackCurrentTrackPreparationQueueOwner owner =
-                new PlaybackCurrentTrackPreparationQueueOwner(
+    public void mediaSourceProviderConstructorRequiresMediaSourceProvider() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackCurrentTrackPreparationQueueOwner(
                         queueManager(new FakeQueueStore(), null),
                         (PlaybackMediaSourceProvider) null,
                         track -> null
-                );
+                )
+        );
 
-        assertEquals(null, owner.queuePreparationForNewPlayer().mirroredQueueMediaSources());
+        assertEquals("mediaSourceProvider", error.getMessage());
     }
 
     private static PlaybackQueueManager queueManager(

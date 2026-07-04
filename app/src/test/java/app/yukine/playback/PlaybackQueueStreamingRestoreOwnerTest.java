@@ -12,6 +12,7 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 
 public class PlaybackQueueStreamingRestoreOwnerTest {
     @Test
@@ -70,12 +71,13 @@ public class PlaybackQueueStreamingRestoreOwnerTest {
     }
 
     @Test
-    public void mediaSourceProviderConstructorIsSafeWhenProviderIsMissing() {
-        PlaybackQueueStreamingRestoreOwner owner =
-                new PlaybackQueueStreamingRestoreOwner((PlaybackMediaSourceProvider) null);
-        Track input = track(4L);
+    public void mediaSourceProviderConstructorRequiresMediaSourceProvider() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackQueueStreamingRestoreOwner((PlaybackMediaSourceProvider) null)
+        );
 
-        assertSame(input, owner.restoreTrackForPlayback(input));
+        assertEquals("mediaSourceProvider", error.getMessage());
     }
 
     private static Track track(long id) {

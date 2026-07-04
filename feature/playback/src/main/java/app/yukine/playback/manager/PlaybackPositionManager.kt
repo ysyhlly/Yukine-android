@@ -118,12 +118,14 @@ internal class PlaybackPositionManager @JvmOverloads constructor(
     ) : StateProvider {
         private var playbackQueueManager: PlaybackQueueManager? = null
 
-        fun bindPlaybackQueueManager(playbackQueueManager: PlaybackQueueManager?) {
+        fun bindPlaybackQueueManager(playbackQueueManager: PlaybackQueueManager) {
             this.playbackQueueManager = playbackQueueManager
         }
 
         override fun currentTrack(): Track? =
-            playbackQueueManager?.queueStateSnapshot()?.currentTrack
+            checkNotNull(playbackQueueManager) { "playbackQueueManager" }
+                .queueStateSnapshot()
+                .currentTrack
 
         override fun positionMs(): Long = playbackPositionSupplier?.asLong ?: 0L
     }

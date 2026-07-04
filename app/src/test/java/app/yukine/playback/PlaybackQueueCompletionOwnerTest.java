@@ -126,7 +126,7 @@ public class PlaybackQueueCompletionOwnerTest {
 
         owner(queueManager, events).stopAndClearPlayback();
 
-        assertTrue(queueManager.queueStateSnapshot().isQueueEmpty());
+        assertEquals(0, queueManager.queueStateSnapshot().getQueueSize());
         assertEquals(-1, queueManager.queueStateSnapshot().getCurrentIndex());
         assertTrue(store.savedTracks.isEmpty());
         assertEquals(-1, store.savedIndex);

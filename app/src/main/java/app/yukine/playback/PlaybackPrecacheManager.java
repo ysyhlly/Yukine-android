@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -97,26 +98,6 @@ final class PlaybackPrecacheManager {
             Supplier<MediaItem> currentPlayerMediaItemSupplier,
             PlaybackStreamingDiagnostics streamingDiagnostics,
             PlaybackQueueManager playbackQueueManager,
-            PlaybackMediaCacheOperations mediaCacheOperations,
-            BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
-            CallbackScheduler callbackScheduler
-    ) {
-        this(
-                currentPlayerMediaItemSupplier,
-                streamingDiagnostics,
-                playbackQueueManager,
-                null,
-                mediaCacheOperations,
-                mediaItemTrackMatcher,
-                callbackScheduler,
-                newPlaybackCacheExecutor()
-        );
-    }
-
-    PlaybackPrecacheManager(
-            Supplier<MediaItem> currentPlayerMediaItemSupplier,
-            PlaybackStreamingDiagnostics streamingDiagnostics,
-            PlaybackQueueManager playbackQueueManager,
             PlaybackRuntimeStateManager playbackRuntimeStateManager,
             PlaybackMediaCacheOperations mediaCacheOperations,
             BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
@@ -127,35 +108,17 @@ final class PlaybackPrecacheManager {
         this.streamingDiagnostics = streamingDiagnostics == null
                 ? new PlaybackStreamingDiagnostics()
                 : streamingDiagnostics;
-        this.playbackQueueManager = playbackQueueManager;
-        this.playbackRuntimeStateManager = playbackRuntimeStateManager;
-        this.mediaCacheOperations = mediaCacheOperations;
+        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
+        this.playbackRuntimeStateManager = Objects.requireNonNull(
+                playbackRuntimeStateManager,
+                "playbackRuntimeStateManager"
+        );
+        this.mediaCacheOperations = Objects.requireNonNull(mediaCacheOperations, "mediaCacheOperations");
         this.mediaItemTrackMatcher = mediaItemTrackMatcher;
         this.callbackScheduler = callbackScheduler;
         this.playbackCacheExecutor = playbackCacheExecutor == null
                 ? newPlaybackCacheExecutor()
                 : playbackCacheExecutor;
-    }
-
-    PlaybackPrecacheManager(
-            Supplier<MediaItem> currentPlayerMediaItemSupplier,
-            PlaybackStreamingDiagnostics streamingDiagnostics,
-            PlaybackQueueManager playbackQueueManager,
-            PlaybackMediaCacheOperations mediaCacheOperations,
-            BiPredicate<MediaItem, Track> mediaItemTrackMatcher,
-            CallbackScheduler callbackScheduler,
-            ThreadPoolExecutor playbackCacheExecutor
-    ) {
-        this(
-                currentPlayerMediaItemSupplier,
-                streamingDiagnostics,
-                playbackQueueManager,
-                null,
-                mediaCacheOperations,
-                mediaItemTrackMatcher,
-                callbackScheduler,
-                playbackCacheExecutor
-        );
     }
 
     static PlaybackPrecacheManager fromMediaSourceProvider(
@@ -171,26 +134,10 @@ final class PlaybackPrecacheManager {
                 streamingDiagnostics,
                 playbackQueueManager,
                 playbackRuntimeStateManager,
-                PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceProvider),
-                (mediaItem, track) -> mediaSourceProvider != null
-                        && mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track),
-                callbackScheduler
-        );
-    }
-
-    static PlaybackPrecacheManager fromMediaSourceProvider(
-            Supplier<MediaItem> currentPlayerMediaItemSupplier,
-            PlaybackStreamingDiagnostics streamingDiagnostics,
-            PlaybackQueueManager playbackQueueManager,
-            PlaybackMediaSourceProvider mediaSourceProvider,
-            CallbackScheduler callbackScheduler
-    ) {
-        return fromMediaSourceProvider(
-                currentPlayerMediaItemSupplier,
-                streamingDiagnostics,
-                playbackQueueManager,
-                null,
-                mediaSourceProvider,
+                PlaybackMediaCacheOperations.fromMediaSourceProvider(
+                        Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider")
+                ),
+                mediaSourceProvider::mediaItemMatchesTrackForReuse,
                 callbackScheduler
         );
     }
@@ -209,7 +156,7 @@ final class PlaybackPrecacheManager {
     }
 
     void releaseAudioCache() {
-        if (mediaCacheOperations != null && audioCacheReleased.compareAndSet(false, true)) {
+        if (audioCacheReleased.compareAndSet(false, true)) {
             mediaCacheOperations.releaseAudioCache();
         }
     }
@@ -331,18 +278,14 @@ final class PlaybackPrecacheManager {
     }
 
     private List<Track> upcomingTracksForPrecache() {
-        if (playbackQueueManager == null) {
-            return Collections.emptyList();
-        }
         PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager.queueStateSnapshot();
         List<Track> queue = playbackQueueManager.queueSnapshot();
-        int currentIndex = snapshot == null ? -1 : snapshot.getCurrentIndex();
+        int currentIndex = snapshot.getCurrentIndex();
         if (queue.isEmpty() || currentIndex < 0 || currentIndex >= queue.size()) {
             return Collections.emptyList();
         }
         int count = Math.min(queue.size(), SEGMENTED_PRECACHE_CONCURRENCY);
-        boolean repeatOff = playbackRuntimeStateManager != null
-                && playbackRuntimeStateManager.repeatMode() == REPEAT_OFF;
+        boolean repeatOff = playbackRuntimeStateManager.repeatMode() == REPEAT_OFF;
         List<Track> tracks = new ArrayList<>();
         for (int offset = 1; offset <= count; offset++) {
             int rawIndex = currentIndex + offset;
@@ -359,10 +302,7 @@ final class PlaybackPrecacheManager {
     }
 
     private Track currentTrack() {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null
-                ? null
-                : playbackQueueManager.queueStateSnapshot();
-        return snapshot == null ? null : snapshot.getCurrentTrack();
+        return playbackQueueManager.queueStateSnapshot().getCurrentTrack();
     }
 
     @OptIn(markerClass = UnstableApi.class)
@@ -407,9 +347,6 @@ final class PlaybackPrecacheManager {
     }
 
     private String cacheKeyForPrecache(Track track) {
-        if (mediaCacheOperations == null) {
-            return null;
-        }
         String cacheKey = mediaCacheOperations.cacheKeyForPrecache(track);
         return cacheKey == null || cacheKey.isEmpty() ? null : cacheKey;
     }

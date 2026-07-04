@@ -2,6 +2,7 @@ package app.yukine.playback;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 import static org.robolectric.Shadows.shadowOf;
 
 import android.content.Context;
@@ -35,6 +36,33 @@ import org.robolectric.RobolectricTestRunner;
 @UnstableApi
 @RunWith(RobolectricTestRunner.class)
 public final class PlaybackVisualizationCacheManagerTest {
+    @Test
+    public void constructorRequiresMediaCacheOperations() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackVisualizationCacheManager(
+                        new FakeStateProvider(),
+                        null,
+                        new FakeCacheWriterFactory()
+                )
+        );
+
+        assertEquals("mediaCacheOperations", error.getMessage());
+    }
+
+    @Test
+    public void fromMediaSourceProviderRequiresMediaSourceProvider() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> PlaybackVisualizationCacheManager.fromMediaSourceProvider(
+                        new FakeStateProvider(),
+                        null
+                )
+        );
+
+        assertEquals("mediaSourceProvider", error.getMessage());
+    }
+
     @Test
     public void releaseBeforeMainCallbackSkipsSchedulingCacheTask() {
         FakeStateProvider stateProvider = new FakeStateProvider();

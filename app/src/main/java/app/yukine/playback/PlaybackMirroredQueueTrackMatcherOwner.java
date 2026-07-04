@@ -6,6 +6,7 @@ import androidx.media3.common.Player;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
+import java.util.Objects;
 import java.util.function.BiPredicate;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
@@ -31,8 +32,7 @@ final class PlaybackMirroredQueueTrackMatcherOwner {
                     Player player = playerProvider == null ? null : playerProvider.get();
                     return player == null ? null : player.getMediaItemAt(index);
                 },
-                (mediaItem, track) -> mediaSourceProvider != null
-                        && mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track)
+                trackMediaItemMatcher(mediaSourceProvider)
         );
     }
 
@@ -46,5 +46,13 @@ final class PlaybackMirroredQueueTrackMatcherOwner {
         } catch (IndexOutOfBoundsException | IllegalStateException error) {
             return false;
         }
+    }
+
+    private static BiPredicate<MediaItem, Track> trackMediaItemMatcher(
+            PlaybackMediaSourceProvider mediaSourceProvider
+    ) {
+        PlaybackMediaSourceProvider mediaSourceOwner =
+                Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider");
+        return mediaSourceOwner::mediaItemMatchesTrackForReuse;
     }
 }

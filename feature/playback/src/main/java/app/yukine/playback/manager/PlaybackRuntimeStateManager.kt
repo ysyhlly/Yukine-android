@@ -203,7 +203,7 @@ internal class PlaybackRuntimeStateManager(
     ) : StateProvider {
         private var playbackQueueManager: PlaybackQueueManager? = null
 
-        fun bindPlaybackQueueManager(playbackQueueManager: PlaybackQueueManager?) {
+        fun bindPlaybackQueueManager(playbackQueueManager: PlaybackQueueManager) {
             this.playbackQueueManager = playbackQueueManager
         }
 
@@ -212,7 +212,9 @@ internal class PlaybackRuntimeStateManager(
         override fun playerMirrorsQueue(): Boolean = mirroredQueueSupplier?.asBoolean == true
 
         override fun currentTrack(): Track? =
-            playbackQueueManager?.queueStateSnapshot()?.currentTrack
+            checkNotNull(playbackQueueManager) { "playbackQueueManager" }
+                .queueStateSnapshot()
+                .currentTrack
     }
 
     companion object {

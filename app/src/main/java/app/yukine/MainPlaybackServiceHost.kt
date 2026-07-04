@@ -2,117 +2,68 @@ package app.yukine
 
 internal fun interface MainPlaybackServiceHostFactory {
     fun create(
-        playbackSpeedSource: MainPlaybackServiceHost.PlaybackSpeedSource,
-        appVolumeSource: MainPlaybackServiceHost.AppVolumeSource,
-        concurrentPlaybackSource: MainPlaybackServiceHost.ConcurrentPlaybackSource,
-        statusBarLyricsSource: MainPlaybackServiceHost.StatusBarLyricsSource,
-        playbackRestoreSource: MainPlaybackServiceHost.PlaybackRestoreSource,
-        replayGainSource: MainPlaybackServiceHost.ReplayGainSource,
+        playbackSettingsSource: MainPlaybackServiceHost.PlaybackSettingsSource,
         playbackServiceAttacher: MainPlaybackServiceHost.PlaybackServiceAttacher,
-        playbackServiceClearer: MainPlaybackServiceHost.PlaybackServiceClearer,
-        playbackStoreResetter: MainPlaybackServiceHost.PlaybackStoreResetter,
+        playbackServiceDetacher: MainPlaybackServiceHost.PlaybackServiceDetacher,
         pendingTracksPlayer: MainPlaybackServiceHost.PendingTracksPlayer,
-        selectedTabRenderer: MainPlaybackServiceHost.SelectedTabRenderer,
-        nowBarRenderer: MainPlaybackServiceHost.NowBarRenderer
+        playbackChromeRenderer: MainPlaybackServiceHost.PlaybackChromeRenderer
     ): PlaybackServiceHostController.Host
 }
 
+internal data class PlaybackServiceConnectionSettings(
+    val playbackSpeed: Float,
+    val appVolume: Float,
+    val concurrentPlaybackEnabled: Boolean,
+    val statusBarLyricsEnabled: Boolean,
+    val playbackRestoreEnabled: Boolean,
+    val replayGainEnabled: Boolean
+)
+
 internal class MainPlaybackServiceHost(
-    private val playbackSpeedSource: PlaybackSpeedSource,
-    private val appVolumeSource: AppVolumeSource,
-    private val concurrentPlaybackSource: ConcurrentPlaybackSource,
-    private val statusBarLyricsSource: StatusBarLyricsSource,
-    private val playbackRestoreSource: PlaybackRestoreSource,
-    private val replayGainSource: ReplayGainSource,
+    private val playbackSettingsSource: PlaybackSettingsSource,
     private val playbackServiceAttacher: PlaybackServiceAttacher,
-    private val playbackServiceClearer: PlaybackServiceClearer,
-    private val playbackStoreResetter: PlaybackStoreResetter,
+    private val playbackServiceDetacher: PlaybackServiceDetacher,
     private val pendingTracksPlayer: PendingTracksPlayer,
-    private val selectedTabRenderer: SelectedTabRenderer,
-    private val nowBarRenderer: NowBarRenderer
+    private val playbackChromeRenderer: PlaybackChromeRenderer
 ) : PlaybackServiceHostController.Host {
-    fun interface PlaybackSpeedSource {
-        fun playbackSpeed(): Float
-    }
-
-    fun interface AppVolumeSource {
-        fun appVolume(): Float
-    }
-
-    fun interface ConcurrentPlaybackSource {
-        fun concurrentPlaybackEnabled(): Boolean
-    }
-
-    fun interface StatusBarLyricsSource {
-        fun statusBarLyricsEnabled(): Boolean
-    }
-
-    fun interface PlaybackRestoreSource {
-        fun playbackRestoreEnabled(): Boolean
-    }
-
-    fun interface ReplayGainSource {
-        fun replayGainEnabled(): Boolean
+    fun interface PlaybackSettingsSource {
+        fun playbackSettings(): PlaybackServiceConnectionSettings
     }
 
     fun interface PlaybackServiceAttacher {
         fun attachPlaybackService(service: PlaybackServiceHostPort)
     }
 
-    fun interface PlaybackServiceClearer {
-        fun clearPlaybackService()
-    }
-
-    fun interface PlaybackStoreResetter {
-        fun resetPlaybackStore()
+    fun interface PlaybackServiceDetacher {
+        fun detachPlaybackService()
     }
 
     fun interface PendingTracksPlayer {
         fun playPendingTracksIfNeeded()
     }
 
-    fun interface SelectedTabRenderer {
-        fun renderSelectedTab()
+    fun interface PlaybackChromeRenderer {
+        fun renderPlaybackChrome()
     }
-
-    fun interface NowBarRenderer {
-        fun renderNowBar()
-    }
-
-    override fun playbackSpeed(): Float = playbackSpeedSource.playbackSpeed()
-
-    override fun appVolume(): Float = appVolumeSource.appVolume()
-
-    override fun concurrentPlaybackEnabled(): Boolean = concurrentPlaybackSource.concurrentPlaybackEnabled()
-
-    override fun statusBarLyricsEnabled(): Boolean = statusBarLyricsSource.statusBarLyricsEnabled()
-
-    override fun playbackRestoreEnabled(): Boolean = playbackRestoreSource.playbackRestoreEnabled()
-
-    override fun replayGainEnabled(): Boolean = replayGainSource.replayGainEnabled()
 
     override fun attachPlaybackService(service: PlaybackServiceHostPort) {
         playbackServiceAttacher.attachPlaybackService(service)
         service.setAppVisible(true)
-    }
-
-    override fun clearPlaybackService() {
-        playbackServiceClearer.clearPlaybackService()
-    }
-
-    override fun resetPlaybackStore() {
-        playbackStoreResetter.resetPlaybackStore()
-    }
-
-    override fun playPendingTracksIfNeeded() {
+        val settings = playbackSettingsSource.playbackSettings()
+        service.setPlaybackSpeed(settings.playbackSpeed)
+        service.setAppVolume(settings.appVolume)
+        service.setConcurrentPlaybackEnabled(settings.concurrentPlaybackEnabled)
+        service.setStatusBarLyricsEnabled(settings.statusBarLyricsEnabled)
+        service.setPlaybackRestoreEnabled(settings.playbackRestoreEnabled)
+        service.setReplayGainEnabled(settings.replayGainEnabled)
         pendingTracksPlayer.playPendingTracksIfNeeded()
     }
 
-    override fun renderSelectedTab() {
-        selectedTabRenderer.renderSelectedTab()
+    override fun detachPlaybackService() {
+        playbackServiceDetacher.detachPlaybackService()
     }
 
-    override fun renderNowBar() {
-        nowBarRenderer.renderNowBar()
+    override fun renderPlaybackChrome() {
+        playbackChromeRenderer.renderPlaybackChrome()
     }
 }

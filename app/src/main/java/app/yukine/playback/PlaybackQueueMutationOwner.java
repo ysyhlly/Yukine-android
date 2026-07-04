@@ -39,9 +39,9 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
         if (trackIds == null || trackIds.isEmpty()) {
             return;
         }
-        boolean hadQueue = !queueStateSnapshot().isQueueEmpty();
+        boolean hadQueue = hasQueue(queueStateSnapshot());
         playbackQueueManager.removeTracksById(trackIds);
-        if (hadQueue && queueStateSnapshot().isQueueEmpty()) {
+        if (hadQueue && !hasQueue(queueStateSnapshot())) {
             stopAndClear();
         }
     }
@@ -59,15 +59,15 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
         if (trackIdsToRemove.isEmpty()) {
             return;
         }
-        boolean hadQueue = !queueStateSnapshot().isQueueEmpty();
+        boolean hadQueue = hasQueue(queueStateSnapshot());
         playbackQueueManager.removeTracksById(trackIdsToRemove);
-        if (hadQueue && queueStateSnapshot().isQueueEmpty()) {
+        if (hadQueue && !hasQueue(queueStateSnapshot())) {
             stopAndClear();
         }
     }
 
     void clearQueue() {
-        if (!queueStateSnapshot().isQueueEmpty()) {
+        if (hasQueue(queueStateSnapshot())) {
             stopAndClear();
         }
     }
@@ -90,5 +90,9 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
         return playbackQueueManager.queueStateSnapshot();
+    }
+
+    private static boolean hasQueue(PlaybackQueueManager.QueueStateSnapshot snapshot) {
+        return snapshot.getQueueSize() > 0;
     }
 }

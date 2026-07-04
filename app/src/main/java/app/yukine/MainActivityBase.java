@@ -448,18 +448,11 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         PlaybackServiceHostController playbackServiceHostController = new PlaybackServiceHostController(
                 playbackServiceHostFactory.create(
-                        this::playbackSpeedIfReady,
-                        this::appVolumeIfReady,
-                        this::concurrentPlaybackEnabledIfReady,
-                        this::statusBarLyricsEnabledIfReady,
-                        this::playbackRestoreEnabledIfReady,
-                        this::replayGainEnabledIfReady,
+                        this::playbackServiceConnectionSettings,
                         service -> playbackService = service,
-                        () -> playbackService = null,
-                        () -> playbackStore.reset(),
+                        this::detachPlaybackService,
                         this::playPendingTracksIfReady,
-                        this::renderSelectedTabIfReady,
-                        this::renderNowBarIfReady
+                        this::renderPlaybackChromeIfReady
                 )
         );
         playbackServiceConnectionController = new PlaybackServiceConnectionController(
@@ -469,28 +462,25 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
     }
 
-    private float playbackSpeedIfReady() {
-        return settingsStore == null ? 1.0f : settingsStore.playbackSpeed();
+    private void detachPlaybackService() {
+        playbackService = null;
+        playbackStore.reset();
     }
 
-    private float appVolumeIfReady() {
-        return settingsStore == null ? 1.0f : settingsStore.appVolume();
+    private void renderPlaybackChromeIfReady() {
+        renderSelectedTabIfReady();
+        renderNowBarIfReady();
     }
 
-    private boolean concurrentPlaybackEnabledIfReady() {
-        return settingsStore != null && settingsStore.concurrentPlaybackEnabled();
-    }
-
-    private boolean statusBarLyricsEnabledIfReady() {
-        return settingsStore == null || settingsStore.statusBarLyricsEnabled();
-    }
-
-    private boolean playbackRestoreEnabledIfReady() {
-        return settingsStore == null || settingsStore.playbackRestoreEnabled();
-    }
-
-    private boolean replayGainEnabledIfReady() {
-        return settingsStore == null || settingsStore.replayGainEnabled();
+    private PlaybackServiceConnectionSettings playbackServiceConnectionSettings() {
+        return new PlaybackServiceConnectionSettings(
+                settingsStore == null ? 1.0f : settingsStore.playbackSpeed(),
+                settingsStore == null ? 1.0f : settingsStore.appVolume(),
+                settingsStore != null && settingsStore.concurrentPlaybackEnabled(),
+                settingsStore == null || settingsStore.statusBarLyricsEnabled(),
+                settingsStore == null || settingsStore.playbackRestoreEnabled(),
+                settingsStore == null || settingsStore.replayGainEnabled()
+        );
     }
 
     private void savePlaybackSettingsIfReady(float playbackSpeed, float appVolume) {

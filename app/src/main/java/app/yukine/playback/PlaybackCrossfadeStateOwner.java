@@ -52,10 +52,10 @@ final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManag
     @Override
     public boolean canCrossfadeAdvance() {
         PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();
-        if (!queueStateSnapshot.getHasMultipleTracks()) {
+        if (queueStateSnapshot.getQueueSize() < 2) {
             return false;
         }
-        return repeatModeProvider.getAsInt() != REPEAT_OFF || !queueStateSnapshot.isAtEndOfQueue();
+        return repeatModeProvider.getAsInt() != REPEAT_OFF || !isAtEndOfQueue(queueStateSnapshot);
     }
 
     @Override
@@ -65,5 +65,10 @@ final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManag
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
         return playbackQueueManager.queueStateSnapshot();
+    }
+
+    private static boolean isAtEndOfQueue(PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot) {
+        return queueStateSnapshot.getQueueSize() > 0
+                && queueStateSnapshot.getCurrentIndex() >= queueStateSnapshot.getQueueSize() - 1;
     }
 }

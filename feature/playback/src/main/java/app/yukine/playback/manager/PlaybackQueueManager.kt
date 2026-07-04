@@ -42,18 +42,6 @@ internal class PlaybackQueueManager(
         val currentIndex: Int,
         val queueSize: Int
     ) {
-        val isQueueEmpty: Boolean
-            get() = queueSize <= 0
-
-        val hasCurrentTrack: Boolean
-            get() = currentTrack != null
-
-        val hasMultipleTracks: Boolean
-            get() = queueSize >= 2
-
-        val isAtEndOfQueue: Boolean
-            get() = queueSize > 0 && currentIndex >= queueSize - 1
-
         companion object {
             @JvmStatic
             fun empty(): QueueStateSnapshot = QueueStateSnapshot(
@@ -250,7 +238,11 @@ internal class PlaybackQueueManager(
         if (repeatMode() == REPEAT_ONE) {
             return PlaybackCompletionDecision.REPEAT_CURRENT
         }
-        if (repeatMode() == REPEAT_OFF && queueStateSnapshot().isAtEndOfQueue) {
+        val snapshot = queueStateSnapshot()
+        if (repeatMode() == REPEAT_OFF
+            && snapshot.queueSize > 0
+            && snapshot.currentIndex >= snapshot.queueSize - 1
+        ) {
             return PlaybackCompletionDecision.STOP_AT_END
         }
         return PlaybackCompletionDecision.ADVANCE_TO_NEXT

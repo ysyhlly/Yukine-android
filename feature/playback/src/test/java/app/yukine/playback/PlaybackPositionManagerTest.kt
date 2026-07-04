@@ -8,6 +8,7 @@ import app.yukine.playback.manager.PlaybackQueueManager
 import app.yukine.playback.manager.PlaybackQueueStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.util.function.LongSupplier
 
@@ -106,16 +107,19 @@ class PlaybackPositionManagerTest {
     }
 
     @Test
-    fun stateProviderFromPlaybackStateHandlesMissingQueueManager() {
-        val missingProvider = PlaybackPositionManager.stateProviderFromPlaybackState(null)
-        val nullTrackProvider = PlaybackPositionManager.stateProviderFromPlaybackState(
-            null
-        )
-        nullTrackProvider.bindPlaybackQueueManager(queueManagerWithCurrent(null))
+    fun stateProviderFromPlaybackStateRequiresBindingButAllowsEmptyQueueManager() {
+        val unboundProvider = PlaybackPositionManager.stateProviderFromPlaybackState(null)
+        val emptyQueueProvider = PlaybackPositionManager.stateProviderFromPlaybackState(null)
+        emptyQueueProvider.bindPlaybackQueueManager(queueManagerWithCurrent(null))
 
-        assertEquals(null, missingProvider.currentTrack())
-        assertEquals(0L, missingProvider.positionMs())
-        assertEquals(null, nullTrackProvider.currentTrack())
+        assertEquals(
+            "playbackQueueManager",
+            assertThrows(IllegalStateException::class.java) {
+                unboundProvider.currentTrack()
+            }.message
+        )
+        assertEquals(0L, unboundProvider.positionMs())
+        assertEquals(null, emptyQueueProvider.currentTrack())
     }
 
     @Test
@@ -125,7 +129,12 @@ class PlaybackPositionManagerTest {
             LongSupplier { 420L }
         )
 
-        assertEquals(null, provider.currentTrack())
+        assertEquals(
+            "playbackQueueManager",
+            assertThrows(IllegalStateException::class.java) {
+                provider.currentTrack()
+            }.message
+        )
 
         provider.bindPlaybackQueueManager(queueManagerWithCurrent(track))
 

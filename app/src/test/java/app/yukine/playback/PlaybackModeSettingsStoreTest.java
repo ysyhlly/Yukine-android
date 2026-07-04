@@ -11,8 +11,8 @@ import static app.yukine.playback.PlaybackRepeatMode.REPEAT_ALL;
 import static app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF;
 import static app.yukine.playback.PlaybackRepeatMode.REPEAT_ONE;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public final class PlaybackModeSettingsStoreTest {
     @Test
@@ -51,16 +51,15 @@ public final class PlaybackModeSettingsStoreTest {
     }
 
     @Test
-    public void nullRuntimeFallsBackToPersistedDefaults() {
-        FakeModeSettings settings = new FakeModeSettings();
-        PlaybackModeSettingsStore store = new PlaybackModeSettingsStore(settings);
+    public void runtimeStateManagerIsRequiredForModeState() {
+        PlaybackModeSettingsStore store = new PlaybackModeSettingsStore(new FakeModeSettings());
 
-        store.setShuffleEnabled(null, true);
-        store.setRepeatMode(null, REPEAT_OFF);
-        store.cycleRepeatMode(null);
-
-        assertFalse(settings.savedShuffle);
-        assertEquals(REPEAT_ALL, settings.savedRepeatMode);
+        assertRequiresRuntimeStateManager(() -> store.restoreInto(null));
+        assertRequiresRuntimeStateManager(() -> store.setShuffleEnabled(null, true));
+        assertRequiresRuntimeStateManager(() -> store.setRepeatMode(null, REPEAT_OFF));
+        assertRequiresRuntimeStateManager(() -> store.cycleRepeatMode(null));
+        assertRequiresRuntimeStateManager(() -> store.applyPlaybackModeToPlayer(null));
+        assertRequiresRuntimeStateManager(() -> store.repeatMode(null));
     }
 
     @Test
@@ -76,19 +75,22 @@ public final class PlaybackModeSettingsStoreTest {
     }
 
     @Test
-    public void applyPlaybackModeIgnoresMissingRuntimeStateOwner() {
-        new PlaybackModeSettingsStore(new FakeModeSettings()).applyPlaybackModeToPlayer(null);
-    }
-
-    @Test
-    public void repeatModeReadsRuntimeStateOrDefault() {
+    public void repeatModeReadsRuntimeState() {
         PlaybackRuntimeStateManager runtime = runtimeStateManager();
         PlaybackModeSettingsStore store = new PlaybackModeSettingsStore(new FakeModeSettings());
 
         runtime.setRepeatMode(REPEAT_ONE);
 
         assertEquals(REPEAT_ONE, store.repeatMode(runtime));
-        assertEquals(REPEAT_ALL, store.repeatMode(null));
+    }
+
+    private static void assertRequiresRuntimeStateManager(Runnable action) {
+        try {
+            action.run();
+            fail("Expected NullPointerException");
+        } catch (NullPointerException expected) {
+            assertEquals("runtimeStateManager", expected.getMessage());
+        }
     }
 
     private static PlaybackRuntimeStateManager runtimeStateManager() {

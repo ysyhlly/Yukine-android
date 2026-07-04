@@ -3,6 +3,8 @@ package app.yukine.playback;
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 
+import java.util.Objects;
+
 final class PlaybackRuntimeSettingsStore {
     interface RuntimeSettings {
         boolean loadReplayGainEnabled();
@@ -25,71 +27,61 @@ final class PlaybackRuntimeSettingsStore {
     }
 
     void restoreInto(PlaybackRuntimeStateManager runtimeStateManager) {
-        if (runtimeStateManager == null) {
-            return;
-        }
-        runtimeStateManager.setReplayGainEnabled(runtimeSettings.loadReplayGainEnabled());
-        runtimeStateManager.setConcurrentPlaybackEnabled(runtimeSettings.loadConcurrentPlaybackEnabled());
-        runtimeStateManager.setPlaybackSpeed(runtimeSettings.loadPlaybackSpeed());
-        runtimeStateManager.setAppVolume(runtimeSettings.loadAppVolume());
+        PlaybackRuntimeStateManager runtime = requireRuntimeStateManager(runtimeStateManager);
+        runtime.setReplayGainEnabled(runtimeSettings.loadReplayGainEnabled());
+        runtime.setConcurrentPlaybackEnabled(runtimeSettings.loadConcurrentPlaybackEnabled());
+        runtime.setPlaybackSpeed(runtimeSettings.loadPlaybackSpeed());
+        runtime.setAppVolume(runtimeSettings.loadAppVolume());
     }
 
     void setPlaybackSpeed(PlaybackRuntimeStateManager runtimeStateManager, float speed) {
-        if (runtimeStateManager != null) {
-            runtimeStateManager.setPlaybackSpeed(speed);
-        }
+        requireRuntimeStateManager(runtimeStateManager).setPlaybackSpeed(speed);
     }
 
     void setAppVolume(PlaybackRuntimeStateManager runtimeStateManager, float volume) {
-        if (runtimeStateManager != null) {
-            runtimeStateManager.setAppVolume(volume);
-        }
+        requireRuntimeStateManager(runtimeStateManager).setAppVolume(volume);
     }
 
     void setConcurrentPlaybackEnabled(PlaybackRuntimeStateManager runtimeStateManager, boolean enabled) {
-        if (runtimeStateManager != null) {
-            runtimeStateManager.setConcurrentPlaybackEnabled(enabled);
-        }
+        requireRuntimeStateManager(runtimeStateManager).setConcurrentPlaybackEnabled(enabled);
     }
 
     void setReplayGainEnabled(PlaybackRuntimeStateManager runtimeStateManager, boolean enabled) {
-        if (runtimeStateManager != null) {
-            runtimeStateManager.setReplayGainEnabled(enabled);
-        }
+        requireRuntimeStateManager(runtimeStateManager).setReplayGainEnabled(enabled);
     }
 
     float playbackSpeed(PlaybackRuntimeStateManager runtimeStateManager) {
-        return runtimeStateManager == null ? 1.0f : runtimeStateManager.playbackSpeed();
+        return requireRuntimeStateManager(runtimeStateManager).playbackSpeed();
     }
 
     float appVolume(PlaybackRuntimeStateManager runtimeStateManager) {
-        return runtimeStateManager == null ? 1.0f : runtimeStateManager.appVolume();
+        return requireRuntimeStateManager(runtimeStateManager).appVolume();
     }
 
     boolean concurrentPlaybackEnabled(PlaybackRuntimeStateManager runtimeStateManager) {
-        return runtimeStateManager != null && runtimeStateManager.concurrentPlaybackEnabled();
+        return requireRuntimeStateManager(runtimeStateManager).concurrentPlaybackEnabled();
     }
 
     float currentTrackVolume(PlaybackRuntimeStateManager runtimeStateManager) {
-        return runtimeStateManager == null ? 1.0f : runtimeStateManager.currentTrackVolume();
+        return requireRuntimeStateManager(runtimeStateManager).currentTrackVolume();
     }
 
     void applyPlaybackParametersToPlayer(PlaybackRuntimeStateManager runtimeStateManager) {
-        if (runtimeStateManager != null) {
-            runtimeStateManager.applyPlaybackParametersToPlayer();
-        }
+        requireRuntimeStateManager(runtimeStateManager).applyPlaybackParametersToPlayer();
     }
 
     void applyCurrentTrackVolumeToPlayer(PlaybackRuntimeStateManager runtimeStateManager) {
-        if (runtimeStateManager != null) {
-            runtimeStateManager.applyCurrentTrackVolumeToPlayer();
-        }
+        requireRuntimeStateManager(runtimeStateManager).applyCurrentTrackVolumeToPlayer();
     }
 
     void applyAudioFocusHandling(PlaybackRuntimeStateManager runtimeStateManager) {
-        if (runtimeStateManager != null) {
-            runtimeStateManager.applyAudioFocusHandling();
-        }
+        requireRuntimeStateManager(runtimeStateManager).applyAudioFocusHandling();
+    }
+
+    private static PlaybackRuntimeStateManager requireRuntimeStateManager(
+            PlaybackRuntimeStateManager runtimeStateManager
+    ) {
+        return Objects.requireNonNull(runtimeStateManager, "runtimeStateManager");
     }
 
     private static final class RepositoryRuntimeSettings implements RuntimeSettings {

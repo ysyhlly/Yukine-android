@@ -5,6 +5,7 @@ import androidx.media3.datasource.cache.CacheDataSource;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Map;
+import java.util.Objects;
 
 import app.yukine.model.Track;
 
@@ -12,7 +13,9 @@ public interface PlaybackMediaCacheOperations {
     static PlaybackMediaCacheOperations fromMediaSourceProvider(
             PlaybackMediaSourceProvider mediaSourceProvider
     ) {
-        return new PlaybackMediaSourceProviderCacheOperations(mediaSourceProvider);
+        return new PlaybackMediaSourceProviderCacheOperations(
+                Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider")
+        );
     }
 
     boolean tracksShareResolvedUriForReuse(Track current, Track candidate);
@@ -34,23 +37,22 @@ final class PlaybackMediaSourceProviderCacheOperations implements PlaybackMediaC
     private final PlaybackMediaSourceProvider mediaSourceProvider;
 
     PlaybackMediaSourceProviderCacheOperations(PlaybackMediaSourceProvider mediaSourceProvider) {
-        this.mediaSourceProvider = mediaSourceProvider;
+        this.mediaSourceProvider = Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider");
     }
 
     @Override
     public boolean tracksShareResolvedUriForReuse(Track current, Track candidate) {
-        return mediaSourceProvider != null
-                && mediaSourceProvider.tracksShareResolvedUriForReuse(current, candidate);
+        return mediaSourceProvider.tracksShareResolvedUriForReuse(current, candidate);
     }
 
     @Override
     public long contentLengthForCacheKey(String cacheKey) {
-        return mediaSourceProvider == null ? -1L : mediaSourceProvider.contentLengthForCacheKey(cacheKey);
+        return mediaSourceProvider.contentLengthForCacheKey(cacheKey);
     }
 
     @Override
     public String cacheKeyForPrecache(Track track) {
-        if (mediaSourceProvider == null || !mediaSourceProvider.isHttpTrack(track)) {
+        if (!mediaSourceProvider.isHttpTrack(track)) {
             return null;
         }
         return mediaSourceProvider.cacheKeyForTrack(track);
@@ -58,8 +60,7 @@ final class PlaybackMediaSourceProviderCacheOperations implements PlaybackMediaC
 
     @Override
     public long probeSegmentedPrecacheContentLength(Track track, String cacheKey, long start, long length) {
-        if (mediaSourceProvider == null
-                || track == null
+        if (track == null
                 || track.contentUri == null
                 || cacheKey == null
                 || cacheKey.isEmpty()
@@ -98,7 +99,7 @@ final class PlaybackMediaSourceProviderCacheOperations implements PlaybackMediaC
 
     @Override
     public long cachedBytesInRange(String cacheKey, long position, long length) {
-        if (mediaSourceProvider == null || cacheKey == null || cacheKey.isEmpty() || length <= 0L) {
+        if (cacheKey == null || cacheKey.isEmpty() || length <= 0L) {
             return 0L;
         }
         try {
@@ -111,17 +112,12 @@ final class PlaybackMediaSourceProviderCacheOperations implements PlaybackMediaC
 
     @Override
     public CacheDataSource cacheDataSourceForTrack(Track track) {
-        if (mediaSourceProvider == null) {
-            throw new IllegalStateException("Media cache operations are unavailable");
-        }
         return mediaSourceProvider.cacheDataSourceForTrack(track);
     }
 
     @Override
     public void releaseAudioCache() {
-        if (mediaSourceProvider != null) {
-            mediaSourceProvider.releaseAudioCache();
-        }
+        mediaSourceProvider.releaseAudioCache();
     }
 
     static long totalBytesFromContentRange(String contentRange) {

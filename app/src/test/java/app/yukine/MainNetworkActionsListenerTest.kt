@@ -89,9 +89,7 @@ class MainNetworkActionsListenerTest {
     private class FakePlaybackGateway : NowPlayingPlaybackGateway {
         val calls = mutableListOf<String>()
 
-        override fun serviceConnected(): Boolean = true
         override fun snapshot(): PlaybackStateSnapshot? = null
-        override fun hasQueue(): Boolean = false
         override fun skipToPrevious() = Unit
         override fun skipToNext() = Unit
         override fun seekTo(positionMs: Long) = Unit

@@ -6,6 +6,7 @@ import androidx.media3.exoplayer.source.MediaSource;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -82,16 +83,14 @@ final class PlaybackCurrentTrackPreparationOwner {
             Runnable statePublisher,
             Consumer<Track> refusalLogger
     ) {
+        PlaybackMediaSourceProvider mediaSourceOwner =
+                Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider");
         return new PlaybackCurrentTrackPreparationOwner(
-                track -> mediaSourceProvider == null
-                        ? null
-                        : mediaSourceProvider.prepareTrackForPlayback(track),
-                track -> mediaSourceProvider == null
-                        ? null
-                        : mediaSourceProvider.mediaSourceForTrack(
-                                track,
-                                metadataProvider == null ? null : metadataProvider::apply
-                        ),
+                mediaSourceOwner::prepareTrackForPlayback,
+                track -> mediaSourceOwner.mediaSourceForTrack(
+                        track,
+                        metadataProvider == null ? null : metadataProvider::apply
+                ),
                 currentQueueTrackReplacer,
                 restoredPositionProvider,
                 runtimeStateController,

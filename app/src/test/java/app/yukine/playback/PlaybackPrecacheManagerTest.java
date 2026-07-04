@@ -4,6 +4,7 @@ import static app.yukine.playback.PlaybackRepeatMode.REPEAT_ALL;
 import static app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.fail;
 
 import android.content.Context;
 import android.net.Uri;
@@ -85,7 +86,8 @@ public final class PlaybackPrecacheManagerTest {
         PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
                 stateProvider,
                 stateProvider.diagnostics,
-                null,
+                queueManager(),
+                playbackRuntimeStateManager(),
                 mediaCacheOperations,
                 (mediaItem, track) -> false,
                 scheduler
@@ -97,6 +99,60 @@ public final class PlaybackPrecacheManagerTest {
         manager.release();
 
         assertEquals(1, mediaCacheOperations.releaseAudioCacheCalls);
+    }
+
+    @Test
+    public void constructorRequiresPlaybackQueueManager() {
+        try {
+            new PlaybackPrecacheManager(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+            );
+            fail("Expected NullPointerException");
+        } catch (NullPointerException error) {
+            assertEquals("playbackQueueManager", error.getMessage());
+        }
+    }
+
+    @Test
+    public void constructorRequiresPlaybackRuntimeStateManager() {
+        try {
+            new PlaybackPrecacheManager(
+                    null,
+                    null,
+                    queueManager(),
+                    null,
+                    null,
+                    null,
+                    null
+            );
+            fail("Expected NullPointerException");
+        } catch (NullPointerException error) {
+            assertEquals("playbackRuntimeStateManager", error.getMessage());
+        }
+    }
+
+    @Test
+    public void constructorRequiresMediaCacheOperations() {
+        try {
+            new PlaybackPrecacheManager(
+                    null,
+                    null,
+                    queueManager(),
+                    playbackRuntimeStateManager(),
+                    null,
+                    null,
+                    null
+            );
+            fail("Expected NullPointerException");
+        } catch (NullPointerException error) {
+            assertEquals("mediaCacheOperations", error.getMessage());
+        }
     }
 
     @Test
@@ -189,6 +245,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
+                playbackRuntimeStateManager(),
                 mediaCacheOperations,
                 null,
                 scheduler,
@@ -234,31 +291,6 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
-    public void missingMediaCacheOperationsDoesNotQueuePrecacheWork() {
-        FakeStateProvider stateProvider = new FakeStateProvider();
-        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
-        Track track = track(1L, "https://example.test/no-cache-owner.mp3");
-        PlaybackQueueManager queueManager = queueManager(track);
-        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
-                stateProvider,
-                stateProvider.diagnostics,
-                queueManager,
-                null,
-                null,
-                scheduler,
-                executor
-        );
-
-        stateProvider.currentTrack = track;
-        manager.precacheTrack(track);
-
-        assertEquals(0, stateProvider.diagnostics.snapshot().precacheAttempts);
-        assertEquals(0, scheduler.pendingCallbacks.size());
-        assertEquals(0, executor.submittedTasks.size());
-    }
-
-    @Test
     public void providerBackedMediaCacheOperationsOwnCacheKey() {
         Map<String, String> headers = Collections.singletonMap("Cookie", "token=abc");
         PlaybackMediaCacheOperations operations =
@@ -276,26 +308,23 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
-    public void nullMediaSourceProviderKeepsPrecacheFactoryAsSafeNoop() {
+    public void fromMediaSourceProviderRequiresMediaSourceProvider() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
-        PlaybackPrecacheManager manager = PlaybackPrecacheManager.fromMediaSourceProvider(
-                stateProvider,
-                stateProvider.diagnostics,
-                null,
-                null,
-                scheduler
-        );
-        Track track = track(42L, "https://example.test/audio.flac", "streaming:test:42");
 
-        stateProvider.currentTrack = track;
-        manager.precacheTrack(track);
-        manager.releaseAudioCache();
-        manager.release();
-
-        assertEquals(0, stateProvider.diagnostics.snapshot().precacheAttempts);
-        assertEquals(0, scheduler.pendingCallbacks.size());
-        assertEquals(0, scheduler.removedCallbacks);
+        try {
+            PlaybackPrecacheManager.fromMediaSourceProvider(
+                    stateProvider,
+                    stateProvider.diagnostics,
+                    queueManager(),
+                    playbackRuntimeStateManager(),
+                    null,
+                    scheduler
+            );
+            fail("Expected NullPointerException");
+        } catch (NullPointerException error) {
+            assertEquals("mediaSourceProvider", error.getMessage());
+        }
     }
 
     @Test
@@ -328,6 +357,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
+                playbackRuntimeStateManager(),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> {
                     matchedMediaItems.add(mediaItem);
@@ -369,6 +399,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
+                playbackRuntimeStateManager(),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> {
                     matchedMediaItems.add(mediaItem);
@@ -408,6 +439,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
+                playbackRuntimeStateManager(),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -441,6 +473,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
+                playbackRuntimeStateManager(),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -475,6 +508,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
+                playbackRuntimeStateManager(),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -521,6 +555,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
+                playbackRuntimeStateManager(),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler
@@ -644,6 +679,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
+                playbackRuntimeStateManager(),
                 mediaCacheOperations,
                 (mediaItem, matchedTrack) -> mediaCacheOperations.mediaItemMatchesForReuse,
                 scheduler,
@@ -691,7 +727,7 @@ public final class PlaybackPrecacheManagerTest {
             FakeStateProvider stateProvider,
             FakeCallbackScheduler scheduler
     ) {
-        return precacheManager(stateProvider, null, scheduler);
+        return precacheManager(stateProvider, queueManager(), scheduler);
     }
 
     private static PlaybackPrecacheManager precacheManager(
@@ -704,7 +740,7 @@ public final class PlaybackPrecacheManagerTest {
                 stateProvider,
                 stateProvider.diagnostics,
                 queueManager,
-                null,
+                playbackRuntimeStateManager(),
                 mediaSourceProvider,
                 scheduler
         );

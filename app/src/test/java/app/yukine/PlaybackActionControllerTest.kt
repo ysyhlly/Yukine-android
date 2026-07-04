@@ -92,9 +92,7 @@ class PlaybackActionControllerTest {
         val calls = mutableListOf<String>()
         private var snapshot = PlaybackStateSnapshot.empty()
 
-        override fun serviceConnected(): Boolean = true
         override fun snapshot(): PlaybackStateSnapshot? = snapshot
-        override fun hasQueue(): Boolean = false
         override fun skipToPrevious() {
             calls += "previous"
         }

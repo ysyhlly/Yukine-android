@@ -191,31 +191,17 @@ internal object PlaybackUiModule {
     @ActivityScoped
     fun provideMainPlaybackServiceHostFactory(): MainPlaybackServiceHostFactory =
         MainPlaybackServiceHostFactory {
-                playbackSpeedSource,
-                appVolumeSource,
-                concurrentPlaybackSource,
-                statusBarLyricsSource,
-                playbackRestoreSource,
-                replayGainSource,
+                playbackSettingsSource,
                 playbackServiceAttacher,
-                playbackServiceClearer,
-                playbackStoreResetter,
+                playbackServiceDetacher,
                 pendingTracksPlayer,
-                selectedTabRenderer,
-                nowBarRenderer ->
+                playbackChromeRenderer ->
             MainPlaybackServiceHost(
-                playbackSpeedSource,
-                appVolumeSource,
-                concurrentPlaybackSource,
-                statusBarLyricsSource,
-                playbackRestoreSource,
-                replayGainSource,
+                playbackSettingsSource,
                 playbackServiceAttacher,
-                playbackServiceClearer,
-                playbackStoreResetter,
+                playbackServiceDetacher,
                 pendingTracksPlayer,
-                selectedTabRenderer,
-                nowBarRenderer
+                playbackChromeRenderer
             )
         }
 }

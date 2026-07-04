@@ -2,6 +2,7 @@ package app.yukine.playback;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 
 import android.net.Uri;
 
@@ -31,8 +32,7 @@ public class PlaybackStateSnapshotOwnerTest {
                 new FakeRuntimeStateProvider(true, "buffering", true, 1, 1.25f, 0.75f),
                 () -> 9000L,
                 visualization,
-                () -> 0.4f,
-                3
+                () -> 0.4f
         );
 
         PlaybackStateSnapshot snapshot = owner.snapshot();
@@ -63,11 +63,10 @@ public class PlaybackStateSnapshotOwnerTest {
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
                 playbackQueueManager(),
                 null,
+                new FakeRuntimeStateProvider(false, "", false, 7, 1.0f, 1.0f),
                 null,
-                null,
-                null,
-                null,
-                7
+                FakeVisualizationProvider.empty(),
+                null
         );
 
         PlaybackStateSnapshot snapshot = owner.snapshot();
@@ -98,9 +97,42 @@ public class PlaybackStateSnapshotOwnerTest {
                 null,
                 null,
                 null,
-                null,
-                0
+                null
         );
+    }
+
+    @Test
+    public void constructorRequiresRuntimeStateProvider() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackStateSnapshotOwner(
+                        playbackQueueManager(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+
+        assertEquals("runtimeStateProvider", error.getMessage());
+    }
+
+    @Test
+    public void constructorRequiresVisualizationProvider() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackStateSnapshotOwner(
+                        playbackQueueManager(),
+                        null,
+                        new FakeRuntimeStateProvider(false, "", false, 0, 1.0f, 1.0f),
+                        null,
+                        null,
+                        null
+                )
+        );
+
+        assertEquals("visualizationProvider", error.getMessage());
     }
 
     @Test
@@ -109,11 +141,10 @@ public class PlaybackStateSnapshotOwnerTest {
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
                 playbackQueueManager(),
                 new FakePlaybackPositionProvider(0L, 0L, false),
+                new FakeRuntimeStateProvider(false, "", false, 0, 1.0f, 1.0f),
                 null,
-                null,
-                null,
-                beatProvider,
-                0
+                FakeVisualizationProvider.empty(),
+                beatProvider
         );
 
         PlaybackStateSnapshot snapshot = owner.snapshot();
@@ -149,26 +180,23 @@ public class PlaybackStateSnapshotOwnerTest {
     }
 
     @Test
-    public void runtimeStateProviderUsesDefaultsWhenRuntimeStateManagerIsMissing() {
-        PlaybackStateSnapshotOwner.RuntimeStateProvider provider =
-                PlaybackStateSnapshotOwner.fromRuntimeStateManager(null);
+    public void runtimeStateProviderRequiresPlaybackRuntimeStateManager() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> PlaybackStateSnapshotOwner.fromRuntimeStateManager(null)
+        );
 
-        assertEquals(false, provider.preparing());
-        assertEquals("", provider.errorMessage());
-        assertEquals(false, provider.shuffleEnabled());
-        assertEquals(0, provider.repeatMode());
-        assertEquals(1.0f, provider.playbackSpeed(), 0.001f);
-        assertEquals(1.0f, provider.appVolume(), 0.001f);
+        assertEquals("runtimeStateManager", error.getMessage());
     }
 
     @Test
-    public void visualizationProviderUsesEmptySnapshotsWhenAnalyzerIsMissing() {
-        PlaybackStateSnapshotOwner.VisualizationProvider provider =
-                PlaybackStateSnapshotOwner.fromVisualizationAnalyzer(null);
+    public void visualizationProviderRequiresVisualizationAnalyzer() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> PlaybackStateSnapshotOwner.fromVisualizationAnalyzer(null)
+        );
 
-        assertEquals(false, provider.shouldDeferPlaybackVisualization());
-        assertEquals(false, provider.waveformSnapshot(track(), 6000L, true).hasBars());
-        assertEquals(false, provider.spectrumSnapshot(track(), 6000L, true).hasBands());
+        assertEquals("playbackVisualizationAnalyzer", error.getMessage());
     }
 
     private static Track track() {
@@ -390,6 +418,14 @@ public class PlaybackStateSnapshotOwnerTest {
             this.waveform = waveform;
             this.spectrum = spectrum;
             this.deferGeneration = deferGeneration;
+        }
+
+        private static FakeVisualizationProvider empty() {
+            return new FakeVisualizationProvider(
+                    PlaybackWaveformSnapshot.empty(),
+                    PlaybackSpectrumSnapshot.empty(),
+                    false
+            );
         }
 
         @Override

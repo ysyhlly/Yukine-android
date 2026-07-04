@@ -2,6 +2,7 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
@@ -14,10 +15,12 @@ final class PlaybackCurrentTrackPreparationRuntimeOwner
     static PlaybackCurrentTrackPreparationRuntimeOwner fromRuntimeStateManager(
             PlaybackRuntimeStateManager runtimeStateManager
     ) {
+        PlaybackRuntimeStateManager runtimeStateOwner =
+                Objects.requireNonNull(runtimeStateManager, "runtimeStateManager");
         return new PlaybackCurrentTrackPreparationRuntimeOwner(
-                runtimeStateManager == null ? null : runtimeStateManager::setPreparing,
-                runtimeStateManager == null ? null : runtimeStateManager::setErrorMessage,
-                runtimeStateManager == null ? null : runtimeStateManager::preparing
+                runtimeStateOwner::setPreparing,
+                runtimeStateOwner::setErrorMessage,
+                runtimeStateOwner::preparing
         );
     }
 

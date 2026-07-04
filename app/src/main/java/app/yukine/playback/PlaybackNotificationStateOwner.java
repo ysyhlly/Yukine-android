@@ -34,7 +34,7 @@ final class PlaybackNotificationStateOwner implements PlaybackNotificationManage
 
     @Override
     public boolean isQueueEmpty() {
-        return queueStateSnapshot().isQueueEmpty();
+        return queueStateSnapshot().getQueueSize() <= 0;
     }
 
     @Override

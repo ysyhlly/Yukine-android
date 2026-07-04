@@ -4,6 +4,7 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -21,14 +22,8 @@ final class PlaybackQueueStreamingRestoreOwner implements PlaybackQueueManager.S
 
     PlaybackQueueStreamingRestoreOwner(PlaybackMediaSourceProvider mediaSourceProvider) {
         this(
-                track -> mediaSourceProvider == null
-                        ? null
-                        : mediaSourceProvider.restoredTrackForPreparation(track),
-                dataPath -> {
-                    if (mediaSourceProvider != null) {
-                        mediaSourceProvider.restoreHeadersForDataPath(dataPath);
-                    }
-                }
+                restoredTrackForPreparation(mediaSourceProvider),
+                restoreHeadersForDataPath(mediaSourceProvider)
         );
     }
 
@@ -45,5 +40,21 @@ final class PlaybackQueueStreamingRestoreOwner implements PlaybackQueueManager.S
             restoreHeadersForDataPath.accept(playbackTrack.dataPath);
         }
         return playbackTrack;
+    }
+
+    private static Function<Track, Track> restoredTrackForPreparation(
+            PlaybackMediaSourceProvider mediaSourceProvider
+    ) {
+        PlaybackMediaSourceProvider mediaSourceOwner =
+                Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider");
+        return mediaSourceOwner::restoredTrackForPreparation;
+    }
+
+    private static Consumer<String> restoreHeadersForDataPath(
+            PlaybackMediaSourceProvider mediaSourceProvider
+    ) {
+        PlaybackMediaSourceProvider mediaSourceOwner =
+                Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider");
+        return mediaSourceOwner::restoreHeadersForDataPath;
     }
 }

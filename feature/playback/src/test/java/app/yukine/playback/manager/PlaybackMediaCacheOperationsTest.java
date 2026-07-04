@@ -55,34 +55,15 @@ public final class PlaybackMediaCacheOperationsTest {
     }
 
     @Test
-    public void nullMediaSourceProviderReturnsSafeCacheNoops() {
-        PlaybackMediaCacheOperations operations =
-                PlaybackMediaCacheOperations.fromMediaSourceProvider(null);
-        Track track = track(1L);
-
-        assertFalse(operations.tracksShareResolvedUriForReuse(track, track));
-        assertEquals(-1L, operations.contentLengthForCacheKey("cache-key"));
-        assertNull(operations.cacheKeyForPrecache(track));
-        assertEquals(-1L, operations.probeSegmentedPrecacheContentLength(track, "cache-key", 0L, 512L));
-        assertEquals(0L, operations.cachedBytesInRange("cache-key", 0L, 512L));
-        assertEquals(0L, operations.cachedBytesInRange("", 0L, 512L));
-        assertEquals(0L, operations.cachedBytesInRange("cache-key", 0L, 0L));
-        operations.releaseAudioCache();
-    }
-
-    @Test
-    public void nullMediaSourceProviderRejectsCacheDataSourceCreation() {
-        PlaybackMediaCacheOperations operations =
-                PlaybackMediaCacheOperations.fromMediaSourceProvider(null);
-
+    public void fromMediaSourceProviderRequiresProvider() {
         try {
-            operations.cacheDataSourceForTrack(track(2L));
-        } catch (IllegalStateException expected) {
-            assertEquals("Media cache operations are unavailable", expected.getMessage());
+            PlaybackMediaCacheOperations.fromMediaSourceProvider(null);
+        } catch (NullPointerException expected) {
+            assertEquals("mediaSourceProvider", expected.getMessage());
             return;
         }
 
-        throw new AssertionError("Expected cacheDataSourceForTrack to reject a null provider");
+        throw new AssertionError("Expected media-source provider to be required");
     }
 
     @Test
