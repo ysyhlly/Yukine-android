@@ -455,12 +455,12 @@ public abstract class MainActivityBase extends ComponentActivity {
                         },
                         this::loadLyrics,
                         this::loadCollections,
-                        () -> nowPlayingStateController.renderNowBar(),
+                        this::renderNowBarIfReady,
                         snapshot -> homeDashboardViewModel.updatePlayback(snapshot),
                         this::renderSelectedTab,
                         this::updateNowPlayingContent,
-                        snapshot -> streamingPlaybackController.preResolveNextStreamingTrack(snapshot),
-                        snapshot -> streamingPlaybackController.recoverStreamingBuffering(snapshot),
+                        this::preResolveNextStreamingTrackIfReady,
+                        this::recoverStreamingBufferingIfReady,
                         this::resolveCurrentStreamingQueueTrackIfNeeded,
                         status -> statusMessageController.setStatus(status)
                 )
@@ -476,9 +476,9 @@ public abstract class MainActivityBase extends ComponentActivity {
                         service -> playbackService = service,
                         () -> playbackService = null,
                         () -> playbackStore.reset(),
-                        () -> playbackStartController.playPendingTracksIfNeeded(),
+                        this::playPendingTracksIfReady,
                         this::renderSelectedTab,
-                        () -> nowPlayingStateController.renderNowBar()
+                        this::renderNowBarIfReady
                 )
         );
         playbackServiceConnectionController = new PlaybackServiceConnectionController(
@@ -486,6 +486,30 @@ public abstract class MainActivityBase extends ComponentActivity {
                 playbackStateEventController,
                 playbackServiceHostController
         );
+    }
+
+    private void playPendingTracksIfReady() {
+        if (playbackStartController != null) {
+            playbackStartController.playPendingTracksIfNeeded();
+        }
+    }
+
+    private void renderNowBarIfReady() {
+        if (nowPlayingStateController != null) {
+            nowPlayingStateController.renderNowBar();
+        }
+    }
+
+    private void preResolveNextStreamingTrackIfReady(PlaybackStateSnapshot snapshot) {
+        if (streamingPlaybackController != null) {
+            streamingPlaybackController.preResolveNextStreamingTrack(snapshot);
+        }
+    }
+
+    private void recoverStreamingBufferingIfReady(PlaybackStateSnapshot snapshot) {
+        if (streamingPlaybackController != null) {
+            streamingPlaybackController.recoverStreamingBuffering(snapshot);
+        }
     }
 
     private void initializeNavigationRendering() {
