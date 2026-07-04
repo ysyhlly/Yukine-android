@@ -6896,7 +6896,13 @@ public final class MainActivityArchitectureContractTest {
                 "                        () -> playbackQueueManager,\n" +
                 "                        EchoPlaybackService.this::resetWaveformIfTrackChanged,"));
         assertFalse(service.contains("playbackQueueStateOwner::queueSnapshot"));
-        assertTrue(service.contains("playbackQueueManager.queueSnapshot()"));
+        assertEquals(1, countOccurrences(service, "playbackQueueManager.queueSnapshot()"));
+        assertTrue(service.contains("PlaybackQueueMirroredPlayerOwner.queueSnapshotProvider(() -> playbackQueueManager)"));
+        assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.queueSnapshotProvider(playbackQueueManager)"));
+        assertFalse(normalizedService.contains(
+                "() -> playbackQueueManager == null\n"
+                        + "                                        ? Collections.emptyList()\n"
+                        + "                                        : playbackQueueManager.queueSnapshot()"));
         assertFalse(normalizedService.contains(
                 "                        currentTrackSupplier,\n" +
                 "                        EchoPlaybackService.this::resetWaveformIfTrackChanged,"));
@@ -7579,7 +7585,8 @@ public final class MainActivityArchitectureContractTest {
                 playbackSourceFileNamesContaining("playbackQueueManagerSupplier?.get()?.queueStateSnapshot()"));
         assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("playbackQueueManager?.queueStateSnapshot()"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
-                "EchoPlaybackService.java"
+                "EchoPlaybackService.java",
+                "PlaybackQueueMirroredPlayerOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.queueSnapshot()"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackPrecacheManager.java"

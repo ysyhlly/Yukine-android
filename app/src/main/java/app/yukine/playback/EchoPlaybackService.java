@@ -446,9 +446,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                         PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
                                 playbackQueueRuntimeStateManager::playerMirrorsQueue,
                                 () -> player == null ? -1 : player.getMediaItemCount(),
-                                () -> playbackQueueManager == null
-                                        ? Collections.emptyList()
-                                        : playbackQueueManager.queueSnapshot(),
+                                PlaybackQueueMirroredPlayerOwner.queueSnapshotProvider(() -> playbackQueueManager),
                                 playbackMirroredQueueTrackMatcherOwner::matches
                         ),
                         () -> player != null,

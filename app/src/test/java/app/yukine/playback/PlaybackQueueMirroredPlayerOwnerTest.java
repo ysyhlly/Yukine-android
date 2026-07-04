@@ -2,8 +2,10 @@ package app.yukine.playback;
 
 import android.net.Uri;
 
+import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
+import app.yukine.playback.manager.PlaybackQueueStore;
 
 import org.junit.Test;
 
@@ -11,10 +13,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class PlaybackQueueMirroredPlayerOwnerTest {
     @Test
@@ -286,6 +290,40 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
         );
     }
 
+    @Test
+    public void queueSnapshotProviderDelegatesToQueueManagerAndToleratesMissingManager() {
+        FakeQueueStore store = new FakeQueueStore();
+        PlaybackQueueManager queueManager = queueManager(store);
+        Track track = track(11L);
+        queueManager.playQueue(Collections.singletonList(track), 0, -1L);
+        Supplier<List<Track>> provider =
+                PlaybackQueueMirroredPlayerOwner.queueSnapshotProvider(() -> queueManager);
+
+        List<Track> snapshot = provider.get();
+        assertEquals(Collections.singletonList(track), snapshot);
+        assertTrue(PlaybackQueueMirroredPlayerOwner.queueSnapshotProvider(null).get().isEmpty());
+        assertTrue(PlaybackQueueMirroredPlayerOwner.queueSnapshotProvider(() -> null).get().isEmpty());
+
+        try {
+            snapshot.clear();
+            fail("Expected queue snapshot to be defensive");
+        } catch (UnsupportedOperationException expected) {
+        }
+        assertEquals(Collections.singletonList(track), provider.get());
+    }
+
+    private static PlaybackQueueManager queueManager(FakeQueueStore store) {
+        return new PlaybackQueueManager(
+                store,
+                new NoopQueuePlaybackActions(),
+                null,
+                new NoopStreamingRestoreProvider(),
+                new NoopMirroredQueuePlayer(),
+                null,
+                null
+        );
+    }
+
     private static Track track(long id) {
         return new Track(
                 id,
@@ -302,6 +340,81 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
         return track == null
                 ? PlaybackQueueManager.QueueStateSnapshot.empty()
                 : new PlaybackQueueManager.QueueStateSnapshot(track, 0, 1);
+    }
+
+    private static final class FakeQueueStore implements PlaybackQueueStore {
+        @Override
+        public PlaybackQueueState load() {
+            return new PlaybackQueueState(Collections.emptyList(), -1);
+        }
+
+        @Override
+        public void save(List<Track> tracks, int currentIndex) {
+        }
+
+        @Override
+        public boolean loadResumeRequested() {
+            return false;
+        }
+
+        @Override
+        public void saveResumeRequested(boolean requested) {
+        }
+
+        @Override
+        public boolean loadPlaybackRestoreEnabled() {
+            return true;
+        }
+
+        @Override
+        public void savePlaybackRestoreEnabled(boolean enabled) {
+        }
+
+        @Override
+        public long loadPlaybackPositionTrackId() {
+            return -1L;
+        }
+
+        @Override
+        public long loadPlaybackPositionMs() {
+            return 0L;
+        }
+
+        @Override
+        public void savePlaybackPosition(long trackId, long positionMs) {
+        }
+    }
+
+    private static final class NoopQueuePlaybackActions
+            implements PlaybackQueueManager.QueuePlaybackActions {
+        @Override
+        public void prepareCurrent(boolean playWhenReady) {
+        }
+
+        @Override
+        public void publishState() {
+        }
+    }
+
+    private static final class NoopStreamingRestoreProvider
+            implements PlaybackQueueManager.StreamingRestoreProvider {
+        @Override
+        public Track restoreTrackForPlayback(Track track) {
+            return track;
+        }
+    }
+
+    private static final class NoopMirroredQueuePlayer
+            implements PlaybackQueueManager.MirroredQueuePlayer {
+        @Override
+        public boolean matchesCurrentQueue() {
+            return false;
+        }
+
+        @Override
+        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
+            return false;
+        }
     }
 
 }

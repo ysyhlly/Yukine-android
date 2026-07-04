@@ -8,6 +8,7 @@ import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -36,6 +37,19 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
                 queueSnapshotProvider,
                 queueTrackMatcher
         );
+    }
+
+    static Supplier<List<Track>> queueSnapshotProvider(
+            Supplier<PlaybackQueueManager> queueManagerSource
+    ) {
+        return () -> {
+            PlaybackQueueManager playbackQueueManager = queueManagerSource == null
+                    ? null
+                    : queueManagerSource.get();
+            return playbackQueueManager == null
+                    ? Collections.emptyList()
+                    : playbackQueueManager.queueSnapshot();
+        };
     }
 
     PlaybackQueueMirroredPlayerOwner(
