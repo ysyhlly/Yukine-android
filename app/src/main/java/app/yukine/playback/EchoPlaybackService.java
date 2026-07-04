@@ -113,8 +113,6 @@ public final class EchoPlaybackService extends MediaLibraryService
     private PlaybackQueueManager playbackQueueManager;
     private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier =
             () -> playbackQueueManager == null ? null : playbackQueueManager.queueStateSnapshot();
-    private final PlaybackQueueStateOwner playbackQueueStateOwner =
-            new PlaybackQueueStateOwner(queueStateSnapshotSupplier);
     private final PlaybackQueueRuntimeStateManager playbackQueueRuntimeStateManager =
             new PlaybackQueueRuntimeStateManager();
     private final PlaybackQueueCommandOwner playbackQueueCommandOwner =
@@ -426,7 +424,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 );
         final PlaybackLyricsStateOwner playbackLyricsStateOwner = new PlaybackLyricsStateOwner(
                 () -> appVisible,
-                playbackQueueStateOwner,
+                queueStateSnapshotSupplier,
                 playbackPlayerStateOwner::isPlaying,
                 playbackCurrentTrackPreparationRuntimeOwner::preparing
         );

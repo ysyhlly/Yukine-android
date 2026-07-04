@@ -509,18 +509,18 @@ public final class MainActivityArchitectureContractTest {
                 "feature/playback/src/main/java/app/yukine/playback/manager/PlaybackMediaSourceProvider.kt"
         );
 
-        assertEquals(40, countFiles("app/src/main/java/app/yukine/playback", "Playback*Owner.java"));
+        assertEquals(39, countFiles("app/src/main/java/app/yukine/playback", "Playback*Owner.java"));
         assertTrue(
                 "EchoPlaybackService should not add more Playback* fields without a narrower owner/interface slice",
                 countPrivatePlaybackFields(service) <= 40
         );
         assertTrue(
                 "EchoPlaybackService should not grow Playback* wiring fields, including final initialized fields",
-                countPrivatePlaybackFieldDeclarations(service, false) <= 51
+                countPrivatePlaybackFieldDeclarations(service, false) <= 50
         );
         assertTrue(
                 "EchoPlaybackService should not grow Playback*Owner wiring fields, including final initialized fields",
-                countPrivatePlaybackFieldDeclarations(service, true) <= 21
+                countPrivatePlaybackFieldDeclarations(service, true) <= 20
         );
         assertFalse(exists("app/src/main/java/app/yukine/playback/PlaybackMediaSourceResolutionOwner.java"));
         assertFalse(exists("app/src/test/java/app/yukine/playback/PlaybackMediaSourceResolutionOwnerTest.java"));
@@ -6077,7 +6077,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackService.contains("                playbackLyricsStateOwner,"));
         assertFalse(playbackService.contains("PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState("));
         assertTrue(normalizedPlaybackService.contains(
-                "                playbackQueueStateOwner,\n" +
+                "                queueStateSnapshotSupplier,\n" +
                         "                playbackPlayerStateOwner::isPlaying,\n" +
                         "                playbackCurrentTrackPreparationRuntimeOwner::preparing"));
         assertFalse(normalizedPlaybackService.contains(
@@ -6100,9 +6100,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(lyricsStateOwner.contains("interface PlaybackStateProvider"));
         assertFalse(lyricsStateOwner.contains("static PlaybackStateProvider playbackStateProviderFromPlaybackState("));
         assertTrue(lyricsStateOwner.contains("import java.util.function.BooleanSupplier;"));
-        assertFalse(lyricsStateOwner.contains("import java.util.function.Supplier;"));
+        assertTrue(lyricsStateOwner.contains("import java.util.function.Supplier;"));
+        assertTrue(lyricsStateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertTrue(lyricsStateOwner.contains("private final BooleanSupplier appVisibilitySupplier;"));
-        assertTrue(lyricsStateOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertFalse(lyricsStateOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertTrue(lyricsStateOwner.contains(
+                "private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;"));
         assertTrue(lyricsStateOwner.contains("private final BooleanSupplier playingStateProvider;"));
         assertTrue(lyricsStateOwner.contains("private final BooleanSupplier preparingStateProvider;"));
         assertTrue(lyricsStateOwner.contains("return appVisibilitySupplier.getAsBoolean();"));
@@ -6111,8 +6114,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(lyricsStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = queueStateProvider.queueStateSnapshot();"));
         assertFalse(lyricsStateOwner.contains("Supplier<Track> currentTrackSupplier"));
         assertFalse(lyricsStateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
-        assertTrue(lyricsStateOwner.contains("PlaybackQueueStateOwner queueStateOwner"));
-        assertTrue(lyricsStateOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertFalse(lyricsStateOwner.contains("PlaybackQueueStateOwner queueStateOwner"));
+        assertFalse(lyricsStateOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertTrue(lyricsStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
+        assertTrue(lyricsStateOwner.contains(
+                "return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;"));
         assertFalse(lyricsStateOwner.contains("return playbackStateProvider.currentTrack();"));
         assertFalse(lyricsStateOwner.contains("return playbackStateProvider.isPlaying();"));
         assertFalse(lyricsStateOwner.contains("return playbackStateProvider.isPreparing();"));
@@ -6247,7 +6253,6 @@ public final class MainActivityArchitectureContractTest {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String normalizedService = service.replace("\r\n", "\n");
         String queueManagerOwner = read("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackQueueManager.kt");
-        String queueStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueStateOwner.java");
         String queueStoreOwner = read("app/src/main/java/app/yukine/playback/manager/PlaybackQueueStore.kt");
         String positionOwner = read("feature/playback/src/main/java/app/yukine/playback/manager/PlaybackPositionManager.kt");
         String currentPreparationQueueOwner = read(
@@ -6373,9 +6378,6 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(positionOwner.contains("override fun currentTrack(): Track? = playbackQueueManager?.queueStateSnapshot()?.currentTrack"));
         assertFalse(positionOwner.contains("queueStateSupplier?.get()?.currentTrack"));
         assertTrue(positionOwner.contains("override fun positionMs(): Long = playbackPositionSupplier?.asLong ?: 0L"));
-        assertTrue(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot>"));
-        assertFalse(queueStateOwner.contains("public PlaybackQueueManager.QueueStateSnapshot get()"));
-        assertFalse(queueStateOwner.contains("return queueStateSnapshot();"));
     }
 
     @Test
@@ -6990,7 +6992,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("\n        fun seekMirroredQueueToCurrentIndex(playWhenReady: Boolean): Boolean"));
         assertFalse(owner.contains("\n        fun playbackPositionMs(): Long"));
         assertTrue(owner.contains("fun currentTrack(): Track?"));
-        String queueStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueStateOwner.java");
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackQueueStateOwner.java")));
+        assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackQueueStateOwnerTest.java")));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackCurrentTrackOwner.java")));
         assertFalse(service.contains("PlaybackCurrentTrackOwner"));
         assertFalse(service.contains("playbackCurrentTrackOwner"));
@@ -7002,15 +7005,6 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueCommandOwner.hasCurrentTrack()"));
         assertFalse(service.contains("playbackQueueStateOwner.currentTrack()"));
         assertFalse(service.contains("playbackQueueManager.currentTrack();"));
-        assertTrue(queueStateOwner.contains("Track currentTrack()"));
-        assertTrue(queueStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
-        assertFalse(queueStateOwner.contains("int currentIndex()"));
-        assertFalse(queueStateOwner.contains("return queueStateSnapshot().getCurrentIndex();"));
-        assertFalse(queueStateOwner.contains("int queueSize()"));
-        assertFalse(queueStateOwner.contains("return queueStateSnapshot().getQueueSize();"));
-        assertFalse(queueStateOwner.contains("public PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
-        assertTrue(queueStateOwner.contains("private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
-        assertFalse(queueStateOwner.contains("playbackQueueManager::currentTrack"));
         assertFalse(service.contains("return queue.get(currentIndex());"));
         assertTrue(owner.contains("fun queueSnapshot(): List<Track>"));
         assertTrue(owner.contains("Collections.unmodifiableList(ArrayList(queue))"));
@@ -7019,17 +7013,6 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueSnapshotOwner"));
         assertFalse(service.contains("return playbackQueueStateOwner.queueSnapshot();"));
         assertTrue(service.contains("return playbackQueueManager == null ? Collections.emptyList() : playbackQueueManager.queueSnapshot();"));
-        assertFalse(queueStateOwner.contains("interface QueueSnapshotOperations"));
-        assertFalse(queueStateOwner.contains("interface QueueSnapshotOperationsProvider"));
-        assertFalse(queueStateOwner.contains("Supplier<List<Track>> queueSnapshotSupplier"));
-        assertTrue(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier"));
-        assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
-        assertFalse(queueStateOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
-        assertFalse(queueStateOwner.contains("queueSnapshotOperationsProvider"));
-        assertFalse(queueStateOwner.contains("List<Track> queueSnapshot()"));
-        assertFalse(queueStateOwner.contains("playbackQueueManager.queueSnapshot();"));
-        assertFalse(queueStateOwner.contains("return snapshot == null ? Collections.emptyList() : snapshot;"));
-        assertFalse(queueStateOwner.contains("default List<Track> queueSnapshot()"));
         assertFalse(service.contains("Collections.unmodifiableList(new ArrayList<>(queue))"));
         assertFalse(service.contains("return new ArrayList<>(queue);"));
         assertTrue(owner.contains("fun queueStateSnapshot(): QueueStateSnapshot"));
@@ -7046,33 +7029,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("get() = queueSize >= 2"));
         assertTrue(owner.contains("val isAtEndOfQueue: Boolean"));
         assertTrue(owner.contains("get() = queueSize > 0 && currentIndex >= queueSize - 1"));
-        assertTrue(service.contains("private final PlaybackQueueStateOwner playbackQueueStateOwner"));
-        assertTrue(service.contains("new PlaybackQueueStateOwner("));
+        assertFalse(service.contains("private final PlaybackQueueStateOwner playbackQueueStateOwner"));
+        assertFalse(service.contains("new PlaybackQueueStateOwner("));
         assertTrue(service.contains(
                 "private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier ="));
-        assertTrue(service.contains("new PlaybackQueueStateOwner(queueStateSnapshotSupplier);"));
+        assertFalse(service.contains("new PlaybackQueueStateOwner(queueStateSnapshotSupplier);"));
         assertTrue(service.contains(
                 "() -> playbackQueueManager == null ? null : playbackQueueManager.queueStateSnapshot()"));
         assertFalse(service.contains("new PlaybackQueueStateOwner()"));
-        assertFalse(queueStateOwner.contains("PlaybackQueueStateOwner()"));
         assertFalse(service.contains("playbackQueueStateOwner.bindPlaybackQueueManager(playbackQueueManager);"));
         assertFalse(service.contains("PlaybackQueueStateOwner.fromPlaybackQueueManager("));
-        assertFalse(queueStateOwner.contains("static PlaybackQueueStateOwner fromPlaybackQueueManager("));
-        assertTrue(queueStateOwner.contains("import java.util.function.Supplier;"));
-        assertTrue(queueStateOwner.contains(
-                "private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;"));
-        assertFalse(queueStateOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
-        assertFalse(queueStateOwner.contains("PlaybackQueueStateOwner(PlaybackQueueManager playbackQueueManager)"));
-        assertTrue(queueStateOwner.contains(
-                "PlaybackQueueStateOwner(Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier)"));
-        assertFalse(queueStateOwner.contains("PlaybackQueueStateOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier)"));
-        assertFalse(queueStateOwner.contains("this(() -> playbackQueueManager);"));
-        assertFalse(queueStateOwner.contains("void bindPlaybackQueueManager("));
-        assertFalse(queueStateOwner.contains("return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();"));
-        assertFalse(queueStateOwner.contains("boolean isQueueEmpty()"));
-        assertFalse(queueStateOwner.contains("boolean hasMultipleTracks()"));
-        assertFalse(queueStateOwner.contains("boolean isAtEndOfQueue()"));
-        assertTrue(queueStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
         assertFalse(service.contains("playbackQueueStateOwner::isQueueEmpty"));
         assertFalse(service.contains("playbackQueueStateOwner::hasMultipleTracks"));
         assertFalse(service.contains("playbackQueueStateOwner::isAtEndOfQueue"));
@@ -7090,40 +7056,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("                queueStateSupplier,"));
         assertFalse(service.contains("                playbackQueueStateOwner::canSkipFailedTrack,"));
         assertEquals(1, countOccurrences(service, "playbackQueueManager.queueStateSnapshot()"));
-        assertFalse(queueStateOwner.contains("final class PlaybackQueueStateOwner implements"));
-        assertTrue(queueStateOwner.contains("final class PlaybackQueueStateOwner {"));
-        assertFalse(queueStateOwner.contains("PlaybackNotificationStateOwner.QueueStateProvider"));
-        assertFalse(queueStateOwner.contains("PlaybackStateSnapshotOwner.QueueStateProvider"));
-        assertFalse(queueStateOwner.contains("PlaybackCrossfadeStateOwner.QueueStateProvider"));
-        assertFalse(queueStateOwner.contains("interface PlaybackQueueManagerProvider"));
-        assertTrue(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier"));
-        assertFalse(queueStateOwner.contains("Supplier<PlaybackQueueManager.QueueStateSnapshot> fallbackQueueStateSnapshotSupplier"));
-        assertFalse(queueStateOwner.contains("PlaybackQueueStateOwner(Supplier<PlaybackQueueManager>"));
-        assertTrue(queueStateOwner.contains("PlaybackQueueStateOwner(Supplier<PlaybackQueueManager.QueueStateSnapshot>"));
-        assertFalse(queueStateOwner.contains("fallbackQueueStateSnapshot"));
-        assertFalse(queueStateOwner.contains("playbackQueueManagerProvider"));
-        assertEquals(0, countOccurrences(queueStateOwner, "    interface "));
-        assertEquals(0, countOccurrences(queueStateOwner, "interface QueueStateOperations"));
-        assertEquals(0, countOccurrences(queueStateOwner, "interface QueueSnapshotOperations"));
-        assertEquals(0, countOccurrences(queueStateOwner, "interface UpcomingTracksOperations"));
-        assertFalse(queueStateOwner.contains("interface QueueOperations"));
-        assertFalse(queueStateOwner.contains("interface QueueReadOperations"));
-        assertFalse(queueStateOwner.contains("interface QueueProvider"));
-        assertFalse(queueStateOwner.contains("interface QueueStateOperations"));
-        assertFalse(queueStateOwner.contains("interface QueueStateOperationsProvider"));
-        assertFalse(queueStateOwner.contains("Supplier<QueueStateOperations> queueStateOperationsSupplier"));
-        assertFalse(queueStateOwner.contains("queueStateOperationsProvider"));
-        assertFalse(queueStateOwner.contains("playbackQueueManager.queueStateSnapshot();"));
-        assertFalse(queueStateOwner.contains("interface UpcomingTracksOperations"));
-        assertFalse(queueStateOwner.contains("interface UpcomingTracksOperationsProvider"));
-        assertFalse(queueStateOwner.contains("IntFunction<List<Track>> upcomingTracksSupplier"));
-        assertFalse(queueStateOwner.contains("upcomingTracksOperationsProvider"));
-        assertFalse(queueStateOwner.contains("upcomingTracksForPrecache(int maxCount)"));
-        assertFalse(queueStateOwner.contains(
-                "playbackQueueManager.upcomingTracksForPrecache(maxCount);"));
-        assertFalse(queueStateOwner.contains("new QueueStateOperations()"));
-        assertFalse(queueStateOwner.contains("default List<Track> upcomingTracksForPrecache(int maxCount)"));
-        assertTrue(queueStateOwner.contains("return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;"));
+        assertFalse(service.contains("PlaybackQueueStateOwner"));
+        assertFalse(service.contains("playbackQueueStateOwner"));
         assertFalse(owner.contains("fun canCrossfadeAdvance(repeatMode: Int): Boolean"));
         assertFalse(owner.contains("private fun safeCurrentIndex(): Int"));
         assertTrue(owner.contains("startIndex = currentIndex()"));
@@ -7159,9 +7093,6 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(stateSnapshotOwner.contains("private final PlaybackQueueStateOwner queueStateOwner"));
         assertFalse(stateSnapshotOwner.contains("PlaybackQueueStateOwner queueStateOwner"));
         assertFalse(stateSnapshotOwner.contains("playbackQueueStateOwner"));
-        assertFalse(queueStateOwner.contains("PlaybackStateSnapshotOwner.QueueStateProvider"));
-        assertFalse(queueStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshotForPlaybackState"));
-        assertFalse(queueStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot queueStateSnapshotForPlaybackState"));
         assertFalse(stateSnapshotOwner.contains("queueStateOwner.queueStateSnapshot()"));
         assertFalse(service.contains("new PlaybackQueueManager.QueueStateSnapshot(null, -1, 0, true, false, false, true)"));
         assertFalse(service.contains("private boolean isQueueEmpty()"));
@@ -7471,16 +7402,18 @@ public final class MainActivityArchitectureContractTest {
     public void playbackQueueStateWiringKeepsOnlyWhitelistedCurrentTrackSuppliers() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String normalizedService = service.replace("\r\n", "\n");
-        String queueStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueStateOwner.java");
 
         assertTrue(service.contains(
                 "private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier ="));
-        assertTrue(service.contains("new PlaybackQueueStateOwner(queueStateSnapshotSupplier);"));
+        assertFalse(service.contains("new PlaybackQueueStateOwner(queueStateSnapshotSupplier);"));
         assertTrue(service.contains(
                 "() -> playbackQueueManager == null ? null : playbackQueueManager.queueStateSnapshot()"));
         assertEquals(1, countOccurrences(service, "playbackQueueManager.queueStateSnapshot()"));
         assertEquals(0, countOccurrences(service, "playbackQueueManager::queueStateSnapshot"));
         assertEquals(0, countOccurrences(service, "playbackQueueStateOwner::queueStateSnapshot"));
+        assertEquals(0, countOccurrences(service, "playbackQueueStateOwner"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackQueueStateOwner.java")));
+        assertFalse(Files.exists(Path.of("app/src/test/java/app/yukine/playback/PlaybackQueueStateOwnerTest.java")));
         assertTrue(service.contains(
                 "playbackNotificationStateOwner = new PlaybackNotificationStateOwner(\n"
                         + "                queueStateSnapshotSupplier,"));
@@ -7511,8 +7444,6 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueueStateOwner.currentTrack()"));
         assertFalse(service.contains("playbackQueueStateOwner.queueStateSnapshot().getCurrentTrack()"));
 
-        assertFalse(queueStateOwner.contains("interface QueueProvider"));
-        assertFalse(queueStateOwner.contains("PlaybackQueueManager.QueueProvider"));
         assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("PlaybackQueueManager.QueueProvider"));
         assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("interface QueueProvider"));
         assertEquals(new java.util.TreeSet<>(), playbackSourceFileNamesContaining("PlaybackMediaSourceResolutionOwner"));
@@ -8110,7 +8041,6 @@ public final class MainActivityArchitectureContractTest {
         String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackErrorRecoveryManager.kt");
         String queueOwner = read("app/src/main/java/app/yukine/playback/manager/PlaybackQueueManager.kt");
         String queueNavigationOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueNavigationOwner.java");
-        String queueStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueStateOwner.java");
 
         assertFalse(service.contains("Retrying streaming track after error"));
         assertFalse(service.contains("Skipping unplayable track"));
@@ -8141,12 +8071,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("fun hasMultipleQueueTracks(): Boolean"));
         assertFalse(owner.contains("actions.hasMultipleQueueTracks()"));
         assertFalse(queueOwner.contains("fun canSkipFailedTrack(failed: Track?): Boolean"));
-        assertFalse(queueStateOwner.contains("PlaybackErrorRecoveryCommandOwner.FailedTrackPolicy"));
-        assertFalse(queueStateOwner.contains("public boolean canSkipFailedTrack("));
-        assertFalse(queueStateOwner.contains("boolean canSkipFailedTrack("));
-        assertFalse(queueStateOwner.contains("failed != null && failed.id != -1L && queueStateSnapshot().getHasMultipleTracks()"));
-        assertFalse(queueStateOwner.contains("boolean hasMultipleTracks()"));
-        assertFalse(queueStateOwner.contains("boolean isAtEndOfQueue()"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackQueueStateOwner.java")));
         assertFalse(owner.contains("fun queueSize(): Int"));
         assertFalse(owner.contains("actions.queueSize() > 1"));
         assertTrue(owner.contains("fun onPlaybackReady()"));
@@ -8837,7 +8762,6 @@ public final class MainActivityArchitectureContractTest {
         String owner = read("app/src/main/java/app/yukine/playback/manager/PlaybackQueueRuntimeStateManager.kt");
         String queueOwner = read("app/src/main/java/app/yukine/playback/manager/PlaybackQueueManager.kt");
         String queueCompletionOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueCompletionOwner.java");
-        String queueStateOwner = read("app/src/main/java/app/yukine/playback/PlaybackQueueStateOwner.java");
 
         assertFalse(service.contains("private boolean playerMirrorsQueue"));
         assertFalse(service.contains("private int currentIndex ="));
@@ -8887,10 +8811,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("fun setCurrentIndex(index: Int)"));
         assertFalse(owner.contains("fun clampCurrentIndex(queueSize: Int): Int"));
         assertFalse(owner.contains("fun setClampedCurrentIndex(index: Int, queueSize: Int)"));
-        assertFalse(queueStateOwner.contains("upcomingTracksForPrecache(int maxCount)"));
-        assertFalse(queueStateOwner.contains(
-                "playbackQueueManager.upcomingTracksForPrecache(maxCount);"));
-        assertFalse(queueStateOwner.contains("default List<Track> upcomingTracksForPrecache(int maxCount)"));
+        assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackQueueStateOwner.java")));
         assertTrue(queueOwner.contains("private var currentIndex = -1"));
         assertTrue(queueOwner.contains("private fun currentIndex(): Int"));
         assertFalse(queueOwner.contains("\n    fun currentIndex(): Int"));
@@ -8922,8 +8843,6 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackQueueCommandOwner.prepareCurrent(true);"));
         assertFalse(service.contains("playbackQueueCommandOwner.hasCurrentTrack()"));
         assertFalse(service.contains("playbackQueueManager.currentTrack()"));
-        assertTrue(queueStateOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
-        assertFalse(queueStateOwner.contains("playbackQueueManager::currentTrack"));
         assertFalse(queueOwner.contains("fun clampCurrentIndex(queueSize: Int): Int"));
         assertFalse(queueOwner.contains("fun setClampedCurrentIndex(index: Int, queueSize: Int)"));
     }
