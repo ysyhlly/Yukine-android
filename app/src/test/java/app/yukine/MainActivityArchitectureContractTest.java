@@ -404,6 +404,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackControllers.contains("                        this::showClearQueueConfirmationIfReady,\n"));
         assertTrue(playbackControllers.contains("                this::playRecommendationIfReady,\n"));
         assertTrue(playbackControllers.contains("                this::playHeartbeatRecommendationIfReady,\n"));
+        assertTrue(playbackControllers.contains("                this::languageModeIfReady,\n"));
         assertTrue(playbackControllers.contains("                        this::renderNowBarIfReady,\n"));
         assertTrue(playbackControllers.contains("                        this::renderSelectedTabIfReady,\n"));
         assertTrue(playbackControllers.contains(
@@ -421,6 +422,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackControllers.contains("                        () -> confirmationDialogController.confirmClearQueue(),\n"));
         assertFalse(playbackControllers.contains("                presentation -> playbackStartController.playRecommendation(presentation),\n"));
         assertFalse(playbackControllers.contains("                presentation -> playbackStartController.playHeartbeatRecommendation(presentation),\n"));
+        assertFalse(playbackControllers.contains("                () -> settingsStore.languageMode(),\n"));
         assertFalse(playbackControllers.contains("                        () -> nowPlayingStateController.renderNowBar(),\n"));
         assertFalse(playbackControllers.contains("                        this::renderSelectedTab,\n"));
         assertFalse(playbackControllers.contains("                        () -> AppLanguage.text(settingsStore.languageMode(), \"queue.empty\"),\n"));
@@ -1891,8 +1893,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(streamingDailyRecommendationUseCase.contains("tracks = repository.dailyRecommendations(provider)"));
         assertTrue(streamingDailyRecommendationUseCase.contains("diagnostics = repository.diagnostics()"));
         assertTrue(mainActivity.contains("heartbeatRecommendationController = new HeartbeatRecommendationController("));
-        assertTrue(mainActivity.contains("streamingRecommendationViewModel,\n                () -> settingsStore.languageMode(),")
-                || mainActivity.contains("streamingRecommendationViewModel,\r\n                () -> settingsStore.languageMode(),"));
+        assertTrue(mainActivity.contains("streamingRecommendationViewModel,\n                this::languageModeIfReady,")
+                || mainActivity.contains("streamingRecommendationViewModel,\r\n                this::languageModeIfReady,"));
         assertTrue(mainActivity.contains("private HeartbeatRecommendationSeedBinder heartbeatSeedBinder"));
         assertTrue(mainActivity.contains("heartbeatSeedBinder = new HeartbeatRecommendationSeedBinder("));
         assertTrue(mainActivity.contains("provider -> heartbeatSeedBinder == null"));
@@ -1930,6 +1932,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("new HeartbeatRecommendationBindings("));
         assertFalse(mainActivity.contains("new HeartbeatRecommendationController(streamingRecommendationViewModel, () -> settingsStore.languageMode(), new HeartbeatRecommendationController.Listener()"));
         assertFalse(mainActivity.contains("new HeartbeatRecommendationController(streamingRecommendationViewModel, () -> settingsStore.languageMode(), new HeartbeatRecommendationController.Listener"));
+        assertFalse(mainActivity.contains("streamingRecommendationViewModel,\n                () -> settingsStore.languageMode(),")
+                || mainActivity.contains("streamingRecommendationViewModel,\r\n                () -> settingsStore.languageMode(),"));
         assertTrue(mainActivity.contains("@Inject MainHeartbeatRecommendationListenerFactory heartbeatRecommendationListenerFactory;"));
         assertTrue(mainActivity.contains("heartbeatRecommendationListenerFactory.create("));
         assertTrue(mainActivity.contains("() -> playbackService != null"));

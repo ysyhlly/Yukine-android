@@ -674,7 +674,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         heartbeatRecommendationController = new HeartbeatRecommendationController(
                 streamingRecommendationViewModel,
-                () -> settingsStore.languageMode(),
+                this::languageModeIfReady,
                 heartbeatRecommendationListenerFactory.create(
                         () -> playbackService != null,
                         provider -> heartbeatSeedBinder == null
