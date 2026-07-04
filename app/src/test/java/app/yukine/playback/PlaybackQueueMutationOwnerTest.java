@@ -75,6 +75,19 @@ public class PlaybackQueueMutationOwnerTest {
     }
 
     @Test
+    public void requiresStopAndClearAction() {
+        try {
+            new PlaybackQueueMutationOwner(
+                    queueManager(new FakeQueueStore(), new FakeQueuePlaybackActions(), null),
+                    null
+            );
+        } catch (NullPointerException expected) {
+            return;
+        }
+        throw new AssertionError("Expected constructor to require a stop and clear action");
+    }
+
+    @Test
     public void ignoresEmptyQueueMutationInputs() {
         FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
         PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);

@@ -17,7 +17,7 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
             Runnable stopAndClearAction
     ) {
         this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.stopAndClearAction = stopAndClearAction;
+        this.stopAndClearAction = Objects.requireNonNull(stopAndClearAction, "stopAndClearAction");
     }
 
     @Override
@@ -83,9 +83,7 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
     }
 
     private void stopAndClear() {
-        if (stopAndClearAction != null) {
-            stopAndClearAction.run();
-        }
+        stopAndClearAction.run();
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {

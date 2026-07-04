@@ -7150,6 +7150,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueMutationOwner.contains("private final Runnable stopAndClearAction;"));
         assertTrue(queueMutationOwner.contains(
                 "this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, \"playbackQueueManager\");"));
+        assertTrue(queueMutationOwner.contains(
+                "this.stopAndClearAction = Objects.requireNonNull(stopAndClearAction, \"stopAndClearAction\");"));
+        assertFalse(queueMutationOwner.contains("if (stopAndClearAction != null)"));
         assertTrue(queueMutationOwner.contains("private void stopAndClear()"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.playQueue(tracks, startIndex, startPositionMs);"));
         assertTrue(queueMutationOwner.contains("playbackQueueManager.appendToQueue(tracks);"));
