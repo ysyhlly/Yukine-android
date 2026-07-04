@@ -135,6 +135,49 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     }
 
     @Test
+    public void queuePreparationPreservesCurrentTrackWhenMediaSourceBoundaryReturnsNull() {
+        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), null);
+        Track first = playableTrack(41L);
+        Track second = playableTrack(42L);
+        List<List<Track>> requestedTracks = new ArrayList<>();
+        queueManager.playQueue(Arrays.asList(first, second), 1, -1L);
+        PlaybackCurrentTrackPreparationQueueOwner owner =
+                new PlaybackCurrentTrackPreparationQueueOwner(
+                        queueManager,
+                        tracks -> {
+                            requestedTracks.add(new ArrayList<>(tracks));
+                            return null;
+                        }
+                );
+
+        PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
+                owner.queuePreparationForNewPlayer();
+
+        assertSame(second, queuePreparation.currentTrack());
+        assertEquals(1, queuePreparation.startIndex());
+        assertEquals(null, queuePreparation.mirroredQueueMediaSources());
+        assertEquals(1, requestedTracks.size());
+        assertEquals(Arrays.asList(first, second), requestedTracks.get(0));
+    }
+
+    @Test
+    public void queuePreparationPreservesCurrentTrackWhenMediaSourceBoundaryIsMissing() {
+        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), null);
+        Track first = playableTrack(51L);
+        Track second = playableTrack(52L);
+        queueManager.playQueue(Arrays.asList(first, second), 1, -1L);
+        PlaybackCurrentTrackPreparationQueueOwner owner =
+                new PlaybackCurrentTrackPreparationQueueOwner(queueManager, null);
+
+        PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
+                owner.queuePreparationForNewPlayer();
+
+        assertSame(second, queuePreparation.currentTrack());
+        assertEquals(1, queuePreparation.startIndex());
+        assertEquals(null, queuePreparation.mirroredQueueMediaSources());
+    }
+
+    @Test
     public void missingQueueManagerAndMediaResolverSkipsQueueActions() {
         PlaybackCurrentTrackPreparationQueueOwner owner =
                 new PlaybackCurrentTrackPreparationQueueOwner(null, null);
