@@ -26,8 +26,4 @@ final class PlaybackQueueStateOwner {
     Track currentTrack() {
         return queueStateSnapshot().getCurrentTrack();
     }
-
-    boolean isQueueEmpty() {
-        return queueStateSnapshot().isQueueEmpty();
-    }
 }

@@ -7062,7 +7062,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(queueStateOwner.contains("this(() -> playbackQueueManager);"));
         assertFalse(queueStateOwner.contains("void bindPlaybackQueueManager("));
         assertFalse(queueStateOwner.contains("return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();"));
-        assertTrue(queueStateOwner.contains("boolean isQueueEmpty()"));
+        assertFalse(queueStateOwner.contains("boolean isQueueEmpty()"));
         assertFalse(queueStateOwner.contains("boolean hasMultipleTracks()"));
         assertFalse(queueStateOwner.contains("boolean isAtEndOfQueue()"));
         assertTrue(queueStateOwner.contains("PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
@@ -7196,10 +7196,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mirroredTransitionWiring.contains(
                 "new PlaybackQueueMirroredTransitionOwner(\n"
                         + "                            playbackQueueManager,\n"
-                        + "                            playbackQueueStateOwner,\n"
+                        + "                            queueStateSnapshotSupplier,\n"
                         + "                            EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer,"
         ));
-        assertTrue(mirroredTransitionWiring.contains("playbackQueueStateOwner,"));
+        assertFalse(mirroredTransitionWiring.contains("playbackQueueStateOwner,"));
+        assertTrue(mirroredTransitionWiring.contains("queueStateSnapshotSupplier,"));
         assertFalse(mirroredTransitionWiring.contains("() -> playbackQueueStateOwner.queueStateSnapshot()"));
         assertTrue(service.contains("private void applyCurrentTrackVolumeToPlayer()"));
         assertTrue(service.contains(
@@ -7226,17 +7227,18 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mirroredTransitionOwner.contains("private final BooleanSupplier playerMirrorsQueue;"));
         assertFalse(mirroredTransitionOwner.contains("private final BooleanSupplier queueEmptySupplier;"));
         assertFalse(mirroredTransitionOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier;"));
+        assertTrue(mirroredTransitionOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;"));
         assertFalse(mirroredTransitionOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
         assertFalse(mirroredTransitionOwner.contains("QueueStateProvider queueStateProvider"));
-        assertTrue(mirroredTransitionOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
-        assertFalse(mirroredTransitionOwner.contains("private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
+        assertFalse(mirroredTransitionOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
+        assertTrue(mirroredTransitionOwner.contains("private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot()"));
         assertFalse(mirroredTransitionOwner.contains("playbackQueueManager.queueStateSnapshot();"));
         assertFalse(mirroredTransitionOwner.contains(": queueStateOwner.queueStateSnapshot();"));
-        assertFalse(mirroredTransitionOwner.contains("return mirrorsQueue && !queueSnapshot.isQueueEmpty();"));
-        assertTrue(mirroredTransitionOwner.contains("boolean queueEmpty = queueStateOwner == null || queueStateOwner.isQueueEmpty();"));
-        assertTrue(mirroredTransitionOwner.contains("return mirrorsQueue && !queueEmpty;"));
-        assertTrue(mirroredTransitionOwner.contains("currentTrack = queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
-        assertFalse(mirroredTransitionOwner.contains("currentTrack = queueStateSnapshot().getCurrentTrack();"));
+        assertTrue(mirroredTransitionOwner.contains("return mirrorsQueue && !queueStateSnapshot().isQueueEmpty();"));
+        assertFalse(mirroredTransitionOwner.contains("boolean queueEmpty = queueStateOwner == null || queueStateOwner.isQueueEmpty();"));
+        assertFalse(mirroredTransitionOwner.contains("return mirrorsQueue && !queueEmpty;"));
+        assertFalse(mirroredTransitionOwner.contains("currentTrack = queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
+        assertTrue(mirroredTransitionOwner.contains("currentTrack = queueStateSnapshot().getCurrentTrack();"));
         assertTrue(mirroredTransitionOwner.contains("boolean canApplyMirroredTransition()"));
         assertTrue(mirroredTransitionOwner.contains("static final class Transition"));
         assertTrue(mirroredTransitionOwner.contains("Track currentTrack()"));

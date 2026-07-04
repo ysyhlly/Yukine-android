@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 import org.junit.Test;
 
@@ -45,7 +46,7 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner owner =
                 new PlaybackQueueMirroredTransitionOwner(
                         queueManager,
-                        queueStateOwner(queueManager),
+                        queueStateSnapshotSupplier(queueManager),
                         () -> events.add("applyVolume"),
                         null
                 );
@@ -84,7 +85,7 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner owner =
                 new PlaybackQueueMirroredTransitionOwner(
                         queueManager,
-                        queueStateOwner(queueManager),
+                        queueStateSnapshotSupplier(queueManager),
                         () -> events.add("applyVolume"),
                         null
                 );
@@ -114,7 +115,7 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner missingManager =
                 new PlaybackQueueMirroredTransitionOwner(
                         null,
-                        queueStateOwner(null),
+                        queueStateSnapshotSupplier(null),
                         () -> events.add("applyVolume"),
                         null
                 );
@@ -140,7 +141,7 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner owner =
                 new PlaybackQueueMirroredTransitionOwner(
                         queueManager,
-                        queueStateOwner(queueManager),
+                        queueStateSnapshotSupplier(queueManager),
                         () -> events.add("applyVolume"),
                         null
                 );
@@ -176,7 +177,7 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner owner =
                 new PlaybackQueueMirroredTransitionOwner(
                         queueManager,
-                        queueStateOwner(queueManager),
+                        queueStateSnapshotSupplier(queueManager),
                         null,
                         null
                 );
@@ -218,21 +219,21 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         PlaybackQueueMirroredTransitionOwner readyOwner =
                 new PlaybackQueueMirroredTransitionOwner(
                         readyManager,
-                        queueStateOwner(readyManager),
+                        queueStateSnapshotSupplier(readyManager),
                         null,
                         () -> true
                 );
         PlaybackQueueMirroredTransitionOwner notMirroredOwner =
                 new PlaybackQueueMirroredTransitionOwner(
                         readyManager,
-                        queueStateOwner(readyManager),
+                        queueStateSnapshotSupplier(readyManager),
                         null,
                         () -> false
                 );
         PlaybackQueueMirroredTransitionOwner emptyQueueOwner =
                 new PlaybackQueueMirroredTransitionOwner(
                         emptyManager,
-                        queueStateOwner(emptyManager),
+                        queueStateSnapshotSupplier(emptyManager),
                         null,
                         () -> true
                 );
@@ -312,8 +313,10 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         );
     }
 
-    private static PlaybackQueueStateOwner queueStateOwner(PlaybackQueueManager queueManager) {
-        return new PlaybackQueueStateOwner(queueManager::queueStateSnapshot);
+    private static Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier(
+            PlaybackQueueManager queueManager
+    ) {
+        return queueManager == null ? null : queueManager::queueStateSnapshot;
     }
 
     private static final class FakeQueueStore implements PlaybackQueueStore {

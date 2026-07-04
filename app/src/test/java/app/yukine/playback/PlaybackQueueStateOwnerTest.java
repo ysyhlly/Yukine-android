@@ -2,7 +2,6 @@ package app.yukine.playback;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
 
 import android.net.Uri;
 
@@ -33,7 +32,6 @@ public class PlaybackQueueStateOwnerTest {
         PlaybackQueueStateOwner owner = queueStateOwner(queueManager);
 
         assertSame(track, owner.currentTrack());
-        assertFalse(owner.isQueueEmpty());
     }
 
     @Test
@@ -48,12 +46,9 @@ public class PlaybackQueueStateOwnerTest {
         });
 
         assertSame(null, owner.currentTrack());
-        assertTrue(owner.isQueueEmpty());
-
         queueManagerRef.set(queueManager);
 
         assertSame(track, owner.currentTrack());
-        assertFalse(owner.isQueueEmpty());
     }
 
     @Test
@@ -66,7 +61,6 @@ public class PlaybackQueueStateOwnerTest {
         PlaybackQueueStateOwner owner = queueStateOwner(queueManager);
 
         assertSame(second, owner.currentTrack());
-        assertFalse(owner.isQueueEmpty());
     }
 
     @Test
@@ -105,7 +99,6 @@ public class PlaybackQueueStateOwnerTest {
         PlaybackQueueStateOwner missingManager = new PlaybackQueueStateOwner();
 
         assertSame(null, missingManager.currentTrack());
-        assertTrue(missingManager.isQueueEmpty());
     }
 
     @Test
@@ -113,18 +106,6 @@ public class PlaybackQueueStateOwnerTest {
         PlaybackQueueStateOwner missingManager = new PlaybackQueueStateOwner();
 
         assertSame(null, missingManager.currentTrack());
-    }
-
-    @Test
-    public void isQueueEmptyIsDerivedFromLatestQueueStateWithoutLocalState() {
-        PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
-        PlaybackQueueStateOwner owner = queueStateOwner(queueManager);
-
-        assertTrue(owner.isQueueEmpty());
-
-        queueManager.playQueue(Collections.singletonList(track(41L)), 0, -1L);
-
-        assertFalse(owner.isQueueEmpty());
     }
 
     private static Track track(long id) {
