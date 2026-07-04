@@ -18,7 +18,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.function.BooleanSupplier;
-import java.util.function.Supplier;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -39,7 +38,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                     return true;
                 },
                 preparing -> events.add("preparing:" + preparing),
-                playbackQueueManagerSupplier(track),
+                queueStateOwner(track),
                 resetTrack -> events.add("waveform:" + resetTrack.id),
                 () -> events.add("apply"),
                 (index, positionMs) -> events.add("seek:" + index + ":" + positionMs),
@@ -75,7 +74,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 () -> true,
                 () -> false,
                 preparing -> events.add("preparing"),
-                playbackQueueManagerSupplier(track(1L)),
+                queueStateOwner(track(1L)),
                 track -> events.add("waveform"),
                 () -> events.add("apply"),
                 (index, positionMs) -> events.add("seek"),
@@ -96,7 +95,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 () -> true,
                 () -> true,
                 preparing -> events.add("preparing:" + preparing),
-                playbackQueueManagerSupplier(null),
+                queueStateOwner(null),
                 track -> events.add("waveform"),
                 () -> events.add("apply"),
                 (index, positionMs) -> events.add("seek:" + index + ":" + positionMs),
@@ -132,7 +131,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                     return false;
                 },
                 preparing -> events.add("preparing"),
-                playbackQueueManagerSupplier(track(1L)),
+                queueStateOwner(track(1L)),
                 track -> events.add("waveform"),
                 () -> events.add("apply"),
                 (index, positionMs) -> events.add("seek"),
@@ -153,7 +152,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 () -> true,
                 () -> true,
                 preparing -> events.add("preparing:" + preparing),
-                playbackQueueManagerSupplier(null),
+                queueStateOwner(null),
                 track -> events.add("waveform"),
                 () -> events.add("apply"),
                 (index, positionMs) -> {
@@ -306,12 +305,12 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
         );
     }
 
-    private static Supplier<PlaybackQueueManager> playbackQueueManagerSupplier(Track track) {
+    private static PlaybackQueueStateOwner queueStateOwner(Track track) {
         PlaybackQueueManager queueManager = playbackQueueManager(playbackRuntimeStateManager());
         if (track != null) {
             queueManager.playQueue(Collections.singletonList(track), 0, -1L);
         }
-        return () -> queueManager;
+        return new PlaybackQueueStateOwner(queueManager);
     }
 
     private static PlaybackQueueManager playbackQueueManager(
