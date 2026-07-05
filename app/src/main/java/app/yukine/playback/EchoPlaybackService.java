@@ -981,6 +981,45 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     @OptIn(markerClass = UnstableApi.class)
+    private void preparePlayer(
+            Track track,
+            final boolean playWhenReady,
+            final long startPositionMs,
+            final boolean mirrored,
+            final Runnable applyMedia
+    ) {
+        playbackCurrentTrackPreparationRuntimeOwner().beginPreparing();
+        createPlayerIfNeeded();
+        playbackTransitionStateManager.setLastMarkedTrack(null);
+        resetWaveformIfTrackChanged(track);
+        postponePlaybackVisualizationWarmup();
+        applyPlaybackParametersToPlayer();
+        applyMedia.run();
+        if (mirrored) {
+            playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(true);
+        } else {
+            playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false);
+        }
+        player.setPlayWhenReady(playWhenReady);
+        try {
+            player.prepare();
+            playbackWarmupCoordinator.warmup(track);
+            if (!mirrored && startPositionMs > 0L) {
+                player.seekTo(startPositionMs);
+            }
+            playbackPositionManager.consumeRestoredPositionAfterPrepare(startPositionMs);
+            publishState();
+            playbackNotificationCommandOwner.publishPlaybackNotification(true);
+        } catch (IllegalStateException error) {
+            Log.w(TAG, "Unable to prepare " + (mirrored ? "mirrored queue for " : "player for ")
+                    + playbackErrorRecoveryCommandOwner.debugTrack(track), error);
+            playbackCurrentTrackPreparationRuntimeOwner().markUnableToOpenCurrentTrack();
+            releasePlaybackPlayerResources();
+            publishState();
+        }
+    }
+
+    @OptIn(markerClass = UnstableApi.class)
     private void prepareMirroredQueue(
             final boolean playWhenReady,
             PlaybackCurrentTrackPreparationOwner.PreparedTrack preparedTrack
@@ -1000,29 +1039,11 @@ public final class EchoPlaybackService extends MediaLibraryService
             prepareSingleTrack(preparedTrack.track(), preparedTrack.mediaSource(), playWhenReady, startPositionMs);
             return;
         }
-        playbackCurrentTrackPreparationRuntimeOwner().beginPreparing();
-        createPlayerIfNeeded();
-        playbackTransitionStateManager.setLastMarkedTrack(null);
-        resetWaveformIfTrackChanged(track);
-        postponePlaybackVisualizationWarmup();
-        applyPlaybackParametersToPlayer();
-        player.clearMediaItems();
-        player.setMediaSources(mediaSources, queuePreparation.startIndex(), Math.max(0L, startPositionMs));
-        playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(true);
-        player.setPlayWhenReady(playWhenReady);
-        try {
-            player.prepare();
-            playbackWarmupCoordinator.warmup(track);
-            playbackPositionManager.consumeRestoredPositionAfterPrepare(startPositionMs);
-            publishState();
-            playbackNotificationCommandOwner.publishPlaybackNotification(true);
-        } catch (IllegalStateException error) {
-            Log.w(TAG, "Unable to prepare mirrored queue for "
-                    + playbackErrorRecoveryCommandOwner.debugTrack(track), error);
-            playbackCurrentTrackPreparationRuntimeOwner().markUnableToOpenCurrentTrack();
-            releasePlaybackPlayerResources();
-            publishState();
-        }
+        final int startIndex = queuePreparation.startIndex();
+        preparePlayer(track, playWhenReady, startPositionMs, true, () -> {
+            player.clearMediaItems();
+            player.setMediaSources(mediaSources, startIndex, Math.max(0L, startPositionMs));
+        });
     }
 
     @OptIn(markerClass = UnstableApi.class)
@@ -1032,33 +1053,11 @@ public final class EchoPlaybackService extends MediaLibraryService
             final boolean playWhenReady,
             final long startPositionMs
     ) {
-        playbackCurrentTrackPreparationRuntimeOwner().beginPreparing();
-        createPlayerIfNeeded();
-        playbackTransitionStateManager.setLastMarkedTrack(null);
-        resetWaveformIfTrackChanged(track);
-        postponePlaybackVisualizationWarmup();
-        player.stop();
-        player.clearMediaItems();
-        playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false);
-        applyPlaybackParametersToPlayer();
-        player.setMediaSource(mediaSource);
-        player.setPlayWhenReady(playWhenReady);
-        try {
-            player.prepare();
-            playbackWarmupCoordinator.warmup(track);
-            if (startPositionMs > 0L) {
-                player.seekTo(startPositionMs);
-            }
-            playbackPositionManager.consumeRestoredPositionAfterPrepare(startPositionMs);
-            publishState();
-            playbackNotificationCommandOwner.publishPlaybackNotification(true);
-        } catch (IllegalStateException error) {
-            Log.w(TAG, "Unable to prepare player for "
-                    + playbackErrorRecoveryCommandOwner.debugTrack(track), error);
-            playbackCurrentTrackPreparationRuntimeOwner().markUnableToOpenCurrentTrack();
-            releasePlaybackPlayerResources();
-            publishState();
-        }
+        preparePlayer(track, playWhenReady, startPositionMs, false, () -> {
+            player.stop();
+            player.clearMediaItems();
+            player.setMediaSource(mediaSource);
+        });
     }
 
     private void releasePlayer() {
