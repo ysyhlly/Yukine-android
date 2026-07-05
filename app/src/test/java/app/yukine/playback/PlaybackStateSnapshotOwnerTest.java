@@ -59,14 +59,14 @@ public class PlaybackStateSnapshotOwnerTest {
     }
 
     @Test
-    public void fallsBackToEmptySnapshotPiecesWhenDependenciesAreMissing() {
+    public void buildsEmptyQueueSnapshotFromRequiredProviders() {
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
                 playbackQueueManager(),
-                null,
+                new FakePlaybackPositionProvider(0L, 0L, false),
                 new FakeRuntimeStateProvider(false, "", false, 7, 1.0f, 1.0f),
-                null,
+                () -> 0L,
                 FakeVisualizationProvider.empty(),
-                null
+                () -> 0.4f
         );
 
         PlaybackStateSnapshot snapshot = owner.snapshot();
@@ -107,15 +107,49 @@ public class PlaybackStateSnapshotOwnerTest {
                 NullPointerException.class,
                 () -> new PlaybackStateSnapshotOwner(
                         playbackQueueManager(),
+                        new FakePlaybackPositionProvider(0L, 0L, false),
                         null,
-                        null,
-                        null,
-                        null,
-                        null
+                        () -> 0L,
+                        FakeVisualizationProvider.empty(),
+                        () -> 0f
                 )
         );
 
         assertEquals("runtimeStateProvider", error.getMessage());
+    }
+
+    @Test
+    public void constructorRequiresPlaybackPositionProvider() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackStateSnapshotOwner(
+                        playbackQueueManager(),
+                        null,
+                        new FakeRuntimeStateProvider(false, "", false, 0, 1.0f, 1.0f),
+                        () -> 0L,
+                        FakeVisualizationProvider.empty(),
+                        () -> 0f
+                )
+        );
+
+        assertEquals("playbackPositionProvider", error.getMessage());
+    }
+
+    @Test
+    public void constructorRequiresSleepTimerProvider() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackStateSnapshotOwner(
+                        playbackQueueManager(),
+                        new FakePlaybackPositionProvider(0L, 0L, false),
+                        new FakeRuntimeStateProvider(false, "", false, 0, 1.0f, 1.0f),
+                        null,
+                        FakeVisualizationProvider.empty(),
+                        () -> 0f
+                )
+        );
+
+        assertEquals("sleepTimerProvider", error.getMessage());
     }
 
     @Test
@@ -124,15 +158,32 @@ public class PlaybackStateSnapshotOwnerTest {
                 NullPointerException.class,
                 () -> new PlaybackStateSnapshotOwner(
                         playbackQueueManager(),
-                        null,
+                        new FakePlaybackPositionProvider(0L, 0L, false),
                         new FakeRuntimeStateProvider(false, "", false, 0, 1.0f, 1.0f),
+                        () -> 0L,
                         null,
-                        null,
-                        null
+                        () -> 0f
                 )
         );
 
         assertEquals("visualizationProvider", error.getMessage());
+    }
+
+    @Test
+    public void constructorRequiresRealtimeBeatProvider() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackStateSnapshotOwner(
+                        playbackQueueManager(),
+                        new FakePlaybackPositionProvider(0L, 0L, false),
+                        new FakeRuntimeStateProvider(false, "", false, 0, 1.0f, 1.0f),
+                        () -> 0L,
+                        FakeVisualizationProvider.empty(),
+                        null
+                )
+        );
+
+        assertEquals("realtimeBeatProvider", error.getMessage());
     }
 
     @Test
@@ -142,7 +193,7 @@ public class PlaybackStateSnapshotOwnerTest {
                 playbackQueueManager(),
                 new FakePlaybackPositionProvider(0L, 0L, false),
                 new FakeRuntimeStateProvider(false, "", false, 0, 1.0f, 1.0f),
-                null,
+                () -> 0L,
                 FakeVisualizationProvider.empty(),
                 beatProvider
         );

@@ -2847,12 +2847,29 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(stateSnapshotOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertTrue(stateSnapshotOwner.contains(
                 "this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, \"playbackQueueManager\");"));
+        assertTrue(stateSnapshotOwner.contains(
+                "this.playbackPositionProvider = Objects.requireNonNull("));
+        assertTrue(stateSnapshotOwner.contains("\"playbackPositionProvider\""));
         assertTrue(stateSnapshotOwner.contains("return playbackQueueManager.queueStateSnapshot();"));
         assertTrue(stateSnapshotOwner.contains("Track track = queueSnapshot.getCurrentTrack();"));
         assertTrue(stateSnapshotOwner.contains("int currentIndex = queueSnapshot.getCurrentIndex();"));
         assertTrue(stateSnapshotOwner.contains("int queueSize = queueSnapshot.getQueueSize();"));
         assertTrue(stateSnapshotOwner.contains("private final LongSupplier sleepTimerProvider;"));
         assertTrue(stateSnapshotOwner.contains("private final DoubleSupplier realtimeBeatProvider;"));
+        assertTrue(stateSnapshotOwner.contains(
+                "this.sleepTimerProvider = Objects.requireNonNull(sleepTimerProvider, \"sleepTimerProvider\");"));
+        assertTrue(stateSnapshotOwner.contains(
+                "this.realtimeBeatProvider = Objects.requireNonNull(realtimeBeatProvider, \"realtimeBeatProvider\");"));
+        assertTrue(stateSnapshotOwner.contains("long positionMs = playbackPositionProvider.positionMs();"));
+        assertTrue(stateSnapshotOwner.contains("long playbackDurationMs = playbackPositionProvider.durationMs();"));
+        assertTrue(stateSnapshotOwner.contains("boolean playing = playbackPositionProvider.isPlaying();"));
+        assertTrue(stateSnapshotOwner.contains("sleepTimerProvider.getAsLong()"));
+        assertTrue(stateSnapshotOwner.contains(
+                "playing ? (float) realtimeBeatProvider.getAsDouble() : 0f"));
+        assertFalse(stateSnapshotOwner.contains("playbackPositionProvider == null"));
+        assertFalse(stateSnapshotOwner.contains("playbackPositionProvider != null"));
+        assertFalse(stateSnapshotOwner.contains("sleepTimerProvider == null"));
+        assertFalse(stateSnapshotOwner.contains("realtimeBeatProvider != null"));
         assertFalse(stateSnapshotOwner.contains("private final int defaultRepeatMode;"));
         assertFalse(stateSnapshotOwner.contains("int defaultRepeatMode"));
         assertFalse(stateSnapshotOwner.contains("Supplier<PlaybackRuntimeStateManager> runtimeStateManagerProvider"));

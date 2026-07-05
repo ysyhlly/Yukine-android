@@ -55,11 +55,14 @@ final class PlaybackStateSnapshotOwner {
             DoubleSupplier realtimeBeatProvider
     ) {
         this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.playbackPositionProvider = playbackPositionProvider;
+        this.playbackPositionProvider = Objects.requireNonNull(
+                playbackPositionProvider,
+                "playbackPositionProvider"
+        );
         this.runtimeStateProvider = Objects.requireNonNull(runtimeStateProvider, "runtimeStateProvider");
-        this.sleepTimerProvider = sleepTimerProvider;
+        this.sleepTimerProvider = Objects.requireNonNull(sleepTimerProvider, "sleepTimerProvider");
         this.visualizationProvider = Objects.requireNonNull(visualizationProvider, "visualizationProvider");
-        this.realtimeBeatProvider = realtimeBeatProvider;
+        this.realtimeBeatProvider = Objects.requireNonNull(realtimeBeatProvider, "realtimeBeatProvider");
     }
 
     static RuntimeStateProvider fromRuntimeStateManager(
@@ -136,9 +139,9 @@ final class PlaybackStateSnapshotOwner {
         Track track = queueSnapshot.getCurrentTrack();
         int currentIndex = queueSnapshot.getCurrentIndex();
         int queueSize = queueSnapshot.getQueueSize();
-        long positionMs = playbackPositionProvider == null ? 0L : playbackPositionProvider.positionMs();
-        long playbackDurationMs = playbackPositionProvider == null ? 0L : playbackPositionProvider.durationMs();
-        boolean playing = playbackPositionProvider != null && playbackPositionProvider.isPlaying();
+        long positionMs = playbackPositionProvider.positionMs();
+        long playbackDurationMs = playbackPositionProvider.durationMs();
+        boolean playing = playbackPositionProvider.isPlaying();
         long durationMs = track == null ? 0L : Math.max(track.durationMs, playbackDurationMs);
         boolean deferVisualGeneration = visualizationProvider.shouldDeferPlaybackVisualization();
         PlaybackWaveformSnapshot waveform =
@@ -158,10 +161,10 @@ final class PlaybackStateSnapshotOwner {
                 runtimeStateProvider.repeatMode(),
                 runtimeStateProvider.playbackSpeed(),
                 runtimeStateProvider.appVolume(),
-                sleepTimerProvider == null ? 0L : sleepTimerProvider.getAsLong(),
+                sleepTimerProvider.getAsLong(),
                 waveform,
                 spectrum,
-                playing && realtimeBeatProvider != null ? (float) realtimeBeatProvider.getAsDouble() : 0f
+                playing ? (float) realtimeBeatProvider.getAsDouble() : 0f
         );
     }
 
