@@ -40,12 +40,13 @@ final class PlaybackQueueMirroredTransitionOwner {
             BooleanSupplier playerMirrorsQueue
     ) {
         this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.currentTrackVolumeApplier = currentTrackVolumeApplier;
-        this.playerMirrorsQueue = playerMirrorsQueue;
+        this.currentTrackVolumeApplier =
+                Objects.requireNonNull(currentTrackVolumeApplier, "currentTrackVolumeApplier");
+        this.playerMirrorsQueue = Objects.requireNonNull(playerMirrorsQueue, "playerMirrorsQueue");
     }
 
     boolean canApplyMirroredTransition() {
-        boolean mirrorsQueue = playerMirrorsQueue == null || playerMirrorsQueue.getAsBoolean();
+        boolean mirrorsQueue = playerMirrorsQueue.getAsBoolean();
         return mirrorsQueue && queueStateSnapshot().getQueueSize() > 0;
     }
 
@@ -67,9 +68,7 @@ final class PlaybackQueueMirroredTransitionOwner {
         Track currentTrack = null;
         if (!stopAfterAutomaticAdvance) {
             currentTrack = queueStateSnapshot().getCurrentTrack();
-            if (currentTrackVolumeApplier != null) {
-                currentTrackVolumeApplier.run();
-            }
+            currentTrackVolumeApplier.run();
         }
         return new Transition(
                 stopAfterAutomaticAdvance,

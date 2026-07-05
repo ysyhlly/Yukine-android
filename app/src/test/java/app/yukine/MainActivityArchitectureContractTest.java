@@ -7896,6 +7896,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredTransitionOwner.contains("PlaybackQueueManagerOperations"));
         assertFalse(mirroredTransitionOwner.contains("interface CurrentTrackVolumeApplier"));
         assertTrue(mirroredTransitionOwner.contains("private final Runnable currentTrackVolumeApplier;"));
+        assertTrue(mirroredTransitionOwner.contains(
+                "Objects.requireNonNull(currentTrackVolumeApplier, \"currentTrackVolumeApplier\")"));
         assertFalse(mirroredTransitionOwner.contains("import java.util.function.BiFunction;"));
         assertTrue(mirroredTransitionOwner.contains("import java.util.function.BooleanSupplier;"));
         assertFalse(mirroredTransitionOwner.contains(
@@ -7907,6 +7909,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredTransitionOwner.contains("private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;"));
         assertFalse(mirroredTransitionOwner.contains("private PlaybackQueueManager playbackQueueManager()"));
         assertTrue(mirroredTransitionOwner.contains("private final BooleanSupplier playerMirrorsQueue;"));
+        assertTrue(mirroredTransitionOwner.contains(
+                "this.playerMirrorsQueue = Objects.requireNonNull(playerMirrorsQueue, \"playerMirrorsQueue\");"));
         assertFalse(mirroredTransitionOwner.contains("private final BooleanSupplier queueEmptySupplier;"));
         assertFalse(mirroredTransitionOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSupplier;"));
         assertFalse(mirroredTransitionOwner.contains("private final Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier;"));
@@ -7919,6 +7923,8 @@ public final class MainActivityArchitectureContractTest {
                 "this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, \"playbackQueueManager\");"));
         assertFalse(mirroredTransitionOwner.contains(": queueStateOwner.queueStateSnapshot();"));
         assertTrue(mirroredTransitionOwner.contains("return mirrorsQueue && queueStateSnapshot().getQueueSize() > 0;"));
+        assertTrue(mirroredTransitionOwner.contains("boolean mirrorsQueue = playerMirrorsQueue.getAsBoolean();"));
+        assertFalse(mirroredTransitionOwner.contains("playerMirrorsQueue == null"));
         assertFalse(mirroredTransitionOwner.contains("return mirrorsQueue && !queueStateSnapshot().isQueueEmpty();"));
         assertFalse(mirroredTransitionOwner.contains("boolean queueEmpty = queueStateOwner == null || queueStateOwner.isQueueEmpty();"));
         assertFalse(mirroredTransitionOwner.contains("return mirrorsQueue && !queueEmpty;"));
@@ -7952,6 +7958,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredTransitionOwner.contains("PlaybackQueueManager.MirroredTransitionResult result ="));
         assertFalse(mirroredTransitionOwner.contains("playbackQueueManager.prepareMirroredTransitionPlaybackState();"));
         assertTrue(mirroredTransitionOwner.contains("currentTrackVolumeApplier.run();"));
+        assertFalse(mirroredTransitionOwner.contains("currentTrackVolumeApplier != null"));
         assertFalse(mirroredTransitionOwner.contains("manager.applyCurrentTrackVolumeToPlayer();"));
         assertTrue(currentPreparationOwner.contains("currentQueueTrackReplacer.accept(restoredTrack);"));
         assertTrue(currentPreparationOwner.contains("private final Consumer<Track> currentQueueTrackReplacer;"));
