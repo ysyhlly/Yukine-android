@@ -3220,8 +3220,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("PlaybackPrecacheManager.audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)"));
         assertTrue(playbackPrecacheManager.contains("static PlaybackPrecacheManager fromMediaSourceProvider("));
         assertTrue(playbackPrecacheManager.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider("));
+        assertTrue(playbackPrecacheManager.contains("Objects.requireNonNull(streamingDiagnostics, \"streamingDiagnostics\")"));
         assertTrue(playbackPrecacheManager.contains("Objects.requireNonNull(mediaCacheOperations, \"mediaCacheOperations\")"));
+        assertTrue(playbackPrecacheManager.contains("Objects.requireNonNull(playbackCacheExecutor, \"playbackCacheExecutor\")"));
         assertTrue(playbackPrecacheManager.contains("Objects.requireNonNull(mediaSourceProvider, \"mediaSourceProvider\")"));
+        assertFalse(playbackPrecacheManager.contains("streamingDiagnostics == null"));
+        assertFalse(playbackPrecacheManager.contains("playbackCacheExecutor == null"));
         assertFalse(playbackPrecacheManager.contains("mediaCacheOperations == null"));
         assertFalse(playbackPrecacheManager.contains("mediaCacheOperations != null"));
         assertFalse(playbackPrecacheManager.contains("mediaSourceProvider != null"));

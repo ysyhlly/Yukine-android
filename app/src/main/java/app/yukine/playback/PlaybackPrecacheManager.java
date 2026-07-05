@@ -108,9 +108,7 @@ final class PlaybackPrecacheManager {
                 currentPlayerMediaItemSupplier,
                 "currentPlayerMediaItemSupplier"
         );
-        this.streamingDiagnostics = streamingDiagnostics == null
-                ? new PlaybackStreamingDiagnostics()
-                : streamingDiagnostics;
+        this.streamingDiagnostics = Objects.requireNonNull(streamingDiagnostics, "streamingDiagnostics");
         this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         this.playbackRuntimeStateManager = Objects.requireNonNull(
                 playbackRuntimeStateManager,
@@ -119,9 +117,7 @@ final class PlaybackPrecacheManager {
         this.mediaCacheOperations = Objects.requireNonNull(mediaCacheOperations, "mediaCacheOperations");
         this.mediaItemTrackMatcher = Objects.requireNonNull(mediaItemTrackMatcher, "mediaItemTrackMatcher");
         this.callbackScheduler = Objects.requireNonNull(callbackScheduler, "callbackScheduler");
-        this.playbackCacheExecutor = playbackCacheExecutor == null
-                ? newPlaybackCacheExecutor()
-                : playbackCacheExecutor;
+        this.playbackCacheExecutor = Objects.requireNonNull(playbackCacheExecutor, "playbackCacheExecutor");
     }
 
     static PlaybackPrecacheManager fromMediaSourceProvider(

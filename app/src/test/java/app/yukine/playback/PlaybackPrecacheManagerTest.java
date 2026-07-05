@@ -123,6 +123,18 @@ public final class PlaybackPrecacheManagerTest {
                 )
         );
         assertRequiredConstructorDependency(
+                "streamingDiagnostics",
+                () -> new PlaybackPrecacheManager(
+                        stateProvider,
+                        null,
+                        queueManager,
+                        runtimeStateManager,
+                        mediaCacheOperations,
+                        (mediaItem, track) -> false,
+                        callbackScheduler
+                )
+        );
+        assertRequiredConstructorDependency(
                 "playbackQueueManager",
                 () -> new PlaybackPrecacheManager(
                         stateProvider,
@@ -179,6 +191,19 @@ public final class PlaybackPrecacheManagerTest {
                         runtimeStateManager,
                         mediaCacheOperations,
                         (mediaItem, track) -> false,
+                        null
+                )
+        );
+        assertRequiredConstructorDependency(
+                "playbackCacheExecutor",
+                () -> new PlaybackPrecacheManager(
+                        stateProvider,
+                        stateProvider.diagnostics,
+                        queueManager,
+                        runtimeStateManager,
+                        mediaCacheOperations,
+                        (mediaItem, track) -> false,
+                        callbackScheduler,
                         null
                 )
         );
