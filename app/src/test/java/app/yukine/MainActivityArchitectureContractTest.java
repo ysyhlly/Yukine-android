@@ -8076,6 +8076,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(currentPreparationQueueOwner.contains(
                 "this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, \"playbackQueueManager\");"));
         assertTrue(currentPreparationQueueOwner.contains(
+                "this.queueTrackForPreparation = Objects.requireNonNull("));
+        assertTrue(currentPreparationQueueOwner.contains("\"queueTrackForPreparation\""));
+        assertFalse(currentPreparationQueueOwner.contains("queueTrackForPreparation == null"));
+        assertTrue(currentPreparationQueueOwner.contains(
                 "this.mediaSourcesForTracks = Objects.requireNonNull("));
         assertTrue(currentPreparationQueueOwner.contains("\"mediaSourcesForTracks\""));
         assertFalse(currentPreparationQueueOwner.contains("mediaSourcesForTracks == null"));

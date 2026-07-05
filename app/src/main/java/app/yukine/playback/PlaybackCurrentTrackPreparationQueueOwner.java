@@ -66,7 +66,7 @@ final class PlaybackCurrentTrackPreparationQueueOwner {
             PlaybackQueueManager playbackQueueManager,
             Function<List<Track>, List<MediaSource>> mediaSourcesForTracks
     ) {
-        this(playbackQueueManager, null, mediaSourcesForTracks);
+        this(playbackQueueManager, track -> track, mediaSourcesForTracks);
     }
 
     PlaybackCurrentTrackPreparationQueueOwner(
@@ -75,7 +75,10 @@ final class PlaybackCurrentTrackPreparationQueueOwner {
             Function<List<Track>, List<MediaSource>> mediaSourcesForTracks
     ) {
         this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.queueTrackForPreparation = queueTrackForPreparation;
+        this.queueTrackForPreparation = Objects.requireNonNull(
+                queueTrackForPreparation,
+                "queueTrackForPreparation"
+        );
         this.mediaSourcesForTracks = Objects.requireNonNull(
                 mediaSourcesForTracks,
                 "mediaSourcesForTracks"
@@ -124,9 +127,6 @@ final class PlaybackCurrentTrackPreparationQueueOwner {
         }
         if (!PlaybackMediaSourceProvider.isRestorableQueueTrack(track)) {
             return null;
-        }
-        if (queueTrackForPreparation == null) {
-            return track;
         }
         Track preparedTrack = queueTrackForPreparation.apply(track);
         return preparedTrack == null ? track : preparedTrack;

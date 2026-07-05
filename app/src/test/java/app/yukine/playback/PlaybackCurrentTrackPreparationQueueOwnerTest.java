@@ -243,6 +243,20 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     }
 
     @Test
+    public void constructorRequiresQueueTrackPreparationBoundary() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackCurrentTrackPreparationQueueOwner(
+                        queueManager(new FakeQueueStore(), null),
+                        (java.util.function.Function<Track, Track>) null,
+                        tracks -> Collections.emptyList()
+                )
+        );
+
+        assertEquals("queueTrackForPreparation", error.getMessage());
+    }
+
+    @Test
     public void queuePreparationIsEmptyWithoutCurrentTrack() throws Exception {
         PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), null);
         queueManager.playQueue(Collections.singletonList(playableTrack(81L)), 0, -1L);
