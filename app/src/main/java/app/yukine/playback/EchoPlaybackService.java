@@ -947,15 +947,11 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public AudioEffectSettings audioEffectSettings() {
-        return playbackAudioEffectSettingsStore == null
-                ? AudioEffectSettings.DEFAULT
-                : playbackAudioEffectSettingsStore.current();
+        return playbackAudioEffectSettingsStore.current();
     }
 
     public void applyAudioEffectSettings(AudioEffectSettings settings) {
-        AudioEffectSettings appliedSettings = playbackAudioEffectSettingsStore == null
-                ? (settings == null ? AudioEffectSettings.DEFAULT : settings)
-                : playbackAudioEffectSettingsStore.apply(settings);
+        AudioEffectSettings appliedSettings = playbackAudioEffectSettingsStore.apply(settings);
         audioEffectManager.bind(player, appliedSettings);
         publishState();
     }

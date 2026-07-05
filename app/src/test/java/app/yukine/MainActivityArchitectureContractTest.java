@@ -6753,6 +6753,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("private void bindAudioEffects()"));
         assertFalse(service.contains("private void applyEqualizerSettings()"));
         assertFalse(service.contains("private void releaseAudioEffects()"));
+        assertFalse(service.contains("playbackAudioEffectSettingsStore == null"));
         assertTrue(service.contains("PlaybackAudioEffectSettingsStore.fromRepository(repository)"));
         assertTrue(service.contains("playbackAudioEffectSettingsStore.restore()"));
         assertTrue(service.contains("playbackAudioEffectSettingsStore.current()"));
