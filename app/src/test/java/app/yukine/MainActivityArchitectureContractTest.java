@@ -780,6 +780,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(precacheManager.contains("private final PlaybackMediaCacheOperations mediaCacheOperations;"));
         assertTrue(precacheManager.contains("private final BiPredicate<MediaItem, Track> mediaItemTrackMatcher;"));
         assertFalse(precacheManager.contains("private final PlaybackMediaSourceProvider"));
+        assertTrue(precacheManager.contains(
+                "this.currentPlayerMediaItemSupplier = Objects.requireNonNull("));
+        assertTrue(precacheManager.contains(
+                "currentPlayerMediaItemSupplier,\n                \"currentPlayerMediaItemSupplier\""));
+        assertTrue(precacheManager.contains(
+                "this.mediaItemTrackMatcher = Objects.requireNonNull(mediaItemTrackMatcher, \"mediaItemTrackMatcher\");"));
+        assertTrue(precacheManager.contains(
+                "this.callbackScheduler = Objects.requireNonNull(callbackScheduler, \"callbackScheduler\");"));
+        assertFalse(precacheManager.contains("currentPlayerMediaItemSupplier == null"));
+        assertFalse(precacheManager.contains("mediaItemTrackMatcher != null"));
         assertTrue(precacheManager.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider("));
         assertEquals(1, countOccurrences(precacheManager, "PlaybackMediaCacheOperations.fromMediaSourceProvider("));
         assertTrue(precacheManager.contains("Objects.requireNonNull(mediaSourceProvider, \"mediaSourceProvider\")"));

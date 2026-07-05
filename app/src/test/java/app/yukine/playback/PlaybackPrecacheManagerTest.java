@@ -4,6 +4,7 @@ import static app.yukine.playback.PlaybackRepeatMode.REPEAT_ALL;
 import static app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 
 import android.content.Context;
@@ -102,57 +103,85 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
-    public void constructorRequiresPlaybackQueueManager() {
-        try {
-            new PlaybackPrecacheManager(
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-            );
-            fail("Expected NullPointerException");
-        } catch (NullPointerException error) {
-            assertEquals("playbackQueueManager", error.getMessage());
-        }
-    }
+    public void constructorRequiresPrecacheDependencies() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        PlaybackQueueManager queueManager = queueManager();
+        PlaybackRuntimeStateManager runtimeStateManager = playbackRuntimeStateManager();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        FakeCallbackScheduler callbackScheduler = new FakeCallbackScheduler();
 
-    @Test
-    public void constructorRequiresPlaybackRuntimeStateManager() {
-        try {
-            new PlaybackPrecacheManager(
-                    null,
-                    null,
-                    queueManager(),
-                    null,
-                    null,
-                    null,
-                    null
-            );
-            fail("Expected NullPointerException");
-        } catch (NullPointerException error) {
-            assertEquals("playbackRuntimeStateManager", error.getMessage());
-        }
-    }
-
-    @Test
-    public void constructorRequiresMediaCacheOperations() {
-        try {
-            new PlaybackPrecacheManager(
-                    null,
-                    null,
-                    queueManager(),
-                    playbackRuntimeStateManager(),
-                    null,
-                    null,
-                    null
-            );
-            fail("Expected NullPointerException");
-        } catch (NullPointerException error) {
-            assertEquals("mediaCacheOperations", error.getMessage());
-        }
+        assertRequiredConstructorDependency(
+                "currentPlayerMediaItemSupplier",
+                () -> new PlaybackPrecacheManager(
+                        null,
+                        stateProvider.diagnostics,
+                        queueManager,
+                        runtimeStateManager,
+                        mediaCacheOperations,
+                        (mediaItem, track) -> false,
+                        callbackScheduler
+                )
+        );
+        assertRequiredConstructorDependency(
+                "playbackQueueManager",
+                () -> new PlaybackPrecacheManager(
+                        stateProvider,
+                        stateProvider.diagnostics,
+                        null,
+                        runtimeStateManager,
+                        mediaCacheOperations,
+                        (mediaItem, track) -> false,
+                        callbackScheduler
+                )
+        );
+        assertRequiredConstructorDependency(
+                "playbackRuntimeStateManager",
+                () -> new PlaybackPrecacheManager(
+                        stateProvider,
+                        stateProvider.diagnostics,
+                        queueManager,
+                        null,
+                        mediaCacheOperations,
+                        (mediaItem, track) -> false,
+                        callbackScheduler
+                )
+        );
+        assertRequiredConstructorDependency(
+                "mediaCacheOperations",
+                () -> new PlaybackPrecacheManager(
+                        stateProvider,
+                        stateProvider.diagnostics,
+                        queueManager,
+                        runtimeStateManager,
+                        null,
+                        (mediaItem, track) -> false,
+                        callbackScheduler
+                )
+        );
+        assertRequiredConstructorDependency(
+                "mediaItemTrackMatcher",
+                () -> new PlaybackPrecacheManager(
+                        stateProvider,
+                        stateProvider.diagnostics,
+                        queueManager,
+                        runtimeStateManager,
+                        mediaCacheOperations,
+                        null,
+                        callbackScheduler
+                )
+        );
+        assertRequiredConstructorDependency(
+                "callbackScheduler",
+                () -> new PlaybackPrecacheManager(
+                        stateProvider,
+                        stateProvider.diagnostics,
+                        queueManager,
+                        runtimeStateManager,
+                        mediaCacheOperations,
+                        (mediaItem, track) -> false,
+                        null
+                )
+        );
     }
 
     @Test
@@ -247,7 +276,7 @@ public final class PlaybackPrecacheManagerTest {
                 queueManager,
                 playbackRuntimeStateManager(),
                 mediaCacheOperations,
-                null,
+                (mediaItem, trackToMatch) -> false,
                 scheduler,
                 executor
         );
@@ -744,6 +773,12 @@ public final class PlaybackPrecacheManagerTest {
                 mediaSourceProvider,
                 scheduler
         );
+    }
+
+    private static void assertRequiredConstructorDependency(String message, Runnable constructorCall) {
+        NullPointerException exception = assertThrows(NullPointerException.class, constructorCall::run);
+
+        assertEquals(message, exception.getMessage());
     }
 
     private static PlaybackQueueManager queueManager(Track... tracks) {

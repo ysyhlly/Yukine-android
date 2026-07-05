@@ -104,7 +104,10 @@ final class PlaybackPrecacheManager {
             CallbackScheduler callbackScheduler,
             ThreadPoolExecutor playbackCacheExecutor
     ) {
-        this.currentPlayerMediaItemSupplier = currentPlayerMediaItemSupplier;
+        this.currentPlayerMediaItemSupplier = Objects.requireNonNull(
+                currentPlayerMediaItemSupplier,
+                "currentPlayerMediaItemSupplier"
+        );
         this.streamingDiagnostics = streamingDiagnostics == null
                 ? new PlaybackStreamingDiagnostics()
                 : streamingDiagnostics;
@@ -114,8 +117,8 @@ final class PlaybackPrecacheManager {
                 "playbackRuntimeStateManager"
         );
         this.mediaCacheOperations = Objects.requireNonNull(mediaCacheOperations, "mediaCacheOperations");
-        this.mediaItemTrackMatcher = mediaItemTrackMatcher;
-        this.callbackScheduler = callbackScheduler;
+        this.mediaItemTrackMatcher = Objects.requireNonNull(mediaItemTrackMatcher, "mediaItemTrackMatcher");
+        this.callbackScheduler = Objects.requireNonNull(callbackScheduler, "callbackScheduler");
         this.playbackCacheExecutor = playbackCacheExecutor == null
                 ? newPlaybackCacheExecutor()
                 : playbackCacheExecutor;
@@ -558,11 +561,8 @@ final class PlaybackPrecacheManager {
     }
 
     private boolean currentPlayerLoadsTrack(Track track) {
-        MediaItem currentPlayerMediaItem = currentPlayerMediaItemSupplier == null
-                ? null
-                : currentPlayerMediaItemSupplier.get();
-        return mediaItemTrackMatcher != null
-                && mediaItemTrackMatcher.test(currentPlayerMediaItem, track);
+        MediaItem currentPlayerMediaItem = currentPlayerMediaItemSupplier.get();
+        return mediaItemTrackMatcher.test(currentPlayerMediaItem, track);
     }
 
     @OptIn(markerClass = UnstableApi.class)
