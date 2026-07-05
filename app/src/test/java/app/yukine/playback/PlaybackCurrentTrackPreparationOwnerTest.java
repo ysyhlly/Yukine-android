@@ -167,6 +167,46 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
     }
 
     @Test
+    public void constructorRequiresCurrentQueueTrackReplacer() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackCurrentTrackPreparationOwner(
+                        requested -> preparation(requested, null, true, null),
+                        requested -> null,
+                        null,
+                        requested -> 0L,
+                        new FakeRuntimeStateController(new ArrayList<>()),
+                        () -> {
+                        },
+                        ignored -> {
+                        }
+                )
+        );
+
+        assertEquals("currentQueueTrackReplacer", error.getMessage());
+    }
+
+    @Test
+    public void constructorRequiresRestoredPositionProvider() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackCurrentTrackPreparationOwner(
+                        requested -> preparation(requested, null, true, null),
+                        requested -> null,
+                        queueTrackReplacer(new ArrayList<>()),
+                        null,
+                        new FakeRuntimeStateController(new ArrayList<>()),
+                        () -> {
+                        },
+                        ignored -> {
+                        }
+                )
+        );
+
+        assertEquals("restoredPositionProvider", error.getMessage());
+    }
+
+    @Test
     public void mediaSourceProviderFactoryRequiresMediaSourceProvider() {
         List<String> events = new ArrayList<>();
         NullPointerException error = assertThrows(

@@ -118,8 +118,14 @@ final class PlaybackCurrentTrackPreparationOwner {
                 "playbackPreparationProvider"
         );
         this.mediaSourceResolver = Objects.requireNonNull(mediaSourceResolver, "mediaSourceResolver");
-        this.currentQueueTrackReplacer = currentQueueTrackReplacer;
-        this.restoredPositionProvider = restoredPositionProvider;
+        this.currentQueueTrackReplacer = Objects.requireNonNull(
+                currentQueueTrackReplacer,
+                "currentQueueTrackReplacer"
+        );
+        this.restoredPositionProvider = Objects.requireNonNull(
+                restoredPositionProvider,
+                "restoredPositionProvider"
+        );
         this.runtimeStateController = runtimeStateController;
         this.statePublisher = statePublisher;
         this.refusalLogger = refusalLogger;
@@ -129,7 +135,7 @@ final class PlaybackCurrentTrackPreparationOwner {
         PlaybackMediaSourceProvider.PlaybackPreparation preparation =
                 playbackPreparationProvider.apply(track);
         Track restoredTrack = preparation == null ? null : preparation.getRestoredTrack();
-        if (restoredTrack != null && currentQueueTrackReplacer != null) {
+        if (restoredTrack != null) {
             currentQueueTrackReplacer.accept(restoredTrack);
         }
         Track preparedTrack = preparation == null ? track : preparation.getTrack();
@@ -152,9 +158,6 @@ final class PlaybackCurrentTrackPreparationOwner {
     }
 
     private long restoredPositionFor(Track track) {
-        if (restoredPositionProvider == null) {
-            return 0L;
-        }
         Long positionMs = restoredPositionProvider.apply(track);
         return positionMs == null ? 0L : positionMs;
     }

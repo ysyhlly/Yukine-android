@@ -8018,8 +8018,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(currentPreparationOwner.contains("\"playbackPreparationProvider\""));
         assertTrue(currentPreparationOwner.contains(
                 "this.mediaSourceResolver = Objects.requireNonNull(mediaSourceResolver, \"mediaSourceResolver\");"));
+        assertTrue(currentPreparationOwner.contains(
+                "this.currentQueueTrackReplacer = Objects.requireNonNull("));
+        assertTrue(currentPreparationOwner.contains("\"currentQueueTrackReplacer\""));
+        assertTrue(currentPreparationOwner.contains(
+                "this.restoredPositionProvider = Objects.requireNonNull("));
+        assertTrue(currentPreparationOwner.contains("\"restoredPositionProvider\""));
         assertFalse(currentPreparationOwner.contains("playbackPreparationProvider == null"));
         assertFalse(currentPreparationOwner.contains("mediaSourceResolver == null"));
+        assertFalse(currentPreparationOwner.contains("currentQueueTrackReplacer != null"));
+        assertFalse(currentPreparationOwner.contains("restoredPositionProvider == null"));
         assertFalse(currentPreparationOwner.contains("interface QueuePreparationController"));
         assertTrue(currentPreparationQueueOwner.contains("final class PlaybackCurrentTrackPreparationQueueOwner"));
         assertFalse(currentPreparationQueueOwner.contains(
@@ -8677,12 +8685,21 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(preparationOwner.contains("interface StatePublisher"));
         assertFalse(preparationOwner.contains("interface RefusalLogger"));
         assertTrue(preparationOwner.contains("private final Consumer<Track> currentQueueTrackReplacer;"));
+        assertTrue(preparationOwner.contains("private final Function<Track, Long> restoredPositionProvider;"));
+        assertTrue(preparationOwner.contains(
+                "this.currentQueueTrackReplacer = Objects.requireNonNull("));
+        assertTrue(preparationOwner.contains("\"currentQueueTrackReplacer\""));
+        assertTrue(preparationOwner.contains(
+                "this.restoredPositionProvider = Objects.requireNonNull("));
+        assertTrue(preparationOwner.contains("\"restoredPositionProvider\""));
         assertTrue(preparationOwner.contains("private final Runnable statePublisher;"));
         assertTrue(preparationOwner.contains("private final Consumer<Track> refusalLogger;"));
         assertTrue(preparationOwner.contains("playbackPreparationProvider.apply(track)"));
         assertTrue(preparationOwner.contains("return mediaSourceResolver.apply(track);"));
         assertTrue(preparationOwner.contains("preparation.getUnplayableMessage()"));
         assertTrue(preparationOwner.contains("currentQueueTrackReplacer.accept(restoredTrack)"));
+        assertFalse(preparationOwner.contains("currentQueueTrackReplacer != null"));
+        assertFalse(preparationOwner.contains("restoredPositionProvider == null"));
         assertTrue(preparationOwner.contains("runtimeStateController.setErrorMessage(unplayableMessage)"));
         assertTrue(preparationOwner.contains("refusalLogger.accept(preparedTrack);"));
         assertTrue(preparationOwner.contains("statePublisher.run();"));
