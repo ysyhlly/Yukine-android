@@ -7119,6 +7119,14 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(normalizedService.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
         assertFalse(normalizedService.contains("playbackQueueManager.prepareStopAtEndOfQueue();"));
         assertTrue(queueCompletionOwner.contains("playbackQueueManager.prepareStopAndClearPlaybackState();"));
+        assertTrue(queueCompletionOwner.contains(
+                "this.stopAndClearAction = Objects.requireNonNull(stopAndClearAction, \"stopAndClearAction\");"));
+        assertTrue(queueCompletionOwner.contains(
+                "this.stopAtEndOfQueueAction = Objects.requireNonNull("));
+        assertTrue(queueCompletionOwner.contains(
+                "this.skipToNextAction = Objects.requireNonNull(skipToNextAction, \"skipToNextAction\");"));
+        assertFalse(queueCompletionOwner.contains("if (action != null)"));
+        assertTrue(queueCompletionOwner.contains("action.run();"));
         assertTrue(normalizedService.contains(
                 "stopAtEndOfQueueBoundary();"));
         assertFalse(normalizedService.contains(

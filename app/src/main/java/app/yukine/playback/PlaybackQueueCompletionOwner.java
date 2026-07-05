@@ -17,9 +17,12 @@ final class PlaybackQueueCompletionOwner {
             Runnable skipToNextAction
     ) {
         this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.stopAndClearAction = stopAndClearAction;
-        this.stopAtEndOfQueueAction = stopAtEndOfQueueAction;
-        this.skipToNextAction = skipToNextAction;
+        this.stopAndClearAction = Objects.requireNonNull(stopAndClearAction, "stopAndClearAction");
+        this.stopAtEndOfQueueAction = Objects.requireNonNull(
+                stopAtEndOfQueueAction,
+                "stopAtEndOfQueueAction"
+        );
+        this.skipToNextAction = Objects.requireNonNull(skipToNextAction, "skipToNextAction");
     }
 
     void playAfterCompletion() {
@@ -51,8 +54,6 @@ final class PlaybackQueueCompletionOwner {
     }
 
     private static void run(Runnable action) {
-        if (action != null) {
-            action.run();
-        }
+        action.run();
     }
 }

@@ -5,6 +5,7 @@ import static app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF;
 import static app.yukine.playback.PlaybackRepeatMode.REPEAT_ONE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import androidx.media3.exoplayer.ExoPlayer;
@@ -102,12 +103,12 @@ public class PlaybackQueueCompletionOwnerTest {
 
     @Test
     public void requiresQueueManager() {
-        try {
-            owner(null, new ArrayList<>());
-        } catch (NullPointerException expected) {
-            return;
-        }
-        throw new AssertionError("Expected constructor to require a queue manager");
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> owner(null, new ArrayList<>())
+        );
+
+        assertEquals("playbackQueueManager", exception.getMessage());
     }
 
     @Test
@@ -136,18 +137,25 @@ public class PlaybackQueueCompletionOwnerTest {
     }
 
     @Test
-    public void missingBoundaryDoesNotCrash() {
-        PlaybackQueueCompletionOwner owner = owner(
-                queueManagerWithTracks(
-                        new FakeQueueStore(),
-                        Arrays.asList(track(1L), track(2L)),
-                        0,
-                        REPEAT_OFF
-                ),
-                null
+    public void requiresBoundaryActions() {
+        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), runtimeStateManager());
+
+        NullPointerException stopAndClearException = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackQueueCompletionOwner(queueManager, null, noOp(), noOp())
+        );
+        NullPointerException stopAtEndException = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackQueueCompletionOwner(queueManager, noOp(), null, noOp())
+        );
+        NullPointerException skipToNextException = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackQueueCompletionOwner(queueManager, noOp(), noOp(), null)
         );
 
-        owner.playAfterCompletion();
+        assertEquals("stopAndClearAction", stopAndClearException.getMessage());
+        assertEquals("stopAtEndOfQueueAction", stopAtEndException.getMessage());
+        assertEquals("skipToNextAction", skipToNextException.getMessage());
     }
 
     private static PlaybackQueueCompletionOwner owner(
@@ -163,7 +171,12 @@ public class PlaybackQueueCompletionOwnerTest {
     }
 
     private static Runnable action(List<String> events, String event) {
-        return events == null ? null : () -> events.add(event);
+        return () -> events.add(event);
+    }
+
+    private static Runnable noOp() {
+        return () -> {
+        };
     }
 
     private static PlaybackQueueManager queueManagerWithTracks(
