@@ -6851,6 +6851,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("playbackQueuePersistenceOwner::persistCurrentPlaybackPosition"));
         assertTrue(service.contains("EchoPlaybackService.this::persistCurrentPlaybackPosition"));
         assertTrue(service.contains("private void persistCurrentPlaybackPosition(boolean force)"));
+        assertTrue(service.contains("playbackPositionManager.persistCurrentPosition(force);"));
+        assertFalse(service.contains("if (playbackPositionManager != null)"));
         assertFalse(service.contains("withPlaybackQueuePersistenceOwner(owner -> owner.persistCurrentPlaybackPosition(force));"));
         assertFalse(service.contains("playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(true)"));
         assertFalse(service.contains("playbackQueueManager.persistCurrentPlaybackPosition(force)"));
@@ -8783,6 +8785,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("private void stopProgressUpdates()"));
         assertTrue(service.contains("playbackProgressUpdateManager.startIfNeeded()"));
         assertTrue(service.contains("playbackProgressUpdateManager.stop()"));
+        assertFalse(service.contains("if (playbackProgressUpdateManager != null)"));
         assertFalse(service.contains("playbackProgressUpdateCommandOwner.startProgressUpdates()"));
         assertFalse(service.contains("playbackProgressUpdateCommandOwner.stopProgressUpdates()"));
         assertTrue(owner.contains("class PlaybackProgressUpdateManager"));

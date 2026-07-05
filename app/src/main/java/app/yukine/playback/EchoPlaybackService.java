@@ -1246,21 +1246,15 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     private void persistCurrentPlaybackPosition(boolean force) {
-        if (playbackPositionManager != null) {
-            playbackPositionManager.persistCurrentPosition(force);
-        }
+        playbackPositionManager.persistCurrentPosition(force);
     }
 
     private void startProgressUpdates() {
-        if (playbackProgressUpdateManager != null) {
-            playbackProgressUpdateManager.startIfNeeded();
-        }
+        playbackProgressUpdateManager.startIfNeeded();
     }
 
     private void stopProgressUpdates() {
-        if (playbackProgressUpdateManager != null) {
-            playbackProgressUpdateManager.stop();
-        }
+        playbackProgressUpdateManager.stop();
     }
 
     private void savePlaybackResumeRequested(boolean requested) {
