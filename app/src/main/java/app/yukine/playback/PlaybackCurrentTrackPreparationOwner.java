@@ -39,7 +39,12 @@ final class PlaybackCurrentTrackPreparationOwner {
                 long startPositionMs,
                 Function<Track, MediaSource> mediaSourceResolver
         ) {
-            return new PreparedTrack(track, Math.max(0L, startPositionMs), true, mediaSourceResolver);
+            return new PreparedTrack(
+                    track,
+                    Math.max(0L, startPositionMs),
+                    true,
+                    Objects.requireNonNull(mediaSourceResolver, "mediaSourceResolver")
+            );
         }
 
         static PreparedTrack unplayable(Track track) {
@@ -59,7 +64,7 @@ final class PlaybackCurrentTrackPreparationOwner {
         }
 
         MediaSource mediaSource() {
-            if (mediaSourceResolver == null) {
+            if (!playable) {
                 return null;
             }
             return mediaSourceResolver.apply(track);
@@ -108,8 +113,11 @@ final class PlaybackCurrentTrackPreparationOwner {
             Runnable statePublisher,
             Consumer<Track> refusalLogger
     ) {
-        this.playbackPreparationProvider = playbackPreparationProvider;
-        this.mediaSourceResolver = mediaSourceResolver;
+        this.playbackPreparationProvider = Objects.requireNonNull(
+                playbackPreparationProvider,
+                "playbackPreparationProvider"
+        );
+        this.mediaSourceResolver = Objects.requireNonNull(mediaSourceResolver, "mediaSourceResolver");
         this.currentQueueTrackReplacer = currentQueueTrackReplacer;
         this.restoredPositionProvider = restoredPositionProvider;
         this.runtimeStateController = runtimeStateController;
@@ -118,9 +126,8 @@ final class PlaybackCurrentTrackPreparationOwner {
     }
 
     PreparedTrack prepareCurrentTrack(Track track) {
-        PlaybackMediaSourceProvider.PlaybackPreparation preparation = playbackPreparationProvider == null
-                ? null
-                : playbackPreparationProvider.apply(track);
+        PlaybackMediaSourceProvider.PlaybackPreparation preparation =
+                playbackPreparationProvider.apply(track);
         Track restoredTrack = preparation == null ? null : preparation.getRestoredTrack();
         if (restoredTrack != null && currentQueueTrackReplacer != null) {
             currentQueueTrackReplacer.accept(restoredTrack);

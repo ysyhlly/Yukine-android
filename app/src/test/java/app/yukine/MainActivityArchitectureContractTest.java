@@ -8013,6 +8013,13 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredTransitionOwner.contains("manager.applyCurrentTrackVolumeToPlayer();"));
         assertTrue(currentPreparationOwner.contains("currentQueueTrackReplacer.accept(restoredTrack);"));
         assertTrue(currentPreparationOwner.contains("private final Consumer<Track> currentQueueTrackReplacer;"));
+        assertTrue(currentPreparationOwner.contains(
+                "this.playbackPreparationProvider = Objects.requireNonNull("));
+        assertTrue(currentPreparationOwner.contains("\"playbackPreparationProvider\""));
+        assertTrue(currentPreparationOwner.contains(
+                "this.mediaSourceResolver = Objects.requireNonNull(mediaSourceResolver, \"mediaSourceResolver\");"));
+        assertFalse(currentPreparationOwner.contains("playbackPreparationProvider == null"));
+        assertFalse(currentPreparationOwner.contains("mediaSourceResolver == null"));
         assertFalse(currentPreparationOwner.contains("interface QueuePreparationController"));
         assertTrue(currentPreparationQueueOwner.contains("final class PlaybackCurrentTrackPreparationQueueOwner"));
         assertFalse(currentPreparationQueueOwner.contains(
