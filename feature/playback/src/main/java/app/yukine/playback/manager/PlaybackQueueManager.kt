@@ -37,11 +37,16 @@ internal class PlaybackQueueManager(
         fun seekTo(index: Int, positionMs: Long, playWhenReady: Boolean): Boolean
     }
 
-    class QueueStateSnapshot internal constructor(
+    class QueueStateSnapshot private constructor(
         val currentTrack: Track?,
         val currentIndex: Int,
         val queueSize: Int
-    )
+    ) {
+        internal companion object {
+            fun of(currentTrack: Track?, currentIndex: Int, queueSize: Int): QueueStateSnapshot =
+                QueueStateSnapshot(currentTrack, currentIndex, queueSize)
+        }
+    }
 
     enum class PlaybackCompletionAction {
         STOP_AND_CLEAR,
@@ -700,7 +705,7 @@ internal class PlaybackQueueManager(
         val queue = this.queue
         val index = currentIndex()
         val currentTrack = if (index in queue.indices) queue[index] else null
-        return QueueStateSnapshot(
+        return QueueStateSnapshot.of(
             currentTrack = currentTrack,
             currentIndex = index,
             queueSize = queue.size

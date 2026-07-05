@@ -8512,14 +8512,14 @@ public final class MainActivityArchitectureContractTest {
                 "PlaybackCurrentTrackReplacementOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.replaceCurrentTrackAndResume("));
         assertFalse(owner.contains("data class QueueStateSnapshot("));
-        assertTrue(owner.contains("class QueueStateSnapshot internal constructor("));
+        assertTrue(owner.contains("class QueueStateSnapshot private constructor("));
         String queueStateSnapshot = normalizedOwner.substring(
-                normalizedOwner.indexOf("class QueueStateSnapshot internal constructor("),
-                normalizedOwner.indexOf("\n    )", normalizedOwner.indexOf("class QueueStateSnapshot internal constructor("))
+                normalizedOwner.indexOf("class QueueStateSnapshot private constructor("),
+                normalizedOwner.indexOf("\n    )", normalizedOwner.indexOf("class QueueStateSnapshot private constructor("))
         );
         String queueStateSnapshotConstructor = normalizedOwner.substring(
-                normalizedOwner.indexOf("class QueueStateSnapshot internal constructor("),
-                normalizedOwner.indexOf("\n    )", normalizedOwner.indexOf("class QueueStateSnapshot internal constructor("))
+                normalizedOwner.indexOf("class QueueStateSnapshot private constructor("),
+                normalizedOwner.indexOf("\n    )", normalizedOwner.indexOf("class QueueStateSnapshot private constructor("))
         );
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "currentIndex",
@@ -8566,7 +8566,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(streamingRestoreProvider.contains("mediaItem"));
         String mirroredQueuePlayer = normalizedOwner.substring(
                 normalizedOwner.indexOf("interface MirroredQueuePlayer"),
-                normalizedOwner.indexOf("class QueueStateSnapshot internal constructor("));
+                normalizedOwner.indexOf("class QueueStateSnapshot private constructor("));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "matchesCurrentQueue",
                 "seekTo"
