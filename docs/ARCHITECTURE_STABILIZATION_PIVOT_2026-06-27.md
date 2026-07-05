@@ -407,6 +407,25 @@ Playback tests outrank UI snapshots for this area: queue restore, skip next/prev
 - 顺带把 8 个改动文件统一为 LF 行尾（stash 操作触发了 autocrlf CRLF 转换，导致契约测试
   6 个多行 `\n` 断言失败；转回 LF 后恢复——这 6 个是 base 工作树 CRLF 下的预存失败）。
 
+## 2026-07-05 Tier 2 起步：EchoDatabaseHelper CRUD 测试
+
+发现 StreamingViewModel 的 concern-split 切片（COOKIE/TRACK MATCH/.../PLAYLIST）被契约
+锁定为公共 API 必须留在 ViewModel（84 public fun vs 7 private fun），强拆需要覆盖数十条
+契约断言 + 重构调用方，是更大的设计反转，留给用户决策。先转 Tier 2 给数据层补测试。
+
+- 新增 `app/src/test/java/app/yukine/data/EchoDatabaseHelperCrudTest.java`（12 个测试，
+  Robolectric + `@Config(sdk=33)`，与现有 migration/playlist 测试同模式）：覆盖
+  `upsertTracks`（插+改同 id）、`replaceTracks`、`createPlaylist`（唯一 id + name UNIQUE
+  CONFLICT_IGNORE）、`addTrackToPlaylist`/`removeTrackFromPlaylist`/`renamePlaylist`、
+  `setFavorite`/`isFavorite`/`loadFavoriteIds`、`markPlayed`/`loadRecentlyPlayed`/
+  `loadMostPlayed`/`clearPlayHistory`、`savePlaybackQueue`/`loadPlaybackQueueTracks`/
+  `loadPlaybackQueueIndex`、`saveStreamingTrackMatch`/`loadStreamingTrackMatch`、settings
+  round-trip（themeMode/playbackSpeed/repeatMode/onlineLyrics）。
+- `EchoDatabaseHelper` 之前仅 7 个测试（6 migration + 1 playlist orphan）覆盖 2117 行；
+  现在 19 个测试，CRUD 路径行为有了基线保护。这是 Room 迁移的前置条件（pivot P1-8
+  要求"先补 migration/事务测试再 Room"），migration 已有，CRUD 现在也有。
+- 不改任何生产代码，不触契约，纯加测试。验证：3 个 DB 测试类一起跑全过。
+
 ## 对既有计划的覆盖
 
 本文件不删除 `docs/ARCHITECTURE_REMEDIATION_PLAN_2026-06-26.md`，但从 2026-06-27 起覆盖其中“继续推进拆分”的默认解释。
