@@ -9052,6 +9052,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("import java.util.Objects;"));
         assertTrue(owner.contains("interface HistorySink"));
         assertTrue(owner.contains("static Runnable recordIfPlaybackStartedAction("));
+        assertTrue(owner.contains("this.historySink = Objects.requireNonNull(historySink, \"historySink\");"));
+        assertTrue(owner.contains(
+                "this.transitionStateManager = Objects.requireNonNull(transitionStateManager, \"transitionStateManager\");"));
+        assertTrue(owner.contains("Objects.requireNonNull(repository, \"repository\")::markPlayed"));
+        assertTrue(owner.contains("Objects.requireNonNull(recorder, \"recorder\")"));
+        assertTrue(owner.contains("Objects.requireNonNull(playWhenReady, \"playWhenReady\")"));
         assertFalse(owner.contains("PlaybackQueueStateOwner queueStateOwner"));
         assertFalse(owner.contains("Supplier<PlaybackQueueManager> playbackQueueManagerSupplier"));
         assertFalse(owner.contains("Supplier<Track> currentTrackSupplier"));
@@ -9065,6 +9071,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("return queueStateSnapshot(queueStateSnapshotSupplier).getCurrentTrack();"));
         assertFalse(owner.contains("return snapshot == null ? PlaybackQueueManager.QueueStateSnapshot.empty() : snapshot;"));
         assertFalse(owner.contains("PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null"));
+        assertFalse(owner.contains("if (recorder == null)"));
+        assertFalse(owner.contains("playWhenReady != null && playWhenReady.getAsBoolean()"));
+        assertFalse(owner.contains("transitionStateManager == null"));
         assertTrue(owner.contains("private static Track currentTrack(PlaybackQueueManager playbackQueueManager)"));
         assertTrue(owner.contains(
                 "Objects.requireNonNull(playbackQueueManager, \"playbackQueueManager\")"));

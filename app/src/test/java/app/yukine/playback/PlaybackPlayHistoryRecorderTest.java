@@ -1,6 +1,7 @@
 package app.yukine.playback;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 import android.net.Uri;
 
@@ -74,15 +75,31 @@ public final class PlaybackPlayHistoryRecorderTest {
     }
 
     @Test
-    public void recordIfPlaybackStartedActionIgnoresMissingRecorder() {
-        AtomicBoolean playWhenReady = new AtomicBoolean(true);
-        Runnable action = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
-                null,
-                playWhenReady::get,
-                queueManagerWithTrack(track(1L))
+    public void recordIfPlaybackStartedActionRequiresRecorder() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
+                        null,
+                        () -> true,
+                        queueManagerWithTrack(track(1L))
+                )
         );
 
-        action.run();
+        assertEquals("recorder", error.getMessage());
+    }
+
+    @Test
+    public void recordIfPlaybackStartedActionRequiresPlayWhenReady() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
+                        recorder(new FakeHistorySink()),
+                        null,
+                        queueManagerWithTrack(track(1L))
+                )
+        );
+
+        assertEquals("playWhenReady", error.getMessage());
     }
 
     @Test(expected = NullPointerException.class)
@@ -92,6 +109,26 @@ public final class PlaybackPlayHistoryRecorderTest {
                 () -> true,
                 null
         );
+    }
+
+    @Test
+    public void constructorRequiresHistorySink() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackPlayHistoryRecorder(null, new PlaybackTransitionStateManager())
+        );
+
+        assertEquals("historySink", error.getMessage());
+    }
+
+    @Test
+    public void constructorRequiresTransitionStateManager() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackPlayHistoryRecorder(new FakeHistorySink(), null)
+        );
+
+        assertEquals("transitionStateManager", error.getMessage());
     }
 
     private static PlaybackPlayHistoryRecorder recorder(FakeHistorySink historySink) {

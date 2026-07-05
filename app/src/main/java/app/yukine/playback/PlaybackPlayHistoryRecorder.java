@@ -20,15 +20,18 @@ final class PlaybackPlayHistoryRecorder {
             HistorySink historySink,
             PlaybackTransitionStateManager transitionStateManager
     ) {
-        this.historySink = historySink;
-        this.transitionStateManager = transitionStateManager;
+        this.historySink = Objects.requireNonNull(historySink, "historySink");
+        this.transitionStateManager = Objects.requireNonNull(transitionStateManager, "transitionStateManager");
     }
 
     static PlaybackPlayHistoryRecorder fromRepository(
             MusicLibraryRepository repository,
             PlaybackTransitionStateManager transitionStateManager
     ) {
-        return new PlaybackPlayHistoryRecorder(repository::markPlayed, transitionStateManager);
+        return new PlaybackPlayHistoryRecorder(
+                Objects.requireNonNull(repository, "repository")::markPlayed,
+                transitionStateManager
+        );
     }
 
     static Runnable recordIfPlaybackStartedAction(
@@ -36,15 +39,15 @@ final class PlaybackPlayHistoryRecorder {
             BooleanSupplier playWhenReady,
             PlaybackQueueManager playbackQueueManager
     ) {
-        if (recorder == null) {
-            return () -> {
-            };
-        }
+        PlaybackPlayHistoryRecorder requiredRecorder =
+                Objects.requireNonNull(recorder, "recorder");
+        BooleanSupplier requiredPlayWhenReady =
+                Objects.requireNonNull(playWhenReady, "playWhenReady");
         PlaybackQueueManager requiredQueueManager =
                 Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         return () -> {
-            recorder.recordIfPlaybackStarted(
-                    playWhenReady != null && playWhenReady.getAsBoolean(),
+            requiredRecorder.recordIfPlaybackStarted(
+                    requiredPlayWhenReady.getAsBoolean(),
                     currentTrack(requiredQueueManager)
             );
         };
@@ -56,7 +59,7 @@ final class PlaybackPlayHistoryRecorder {
     }
 
     void recordIfPlaybackStarted(boolean playWhenReady, Track track) {
-        if (!playWhenReady || track == null || transitionStateManager == null) {
+        if (!playWhenReady || track == null) {
             return;
         }
         Track lastMarked = transitionStateManager.lastMarkedTrack();
