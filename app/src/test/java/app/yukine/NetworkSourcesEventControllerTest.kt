@@ -29,6 +29,23 @@ class NetworkSourcesEventControllerTest {
     }
 
     @Test
+    fun navigationReadsRouteControllerFromProviderAtActionTime() {
+        val fakes = Fakes()
+        val initialNavigationViewModel = NavigationViewModel(SavedStateHandle())
+        val initialRouteController = MainRouteController(initialNavigationViewModel)
+        var routeController = initialRouteController
+        val controller = fakes.controller { routeController }
+        val nextNavigationViewModel = NavigationViewModel(SavedStateHandle())
+        routeController = MainRouteController(nextNavigationViewModel)
+
+        controller.openRemoteSourceTracks(42L)
+
+        assertEquals(MainRoutes.NETWORK_HOME, initialRouteController.current().networkPage)
+        assertEquals(MainRoutes.NETWORK_WEBDAV_SOURCE_TRACKS, routeController.current().networkPage)
+        assertEquals(42L, routeController.current().selectedRemoteSourceId)
+    }
+
+    @Test
     fun sourceRequestsAndDialogsAreForwarded() {
         val fakes = Fakes()
         val controller = fakes.controller()
@@ -84,9 +101,11 @@ class NetworkSourcesEventControllerTest {
             FakeListener(events)
         )
 
-        fun controller(): NetworkSourcesEventController =
+        fun controller(
+            routeControllerProvider: () -> MainRouteController = { routeController }
+        ): NetworkSourcesEventController =
             NetworkSourcesEventController(
-                routeController,
+                routeControllerProvider,
                 requestController,
                 { sourceId -> "Source $sourceId" },
                 { sourceId -> sourceTracks },

@@ -314,7 +314,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 this::renderSelectedTabIfReady,
                 this::loadCollections,
                 this::showAddToPlaylistIfReady,
-                routeController,
+                () -> routeController,
                 this::applySearch,
                 this::openAudioFilePickerIfReady,
                 allowCachedFirst -> loadLibrary(allowCachedFirst)
@@ -1138,7 +1138,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 networkMenuViewModel
         );
         NetworkSourcesEventController sourcesEvents = new NetworkSourcesEventController(
-                routeController,
+                () -> routeController,
                 networkRequestController,
                 sourceId -> libraryStore.remoteSourceName(sourceId, settingsStore.languageMode()),
                 sourceId -> libraryStore.webDavTracksForSource(sourceId),

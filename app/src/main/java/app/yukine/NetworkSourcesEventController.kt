@@ -5,7 +5,7 @@ import app.yukine.model.Track
 import java.util.ArrayList
 
 internal class NetworkSourcesEventController(
-    private val routeController: MainRouteController,
+    private val routeControllerProvider: () -> MainRouteController,
     private val requestController: NetworkRequestController,
     private val remoteSourceNameProvider: RemoteSourceNameProvider,
     private val webDavTracksForSourceProvider: WebDavTracksForSourceProvider,
@@ -45,6 +45,7 @@ internal class NetworkSourcesEventController(
     }
 
     override fun backToNetwork() {
+        val routeController = routeController()
         routeController.clearSelectedRemoteSource()
         routeController.setNetworkPage(MainRoutes.NETWORK_HOME)
         renderer.renderAndPersistSelectedTab()
@@ -68,6 +69,7 @@ internal class NetworkSourcesEventController(
     }
 
     override fun openRemoteSourceTracks(sourceId: Long) {
+        val routeController = routeController()
         routeController.setSelectedRemoteSourceId(sourceId)
         routeController.setNetworkPage(MainRoutes.NETWORK_WEBDAV_SOURCE_TRACKS)
         renderer.renderAndPersistSelectedTab()
@@ -81,4 +83,6 @@ internal class NetworkSourcesEventController(
         deleteConfirmation.confirmDeleteRemoteSource(source)
     }
 
+    private fun routeController(): MainRouteController =
+        routeControllerProvider()
 }

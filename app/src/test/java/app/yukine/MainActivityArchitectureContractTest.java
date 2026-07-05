@@ -186,7 +186,7 @@ public final class MainActivityArchitectureContractTest {
         int nowPlayingStateControllerAssignment = playbackControllers.indexOf(
                 "nowPlayingStateController = new NowPlayingStateController("
         );
-        int libraryRouteActionsArgument = libraryGateway.indexOf("                routeController,\n");
+        int libraryRouteActionsProviderArgument = libraryGateway.indexOf("                () -> routeController,\n");
         int libraryStatusCallbackArgument = libraryGateway.indexOf(
                 "                status -> statusMessageController.setStatus(status),\n"
         );
@@ -430,12 +430,14 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(libraryGateway.contains("playlistDialogController.showAddToPlaylist(track);"));
         assertFalse(libraryGateway.contains("                    if (playlistDialogController != null) {"));
         assertFalse(libraryGateway.contains("                    if (MainActivityBase.this.playlistDialogController != null) {"));
-        assertTrue(libraryGateway.contains("                routeController,\n"));
-        assertTrue(libraryRouteActionsArgument >= 0);
-        assertTrue(mainLibraryGateway.contains("        routeActions: LibraryRouteActions,\n"));
+        assertFalse(libraryGateway.contains("                routeController,\n"));
+        assertTrue(libraryGateway.contains("                () -> routeController,\n"));
+        assertTrue(libraryRouteActionsProviderArgument >= 0);
+        assertFalse(mainLibraryGateway.contains("        routeActions: LibraryRouteActions,\n"));
         assertFalse(mainLibraryGateway.contains("        routeActions: LibraryRouteActions?,\n"));
-        assertFalse(mainLibraryGateway.contains("        routeActionsProvider:"));
-        assertFalse(libraryGateway.contains("                () -> routeController,\n"));
+        assertFalse(mainLibraryGateway.contains("internal fun interface LibraryRouteActionsProvider"));
+        assertTrue(mainLibraryGateway.contains("        routeActionsProvider: () -> LibraryRouteActions,"));
+        assertTrue(mainLibraryGateway.contains("private fun routeActions(): LibraryRouteActions"));
         assertFalse(libraryGateway.contains("                routeController == null"));
         assertFalse(libraryGateway.contains("                () -> settingsStore.languageMode(),\n"));
         assertFalse(libraryGateway.contains("                statusMessageController,\n"));
@@ -624,7 +626,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(downloadRequests.contains("                trackDownloadManager,\n"));
         assertTrue(libraryGateway.contains("                this::openAudioFilePickerIfReady,\n"));
         assertTrue(documentPickerProviderArgument >= 0);
-        assertTrue(libraryRouteActionsArgument < documentPickerProviderArgument);
+        assertTrue(libraryRouteActionsProviderArgument < documentPickerProviderArgument);
         assertFalse(libraryGateway.contains("                documentPickerController,\n"));
         assertFalse(libraryGateway.contains("                documentPickerController.openAudioFilePicker(),\n"));
         assertFalse(onCreate.contains("initializeLibraryGateway();\n        initializeRouteStoresAndStatus();"));
@@ -4472,7 +4474,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(sourcesDestination.contains("NetworkSourcesScreen("));
         assertTrue(sourcesEvents.contains("internal class NetworkSourcesEventController"));
         assertTrue(sourcesEvents.contains(": NetworkSourcesRenderController.Listener"));
-        assertTrue(sourcesEvents.contains("private val routeController: MainRouteController"));
+        assertTrue(sourcesEvents.contains("private val routeControllerProvider: () -> MainRouteController"));
+        assertTrue(sourcesEvents.contains("private fun routeController(): MainRouteController"));
+        assertFalse(sourcesEvents.contains("private val routeController: MainRouteController"));
         assertFalse(sourcesEvents.contains("MainStatePublisher"));
         assertTrue(sourcesEvents.contains("fun interface RemoteSourceNameProvider"));
         assertTrue(sourcesEvents.contains("fun interface WebDavTracksForSourceProvider"));
@@ -5145,12 +5149,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("(tracks, index) -> MainActivityBase.this.playTrackListFromHost(tracks, index)"));
         assertTrue(mainActivity.contains("status -> statusMessageController.setStatus(status)"));
         assertTrue(mainActivity.contains("(trackId, favorite) -> viewModel.setFavorite(trackId, favorite)"));
-        assertTrue(mainActivity.contains("routeController,"));
+        assertFalse(mainActivity.contains("                routeController,\n"));
+        assertEquals(2, countOccurrences(mainActivity, "                () -> routeController,\n"));
         assertTrue(mainActivity.contains("this::openAudioFilePickerIfReady"));
         assertFalse(mainActivity.contains("libraryViewModel.bindGateway(new LibraryGateway() {"));
         assertFalse(mainActivity.contains("statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), key));"));
         assertTrue(mainLibraryGateway.contains("internal fun interface MainLibraryGatewayFactory"));
         assertTrue(mainLibraryGateway.contains("internal interface LibraryRouteActions"));
+        assertFalse(mainLibraryGateway.contains("internal fun interface LibraryRouteActionsProvider"));
         assertTrue(mainLibraryGateway.contains("internal class MainLibraryGateway("));
         assertTrue(mainLibraryGateway.contains(") : LibraryGateway"));
         assertTrue(mainLibraryGateway.contains("statusSink.setStatus(AppLanguage.text(languageModeProvider.languageMode(), key))"));
@@ -5159,13 +5165,15 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainLibraryGateway.contains("selectedTabRenderer.renderSelectedTab()"));
         assertTrue(mainLibraryGateway.contains("collectionsLoader.loadCollections()"));
         assertTrue(mainLibraryGateway.contains("playlistAdder.showAddToPlaylist(track)"));
-        assertTrue(mainLibraryGateway.contains("routeActions.setLibraryMode(mode)"));
-        assertTrue(mainLibraryGateway.contains("routeActions.selectLibraryGroup(key, title)"));
+        assertTrue(mainLibraryGateway.contains("routeActions().setLibraryMode(mode)"));
+        assertTrue(mainLibraryGateway.contains("routeActions().selectLibraryGroup(key, title)"));
         assertTrue(mainLibraryGateway.contains("routeActions.selectLibraryGroup(\"playlist:$playlistId\", title)"));
         assertTrue(mainLibraryGateway.contains("routeActions.setSelectedPlaylistId(playlistId)"));
         assertTrue(mainLibraryGateway.contains("routeActions.clearLibraryGroup()"));
         assertTrue(mainLibraryGateway.contains("routeActions.setSelectedPlaylistId(-1L)"));
-        assertTrue(mainLibraryGateway.contains("routeActions.setSearchQuery(query)"));
+        assertTrue(mainLibraryGateway.contains("routeActions().setSearchQuery(query)"));
+        assertTrue(mainLibraryGateway.contains("routeActionsProvider: () -> LibraryRouteActions"));
+        assertTrue(mainLibraryGateway.contains("private fun routeActions(): LibraryRouteActions"));
         assertTrue(mainLibraryGateway.contains("audioImporter.openAudioFilePicker()"));
         assertTrue(mainLibraryGateway.contains("libraryScanner.scanLibrary(false)"));
         assertFalse(mainActivity.contains("new LibraryGatewayBindings("));

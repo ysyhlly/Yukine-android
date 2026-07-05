@@ -55,6 +55,24 @@ class MainLibraryGatewayTest {
     }
 
     @Test
+    fun routingReadsRouteActionsFromProviderAtActionTime() {
+        val events = mutableListOf<String>()
+        var routeActions: LibraryRouteActions = FakeRouteActions(events, "first")
+        val gateway = gateway(events) { routeActions }
+
+        routeActions = FakeRouteActions(events, "second")
+        gateway.changeGroupMode(LibraryGrouping.ARTISTS)
+
+        assertEquals(
+            listOf(
+                "second:mode:artists",
+                "render"
+            ),
+            events
+        )
+    }
+
+    @Test
     fun statusImportScanAndTrackActionsDelegate() {
         val events = mutableListOf<String>()
         val track = track(3L)
@@ -78,7 +96,10 @@ class MainLibraryGatewayTest {
         )
     }
 
-    private fun gateway(events: MutableList<String>): MainLibraryGateway {
+    private fun gateway(
+        events: MutableList<String>,
+        routeActionsProvider: () -> LibraryRouteActions = { FakeRouteActions(events) }
+    ): MainLibraryGateway {
         return MainLibraryGateway(
             trackListPlayer = { tracks, index -> events += "play:${tracks[index].id}:$index" },
             languageModeProvider = { "zh" },
@@ -88,7 +109,7 @@ class MainLibraryGatewayTest {
             selectedTabRenderer = { events += "render" },
             collectionsLoader = { events += "loadCollections" },
             playlistAdder = { track -> events += "playlistAdd:${track.id}" },
-            routeActions = FakeRouteActions(events),
+            routeActionsProvider = routeActionsProvider,
             searchApplier = { events += "applySearch" },
             audioImporter = { events += "importFiles" },
             libraryScanner = { allowCachedFirst -> events += "scan:$allowCachedFirst" }
@@ -96,27 +117,31 @@ class MainLibraryGatewayTest {
     }
 
     private class FakeRouteActions(
-        private val events: MutableList<String>
+        private val events: MutableList<String>,
+        private val prefix: String = ""
     ) : LibraryRouteActions {
         override fun setLibraryMode(mode: String) {
-            events += "mode:$mode"
+            events += event("mode:$mode")
         }
 
         override fun selectLibraryGroup(key: String, title: String) {
-            events += "group:$key:$title"
+            events += event("group:$key:$title")
         }
 
         override fun setSelectedPlaylistId(playlistId: Long) {
-            events += "playlist:$playlistId"
+            events += event("playlist:$playlistId")
         }
 
         override fun clearLibraryGroup() {
-            events += "clearGroup"
+            events += event("clearGroup")
         }
 
         override fun setSearchQuery(query: String) {
-            events += "search:$query"
+            events += event("search:$query")
         }
+
+        private fun event(value: String): String =
+            if (prefix.isEmpty()) value else "$prefix:$value"
     }
 
     private fun track(id: Long): Track {
