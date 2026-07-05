@@ -13,6 +13,7 @@ import app.yukine.playback.manager.PlaybackQueueStore;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 public class PlaybackQueueCommandOwnerTest {
@@ -77,6 +78,31 @@ public class PlaybackQueueCommandOwnerTest {
         );
 
         owner.prepareCurrent(true);
+    }
+
+    @Test
+    public void constructorRequiresPlaybackPreparer() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackQueueCommandOwner(null, () -> {
+                })
+        );
+
+        assertEquals("playbackPreparer", error.getMessage());
+    }
+
+    @Test
+    public void constructorRequiresStatePublisher() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackQueueCommandOwner(
+                        (currentTrack, playWhenReady) -> {
+                        },
+                        null
+                )
+        );
+
+        assertEquals("statePublisher", error.getMessage());
     }
 
     private static PlaybackQueueManager queueManagerWithCurrent(Track currentTrack) {

@@ -8149,6 +8149,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("import java.util.Objects;"));
         assertTrue(commandOwner.contains("private final BiConsumer<Track, Boolean> playbackPreparer;"));
         assertTrue(commandOwner.contains("private final Runnable statePublisher;"));
+        assertTrue(commandOwner.contains(
+                "this.playbackPreparer = Objects.requireNonNull(playbackPreparer, \"playbackPreparer\");"));
+        assertTrue(commandOwner.contains(
+                "this.statePublisher = Objects.requireNonNull(statePublisher, \"statePublisher\");"));
         assertFalse(commandOwner.contains("private final Runnable stopAndClearCommand;"));
         assertTrue(commandOwner.contains("boolean prepareCurrentOrRunFallback(boolean playWhenReady, Runnable fallbackAction)"));
         assertTrue(commandOwner.contains("private boolean prepareCurrentIfAvailable(boolean playWhenReady)"));
@@ -8168,6 +8172,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("missingCurrentTrackAction.run();"));
         assertTrue(commandOwner.contains("return queueStateSnapshot().getCurrentTrack();"));
         assertFalse(commandOwner.contains("queueStateOwner.currentTrack()"));
+        assertFalse(commandOwner.contains("playbackPreparer == null"));
         assertTrue(commandOwner.contains("playbackPreparer.accept(track, playWhenReady);"));
         assertTrue(commandOwner.contains("statePublisher.run();"));
         assertFalse(commandOwner.contains("stopAndClearCommand.run();"));

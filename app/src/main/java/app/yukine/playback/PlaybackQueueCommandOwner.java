@@ -15,8 +15,8 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
             BiConsumer<Track, Boolean> playbackPreparer,
             Runnable statePublisher
     ) {
-        this.playbackPreparer = playbackPreparer;
-        this.statePublisher = statePublisher;
+        this.playbackPreparer = Objects.requireNonNull(playbackPreparer, "playbackPreparer");
+        this.statePublisher = Objects.requireNonNull(statePublisher, "statePublisher");
     }
 
     void bindPlaybackQueueManager(PlaybackQueueManager playbackQueueManager) {
@@ -40,7 +40,7 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
 
     private boolean prepareCurrentIfAvailable(boolean playWhenReady) {
         Track track = currentTrack();
-        if (track == null || playbackPreparer == null) {
+        if (track == null) {
             return false;
         }
         playbackPreparer.accept(track, playWhenReady);
