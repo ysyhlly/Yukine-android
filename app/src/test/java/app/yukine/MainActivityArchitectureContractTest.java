@@ -3122,6 +3122,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackService.contains("public void warmPlaybackTrack(Track track)"));
         assertTrue(normalizedPlaybackService.contains("public void warmPlaybackTrack(Track track) {\n        playbackWarmupCoordinator.warmup(track);\n    }"));
         assertFalse(playbackService.contains("playbackWarmupCoordinator != null"));
+        assertFalse(playbackService.contains("playbackPrecacheManager != null"));
+        assertFalse(playbackService.contains("playbackVisualizationCacheManager != null"));
         assertFalse(normalizedPlaybackService.contains("public void warmPlaybackTrack(Track track) {\n        if (playbackPrecacheManager != null) {\n            playbackPrecacheManager.precacheTrack(track);\n        }\n    }"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackWarmupActionsOwner.java")));
         assertFalse(playbackService.contains("PlaybackWarmupActionsOwner"));
@@ -3133,8 +3135,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackPrecacheManager.contains("static Consumer<Track> precacheTrackActionFromSupplier("));
         assertFalse(playbackVisualizationCacheManager.contains(
                 "static Consumer<Track> scheduleVisualizationCacheActionFromSupplier("));
-        assertTrue(playbackService.contains("playbackPrecacheManager.precacheTrack(track);"));
-        assertTrue(playbackService.contains("playbackVisualizationCacheManager.scheduleVisualizationCache(track);"));
+        assertTrue(playbackService.contains("track -> playbackPrecacheManager.precacheTrack(track)"));
+        assertTrue(playbackService.contains("track -> playbackVisualizationCacheManager.scheduleVisualizationCache(track)"));
         assertTrue(playbackService.contains("PlaybackPrecacheManager::release"));
         assertFalse(playbackService.contains("playbackPrecacheManager.release();"));
         assertFalse(playbackService.contains("private void precacheUpcomingTracks("));

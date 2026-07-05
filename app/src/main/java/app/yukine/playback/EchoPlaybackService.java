@@ -514,16 +514,8 @@ public final class EchoPlaybackService extends MediaLibraryService
                 mediaSourceProvider
         );
         playbackWarmupCoordinator = new PlaybackWarmupCoordinator(
-                track -> {
-                    if (playbackPrecacheManager != null) {
-                        playbackPrecacheManager.precacheTrack(track);
-                    }
-                },
-                track -> {
-                    if (playbackVisualizationCacheManager != null) {
-                        playbackVisualizationCacheManager.scheduleVisualizationCache(track);
-                    }
-                }
+                track -> playbackPrecacheManager.precacheTrack(track),
+                track -> playbackVisualizationCacheManager.scheduleVisualizationCache(track)
         );
         playbackShutdownServiceResourcesOwner = new PlaybackShutdownServiceResourcesOwner(
                 PlaybackShutdownServiceResourcesOwner.releaseFrom(
