@@ -1,5 +1,19 @@
 # ECHO/YUKINE 架构稳定化方向切换 - 2026-06-27
 
+## 活文档清单（2026-07-05）
+
+`docs/` 已收口为以下 7 个活文档，其余 20 个历史 HANDOFF/REMEDIATION/PROGRESS 文档移至 `docs/archive/`（保留可追溯，不在主目录干扰视线）：
+
+| 文档 | 用途 |
+|---|---|
+| `ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md` | 当前权威方向（本文件） |
+| `MVVM_MIGRATION_HANDOFF.md` | 主迁移手册（历史参考，方向以本文件为准） |
+| `PLAYBACK_P0_BASELINE_2026-06-29.md` | 播放迁移基线快照（已截断，历史 delta 见 git log） |
+| `PLAYBACK_SERVICE_STABILITY_MATRIX.md` | 播放稳定性验收矩阵 |
+| `MATURITY_ROADMAP.md` | 长期目标 |
+| `RELEASE_EXPERIENCE_CHECKLIST.md` | 发布检查清单 |
+| `APP_ICON_LOCK.md` | 图标锁定小贴士 |
+
 ## 背景
 
 本文件根据最新代码审查反馈更新迁移方向。此前的架构迁移过度强调“继续拆 owner/manager/coordinator”，已经暴露出新的风险：

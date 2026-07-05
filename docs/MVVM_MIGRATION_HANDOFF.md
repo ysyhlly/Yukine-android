@@ -1,5 +1,7 @@
 # Yukine Android MVVM 迁移接手清单
 
+> **2026-07-05 状态指针**：当前权威方向文档是 `docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md`（先冻结、先收根因热点、净减复杂度才继续迁移）。本文为历史迁移参考，其中"继续拆 owner"的默认方向已被 STABILIZATION_PIVOT supersede。读本文前请先读 PIVOT。本文的超大体积（3857 行）是历史累积，暂不拆分，按需查阅。
+
 日期�?026-06-23  
 状态：架构审查后形成的接手文档，未要求一次性重写�? 
 适用范围：`app/src/main/java/app/yukine` 下当前单 Activity + Compose �?+ Java/Kotlin 迁移中间态�? 
