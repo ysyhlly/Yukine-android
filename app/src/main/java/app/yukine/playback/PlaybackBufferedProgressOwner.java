@@ -1,5 +1,6 @@
 package app.yukine.playback;
 
+import java.util.Objects;
 import java.util.function.LongSupplier;
 import java.util.function.LongToDoubleFunction;
 
@@ -12,8 +13,14 @@ final class PlaybackBufferedProgressOwner
             LongSupplier playbackPositionProvider,
             LongSupplier bufferedPositionProvider
     ) {
-        this.playbackPositionProvider = playbackPositionProvider;
-        this.bufferedPositionProvider = bufferedPositionProvider;
+        this.playbackPositionProvider = Objects.requireNonNull(
+                playbackPositionProvider,
+                "playbackPositionProvider"
+        );
+        this.bufferedPositionProvider = Objects.requireNonNull(
+                bufferedPositionProvider,
+                "bufferedPositionProvider"
+        );
     }
 
     float bufferedProgress(long durationMs) {
@@ -26,8 +33,8 @@ final class PlaybackBufferedProgressOwner
             return 0.0;
         }
         try {
-            long positionMs = playbackPositionProvider == null ? 0L : playbackPositionProvider.getAsLong();
-            long bufferedPositionMs = bufferedPositionProvider == null ? 0L : bufferedPositionProvider.getAsLong();
+            long positionMs = playbackPositionProvider.getAsLong();
+            long bufferedPositionMs = bufferedPositionProvider.getAsLong();
             long bufferedMs = Math.max(positionMs, bufferedPositionMs);
             return Math.max(0.0, Math.min(1.0, bufferedMs / (double) durationMs));
         } catch (IllegalStateException ignored) {

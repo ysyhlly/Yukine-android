@@ -2939,6 +2939,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(bufferedProgressOwner.contains(
                 "final class PlaybackBufferedProgressOwner"));
         assertTrue(bufferedProgressOwner.contains("implements LongToDoubleFunction"));
+        assertTrue(bufferedProgressOwner.contains("import java.util.Objects;"));
         assertTrue(bufferedProgressOwner.contains("import java.util.function.LongToDoubleFunction;"));
         assertFalse(bufferedProgressOwner.contains("interface PlaybackPositionProvider"));
         assertFalse(bufferedProgressOwner.contains("interface PlayerProvider"));
@@ -2946,12 +2947,18 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(bufferedProgressOwner.contains("PlayerBufferProviderSource"));
         assertFalse(bufferedProgressOwner.contains("import androidx.media3.common.Player;"));
         assertTrue(bufferedProgressOwner.contains("private final LongSupplier playbackPositionProvider;"));
+        assertTrue(bufferedProgressOwner.contains("this.playbackPositionProvider = Objects.requireNonNull("));
+        assertTrue(bufferedProgressOwner.contains("\"playbackPositionProvider\""));
         assertFalse(bufferedProgressOwner.contains("private final Supplier<Player> playerProvider;"));
         assertTrue(bufferedProgressOwner.contains("private final LongSupplier bufferedPositionProvider;"));
+        assertTrue(bufferedProgressOwner.contains("this.bufferedPositionProvider = Objects.requireNonNull("));
+        assertTrue(bufferedProgressOwner.contains("\"bufferedPositionProvider\""));
         assertTrue(bufferedProgressOwner.contains("playbackPositionProvider.getAsLong();"));
+        assertFalse(bufferedProgressOwner.contains("playbackPositionProvider == null"));
         assertFalse(bufferedProgressOwner.contains("Player player = player();"));
         assertFalse(bufferedProgressOwner.contains("player.getBufferedPosition()"));
         assertTrue(bufferedProgressOwner.contains("bufferedPositionProvider.getAsLong();"));
+        assertFalse(bufferedProgressOwner.contains("bufferedPositionProvider == null"));
         assertTrue(bufferedProgressOwner.contains("Math.max(positionMs, bufferedPositionMs)"));
         assertTrue(bufferedProgressOwner.contains("Math.max(0.0, Math.min(1.0, bufferedMs / (double) durationMs))"));
         assertTrue(visualizationStateOwner.contains(

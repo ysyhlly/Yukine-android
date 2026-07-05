@@ -1,6 +1,7 @@
 package app.yukine.playback;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 import org.junit.Test;
 
@@ -31,14 +32,39 @@ public class PlaybackBufferedProgressOwnerTest {
     }
 
     @Test
-    public void returnsZeroWhenDurationOrBufferedPositionIsMissing() {
-        PlaybackBufferedProgressOwner missingBufferedPosition = new PlaybackBufferedProgressOwner(
+    public void returnsZeroWhenDurationIsMissing() {
+        PlaybackBufferedProgressOwner owner = new PlaybackBufferedProgressOwner(
                 () -> 1000L,
-                null
+                () -> 2500L
         );
 
-        assertEquals(0.25f, missingBufferedPosition.bufferedProgress(4000L), 0.001f);
-        assertEquals(0f, missingBufferedPosition.bufferedProgress(0L), 0.001f);
+        assertEquals(0f, owner.bufferedProgress(0L), 0.001f);
+    }
+
+    @Test
+    public void constructorRequiresPlaybackPositionProvider() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackBufferedProgressOwner(
+                        null,
+                        () -> 2500L
+                )
+        );
+
+        assertEquals("playbackPositionProvider", error.getMessage());
+    }
+
+    @Test
+    public void constructorRequiresBufferedPositionProvider() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackBufferedProgressOwner(
+                        () -> 1000L,
+                        null
+                )
+        );
+
+        assertEquals("bufferedPositionProvider", error.getMessage());
     }
 
     @Test
