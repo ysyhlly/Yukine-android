@@ -19,6 +19,7 @@ import app.yukine.playback.manager.PlaybackQueueStore;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 public class PlaybackSessionCommandOwnerTest {
@@ -96,6 +97,73 @@ public class PlaybackSessionCommandOwnerTest {
                 (mediaItems, startIndex, startPositionMs) -> false,
                 null,
                 track -> null
+        );
+    }
+
+    @Test
+    public void constructorRequiresSessionDelegates() {
+        assertEquals(
+                "playbackCommands",
+                assertThrows(NullPointerException.class, () -> new PlaybackSessionCommandOwner(
+                        null,
+                        positionMs -> {
+                        },
+                        repeatMode -> {
+                        },
+                        (mediaItems, startIndex, startPositionMs) -> false,
+                        playbackQueueManager(),
+                        track -> null
+                )).getMessage()
+        );
+        assertEquals(
+                "seekController",
+                assertThrows(NullPointerException.class, () -> new PlaybackSessionCommandOwner(
+                        new FakePlaybackCommands(new ArrayList<>()),
+                        null,
+                        repeatMode -> {
+                        },
+                        (mediaItems, startIndex, startPositionMs) -> false,
+                        playbackQueueManager(),
+                        track -> null
+                )).getMessage()
+        );
+        assertEquals(
+                "repeatModeController",
+                assertThrows(NullPointerException.class, () -> new PlaybackSessionCommandOwner(
+                        new FakePlaybackCommands(new ArrayList<>()),
+                        positionMs -> {
+                        },
+                        null,
+                        (mediaItems, startIndex, startPositionMs) -> false,
+                        playbackQueueManager(),
+                        track -> null
+                )).getMessage()
+        );
+        assertEquals(
+                "controllerMediaItems",
+                assertThrows(NullPointerException.class, () -> new PlaybackSessionCommandOwner(
+                        new FakePlaybackCommands(new ArrayList<>()),
+                        positionMs -> {
+                        },
+                        repeatMode -> {
+                        },
+                        null,
+                        playbackQueueManager(),
+                        track -> null
+                )).getMessage()
+        );
+        assertEquals(
+                "metadataProvider",
+                assertThrows(NullPointerException.class, () -> new PlaybackSessionCommandOwner(
+                        new FakePlaybackCommands(new ArrayList<>()),
+                        positionMs -> {
+                        },
+                        repeatMode -> {
+                        },
+                        (mediaItems, startIndex, startPositionMs) -> false,
+                        playbackQueueManager(),
+                        null
+                )).getMessage()
         );
     }
 

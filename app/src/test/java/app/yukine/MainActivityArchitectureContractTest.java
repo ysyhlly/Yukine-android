@@ -9824,6 +9824,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("private final LongConsumer seekController;"));
         assertTrue(commandOwner.contains("private final IntConsumer repeatModeController;"));
         assertTrue(commandOwner.contains("private final Function<Track, MediaMetadata> metadataProvider;"));
+        assertTrue(commandOwner.contains(
+                "this.playbackCommands = Objects.requireNonNull(playbackCommands, \"playbackCommands\");"));
+        assertTrue(commandOwner.contains(
+                "this.seekController = Objects.requireNonNull(seekController, \"seekController\");"));
+        assertTrue(commandOwner.contains(
+                "this.repeatModeController = Objects.requireNonNull(repeatModeController, \"repeatModeController\");"));
+        assertTrue(commandOwner.contains(
+                "this.controllerMediaItems = Objects.requireNonNull(controllerMediaItems, \"controllerMediaItems\");"));
+        assertTrue(commandOwner.contains(
+                "this.metadataProvider = Objects.requireNonNull(metadataProvider, \"metadataProvider\");"));
         assertFalse(commandOwner.contains("interface StateProvider"));
         assertFalse(commandOwner.contains("stateProvider.currentTrack()"));
         assertFalse(commandOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));

@@ -33,12 +33,12 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
             PlaybackQueueManager playbackQueueManager,
             Function<Track, MediaMetadata> metadataProvider
     ) {
-        this.playbackCommands = playbackCommands;
-        this.seekController = seekController;
-        this.repeatModeController = repeatModeController;
-        this.controllerMediaItems = controllerMediaItems;
+        this.playbackCommands = Objects.requireNonNull(playbackCommands, "playbackCommands");
+        this.seekController = Objects.requireNonNull(seekController, "seekController");
+        this.repeatModeController = Objects.requireNonNull(repeatModeController, "repeatModeController");
+        this.controllerMediaItems = Objects.requireNonNull(controllerMediaItems, "controllerMediaItems");
         this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.metadataProvider = metadataProvider;
+        this.metadataProvider = Objects.requireNonNull(metadataProvider, "metadataProvider");
     }
 
     @Override
