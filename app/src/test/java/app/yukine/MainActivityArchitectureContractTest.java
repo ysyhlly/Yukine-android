@@ -8370,11 +8370,19 @@ public final class MainActivityArchitectureContractTest {
                 normalizedOwner.indexOf("data class QueueStateSnapshot("),
                 normalizedOwner.indexOf("\n    ) {", normalizedOwner.indexOf("data class QueueStateSnapshot("))
         );
+        String queueStateSnapshotCompanion = normalizedOwner.substring(
+                normalizedOwner.indexOf("        companion object {", normalizedOwner.indexOf("data class QueueStateSnapshot(")),
+                normalizedOwner.indexOf("\n        }", normalizedOwner.indexOf("        companion object {",
+                        normalizedOwner.indexOf("data class QueueStateSnapshot(")))
+        );
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "currentIndex",
                 "currentTrack",
                 "queueSize"
         )), kotlinConstructorPropertyNames(queueStateSnapshotConstructor));
+        assertEquals(new java.util.TreeSet<>(java.util.Collections.singletonList(
+                "empty"
+        )), kotlinPublicFunNames(queueStateSnapshotCompanion));
         assertFalse(queueStateSnapshot.contains("val isQueueEmpty: Boolean"));
         assertFalse(queueStateSnapshot.contains("get() = queueSize <= 0"));
         assertFalse(queueStateSnapshot.contains("val hasCurrentTrack: Boolean"));
