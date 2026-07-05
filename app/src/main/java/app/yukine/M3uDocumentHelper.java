@@ -12,12 +12,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 
+import android.util.Log;
+
 import app.yukine.data.M3uPlaylistExporter;
 import app.yukine.model.PlaylistImportResult;
 import app.yukine.model.StreamImportResult;
 import app.yukine.model.Track;
 
 final class M3uDocumentHelper {
+    private static final String TAG = "M3uDocumentHelper";
     static final String[] MIME_TYPES = new String[]{
             "audio/x-mpegurl",
             "audio/mpegurl",
@@ -62,7 +65,8 @@ final class M3uDocumentHelper {
                     text.append(line).append('\n');
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to read M3U text from " + uri, e);
             return ReadResult.failed();
         }
         return ReadResult.success(text.toString());
@@ -79,7 +83,8 @@ final class M3uDocumentHelper {
             output.write((text == null ? "" : text).getBytes(StandardCharsets.UTF_8));
             output.flush();
             return true;
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to write M3U text to " + uri, e);
             return false;
         }
     }
