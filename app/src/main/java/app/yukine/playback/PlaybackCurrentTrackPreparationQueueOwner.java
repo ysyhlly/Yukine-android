@@ -76,7 +76,10 @@ final class PlaybackCurrentTrackPreparationQueueOwner {
     ) {
         this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         this.queueTrackForPreparation = queueTrackForPreparation;
-        this.mediaSourcesForTracks = mediaSourcesForTracks;
+        this.mediaSourcesForTracks = Objects.requireNonNull(
+                mediaSourcesForTracks,
+                "mediaSourcesForTracks"
+        );
     }
 
     PreparedQueue queuePreparationForNewPlayer() {
@@ -87,7 +90,7 @@ final class PlaybackCurrentTrackPreparationQueueOwner {
         }
         List<Track> mirroredQueueTracks = mirroredQueueTracksForPreparation(queueStateSnapshot);
         List<MediaSource> mirroredQueueMediaSources =
-                mirroredQueueTracks == null || mirroredQueueTracks.isEmpty() || mediaSourcesForTracks == null
+                mirroredQueueTracks == null || mirroredQueueTracks.isEmpty()
                         ? null
                         : mediaSourcesForTracks.apply(mirroredQueueTracks);
         return new PreparedQueue(

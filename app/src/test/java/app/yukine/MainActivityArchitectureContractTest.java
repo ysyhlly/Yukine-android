@@ -8075,6 +8075,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredPlayerOwner.contains("playbackQueueManager::matchesMirroredQueue"));
         assertTrue(currentPreparationQueueOwner.contains(
                 "this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, \"playbackQueueManager\");"));
+        assertTrue(currentPreparationQueueOwner.contains(
+                "this.mediaSourcesForTracks = Objects.requireNonNull("));
+        assertTrue(currentPreparationQueueOwner.contains("\"mediaSourcesForTracks\""));
+        assertFalse(currentPreparationQueueOwner.contains("mediaSourcesForTracks == null"));
         assertFalse(currentPreparationQueueOwner.contains("PlaybackQueueManager.QueueStateSnapshot.empty()"));
         assertFalse(currentPreparationQueueOwner.contains("playbackQueueManager == null ? Collections.emptyList() :"));
         assertFalse(currentPreparationQueueOwner.contains("PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager == null"));

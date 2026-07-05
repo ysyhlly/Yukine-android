@@ -230,20 +230,16 @@ public class PlaybackCurrentTrackPreparationQueueOwnerTest {
     }
 
     @Test
-    public void queuePreparationPreservesCurrentTrackWhenMediaSourceBoundaryIsMissing() {
-        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), null);
-        Track first = playableTrack(51L);
-        Track second = playableTrack(52L);
-        queueManager.playQueue(Arrays.asList(first, second), 1, -1L);
-        PlaybackCurrentTrackPreparationQueueOwner owner =
-                new PlaybackCurrentTrackPreparationQueueOwner(queueManager, null);
+    public void constructorRequiresMediaSourceBoundary() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackCurrentTrackPreparationQueueOwner(
+                        queueManager(new FakeQueueStore(), null),
+                        null
+                )
+        );
 
-        PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
-                owner.queuePreparationForNewPlayer();
-
-        assertSame(second, queuePreparation.currentTrack());
-        assertEquals(1, queuePreparation.startIndex());
-        assertEquals(null, queuePreparation.mirroredQueueMediaSources());
+        assertEquals("mediaSourcesForTracks", error.getMessage());
     }
 
     @Test
