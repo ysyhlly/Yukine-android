@@ -8511,13 +8511,15 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "PlaybackCurrentTrackReplacementOwner.java"
         )), playbackSourceFileNamesContaining("playbackQueueManager.replaceCurrentTrackAndResume("));
+        assertFalse(owner.contains("data class QueueStateSnapshot("));
+        assertTrue(owner.contains("class QueueStateSnapshot internal constructor("));
         String queueStateSnapshot = normalizedOwner.substring(
-                normalizedOwner.indexOf("data class QueueStateSnapshot("),
-                normalizedOwner.indexOf("\n    )", normalizedOwner.indexOf("data class QueueStateSnapshot("))
+                normalizedOwner.indexOf("class QueueStateSnapshot internal constructor("),
+                normalizedOwner.indexOf("\n    )", normalizedOwner.indexOf("class QueueStateSnapshot internal constructor("))
         );
         String queueStateSnapshotConstructor = normalizedOwner.substring(
-                normalizedOwner.indexOf("data class QueueStateSnapshot("),
-                normalizedOwner.indexOf("\n    )", normalizedOwner.indexOf("data class QueueStateSnapshot("))
+                normalizedOwner.indexOf("class QueueStateSnapshot internal constructor("),
+                normalizedOwner.indexOf("\n    )", normalizedOwner.indexOf("class QueueStateSnapshot internal constructor("))
         );
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "currentIndex",
@@ -8564,7 +8566,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(streamingRestoreProvider.contains("mediaItem"));
         String mirroredQueuePlayer = normalizedOwner.substring(
                 normalizedOwner.indexOf("interface MirroredQueuePlayer"),
-                normalizedOwner.indexOf("data class QueueStateSnapshot"));
+                normalizedOwner.indexOf("class QueueStateSnapshot internal constructor("));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "matchesCurrentQueue",
                 "seekTo"

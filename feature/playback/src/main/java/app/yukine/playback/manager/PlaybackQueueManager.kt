@@ -37,7 +37,7 @@ internal class PlaybackQueueManager(
         fun seekTo(index: Int, positionMs: Long, playWhenReady: Boolean): Boolean
     }
 
-    data class QueueStateSnapshot(
+    class QueueStateSnapshot internal constructor(
         val currentTrack: Track?,
         val currentIndex: Int,
         val queueSize: Int
