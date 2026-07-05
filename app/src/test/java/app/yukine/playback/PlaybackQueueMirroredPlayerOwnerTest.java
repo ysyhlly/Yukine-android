@@ -265,27 +265,84 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     }
 
     @Test
-    public void matcherReturnsFalseWhenQueueSnapshotSupplierIsMissing() {
-        List<String> events = new ArrayList<>();
-        BooleanSupplier matcher =
-                PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
-                        () -> {
-                            events.add("mirrors");
-                            return true;
-                        },
-                        () -> {
-                            events.add("count");
-                            return 1;
-                        },
-                        null,
-                        (index, track) -> true
-                );
+    public void matcherRequiresQueueSnapshotSupplier() {
+        java.util.function.Supplier<List<Track>> missingQueueSnapshotProvider = null;
+        try {
+            PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
+                    () -> true,
+                    () -> 1,
+                    missingQueueSnapshotProvider,
+                    (index, track) -> true
+            );
+        } catch (NullPointerException expected) {
+            assertEquals("queueSnapshotProvider", expected.getMessage());
+            return;
+        }
+        throw new AssertionError("Expected matcher to require queueSnapshotProvider");
+    }
 
-        assertFalse(matcher.getAsBoolean());
-        assertEquals(
-                java.util.Collections.singletonList("mirrors"),
-                events
-        );
+    @Test
+    public void constructorRequiresPlayerAvailabilityDelegate() {
+        BooleanSupplier missingPlayerAvailability = null;
+        try {
+            new PlaybackQueueMirroredPlayerOwner(
+                    () -> true,
+                    missingPlayerAvailability,
+                    preparing -> {
+                    },
+                    track -> {
+                    },
+                    () -> {
+                    },
+                    (index, positionMs) -> {
+                    },
+                    playWhenReady -> {
+                    },
+                    () -> {
+                    },
+                    enabled -> {
+                    },
+                    error -> {
+                    }
+            );
+        } catch (NullPointerException expected) {
+            assertEquals("playerAvailability", expected.getMessage());
+            return;
+        }
+        throw new AssertionError("Expected constructor to require playerAvailability");
+    }
+
+    @Test
+    public void convenienceConstructorRequiresMirrorStateProvider() {
+        BooleanSupplier missingMirrorStateProvider = null;
+        try {
+            new PlaybackQueueMirroredPlayerOwner(
+                    missingMirrorStateProvider,
+                    () -> 1,
+                    (index, track) -> true,
+                    () -> true,
+                    preparing -> {
+                    },
+                    track -> {
+                    },
+                    () -> {
+                    },
+                    (index, positionMs) -> {
+                    },
+                    playWhenReady -> {
+                    },
+                    () -> {
+                    },
+                    enabled -> {
+                    },
+                    error -> {
+                    }
+            );
+        } catch (NullPointerException expected) {
+            assertEquals("mirrorStateProvider", expected.getMessage());
+            return;
+        }
+        throw new AssertionError("Expected constructor to require mirrorStateProvider");
     }
 
     @Test

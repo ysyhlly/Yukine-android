@@ -7677,6 +7677,40 @@ public final class MainActivityArchitectureContractTest {
                 "static Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotProvider("));
         assertTrue(mirroredPlayerOwner.contains("private PlaybackQueueManager playbackQueueManager;"));
         assertTrue(mirroredPlayerOwner.contains("import java.util.Objects;"));
+        assertTrue(mirroredPlayerOwner.contains(
+                "Objects.requireNonNull(mirrorStateProvider, \"mirrorStateProvider\")"));
+        assertTrue(mirroredPlayerOwner.contains(
+                "Objects.requireNonNull(playerMediaItemCountProvider, \"playerMediaItemCountProvider\")"));
+        assertTrue(mirroredPlayerOwner.contains(
+                "Objects.requireNonNull(queueSnapshotProvider, \"queueSnapshotProvider\")"));
+        assertTrue(mirroredPlayerOwner.contains(
+                "Objects.requireNonNull(queueTrackMatcher, \"queueTrackMatcher\")"));
+        assertTrue(mirroredPlayerOwner.contains(
+                "this.mirroredQueueMatcher = Objects.requireNonNull(mirroredQueueMatcher, \"mirroredQueueMatcher\");"));
+        assertTrue(mirroredPlayerOwner.contains(
+                "this.playerAvailability = Objects.requireNonNull(playerAvailability, \"playerAvailability\");"));
+        assertTrue(mirroredPlayerOwner.contains(
+                "this.preparingStateController = Objects.requireNonNull(preparingStateController, \"preparingStateController\");"));
+        assertTrue(mirroredPlayerOwner.contains(
+                "this.waveformResetter = Objects.requireNonNull(waveformResetter, \"waveformResetter\");"));
+        assertTrue(mirroredPlayerOwner.contains(
+                "this.playbackParameterApplier = Objects.requireNonNull(playbackParameterApplier, \"playbackParameterApplier\");"));
+        assertTrue(mirroredPlayerOwner.contains(
+                "this.playerSeeker = Objects.requireNonNull(playerSeeker, \"playerSeeker\");"));
+        assertTrue(mirroredPlayerOwner.contains(
+                "this.playWhenReadySetter = Objects.requireNonNull(playWhenReadySetter, \"playWhenReadySetter\");"));
+        assertTrue(mirroredPlayerOwner.contains(
+                "this.playerStarter = Objects.requireNonNull(playerStarter, \"playerStarter\");"));
+        assertTrue(mirroredPlayerOwner.contains(
+                "this.mirrorStateController = Objects.requireNonNull(mirrorStateController, \"mirrorStateController\");"));
+        assertTrue(mirroredPlayerOwner.contains(
+                "this.failureLogger = Objects.requireNonNull(failureLogger, \"failureLogger\");"));
+        assertFalse(mirroredPlayerOwner.contains("mirroredQueueMatcher != null"));
+        assertFalse(mirroredPlayerOwner.contains("playerAvailability != null"));
+        assertFalse(mirroredPlayerOwner.contains("mirrorStateProvider == null"));
+        assertFalse(mirroredPlayerOwner.contains("playerMediaItemCountProvider == null"));
+        assertFalse(mirroredPlayerOwner.contains("queueSnapshotProvider == null"));
+        assertFalse(mirroredPlayerOwner.contains("queueTrackMatcher == null"));
         assertFalse(mirroredPlayerOwner.contains(
                 "static final class QueueSnapshotProvider implements Supplier<List<Track>> {"));
         assertTrue(mirroredPlayerOwner.contains("this::queueSnapshot"));

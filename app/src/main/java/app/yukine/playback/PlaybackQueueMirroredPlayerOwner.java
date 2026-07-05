@@ -32,10 +32,10 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
             BiPredicate<Integer, Track> queueTrackMatcher
     ) {
         return new MirroredQueueSnapshotMatcher(
-                mirrorStateProvider,
-                playerMediaItemCountProvider,
-                queueSnapshotProvider,
-                queueTrackMatcher
+                Objects.requireNonNull(mirrorStateProvider, "mirrorStateProvider"),
+                Objects.requireNonNull(playerMediaItemCountProvider, "playerMediaItemCountProvider"),
+                Objects.requireNonNull(queueSnapshotProvider, "queueSnapshotProvider"),
+                Objects.requireNonNull(queueTrackMatcher, "queueTrackMatcher")
         );
     }
 
@@ -54,20 +54,20 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
             Consumer<IllegalStateException> failureLogger
     ) {
         this.mirroredQueueMatcher = mirroredQueueMatcher(
-                mirrorStateProvider,
-                playerMediaItemCountProvider,
+                Objects.requireNonNull(mirrorStateProvider, "mirrorStateProvider"),
+                Objects.requireNonNull(playerMediaItemCountProvider, "playerMediaItemCountProvider"),
                 this::queueSnapshot,
-                queueTrackMatcher
+                Objects.requireNonNull(queueTrackMatcher, "queueTrackMatcher")
         );
-        this.playerAvailability = playerAvailability;
-        this.preparingStateController = preparingStateController;
-        this.waveformResetter = waveformResetter;
-        this.playbackParameterApplier = playbackParameterApplier;
-        this.playerSeeker = playerSeeker;
-        this.playWhenReadySetter = playWhenReadySetter;
-        this.playerStarter = playerStarter;
-        this.mirrorStateController = mirrorStateController;
-        this.failureLogger = failureLogger;
+        this.playerAvailability = Objects.requireNonNull(playerAvailability, "playerAvailability");
+        this.preparingStateController = Objects.requireNonNull(preparingStateController, "preparingStateController");
+        this.waveformResetter = Objects.requireNonNull(waveformResetter, "waveformResetter");
+        this.playbackParameterApplier = Objects.requireNonNull(playbackParameterApplier, "playbackParameterApplier");
+        this.playerSeeker = Objects.requireNonNull(playerSeeker, "playerSeeker");
+        this.playWhenReadySetter = Objects.requireNonNull(playWhenReadySetter, "playWhenReadySetter");
+        this.playerStarter = Objects.requireNonNull(playerStarter, "playerStarter");
+        this.mirrorStateController = Objects.requireNonNull(mirrorStateController, "mirrorStateController");
+        this.failureLogger = Objects.requireNonNull(failureLogger, "failureLogger");
     }
 
     PlaybackQueueMirroredPlayerOwner(
@@ -82,16 +82,16 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
             Consumer<Boolean> mirrorStateController,
             Consumer<IllegalStateException> failureLogger
     ) {
-        this.mirroredQueueMatcher = mirroredQueueMatcher;
-        this.playerAvailability = playerAvailability;
-        this.preparingStateController = preparingStateController;
-        this.waveformResetter = waveformResetter;
-        this.playbackParameterApplier = playbackParameterApplier;
-        this.playerSeeker = playerSeeker;
-        this.playWhenReadySetter = playWhenReadySetter;
-        this.playerStarter = playerStarter;
-        this.mirrorStateController = mirrorStateController;
-        this.failureLogger = failureLogger;
+        this.mirroredQueueMatcher = Objects.requireNonNull(mirroredQueueMatcher, "mirroredQueueMatcher");
+        this.playerAvailability = Objects.requireNonNull(playerAvailability, "playerAvailability");
+        this.preparingStateController = Objects.requireNonNull(preparingStateController, "preparingStateController");
+        this.waveformResetter = Objects.requireNonNull(waveformResetter, "waveformResetter");
+        this.playbackParameterApplier = Objects.requireNonNull(playbackParameterApplier, "playbackParameterApplier");
+        this.playerSeeker = Objects.requireNonNull(playerSeeker, "playerSeeker");
+        this.playWhenReadySetter = Objects.requireNonNull(playWhenReadySetter, "playWhenReadySetter");
+        this.playerStarter = Objects.requireNonNull(playerStarter, "playerStarter");
+        this.mirrorStateController = Objects.requireNonNull(mirrorStateController, "mirrorStateController");
+        this.failureLogger = Objects.requireNonNull(failureLogger, "failureLogger");
     }
 
     void bindPlaybackQueueManager(PlaybackQueueManager playbackQueueManager) {
@@ -100,7 +100,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
 
     @Override
     public boolean matchesCurrentQueue() {
-        return hasPlayer() && mirroredQueueMatcher != null && mirroredQueueMatcher.getAsBoolean();
+        return hasPlayer() && mirroredQueueMatcher.getAsBoolean();
     }
 
     @Override
@@ -137,7 +137,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     }
 
     private boolean hasPlayer() {
-        return playerAvailability != null && playerAvailability.getAsBoolean();
+        return playerAvailability.getAsBoolean();
     }
 
     private List<Track> queueSnapshot() {
@@ -164,11 +164,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
 
         @Override
         public boolean getAsBoolean() {
-            if (mirrorStateProvider == null
-                    || !mirrorStateProvider.getAsBoolean()
-                    || playerMediaItemCountProvider == null
-                    || queueSnapshotProvider == null
-                    || queueTrackMatcher == null) {
+            if (!mirrorStateProvider.getAsBoolean()) {
                 return false;
             }
             try {
