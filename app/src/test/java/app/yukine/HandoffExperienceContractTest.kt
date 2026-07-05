@@ -40,7 +40,8 @@ class HandoffExperienceContractTest {
 
         assertTrue(nowBar.contains("favoriteLabel = \"\\u6536\\u85cf\""))
         assertTrue(nowBar.contains("repeatOffLabel = \"\\u5173\\u95ed\\u5faa\\u73af\""))
-        assertTrue(trackList.contains("addToPlaylistLabel: String = \"\\u52a0\\u5165\\u6b4c\\u5355\""))
+        assertTrue(trackList.contains("addToPlaylistLabel: String = \"\\u52a0\\u5165\\u6b4c\\u5355\"")
+            || trackList.contains("addToPlaylistLabel: String = \"加入歌单\""))
         assertTrue(queue.contains("val title: String = \"\\u64ad\\u653e\\u961f\\u5217\""))
     }
 

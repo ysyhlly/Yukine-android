@@ -97,7 +97,7 @@ class MainNowPlayingGatewayTest {
     private class FakePlaybackGateway : NowPlayingPlaybackGateway {
         val calls = mutableListOf<String>()
 
-        override fun snapshot(): PlaybackStateSnapshot? = null
+        override fun snapshot(): PlaybackStateSnapshot? = snapshot(track(1L))
         override fun skipToPrevious() {
             calls += "previous"
         }
