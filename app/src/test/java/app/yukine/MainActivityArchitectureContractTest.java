@@ -794,13 +794,18 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(precacheManager.contains("mediaItemTrackMatcher != null"));
         assertTrue(precacheManager.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider("));
         assertEquals(1, countOccurrences(precacheManager, "PlaybackMediaCacheOperations.fromMediaSourceProvider("));
+        assertTrue(precacheManager.contains(
+                "PlaybackMediaSourceProvider mediaSourceOwner =\n                Objects.requireNonNull(mediaSourceProvider, \"mediaSourceProvider\");"));
         assertTrue(precacheManager.contains("Objects.requireNonNull(mediaSourceProvider, \"mediaSourceProvider\")"));
-        assertTrue(precacheManager.contains("mediaSourceProvider::mediaItemMatchesTrackForReuse"));
+        assertTrue(precacheManager.contains("mediaSourceOwner::mediaItemMatchesTrackForReuse"));
+        assertFalse(precacheManager.contains("mediaSourceProvider::mediaItemMatchesTrackForReuse"));
         assertEquals(0, countOccurrences(precacheManager, "mediaSourceProvider."));
         assertEquals(0, countOccurrences(precacheFactory, "mediaSourceProvider."));
         assertTrue(precacheFactory.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider("));
         assertTrue(precacheFactory.contains("Objects.requireNonNull(mediaSourceProvider, \"mediaSourceProvider\")"));
-        assertTrue(precacheFactory.contains("mediaSourceProvider::mediaItemMatchesTrackForReuse"));
+        assertTrue(precacheFactory.contains("PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceOwner)"));
+        assertTrue(precacheFactory.contains("mediaSourceOwner::mediaItemMatchesTrackForReuse"));
+        assertFalse(precacheFactory.contains("mediaSourceProvider::mediaItemMatchesTrackForReuse"));
         assertFalse(precacheManager.contains("mediaSourceProvider.prepareTrackForPlayback("));
         assertFalse(precacheManager.contains("mediaSourceProvider.mediaSourceForTrack("));
         assertFalse(precacheManager.contains("mediaSourceProvider.mediaSourcesForTracks("));
@@ -3231,6 +3236,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackPrecacheManager.contains("Objects.requireNonNull(mediaCacheOperations, \"mediaCacheOperations\")"));
         assertTrue(playbackPrecacheManager.contains("Objects.requireNonNull(playbackCacheExecutor, \"playbackCacheExecutor\")"));
         assertTrue(playbackPrecacheManager.contains("Objects.requireNonNull(mediaSourceProvider, \"mediaSourceProvider\")"));
+        assertTrue(playbackPrecacheManager.contains("mediaSourceOwner::mediaItemMatchesTrackForReuse"));
+        assertFalse(playbackPrecacheManager.contains("mediaSourceProvider::mediaItemMatchesTrackForReuse"));
         assertFalse(playbackPrecacheManager.contains("streamingDiagnostics == null"));
         assertFalse(playbackPrecacheManager.contains("playbackCacheExecutor == null"));
         assertFalse(playbackPrecacheManager.contains("mediaCacheOperations == null"));

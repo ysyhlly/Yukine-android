@@ -128,15 +128,15 @@ final class PlaybackPrecacheManager {
             PlaybackMediaSourceProvider mediaSourceProvider,
             CallbackScheduler callbackScheduler
     ) {
+        PlaybackMediaSourceProvider mediaSourceOwner =
+                Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider");
         return new PlaybackPrecacheManager(
                 currentPlayerMediaItemSupplier,
                 streamingDiagnostics,
                 playbackQueueManager,
                 playbackRuntimeStateManager,
-                PlaybackMediaCacheOperations.fromMediaSourceProvider(
-                        Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider")
-                ),
-                mediaSourceProvider::mediaItemMatchesTrackForReuse,
+                PlaybackMediaCacheOperations.fromMediaSourceProvider(mediaSourceOwner),
+                mediaSourceOwner::mediaItemMatchesTrackForReuse,
                 callbackScheduler
         );
     }
