@@ -8680,6 +8680,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackSleepTimerCommandOwner.bindPlaybackSleepTimerManager(playbackSleepTimerManager);"));
         assertTrue(commandOwner.contains("long sleepTimerRemainingMs()"));
         assertTrue(commandOwner.contains("manager.remainingMs();"));
+        assertFalse(commandOwner.contains("manager == null ? 0L"));
         assertTrue(owner.contains("class PlaybackSleepTimerManager"));
         assertTrue(owner.contains("fun startMinutes(minutes: Int)"));
         assertTrue(owner.contains("fun cancel(publish: Boolean)"));
@@ -9884,9 +9885,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("private PlaybackSleepTimerManager sleepTimerManager;"));
         assertTrue(commandOwner.contains(
                 "void bindPlaybackSleepTimerManager(PlaybackSleepTimerManager sleepTimerManager)"));
+        assertTrue(commandOwner.contains(
+                "this.sleepTimerManager = Objects.requireNonNull(sleepTimerManager, \"sleepTimerManager\");"));
         assertTrue(commandOwner.contains("pauseCommand.run();"));
         assertTrue(commandOwner.contains("statePublisher.run();"));
         assertFalse(commandOwner.contains("sleepTimerManagerProvider.get();"));
+        assertFalse(commandOwner.contains("if (manager != null)"));
+        assertFalse(commandOwner.contains("manager == null ? 0L"));
         assertTrue(service.contains("playbackSleepTimerCommandOwner.bindPlaybackSleepTimerManager(playbackSleepTimerManager);"));
         assertTrue(commandOwner.contains("void startSleepTimerMinutes(int minutes)"));
         assertTrue(commandOwner.contains("manager.startMinutes(minutes);"));

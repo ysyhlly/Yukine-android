@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 public class PlaybackSleepTimerCommandOwnerTest {
     @Test
@@ -91,7 +92,7 @@ public class PlaybackSleepTimerCommandOwnerTest {
     }
 
     @Test
-    public void toleratesMissingBoundSleepTimerManager() {
+    public void requiresBoundSleepTimerManager() {
         PlaybackSleepTimerCommandOwner owner = new PlaybackSleepTimerCommandOwner(
                 () -> {
                 },
@@ -99,11 +100,18 @@ public class PlaybackSleepTimerCommandOwnerTest {
                 }
         );
 
-        owner.cancelSleepTimer(false);
-        owner.cancelSleepTimer(true);
-        owner.startSleepTimerMinutes(3);
-
-        assertEquals(0L, owner.sleepTimerRemainingMs());
+        assertEquals(
+                "sleepTimerManager",
+                assertThrows(NullPointerException.class, () -> owner.cancelSleepTimer(false)).getMessage()
+        );
+        assertEquals(
+                "sleepTimerManager",
+                assertThrows(NullPointerException.class, () -> owner.startSleepTimerMinutes(3)).getMessage()
+        );
+        assertEquals(
+                "sleepTimerManager",
+                assertThrows(NullPointerException.class, owner::sleepTimerRemainingMs).getMessage()
+        );
     }
 
     private static final class FakeSleepScheduler implements PlaybackSleepTimerManager.CallbackScheduler {

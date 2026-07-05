@@ -2,6 +2,8 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackSleepTimerManager;
 
+import java.util.Objects;
+
 final class PlaybackSleepTimerCommandOwner implements PlaybackSleepTimerManager.Actions {
     private final Runnable pauseCommand;
     private final Runnable statePublisher;
@@ -16,7 +18,7 @@ final class PlaybackSleepTimerCommandOwner implements PlaybackSleepTimerManager.
     }
 
     void bindPlaybackSleepTimerManager(PlaybackSleepTimerManager sleepTimerManager) {
-        this.sleepTimerManager = sleepTimerManager;
+        this.sleepTimerManager = Objects.requireNonNull(sleepTimerManager, "sleepTimerManager");
     }
 
     @Override
@@ -31,24 +33,20 @@ final class PlaybackSleepTimerCommandOwner implements PlaybackSleepTimerManager.
 
     void cancelSleepTimer(boolean publish) {
         PlaybackSleepTimerManager manager = sleepTimerManager();
-        if (manager != null) {
-            manager.cancel(publish);
-        }
+        manager.cancel(publish);
     }
 
     void startSleepTimerMinutes(int minutes) {
         PlaybackSleepTimerManager manager = sleepTimerManager();
-        if (manager != null) {
-            manager.startMinutes(minutes);
-        }
+        manager.startMinutes(minutes);
     }
 
     long sleepTimerRemainingMs() {
         PlaybackSleepTimerManager manager = sleepTimerManager();
-        return manager == null ? 0L : manager.remainingMs();
+        return manager.remainingMs();
     }
 
     private PlaybackSleepTimerManager sleepTimerManager() {
-        return sleepTimerManager;
+        return Objects.requireNonNull(sleepTimerManager, "sleepTimerManager");
     }
 }
