@@ -114,3 +114,44 @@ internal fun StreamingSearchResult.trackOnlySearchResult(): StreamingSearchResul
         items = normalizedItems
     )
 }
+
+internal fun mergeStreamingSearchResults(
+    query: String,
+    pageSize: Int,
+    results: List<StreamingSearchResult>
+): StreamingSearchResult {
+    val tracks = results
+        .flatMap { it.tracks }
+        .distinctBy { "${it.provider.wireName}:${it.providerTrackId}" }
+        .rankBySearchSimilarity(query)
+    val albums = results
+        .flatMap { it.albums }
+        .distinctBy { "${it.provider.wireName}:${it.providerAlbumId}" }
+    val artists = results
+        .flatMap { it.artists }
+        .distinctBy { "${it.provider.wireName}:${it.providerArtistId}" }
+    val playlists = results
+        .flatMap { it.playlists }
+        .distinctBy { "${it.provider.wireName}:${it.providerPlaylistId}" }
+    val mvs = results
+        .flatMap { it.mvs }
+        .distinctBy { "${it.provider.wireName}:${it.providerMvId}" }
+    return StreamingSearchResult(
+        provider = results.firstOrNull { it.tracks.isNotEmpty() }?.provider
+            ?: results.first().provider,
+        query = query,
+        page = 1,
+        pageSize = pageSize,
+        total = results.mapNotNull { it.total }.takeIf { it.isNotEmpty() }?.sum(),
+        hasMore = false,
+        tracks = tracks,
+        albums = albums,
+        artists = artists,
+        playlists = playlists,
+        mvs = mvs,
+        cached = results.all { it.cached },
+        items = results.flatMap { it.unifiedItems }
+            .distinctBy { "${it.provider.wireName}:${it.type.wireName}:${it.id}" }
+            .rankItemsBySearchSimilarity(query)
+    )
+}

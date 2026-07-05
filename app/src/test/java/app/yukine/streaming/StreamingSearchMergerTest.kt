@@ -108,6 +108,38 @@ class StreamingSearchMergerTest {
         assertEquals(0, result.albums.size)
     }
 
+    @Test
+    fun mergeStreamingSearchResultsDeduplicatesTracksByProviderAndTrackId() {
+        val t1 = track("1", "Song", "Artist", provider = StreamingProviderName.MOCK)
+        val t2 = track("1", "Song", "Artist", provider = StreamingProviderName.MOCK)
+        val r1 = StreamingSearchResult(StreamingProviderName.MOCK, "q", 1, 20, total = 1, tracks = listOf(t1))
+        val r2 = StreamingSearchResult(StreamingProviderName.MOCK, "q", 1, 20, total = 1, tracks = listOf(t2))
+        val merged = mergeStreamingSearchResults("song", 20, listOf(r1, r2))
+        assertEquals(1, merged.tracks.size)
+    }
+
+    @Test
+    fun mergeStreamingSearchResultsSumsTotalsAcrossProviders() {
+        val r1 = StreamingSearchResult(StreamingProviderName.MOCK, "q", 1, 20, total = 10, tracks = listOf(track("1", "A", "X")))
+        val r2 = StreamingSearchResult(
+            StreamingProviderName.LUOXUE, "q", 1, 20, total = 20,
+            tracks = listOf(track("2", "B", "Y", provider = StreamingProviderName.LUOXUE))
+        )
+        val merged = mergeStreamingSearchResults("q", 20, listOf(r1, r2))
+        assertEquals(30, merged.total)
+    }
+
+    @Test
+    fun mergeStreamingSearchResultsPicksFirstProviderWithTracks() {
+        val r1 = StreamingSearchResult(StreamingProviderName.MOCK, "q", 1, 20, total = 0, tracks = emptyList())
+        val r2 = StreamingSearchResult(
+            StreamingProviderName.LUOXUE, "q", 1, 20, total = 1,
+            tracks = listOf(track("2", "B", "Y", provider = StreamingProviderName.LUOXUE))
+        )
+        val merged = mergeStreamingSearchResults("q", 20, listOf(r1, r2))
+        assertEquals(StreamingProviderName.LUOXUE, merged.provider)
+    }
+
     private fun track(
         id: String,
         title: String,
