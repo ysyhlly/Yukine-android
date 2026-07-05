@@ -58,9 +58,17 @@ class StreamingViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
+    private fun createViewModel(
+        source: StreamingRepositorySource = EmptyStreamingRepositorySource
+    ): StreamingViewModel {
+        val viewModel = StreamingViewModel(source)
+        viewModel.bindIoDispatcherForTest(Dispatchers.Main)
+        return viewModel
+    }
+
     @Test
     fun selectProviderClearsSearchPlaybackAndLaunchState() {
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.updateStreamingSearchResult(searchResult(StreamingProviderName.NETEASE, "echo", 1))
         viewModel.updateStreamingAuthLaunch(
             StreamingProviderName.NETEASE,
@@ -82,7 +90,7 @@ class StreamingViewModelTest {
 
     @Test
     fun appendSearchResultMergesLaterPagesAndUnifiedItems() {
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.updateStreamingSearchResult(
             searchResult(StreamingProviderName.NETEASE, "echo", 1, listOf(streamingTrack("1")))
         )
@@ -99,7 +107,7 @@ class StreamingViewModelTest {
 
     @Test
     fun updateSearchResultFiltersOutNonSongStreamingItems() {
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         val song = streamingTrack("song-1")
         val album = StreamingAlbum(StreamingProviderName.NETEASE, "album-1", "Album", "Artist")
         val artist = StreamingArtist(StreamingProviderName.NETEASE, "artist-1", "Artist")
@@ -140,7 +148,7 @@ class StreamingViewModelTest {
 
     @Test
     fun appendSearchResultFiltersOutNonSongStreamingItems() {
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         val song1 = streamingTrack("song-1")
         val song2 = streamingTrack("song-2")
         val playlist = StreamingPlaylist(StreamingProviderName.NETEASE, "playlist-1", "Playlist")
@@ -190,7 +198,7 @@ class StreamingViewModelTest {
                 listOf(streamingTrack("qq-strong").copy(provider = StreamingProviderName.QQ_MUSIC, title = "Echo", artist = "Artist"))
             )
         )
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(
             StreamingRepository(
                 RegistryStreamingGateway(StreamingProviderRegistry(listOf(weakProvider, strongProvider)))
@@ -247,7 +255,7 @@ class StreamingViewModelTest {
                 )
             )
         )
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(
             StreamingRepository(
                 RegistryStreamingGateway(StreamingProviderRegistry(listOf(neteaseProvider, qqProvider)))
@@ -305,7 +313,7 @@ class StreamingViewModelTest {
                 )
             )
         )
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(
             StreamingRepository(
                 RegistryStreamingGateway(StreamingProviderRegistry(listOf(neteaseProvider, qqProvider)))
@@ -329,7 +337,7 @@ class StreamingViewModelTest {
 
     @Test
     fun providerSelectionPrefersConnectedNonMockProvider() {
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.updateStreamingAuthState(
             StreamingProviderName.QQ_MUSIC,
             StreamingAuthState(connected = true)
@@ -357,7 +365,7 @@ class StreamingViewModelTest {
                 repositoryWithProviderName(StreamingProviderName.QQ_MUSIC)
             )
         )
-        val viewModel = StreamingViewModel(source)
+        val viewModel = createViewModel(source)
 
         viewModel.refreshStreamingProviders().join()
 
@@ -381,7 +389,7 @@ class StreamingViewModelTest {
                 repositoryWithCache(secondDao)
             )
         )
-        val viewModel = StreamingViewModel(source)
+        val viewModel = createViewModel(source)
 
         viewModel.configureStreamingRepository().join()
 
@@ -398,7 +406,7 @@ class StreamingViewModelTest {
             1,
             listOf(streamingTrack("song-1"))
         )
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(repository(provider))
 
         viewModel.searchStreaming(
@@ -425,7 +433,7 @@ class StreamingViewModelTest {
             2,
             listOf(streamingTrack("song-2"))
         )
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(repository(provider))
         viewModel.updateStreamingSearchResult(
             searchResult(StreamingProviderName.NETEASE, "echo", 1, listOf(streamingTrack("song-1")))
@@ -450,7 +458,7 @@ class StreamingViewModelTest {
             launchUrl = "https://login"
         )
         var launchReady = false
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(repository(provider))
 
         viewModel.startStreamingAuth(
@@ -469,7 +477,7 @@ class StreamingViewModelTest {
     fun completeStreamingAuthUpdatesAuthStateAndInvokesSuccessCallback() = runTest {
         val provider = FakeProvider()
         provider.completeAuthState = StreamingAuthState(connected = true)
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(repository(provider))
         val successProviders = mutableListOf<StreamingProviderName>()
 
@@ -489,7 +497,7 @@ class StreamingViewModelTest {
     fun signOutStreamingUpdatesAuthState() = runTest {
         val provider = FakeProvider()
         provider.signOutState = StreamingAuthState(connected = false)
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(repository(provider))
 
         viewModel.signOutStreaming(StreamingProviderName.NETEASE).join()
@@ -503,7 +511,7 @@ class StreamingViewModelTest {
     @Test
     fun resolveStreamingPlaybackTrackStoresSourceAndTrack() = runTest {
         val provider = FakeProvider()
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(repository(provider))
         val metadata = streamingTrack("play-1")
 
@@ -523,7 +531,7 @@ class StreamingViewModelTest {
     @Test
     fun preResolveNextStreamingTrackSchedulesResolveAndReturnsReplacement() = runTest {
         val provider = FakeProvider()
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         val taskQueue = FakeStreamingPlaybackTaskQueue()
         val local = localTrack(id = 1L)
         val next = streamingPlaceholderTrack(id = 2L, providerTrackId = "next-2")
@@ -551,7 +559,7 @@ class StreamingViewModelTest {
     @Test
     fun resolveStreamingTrackListForPlaybackSchedulesCurrentResolveAndReplacesTrack() = runTest {
         val provider = FakeProvider()
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         val taskQueue = FakeStreamingPlaybackTaskQueue()
         val local = localTrack(id = 1L)
         val unresolved = streamingPlaceholderTrack(id = 2L, providerTrackId = "play-2")
@@ -579,13 +587,10 @@ class StreamingViewModelTest {
 
     @Test
     fun preResolveStreamingQueueWindowResolvesUpcomingTracksAfterNextTrack() = runTest {
-        // Unify viewModelScope (Main), the IO async children, and runTest on a single
-        // scheduler so awaitAll fully drains before job.join() returns. Mixing the class
-        // rule's Main scheduler with runTest's scheduler dropped one of the two resolves.
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         Dispatchers.setMain(dispatcher)
         val provider = FakeProvider()
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindIoDispatcherForTest(dispatcher)
         val current = localTrack(id = 1L)
         val next = streamingPlaceholderTrack(id = 2L, providerTrackId = "next-2")
@@ -616,7 +621,7 @@ class StreamingViewModelTest {
 
     @Test
     fun prepareCurrentStreamingQueueResolveTargetSelectsCurrentPlaceholder() {
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         val local = localTrack(id = 1L)
         val current = streamingPlaceholderTrack(id = 2L, providerTrackId = "play-2")
         val next = streamingPlaceholderTrack(id = 3L, providerTrackId = "play-3")
@@ -657,7 +662,7 @@ class StreamingViewModelTest {
                 title = "Remote Playlist"
             )
         )
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
 
         viewModel.loadUserPlaylists(StreamingProviderName.NETEASE).join()
@@ -675,7 +680,7 @@ class StreamingViewModelTest {
         gateway.userLikedTracksResult = listOf(streamingTrack("liked-1"))
         gateway.dailyRecommendationsResult = listOf(streamingTrack("daily-1"))
         gateway.heartbeatRecommendationsResult = listOf(streamingTrack("heart-1"))
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
         val liked = mutableListOf<List<StreamingTrack>>()
         val daily = mutableListOf<List<StreamingTrack>>()
@@ -694,7 +699,7 @@ class StreamingViewModelTest {
         val gateway = FakeGateway(provider)
         gateway.playlistTitle = "Remote Playlist"
         gateway.playlistTrackIds = listOf("track-1", "track-2", "track-3")
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
         val resolvedNames = mutableListOf<String>()
         val resolvedTrackIds = mutableListOf<List<String>>()
@@ -716,7 +721,7 @@ class StreamingViewModelTest {
         val provider = FakeProvider()
         val gateway = FakeGateway(provider)
         gateway.playlistTitle = ""
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
         val resolvedNames = mutableListOf<String>()
 
@@ -734,7 +739,7 @@ class StreamingViewModelTest {
         gateway.playlistTrackIds = listOf("track-1", "track-2")
         val operations = FakeStreamingLocalPlaylistOperations()
         val imported = mutableListOf<StreamingLocalPlaylistImportResult>()
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
         viewModel.bindStreamingLocalPlaylistOperations(operations)
 
@@ -758,7 +763,7 @@ class StreamingViewModelTest {
         gateway.playlistTrackIds = emptyList()
         val operations = FakeStreamingLocalPlaylistOperations()
         val imported = mutableListOf<StreamingLocalPlaylistImportResult>()
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
         viewModel.bindStreamingLocalPlaylistOperations(operations)
 
@@ -779,7 +784,7 @@ class StreamingViewModelTest {
         gateway.userLikedTracksResult = listOf(streamingTrack("liked-1"), streamingTrack("liked-2"))
         val operations = FakeStreamingLocalPlaylistOperations()
         val imported = mutableListOf<StreamingLocalPlaylistImportResult>()
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
         viewModel.bindStreamingLocalPlaylistOperations(operations)
 
@@ -803,7 +808,7 @@ class StreamingViewModelTest {
         gateway.userLikedTracksResult = listOf(streamingTrack("liked-1"), streamingTrack("liked-2"))
         val operations = FakeStreamingLocalPlaylistOperations()
         val synced = mutableListOf<StreamingLocalPlaylistSyncResult>()
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
         viewModel.bindStreamingLocalPlaylistOperations(operations)
         val link = StreamingPlaylistSyncStore.LinkedPlaylist(
@@ -829,7 +834,7 @@ class StreamingViewModelTest {
         gateway.playlistTrackIds = listOf("track-1", "track-2", "track-3")
         val operations = FakeStreamingLocalPlaylistOperations()
         val synced = mutableListOf<StreamingLocalPlaylistSyncResult>()
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
         viewModel.bindStreamingLocalPlaylistOperations(operations)
         val link = StreamingPlaylistSyncStore.LinkedPlaylist(
@@ -865,7 +870,7 @@ class StreamingViewModelTest {
             linkedRemotePlaylists["netease:playlist-88"] = link
         }
         val imported = mutableListOf<StreamingAccountPlaylistImportResult>()
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
         viewModel.bindStreamingLocalPlaylistOperations(operations)
         val playlists = listOf(
@@ -895,7 +900,7 @@ class StreamingViewModelTest {
     fun ensureStreamingLoginPlaylistDelegatesToBoundOperations() = runTest {
         val operations = FakeStreamingLocalPlaylistOperations()
         val ensured = mutableListOf<StreamingLoginPlaylistResult>()
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingLocalPlaylistOperations(operations)
 
         viewModel.ensureStreamingLoginPlaylist(
@@ -912,7 +917,7 @@ class StreamingViewModelTest {
 
     @Test
     fun prepareStreamingPlaylistPresentationRequestsUseLanguageAndBoundOperations() {
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         val link = StreamingPlaylistSyncStore.LinkedPlaylist(
             localPlaylistId = 42L,
             provider = StreamingProviderName.NETEASE,
@@ -970,7 +975,7 @@ class StreamingViewModelTest {
 
     @Test
     fun prepareStreamingPlaylistSyncStartRequestReturnsNotLinkedWhenPlaylistWasDeleted() {
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         val operations = FakeStreamingLocalPlaylistOperations().apply {
             playlistExistsResult = false
             linkedPlaylistResult = StreamingPlaylistSyncStore.LinkedPlaylist(
@@ -991,7 +996,7 @@ class StreamingViewModelTest {
 
     @Test
     fun streamingProviderTrackIdLoadsAndSavesThroughBoundStore() = runTest {
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         val track = localTrack(id = 42L)
         val store = FakeStreamingTrackMatchStore()
         store.loadedProviderTrackId = " cached-42 "

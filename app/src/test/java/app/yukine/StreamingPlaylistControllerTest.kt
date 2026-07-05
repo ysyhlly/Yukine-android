@@ -20,6 +20,8 @@ import app.yukine.streaming.StreamingSearchRequest
 import app.yukine.streaming.StreamingSearchResult
 import app.yukine.streaming.StreamingTrack
 import app.yukine.streaming.StreamingRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -28,9 +30,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class StreamingPlaylistControllerTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
+
+    private fun createViewModel(): StreamingViewModel {
+        val viewModel = StreamingViewModel()
+        viewModel.bindIoDispatcherForTest(Dispatchers.Main)
+        return viewModel
+    }
 
     @Test
     fun loginSuccessLoadsAccountPlaylistsAndShowsImportPicker() = runTest {
@@ -45,7 +54,7 @@ class StreamingPlaylistControllerTest {
             )
         )
         val operations = FakeStreamingLocalPlaylistOperations()
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
         viewModel.bindStreamingLocalPlaylistOperations(operations)
         val listener = FakeStreamingPlaylistListener()
@@ -84,7 +93,7 @@ class StreamingPlaylistControllerTest {
             total = 1,
             hasMore = false
         )
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
         viewModel.bindStreamingLocalPlaylistOperations(operations)
         val listener = FakeStreamingPlaylistListener()
@@ -114,7 +123,7 @@ class StreamingPlaylistControllerTest {
             hasMore = false
         )
         val operations = FakeStreamingLocalPlaylistOperations()
-        val viewModel = StreamingViewModel()
+        val viewModel = createViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
         viewModel.bindStreamingLocalPlaylistOperations(operations)
         val listener = FakeStreamingPlaylistListener()

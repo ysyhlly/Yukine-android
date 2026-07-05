@@ -10,10 +10,19 @@ import app.yukine.streaming.StreamingTrack
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class StreamingPlaybackControllerTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
+
+    private fun createViewModel(): StreamingViewModel {
+        val viewModel = StreamingViewModel()
+        viewModel.bindIoDispatcherForTest(Dispatchers.Main)
+        return viewModel
+    }
 
     @Test
     fun preResolveNextStreamingTrackReusesOneQueueSnapshotForNextAndWindow() {
@@ -24,7 +33,7 @@ class StreamingPlaybackControllerTest {
         )
         val listener = FakeListener(queue)
         val controller = StreamingPlaybackController(
-            StreamingViewModel(),
+            createViewModel(),
             NowPlayingViewModel(),
             listener
         )
@@ -46,7 +55,7 @@ class StreamingPlaybackControllerTest {
     fun preResolveNextStreamingTrackDoesNotReadQueueWhenPlaybackIsNotActive() {
         val listener = FakeListener(listOf(localTrack(1L)))
         val controller = StreamingPlaybackController(
-            StreamingViewModel(),
+            createViewModel(),
             NowPlayingViewModel(),
             listener
         )

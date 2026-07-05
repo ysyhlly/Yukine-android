@@ -20,6 +20,8 @@ import app.yukine.streaming.StreamingRepository
 import app.yukine.streaming.StreamingSearchRequest
 import app.yukine.streaming.StreamingSearchResult
 import app.yukine.streaming.StreamingTrack
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -27,13 +29,22 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class StreamingRecommendationViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
+    private fun createViewModel(
+        source: StreamingRepositorySource = EmptyStreamingRepositorySource
+    ): StreamingRecommendationViewModel {
+        val viewModel = StreamingRecommendationViewModel(source)
+        viewModel.bindIoDispatcherForTest(Dispatchers.Main)
+        return viewModel
+    }
+
     @Test
     fun unavailableDailyProviderReportsEmptyStatus() {
-        val viewModel = StreamingRecommendationViewModel(FakeRepositorySource(FakeDailyGateway()))
+        val viewModel = createViewModel(FakeRepositorySource(FakeDailyGateway()))
         val statuses = mutableListOf<String>()
         val presentations = mutableListOf<StreamingRecommendationPresentation>()
 
@@ -52,7 +63,7 @@ class StreamingRecommendationViewModelTest {
     fun dailyRecommendationFetchBuildsPlayablePresentation() = runTest {
         val gateway = FakeDailyGateway()
         gateway.dailyTracks = listOf(streamingTrack("daily-1"))
-        val viewModel = StreamingRecommendationViewModel(FakeRepositorySource(gateway))
+        val viewModel = createViewModel(FakeRepositorySource(gateway))
         viewModel.updateProviders(listOf(neteaseProvider()))
         val statuses = mutableListOf<String>()
         val presentations = mutableListOf<StreamingRecommendationPresentation>()
@@ -78,7 +89,7 @@ class StreamingRecommendationViewModelTest {
     fun typedDailyActionRunsThroughRecommendationViewModel() = runTest {
         val gateway = FakeDailyGateway()
         gateway.dailyTracks = listOf(streamingTrack("daily-action"))
-        val viewModel = StreamingRecommendationViewModel(FakeRepositorySource(gateway))
+        val viewModel = createViewModel(FakeRepositorySource(gateway))
         viewModel.updateProviders(listOf(neteaseProvider()))
         val calls = mutableListOf<String>()
 
@@ -102,7 +113,7 @@ class StreamingRecommendationViewModelTest {
     fun typedHeartbeatActionRunsThroughRecommendationViewModelWithSeed() = runTest {
         val gateway = FakeDailyGateway()
         gateway.heartbeatTracks = listOf(streamingTrack("heart-action"))
-        val viewModel = StreamingRecommendationViewModel(FakeRepositorySource(gateway))
+        val viewModel = createViewModel(FakeRepositorySource(gateway))
         viewModel.updateProviders(listOf(neteaseProvider()))
         val calls = mutableListOf<String>()
 
@@ -129,7 +140,7 @@ class StreamingRecommendationViewModelTest {
     fun failedDailyRecommendationFetchReturnsEmptyPresentation() = runTest {
         val gateway = FakeDailyGateway()
         gateway.failDaily = true
-        val viewModel = StreamingRecommendationViewModel(FakeRepositorySource(gateway))
+        val viewModel = createViewModel(FakeRepositorySource(gateway))
         viewModel.updateProviders(listOf(neteaseProvider()))
         val presentations = mutableListOf<StreamingRecommendationPresentation>()
 
@@ -150,7 +161,7 @@ class StreamingRecommendationViewModelTest {
     fun heartbeatRecommendationFetchBuildsProviderRequestAndClearsLoading() = runTest {
         val gateway = FakeDailyGateway()
         gateway.heartbeatTracks = listOf(streamingTrack("heart-1"))
-        val viewModel = StreamingRecommendationViewModel(FakeRepositorySource(gateway))
+        val viewModel = createViewModel(FakeRepositorySource(gateway))
         val heartbeat = mutableListOf<List<StreamingTrack>>()
 
         viewModel.fetchHeartbeatRecommendations(
@@ -179,7 +190,7 @@ class StreamingRecommendationViewModelTest {
             )
         )
         val store = FakeStreamingTrackMatchStore()
-        val viewModel = StreamingRecommendationViewModel(FakeRepositorySource(gateway))
+        val viewModel = createViewModel(FakeRepositorySource(gateway))
         viewModel.bindStreamingTrackMatchStore(store)
         val resolvedTrackIds = mutableListOf<String>()
 
@@ -196,7 +207,7 @@ class StreamingRecommendationViewModelTest {
 
     @Test
     fun prepareStreamingHeartbeatRecommendationRequestUsesNetEaseAndStartsLoading() {
-        val viewModel = StreamingRecommendationViewModel(FakeRepositorySource(FakeDailyGateway()))
+        val viewModel = createViewModel(FakeRepositorySource(FakeDailyGateway()))
         viewModel.updateProviders(
             listOf(
                 StreamingProviderDescriptor(
@@ -227,7 +238,7 @@ class StreamingRecommendationViewModelTest {
 
     @Test
     fun prepareHeartbeatRecommendationPresentationOwnsDedupAndAppendStatus() {
-        val viewModel = StreamingRecommendationViewModel(FakeRepositorySource(FakeDailyGateway()))
+        val viewModel = createViewModel(FakeRepositorySource(FakeDailyGateway()))
         val playingStatus = AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.recommend.heartbeat.playing")
         val emptyStatus = AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.recommend.heartbeat.empty")
 

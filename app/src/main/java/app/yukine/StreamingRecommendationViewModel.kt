@@ -13,6 +13,7 @@ import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
 import app.yukine.streaming.StreamingTrackMatchPolicy
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -84,6 +85,7 @@ class StreamingRecommendationViewModel @Inject constructor(
     private val recommendationState = MutableStateFlow(StreamingRecommendationState())
     private var providers: List<StreamingProviderDescriptor> = emptyList()
     private var streamingTrackMatchStore: StreamingTrackMatchStore? = null
+    private var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 
     val state: StateFlow<StreamingRecommendationState> = recommendationState.asStateFlow()
 
@@ -93,6 +95,10 @@ class StreamingRecommendationViewModel @Inject constructor(
 
     fun bindStreamingTrackMatchStore(store: StreamingTrackMatchStore?) {
         streamingTrackMatchStore = store
+    }
+
+    internal fun bindIoDispatcherForTest(dispatcher: CoroutineDispatcher) {
+        ioDispatcher = dispatcher
     }
 
     fun onAction(
@@ -354,7 +360,7 @@ class StreamingRecommendationViewModel @Inject constructor(
                 saveHeartbeatSeedMatch(store, track, provider, directTrackId)
                 return directTrackId
             }
-            val cachedTrackId = withContext(Dispatchers.IO) {
+            val cachedTrackId = withContext(ioDispatcher) {
                 store?.providerTrackIdFor(track, provider).orEmpty().trim()
             }
             if (cachedTrackId.isNotEmpty()) {
@@ -411,7 +417,7 @@ class StreamingRecommendationViewModel @Inject constructor(
         if (cleanTrackId.isEmpty()) {
             return
         }
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             store?.saveProviderTrackId(track, provider, cleanTrackId)
         }
     }

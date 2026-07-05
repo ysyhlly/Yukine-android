@@ -18,6 +18,8 @@ import app.yukine.NetworkSourcesViewModel
 import app.yukine.NowPlayingViewModel
 import app.yukine.SettingsViewModel
 import app.yukine.StreamingViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import app.yukine.ui.CollectionsActions
 import app.yukine.ui.CollectionsUiState
 import app.yukine.ui.emptyCollectionsActions
@@ -32,10 +34,17 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
+@OptIn(ExperimentalCoroutinesApi::class)
 class EchoNavHostBridgeTest {
 
     @get:Rule
     val composeRule = createComposeRule()
+
+    private fun createViewModel(): StreamingViewModel {
+        val viewModel = StreamingViewModel()
+        viewModel.bindIoDispatcherForTest(Dispatchers.Main)
+        return viewModel
+    }
 
     private val tabs = listOf(
         EchoTabItem(HomeTab, "Home"),
@@ -73,7 +82,7 @@ class EchoNavHostBridgeTest {
         val library = LibraryViewModel()
         val networkMenu = NetworkMenuViewModel()
         val networkSources = NetworkSourcesViewModel()
-        val streaming = StreamingViewModel()
+        val streaming = createViewModel()
         val settings = SettingsViewModel()
         return EchoNavHostState(
             routeState = NavigationViewModel(SavedStateHandle()).state,

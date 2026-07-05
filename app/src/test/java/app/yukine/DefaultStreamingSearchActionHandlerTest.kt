@@ -20,15 +20,24 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class DefaultStreamingSearchActionHandlerTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
+    private fun createViewModel(): StreamingViewModel {
+        val viewModel = StreamingViewModel()
+        viewModel.bindIoDispatcherForTest(Dispatchers.Main)
+        return viewModel
+    }
+
     @Test
     fun delegatesProviderSelectionIntoViewModelState() {
-        val streamingViewModel = StreamingViewModel()
+        val streamingViewModel = createViewModel()
         val gateway = FakeGateway()
         val handler = DefaultStreamingSearchActionHandler(streamingViewModel, gateway)
 
@@ -39,7 +48,7 @@ class DefaultStreamingSearchActionHandlerTest {
 
     @Test
     fun searchWithoutSearchableProviderReportsNoSearchableSource() {
-        val streamingViewModel = StreamingViewModel()
+        val streamingViewModel = createViewModel()
         val handler = DefaultStreamingSearchActionHandler(streamingViewModel, FakeGateway())
         streamingViewModel.updateStreamingProviders(
             providers = listOf(
@@ -63,7 +72,7 @@ class DefaultStreamingSearchActionHandlerTest {
     fun searchQueriesAllSearchableProviders() {
         val netease = FakeProvider(StreamingProviderName.NETEASE, searchTrackId = "netease-song")
         val qq = FakeProvider(StreamingProviderName.QQ_MUSIC, searchTrackId = "qq-song")
-        val streamingViewModel = StreamingViewModel()
+        val streamingViewModel = createViewModel()
         streamingViewModel.bindStreamingRepository(repository(netease, qq))
         val handler = DefaultStreamingSearchActionHandler(streamingViewModel, FakeGateway())
         streamingViewModel.updateStreamingProviders(
@@ -85,7 +94,7 @@ class DefaultStreamingSearchActionHandlerTest {
 
     @Test
     fun loginUnsupportedAuthUsesStreamingViewModelState() {
-        val streamingViewModel = StreamingViewModel()
+        val streamingViewModel = createViewModel()
         val handler = DefaultStreamingSearchActionHandler(streamingViewModel, FakeGateway())
         streamingViewModel.updateStreamingProviders(
             providers = listOf(
@@ -109,7 +118,7 @@ class DefaultStreamingSearchActionHandlerTest {
     fun playResolvedTrackGoesDirectlyToActionGateway() {
         val gateway = FakeGateway()
         val handler = DefaultStreamingSearchActionHandler(
-            StreamingViewModel(),
+            createViewModel(),
             gateway
         )
 
@@ -120,7 +129,7 @@ class DefaultStreamingSearchActionHandlerTest {
 
     @Test
     fun playStreamingTrackUnsupportedProviderUsesStreamingViewModelState() {
-        val streamingViewModel = StreamingViewModel()
+        val streamingViewModel = createViewModel()
         val handler = DefaultStreamingSearchActionHandler(streamingViewModel, FakeGateway())
         streamingViewModel.updateStreamingProviders(
             providers = listOf(
@@ -151,7 +160,7 @@ class DefaultStreamingSearchActionHandlerTest {
     @Test
     fun playStreamingTrackResolvesThroughStreamingViewModelRepository() = runTest {
         val newProvider = FakeProvider(StreamingProviderName.NETEASE)
-        val streamingViewModel = StreamingViewModel()
+        val streamingViewModel = createViewModel()
         streamingViewModel.bindStreamingRepository(repository(newProvider))
         val gateway = FakeGateway().apply {
             quality = StreamingAudioQuality.HIRES
@@ -181,7 +190,7 @@ class DefaultStreamingSearchActionHandlerTest {
 
     @Test
     fun openAuthLaunchGoesDirectlyToGatewayAndClearsPendingLaunch() {
-        val streamingViewModel = StreamingViewModel()
+        val streamingViewModel = createViewModel()
         val gateway = FakeGateway(openAuthResult = true)
         val handler = DefaultStreamingSearchActionHandler(
             streamingViewModel,

@@ -21,6 +21,8 @@ import app.yukine.NowPlayingViewModel
 import app.yukine.SettingsUiState
 import app.yukine.SettingsViewModel
 import app.yukine.StreamingViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.ui.CollectionsActions
@@ -39,10 +41,17 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
+@OptIn(ExperimentalCoroutinesApi::class)
 class EchoNavGraphTest {
 
     @get:Rule
     val composeRule = createComposeRule()
+
+    private fun createViewModel(): StreamingViewModel {
+        val viewModel = StreamingViewModel()
+        viewModel.bindIoDispatcherForTest(Dispatchers.Main)
+        return viewModel
+    }
 
     private val tabs = listOf(
         EchoTabItem(HomeTab, "Home"),
@@ -87,7 +96,7 @@ class EchoNavGraphTest {
         val library = LibraryViewModel()
         val networkMenu = NetworkMenuViewModel()
         val networkSources = NetworkSourcesViewModel()
-        val streaming = StreamingViewModel()
+        val streaming = createViewModel()
         val settings = SettingsViewModel().also {
             it.renderPageFromHost(
                 app.yukine.SettingsPage.Home,
