@@ -39,11 +39,19 @@ public class PlaybackQueueStreamingRestoreOwnerTest {
     }
 
     @Test
-    public void missingRestoreActionsAreSafe() {
-        PlaybackQueueStreamingRestoreOwner owner = new PlaybackQueueStreamingRestoreOwner(null, null);
+    public void missingRestoredTrackFallsBackToInputAndRestoresHeaders() {
+        List<String> events = new ArrayList<>();
+        PlaybackQueueStreamingRestoreOwner owner = new PlaybackQueueStreamingRestoreOwner(
+                track -> null,
+                dataPath -> events.add("headers:" + dataPath)
+        );
         Track input = track(3L);
 
         assertSame(input, owner.restoreTrackForPlayback(input));
+        assertEquals(
+                java.util.Collections.singletonList("headers:streaming:test:3"),
+                events
+        );
     }
 
     @Test
@@ -78,6 +86,27 @@ public class PlaybackQueueStreamingRestoreOwnerTest {
         );
 
         assertEquals("mediaSourceProvider", error.getMessage());
+    }
+
+    @Test
+    public void constructorRequiresRestoredTrackForPreparation() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackQueueStreamingRestoreOwner(null, dataPath -> {
+                })
+        );
+
+        assertEquals("restoredTrackForPreparation", error.getMessage());
+    }
+
+    @Test
+    public void constructorRequiresRestoreHeadersForDataPath() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackQueueStreamingRestoreOwner(track -> track, null)
+        );
+
+        assertEquals("restoreHeadersForDataPath", error.getMessage());
     }
 
     private static Track track(long id) {

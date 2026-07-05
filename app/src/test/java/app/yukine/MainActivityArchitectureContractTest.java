@@ -8574,6 +8574,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueRestoreOwner.contains("private final Function<Track, Track> restoredTrackForPreparation;"));
         assertTrue(queueRestoreOwner.contains("private final Consumer<String> restoreHeadersForDataPath;"));
         assertTrue(queueRestoreOwner.contains("PlaybackMediaSourceProvider.isRestorableQueueTrack(track)"));
+        assertTrue(queueRestoreOwner.contains(
+                "this.restoredTrackForPreparation = Objects.requireNonNull("));
+        assertTrue(queueRestoreOwner.contains("\"restoredTrackForPreparation\""));
+        assertTrue(queueRestoreOwner.contains(
+                "this.restoreHeadersForDataPath = Objects.requireNonNull("));
+        assertTrue(queueRestoreOwner.contains("\"restoreHeadersForDataPath\""));
         assertTrue(queueRestoreOwner.contains("Objects.requireNonNull(mediaSourceProvider, \"mediaSourceProvider\")"));
         assertTrue(queueRestoreOwner.contains("mediaSourceOwner::restoredTrackForPreparation"));
         assertTrue(queueRestoreOwner.contains("mediaSourceOwner::restoreHeadersForDataPath"));
@@ -8582,6 +8588,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueRestoreOwner.contains("public Track restoreTrackForPlayback(Track track)"));
         assertTrue(queueRestoreOwner.contains("Track playbackTrack = restoredTrack == null ? track : restoredTrack;"));
         assertTrue(queueRestoreOwner.contains("restoreHeadersForDataPath.accept(playbackTrack.dataPath);"));
+        assertFalse(queueRestoreOwner.contains("restoredTrackForPreparation == null"));
+        assertFalse(queueRestoreOwner.contains("restoreHeadersForDataPath != null"));
         assertFalse(queueRestoreOwner.contains("public Track restoredTrackFor(Track track)"));
         assertFalse(queueRestoreOwner.contains("public void restoreForDataPath(String dataPath)"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackQueueStreamingRestoreResolverOwner.java")));

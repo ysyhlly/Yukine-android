@@ -16,8 +16,14 @@ final class PlaybackQueueStreamingRestoreOwner implements PlaybackQueueManager.S
             Function<Track, Track> restoredTrackForPreparation,
             Consumer<String> restoreHeadersForDataPath
     ) {
-        this.restoredTrackForPreparation = restoredTrackForPreparation;
-        this.restoreHeadersForDataPath = restoreHeadersForDataPath;
+        this.restoredTrackForPreparation = Objects.requireNonNull(
+                restoredTrackForPreparation,
+                "restoredTrackForPreparation"
+        );
+        this.restoreHeadersForDataPath = Objects.requireNonNull(
+                restoreHeadersForDataPath,
+                "restoreHeadersForDataPath"
+        );
     }
 
     PlaybackQueueStreamingRestoreOwner(PlaybackMediaSourceProvider mediaSourceProvider) {
@@ -32,13 +38,9 @@ final class PlaybackQueueStreamingRestoreOwner implements PlaybackQueueManager.S
         if (!PlaybackMediaSourceProvider.isRestorableQueueTrack(track)) {
             return null;
         }
-        Track restoredTrack = restoredTrackForPreparation == null
-                ? null
-                : restoredTrackForPreparation.apply(track);
+        Track restoredTrack = restoredTrackForPreparation.apply(track);
         Track playbackTrack = restoredTrack == null ? track : restoredTrack;
-        if (restoreHeadersForDataPath != null) {
-            restoreHeadersForDataPath.accept(playbackTrack.dataPath);
-        }
+        restoreHeadersForDataPath.accept(playbackTrack.dataPath);
         return playbackTrack;
     }
 
