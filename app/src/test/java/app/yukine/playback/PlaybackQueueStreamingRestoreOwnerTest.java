@@ -3,7 +3,6 @@ package app.yukine.playback;
 import android.net.Uri;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
 import org.junit.Test;
 
@@ -12,7 +11,6 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThrows;
 
 public class PlaybackQueueStreamingRestoreOwnerTest {
     @Test
@@ -28,85 +26,32 @@ public class PlaybackQueueStreamingRestoreOwnerTest {
                 dataPath -> events.add("headers:" + dataPath)
         );
 
-        assertSame(restored, owner.restoreTrackForPlayback(input));
+        assertSame(restored, owner.restoredTrackFor(input));
+        owner.restoreForDataPath("streaming:test:1");
         assertEquals(
                 java.util.Arrays.asList(
                         "track:1",
-                        "headers:streaming:test:2"
+                        "headers:streaming:test:1"
                 ),
                 events
         );
     }
 
     @Test
-    public void missingRestoredTrackFallsBackToInputAndRestoresHeaders() {
-        List<String> events = new ArrayList<>();
-        PlaybackQueueStreamingRestoreOwner owner = new PlaybackQueueStreamingRestoreOwner(
-                track -> null,
-                dataPath -> events.add("headers:" + dataPath)
-        );
-        Track input = track(3L);
+    public void missingRestoreActionsAreSafe() {
+        PlaybackQueueStreamingRestoreOwner owner = new PlaybackQueueStreamingRestoreOwner(null, null);
 
-        assertSame(input, owner.restoreTrackForPlayback(input));
-        assertEquals(
-                java.util.Collections.singletonList("headers:streaming:test:3"),
-                events
-        );
+        org.junit.Assert.assertNull(owner.restoredTrackFor(track(3L)));
+        owner.restoreForDataPath("streaming:test:3");
     }
 
     @Test
-    public void rejectsTracksThatMediaResolverCannotRestoreForQueuePlayback() {
-        List<String> events = new ArrayList<>();
-        PlaybackQueueStreamingRestoreOwner owner = new PlaybackQueueStreamingRestoreOwner(
-                track -> {
-                    events.add("track:" + track.id);
-                    return track;
-                },
-                dataPath -> events.add("headers:" + dataPath)
-        );
-        Track invalid = new Track(
-                -1L,
-                "Invalid",
-                "Artist",
-                "Album",
-                180000L,
-                Uri.parse("content://example.test/invalid"),
-                "streaming:test:invalid"
-        );
+    public void mediaSourceProviderFactoryIsSafeWhenProviderIsMissing() {
+        PlaybackQueueStreamingRestoreOwner owner =
+                PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(null);
 
-        assertEquals(null, owner.restoreTrackForPlayback(invalid));
-        assertEquals(java.util.Collections.emptyList(), events);
-    }
-
-    @Test
-    public void mediaSourceProviderConstructorRequiresMediaSourceProvider() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackQueueStreamingRestoreOwner((PlaybackMediaSourceProvider) null)
-        );
-
-        assertEquals("mediaSourceProvider", error.getMessage());
-    }
-
-    @Test
-    public void constructorRequiresRestoredTrackForPreparation() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackQueueStreamingRestoreOwner(null, dataPath -> {
-                })
-        );
-
-        assertEquals("restoredTrackForPreparation", error.getMessage());
-    }
-
-    @Test
-    public void constructorRequiresRestoreHeadersForDataPath() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackQueueStreamingRestoreOwner(track -> track, null)
-        );
-
-        assertEquals("restoreHeadersForDataPath", error.getMessage());
+        org.junit.Assert.assertNull(owner.restoredTrackFor(track(4L)));
+        owner.restoreForDataPath("streaming:test:4");
     }
 
     private static Track track(long id) {

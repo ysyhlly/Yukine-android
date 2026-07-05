@@ -4,41 +4,52 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 
 import java.util.List;
-import java.util.Objects;
-import java.util.function.Function;
-import java.util.function.IntConsumer;
-import java.util.function.LongConsumer;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackSessionPlayer;
 
 final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegate {
+    interface SeekController {
+        void seekTo(long positionMs);
+    }
+
+    interface RepeatModeController {
+        void setRepeatMode(int appRepeatMode);
+    }
+
     interface ControllerMediaItems {
         boolean setControllerMediaItems(List<MediaItem> mediaItems, int startIndex, long startPositionMs);
     }
 
+    interface StateProvider {
+        Track currentTrack();
+    }
+
+    interface MetadataProvider {
+        MediaMetadata mediaMetadataForTrack(Track track);
+    }
+
     private final PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands;
-    private final LongConsumer seekController;
-    private final IntConsumer repeatModeController;
+    private final SeekController seekController;
+    private final RepeatModeController repeatModeController;
     private final ControllerMediaItems controllerMediaItems;
-    private final PlaybackQueueManager playbackQueueManager;
-    private final Function<Track, MediaMetadata> metadataProvider;
+    private final StateProvider stateProvider;
+    private final MetadataProvider metadataProvider;
 
     PlaybackSessionCommandOwner(
             PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands,
-            LongConsumer seekController,
-            IntConsumer repeatModeController,
+            SeekController seekController,
+            RepeatModeController repeatModeController,
             ControllerMediaItems controllerMediaItems,
-            PlaybackQueueManager playbackQueueManager,
-            Function<Track, MediaMetadata> metadataProvider
+            StateProvider stateProvider,
+            MetadataProvider metadataProvider
     ) {
-        this.playbackCommands = Objects.requireNonNull(playbackCommands, "playbackCommands");
-        this.seekController = Objects.requireNonNull(seekController, "seekController");
-        this.repeatModeController = Objects.requireNonNull(repeatModeController, "repeatModeController");
-        this.controllerMediaItems = Objects.requireNonNull(controllerMediaItems, "controllerMediaItems");
-        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.metadataProvider = Objects.requireNonNull(metadataProvider, "metadataProvider");
+        this.playbackCommands = playbackCommands;
+        this.seekController = seekController;
+        this.repeatModeController = repeatModeController;
+        this.controllerMediaItems = controllerMediaItems;
+        this.stateProvider = stateProvider;
+        this.metadataProvider = metadataProvider;
     }
 
     @Override
@@ -53,7 +64,7 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
 
     @Override
     public void seekTo(long positionMs) {
-        seekController.accept(positionMs);
+        seekController.seekTo(positionMs);
     }
 
     @Override
@@ -68,7 +79,7 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
 
     @Override
     public void setRepeatMode(int appRepeatMode) {
-        repeatModeController.accept(appRepeatMode);
+        repeatModeController.setRepeatMode(appRepeatMode);
     }
 
     @Override
@@ -83,15 +94,11 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
 
     @Override
     public Track currentTrack() {
-        return queueStateSnapshot().getCurrentTrack();
+        return stateProvider.currentTrack();
     }
 
     @Override
     public MediaMetadata mediaMetadataForTrack(Track track) {
-        return metadataProvider.apply(track);
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        return playbackQueueManager.queueStateSnapshot();
+        return metadataProvider.mediaMetadataForTrack(track);
     }
 }

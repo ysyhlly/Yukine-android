@@ -3,8 +3,6 @@ package app.yukine.playback;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
-import java.util.List;
-import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
@@ -16,7 +14,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     private final BooleanSupplier mirroredQueueMatcher;
     private final BooleanSupplier playerAvailability;
     private final Consumer<Boolean> preparingStateController;
-    private PlaybackQueueManager playbackQueueManager;
+    private final Supplier<Track> currentTrackProvider;
     private final Consumer<Track> waveformResetter;
     private final Runnable playbackParameterApplier;
     private final BiConsumer<Integer, Long> playerSeeker;
@@ -25,55 +23,51 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     private final Consumer<Boolean> mirrorStateController;
     private final Consumer<IllegalStateException> failureLogger;
 
-    static BooleanSupplier mirroredQueueMatcher(
+    static BooleanSupplier fromPlaybackQueueManager(
             BooleanSupplier mirrorStateProvider,
+            BooleanSupplier playerAvailability,
             IntSupplier playerMediaItemCountProvider,
-            Supplier<List<Track>> queueSnapshotProvider,
-            BiPredicate<Integer, Track> queueTrackMatcher
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            PlaybackQueueManager.QueueTrackMatcher queueTrackMatcher
     ) {
-        return new MirroredQueueSnapshotMatcher(
-                Objects.requireNonNull(mirrorStateProvider, "mirrorStateProvider"),
-                Objects.requireNonNull(playerMediaItemCountProvider, "playerMediaItemCountProvider"),
-                Objects.requireNonNull(queueSnapshotProvider, "queueSnapshotProvider"),
-                Objects.requireNonNull(queueTrackMatcher, "queueTrackMatcher")
+        return mirroredQueueMatcher(
+                mirrorStateProvider,
+                playerAvailability,
+                playerMediaItemCountProvider,
+                () -> {
+                    PlaybackQueueManager playbackQueueManager =
+                            playbackQueueManagerSupplier == null
+                                    ? null
+                                    : playbackQueueManagerSupplier.get();
+                    return playbackQueueManager != null
+                            ? playbackQueueManager::matchesMirroredQueue
+                            : null;
+                },
+                queueTrackMatcher
         );
     }
 
-    PlaybackQueueMirroredPlayerOwner(
+    static BooleanSupplier mirroredQueueMatcher(
             BooleanSupplier mirrorStateProvider,
-            IntSupplier playerMediaItemCountProvider,
-            BiPredicate<Integer, Track> queueTrackMatcher,
             BooleanSupplier playerAvailability,
-            Consumer<Boolean> preparingStateController,
-            Consumer<Track> waveformResetter,
-            Runnable playbackParameterApplier,
-            BiConsumer<Integer, Long> playerSeeker,
-            Consumer<Boolean> playWhenReadySetter,
-            Runnable playerStarter,
-            Consumer<Boolean> mirrorStateController,
-            Consumer<IllegalStateException> failureLogger
+            IntSupplier playerMediaItemCountProvider,
+            Supplier<BiPredicate<Integer, PlaybackQueueManager.QueueTrackMatcher>> mirroredQueueMatcherSupplier,
+            PlaybackQueueManager.QueueTrackMatcher queueTrackMatcher
     ) {
-        this.mirroredQueueMatcher = mirroredQueueMatcher(
-                Objects.requireNonNull(mirrorStateProvider, "mirrorStateProvider"),
-                Objects.requireNonNull(playerMediaItemCountProvider, "playerMediaItemCountProvider"),
-                this::queueSnapshot,
-                Objects.requireNonNull(queueTrackMatcher, "queueTrackMatcher")
+        return new PlaybackQueueManagerMatcher(
+                mirrorStateProvider,
+                playerAvailability,
+                playerMediaItemCountProvider,
+                mirroredQueueMatcherSupplier,
+                queueTrackMatcher
         );
-        this.playerAvailability = Objects.requireNonNull(playerAvailability, "playerAvailability");
-        this.preparingStateController = Objects.requireNonNull(preparingStateController, "preparingStateController");
-        this.waveformResetter = Objects.requireNonNull(waveformResetter, "waveformResetter");
-        this.playbackParameterApplier = Objects.requireNonNull(playbackParameterApplier, "playbackParameterApplier");
-        this.playerSeeker = Objects.requireNonNull(playerSeeker, "playerSeeker");
-        this.playWhenReadySetter = Objects.requireNonNull(playWhenReadySetter, "playWhenReadySetter");
-        this.playerStarter = Objects.requireNonNull(playerStarter, "playerStarter");
-        this.mirrorStateController = Objects.requireNonNull(mirrorStateController, "mirrorStateController");
-        this.failureLogger = Objects.requireNonNull(failureLogger, "failureLogger");
     }
 
     PlaybackQueueMirroredPlayerOwner(
             BooleanSupplier mirroredQueueMatcher,
             BooleanSupplier playerAvailability,
             Consumer<Boolean> preparingStateController,
+            Supplier<Track> currentTrackProvider,
             Consumer<Track> waveformResetter,
             Runnable playbackParameterApplier,
             BiConsumer<Integer, Long> playerSeeker,
@@ -82,35 +76,32 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
             Consumer<Boolean> mirrorStateController,
             Consumer<IllegalStateException> failureLogger
     ) {
-        this.mirroredQueueMatcher = Objects.requireNonNull(mirroredQueueMatcher, "mirroredQueueMatcher");
-        this.playerAvailability = Objects.requireNonNull(playerAvailability, "playerAvailability");
-        this.preparingStateController = Objects.requireNonNull(preparingStateController, "preparingStateController");
-        this.waveformResetter = Objects.requireNonNull(waveformResetter, "waveformResetter");
-        this.playbackParameterApplier = Objects.requireNonNull(playbackParameterApplier, "playbackParameterApplier");
-        this.playerSeeker = Objects.requireNonNull(playerSeeker, "playerSeeker");
-        this.playWhenReadySetter = Objects.requireNonNull(playWhenReadySetter, "playWhenReadySetter");
-        this.playerStarter = Objects.requireNonNull(playerStarter, "playerStarter");
-        this.mirrorStateController = Objects.requireNonNull(mirrorStateController, "mirrorStateController");
-        this.failureLogger = Objects.requireNonNull(failureLogger, "failureLogger");
-    }
-
-    void bindPlaybackQueueManager(PlaybackQueueManager playbackQueueManager) {
-        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
+        this.mirroredQueueMatcher = mirroredQueueMatcher;
+        this.playerAvailability = playerAvailability;
+        this.preparingStateController = preparingStateController;
+        this.currentTrackProvider = currentTrackProvider;
+        this.waveformResetter = waveformResetter;
+        this.playbackParameterApplier = playbackParameterApplier;
+        this.playerSeeker = playerSeeker;
+        this.playWhenReadySetter = playWhenReadySetter;
+        this.playerStarter = playerStarter;
+        this.mirrorStateController = mirrorStateController;
+        this.failureLogger = failureLogger;
     }
 
     @Override
     public boolean matchesCurrentQueue() {
-        return hasPlayer() && mirroredQueueMatcher.getAsBoolean();
+        return mirroredQueueMatcher.getAsBoolean();
     }
 
     @Override
     public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
-        if (!hasPlayer()) {
+        if (!playerAvailability.getAsBoolean()) {
             return false;
         }
         preparingStateController.accept(false);
         try {
-            Track track = currentTrack();
+            Track track = currentTrackProvider.get();
             if (track != null) {
                 waveformResetter.accept(track);
             }
@@ -128,57 +119,48 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
         }
     }
 
-    private Track currentTrack() {
-        return queueStateSnapshot().getCurrentTrack();
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        return Objects.requireNonNull(playbackQueueManager, "playbackQueueManager").queueStateSnapshot();
-    }
-
-    private boolean hasPlayer() {
-        return playerAvailability.getAsBoolean();
-    }
-
-    private List<Track> queueSnapshot() {
-        return Objects.requireNonNull(playbackQueueManager, "playbackQueueManager").queueSnapshot();
-    }
-
-    private static final class MirroredQueueSnapshotMatcher implements BooleanSupplier {
+    private static final class PlaybackQueueManagerMatcher implements BooleanSupplier {
         private final BooleanSupplier mirrorStateProvider;
+        private final BooleanSupplier playerAvailability;
         private final IntSupplier playerMediaItemCountProvider;
-        private final Supplier<List<Track>> queueSnapshotProvider;
-        private final BiPredicate<Integer, Track> queueTrackMatcher;
+        private final Supplier<BiPredicate<Integer, PlaybackQueueManager.QueueTrackMatcher>> mirroredQueueMatcherSupplier;
+        private final PlaybackQueueManager.QueueTrackMatcher queueTrackMatcher;
 
-        private MirroredQueueSnapshotMatcher(
+        private PlaybackQueueManagerMatcher(
                 BooleanSupplier mirrorStateProvider,
+                BooleanSupplier playerAvailability,
                 IntSupplier playerMediaItemCountProvider,
-                Supplier<List<Track>> queueSnapshotProvider,
-                BiPredicate<Integer, Track> queueTrackMatcher
+                Supplier<BiPredicate<Integer, PlaybackQueueManager.QueueTrackMatcher>> mirroredQueueMatcherSupplier,
+                PlaybackQueueManager.QueueTrackMatcher queueTrackMatcher
         ) {
             this.mirrorStateProvider = mirrorStateProvider;
+            this.playerAvailability = playerAvailability;
             this.playerMediaItemCountProvider = playerMediaItemCountProvider;
-            this.queueSnapshotProvider = queueSnapshotProvider;
+            this.mirroredQueueMatcherSupplier = mirroredQueueMatcherSupplier;
             this.queueTrackMatcher = queueTrackMatcher;
         }
 
         @Override
         public boolean getAsBoolean() {
-            if (!mirrorStateProvider.getAsBoolean()) {
+            if (mirrorStateProvider == null
+                    || !mirrorStateProvider.getAsBoolean()
+                    || playerAvailability == null
+                    || !playerAvailability.getAsBoolean()
+                    || playerMediaItemCountProvider == null
+                    || mirroredQueueMatcherSupplier == null
+                    || queueTrackMatcher == null) {
+                return false;
+            }
+            BiPredicate<Integer, PlaybackQueueManager.QueueTrackMatcher> mirroredQueueMatcher =
+                    mirroredQueueMatcherSupplier.get();
+            if (mirroredQueueMatcher == null) {
                 return false;
             }
             try {
-                List<Track> queueSnapshot = queueSnapshotProvider.get();
-                if (queueSnapshot == null || playerMediaItemCountProvider.getAsInt() != queueSnapshot.size()) {
-                    return false;
-                }
-                for (int i = 0; i < queueSnapshot.size(); i++) {
-                    Track track = queueSnapshot.get(i);
-                    if (track == null || !queueTrackMatcher.test(i, track)) {
-                        return false;
-                    }
-                }
-                return true;
+                return mirroredQueueMatcher.test(
+                        playerMediaItemCountProvider.getAsInt(),
+                        queueTrackMatcher
+                );
             } catch (IllegalStateException error) {
                 return false;
             }

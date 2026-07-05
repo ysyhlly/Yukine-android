@@ -1,9 +1,12 @@
 package app.yukine.playback;
 
-import java.util.function.BooleanSupplier;
-
-final class PlaybackRealtimeVisualizationOwner {
+final class PlaybackRealtimeVisualizationOwner
+        implements PlaybackStateSnapshotOwner.RealtimeBeatProvider {
     private static final float[] EMPTY_BANDS = new float[0];
+
+    interface PlaybackStateProvider {
+        boolean isPlaying();
+    }
 
     interface RealtimeDataProvider {
         float beat();
@@ -11,11 +14,11 @@ final class PlaybackRealtimeVisualizationOwner {
         float[] bands();
     }
 
-    private final BooleanSupplier playbackStateProvider;
+    private final PlaybackStateProvider playbackStateProvider;
     private final RealtimeDataProvider realtimeDataProvider;
 
     PlaybackRealtimeVisualizationOwner(
-            BooleanSupplier playbackStateProvider,
+            PlaybackStateProvider playbackStateProvider,
             RealtimeDataProvider realtimeDataProvider
     ) {
         this.playbackStateProvider = playbackStateProvider;
@@ -23,7 +26,7 @@ final class PlaybackRealtimeVisualizationOwner {
     }
 
     static PlaybackRealtimeVisualizationOwner fromRealtimeBassDetector(
-            BooleanSupplier playbackStateProvider,
+            PlaybackStateProvider playbackStateProvider,
             RealtimeBassDetector realtimeBassDetector
     ) {
         return new PlaybackRealtimeVisualizationOwner(
@@ -42,7 +45,8 @@ final class PlaybackRealtimeVisualizationOwner {
         );
     }
 
-    float beat() {
+    @Override
+    public float beat() {
         return canReadRealtimeData() ? realtimeDataProvider.beat() : 0f;
     }
 
@@ -57,6 +61,6 @@ final class PlaybackRealtimeVisualizationOwner {
     private boolean canReadRealtimeData() {
         return playbackStateProvider != null
                 && realtimeDataProvider != null
-                && playbackStateProvider.getAsBoolean();
+                && playbackStateProvider.isPlaying();
     }
 }

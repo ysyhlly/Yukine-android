@@ -6,12 +6,14 @@ import app.yukine.playback.service.PlaybackServiceActions
 
 interface NowPlayingPlaybackServicePort {
     fun snapshot(): PlaybackStateSnapshot?
+    fun queueSnapshot(): List<Track>
     fun skipToPrevious()
     fun skipToNext()
     fun seekTo(positionMs: Long)
     fun removeTracksById(trackIds: Set<Long>)
     fun clearQueue()
     fun moveQueueTrack(fromIndex: Int, toIndex: Int)
+    fun replaceQueuedTrack(updated: Track)
     fun replaceQueuedTrackById(oldTrackId: Long, updated: Track)
     fun retainTracksById(trackIds: Set<Long>)
     fun warmPlaybackTrack(track: Track)
@@ -39,7 +41,11 @@ internal class NowPlayingPlaybackGatewayAdapter(
     private val serviceProvider: () -> NowPlayingPlaybackServicePort?,
     private val serviceStarter: (String?) -> Unit
 ) : NowPlayingPlaybackGateway {
+    override fun serviceConnected(): Boolean = service() != null
+
     override fun snapshot(): PlaybackStateSnapshot? = service()?.snapshot()
+
+    override fun queueSnapshot(): List<Track> = service()?.queueSnapshot().orEmpty()
 
     override fun skipToPrevious() {
         val service = service()
@@ -73,6 +79,10 @@ internal class NowPlayingPlaybackGatewayAdapter(
 
     override fun moveQueueTrack(fromIndex: Int, toIndex: Int) {
         service()?.moveQueueTrack(fromIndex, toIndex)
+    }
+
+    override fun replaceQueuedTrack(updated: Track) {
+        service()?.replaceQueuedTrack(updated)
     }
 
     override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) {

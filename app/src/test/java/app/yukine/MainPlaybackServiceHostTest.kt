@@ -5,186 +5,100 @@ import app.yukine.playback.AudioEffectSettings
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.playback.state.PlaybackStateListener
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MainPlaybackServiceHostTest {
     @Test
-    fun delegatesDetachAndPlaybackChromeToInjectedOwners() {
+    fun delegatesSettingsAndPlaybackChromeToInjectedOwners() {
         val calls = mutableListOf<String>()
         val host = MainPlaybackServiceHost(
-            playbackSettingsSource = MainPlaybackServiceHost.PlaybackSettingsSource {
-                PlaybackServiceConnectionSettings(
-                    playbackSpeed = 1.35f,
-                    appVolume = 0.65f,
-                    concurrentPlaybackEnabled = true,
-                    statusBarLyricsEnabled = false,
-                    playbackRestoreEnabled = true,
-                    replayGainEnabled = false
-                )
-            },
+            playbackSpeedSource = MainPlaybackServiceHost.PlaybackSpeedSource { 1.35f },
+            appVolumeSource = MainPlaybackServiceHost.AppVolumeSource { 0.65f },
+            concurrentPlaybackSource = MainPlaybackServiceHost.ConcurrentPlaybackSource { true },
+            statusBarLyricsSource = MainPlaybackServiceHost.StatusBarLyricsSource { false },
+            playbackRestoreSource = MainPlaybackServiceHost.PlaybackRestoreSource { true },
+            replayGainSource = MainPlaybackServiceHost.ReplayGainSource { false },
             playbackServiceAttacher = MainPlaybackServiceHost.PlaybackServiceAttacher { calls += "attach" },
-            playbackServiceDetacher = MainPlaybackServiceHost.PlaybackServiceDetacher { calls += "detach" },
+            playbackServiceClearer = MainPlaybackServiceHost.PlaybackServiceClearer { calls += "clear" },
+            playbackStoreResetter = MainPlaybackServiceHost.PlaybackStoreResetter { calls += "reset" },
             pendingTracksPlayer = MainPlaybackServiceHost.PendingTracksPlayer { calls += "pending" },
-            playbackChromeRenderer = MainPlaybackServiceHost.PlaybackChromeRenderer { calls += "chrome" }
+            selectedTabRenderer = MainPlaybackServiceHost.SelectedTabRenderer { calls += "selected-tab" },
+            nowBarRenderer = MainPlaybackServiceHost.NowBarRenderer { calls += "now-bar" }
         )
 
-        host.detachPlaybackService()
-        host.renderPlaybackChrome()
+        assertEquals(1.35f, host.playbackSpeed())
+        assertEquals(0.65f, host.appVolume())
+        assertTrue(host.concurrentPlaybackEnabled())
+        assertFalse(host.statusBarLyricsEnabled())
+        assertTrue(host.playbackRestoreEnabled())
+        assertFalse(host.replayGainEnabled())
+        host.clearPlaybackService()
+        host.resetPlaybackStore()
+        host.playPendingTracksIfNeeded()
+        host.renderSelectedTab()
+        host.renderNowBar()
 
-        assertEquals(listOf("detach", "chrome"), calls)
+        assertEquals(listOf("clear", "reset", "pending", "selected-tab", "now-bar"), calls)
     }
 
     @Test
-    fun attachConfiguresServiceStartsPendingTracksAndMarksPlaybackVisible() {
+    fun attachUsesHostPortAndMarksPlaybackVisible() {
         val calls = mutableListOf<String>()
-        val service = FakePlaybackServiceHostPort(calls)
+        val service = FakePlaybackServiceHostPort()
         val host = MainPlaybackServiceHost(
-            playbackSettingsSource = MainPlaybackServiceHost.PlaybackSettingsSource {
-                calls += "settings"
-                PlaybackServiceConnectionSettings(
-                    playbackSpeed = 1.4f,
-                    appVolume = 0.7f,
-                    concurrentPlaybackEnabled = true,
-                    statusBarLyricsEnabled = false,
-                    playbackRestoreEnabled = true,
-                    replayGainEnabled = true
-                )
-            },
+            playbackSpeedSource = MainPlaybackServiceHost.PlaybackSpeedSource { 1.0f },
+            appVolumeSource = MainPlaybackServiceHost.AppVolumeSource { 1.0f },
+            concurrentPlaybackSource = MainPlaybackServiceHost.ConcurrentPlaybackSource { false },
+            statusBarLyricsSource = MainPlaybackServiceHost.StatusBarLyricsSource { true },
+            playbackRestoreSource = MainPlaybackServiceHost.PlaybackRestoreSource { true },
+            replayGainSource = MainPlaybackServiceHost.ReplayGainSource { false },
             playbackServiceAttacher = MainPlaybackServiceHost.PlaybackServiceAttacher {
                 calls += "attach"
             },
-            playbackServiceDetacher = MainPlaybackServiceHost.PlaybackServiceDetacher { calls += "detach" },
+            playbackServiceClearer = MainPlaybackServiceHost.PlaybackServiceClearer { calls += "clear" },
+            playbackStoreResetter = MainPlaybackServiceHost.PlaybackStoreResetter { calls += "reset" },
             pendingTracksPlayer = MainPlaybackServiceHost.PendingTracksPlayer { calls += "pending" },
-            playbackChromeRenderer = MainPlaybackServiceHost.PlaybackChromeRenderer { calls += "chrome" }
+            selectedTabRenderer = MainPlaybackServiceHost.SelectedTabRenderer { calls += "selected-tab" },
+            nowBarRenderer = MainPlaybackServiceHost.NowBarRenderer { calls += "now-bar" }
         )
 
         host.attachPlaybackService(service)
 
-        assertEquals(
-            listOf(
-                "attach",
-                "visible:true",
-                "settings",
-                "speed:1.4",
-                "volume:0.7",
-                "concurrent:true",
-                "status-bar-lyrics:false",
-                "restore:true",
-                "replay-gain:true",
-                "pending"
-            ),
-            calls
-        )
-    }
-
-    @Test
-    fun controllerAppliesConnectionSettingsSnapshotToService() {
-        val calls = mutableListOf<String>()
-        val service = FakePlaybackServiceHostPort(calls)
-        val host = MainPlaybackServiceHost(
-            playbackSettingsSource = MainPlaybackServiceHost.PlaybackSettingsSource {
-                calls += "settings"
-                PlaybackServiceConnectionSettings(
-                    playbackSpeed = 1.25f,
-                    appVolume = 0.55f,
-                    concurrentPlaybackEnabled = true,
-                    statusBarLyricsEnabled = false,
-                    playbackRestoreEnabled = true,
-                    replayGainEnabled = true
-                )
-            },
-            playbackServiceAttacher = MainPlaybackServiceHost.PlaybackServiceAttacher { calls += "attach" },
-            playbackServiceDetacher = MainPlaybackServiceHost.PlaybackServiceDetacher { calls += "detach" },
-            pendingTracksPlayer = MainPlaybackServiceHost.PendingTracksPlayer { calls += "pending" },
-            playbackChromeRenderer = MainPlaybackServiceHost.PlaybackChromeRenderer { calls += "chrome" }
-        )
-
-        PlaybackServiceHostController(host).onPlaybackServiceConnected(service)
-
-        assertEquals(
-            listOf(
-                "attach",
-                "visible:true",
-                "settings",
-                "speed:1.25",
-                "volume:0.55",
-                "concurrent:true",
-                "status-bar-lyrics:false",
-                "restore:true",
-                "replay-gain:true",
-                "pending",
-                "chrome"
-            ),
-            calls
-        )
-    }
-
-    @Test
-    fun controllerDetachesServiceAndRefreshesChromeOnDisconnect() {
-        val calls = mutableListOf<String>()
-        val host = MainPlaybackServiceHost(
-            playbackSettingsSource = MainPlaybackServiceHost.PlaybackSettingsSource {
-                PlaybackServiceConnectionSettings(
-                    playbackSpeed = 1.0f,
-                    appVolume = 1.0f,
-                    concurrentPlaybackEnabled = false,
-                    statusBarLyricsEnabled = true,
-                    playbackRestoreEnabled = true,
-                    replayGainEnabled = false
-                )
-            },
-            playbackServiceAttacher = MainPlaybackServiceHost.PlaybackServiceAttacher { calls += "attach" },
-            playbackServiceDetacher = MainPlaybackServiceHost.PlaybackServiceDetacher { calls += "detach" },
-            pendingTracksPlayer = MainPlaybackServiceHost.PendingTracksPlayer { calls += "pending" },
-            playbackChromeRenderer = MainPlaybackServiceHost.PlaybackChromeRenderer { calls += "chrome" }
-        )
-
-        PlaybackServiceHostController(host).onPlaybackServiceDisconnected()
-
-        assertEquals(listOf("detach", "chrome"), calls)
+        assertEquals(listOf("attach", "visible:true"), calls + service.calls)
     }
 
     @Test
     fun factoryCreatesPlaybackServiceHostControllerHost() {
         val calls = mutableListOf<String>()
         val host = PlaybackUiModule.provideMainPlaybackServiceHostFactory().create(
-            MainPlaybackServiceHost.PlaybackSettingsSource {
-                PlaybackServiceConnectionSettings(
-                    playbackSpeed = 1.0f,
-                    appVolume = 0.9f,
-                    concurrentPlaybackEnabled = false,
-                    statusBarLyricsEnabled = true,
-                    playbackRestoreEnabled = false,
-                    replayGainEnabled = true
-                )
-            },
+            MainPlaybackServiceHost.PlaybackSpeedSource { 1.0f },
+            MainPlaybackServiceHost.AppVolumeSource { 0.9f },
+            MainPlaybackServiceHost.ConcurrentPlaybackSource { false },
+            MainPlaybackServiceHost.StatusBarLyricsSource { true },
+            MainPlaybackServiceHost.PlaybackRestoreSource { false },
+            MainPlaybackServiceHost.ReplayGainSource { true },
             MainPlaybackServiceHost.PlaybackServiceAttacher { calls += "attach" },
-            MainPlaybackServiceHost.PlaybackServiceDetacher { calls += "detach" },
+            MainPlaybackServiceHost.PlaybackServiceClearer { calls += "clear" },
+            MainPlaybackServiceHost.PlaybackStoreResetter { calls += "reset" },
             MainPlaybackServiceHost.PendingTracksPlayer { calls += "pending" },
-            MainPlaybackServiceHost.PlaybackChromeRenderer { calls += "chrome" }
+            MainPlaybackServiceHost.SelectedTabRenderer { calls += "selected-tab" },
+            MainPlaybackServiceHost.NowBarRenderer { calls += "now-bar" }
         )
 
-        host.attachPlaybackService(FakePlaybackServiceHostPort(calls))
+        assertEquals(1.0f, host.playbackSpeed())
+        assertEquals(0.9f, host.appVolume())
+        assertFalse(host.concurrentPlaybackEnabled())
+        assertTrue(host.statusBarLyricsEnabled())
+        assertFalse(host.playbackRestoreEnabled())
+        assertTrue(host.replayGainEnabled())
+        host.playPendingTracksIfNeeded()
 
-        assertEquals(
-            listOf(
-                "attach",
-                "visible:true",
-                "speed:1.0",
-                "volume:0.9",
-                "concurrent:false",
-                "status-bar-lyrics:true",
-                "restore:false",
-                "replay-gain:true",
-                "pending"
-            ),
-            calls
-        )
+        assertEquals(listOf("pending"), calls)
     }
 
-    private class FakePlaybackServiceHostPort(
-        private val recorder: MutableList<String>? = null
-    ) : PlaybackServiceHostPort {
+    private class FakePlaybackServiceHostPort : PlaybackServiceHostPort {
         val calls = mutableListOf<String>()
 
         override fun registerListener(listener: PlaybackStateListener?) = Unit
@@ -192,7 +106,7 @@ class MainPlaybackServiceHostTest {
         override fun unregisterListener(listener: PlaybackStateListener?) = Unit
 
         override fun setAppVisible(visible: Boolean) {
-            record("visible:$visible")
+            calls += "visible:$visible"
         }
 
         override fun realtimeBeat(): Float = 0f
@@ -214,6 +128,8 @@ class MainPlaybackServiceHostTest {
         override fun clearQueue() = Unit
 
         override fun moveQueueTrack(fromIndex: Int, toIndex: Int) = Unit
+
+        override fun replaceQueuedTrack(updated: Track) = Unit
 
         override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) = Unit
 
@@ -241,35 +157,18 @@ class MainPlaybackServiceHostTest {
 
         override fun setRepeatMode(repeatMode: Int) = Unit
 
-        override fun setPlaybackSpeed(speed: Float) {
-            record("speed:$speed")
-        }
+        override fun setPlaybackSpeed(speed: Float) = Unit
 
-        override fun setAppVolume(volume: Float) {
-            record("volume:$volume")
-        }
+        override fun setAppVolume(volume: Float) = Unit
 
-        override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
-            record("concurrent:$enabled")
-        }
+        override fun setConcurrentPlaybackEnabled(enabled: Boolean) = Unit
 
         override fun applyAudioEffectSettings(settings: AudioEffectSettings) = Unit
 
-        override fun setStatusBarLyricsEnabled(enabled: Boolean) {
-            record("status-bar-lyrics:$enabled")
-        }
+        override fun setStatusBarLyricsEnabled(enabled: Boolean) = Unit
 
-        override fun setPlaybackRestoreEnabled(enabled: Boolean) {
-            record("restore:$enabled")
-        }
+        override fun setPlaybackRestoreEnabled(enabled: Boolean) = Unit
 
-        override fun setReplayGainEnabled(enabled: Boolean) {
-            record("replay-gain:$enabled")
-        }
-
-        private fun record(call: String) {
-            calls += call
-            recorder?.add(call)
-        }
+        override fun setReplayGainEnabled(enabled: Boolean) = Unit
     }
 }

@@ -21,8 +21,8 @@ public class PlaybackStatePublisherWidgetOwnerTest {
         PlaybackStateSnapshot snapshot = PlaybackStateSnapshot.empty();
         FakeWidgetOperations widgetOperations = new FakeWidgetOperations();
         PlaybackStatePublisherWidgetOwner owner = new PlaybackStatePublisherWidgetOwner(
-                context,
-                widgetOperations
+                () -> context,
+                () -> widgetOperations
         );
 
         owner.update(snapshot, null);
@@ -36,12 +36,12 @@ public class PlaybackStatePublisherWidgetOwnerTest {
     public void ignoresMissingContextOrWidgetOperations() {
         FakeWidgetOperations widgetOperations = new FakeWidgetOperations();
         PlaybackStatePublisherWidgetOwner missingContextOwner = new PlaybackStatePublisherWidgetOwner(
-                null,
-                widgetOperations
+                () -> null,
+                () -> widgetOperations
         );
         PlaybackStatePublisherWidgetOwner missingOperationsOwner = new PlaybackStatePublisherWidgetOwner(
-                RuntimeEnvironment.getApplication(),
-                null
+                RuntimeEnvironment::getApplication,
+                () -> null
         );
         PlaybackStatePublisherWidgetOwner nullProvidersOwner =
                 new PlaybackStatePublisherWidgetOwner(null, null);

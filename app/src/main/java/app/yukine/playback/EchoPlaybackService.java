@@ -15,7 +15,6 @@ import android.os.Process;
 import android.util.Log;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -108,54 +107,138 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     private ExoPlayer player;
     private final PlaybackPlayerStateOwner playbackPlayerStateOwner =
-            new PlaybackPlayerStateOwner(() -> player);
-    private final PlaybackRealtimeVisualizationOwner playbackRealtimeVisualizationOwnerDelegate =
-            PlaybackRealtimeVisualizationOwner.fromRealtimeBassDetector(
-                    playbackPlayerStateOwner::isPlaying,
-                    realtimeBassDetector
-            );
+            PlaybackPlayerStateOwner.fromPlayerProvider(() -> player);
     private PlaybackQueueManager playbackQueueManager;
-    private final PlaybackQueueRuntimeStateManager playbackQueueRuntimeStateManager =
-            new PlaybackQueueRuntimeStateManager();
-    private final PlaybackRuntimeStateManager.PlaybackStateProvider playbackRuntimeStateProvider =
-            PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
-                    () -> player,
-                    playbackQueueRuntimeStateManager::playerMirrorsQueue
+    private final PlaybackQueueStateOwner playbackQueueStateOwner =
+            PlaybackQueueStateOwner.fromPlaybackQueueManager(() -> playbackQueueManager);
+    private final PlaybackQueueRuntimeStateManager playbackQueueRuntimeStateManager = new PlaybackQueueRuntimeStateManager();
+    private final PlaybackQueueMirrorStateOwner playbackQueueMirrorStateOwner =
+            PlaybackQueueMirrorStateOwner.fromRuntimeStateManager(playbackQueueRuntimeStateManager);
+    private final PlaybackQueueMutationOwner playbackQueueMutationOwner =
+            PlaybackQueueMutationOwner.fromPlaybackQueueManager(() -> playbackQueueManager);
+    private final PlaybackQueueNavigationOwner playbackQueueNavigationOwner =
+            PlaybackQueueNavigationOwner.fromPlaybackQueueManager(
+                    () -> playbackQueueManager,
+                    this::onMirroredQueueReused
             );
-    private final PlaybackQueueCommandOwner playbackQueueCommandOwner =
-            new PlaybackQueueCommandOwner(
+    private final PlaybackQueueMirroredTransitionOwner playbackQueueMirroredTransitionOwner =
+            PlaybackQueueMirroredTransitionOwner.fromPlaybackQueueManager(
+                    () -> playbackQueueManager,
+                    playbackQueueMirrorStateOwner::playerMirrorsQueue,
+                    playbackQueueStateOwner::isQueueEmpty,
+                    EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer
+            );
+    private final PlaybackQueueRestoreOwner playbackQueueRestoreOwner =
+            PlaybackQueueRestoreOwner.fromPlaybackQueueManager(
+                    () -> playbackQueueManager,
+                    EchoPlaybackService.this::createPlayerIfNeeded,
                     EchoPlaybackService.this::prepareCurrent,
                     EchoPlaybackService.this::publishState
             );
+    private final PlaybackQueuePersistenceOwner playbackQueuePersistenceOwner =
+            PlaybackQueuePersistenceOwner.fromPlaybackQueueManager(() -> playbackQueueManager);
+    private final PlaybackQueueCompletionOwner playbackQueueCompletionOwner =
+            PlaybackQueueCompletionOwner.fromPlaybackQueueManager(
+                    () -> playbackQueueManager,
+                    new PlaybackQueueCompletionOwner.CompletionBoundary() {
+                        @Override
+                        public void stopAndClear() {
+                            EchoPlaybackService.this.stopAndClear();
+                        }
+
+                        @Override
+                        public void prepareCurrent(boolean playWhenReady) {
+                            EchoPlaybackService.this.prepareCurrent(playWhenReady);
+                        }
+
+                        @Override
+                        public void stopAtEndOfQueue() {
+                            EchoPlaybackService.this.stopAtEndOfQueue();
+                        }
+
+                        @Override
+                        public void skipToNext() {
+                            EchoPlaybackService.this.skipToNext();
+                        }
+                    }
+            );
     private final PlaybackRuntimeStateManager playbackRuntimeStateManager =
-            new PlaybackRuntimeStateManager(playbackRuntimeStateProvider);
-    private final PlaybackCurrentTrackPreparationRuntimeOwner playbackCurrentTrackPreparationRuntimeOwnerDelegate =
+            new PlaybackRuntimeStateManager(
+                    PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
+                            () -> player,
+                            playbackQueueMirrorStateOwner::playerMirrorsQueue,
+                            playbackQueueStateOwner::currentTrack
+                    )
+            );
+    private final PlaybackCurrentTrackPreparationRuntimeOwner playbackCurrentTrackPreparationRuntimeOwner =
             PlaybackCurrentTrackPreparationRuntimeOwner.fromRuntimeStateManager(playbackRuntimeStateManager);
     private final PlaybackAudioEffectManager audioEffectManager =
             new PlaybackAudioEffectManager(TAG);
     private PlaybackSessionManager playbackSessionManager;
+    private PlaybackNotificationArtworkBridgeOwner.SessionRefresher playbackSessionRefresher;
     private app.yukine.playback.manager.LyricsPublisher playbackLyricsManager;
     private final Consumer<Boolean> statusBarLyricsEnabledAction =
             PlaybackLyricsSettingsStore.statusBarLyricsEnabledActionFromSupplier(() -> playbackLyricsManager);
+    private PlaybackLyricsStateOwner playbackLyricsStateOwner;
+    private PlaybackMediaLibraryCallback playbackMediaLibraryCallback;
     private PlaybackModeSettingsStore playbackModeSettingsStore;
     private PlaybackStatePublisher playbackStatePublisher;
+    private PlaybackStateSnapshotOwner playbackStateSnapshotOwner;
+    private PlaybackBufferingDiagnosticsRecorderOwner playbackBufferingDiagnosticsRecorderOwner;
+    private PlaybackRecoveryDiagnosticsRecorderOwner playbackRecoveryDiagnosticsRecorderOwner;
     private PlaybackErrorRecoveryCommandOwner playbackErrorRecoveryCommandOwner;
     private PlaybackErrorRecoveryManager playbackErrorRecoveryManager;
-    private Runnable recordPlaybackStartHistoryAction = () -> {
-    };
+    private PlaybackPlayHistoryRecorder playbackPlayHistoryRecorder;
+    private final Runnable recordPlaybackStartHistoryAction =
+            PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
+                    () -> playbackPlayHistoryRecorder,
+                    () -> player != null && player.getPlayWhenReady(),
+                    this::currentTrack
+            );
+    private PlaybackQueueCommandOwner playbackQueueCommandOwner;
+    private PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner;
+    private PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner;
+    private PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner;
     private PlaybackPositionManager playbackPositionManager;
     private PlaybackNotificationManager playbackNotificationManager;
+    private PlaybackNotificationForegroundOwner playbackNotificationForegroundOwner;
     private PlaybackNotificationCommandOwner playbackNotificationCommandOwner;
+    private PlaybackNotificationStateOwner playbackNotificationStateOwner;
+    private PlaybackNotificationArtworkSource playbackNotificationArtworkSource;
+    private PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner;
+    private PlaybackSessionCommandOwner playbackSessionCommandOwner;
+    private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner;
+    private PlaybackCurrentTrackPreparationOwner playbackCurrentTrackPreparationOwner;
     private PlaybackSleepTimerCommandOwner playbackSleepTimerCommandOwner;
     private PlaybackSleepTimerManager playbackSleepTimerManager;
+    private PlaybackRealtimeVisualizationOwner playbackRealtimeVisualizationOwner;
+    private PlaybackBufferedProgressOwner playbackBufferedProgressOwner;
+    private PlaybackVisualizationStateOwner playbackVisualizationStateOwner;
     private PlaybackVisualizationAnalyzer playbackVisualizationAnalyzer;
+    private PlaybackVisualizationCacheStateOwner playbackVisualizationCacheStateOwner;
     private PlaybackVisualizationCacheManager playbackVisualizationCacheManager;
     private PlaybackNotificationArtworkManager playbackNotificationArtworkManager;
+    private PlaybackPrecacheStateOwner playbackPrecacheStateOwner;
     private PlaybackPrecacheManager playbackPrecacheManager;
     private PlaybackWarmupCoordinator playbackWarmupCoordinator;
     private PlaybackCrossfadeCommandOwner playbackCrossfadeCommandOwner;
+    private PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner;
     private PlaybackCrossfadeAdvanceManager playbackCrossfadeAdvanceManager;
     private PlaybackRecoveryScheduler playbackRecoveryScheduler;
+    private final PlaybackCurrentTrackReplacementOwner playbackCurrentTrackReplacementOwner =
+            PlaybackCurrentTrackReplacementOwner.fromPlaybackQueueManager(
+                    () -> playbackQueueManager,
+                    recovery -> {
+                        if (playbackRecoveryDiagnosticsRecorderOwner != null) {
+                            playbackRecoveryDiagnosticsRecorderOwner.record(recovery);
+                        }
+                    },
+                    playWhenReady -> {
+                        if (playbackRecoveryScheduler != null) {
+                            playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(playWhenReady);
+                        }
+                    }
+            );
     private PlaybackShutdownPlaybackResourcesOwner playbackShutdownPlaybackResourcesOwner;
     private PlaybackShutdownServiceResourcesOwner playbackShutdownServiceResourcesOwner;
     private PlaybackShutdownLifecycleResourcesOwner playbackShutdownLifecycleResourcesOwner;
@@ -166,6 +249,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     private final Runnable releaseWifiLockAction =
             PlaybackWifiLockManager.releaseAction(() -> playbackWifiLockManager);
     private PlaybackNoisyReceiverManager playbackNoisyReceiverManager;
+    private PlaybackProgressUpdateCommandOwner playbackProgressUpdateCommandOwner;
     private PlaybackProgressUpdateManager playbackProgressUpdateManager;
     @Inject
     MusicLibraryRepository repository;
@@ -187,52 +271,44 @@ public final class EchoPlaybackService extends MediaLibraryService
                 return;
             }
             if (playbackState == Player.STATE_READY) {
-                playbackCurrentTrackPreparationRuntimeOwner().markPlaybackReady();
+                playbackCurrentTrackPreparationRuntimeOwner.markPlaybackReady();
                 if (playbackErrorRecoveryManager != null) {
                     playbackErrorRecoveryManager.onPlaybackReady();
                 }
                 recordPlaybackStartHistoryAction.run();
             } else if (playbackState == Player.STATE_ENDED) {
-                playbackQueueCompletionOwner().playAfterCompletion();
+                playAfterCompletion();
                 return;
             }
             publishState();
             if (playbackState == Player.STATE_BUFFERING && player.getPlayWhenReady()) {
                 publishBufferingState();
             }
-            startProgressUpdates();
+            playbackProgressUpdateCommandOwner.startProgressUpdates();
         }
 
         @Override
         public void onMediaItemTransition(MediaItem mediaItem, int reason) {
-            if (player == null) {
-                return;
-            }
-            PlaybackQueueMirroredTransitionOwner mirroredTransitionOwner =
-                    new PlaybackQueueMirroredTransitionOwner(
-                            playbackQueueManager,
-                            EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer,
-                            playbackQueueRuntimeStateManager::playerMirrorsQueue
-                    );
-            if (!mirroredTransitionOwner.canApplyMirroredTransition()) {
+            if (player == null || !playbackQueueMirroredTransitionOwner.canApplyMirroredTransition()) {
                 return;
             }
             int nextIndex = player.getCurrentMediaItemIndex();
-            PlaybackQueueMirroredTransitionOwner.Transition transition =
-                    mirroredTransitionOwner.applyMirroredTransitionReason(nextIndex, reason);
+            PlaybackQueueManager.MirroredTransitionResult transition =
+                    playbackQueueMirroredTransitionOwner.applyMirroredTransitionReason(nextIndex, reason);
             if (transition == null) {
                 return;
             }
-            if (transition.stopAfterAutomaticAdvance()) {
-                stopAtEndOfQueueBoundary();
+            if (transition.getStopAfterAutomaticAdvance()) {
+                stopAfterAutomaticAdvance(transition.getCompletedIndex());
                 return;
             }
-            Track track = transition.currentTrack();
+            Track track = currentTrack();
+            playbackQueueMirroredTransitionOwner.prepareMirroredTransitionPlaybackState();
             if (track != null) {
                 resetWaveformIfTrackChanged(track);
             }
             publishState();
-            startProgressUpdates();
+            playbackProgressUpdateCommandOwner.startProgressUpdates();
         }
 
         @Override
@@ -246,18 +322,18 @@ public final class EchoPlaybackService extends MediaLibraryService
                 releaseWifiLockAction.run();
             }
             publishState();
-            startProgressUpdates();
+            playbackProgressUpdateCommandOwner.startProgressUpdates();
         }
 
         @Override
         public void onPlayerError(PlaybackException error) {
-            playbackCurrentTrackPreparationRuntimeOwner().setPreparing(false);
+            playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false);
             if (playbackErrorRecoveryManager != null) {
                 playbackErrorRecoveryManager.onPlayerError(error);
                 return;
             }
             Log.w(TAG, "Playback failed for "
-                    + playbackErrorRecoveryCommandOwner.debugCurrentTrack(), error);
+                    + playbackErrorRecoveryCommandOwner.debugTrack(currentTrack()), error);
             playbackErrorRecoveryCommandOwner.setErrorMessage("Unable to play this track.");
             publishState();
         }
@@ -274,6 +350,12 @@ public final class EchoPlaybackService extends MediaLibraryService
     public void onCreate() {
         super.onCreate();
         mediaSourceProvider = new PlaybackMediaSourceProvider(this, repository, streamingPlaybackHeaderStore);
+        playbackCurrentTrackPreparationQueueOwner =
+                PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager(
+                        () -> playbackQueueManager,
+                        mediaSourceProvider,
+                        playbackNotificationManager::mediaMetadataForTrack
+                );
         playerFactory = new PlaybackPlayerFactory(this, realtimeBassAudioProcessor);
         playbackAudioEffectSettingsStore = PlaybackAudioEffectSettingsStore.fromRepository(repository);
         playbackAudioEffectSettingsStore.restore();
@@ -284,158 +366,32 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackModeSettingsStore.restoreInto(playbackRuntimeStateManager);
         playbackRuntimeSettingsStore = PlaybackRuntimeSettingsStore.fromRepository(repository);
         playbackRuntimeSettingsStore.restoreInto(playbackRuntimeStateManager);
-        final PlaybackPlayHistoryRecorder playbackPlayHistoryRecorder = PlaybackPlayHistoryRecorder.fromRepository(
+        playbackPlayHistoryRecorder = PlaybackPlayHistoryRecorder.fromRepository(
                 repository,
                 playbackTransitionStateManager
         );
-        final PlaybackPositionManager.PlaybackStateProvider playbackPositionStateProvider =
-                PlaybackPositionManager.stateProviderFromPlaybackState(
-                        playbackPlayerStateOwner::positionMs
-                );
         playbackPositionManager = new PlaybackPositionManager(
                 queueStore,
-                playbackPositionStateProvider
+                PlaybackPositionManager.stateProviderFromPlaybackState(
+                        playbackQueueStateOwner::currentTrack,
+                        playbackPlayerStateOwner::positionMs
+                )
         );
         playbackSleepTimerCommandOwner = new PlaybackSleepTimerCommandOwner(
-                EchoPlaybackService.this::pause,
-                EchoPlaybackService.this::publishState
+                EchoPlaybackService.this,
+                EchoPlaybackService.this::publishState,
+                () -> playbackSleepTimerManager
         );
         playbackSleepTimerManager = new PlaybackSleepTimerManager(
                 playbackMainHandlerSchedulerOwner,
                 playbackSleepTimerCommandOwner
         );
-        playbackSleepTimerCommandOwner.bindPlaybackSleepTimerManager(playbackSleepTimerManager);
-        playbackProgressUpdateManager = new PlaybackProgressUpdateManager(
-                playbackMainHandlerSchedulerOwner,
-                PlaybackProgressUpdateManager.stateProviderFromPlaybackState(
-                        playbackPlayerStateOwner::isPlaying,
-                        playbackCurrentTrackPreparationRuntimeOwner()::preparing
-                ),
-                PlaybackProgressUpdateManager.actionsFromCallbacks(
-                        EchoPlaybackService.this::publishState,
-                        EchoPlaybackService.this::persistCurrentPlaybackPosition
-                )
-        );
-        playbackCrossfadeCommandOwner = new PlaybackCrossfadeCommandOwner(
-                playbackTransitionStateManager::setFadeOutAdvancing,
-                volume -> {
-                    if (player != null) {
-                        player.setVolume(volume);
-                    }
-                },
-                () -> playbackQueueNavigationOwner().skipToNextImmediately(),
-                EchoPlaybackService.this::applyCurrentTrackVolumeToPlayer
-        );
-        playbackRecoveryScheduler = new PlaybackRecoveryScheduler(
-                task -> playbackTaskScheduler.schedule(
-                        PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY,
-                        task
-                ),
-                playbackMainHandlerSchedulerOwner,
-                playbackQueueCommandOwner::prepareCurrent
-        );
-        final PlaybackNotificationForegroundOwner playbackNotificationForegroundOwner =
-                new PlaybackNotificationForegroundOwner(
-                        EchoPlaybackService.this::activityPendingIntent,
-                        EchoPlaybackService.this::serviceActionPendingIntent,
-                        notification -> EchoPlaybackService.this.startPlaybackForeground(notification),
-                        () -> {
-                            EchoPlaybackService.this.stopForeground(true);
-                            EchoPlaybackService.this.stopSelf();
-                        }
-                );
-        playbackNotificationCommandOwner = PlaybackNotificationCommandOwner.fromNotificationOwners(
-                () -> playbackStatePublisher,
-                () -> playbackNotificationManager,
-                () -> playbackNotificationManager != null
-                        && playbackNotificationManager.hasNotificationWorthyState(),
-                EchoPlaybackService.this,
-                playbackNotificationForegroundOwner::stopForegroundAndSelf
-        );
-        final PlaybackQueueStreamingRestoreOwner playbackQueueStreamingRestoreOwner =
-                new PlaybackQueueStreamingRestoreOwner(mediaSourceProvider);
-        final PlaybackMirroredQueueTrackMatcherOwner playbackMirroredQueueTrackMatcherOwner =
-                new PlaybackMirroredQueueTrackMatcherOwner(
-                        () -> player,
-                        mediaSourceProvider
-                );
-        final PlaybackQueueMirroredPlayerOwner playbackQueueMirroredPlayerOwner =
-                new PlaybackQueueMirroredPlayerOwner(
-                        playbackQueueRuntimeStateManager::playerMirrorsQueue,
-                        () -> player == null ? -1 : player.getMediaItemCount(),
-                        playbackMirroredQueueTrackMatcherOwner::matches,
-                        () -> player != null,
-                        playbackCurrentTrackPreparationRuntimeOwner()::setPreparing,
-                        EchoPlaybackService.this::resetWaveformIfTrackChanged,
-                        EchoPlaybackService.this::applyPlaybackModeAndParametersToPlayer,
-                        (index, positionMs) -> player.seekTo(index, positionMs),
-                        playWhenReady -> player.setPlayWhenReady(playWhenReady),
-                        () -> player.play(),
-                        playbackQueueRuntimeStateManager::setPlayerMirrorsQueue,
-                        error -> Log.w(TAG, "Unable to reuse mirrored queue", error)
-                );
-        playbackQueueManager = new PlaybackQueueManager(
-                queueStore,
-                playbackQueueCommandOwner,
-                playbackPositionManager,
-                playbackQueueStreamingRestoreOwner,
-                playbackQueueMirroredPlayerOwner,
-                playbackRuntimeStateManager,
-                playbackTransitionStateManager
-        );
-        recordPlaybackStartHistoryAction = PlaybackPlayHistoryRecorder.recordIfPlaybackStartedAction(
-                playbackPlayHistoryRecorder,
-                () -> player != null && player.getPlayWhenReady(),
-                playbackQueueManager
-        );
-        playbackRuntimeStateProvider.bindPlaybackQueueManager(playbackQueueManager);
-        playbackPositionStateProvider.bindPlaybackQueueManager(playbackQueueManager);
-        playbackQueueCommandOwner.bindPlaybackQueueManager(playbackQueueManager);
-        playbackQueueMirroredPlayerOwner.bindPlaybackQueueManager(playbackQueueManager);
-        createPlayerIfNeeded();
-        final PlaybackNotificationStateOwner playbackNotificationStateOwner = new PlaybackNotificationStateOwner(
-                playbackQueueManager,
-                playbackPlayerStateOwner::isPlaying,
-                playbackCurrentTrackPreparationRuntimeOwner()::preparing,
-                track -> toggleFavoriteUseCase != null && toggleFavoriteUseCase.isFavorite(track),
-                () -> {
-                    MediaLibrarySession session = playbackSessionManager == null ? null : playbackSessionManager.session();
-                    return session == null ? null : session.getPlatformToken();
-                }
-        );
-        final PlaybackNotificationArtworkSource playbackNotificationArtworkSource =
-                PlaybackNotificationArtworkSource.fromSupplier(
-                        () -> playbackNotificationArtworkManager
-                );
-        playbackNotificationManager = new PlaybackNotificationManager(
-                this,
-                playbackNotificationForegroundOwner,
-                playbackNotificationStateOwner,
-                () -> playbackLyricsManager,
-                playbackNotificationArtworkSource,
-                playbackNotificationCommandOwner
-        );
-        final PlaybackNotificationArtworkBridgeOwner.SessionRefresher playbackSessionRefresher =
-                PlaybackNotificationArtworkBridgeOwner.sessionRefresherFromPlaybackSessionManager(
-                        () -> playbackSessionManager
-                );
-        final PlaybackLyricsStateOwner playbackLyricsStateOwner = new PlaybackLyricsStateOwner(
-                () -> appVisible,
-                playbackQueueManager,
-                playbackPlayerStateOwner::isPlaying,
-                playbackCurrentTrackPreparationRuntimeOwner()::preparing
-        );
-        playbackLyricsManager = new PlaybackLyricsManager(
-                this,
-                playbackLyricsStateOwner,
-                playbackNotificationManager.lyricsNotificationBridge(playbackSessionRefresher)
-        );
-        PlaybackLyricsSettingsStore.fromRepository(repository).restoreInto(playbackLyricsManager);
         playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner(
-                playbackQueueManager,
-                playbackQueueCommandOwner::prepareCurrent,
-                EchoPlaybackService.this::skipToNext,
-                playbackCurrentTrackPreparationRuntimeOwner()::setErrorMessage,
+                playbackQueueStateOwner::currentTrack,
+                playbackQueueStateOwner,
+                EchoPlaybackService.this::prepareCurrent,
+                EchoPlaybackService.this,
+                playbackCurrentTrackPreparationRuntimeOwner::setErrorMessage,
                 EchoPlaybackService.this::publishState,
                 (message, error) -> Log.w(TAG, message, error)
         );
@@ -445,21 +401,168 @@ public final class EchoPlaybackService extends MediaLibraryService
                 mediaSourceProvider::isHttpTrack,
                 1500L
         );
-        final PlaybackCrossfadeStateOwner playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner(
+        playbackProgressUpdateCommandOwner = new PlaybackProgressUpdateCommandOwner(
+                EchoPlaybackService.this::publishState,
+                EchoPlaybackService.this::persistPlaybackPositionThrottled,
+                () -> playbackProgressUpdateManager
+        );
+        playbackProgressUpdateManager = new PlaybackProgressUpdateManager(
+                playbackMainHandlerSchedulerOwner,
+                PlaybackProgressUpdateManager.stateProviderFromPlaybackState(
+                        playbackPlayerStateOwner::isPlaying,
+                        playbackCurrentTrackPreparationRuntimeOwner::preparing
+                ),
+                playbackProgressUpdateCommandOwner
+        );
+        playbackCrossfadeCommandOwner = new PlaybackCrossfadeCommandOwner(
+                playbackTransitionStateManager::setFadeOutAdvancing,
+                volume -> {
+                    if (player != null) {
+                        player.setVolume(volume);
+                    }
+                },
+                playbackQueueNavigationOwner::skipToNextImmediately,
+                () -> {
+                    if (playbackRuntimeSettingsStore != null) {
+                        playbackRuntimeSettingsStore.applyCurrentTrackVolumeToPlayer(playbackRuntimeStateManager);
+                    }
+                },
+                () -> playbackCrossfadeAdvanceManager
+        );
+        playbackCrossfadeStateOwner = new PlaybackCrossfadeStateOwner(
                 playbackTransitionStateManager::fadeOutAdvancing,
                 () -> player != null,
-                playbackPlayerStateOwner::isPlaying,
-                () -> playbackModeSettingsStore.repeatMode(playbackRuntimeStateManager),
-                playbackQueueManager,
-                () -> playbackRuntimeSettingsStore.currentTrackVolume(playbackRuntimeStateManager)
+                playbackPlayerStateOwner,
+                () -> playbackModeSettingsStore == null
+                        ? REPEAT_ALL
+                        : playbackModeSettingsStore.repeatMode(playbackRuntimeStateManager),
+                playbackQueueStateOwner,
+                () -> playbackRuntimeSettingsStore == null
+                        ? 1.0f
+                        : playbackRuntimeSettingsStore.currentTrackVolume(playbackRuntimeStateManager)
         );
         playbackCrossfadeAdvanceManager = new PlaybackCrossfadeAdvanceManager(
                 playbackMainHandlerSchedulerOwner,
                 playbackCrossfadeStateOwner,
                 playbackCrossfadeCommandOwner
         );
-        playbackCrossfadeCommandOwner.bindPlaybackCrossfadeAdvanceManager(playbackCrossfadeAdvanceManager);
-        final PlaybackMediaLibraryCallback playbackMediaLibraryCallback = new PlaybackMediaLibraryCallback(
+        playbackRecoveryScheduler = new PlaybackRecoveryScheduler(
+                task -> playbackTaskScheduler.schedule(
+                        PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY,
+                        task
+                ),
+                playbackMainHandlerSchedulerOwner,
+                EchoPlaybackService.this::prepareCurrent
+        );
+        createPlayerIfNeeded();
+        playbackNotificationForegroundOwner = new PlaybackNotificationForegroundOwner(
+                EchoPlaybackService.this::activityPendingIntent,
+                EchoPlaybackService.this::serviceActionPendingIntent,
+                notification -> EchoPlaybackService.this.startPlaybackForeground(notification),
+                () -> {
+                    EchoPlaybackService.this.stopForeground(true);
+                    EchoPlaybackService.this.stopSelf();
+                }
+        );
+        playbackNotificationCommandOwner = PlaybackNotificationCommandOwner.fromNotificationOwners(
+                () -> playbackStatePublisher,
+                () -> playbackNotificationManager,
+                () -> playbackNotificationManager != null
+                        && playbackNotificationManager.hasNotificationWorthyState(),
+                EchoPlaybackService.this,
+                playbackNotificationForegroundOwner::stopForegroundAndSelf
+        );
+        playbackNotificationStateOwner = new PlaybackNotificationStateOwner(
+                playbackQueueStateOwner::isQueueEmpty,
+                PlaybackNotificationStateOwner.playbackStateProviderFromPlaybackState(
+                        playbackQueueStateOwner::currentTrack,
+                        playbackPlayerStateOwner::isPlaying,
+                        playbackCurrentTrackPreparationRuntimeOwner::preparing
+                ),
+                track -> toggleFavoriteUseCase != null && toggleFavoriteUseCase.isFavorite(track),
+                () -> {
+                    MediaLibrarySession session = playbackSessionManager == null ? null : playbackSessionManager.session();
+                    return session == null ? null : session.getPlatformToken();
+                }
+        );
+        playbackNotificationArtworkSource = PlaybackNotificationArtworkSource.fromSupplier(
+                () -> playbackNotificationArtworkManager
+        );
+        playbackNotificationManager = new PlaybackNotificationManager(
+                this,
+                playbackNotificationForegroundOwner,
+                playbackNotificationStateOwner,
+                () -> playbackLyricsManager,
+                playbackNotificationArtworkSource,
+                playbackNotificationCommandOwner
+        );
+        playbackSessionRefresher = PlaybackNotificationArtworkBridgeOwner.sessionRefresherFromPlaybackSessionManager(
+                () -> playbackSessionManager
+        );
+        playbackLyricsStateOwner = new PlaybackLyricsStateOwner(
+                () -> appVisible,
+                PlaybackLyricsStateOwner.playbackStateProviderFromPlaybackState(
+                        playbackQueueStateOwner::currentTrack,
+                        playbackPlayerStateOwner::isPlaying,
+                        playbackCurrentTrackPreparationRuntimeOwner::preparing
+                )
+        );
+        playbackLyricsManager = new PlaybackLyricsManager(
+                this,
+                playbackLyricsStateOwner,
+                playbackNotificationManager.lyricsNotificationBridge(playbackSessionRefresher)
+        );
+        PlaybackLyricsSettingsStore.fromRepository(repository).restoreInto(playbackLyricsManager);
+        playbackQueueCommandOwner = new PlaybackQueueCommandOwner(
+                EchoPlaybackService.this::prepareCurrent,
+                EchoPlaybackService.this::publishState,
+                EchoPlaybackService.this
+        );
+        playbackQueueStreamingRestoreOwner =
+                PlaybackQueueStreamingRestoreOwner.fromMediaSourceProvider(mediaSourceProvider);
+        playbackMirroredQueueTrackMatcherOwner =
+                PlaybackMirroredQueueTrackMatcherOwner.fromMediaSourceProvider(
+                        () -> player,
+                        mediaSourceProvider
+        );
+        playbackQueueMirroredPlayerOwner = new PlaybackQueueMirroredPlayerOwner(
+                PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManager(
+                        playbackQueueMirrorStateOwner::playerMirrorsQueue,
+                        () -> player != null,
+                        () -> player == null ? -1 : player.getMediaItemCount(),
+                        () -> playbackQueueManager,
+                        playbackMirroredQueueTrackMatcherOwner
+                ),
+                () -> player != null,
+                playbackCurrentTrackPreparationRuntimeOwner::setPreparing,
+                playbackQueueStateOwner::currentTrack,
+                EchoPlaybackService.this::resetWaveformIfTrackChanged,
+                EchoPlaybackService.this::applyPlaybackModeAndParametersToPlayer,
+                (index, positionMs) -> player.seekTo(index, positionMs),
+                playWhenReady -> player.setPlayWhenReady(playWhenReady),
+                () -> player.play(),
+                playbackQueueMirrorStateOwner::setPlayerMirrorsQueue,
+                error -> Log.w(TAG, "Unable to reuse mirrored queue", error)
+        );
+        playbackQueueManager = new PlaybackQueueManager(
+                queueStore,
+                playbackQueueCommandOwner,
+                playbackPositionManager,
+                playbackQueueStreamingRestoreOwner,
+                playbackQueueMirroredPlayerOwner,
+                playbackRuntimeStateManager,
+                playbackTransitionStateManager
+        );
+        playbackCurrentTrackPreparationOwner = PlaybackCurrentTrackPreparationOwner.fromMediaSourceProvider(
+                mediaSourceProvider,
+                playbackNotificationManager::mediaMetadataForTrack,
+                playbackCurrentTrackPreparationQueueOwner,
+                playbackCurrentTrackPreparationRuntimeOwner,
+                EchoPlaybackService.this::publishState,
+                track -> Log.w(TAG, "Refusing to prepare empty uri for "
+                        + playbackErrorRecoveryCommandOwner.debugTrack(track))
+        );
+        playbackMediaLibraryCallback = new PlaybackMediaLibraryCallback(
                 PlaybackMediaLibraryDataSource.fromRepository(
                         getString(R.string.app_name),
                         repository,
@@ -467,60 +570,55 @@ public final class EchoPlaybackService extends MediaLibraryService
                         playbackNotificationManager::mediaMetadataForTrack
                 )
         );
-        final PlaybackControllerMediaItemsOwner playbackControllerMediaItemsOwner =
-                new PlaybackControllerMediaItemsOwner(
-                        (mediaItems, startIndex, startPositionMs) ->
-                                playbackMediaLibraryCallback.controllerQueueForMediaItems(
-                                        mediaItems,
-                                        startIndex,
-                                        startPositionMs
-                                ),
-                        playbackQueueMutationOwner()
-                );
-        final PlaybackSessionCommandOwner playbackSessionCommandOwner = new PlaybackSessionCommandOwner(
-                EchoPlaybackService.this,
-                EchoPlaybackService.this::seekTo,
-                EchoPlaybackService.this::setRepeatMode,
-                playbackControllerMediaItemsOwner,
-                playbackQueueManager,
-                playbackNotificationManager::mediaMetadataForTrack
-        );
         playbackSessionManager = new PlaybackSessionManager(
                 this,
-                () -> createSessionPlayer(playbackSessionCommandOwner),
+                this::createSessionPlayer,
                 playbackMediaLibraryCallback,
                 this::activityPendingIntent
         );
-        final PlaybackBufferedProgressOwner playbackBufferedProgressOwner =
-                new PlaybackBufferedProgressOwner(
-                        playbackPlayerStateOwner::positionMs,
-                        playbackPlayerStateOwner::bufferedPositionMs
-                );
-        final PlaybackVisualizationStateOwner playbackVisualizationStateOwner =
-                new PlaybackVisualizationStateOwner(
-                        () -> appVisible,
-                        playbackBufferedProgressOwner,
-                        EchoPlaybackService.this::publishState
-                );
+        playbackBufferedProgressOwner = PlaybackBufferedProgressOwner.fromPlayerProvider(
+                playbackPlayerStateOwner,
+                () -> player
+        );
+        playbackVisualizationStateOwner = new PlaybackVisualizationStateOwner(
+                () -> appVisible,
+                playbackBufferedProgressOwner,
+                EchoPlaybackService.this::publishState
+        );
         playbackVisualizationAnalyzer = new PlaybackVisualizationAnalyzer(
                 this,
                 visualizationTaskScheduler,
                 playbackVisualizationStateOwner,
                 mediaSourceProvider
         );
-        PlaybackVisualizationCacheStateOwner playbackVisualizationCacheStateOwner =
-                new PlaybackVisualizationCacheStateOwner(
-                        mainHandler,
-                        playbackQueueManager,
-                        task -> visualizationTaskScheduler.schedule(PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE, task)
+        playbackRealtimeVisualizationOwner =
+                PlaybackRealtimeVisualizationOwner.fromRealtimeBassDetector(
+                        playbackPlayerStateOwner,
+                        realtimeBassDetector
                 );
-        playbackVisualizationCacheManager = PlaybackVisualizationCacheManager.fromMediaSourceProvider(
+        playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner(
+                playbackQueueStateOwner,
+                playbackPlayerStateOwner,
+                PlaybackStateSnapshotOwner.fromRuntimeStateManagerProvider(() -> playbackRuntimeStateManager),
+                playbackSleepTimerCommandOwner::sleepTimerRemainingMs,
+                PlaybackStateSnapshotOwner.fromVisualizationAnalyzerProvider(() -> playbackVisualizationAnalyzer),
+                playbackRealtimeVisualizationOwner,
+                REPEAT_ALL
+        );
+        playbackVisualizationCacheStateOwner = new PlaybackVisualizationCacheStateOwner(
+                () -> mainHandler,
+                playbackQueueStateOwner::currentTrack,
+                task -> visualizationTaskScheduler.schedule(PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE, task)
+        );
+        playbackVisualizationCacheManager = new PlaybackVisualizationCacheManager(
                 playbackVisualizationCacheStateOwner,
                 mediaSourceProvider
         );
         playbackWarmupCoordinator = new PlaybackWarmupCoordinator(
-                track -> playbackPrecacheManager.precacheTrack(track),
-                track -> playbackVisualizationCacheManager.scheduleVisualizationCache(track)
+                PlaybackPrecacheManager.precacheTrackActionFromSupplier(() -> playbackPrecacheManager),
+                PlaybackVisualizationCacheManager.scheduleVisualizationCacheActionFromSupplier(
+                        () -> playbackVisualizationCacheManager
+                )
         );
         playbackShutdownServiceResourcesOwner = new PlaybackShutdownServiceResourcesOwner(
                 PlaybackShutdownServiceResourcesOwner.releaseFrom(
@@ -581,14 +679,11 @@ public final class EchoPlaybackService extends MediaLibraryService
                 )
         );
         playbackShutdownLifecycleResourcesOwner = new PlaybackShutdownLifecycleResourcesOwner(
-                () -> EchoPlaybackService.this.persistCurrentPlaybackPosition(true),
-                PlaybackShutdownLifecycleResourcesOwner.playbackQueueLifecycleStore(
-                        playbackQueueManager,
-                        queueStore
-                ),
+                () -> EchoPlaybackService.this.persistPlaybackPositionThrottled(true),
+                playbackQueuePersistenceOwner,
                 PlaybackShutdownLifecycleResourcesOwner.playbackStateProviderFromPlaybackState(
                         playbackPlayerStateOwner::isPlaying,
-                        playbackCurrentTrackPreparationRuntimeOwner()::preparing
+                        playbackCurrentTrackPreparationRuntimeOwner::preparing
                 ),
                 playbackNotificationCommandOwner::hasNotificationWorthyState,
                 () -> playbackNotificationCommandOwner.publishPlaybackNotification(true)
@@ -603,8 +698,8 @@ public final class EchoPlaybackService extends MediaLibraryService
                         PlaybackWifiLockManager::release
                 ),
                 EchoPlaybackService.this::releasePlayer,
-                () -> playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false),
-                () -> playbackCurrentTrackPreparationRuntimeOwner().setPreparing(false)
+                () -> playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(false),
+                () -> playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false)
         );
         playbackShutdownCoordinator = new PlaybackShutdownCoordinator(
                 playbackShutdownPlaybackResourcesOwner,
@@ -613,7 +708,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(
                 this,
-                playbackNotificationStateOwner::currentTrack,
+                playbackQueueStateOwner::currentTrack,
                 new PlaybackNotificationArtworkBridgeOwner(
                         playbackSessionRefresher,
                         playbackNotificationCommandOwner::publishPlaybackNotification
@@ -626,17 +721,29 @@ public final class EchoPlaybackService extends MediaLibraryService
                         () -> playbackNotificationManager
                 ),
                 playbackNotificationArtworkSource,
-                PlaybackStatePublisherWidgetOwner.fromContext(this)
+                PlaybackStatePublisherWidgetOwner.fromContextProvider(() -> this)
+        );
+        playbackBufferingDiagnosticsRecorderOwner =
+                PlaybackBufferingDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider(
+                        () -> streamingDiagnostics
+                );
+        playbackRecoveryDiagnosticsRecorderOwner =
+                PlaybackRecoveryDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider(
+                        () -> streamingDiagnostics,
+                        mediaSourceProvider::streamingQualityForTrack
+                );
+        playbackPrecacheStateOwner = new PlaybackPrecacheStateOwner(
+                playbackQueueStateOwner::currentTrack,
+                PlaybackPrecacheStateOwner.playerMediaItemSupplierFromPlayerSupplier(() -> player),
+                () -> streamingDiagnostics
         );
         playbackPrecacheManager = PlaybackPrecacheManager.fromMediaSourceProvider(
-                PlaybackPlayerStateOwner.mediaItemSupplierFromPlayerSupplier(() -> player),
-                streamingDiagnostics,
-                playbackQueueManager,
-                playbackRuntimeStateManager,
+                playbackPrecacheStateOwner,
+                playbackQueueStateOwner::upcomingTracksForPrecache,
                 mediaSourceProvider,
                 playbackMainHandlerSchedulerOwner
         );
-        playbackQueueRestoreOwner().restoreQueueForStartup();
+        playbackQueueRestoreOwner.restorePlaybackQueue();
         playbackNotificationCommandOwner.publishPlaybackNotificationIfWorthy();
         playbackLyricsManager.bind();
         playbackNoisyReceiverManager = new PlaybackNoisyReceiverManager(
@@ -656,14 +763,34 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
         playbackWifiLockManager = new PlaybackWifiLockManager(
                 PlaybackWifiLockOwner.fromWifiLock(wifiLock),
-                playbackQueueManager,
+                playbackQueueStateOwner::currentTrack,
                 mediaSourceProvider::isHttpTrack
         );
         publishState();
     }
 
     @UnstableApi
-    private Player createSessionPlayer(PlaybackSessionCommandOwner playbackSessionCommandOwner) {
+    private Player createSessionPlayer() {
+        if (playbackSessionCommandOwner == null) {
+            playbackControllerMediaItemsOwner = new PlaybackControllerMediaItemsOwner(
+                    (mediaItems, startIndex, startPositionMs) -> playbackMediaLibraryCallback == null
+                            ? null
+                            : playbackMediaLibraryCallback.controllerQueueForMediaItems(
+                            mediaItems,
+                            startIndex,
+                            startPositionMs
+                    ),
+                    playbackQueueMutationOwner
+            );
+            playbackSessionCommandOwner = new PlaybackSessionCommandOwner(
+                    EchoPlaybackService.this,
+                    EchoPlaybackService.this::seekTo,
+                    EchoPlaybackService.this::setRepeatMode,
+                    playbackControllerMediaItemsOwner,
+                    playbackQueueStateOwner::currentTrack,
+                    playbackNotificationManager::mediaMetadataForTrack
+            );
+        }
         return new PlaybackSessionPlayer(player, playbackSessionCommandOwner);
     }
 
@@ -697,14 +824,10 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackShutdownCoordinator != null) {
             playbackShutdownCoordinator.handleTaskRemoved();
         } else {
-            persistCurrentPlaybackPosition(true);
-            PlaybackShutdownLifecycleResourcesOwner.persistQueueState(
-                    playbackQueueManager,
-                    new PlaybackQueueStoreImpl(repository)
-            );
-            savePlaybackResumeRequested(
-                    playbackPlayerStateOwner.isPlaying()
-                            || playbackCurrentTrackPreparationRuntimeOwner().preparing()
+            persistPlaybackPositionThrottled(true);
+            playbackQueuePersistenceOwner.persistQueueState();
+            playbackQueuePersistenceOwner.savePlaybackResumeRequested(
+                    isPlaying() || playbackCurrentTrackPreparationRuntimeOwner.preparing()
             );
             if (playbackNotificationCommandOwner != null) {
                 playbackNotificationCommandOwner.publishPlaybackNotificationIfWorthy();
@@ -718,7 +841,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackShutdownCoordinator != null) {
             playbackShutdownCoordinator.handleServiceDestroyed();
         } else {
-            persistCurrentPlaybackPosition(true);
+            persistPlaybackPositionThrottled(true);
         }
         super.onDestroy();
     }
@@ -749,61 +872,66 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void playQueue(List<Track> tracks, int startIndex) {
-        playbackQueueMutationOwner().playQueue(tracks, startIndex, C.TIME_UNSET);
+        playbackQueueMutationOwner.playQueue(tracks, startIndex, C.TIME_UNSET);
     }
 
     public void appendToQueue(List<Track> tracks) {
-        playbackQueueMutationOwner().appendToQueue(tracks);
+        playbackQueueMutationOwner.appendToQueue(tracks);
     }
 
     public void play() {
         if (player == null) {
-            playbackQueueCommandOwner.prepareCurrentOrRunFallback(
-                    true,
-                    () -> playbackQueueNavigationOwner().playFirstQueuedTrack()
-            );
+            if (currentTrack() != null) {
+                prepareCurrent(true);
+            } else {
+                playFirstQueuedTrack();
+            }
             return;
         }
-        if (playbackCurrentTrackPreparationRuntimeOwner().preparing()) {
+        if (playbackCurrentTrackPreparationRuntimeOwner.preparing()) {
             return;
         }
-        if (playbackQueueCommandOwner.runIfCurrentTrackMissing(
-                () -> playbackQueueNavigationOwner().playFirstQueuedTrack()
-        )) {
+        Track track = currentTrack();
+        if (track == null) {
+            playFirstQueuedTrack();
             return;
         }
         if (player.getMediaItemCount() == 0) {
-            playbackQueueCommandOwner.prepareCurrent(true);
+            prepareCurrent(true);
             return;
         }
         if (player.getPlaybackState() == Player.STATE_ENDED) {
             player.seekTo(0L);
         }
         player.play();
-        savePlaybackResumeRequested(true);
+        playbackQueuePersistenceOwner.requestPlaybackResume();
         acquireWifiLockIfStreamingAction.run();
         publishState();
-        startProgressUpdates();
+        playbackProgressUpdateCommandOwner.startProgressUpdates();
+    }
+
+    private void playFirstQueuedTrack() {
+        playbackQueueNavigationOwner.playFirstQueuedTrack();
     }
 
     public void pause() {
         playbackCrossfadeCommandOwner.cancelCrossfadeAdvance();
-        if (player != null && playbackPlayerStateOwner.isPlaying()) {
+        if (player != null && isPlaying()) {
             player.pause();
         }
-        savePlaybackResumeRequested(false);
+        playbackQueuePersistenceOwner.clearPlaybackResumeRequest();
         releaseWifiLockAction.run();
-        persistCurrentPlaybackPosition(true);
+        persistPlaybackPositionThrottled(true);
         publishState();
     }
 
     public void seekTo(long positionMs) {
-        if (player == null || playbackCurrentTrackPreparationRuntimeOwner().preparing()) {
+        if (player == null || playbackCurrentTrackPreparationRuntimeOwner.preparing()) {
             return;
         }
         try {
             player.seekTo(Math.max(0L, positionMs));
-            persistCurrentPlaybackPosition(true);
+            persistPlaybackPositionThrottled(true);
             publishState();
         } catch (IllegalStateException ignored) {
             playbackErrorRecoveryCommandOwner.setErrorMessage("Playback is not ready.");
@@ -815,23 +943,23 @@ public final class EchoPlaybackService extends MediaLibraryService
         if (playbackCrossfadeCommandOwner.startFadeOutThenNext()) {
             return;
         }
-        playbackQueueNavigationOwner().skipToNextImmediately();
+        playbackQueueNavigationOwner.skipToNextImmediately();
     }
 
     public void skipToPrevious() {
-        if (playbackPlayerStateOwner.positionMs() > 3000L) {
+        if (positionMs() > 3000L) {
             seekTo(0L);
             return;
         }
-        playbackQueueNavigationOwner().skipToPrevious();
+        playbackQueueNavigationOwner.skipToPrevious();
     }
 
     public List<Track> queueSnapshot() {
-        return playbackQueueManager.queueSnapshot();
+        return playbackQueueStateOwner.queueSnapshot();
     }
 
     public void moveQueueTrack(int fromIndex, int toIndex) {
-        playbackQueueMutationOwner().moveQueueTrack(fromIndex, toIndex);
+        playbackQueueMutationOwner.moveQueueTrack(fromIndex, toIndex);
     }
 
     public PlaybackStreamingDiagnostics.Snapshot streamingDiagnostics() {
@@ -839,103 +967,117 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void replaceCurrentTrackAndResume(Track replacement, long positionMs) {
-        new PlaybackCurrentTrackReplacementOwner(
-                playbackQueueManager,
-                (track, restoredPositionMs) -> {
-                    if (track == null) {
-                        return;
-                    }
-                    String quality = mediaSourceProvider.streamingQualityForTrack(track);
-                    streamingDiagnostics.recordRecovery(track, restoredPositionMs, quality);
-                },
-                () -> playbackRecoveryScheduler.scheduleCurrentPlaybackRecovery(true)
-        ).replaceCurrentTrackAndResume(replacement, positionMs);
+        playbackCurrentTrackReplacementOwner.replaceCurrentTrackAndResume(replacement, positionMs);
     }
 
     public void removeTracksById(Set<Long> trackIds) {
-        playbackQueueMutationOwner().removeTracksById(trackIds);
+        playbackQueueMutationOwner.removeTracksById(trackIds);
     }
 
     @Override
     public void warmPlaybackTrack(Track track) {
-        playbackWarmupCoordinator.warmup(track);
+        if (playbackWarmupCoordinator != null) {
+            playbackWarmupCoordinator.warmup(track);
+        }
     }
 
     public void retainTracksById(Set<Long> trackIdsToKeep) {
-        playbackQueueMutationOwner().retainTracksById(trackIdsToKeep);
+        playbackQueueMutationOwner.retainTracksById(trackIdsToKeep);
     }
 
     public void clearQueue() {
-        playbackQueueMutationOwner().clearQueue();
+        playbackQueueMutationOwner.clearQueue();
     }
 
     public void toggleCurrentFavorite() {
-        PlaybackFavoriteCommandOwner.toggleCurrentFavorite(
-                playbackQueueManager,
-                toggleFavoriteUseCase,
-                EchoPlaybackService.this::publishState
-        );
+        Track track = currentTrack();
+        if (toggleFavoriteUseCase != null && toggleFavoriteUseCase.toggle(track)) {
+            publishState();
+        }
     }
 
     public void restoreLastPlayback(boolean playWhenRestored) {
-        playbackQueueRestoreOwner().restoreLastPlayback(playWhenRestored);
+        playbackQueueRestoreOwner.restoreLastPlayback(playWhenRestored);
+    }
+
+    public void replaceQueuedTrack(Track replacement) {
+        playbackQueueMutationOwner.replaceQueuedTrack(replacement);
     }
 
     public void replaceQueuedTrackById(long oldTrackId, Track replacement) {
-        playbackQueueMutationOwner().replaceQueuedTrackById(oldTrackId, replacement);
+        playbackQueueMutationOwner.replaceQueuedTrackById(oldTrackId, replacement);
     }
 
     public PlaybackStateSnapshot snapshot() {
-        return playbackStateSnapshotOwner().snapshot();
+        return playbackStateSnapshotOwner == null
+                ? PlaybackStateSnapshot.empty()
+                : playbackStateSnapshotOwner.snapshot();
     }
 
     public float realtimeBeat() {
-        return playbackRealtimeVisualizationOwner().beat();
+        return playbackRealtimeVisualizationOwner == null ? 0f : playbackRealtimeVisualizationOwner.beat();
     }
 
     public float[] realtimeBands() {
-        return playbackRealtimeVisualizationOwner().bands();
+        return playbackRealtimeVisualizationOwner == null ? new float[0] : playbackRealtimeVisualizationOwner.bands();
     }
 
     public void setShuffleEnabled(boolean enabled) {
-        playbackModeSettingsStore.setShuffleEnabled(playbackRuntimeStateManager, enabled);
+        if (playbackModeSettingsStore != null) {
+            playbackModeSettingsStore.setShuffleEnabled(playbackRuntimeStateManager, enabled);
+        }
         publishState();
     }
 
     public void setRepeatMode(int mode) {
-        playbackModeSettingsStore.setRepeatMode(playbackRuntimeStateManager, mode);
+        if (playbackModeSettingsStore != null) {
+            playbackModeSettingsStore.setRepeatMode(playbackRuntimeStateManager, mode);
+        }
         publishState();
     }
 
     public void cycleRepeatMode() {
-        playbackModeSettingsStore.cycleRepeatMode(playbackRuntimeStateManager);
+        if (playbackModeSettingsStore != null) {
+            playbackModeSettingsStore.cycleRepeatMode(playbackRuntimeStateManager);
+        }
         publishState();
     }
 
     public void setPlaybackSpeed(float speed) {
-        playbackRuntimeSettingsStore.setPlaybackSpeed(playbackRuntimeStateManager, speed);
+        if (playbackRuntimeSettingsStore != null) {
+            playbackRuntimeSettingsStore.setPlaybackSpeed(playbackRuntimeStateManager, speed);
+        }
         publishState();
     }
 
     public float playbackSpeed() {
-        return playbackRuntimeSettingsStore.playbackSpeed(playbackRuntimeStateManager);
+        return playbackRuntimeSettingsStore == null
+                ? 1.0f
+                : playbackRuntimeSettingsStore.playbackSpeed(playbackRuntimeStateManager);
     }
 
     public void setAppVolume(float volume) {
-        playbackRuntimeSettingsStore.setAppVolume(playbackRuntimeStateManager, volume);
+        if (playbackRuntimeSettingsStore != null) {
+            playbackRuntimeSettingsStore.setAppVolume(playbackRuntimeStateManager, volume);
+        }
         publishState();
     }
 
     public float appVolume() {
-        return playbackRuntimeSettingsStore.appVolume(playbackRuntimeStateManager);
+        return playbackRuntimeSettingsStore == null
+                ? 1.0f
+                : playbackRuntimeSettingsStore.appVolume(playbackRuntimeStateManager);
     }
 
     public void setConcurrentPlaybackEnabled(boolean enabled) {
-        playbackRuntimeSettingsStore.setConcurrentPlaybackEnabled(playbackRuntimeStateManager, enabled);
+        if (playbackRuntimeSettingsStore != null) {
+            playbackRuntimeSettingsStore.setConcurrentPlaybackEnabled(playbackRuntimeStateManager, enabled);
+        }
     }
 
     public boolean concurrentPlaybackEnabled() {
-        return playbackRuntimeSettingsStore.concurrentPlaybackEnabled(playbackRuntimeStateManager);
+        return playbackRuntimeSettingsStore != null
+                && playbackRuntimeSettingsStore.concurrentPlaybackEnabled(playbackRuntimeStateManager);
     }
 
     public void setStatusBarLyricsEnabled(boolean enabled) {
@@ -943,20 +1085,26 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void setPlaybackRestoreEnabled(boolean enabled) {
-        playbackQueueRestoreOwner().setPlaybackRestoreEnabled(enabled);
+        playbackQueueRestoreOwner.setPlaybackRestoreEnabled(enabled);
     }
 
     public void setReplayGainEnabled(boolean enabled) {
-        playbackRuntimeSettingsStore.setReplayGainEnabled(playbackRuntimeStateManager, enabled);
+        if (playbackRuntimeSettingsStore != null) {
+            playbackRuntimeSettingsStore.setReplayGainEnabled(playbackRuntimeStateManager, enabled);
+        }
         publishState();
     }
 
     public AudioEffectSettings audioEffectSettings() {
-        return playbackAudioEffectSettingsStore.current();
+        return playbackAudioEffectSettingsStore == null
+                ? AudioEffectSettings.DEFAULT
+                : playbackAudioEffectSettingsStore.current();
     }
 
     public void applyAudioEffectSettings(AudioEffectSettings settings) {
-        AudioEffectSettings appliedSettings = playbackAudioEffectSettingsStore.apply(settings);
+        AudioEffectSettings appliedSettings = playbackAudioEffectSettingsStore == null
+                ? (settings == null ? AudioEffectSettings.DEFAULT : settings)
+                : playbackAudioEffectSettingsStore.apply(settings);
         audioEffectManager.bind(player, appliedSettings);
         publishState();
     }
@@ -974,12 +1122,13 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     @OptIn(markerClass = UnstableApi.class)
-    private void prepareCurrent(Track track, final boolean playWhenReady) {
+    private void prepareCurrent(final boolean playWhenReady) {
+        Track track = currentTrack();
         if (track == null) {
             return;
         }
         PlaybackCurrentTrackPreparationOwner.PreparedTrack preparedTrack =
-                playbackCurrentTrackPreparationOwner().prepareCurrentTrack(track);
+                playbackCurrentTrackPreparationOwner.prepareCurrentTrack(track);
         if (!preparedTrack.playable()) {
             return;
         }
@@ -988,55 +1137,16 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     @OptIn(markerClass = UnstableApi.class)
-    private void preparePlayer(
-            Track track,
-            final boolean playWhenReady,
-            final long startPositionMs,
-            final boolean mirrored,
-            final Runnable applyMedia
-    ) {
-        playbackCurrentTrackPreparationRuntimeOwner().beginPreparing();
-        createPlayerIfNeeded();
-        playbackTransitionStateManager.setLastMarkedTrack(null);
-        resetWaveformIfTrackChanged(track);
-        postponePlaybackVisualizationWarmup();
-        applyPlaybackParametersToPlayer();
-        applyMedia.run();
-        if (mirrored) {
-            playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(true);
-        } else {
-            playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false);
-        }
-        player.setPlayWhenReady(playWhenReady);
-        try {
-            player.prepare();
-            playbackWarmupCoordinator.warmup(track);
-            if (!mirrored && startPositionMs > 0L) {
-                player.seekTo(startPositionMs);
-            }
-            playbackPositionManager.consumeRestoredPositionAfterPrepare(startPositionMs);
-            publishState();
-            playbackNotificationCommandOwner.publishPlaybackNotification(true);
-        } catch (IllegalStateException error) {
-            Log.w(TAG, "Unable to prepare " + (mirrored ? "mirrored queue for " : "player for ")
-                    + playbackErrorRecoveryCommandOwner.debugTrack(track), error);
-            playbackCurrentTrackPreparationRuntimeOwner().markUnableToOpenCurrentTrack();
-            releasePlaybackPlayerResources();
-            publishState();
-        }
-    }
-
-    @OptIn(markerClass = UnstableApi.class)
     private void prepareMirroredQueue(
             final boolean playWhenReady,
             PlaybackCurrentTrackPreparationOwner.PreparedTrack preparedTrack
     ) {
         final long startPositionMs = preparedTrack.startPositionMs();
-        if (reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs)) {
+        if (seekExistingMirroredQueue(playWhenReady, startPositionMs)) {
             return;
         }
         PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =
-                playbackCurrentTrackPreparationQueueOwner().queuePreparationForNewPlayer();
+                playbackCurrentTrackPreparationQueueOwner.queuePreparationForNewPlayer();
         Track track = queuePreparation.currentTrack();
         if (track == null) {
             return;
@@ -1046,11 +1156,31 @@ public final class EchoPlaybackService extends MediaLibraryService
             prepareSingleTrack(preparedTrack.track(), preparedTrack.mediaSource(), playWhenReady, startPositionMs);
             return;
         }
-        final int startIndex = queuePreparation.startIndex();
-        preparePlayer(track, playWhenReady, startPositionMs, true, () -> {
-            player.clearMediaItems();
-            player.setMediaSources(mediaSources, startIndex, Math.max(0L, startPositionMs));
-        });
+        playbackCurrentTrackPreparationRuntimeOwner.beginPreparing();
+        createPlayerIfNeeded();
+        playbackTransitionStateManager.setLastMarkedTrack(null);
+        resetWaveformIfTrackChanged(track);
+        postponePlaybackVisualizationWarmup();
+        applyPlaybackParametersToPlayer();
+        player.clearMediaItems();
+        player.setMediaSources(mediaSources, queuePreparation.startIndex(), Math.max(0L, startPositionMs));
+        playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(true);
+        player.setPlayWhenReady(playWhenReady);
+        try {
+            player.prepare();
+            if (playbackWarmupCoordinator != null) {
+                playbackWarmupCoordinator.warmup(track);
+            }
+            playbackCurrentTrackPreparationQueueOwner.consumeRestoredPositionAfterPrepare(startPositionMs);
+            publishState();
+            playbackNotificationCommandOwner.publishPlaybackNotification(true);
+        } catch (IllegalStateException error) {
+            Log.w(TAG, "Unable to prepare mirrored queue for "
+                    + playbackErrorRecoveryCommandOwner.debugTrack(track), error);
+            playbackCurrentTrackPreparationRuntimeOwner.markUnableToOpenCurrentTrack();
+            releasePlaybackPlayerResources();
+            publishState();
+        }
     }
 
     @OptIn(markerClass = UnstableApi.class)
@@ -1060,20 +1190,43 @@ public final class EchoPlaybackService extends MediaLibraryService
             final boolean playWhenReady,
             final long startPositionMs
     ) {
-        preparePlayer(track, playWhenReady, startPositionMs, false, () -> {
-            player.stop();
-            player.clearMediaItems();
-            player.setMediaSource(mediaSource);
-        });
+        playbackCurrentTrackPreparationRuntimeOwner.beginPreparing();
+        createPlayerIfNeeded();
+        playbackTransitionStateManager.setLastMarkedTrack(null);
+        resetWaveformIfTrackChanged(track);
+        postponePlaybackVisualizationWarmup();
+        player.stop();
+        player.clearMediaItems();
+        playbackQueueMirrorStateOwner.setPlayerMirrorsQueue(false);
+        applyPlaybackParametersToPlayer();
+        player.setMediaSource(mediaSource);
+        player.setPlayWhenReady(playWhenReady);
+        try {
+            player.prepare();
+            if (playbackWarmupCoordinator != null) {
+                playbackWarmupCoordinator.warmup(track);
+            }
+            if (startPositionMs > 0L) {
+                player.seekTo(startPositionMs);
+            }
+            playbackCurrentTrackPreparationQueueOwner.consumeRestoredPositionAfterPrepare(startPositionMs);
+            publishState();
+            playbackNotificationCommandOwner.publishPlaybackNotification(true);
+        } catch (IllegalStateException error) {
+            Log.w(TAG, "Unable to prepare player for "
+                    + playbackErrorRecoveryCommandOwner.debugTrack(track), error);
+            playbackCurrentTrackPreparationRuntimeOwner.markUnableToOpenCurrentTrack();
+            releasePlaybackPlayerResources();
+            publishState();
+        }
     }
 
     private void releasePlayer() {
         playerFactory.releasePlayer(
                 player, playerListener, audioEffectManager,
                 this::releasePlaybackSession,
-                PlaybackShutdownPlaybackResourcesOwner.releaseFrom(
-                        () -> playbackPrecacheManager,
-                        PlaybackPrecacheManager::releaseAudioCache
+                PlaybackPrecacheManager.audioCacheReleaseActionFromPrecacheManagerSupplier(
+                        () -> playbackPrecacheManager
                 )
         );
         player = null;
@@ -1090,22 +1243,39 @@ public final class EchoPlaybackService extends MediaLibraryService
     public void stopAndClear() {
         playbackCrossfadeCommandOwner.cancelCrossfadeAdvance();
         playbackSleepTimerCommandOwner.cancelSleepTimer(false);
-        playbackQueueCompletionOwner().stopAndClearPlayback();
-    }
-
-    private void stopAndClearBoundary() {
+        boolean queueStopPrepared = playbackQueueCompletionOwner.prepareStopAndClearPlaybackState();
+        if (!queueStopPrepared && playbackPositionManager != null) {
+            playbackPositionManager.clearPlaybackPosition();
+        }
         if (playbackShutdownCoordinator != null) {
             playbackShutdownCoordinator.releasePlaybackResources();
         } else {
             releasePlaybackPlayerResources();
         }
-        stopProgressUpdates();
+        if (!queueStopPrepared) {
+            playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false);
+            playbackErrorRecoveryCommandOwner.setErrorMessage("");
+            playbackTransitionStateManager.clear();
+        }
+        playbackProgressUpdateCommandOwner.stopProgressUpdates();
         playbackNotificationCommandOwner.stopForegroundAndSelf();
         publishState();
     }
 
-    private void stopAtEndOfQueueBoundary() {
-        stopProgressUpdates();
+    private void playAfterCompletion() {
+        playbackQueueCompletionOwner.playAfterCompletion();
+    }
+
+    private void stopAtEndOfQueue() {
+        if (!playbackQueueCompletionOwner.prepareStopAtEndOfQueue()) {
+            if (playbackPositionManager != null) {
+                playbackPositionManager.clearRestoredPosition();
+            }
+            playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false);
+            playbackErrorRecoveryCommandOwner.setErrorMessage("");
+            playbackTransitionStateManager.setLastMarkedTrack(null);
+        }
+        playbackProgressUpdateCommandOwner.stopProgressUpdates();
         if (player == null) {
             createPlayerIfNeeded();
         } else {
@@ -1125,24 +1295,38 @@ public final class EchoPlaybackService extends MediaLibraryService
             playbackStatePublisher.publishState();
             return;
         }
-        playbackModeSettingsStore.applyPlaybackModeToPlayer(playbackRuntimeStateManager);
+        if (playbackModeSettingsStore != null) {
+            playbackModeSettingsStore.applyPlaybackModeToPlayer(playbackRuntimeStateManager);
+        }
+    }
+
+    private void applyPlaybackModeToPlayer() {
+        if (playbackModeSettingsStore != null) {
+            playbackModeSettingsStore.applyPlaybackModeToPlayer(playbackRuntimeStateManager);
+        }
     }
 
     private void applyPlaybackParametersToPlayer() {
-        playbackRuntimeSettingsStore.applyPlaybackParametersToPlayer(playbackRuntimeStateManager);
+        if (playbackRuntimeSettingsStore != null) {
+            playbackRuntimeSettingsStore.applyPlaybackParametersToPlayer(playbackRuntimeStateManager);
+        }
     }
 
     private void applyCurrentTrackVolumeToPlayer() {
-        playbackRuntimeSettingsStore.applyCurrentTrackVolumeToPlayer(playbackRuntimeStateManager);
+        if (playbackRuntimeSettingsStore != null) {
+            playbackRuntimeSettingsStore.applyCurrentTrackVolumeToPlayer(playbackRuntimeStateManager);
+        }
     }
 
     private void applyPlaybackModeAndParametersToPlayer() {
         applyPlaybackParametersToPlayer();
-        playbackModeSettingsStore.applyPlaybackModeToPlayer(playbackRuntimeStateManager);
+        applyPlaybackModeToPlayer();
     }
 
     private void applyAudioFocusHandling() {
-        playbackRuntimeSettingsStore.applyAudioFocusHandling(playbackRuntimeStateManager);
+        if (playbackRuntimeSettingsStore != null) {
+            playbackRuntimeSettingsStore.applyAudioFocusHandling(playbackRuntimeStateManager);
+        }
     }
 
     private void releasePlaybackSession() {
@@ -1153,113 +1337,17 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     private void publishBufferingState() {
         if (playbackStatePublisher != null) {
-            playbackStatePublisher.publishBufferingState(snapshot -> {
-                if (streamingDiagnostics != null && snapshot != null) {
-                    streamingDiagnostics.recordBuffering(snapshot.currentTrack, snapshot.positionMs);
-                }
-            });
+            playbackStatePublisher.publishBufferingState(playbackBufferingDiagnosticsRecorderOwner);
             return;
         }
-        if (streamingDiagnostics != null) {
-            PlaybackStateSnapshot snapshot = snapshot();
-            streamingDiagnostics.recordBuffering(snapshot.currentTrack, snapshot.positionMs);
+        if (playbackBufferingDiagnosticsRecorderOwner != null) {
+            playbackBufferingDiagnosticsRecorderOwner.record(snapshot());
         }
     }
 
-    private PlaybackQueueCompletionOwner playbackQueueCompletionOwner() {
-        return new PlaybackQueueCompletionOwner(
-                playbackQueueManager,
-                EchoPlaybackService.this::stopAndClearBoundary,
-                EchoPlaybackService.this::stopAtEndOfQueueBoundary,
-                EchoPlaybackService.this::skipToNext
-        );
-    }
-
-    private PlaybackQueueNavigationOwner playbackQueueNavigationOwner() {
-        return new PlaybackQueueNavigationOwner(
-                playbackQueueManager,
-                this::onMirroredQueueReused
-        );
-    }
-
-    private PlaybackQueueMutationOwner playbackQueueMutationOwner() {
-        return new PlaybackQueueMutationOwner(
-                playbackQueueManager,
-                EchoPlaybackService.this::stopAndClear
-        );
-    }
-
-    private PlaybackCurrentTrackPreparationQueueOwner playbackCurrentTrackPreparationQueueOwner() {
-        return new PlaybackCurrentTrackPreparationQueueOwner(
-                playbackQueueManager,
-                mediaSourceProvider,
-                track -> playbackNotificationManager == null
-                        ? null
-                        : playbackNotificationManager.mediaMetadataForTrack(track)
-        );
-    }
-
-    private PlaybackCurrentTrackPreparationOwner playbackCurrentTrackPreparationOwner() {
-        return PlaybackCurrentTrackPreparationOwner.fromMediaSourceProvider(
-                mediaSourceProvider,
-                track -> playbackNotificationManager == null
-                        ? null
-                        : playbackNotificationManager.mediaMetadataForTrack(track),
-                track -> playbackQueueManager.replaceCurrentQueueTrack(track),
-                playbackPositionManager::restoredPositionFor,
-                playbackCurrentTrackPreparationRuntimeOwner(),
-                EchoPlaybackService.this::publishState,
-                track -> Log.w(TAG, "Refusing to prepare empty uri for "
-                        + playbackErrorRecoveryCommandOwner.debugTrack(track))
-        );
-    }
-
-    private PlaybackCurrentTrackPreparationRuntimeOwner playbackCurrentTrackPreparationRuntimeOwner() {
-        return playbackCurrentTrackPreparationRuntimeOwnerDelegate;
-    }
-
-    private PlaybackStateSnapshotOwner playbackStateSnapshotOwner() {
-        return new PlaybackStateSnapshotOwner(
-                playbackQueueManager,
-                playbackPlayerStateOwner,
-                PlaybackStateSnapshotOwner.fromRuntimeStateManager(playbackRuntimeStateManager),
-                playbackSleepTimerCommandOwner::sleepTimerRemainingMs,
-                PlaybackStateSnapshotOwner.fromVisualizationAnalyzer(playbackVisualizationAnalyzer),
-                () -> playbackRealtimeVisualizationOwner().beat()
-        );
-    }
-
-    private PlaybackRealtimeVisualizationOwner playbackRealtimeVisualizationOwner() {
-        return playbackRealtimeVisualizationOwnerDelegate;
-    }
-
-    private PlaybackQueueRestoreOwner playbackQueueRestoreOwner() {
-        return new PlaybackQueueRestoreOwner(
-                playbackQueueManager,
-                new PlaybackQueueStoreImpl(repository),
-                EchoPlaybackService.this::createPlayerIfNeeded,
-                playbackQueueCommandOwner
-        );
-    }
-
-    private void persistCurrentPlaybackPosition(boolean force) {
-        playbackPositionManager.persistCurrentPosition(force);
-    }
-
-    private void startProgressUpdates() {
-        playbackProgressUpdateManager.startIfNeeded();
-    }
-
-    private void stopProgressUpdates() {
-        playbackProgressUpdateManager.stop();
-    }
-
-    private void savePlaybackResumeRequested(boolean requested) {
-        new PlaybackQueueStoreImpl(repository).saveResumeRequested(requested);
-    }
-
-    private boolean reuseMirroredQueueIfAvailable(boolean playWhenReady, long startPositionMs) {
-        return playbackQueueNavigationOwner().reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs);
+    private void stopAfterAutomaticAdvance(int completedIndex) {
+        playbackQueueCompletionOwner.prepareStopAfterAutomaticAdvance(completedIndex);
+        stopAtEndOfQueue();
     }
 
     private void createPlayerIfNeeded() {
@@ -1276,11 +1364,19 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
     }
 
+    private void persistPlaybackPositionThrottled(boolean force) {
+        playbackQueuePersistenceOwner.persistCurrentPlaybackPosition(force);
+    }
+
+    private boolean seekExistingMirroredQueue(boolean playWhenReady, long startPositionMs) {
+        return playbackQueueNavigationOwner.reuseMirroredQueueIfAvailable(playWhenReady, startPositionMs);
+    }
+
     private void onMirroredQueueReused(boolean playWhenReady) {
         if (playWhenReady) {
             acquireWifiLockIfStreamingAction.run();
         }
-        startProgressUpdates();
+        playbackProgressUpdateCommandOwner.startProgressUpdates();
     }
 
     private void resetWaveformIfTrackChanged(Track track) {
@@ -1333,6 +1429,22 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     private int pendingIntentFlags() {
         return PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+    }
+
+    private Track currentTrack() {
+        return playbackQueueStateOwner.currentTrack();
+    }
+
+    private boolean isPlaying() {
+        return playbackPlayerStateOwner.isPlaying();
+    }
+
+    private long positionMs() {
+        return playbackPlayerStateOwner.positionMs();
+    }
+
+    private long durationMs() {
+        return playbackPlayerStateOwner.durationMs();
     }
 }
 

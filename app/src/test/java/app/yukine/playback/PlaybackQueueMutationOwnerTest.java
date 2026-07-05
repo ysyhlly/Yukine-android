@@ -28,8 +28,7 @@ public class PlaybackQueueMutationOwnerTest {
     public void delegatesQueueMutationsToPlaybackQueueManager() {
         FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
         PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);
-        FakeStopAndClearAction stopAndClearAction = new FakeStopAndClearAction();
-        PlaybackQueueMutationOwner owner = owner(queueManager, stopAndClearAction);
+        PlaybackQueueMutationOwner owner = owner(queueManager);
         List<Track> tracks = Arrays.asList(track(1L), track(2L), track(3L));
 
         owner.playQueue(tracks, 1, 2500L);
@@ -44,7 +43,7 @@ public class PlaybackQueueMutationOwnerTest {
         assertEquals(2L, queueManager.queueStateSnapshot().getCurrentTrack().id);
 
         Track replacement = track(1L);
-        owner.replaceQueuedTrackById(1L, replacement);
+        owner.replaceQueuedTrack(replacement);
         assertSame(replacement, queueManager.queueSnapshot().get(1));
 
         Track replacementById = track(9L);
@@ -61,39 +60,24 @@ public class PlaybackQueueMutationOwnerTest {
         assertEquals(2L, queueManager.queueStateSnapshot().getCurrentTrack().id);
 
         owner.clearQueue();
-        assertEquals(1, stopAndClearAction.calls);
+        assertEquals(1, actions.stopAndClearCalls);
     }
 
     @Test
-    public void requiresQueueManager() {
-        try {
-            new PlaybackQueueMutationOwner(null, null);
-        } catch (NullPointerException expected) {
-            return;
-        }
-        throw new AssertionError("Expected constructor to require a queue manager");
-    }
-
-    @Test
-    public void requiresStopAndClearAction() {
-        try {
-            new PlaybackQueueMutationOwner(
-                    queueManager(new FakeQueueStore(), new FakeQueuePlaybackActions(), null),
-                    null
-            );
-        } catch (NullPointerException expected) {
-            return;
-        }
-        throw new AssertionError("Expected constructor to require a stop and clear action");
-    }
-
-    @Test
-    public void ignoresEmptyQueueMutationInputs() {
+    public void ignoresMissingManagerOrEmptyQueueMutationInputs() {
         FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
         PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);
-        FakeStopAndClearAction stopAndClearAction = new FakeStopAndClearAction();
-        PlaybackQueueMutationOwner owner = owner(queueManager, stopAndClearAction);
+        PlaybackQueueMutationOwner missingManager = PlaybackQueueMutationOwner.fromPlaybackQueueManager(null);
+        PlaybackQueueMutationOwner owner = owner(queueManager);
 
+        missingManager.playQueue(Collections.singletonList(track(3L)), 0, 0L);
+        missingManager.appendToQueue(Collections.singletonList(track(4L)));
+        missingManager.removeTracksById(Collections.singleton(4L));
+        missingManager.retainTracksById(Collections.singleton(4L));
+        missingManager.clearQueue();
+        missingManager.moveQueueTrack(1, 2);
+        missingManager.replaceQueuedTrack(track(9L));
+        missingManager.replaceQueuedTrackById(9L, track(10L));
         owner.playQueue(null, 0, 0L);
         owner.playQueue(Collections.emptyList(), 0, 0L);
         owner.appendToQueue(null);
@@ -102,78 +86,11 @@ public class PlaybackQueueMutationOwnerTest {
         owner.removeTracksById(Collections.emptySet());
         owner.retainTracksById(null);
         owner.retainTracksById(Collections.emptySet());
-        owner.clearQueue();
 
         assertEquals(0, queueManager.queueSnapshot().size());
         assertEquals(0, actions.prepareCurrentCalls);
         assertEquals(0, actions.publishStateCalls);
-        assertEquals(0, stopAndClearAction.calls);
-    }
-
-    @Test
-    public void stopAndClearActionRunsWhenMutationEmptiesQueue() {
-        FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
-        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);
-        FakeStopAndClearAction stopAndClearAction = new FakeStopAndClearAction();
-        PlaybackQueueMutationOwner owner = owner(queueManager, stopAndClearAction);
-        owner.playQueue(Collections.singletonList(track(11L)), 0, 0L);
-        actions.prepareCurrentCalls = 0;
-
-        owner.removeTracksById(Collections.singleton(11L));
-
-        assertEquals(1, stopAndClearAction.calls);
-        assertEquals(0, actions.prepareCurrentCalls);
-    }
-
-    @Test
-    public void replaceQueuedTrackCollapseDoesNotRunStopAndClear() {
-        FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
-        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);
-        FakeStopAndClearAction stopAndClearAction = new FakeStopAndClearAction();
-        PlaybackQueueMutationOwner owner = owner(queueManager, stopAndClearAction);
-        owner.playQueue(Arrays.asList(track(4L), track(9L), track(2L)), 0, 0L);
-        actions.prepareCurrentCalls = 0;
-        actions.publishStateCalls = 0;
-
-        owner.replaceQueuedTrackById(4L, track(9L));
-
-        assertTrackIds(Arrays.asList(9L, 2L), queueManager.queueSnapshot());
-        assertEquals(9L, queueManager.queueStateSnapshot().getCurrentTrack().id);
-        assertEquals(0, stopAndClearAction.calls);
-    }
-
-    @Test
-    public void retainTracksRunsStopAndClearWhenMutationEmptiesQueue() {
-        FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
-        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);
-        FakeStopAndClearAction stopAndClearAction = new FakeStopAndClearAction();
-        PlaybackQueueMutationOwner owner = owner(queueManager, stopAndClearAction);
-        owner.playQueue(Collections.singletonList(track(12L)), 0, 0L);
-        actions.prepareCurrentCalls = 0;
-
-        owner.retainTracksById(Collections.singleton(99L));
-
-        assertEquals(1, stopAndClearAction.calls);
-        assertEquals(0, actions.prepareCurrentCalls);
-    }
-
-    @Test
-    public void retainTracksMatchingWholeQueueDoesNothing() {
-        FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
-        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);
-        FakeStopAndClearAction stopAndClearAction = new FakeStopAndClearAction();
-        PlaybackQueueMutationOwner owner = owner(queueManager, stopAndClearAction);
-        owner.playQueue(Arrays.asList(track(21L), track(22L)), 1, 0L);
-        actions.prepareCurrentCalls = 0;
-        actions.publishStateCalls = 0;
-
-        owner.retainTracksById(new HashSet<>(Arrays.asList(21L, 22L)));
-
-        assertTrackIds(Arrays.asList(21L, 22L), queueManager.queueSnapshot());
-        assertEquals(22L, queueManager.queueStateSnapshot().getCurrentTrack().id);
-        assertEquals(0, actions.prepareCurrentCalls);
-        assertEquals(0, actions.publishStateCalls);
-        assertEquals(0, stopAndClearAction.calls);
+        assertEquals(0, actions.stopAndClearCalls);
     }
 
     @Test
@@ -209,17 +126,7 @@ public class PlaybackQueueMutationOwnerTest {
     }
 
     private static PlaybackQueueMutationOwner owner(PlaybackQueueManager queueManager) {
-        return owner(queueManager, new FakeStopAndClearAction());
-    }
-
-    private static PlaybackQueueMutationOwner owner(
-            PlaybackQueueManager queueManager,
-            FakeStopAndClearAction stopAndClearAction
-    ) {
-        return new PlaybackQueueMutationOwner(
-                queueManager,
-                stopAndClearAction::run
-        );
+        return PlaybackQueueMutationOwner.fromPlaybackQueueManager(() -> queueManager);
     }
 
     private static PlaybackQueueManager queueManager(
@@ -303,6 +210,7 @@ public class PlaybackQueueMutationOwnerTest {
             implements PlaybackQueueManager.QueuePlaybackActions {
         private int prepareCurrentCalls;
         private int publishStateCalls;
+        private int stopAndClearCalls;
 
         @Override
         public void prepareCurrent(boolean playWhenReady) {
@@ -313,21 +221,22 @@ public class PlaybackQueueMutationOwnerTest {
         public void publishState() {
             publishStateCalls++;
         }
-    }
 
-    private static final class FakeStopAndClearAction {
-        private int calls;
-
-        private void run() {
-            calls++;
+        @Override
+        public void stopAndClear() {
+            stopAndClearCalls++;
         }
     }
 
     private static final class NoopStreamingRestoreProvider
             implements PlaybackQueueManager.StreamingRestoreProvider {
         @Override
-        public Track restoreTrackForPlayback(Track track) {
+        public Track restoredTrackFor(Track track) {
             return track;
+        }
+
+        @Override
+        public void restoreForDataPath(String dataPath) {
         }
     }
 

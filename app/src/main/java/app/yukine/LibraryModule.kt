@@ -100,7 +100,7 @@ internal object LibraryModule {
                 selectedTabRenderer,
                 collectionsLoader,
                 playlistAdder,
-                routeActionsProvider,
+                routeActions,
                 searchApplier,
                 audioImporter,
                 libraryScanner ->
@@ -113,7 +113,7 @@ internal object LibraryModule {
                 selectedTabRenderer,
                 collectionsLoader,
                 playlistAdder,
-                routeActionsProvider,
+                routeActions,
                 searchApplier,
                 audioImporter,
                 libraryScanner

@@ -1,9 +1,6 @@
 package app.yukine.playback
 
-import app.yukine.model.PlaybackQueueState
 import app.yukine.model.Track
-import app.yukine.playback.manager.PlaybackQueueManager
-import app.yukine.playback.manager.PlaybackQueueStore
 import app.yukine.playback.manager.PlaybackRuntimeStateManager
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
@@ -11,7 +8,6 @@ import androidx.media3.exoplayer.ExoPlayer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.lang.reflect.Proxy
@@ -225,10 +221,9 @@ class PlaybackRuntimeStateManagerTest {
     }
 
     @Test
-    fun stateProviderFromPlaybackStateDelegatesToPlaybackBoundaryAndBoundQueueManager() {
+    fun stateProviderFromPlaybackStateDelegatesToPlaybackBoundarySuppliers() {
         val events = mutableListOf<String>()
         val track = track()
-        val queueManager = queueManagerWithTrack(track)
         val provider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
             Supplier {
                 events += "player"
@@ -237,69 +232,17 @@ class PlaybackRuntimeStateManagerTest {
             BooleanSupplier {
                 events += "mirrors"
                 true
+            },
+            Supplier {
+                events += "track"
+                track
             }
         )
-        provider.bindPlaybackQueueManager(queueManager)
 
         assertNull(provider.player())
         assertTrue(provider.playerMirrorsQueue())
         assertSame(track, provider.currentTrack())
-        assertEquals(listOf("player", "mirrors"), events)
-    }
-
-    @Test
-    fun stateProviderFromPlaybackStateRequiresBindingButAllowsEmptyQueueManager() {
-        val unboundProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(null, null)
-        val emptyQueueProvider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(null, null)
-        emptyQueueProvider.bindPlaybackQueueManager(queueManagerWithTrack(null))
-
-        assertEquals(
-            "playbackQueueManager",
-            assertThrows(IllegalStateException::class.java) {
-                unboundProvider.currentTrack()
-            }.message
-        )
-        assertEquals(false, unboundProvider.playerMirrorsQueue())
-        assertNull(emptyQueueProvider.currentTrack())
-    }
-
-    @Test
-    fun stateProviderFromPlaybackStateSupportsLateBoundCurrentTrackForReplayGain() {
-        val provider = PlaybackRuntimeStateManager.stateProviderFromPlaybackState(
-            null,
-            null
-        )
-        val manager = PlaybackRuntimeStateManager(
-            provider
-        )
-        manager.setAppVolume(0.8f)
-
-        assertEquals(
-            "playbackQueueManager",
-            assertThrows(IllegalStateException::class.java) {
-                manager.currentTrackVolume()
-            }.message
-        )
-
-        provider.bindPlaybackQueueManager(queueManagerWithTrack(track(replayGainTrackDb = -6.0f)))
-
-        assertEquals(0.4f, manager.currentTrackVolume(), 0.01f)
-    }
-
-    private fun queueManagerWithTrack(track: Track?): PlaybackQueueManager {
-        val queueManager = PlaybackQueueManager(
-            FakeQueueStore(),
-            NoopQueuePlaybackActions(),
-            null,
-            NoopStreamingRestoreProvider(),
-            NoopMirroredQueuePlayer(),
-            null,
-            null
-        )
-        if (track != null) {
-            queueManager.playQueue(listOf(track), 0, 0L)
-        }
-        return queueManager
+        assertEquals(listOf("player", "mirrors", "track"), events)
     }
 
     @Test
@@ -335,32 +278,6 @@ class PlaybackRuntimeStateManagerTest {
         override fun player(): ExoPlayer? = player
         override fun playerMirrorsQueue(): Boolean = playerMirrorsQueue
         override fun currentTrack(): Track? = track
-    }
-
-    private class FakeQueueStore : PlaybackQueueStore {
-        override fun load(): PlaybackQueueState = PlaybackQueueState(emptyList(), -1)
-        override fun save(tracks: List<Track>, currentIndex: Int) {}
-        override fun loadResumeRequested(): Boolean = false
-        override fun saveResumeRequested(requested: Boolean) {}
-        override fun loadPlaybackRestoreEnabled(): Boolean = true
-        override fun savePlaybackRestoreEnabled(enabled: Boolean) {}
-        override fun loadPlaybackPositionTrackId(): Long = -1L
-        override fun loadPlaybackPositionMs(): Long = 0L
-        override fun savePlaybackPosition(trackId: Long, positionMs: Long) {}
-    }
-
-    private class NoopQueuePlaybackActions : PlaybackQueueManager.QueuePlaybackActions {
-        override fun prepareCurrent(playWhenReady: Boolean) {}
-        override fun publishState() {}
-    }
-
-    private class NoopStreamingRestoreProvider : PlaybackQueueManager.StreamingRestoreProvider {
-        override fun restoreTrackForPlayback(track: Track): Track = track
-    }
-
-    private class NoopMirroredQueuePlayer : PlaybackQueueManager.MirroredQueuePlayer {
-        override fun matchesCurrentQueue(): Boolean = false
-        override fun seekTo(index: Int, positionMs: Long, playWhenReady: Boolean): Boolean = false
     }
 
     private class RecordingExoPlayer {

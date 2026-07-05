@@ -7,7 +7,6 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Consumer;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
@@ -16,7 +15,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 public class PlaybackCurrentTrackPreparationOwnerTest {
@@ -34,11 +32,7 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
                     events.add("source:" + track.id);
                     return null;
                 },
-                queueTrackReplacer(events),
-                track -> {
-                    events.add("position:" + track.id);
-                    return 4500L;
-                },
+                new FakeQueuePreparationController(events, 4500L),
                 new FakeRuntimeStateController(events),
                 () -> events.add("publish"),
                 track -> events.add("refuse:" + track.id)
@@ -84,8 +78,7 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
                     events.add("source:" + track.id);
                     return null;
                 },
-                queueTrackReplacer(events),
-                track -> 4500L,
+                new FakeQueuePreparationController(events, 4500L),
                 new FakeRuntimeStateController(events),
                 () -> events.add("publish"),
                 track -> events.add("refuse:" + track.id)
@@ -114,8 +107,7 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
         PlaybackCurrentTrackPreparationOwner owner = new PlaybackCurrentTrackPreparationOwner(
                 requested -> preparation(requested, null, true, null),
                 requested -> null,
-                queueTrackReplacer(new ArrayList<>()),
-                requested -> -1L,
+                new FakeQueuePreparationController(new ArrayList<>(), -1L),
                 new FakeRuntimeStateController(new ArrayList<>()),
                 () -> {
                 },
@@ -127,106 +119,26 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
     }
 
     @Test
-    public void constructorRequiresPlaybackPreparationProvider() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackCurrentTrackPreparationOwner(
-                        null,
-                        requested -> null,
-                        queueTrackReplacer(new ArrayList<>()),
-                        requested -> 0L,
-                        new FakeRuntimeStateController(new ArrayList<>()),
-                        () -> {
-                        },
-                        ignored -> {
-                        }
-                )
-        );
-
-        assertEquals("playbackPreparationProvider", error.getMessage());
-    }
-
-    @Test
-    public void constructorRequiresMediaSourceResolver() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackCurrentTrackPreparationOwner(
-                        requested -> preparation(requested, null, true, null),
-                        null,
-                        queueTrackReplacer(new ArrayList<>()),
-                        requested -> 0L,
-                        new FakeRuntimeStateController(new ArrayList<>()),
-                        () -> {
-                        },
-                        ignored -> {
-                        }
-                )
-        );
-
-        assertEquals("mediaSourceResolver", error.getMessage());
-    }
-
-    @Test
-    public void constructorRequiresCurrentQueueTrackReplacer() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackCurrentTrackPreparationOwner(
-                        requested -> preparation(requested, null, true, null),
-                        requested -> null,
-                        null,
-                        requested -> 0L,
-                        new FakeRuntimeStateController(new ArrayList<>()),
-                        () -> {
-                        },
-                        ignored -> {
-                        }
-                )
-        );
-
-        assertEquals("currentQueueTrackReplacer", error.getMessage());
-    }
-
-    @Test
-    public void constructorRequiresRestoredPositionProvider() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackCurrentTrackPreparationOwner(
-                        requested -> preparation(requested, null, true, null),
-                        requested -> null,
-                        queueTrackReplacer(new ArrayList<>()),
-                        null,
-                        new FakeRuntimeStateController(new ArrayList<>()),
-                        () -> {
-                        },
-                        ignored -> {
-                        }
-                )
-        );
-
-        assertEquals("restoredPositionProvider", error.getMessage());
-    }
-
-    @Test
-    public void mediaSourceProviderFactoryRequiresMediaSourceProvider() {
+    public void mediaSourceProviderFactoryFallsBackWhenProviderIsMissing() {
         List<String> events = new ArrayList<>();
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> PlaybackCurrentTrackPreparationOwner.fromMediaSourceProvider(
+        Track track = track(4L, Uri.parse("file:///music/local.flac"));
+        PlaybackCurrentTrackPreparationOwner owner =
+                PlaybackCurrentTrackPreparationOwner.fromMediaSourceProvider(
                         null,
                         requested -> null,
-                        queueTrackReplacer(events),
-                        requested -> {
-                            events.add("position:" + requested.id);
-                            return 3000L;
-                        },
+                        new FakeQueuePreparationController(events, 3000L),
                         new FakeRuntimeStateController(events),
                         () -> events.add("publish"),
                         requested -> events.add("refuse:" + requested.id)
-                )
-        );
+                );
 
-        assertEquals("mediaSourceProvider", error.getMessage());
-        assertTrue(events.isEmpty());
+        PlaybackCurrentTrackPreparationOwner.PreparedTrack prepared = owner.prepareCurrentTrack(track);
+
+        assertTrue(prepared.playable());
+        assertSame(track, prepared.track());
+        assertEquals(3000L, prepared.startPositionMs());
+        assertNull(prepared.mediaSource());
+        assertEquals(Arrays.asList("position:4"), events);
     }
 
     private static PlaybackMediaSourceProvider.PlaybackPreparation preparation(
@@ -247,10 +159,26 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
         return new Track(id, "Track " + id, "Artist", "Album", 1000L, uri, "streaming:netease:" + id);
     }
 
-    private static Consumer<Track> queueTrackReplacer(List<String> events) {
-        return track -> {
+    private static final class FakeQueuePreparationController
+            implements PlaybackCurrentTrackPreparationOwner.QueuePreparationController {
+        private final List<String> events;
+        private final long restoredPositionMs;
+
+        FakeQueuePreparationController(List<String> events, long restoredPositionMs) {
+            this.events = events;
+            this.restoredPositionMs = restoredPositionMs;
+        }
+
+        @Override
+        public void replaceCurrentQueueTrack(Track track) {
             events.add("replace:" + track.id);
-        };
+        }
+
+        @Override
+        public long restoredPositionFor(Track track) {
+            events.add("position:" + track.id);
+            return restoredPositionMs;
+        }
     }
 
     private static final class FakeRuntimeStateController

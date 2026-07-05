@@ -1,4 +1,4 @@
-package app.yukine.ui
+﻿package app.yukine.ui
 
 import android.net.Uri
 import app.yukine.TrackDownloadItem
@@ -207,7 +207,7 @@ private fun LibraryGroupRow(group: LibraryGroupUiState, actions: LibraryGroupAct
                     modifier = Modifier
                         .size(40.dp)
                         .echoGlassLayer(p, EchoShapes.small)
-                        .semantics { contentDescription = "播放" },
+                        .semantics { contentDescription = "鎾斁" },
                     shape = EchoShapes.small,
                     color = Color.Transparent
                 ) {

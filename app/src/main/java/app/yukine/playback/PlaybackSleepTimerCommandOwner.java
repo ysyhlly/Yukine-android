@@ -2,51 +2,68 @@ package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackSleepTimerManager;
 
-import java.util.Objects;
-
 final class PlaybackSleepTimerCommandOwner implements PlaybackSleepTimerManager.Actions {
-    private final Runnable pauseCommand;
-    private final Runnable statePublisher;
-    private PlaybackSleepTimerManager sleepTimerManager;
-
-    PlaybackSleepTimerCommandOwner(
-            Runnable pauseCommand,
-            Runnable statePublisher
-    ) {
-        this.pauseCommand = pauseCommand;
-        this.statePublisher = statePublisher;
+    interface StatePublisher {
+        void publishState();
     }
 
-    void bindPlaybackSleepTimerManager(PlaybackSleepTimerManager sleepTimerManager) {
-        this.sleepTimerManager = Objects.requireNonNull(sleepTimerManager, "sleepTimerManager");
+    interface SleepTimerManagerProvider {
+        PlaybackSleepTimerManager playbackSleepTimerManager();
+    }
+
+    private final PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands;
+    private final StatePublisher statePublisher;
+    private final SleepTimerManagerProvider sleepTimerManagerProvider;
+
+    PlaybackSleepTimerCommandOwner(
+            PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands,
+            StatePublisher statePublisher
+    ) {
+        this(playbackCommands, statePublisher, null);
+    }
+
+    PlaybackSleepTimerCommandOwner(
+            PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands,
+            StatePublisher statePublisher,
+            SleepTimerManagerProvider sleepTimerManagerProvider
+    ) {
+        this.playbackCommands = playbackCommands;
+        this.statePublisher = statePublisher;
+        this.sleepTimerManagerProvider = sleepTimerManagerProvider;
     }
 
     @Override
     public void pausePlayback() {
-        pauseCommand.run();
+        playbackCommands.pause();
     }
 
     @Override
     public void publishState() {
-        statePublisher.run();
+        statePublisher.publishState();
     }
 
     void cancelSleepTimer(boolean publish) {
         PlaybackSleepTimerManager manager = sleepTimerManager();
-        manager.cancel(publish);
+        if (manager != null) {
+            manager.cancel(publish);
+        }
     }
 
     void startSleepTimerMinutes(int minutes) {
         PlaybackSleepTimerManager manager = sleepTimerManager();
-        manager.startMinutes(minutes);
+        if (manager != null) {
+            manager.startMinutes(minutes);
+        }
     }
 
     long sleepTimerRemainingMs() {
         PlaybackSleepTimerManager manager = sleepTimerManager();
-        return manager.remainingMs();
+        return manager == null ? 0L : manager.remainingMs();
     }
 
     private PlaybackSleepTimerManager sleepTimerManager() {
-        return Objects.requireNonNull(sleepTimerManager, "sleepTimerManager");
+        return sleepTimerManagerProvider == null
+                ? null
+                : sleepTimerManagerProvider.playbackSleepTimerManager();
     }
 }

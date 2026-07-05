@@ -1,23 +1,23 @@
 package app.yukine.playback;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
 final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOwner.QueuePlayer {
-    private final PlaybackQueueManager playbackQueueManager;
-    private final Runnable stopAndClearAction;
+    private final Supplier<PlaybackQueueManager> playbackQueueManagerSupplier;
 
-    PlaybackQueueMutationOwner(
-            PlaybackQueueManager playbackQueueManager,
-            Runnable stopAndClearAction
+    private PlaybackQueueMutationOwner(Supplier<PlaybackQueueManager> playbackQueueManagerSupplier) {
+        this.playbackQueueManagerSupplier = playbackQueueManagerSupplier;
+    }
+
+    static PlaybackQueueMutationOwner fromPlaybackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
     ) {
-        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.stopAndClearAction = Objects.requireNonNull(stopAndClearAction, "stopAndClearAction");
+        return new PlaybackQueueMutationOwner(playbackQueueManagerSupplier);
     }
 
     @Override
@@ -25,24 +25,29 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
         if (tracks == null || tracks.isEmpty()) {
             return;
         }
-        playbackQueueManager.playQueue(tracks, startIndex, startPositionMs);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.playQueue(tracks, startIndex, startPositionMs);
+        }
     }
 
     void appendToQueue(List<Track> tracks) {
         if (tracks == null || tracks.isEmpty()) {
             return;
         }
-        playbackQueueManager.appendToQueue(tracks);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.appendToQueue(tracks);
+        }
     }
 
     void removeTracksById(Set<Long> trackIds) {
         if (trackIds == null || trackIds.isEmpty()) {
             return;
         }
-        boolean hadQueue = hasQueue(queueStateSnapshot());
-        playbackQueueManager.removeTracksById(trackIds);
-        if (hadQueue && !hasQueue(queueStateSnapshot())) {
-            stopAndClear();
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.removeTracksById(trackIds);
         }
     }
 
@@ -50,47 +55,41 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
         if (trackIdsToKeep == null || trackIdsToKeep.isEmpty()) {
             return;
         }
-        Set<Long> trackIdsToRemove = new HashSet<>();
-        for (Track track : playbackQueueManager.queueSnapshot()) {
-            if (!trackIdsToKeep.contains(track.id)) {
-                trackIdsToRemove.add(track.id);
-            }
-        }
-        if (trackIdsToRemove.isEmpty()) {
-            return;
-        }
-        boolean hadQueue = hasQueue(queueStateSnapshot());
-        playbackQueueManager.removeTracksById(trackIdsToRemove);
-        if (hadQueue && !hasQueue(queueStateSnapshot())) {
-            stopAndClear();
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.retainTracksById(trackIdsToKeep);
         }
     }
 
     void clearQueue() {
-        if (hasQueue(queueStateSnapshot())) {
-            stopAndClear();
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.clearQueue();
         }
     }
 
     void moveQueueTrack(int fromIndex, int toIndex) {
-        playbackQueueManager.moveQueueTrack(fromIndex, toIndex);
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.moveQueueTrack(fromIndex, toIndex);
+        }
+    }
+
+    void replaceQueuedTrack(Track replacement) {
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.replaceQueuedTrack(replacement);
+        }
     }
 
     void replaceQueuedTrackById(long oldTrackId, Track replacement) {
-        if (replacement != null) {
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
             playbackQueueManager.replaceQueuedTrackById(oldTrackId, replacement);
         }
     }
 
-    private void stopAndClear() {
-        stopAndClearAction.run();
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        return playbackQueueManager.queueStateSnapshot();
-    }
-
-    private static boolean hasQueue(PlaybackQueueManager.QueueStateSnapshot snapshot) {
-        return snapshot.getQueueSize() > 0;
+    private PlaybackQueueManager playbackQueueManager() {
+        return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }
 }

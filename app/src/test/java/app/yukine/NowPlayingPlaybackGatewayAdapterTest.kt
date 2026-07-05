@@ -4,7 +4,7 @@ import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NowPlayingPlaybackGatewayAdapterTest {
@@ -23,7 +23,7 @@ class NowPlayingPlaybackGatewayAdapterTest {
         gateway.skipToNext()
         gateway.pause()
 
-        assertEquals(service.snapshot(), gateway.snapshot())
+        assertTrue(gateway.serviceConnected())
         assertEquals(listOf<String?>(null), startedActions)
         assertEquals(
             listOf("playQueue:1:0", "warm:7", "next", "pause"),
@@ -51,13 +51,14 @@ class NowPlayingPlaybackGatewayAdapterTest {
             ),
             startedActions
         )
-        assertNull(gateway.snapshot())
+        assertEquals(false, gateway.serviceConnected())
     }
 
     private class FakeNowPlayingPlaybackServicePort : NowPlayingPlaybackServicePort {
         val calls = mutableListOf<String>()
 
         override fun snapshot(): PlaybackStateSnapshot? = null
+        override fun queueSnapshot(): List<Track> = emptyList()
         override fun skipToPrevious() {
             calls += "previous"
         }
@@ -80,6 +81,10 @@ class NowPlayingPlaybackGatewayAdapterTest {
 
         override fun moveQueueTrack(fromIndex: Int, toIndex: Int) {
             calls += "move:$fromIndex:$toIndex"
+        }
+
+        override fun replaceQueuedTrack(updated: Track) {
+            calls += "replace:${updated.id}"
         }
 
         override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) {

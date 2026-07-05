@@ -134,19 +134,6 @@ class PlaybackProgressUpdateManagerTest {
         assertEquals(false, state.isPreparing())
     }
 
-    @Test
-    fun actionsFromCallbacksPublishesAndPersistsWithoutForce() {
-        val events = mutableListOf<String>()
-        val actions = PlaybackProgressUpdateManager.actionsFromCallbacks(
-            Runnable { events.add("publish") }
-        ) { force -> events.add("persist:$force") }
-
-        actions.publishState()
-        actions.persistPlaybackPosition()
-
-        assertEquals(listOf("publish", "persist:false"), events)
-    }
-
     private class FakeScheduler : PlaybackProgressUpdateManager.CallbackScheduler {
         var pendingRunnable: Runnable? = null
         var lastDelayMs: Long = -1L

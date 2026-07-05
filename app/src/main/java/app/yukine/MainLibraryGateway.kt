@@ -12,7 +12,7 @@ internal fun interface MainLibraryGatewayFactory {
         selectedTabRenderer: MainLibraryGateway.SelectedTabRenderer,
         collectionsLoader: MainLibraryGateway.CollectionsLoader,
         playlistAdder: MainLibraryGateway.PlaylistAdder,
-        routeActionsProvider: () -> LibraryRouteActions,
+        routeActions: LibraryRouteActions,
         searchApplier: MainLibraryGateway.SearchApplier,
         audioImporter: MainLibraryGateway.AudioImporter,
         libraryScanner: MainLibraryGateway.LibraryScanner
@@ -36,7 +36,7 @@ internal class MainLibraryGateway(
     private val selectedTabRenderer: SelectedTabRenderer,
     private val collectionsLoader: CollectionsLoader,
     private val playlistAdder: PlaylistAdder,
-    private val routeActionsProvider: () -> LibraryRouteActions,
+    private val routeActions: LibraryRouteActions,
     private val searchApplier: SearchApplier,
     private val audioImporter: AudioImporter,
     private val libraryScanner: LibraryScanner
@@ -105,31 +105,29 @@ internal class MainLibraryGateway(
     }
 
     override fun changeGroupMode(mode: String) {
-        routeActions().setLibraryMode(mode)
+        routeActions.setLibraryMode(mode)
         selectedTabRenderer.renderSelectedTab()
     }
 
     override fun openGroup(key: String, title: String) {
-        routeActions().selectLibraryGroup(key, title)
+        routeActions.selectLibraryGroup(key, title)
         selectedTabRenderer.renderSelectedTab()
     }
 
     override fun openPlaylist(playlistId: Long, title: String) {
-        val routeActions = routeActions()
         routeActions.selectLibraryGroup("playlist:$playlistId", title)
         routeActions.setSelectedPlaylistId(playlistId)
         collectionsLoader.loadCollections()
     }
 
     override fun backFromGroup() {
-        val routeActions = routeActions()
         routeActions.clearLibraryGroup()
         routeActions.setSelectedPlaylistId(-1L)
         selectedTabRenderer.renderSelectedTab()
     }
 
     override fun search(query: String) {
-        routeActions().setSearchQuery(query)
+        routeActions.setSearchQuery(query)
         searchApplier.applySearch()
     }
 
@@ -140,7 +138,4 @@ internal class MainLibraryGateway(
     override fun scanLibrary() {
         libraryScanner.scanLibrary(false)
     }
-
-    private fun routeActions(): LibraryRouteActions =
-        routeActionsProvider()
 }

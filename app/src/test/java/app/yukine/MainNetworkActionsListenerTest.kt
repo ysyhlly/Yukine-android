@@ -89,13 +89,17 @@ class MainNetworkActionsListenerTest {
     private class FakePlaybackGateway : NowPlayingPlaybackGateway {
         val calls = mutableListOf<String>()
 
+        override fun serviceConnected(): Boolean = true
         override fun snapshot(): PlaybackStateSnapshot? = null
+        override fun queueSnapshot(): List<Track> = emptyList()
         override fun skipToPrevious() = Unit
         override fun skipToNext() = Unit
         override fun seekTo(positionMs: Long) = Unit
         override fun removeTracksById(trackIds: Set<Long>) = Unit
         override fun clearQueue() = Unit
         override fun moveQueueTrack(fromIndex: Int, toIndex: Int) = Unit
+        override fun replaceQueuedTrack(updated: Track) = Unit
+
         override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) {
             calls += "replaceById:$oldTrackId:${updated.id}"
         }

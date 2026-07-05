@@ -348,6 +348,9 @@ internal class PlaybackMediaSourceProvider(
         }
 
         private fun cacheKeyMatchesForReuse(left: String?, right: String?): Boolean {
+            if (left == null || right == null) {
+                return true
+            }
             return left == right
         }
     }

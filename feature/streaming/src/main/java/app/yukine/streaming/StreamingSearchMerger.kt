@@ -7,7 +7,7 @@ private const val CROSS_SOURCE_DURATION_TOLERANCE_MS = 3_000L
  * 其余音源折叠进代表项的 [StreamingTrack.playbackCandidates]，供播放解析失败时自动回退、
  * 以及在播放页手动切换音源使用。仅在多音源聚合搜索结果上调用。
  */
-internal fun StreamingSearchResult.mergeCrossSourceDuplicates(): StreamingSearchResult {
+public fun StreamingSearchResult.mergeCrossSourceDuplicates(): StreamingSearchResult {
     if (tracks.size <= 1) {
         return this
     }
@@ -93,7 +93,7 @@ internal fun List<StreamingTrack>.mergeSourcesIntoRepresentative(): StreamingTra
     return representative.copy(playbackCandidates = candidates)
 }
 
-internal fun StreamingSearchResult.trackOnlySearchResult(): StreamingSearchResult {
+public fun StreamingSearchResult.trackOnlySearchResult(): StreamingSearchResult {
     val trackItems = unifiedItems
         .filter { it.type == StreamingMediaType.TRACK && it.track != null }
         .distinctBy { "${it.provider.wireName}:${it.id}" }
@@ -115,7 +115,7 @@ internal fun StreamingSearchResult.trackOnlySearchResult(): StreamingSearchResul
     )
 }
 
-internal fun mergeStreamingSearchResults(
+public fun mergeStreamingSearchResults(
     query: String,
     pageSize: Int,
     results: List<StreamingSearchResult>

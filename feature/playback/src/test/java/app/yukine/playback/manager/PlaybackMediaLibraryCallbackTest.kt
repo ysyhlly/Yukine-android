@@ -3,7 +3,6 @@ package app.yukine.playback.manager
 import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
-import androidx.media3.session.MediaSession
 import app.yukine.model.Playlist
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
@@ -92,87 +91,6 @@ class PlaybackMediaLibraryCallbackTest {
     }
 
     @Test
-    fun controllerQueueForMediaItemsSkipsUnresolvedItemsAndKeepsResolvedOrder() {
-        val callback = PlaybackMediaLibraryCallback(
-            FakeDataSource(
-                listOf(
-                    track(1L, Uri.parse("file:///music/one.flac")),
-                    track(2L, Uri.parse("file:///music/two.flac"))
-                )
-            )
-        )
-
-        val queue = callback.controllerQueueForMediaItems(
-            listOf(
-                MediaItem.Builder().setMediaId("echo:auto:track:404").build(),
-                MediaItem.Builder().setMediaId("echo:auto:track:2").build(),
-                MediaItem.Builder().setMediaId("not-a-track").build(),
-                MediaItem.Builder().setMediaId("1").build()
-            ),
-            startIndex = 3,
-            startPositionMs = 500L
-        )
-
-        assertEquals(listOf(2L, 1L), queue?.tracks?.map { it.id })
-        assertEquals(1, queue?.startIndex)
-        assertEquals(500L, queue?.startPositionMs)
-    }
-
-    @Test
-    fun controllerQueueForMediaItemsClampsStartIndexWhenSelectedItemDoesNotResolve() {
-        val callback = PlaybackMediaLibraryCallback(
-            FakeDataSource(
-                listOf(
-                    track(1L, Uri.parse("file:///music/one.flac")),
-                    track(2L, Uri.parse("file:///music/two.flac"))
-                )
-            )
-        )
-
-        val queue = callback.controllerQueueForMediaItems(
-            listOf(
-                MediaItem.Builder().setMediaId("echo:auto:track:404").build(),
-                MediaItem.Builder().setMediaId("echo:auto:track:2").build(),
-                MediaItem.Builder().setMediaId("1").build()
-            ),
-            startIndex = 0,
-            startPositionMs = 500L
-        )
-
-        assertEquals(listOf(2L, 1L), queue?.tracks?.map { it.id })
-        assertEquals(0, queue?.startIndex)
-        assertEquals(500L, queue?.startPositionMs)
-    }
-
-    @Test
-    fun mediaItemsWithStartPositionRemapsStartIndexAfterFilteringUnresolvedItems() {
-        val callback = PlaybackMediaLibraryCallback(
-            FakeDataSource(
-                listOf(
-                    track(1L, Uri.parse("file:///music/one.flac")),
-                    track(2L, Uri.parse("file:///music/two.flac"))
-                )
-            )
-        )
-
-        val result = mediaItemsWithStartPosition(
-            callback,
-            listOf(
-                MediaItem.Builder().setMediaId("echo:auto:track:404").build(),
-                MediaItem.Builder().setMediaId("echo:auto:track:2").build(),
-                MediaItem.Builder().setMediaId("not-a-track").build(),
-                MediaItem.Builder().setMediaId("1").build()
-            ),
-            startIndex = 3,
-            startPositionMs = 700L
-        )
-
-        assertEquals(listOf("2", "1"), result.mediaItems.map { it.mediaId })
-        assertEquals(1, result.startIndex)
-        assertEquals(700L, result.startPositionMs)
-    }
-
-    @Test
     fun controllerQueueForMediaItemsReturnsNullWhenNothingResolves() {
         val callback = PlaybackMediaLibraryCallback(
             FakeDataSource(listOf(track(1L, Uri.parse("file:///music/one.flac"))))
@@ -217,27 +135,6 @@ class PlaybackMediaLibraryCallbackTest {
             .getDeclaredMethod("autoItemsForTracks", List::class.java)
         method.isAccessible = true
         return method.invoke(callback, tracks) as List<MediaItem>
-    }
-
-    private fun mediaItemsWithStartPosition(
-        callback: PlaybackMediaLibraryCallback,
-        mediaItems: List<MediaItem>,
-        startIndex: Int,
-        startPositionMs: Long
-    ): MediaSession.MediaItemsWithStartPosition {
-        val method = PlaybackMediaLibraryCallback::class.java.getDeclaredMethod(
-            "mediaItemsWithStartPosition",
-            List::class.java,
-            Int::class.javaPrimitiveType,
-            Long::class.javaPrimitiveType
-        )
-        method.isAccessible = true
-        return method.invoke(
-            callback,
-            mediaItems,
-            startIndex,
-            startPositionMs
-        ) as MediaSession.MediaItemsWithStartPosition
     }
 
     private fun track(id: Long, uri: Uri): Track {

@@ -1,69 +1,43 @@
 package app.yukine.playback;
 
-import static app.yukine.playback.PlaybackRepeatMode.REPEAT_ALL;
-import static app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
 import androidx.media3.common.Player;
-import androidx.media3.exoplayer.ExoPlayer;
-
-import app.yukine.model.PlaybackQueueState;
-import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
-import app.yukine.playback.manager.PlaybackQueueStore;
-import app.yukine.playback.manager.PlaybackRuntimeStateManager;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
 public class PlaybackQueueMirroredTransitionOwnerTest {
     @Test
-    public void delegatesApplyAndPreparationToPlaybackQueueManager() {
+    public void delegatesApplyAndPrepareToCurrentOperations() {
         List<String> events = new ArrayList<>();
-        FakeQueueStore store = new FakeQueueStore(events);
-        RecordingStreamingRestoreProvider streamingRestoreProvider =
-                new RecordingStreamingRestoreProvider(events);
-        PlaybackQueueManager queueManager = queueManager(
-                store,
-                streamingRestoreProvider,
-                REPEAT_OFF
+        FakeMirroredTransitionActions actions = new FakeMirroredTransitionActions(
+                events,
+                new PlaybackQueueManager.MirroredTransitionResult(3, true)
         );
-        queueManager.playQueue(
-                Arrays.asList(track(1L), track(2L), track(3L), track(4L)),
-                1,
-                0L
+        PlaybackQueueMirroredTransitionOwner owner = new PlaybackQueueMirroredTransitionOwner(
+                actions::applyMirroredTransitionIndex,
+                actions::prepareMirroredTransitionPlaybackState,
+                () -> events.add("applyVolume")
         );
-        store.clearRecords();
-        events.clear();
-        PlaybackQueueMirroredTransitionOwner owner =
-                new PlaybackQueueMirroredTransitionOwner(
-                        queueManager,
-                        () -> events.add("applyVolume"),
-                        () -> true
-                );
 
-        PlaybackQueueMirroredTransitionOwner.Transition result =
-                owner.applyMirroredTransitionReason(
-                        3,
-                        Player.MEDIA_ITEM_TRANSITION_REASON_SEEK
-                );
+        PlaybackQueueManager.MirroredTransitionResult result =
+                owner.applyMirroredTransitionIndex(5, true);
+        owner.prepareMirroredTransitionPlaybackState();
 
-        assertEquals(false, result.stopAfterAutomaticAdvance());
-        assertEquals(4L, result.currentTrack().id);
-        assertEquals(3, queueManager.queueStateSnapshot().getCurrentIndex());
+        assertEquals(3, result.getCompletedIndex());
+        assertEquals(true, result.getStopAfterAutomaticAdvance());
         assertEquals(
-                Arrays.asList(
-                        "position:4:0",
-                        "restore:streaming:netease:4",
-                        "save:3",
+                java.util.Arrays.asList(
+                        "apply:5:true",
+                        "prepare",
                         "applyVolume"
                 ),
                 events
@@ -73,219 +47,64 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
     @Test
     public void preparesBeforeApplyingCurrentTrackVolume() {
         List<String> events = new ArrayList<>();
-        FakeQueueStore store = new FakeQueueStore(events);
-        RecordingStreamingRestoreProvider streamingRestoreProvider =
-                new RecordingStreamingRestoreProvider(events);
-        PlaybackQueueManager queueManager = queueManager(store, streamingRestoreProvider, REPEAT_ALL);
-        queueManager.playQueue(Arrays.asList(track(8L), track(9L)), 0, 0L);
-        store.clearRecords();
-        events.clear();
-        PlaybackQueueMirroredTransitionOwner owner =
-                new PlaybackQueueMirroredTransitionOwner(
-                        queueManager,
-                        () -> events.add("applyVolume"),
-                        () -> true
-                );
-
-        PlaybackQueueMirroredTransitionOwner.Transition result =
-                owner.applyMirroredTransitionReason(
-                        1,
-                        Player.MEDIA_ITEM_TRANSITION_REASON_SEEK
-                );
-
-        assertEquals(false, result.stopAfterAutomaticAdvance());
-        assertEquals(9L, result.currentTrack().id);
-        assertEquals(
-                Arrays.asList(
-                        "position:9:0",
-                        "restore:streaming:netease:9",
-                        "save:1",
-                        "applyVolume"
-                ),
-                events
-        );
-    }
-
-    @Test
-    public void requiresQueueManager() {
-        try {
-            new PlaybackQueueMirroredTransitionOwner(
-                    null,
-                    () -> {
-                    },
-                    () -> true
-            );
-        } catch (NullPointerException expected) {
-            return;
-        }
-        throw new AssertionError("Expected constructor to require a queue manager");
-    }
-
-    @Test
-    public void requiresCurrentTrackVolumeApplier() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackQueueMirroredTransitionOwner(
-                        queueManager(
-                                new FakeQueueStore(new ArrayList<>()),
-                                new RecordingStreamingRestoreProvider(new ArrayList<>()),
-                                REPEAT_OFF
-                        ),
-                        null,
-                        () -> true
-                )
+        FakeMirroredTransitionActions actions = new FakeMirroredTransitionActions(events, null);
+        PlaybackQueueMirroredTransitionOwner owner = new PlaybackQueueMirroredTransitionOwner(
+                actions::applyMirroredTransitionIndex,
+                actions::prepareMirroredTransitionPlaybackState,
+                () -> events.add("applyVolume")
         );
 
-        assertEquals("currentTrackVolumeApplier", error.getMessage());
+        owner.prepareMirroredTransitionPlaybackState();
+
+        assertEquals(java.util.Arrays.asList("prepare", "applyVolume"), events);
     }
 
     @Test
-    public void requiresPlayerMirrorsQueueSupplier() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackQueueMirroredTransitionOwner(
-                        queueManager(
-                                new FakeQueueStore(new ArrayList<>()),
-                                new RecordingStreamingRestoreProvider(new ArrayList<>()),
-                                REPEAT_OFF
-                        ),
-                        () -> {
-                        },
-                        null
-                )
-        );
-
-        assertEquals("playerMirrorsQueue", error.getMessage());
-    }
-
-    @Test
-    public void appliesTransitionCurrentTrackFromQueueManager() {
+    public void returnsNullAndIgnoresPrepareWhenOperationsAreMissing() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueManager queueManager = queueManager(
-                new FakeQueueStore(events),
-                new RecordingStreamingRestoreProvider(events),
-                REPEAT_OFF
-        );
-        queueManager.playQueue(Arrays.asList(track(1L), track(2L)), 0, 0L);
-        events.clear();
         PlaybackQueueMirroredTransitionOwner owner =
-                new PlaybackQueueMirroredTransitionOwner(
-                        queueManager,
-                        () -> events.add("applyVolume"),
-                        () -> true
-                );
+                new PlaybackQueueMirroredTransitionOwner(null, null, () -> events.add("applyVolume"));
 
-        PlaybackQueueMirroredTransitionOwner.Transition result =
-                owner.applyMirroredTransitionReason(
-                        1,
-                        Player.MEDIA_ITEM_TRANSITION_REASON_SEEK
-                );
-
-        assertEquals(false, result.stopAfterAutomaticAdvance());
-        assertEquals(2L, result.currentTrack().id);
-        assertEquals(
-                Arrays.asList(
-                        "position:2:0",
-                        "restore:streaming:netease:2",
-                        "save:1",
-                        "applyVolume"
-                ),
-                events
-        );
+        assertNull(owner.applyMirroredTransitionIndex(2, false));
+        owner.prepareMirroredTransitionPlaybackState();
+        assertEquals(java.util.Collections.emptyList(), events);
     }
 
     @Test
     public void mediaItemTransitionReasonIsConvertedInsideOwner() {
-        PlaybackQueueManager queueManager = queueManager(
-                new FakeQueueStore(new ArrayList<>()),
-                new RecordingStreamingRestoreProvider(new ArrayList<>()),
-                REPEAT_OFF
-        );
-        queueManager.playQueue(Arrays.asList(track(1L), track(2L), track(3L)), 0, 0L);
-        PlaybackQueueMirroredTransitionOwner owner =
-                new PlaybackQueueMirroredTransitionOwner(
-                        queueManager,
-                        () -> {
-                        },
-                        () -> true
-                );
-
-        PlaybackQueueMirroredTransitionOwner.Transition automaticResult =
-                owner.applyMirroredTransitionReason(2, Player.MEDIA_ITEM_TRANSITION_REASON_AUTO);
-        PlaybackQueueMirroredTransitionOwner.Transition seekResult =
-                owner.applyMirroredTransitionReason(1, Player.MEDIA_ITEM_TRANSITION_REASON_SEEK);
-        PlaybackQueueMirroredTransitionOwner.Transition playlistChangedResult =
-                owner.applyMirroredTransitionReason(2, Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED);
-
-        assertEquals(true, automaticResult.stopAfterAutomaticAdvance());
-        assertNull(automaticResult.currentTrack());
-        assertEquals(false, seekResult.stopAfterAutomaticAdvance());
-        assertEquals(2L, seekResult.currentTrack().id);
-        assertEquals(false, playlistChangedResult.stopAfterAutomaticAdvance());
-        assertEquals(3L, playlistChangedResult.currentTrack().id);
-        assertEquals(2, queueManager.queueStateSnapshot().getCurrentIndex());
-    }
-
-    @Test
-    public void invalidOrSameIndexTransitionReturnsNullBeforeApplyingQueueMutation() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueManager queueManager = queueManager(
-                new FakeQueueStore(events),
-                new RecordingStreamingRestoreProvider(events),
-                REPEAT_ALL
+        FakeMirroredTransitionActions actions = new FakeMirroredTransitionActions(events, null);
+        PlaybackQueueMirroredTransitionOwner owner = new PlaybackQueueMirroredTransitionOwner(
+                actions::applyMirroredTransitionIndex,
+                actions::prepareMirroredTransitionPlaybackState
         );
-        queueManager.playQueue(Arrays.asList(track(1L), track(2L), track(3L)), 1, 0L);
-        events.clear();
-        PlaybackQueueMirroredTransitionOwner owner =
-                new PlaybackQueueMirroredTransitionOwner(
-                        queueManager,
-                        () -> events.add("applyVolume"),
-                        () -> true
-                );
 
-        assertNull(owner.applyMirroredTransitionReason(-1, Player.MEDIA_ITEM_TRANSITION_REASON_SEEK));
-        assertNull(owner.applyMirroredTransitionReason(3, Player.MEDIA_ITEM_TRANSITION_REASON_SEEK));
-        assertNull(owner.applyMirroredTransitionReason(1, Player.MEDIA_ITEM_TRANSITION_REASON_SEEK));
+        owner.applyMirroredTransitionReason(5, Player.MEDIA_ITEM_TRANSITION_REASON_AUTO);
+        owner.applyMirroredTransitionReason(6, Player.MEDIA_ITEM_TRANSITION_REASON_SEEK);
+        owner.applyMirroredTransitionReason(7, Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED);
 
-        assertEquals(Collections.emptyList(), events);
-        assertEquals(1, queueManager.queueStateSnapshot().getCurrentIndex());
+        assertEquals(
+                java.util.Arrays.asList(
+                        "apply:5:true",
+                        "apply:6:false",
+                        "apply:7:false"
+                ),
+                events
+        );
     }
 
     @Test
     public void canApplyMirroredTransitionRequiresMirroredNonEmptyQueue() {
-        PlaybackQueueManager readyManager = queueManager(
-                new FakeQueueStore(new ArrayList<>()),
-                new RecordingStreamingRestoreProvider(new ArrayList<>()),
-                REPEAT_OFF
-        );
-        readyManager.playQueue(Collections.singletonList(track(1L)), 0, 0L);
-        PlaybackQueueManager emptyManager = queueManager(
-                new FakeQueueStore(new ArrayList<>()),
-                new RecordingStreamingRestoreProvider(new ArrayList<>()),
-                REPEAT_OFF
-        );
+        PlaybackQueueMirroredTransitionOwner missingStateOwner =
+                new PlaybackQueueMirroredTransitionOwner(null, null, null);
         PlaybackQueueMirroredTransitionOwner readyOwner =
-                new PlaybackQueueMirroredTransitionOwner(
-                        readyManager,
-                        () -> {
-                        },
-                        () -> true
-                );
+                new PlaybackQueueMirroredTransitionOwner(null, null, null, () -> true, () -> false);
         PlaybackQueueMirroredTransitionOwner notMirroredOwner =
-                new PlaybackQueueMirroredTransitionOwner(
-                        readyManager,
-                        () -> {
-                        },
-                        () -> false
-                );
+                new PlaybackQueueMirroredTransitionOwner(null, null, null, () -> false, () -> false);
         PlaybackQueueMirroredTransitionOwner emptyQueueOwner =
-                new PlaybackQueueMirroredTransitionOwner(
-                        emptyManager,
-                        () -> {
-                        },
-                        () -> true
-                );
+                new PlaybackQueueMirroredTransitionOwner(null, null, null, () -> true, () -> true);
 
+        assertTrue(missingStateOwner.canApplyMirroredTransition());
         assertTrue(readyOwner.canApplyMirroredTransition());
         assertFalse(notMirroredOwner.canApplyMirroredTransition());
         assertFalse(emptyQueueOwner.canApplyMirroredTransition());
@@ -313,148 +132,43 @@ public class PlaybackQueueMirroredTransitionOwnerTest {
         );
     }
 
-    private static PlaybackQueueManager queueManager(
-            FakeQueueStore store,
-            RecordingStreamingRestoreProvider streamingRestoreProvider,
-            int repeatMode
-    ) {
-        PlaybackRuntimeStateManager runtimeStateManager = new PlaybackRuntimeStateManager(
-                new PlaybackRuntimeStateManager.StateProvider() {
-                    @Override
-                    public ExoPlayer player() {
-                        return null;
-                    }
+    @Test
+    public void missingPlaybackQueueManagerSupplierReturnsNullAndIgnoresPrepare() {
+        List<String> events = new ArrayList<>();
+        PlaybackQueueMirroredTransitionOwner owner =
+                PlaybackQueueMirroredTransitionOwner.fromPlaybackQueueManager(
+                        null,
+                        () -> events.add("applyVolume")
+                );
 
-                    @Override
-                    public boolean playerMirrorsQueue() {
-                        return false;
-                    }
-
-                    @Override
-                    public Track currentTrack() {
-                        return null;
-                    }
-                }
-        );
-        runtimeStateManager.setRepeatMode(repeatMode);
-        return new PlaybackQueueManager(
-                store,
-                new NoopQueuePlaybackActions(),
-                null,
-                streamingRestoreProvider,
-                new NoopMirroredQueuePlayer(),
-                runtimeStateManager,
-                null
-        );
+        assertNull(owner.applyMirroredTransitionIndex(4, true));
+        owner.prepareMirroredTransitionPlaybackState();
+        assertEquals(java.util.Collections.emptyList(), events);
     }
 
-    private static Track track(long id) {
-        return new Track(
-                id,
-                "Track " + id,
-                "Artist",
-                "Album",
-                1000L,
-                null,
-                "streaming:netease:" + id
-        );
-    }
-
-    private static final class FakeQueueStore implements PlaybackQueueStore {
+    private static final class FakeMirroredTransitionActions {
         private final List<String> events;
-        private List<Track> savedTracks = Collections.emptyList();
-        private int savedIndex = -1;
+        private final PlaybackQueueManager.MirroredTransitionResult result;
 
-        private FakeQueueStore(List<String> events) {
+        private FakeMirroredTransitionActions(
+                List<String> events,
+                PlaybackQueueManager.MirroredTransitionResult result
+        ) {
             this.events = events;
+            this.result = result;
         }
 
-        @Override
-        public PlaybackQueueState load() {
-            return new PlaybackQueueState(savedTracks, savedIndex);
+        public PlaybackQueueManager.MirroredTransitionResult applyMirroredTransitionIndex(
+                int nextIndex,
+                boolean automaticAdvance
+        ) {
+            events.add("apply:" + nextIndex + ":" + automaticAdvance);
+            return result;
         }
 
-        @Override
-        public void save(List<Track> tracks, int currentIndex) {
-            savedTracks = tracks == null ? Collections.emptyList() : new ArrayList<>(tracks);
-            savedIndex = currentIndex;
-            events.add("save:" + currentIndex);
-        }
-
-        @Override
-        public boolean loadResumeRequested() {
-            return false;
-        }
-
-        @Override
-        public void saveResumeRequested(boolean requested) {
-        }
-
-        @Override
-        public boolean loadPlaybackRestoreEnabled() {
+        public boolean prepareMirroredTransitionPlaybackState() {
+            events.add("prepare");
             return true;
-        }
-
-        @Override
-        public void savePlaybackRestoreEnabled(boolean enabled) {
-        }
-
-        @Override
-        public long loadPlaybackPositionTrackId() {
-            return -1L;
-        }
-
-        @Override
-        public long loadPlaybackPositionMs() {
-            return 0L;
-        }
-
-        @Override
-        public void savePlaybackPosition(long trackId, long positionMs) {
-            events.add("position:" + trackId + ":" + positionMs);
-        }
-
-        private void clearRecords() {
-            events.clear();
-        }
-    }
-
-    private static final class NoopQueuePlaybackActions
-            implements PlaybackQueueManager.QueuePlaybackActions {
-        @Override
-        public void prepareCurrent(boolean playWhenReady) {
-        }
-
-        @Override
-        public void publishState() {
-        }
-    }
-
-    private static final class RecordingStreamingRestoreProvider
-            implements PlaybackQueueManager.StreamingRestoreProvider {
-        private final List<String> events;
-
-        private RecordingStreamingRestoreProvider(List<String> events) {
-            this.events = events;
-        }
-
-        @Override
-        public Track restoreTrackForPlayback(Track track) {
-            events.add("restore:" + track.dataPath);
-            return track;
-        }
-    }
-
-    private static final class NoopMirroredQueuePlayer
-            implements PlaybackQueueManager.MirroredQueuePlayer {
-        @Override
-        public boolean matchesCurrentQueue() {
-            return false;
-        }
-
-        @Override
-        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
-            return false;
         }
     }
 }

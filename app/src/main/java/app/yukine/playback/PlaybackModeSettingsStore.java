@@ -3,7 +3,9 @@ package app.yukine.playback;
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 
-import java.util.Objects;
+import static app.yukine.playback.PlaybackRepeatMode.REPEAT_ALL;
+import static app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF;
+import static app.yukine.playback.PlaybackRepeatMode.REPEAT_ONE;
 
 final class PlaybackModeSettingsStore {
     interface ModeSettings {
@@ -27,44 +29,51 @@ final class PlaybackModeSettingsStore {
     }
 
     void restoreInto(PlaybackRuntimeStateManager runtimeStateManager) {
-        PlaybackRuntimeStateManager runtime = requireRuntimeStateManager(runtimeStateManager);
-        runtime.setShuffleEnabled(modeSettings.loadShuffleEnabled());
-        runtime.setRepeatMode(modeSettings.loadRepeatMode());
+        if (runtimeStateManager == null) {
+            return;
+        }
+        runtimeStateManager.setShuffleEnabled(modeSettings.loadShuffleEnabled());
+        runtimeStateManager.setRepeatMode(modeSettings.loadRepeatMode());
     }
 
     void setShuffleEnabled(PlaybackRuntimeStateManager runtimeStateManager, boolean enabled) {
-        PlaybackRuntimeStateManager runtime = requireRuntimeStateManager(runtimeStateManager);
-        runtime.setShuffleEnabled(enabled);
-        runtime.applyPlaybackModeToPlayer();
-        modeSettings.saveShuffleEnabled(runtime.shuffleEnabled());
+        if (runtimeStateManager != null) {
+            runtimeStateManager.setShuffleEnabled(enabled);
+            runtimeStateManager.applyPlaybackModeToPlayer();
+        }
+        modeSettings.saveShuffleEnabled(runtimeStateManager != null && runtimeStateManager.shuffleEnabled());
     }
 
     void setRepeatMode(PlaybackRuntimeStateManager runtimeStateManager, int mode) {
-        PlaybackRuntimeStateManager runtime = requireRuntimeStateManager(runtimeStateManager);
-        runtime.setRepeatMode(mode);
-        runtime.applyPlaybackModeToPlayer();
-        modeSettings.saveRepeatMode(runtime.repeatMode());
+        if (runtimeStateManager != null) {
+            runtimeStateManager.setRepeatMode(mode);
+            runtimeStateManager.applyPlaybackModeToPlayer();
+        }
+        modeSettings.saveRepeatMode(
+                runtimeStateManager != null ? runtimeStateManager.repeatMode() : normalizedRepeatFallback(mode)
+        );
     }
 
     void cycleRepeatMode(PlaybackRuntimeStateManager runtimeStateManager) {
-        PlaybackRuntimeStateManager runtime = requireRuntimeStateManager(runtimeStateManager);
-        runtime.cycleRepeatMode();
-        runtime.applyPlaybackModeToPlayer();
-        modeSettings.saveRepeatMode(runtime.repeatMode());
+        if (runtimeStateManager != null) {
+            runtimeStateManager.cycleRepeatMode();
+            runtimeStateManager.applyPlaybackModeToPlayer();
+        }
+        modeSettings.saveRepeatMode(runtimeStateManager != null ? runtimeStateManager.repeatMode() : REPEAT_ALL);
     }
 
     void applyPlaybackModeToPlayer(PlaybackRuntimeStateManager runtimeStateManager) {
-        requireRuntimeStateManager(runtimeStateManager).applyPlaybackModeToPlayer();
+        if (runtimeStateManager != null) {
+            runtimeStateManager.applyPlaybackModeToPlayer();
+        }
     }
 
     int repeatMode(PlaybackRuntimeStateManager runtimeStateManager) {
-        return requireRuntimeStateManager(runtimeStateManager).repeatMode();
+        return runtimeStateManager == null ? REPEAT_ALL : runtimeStateManager.repeatMode();
     }
 
-    private static PlaybackRuntimeStateManager requireRuntimeStateManager(
-            PlaybackRuntimeStateManager runtimeStateManager
-    ) {
-        return Objects.requireNonNull(runtimeStateManager, "runtimeStateManager");
+    private static int normalizedRepeatFallback(int mode) {
+        return mode == REPEAT_ALL || mode == REPEAT_ONE || mode == REPEAT_OFF ? mode : REPEAT_ALL;
     }
 
     private static final class RepositoryModeSettings implements ModeSettings {

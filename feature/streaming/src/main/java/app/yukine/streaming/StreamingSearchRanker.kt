@@ -9,7 +9,7 @@ internal fun String.rankText(): String {
         .trim()
 }
 
-internal fun List<StreamingTrack>.rankBySearchSimilarity(query: String): List<StreamingTrack> {
+public fun List<StreamingTrack>.rankBySearchSimilarity(query: String): List<StreamingTrack> {
     val normalizedQuery = query.rankText()
     if (normalizedQuery.isBlank() || size <= 1) {
         return this
@@ -23,7 +23,7 @@ internal fun List<StreamingTrack>.rankBySearchSimilarity(query: String): List<St
         .map { it.value }
 }
 
-internal fun List<StreamingSearchItem>.rankItemsBySearchSimilarity(query: String): List<StreamingSearchItem> {
+public fun List<StreamingSearchItem>.rankItemsBySearchSimilarity(query: String): List<StreamingSearchItem> {
     val normalizedQuery = query.rankText()
     if (normalizedQuery.isBlank() || size <= 1) {
         return this

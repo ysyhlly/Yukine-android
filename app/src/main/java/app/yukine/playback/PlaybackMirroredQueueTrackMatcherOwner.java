@@ -5,13 +5,14 @@ import androidx.media3.common.Player;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
+import app.yukine.playback.manager.PlaybackQueueManager;
 
-import java.util.Objects;
 import java.util.function.BiPredicate;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
-final class PlaybackMirroredQueueTrackMatcherOwner {
+final class PlaybackMirroredQueueTrackMatcherOwner
+        implements PlaybackQueueManager.QueueTrackMatcher {
     private final IntFunction<MediaItem> playerMediaItemProvider;
     private final BiPredicate<MediaItem, Track> trackMediaItemMatcher;
 
@@ -23,20 +24,32 @@ final class PlaybackMirroredQueueTrackMatcherOwner {
         this.trackMediaItemMatcher = trackMediaItemMatcher;
     }
 
-    PlaybackMirroredQueueTrackMatcherOwner(
+    static PlaybackMirroredQueueTrackMatcherOwner fromPlayerProvider(
             Supplier<Player> playerProvider,
-            PlaybackMediaSourceProvider mediaSourceProvider
+            BiPredicate<MediaItem, Track> trackMediaItemMatcher
     ) {
-        this(
+        return new PlaybackMirroredQueueTrackMatcherOwner(
                 index -> {
                     Player player = playerProvider == null ? null : playerProvider.get();
                     return player == null ? null : player.getMediaItemAt(index);
                 },
-                trackMediaItemMatcher(mediaSourceProvider)
+                trackMediaItemMatcher
         );
     }
 
-    boolean matches(int index, Track track) {
+    static PlaybackMirroredQueueTrackMatcherOwner fromMediaSourceProvider(
+            Supplier<Player> playerProvider,
+            PlaybackMediaSourceProvider mediaSourceProvider
+    ) {
+        return fromPlayerProvider(
+                playerProvider,
+                (mediaItem, track) -> mediaSourceProvider != null
+                        && mediaSourceProvider.mediaItemMatchesTrackForReuse(mediaItem, track)
+        );
+    }
+
+    @Override
+    public boolean matches(int index, Track track) {
         if (playerMediaItemProvider == null || trackMediaItemMatcher == null) {
             return false;
         }
@@ -46,13 +59,5 @@ final class PlaybackMirroredQueueTrackMatcherOwner {
         } catch (IndexOutOfBoundsException | IllegalStateException error) {
             return false;
         }
-    }
-
-    private static BiPredicate<MediaItem, Track> trackMediaItemMatcher(
-            PlaybackMediaSourceProvider mediaSourceProvider
-    ) {
-        PlaybackMediaSourceProvider mediaSourceOwner =
-                Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider");
-        return mediaSourceOwner::mediaItemMatchesTrackForReuse;
     }
 }

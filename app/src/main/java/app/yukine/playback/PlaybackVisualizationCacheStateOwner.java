@@ -3,42 +3,46 @@ package app.yukine.playback;
 import android.os.Handler;
 
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
-
-import java.util.Objects;
-import java.util.function.Consumer;
 
 final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizationCacheManager.StateProvider {
-    private final Handler mainHandler;
-    private final PlaybackQueueManager playbackQueueManager;
-    private final Consumer<Runnable> cacheTaskScheduler;
+    interface MainHandlerProvider {
+        Handler mainHandler();
+    }
+
+    interface CurrentTrackProvider {
+        Track currentTrack();
+    }
+
+    interface CacheTaskScheduler {
+        void scheduleVisualizationCacheTask(Runnable task);
+    }
+
+    private final MainHandlerProvider mainHandlerProvider;
+    private final CurrentTrackProvider currentTrackProvider;
+    private final CacheTaskScheduler cacheTaskScheduler;
 
     PlaybackVisualizationCacheStateOwner(
-            Handler mainHandler,
-            PlaybackQueueManager playbackQueueManager,
-            Consumer<Runnable> cacheTaskScheduler
+            MainHandlerProvider mainHandlerProvider,
+            CurrentTrackProvider currentTrackProvider,
+            CacheTaskScheduler cacheTaskScheduler
     ) {
-        this.mainHandler = Objects.requireNonNull(mainHandler, "mainHandler");
-        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.cacheTaskScheduler = Objects.requireNonNull(cacheTaskScheduler, "cacheTaskScheduler");
+        this.mainHandlerProvider = mainHandlerProvider;
+        this.currentTrackProvider = currentTrackProvider;
+        this.cacheTaskScheduler = cacheTaskScheduler;
     }
 
     @Override
     public Handler mainHandler() {
-        return mainHandler;
+        return mainHandlerProvider.mainHandler();
     }
 
     @Override
     public Track currentTrack() {
-        return queueStateSnapshot().getCurrentTrack();
+        return currentTrackProvider.currentTrack();
     }
 
     @Override
     public void scheduleVisualizationCacheTask(Runnable task) {
-        cacheTaskScheduler.accept(task);
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        return playbackQueueManager.queueStateSnapshot();
+        cacheTaskScheduler.scheduleVisualizationCacheTask(task);
     }
 }

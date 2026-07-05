@@ -203,11 +203,11 @@ public abstract class MainActivityBase extends ComponentActivity {
         initializeViewModels(createActivityViewModels());
         MainActivityStreamingActionGateway streamingActionGateway = createStreamingActionGateway();
         initializeStreamingPlaybackCoordinator();
-        initializeRouteStoresAndStatus();
         initializeNowPlayingGateways();
         initializeDownloadRequests();
         initializeLibraryGateway();
         initializeStreamingStartup(streamingActionGateway);
+        initializeRouteStoresAndStatus();
         initializePlatformControllers();
         initializePlaybackLifecycleControllers();
         initializeNavigationRendering();
@@ -249,9 +249,13 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 launch -> StreamingAuthLauncher.INSTANCE.launch(MainActivityBase.this, launch),
                 (tracks, index) -> playTrackListFromHost(tracks, index),
-                this::notifyStreamingLoginSuccessIfReady,
+                provider -> streamingPlaylistController.onStreamingLoginSuccess(provider),
                 provider -> streamingViewModel.selectStreamingProvider(provider),
-                this::showStreamingCookieDialogIfReady
+                () -> {
+                    if (streamingManualCookieController != null) {
+                        streamingManualCookieController.showStreamingCookieDialog();
+                    }
+                }
         );
     }
 
@@ -307,16 +311,16 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         libraryViewModel.bindGateway(libraryGatewayFactory.create(
                 (tracks, index) -> MainActivityBase.this.playTrackListFromHost(tracks, index),
-                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                () -> settingsStore.languageMode(),
                 status -> statusMessageController.setStatus(status),
                 (trackId, favorite) -> viewModel.setFavorite(trackId, favorite),
-                this::renderNowBarIfReady,
-                this::renderSelectedTabIfReady,
+                () -> nowPlayingStateController.renderNowBar(),
+                this::renderSelectedTab,
                 this::loadCollections,
-                this::showAddToPlaylistIfReady,
-                () -> routeController,
+                track -> MainActivityBase.this.playlistDialogController.showAddToPlaylist(track),
+                routeController,
                 this::applySearch,
-                this::openAudioFilePickerIfReady,
+                () -> documentPickerController.openAudioFilePicker(),
                 allowCachedFirst -> loadLibrary(allowCachedFirst)
         ));
     }
@@ -372,12 +376,16 @@ public abstract class MainActivityBase extends ComponentActivity {
                 this::importSelectedM3uFile,
                 (exportUri, playlistId, playlistName) -> libraryViewModel.exportPlaylistJava(exportUri, playlistId, playlistName),
                 this::importSelectedPlaylistM3uFile,
-                this::importSelectedLuoxueSourceUrisIfReady
+                uris -> luoxueSourceImportController.importSelectedUris(uris)
         ));
         backgroundImagePickerController = new BackgroundImagePickerController(
                 this,
                 backgroundImagePickerListenerFactory.create(
-                        this::applyPageBackgroundIfReady,
+                        (page, uri, transform) -> settingsViewModel.applyPageBackgrounds(
+                                settingsStore.pageBackgrounds().withBackground(page, uri.toString(), transform),
+                                page,
+                                false
+                        ),
                         page -> statusMessageController.setStatus(AppLanguage.text(
                                 settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                                 "page.background.copy.failed"
@@ -433,26 +441,36 @@ public abstract class MainActivityBase extends ComponentActivity {
                 playbackStateEventListenerFactory.create(
                         this::selectedTab,
                         () -> lyricsViewModel == null ? -1L : lyricsViewModel.trackId(),
-                        this::savePlaybackSettingsIfReady,
+                        (playbackSpeed, appVolume) -> {
+                            settingsStore.setPlaybackSpeed(playbackSpeed);
+                            settingsStore.setAppVolume(appVolume);
+                        },
                         this::loadLyrics,
                         this::loadCollections,
-                        this::renderNowBarIfReady,
+                        () -> nowPlayingStateController.renderNowBar(),
                         snapshot -> homeDashboardViewModel.updatePlayback(snapshot),
-                        this::renderSelectedTabIfReady,
+                        this::renderSelectedTab,
                         this::updateNowPlayingContent,
-                        this::preResolveNextStreamingTrackIfReady,
-                        this::recoverStreamingBufferingIfReady,
+                        snapshot -> streamingPlaybackController.preResolveNextStreamingTrack(snapshot),
+                        snapshot -> streamingPlaybackController.recoverStreamingBuffering(snapshot),
                         this::resolveCurrentStreamingQueueTrackIfNeeded,
                         status -> statusMessageController.setStatus(status)
                 )
         );
         PlaybackServiceHostController playbackServiceHostController = new PlaybackServiceHostController(
                 playbackServiceHostFactory.create(
-                        this::playbackServiceConnectionSettings,
+                        () -> settingsStore.playbackSpeed(),
+                        () -> settingsStore.appVolume(),
+                        () -> settingsStore.concurrentPlaybackEnabled(),
+                        () -> settingsStore.statusBarLyricsEnabled(),
+                        () -> settingsStore.playbackRestoreEnabled(),
+                        () -> settingsStore.replayGainEnabled(),
                         service -> playbackService = service,
-                        this::detachPlaybackService,
-                        this::playPendingTracksIfReady,
-                        this::renderPlaybackChromeIfReady
+                        () -> playbackService = null,
+                        () -> playbackStore.reset(),
+                        () -> playbackStartController.playPendingTracksIfNeeded(),
+                        this::renderSelectedTab,
+                        () -> nowPlayingStateController.renderNowBar()
                 )
         );
         playbackServiceConnectionController = new PlaybackServiceConnectionController(
@@ -460,129 +478,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 playbackStateEventController,
                 playbackServiceHostController
         );
-    }
-
-    private void detachPlaybackService() {
-        playbackService = null;
-        playbackStore.reset();
-    }
-
-    private void renderPlaybackChromeIfReady() {
-        renderSelectedTabIfReady();
-        renderNowBarIfReady();
-    }
-
-    private PlaybackServiceConnectionSettings playbackServiceConnectionSettings() {
-        return new PlaybackServiceConnectionSettings(
-                settingsStore == null ? 1.0f : settingsStore.playbackSpeed(),
-                settingsStore == null ? 1.0f : settingsStore.appVolume(),
-                settingsStore != null && settingsStore.concurrentPlaybackEnabled(),
-                settingsStore == null || settingsStore.statusBarLyricsEnabled(),
-                settingsStore == null || settingsStore.playbackRestoreEnabled(),
-                settingsStore == null || settingsStore.replayGainEnabled()
-        );
-    }
-
-    private void savePlaybackSettingsIfReady(float playbackSpeed, float appVolume) {
-        if (settingsStore != null) {
-            settingsStore.setPlaybackSpeed(playbackSpeed);
-            settingsStore.setAppVolume(appVolume);
-        }
-    }
-
-    private void playPendingTracksIfReady() {
-        if (playbackStartController != null) {
-            playbackStartController.playPendingTracksIfNeeded();
-        }
-    }
-
-    private void notifyStreamingLoginSuccessIfReady(StreamingProviderName provider) {
-        if (streamingPlaylistController != null) {
-            streamingPlaylistController.onStreamingLoginSuccess(provider);
-        }
-    }
-
-    private void showStreamingCookieDialogIfReady() {
-        if (streamingManualCookieController != null) {
-            streamingManualCookieController.showStreamingCookieDialog();
-        }
-    }
-
-    private void renderNowBarIfReady() {
-        if (nowPlayingStateController != null) {
-            nowPlayingStateController.renderNowBar();
-        }
-    }
-
-    private void openAudioFilePickerIfReady() {
-        if (documentPickerController != null) {
-            documentPickerController.openAudioFilePicker();
-        }
-    }
-
-    private void importSelectedLuoxueSourceUrisIfReady(List<Uri> uris) {
-        if (luoxueSourceImportController != null) {
-            luoxueSourceImportController.importSelectedUris(uris);
-        }
-    }
-
-    private void applyPageBackgroundIfReady(String page, Uri uri, BackgroundTransform transform) {
-        if (settingsStore == null || uri == null) {
-            return;
-        }
-        settingsViewModel.applyPageBackgrounds(
-                settingsStore.pageBackgrounds().withBackground(page, uri.toString(), transform),
-                page,
-                false
-        );
-    }
-
-    private void showAddToPlaylistIfReady(Track track) {
-        if (playlistDialogController != null) {
-            playlistDialogController.showAddToPlaylist(track);
-        }
-    }
-
-    private void showEditStreamIfReady(Track track) {
-        if (networkDialogController != null) {
-            networkDialogController.showEditStream(track);
-        }
-    }
-
-    private void confirmDeleteTrackIfReady(Track track) {
-        if (confirmationDialogController != null) {
-            confirmationDialogController.confirmDeleteTrack(track);
-        }
-    }
-
-    private void removeQueueTrackIfReady(Track track) {
-        if (queueActionController != null) {
-            queueActionController.removeQueueTrack(track);
-        }
-    }
-
-    private void confirmClearQueueIfReady() {
-        if (queueActionController != null) {
-            queueActionController.confirmClearQueue();
-        }
-    }
-
-    private void showClearQueueConfirmationIfReady() {
-        if (confirmationDialogController != null) {
-            confirmationDialogController.confirmClearQueue();
-        }
-    }
-
-    private void preResolveNextStreamingTrackIfReady(PlaybackStateSnapshot snapshot) {
-        if (streamingPlaybackController != null) {
-            streamingPlaybackController.preResolveNextStreamingTrack(snapshot);
-        }
-    }
-
-    private void recoverStreamingBufferingIfReady(PlaybackStateSnapshot snapshot) {
-        if (streamingPlaybackController != null) {
-            streamingPlaybackController.recoverStreamingBuffering(snapshot);
-        }
     }
 
     private void initializeNavigationRendering() {
@@ -601,8 +496,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                 track -> libraryViewModel.onEvent(new LibraryEvent.AddToPlaylist(track)),
                 track -> downloadRequestController.downloadTrack(track),
                 tracks -> downloadRequestController.downloadTracks(tracks),
-                this::showEditStreamIfReady,
-                this::confirmDeleteTrackIfReady,
+                track -> networkDialogController.showEditStream(track),
+                track -> confirmationDialogController.confirmDeleteTrack(track),
                 state -> publishTrackListChromeState(state)
         ));
     }
@@ -610,7 +505,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private void initializePlaybackControllers() {
         heartbeatSeedBinder = new HeartbeatRecommendationSeedBinder(
                 () -> playbackService == null ? null : playbackService.snapshot(),
-                this::playbackQueueSnapshot,
+                () -> playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot(),
                 () -> playbackStore == null ? null : playbackStore.snapshot(),
                 () -> playbackViewModel == null || playbackViewModel.getPlayback().getValue() == null
                         ? Collections.emptyList()
@@ -619,11 +514,11 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         recommendationActionCallbacks = recommendationActionCallbacksFactory.create(
                 status -> statusMessageController.setStatus(status),
-                this::playRecommendationIfReady,
+                presentation -> playbackStartController.playRecommendation(presentation),
                 provider -> heartbeatSeedBinder == null
                         ? new HeartbeatRecommendationSeedRequest()
                         : heartbeatSeedBinder.request(provider),
-                this::playHeartbeatRecommendationIfReady,
+                presentation -> playbackStartController.playHeartbeatRecommendation(presentation),
                 this::logHeartbeatSeedMiss
         );
         homeDashboardRenderController = new HomeDashboardRenderController(homeDashboardViewModel, homeDashboardRenderListenerFactory.create(
@@ -632,16 +527,16 @@ public abstract class MainActivityBase extends ComponentActivity {
                     navigateToTab(TAB_LIBRARY, true, true);
                 },
                 this::continueDashboardPlayback,
-                this::renderNowBarIfReady,
+                () -> nowPlayingStateController.renderNowBar(),
                 this::playTrackListFromHost,
                 () -> loadLibrary(true),
                 () -> navigateToTab(TAB_QUEUE, true, true),
-                this::allLibraryTracksIfReady,
+                () -> libraryStore.allTracks(),
                 () -> navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING_HUB),
                 () -> {
                     routeController.navigateToTab(TAB_COLLECTIONS, true);
                     renderCollections();
-                    renderSelectedTabIfReady();
+                    renderSelectedTab();
                 },
                 () -> {
                     refreshUnifiedSearch(false);
@@ -655,9 +550,9 @@ public abstract class MainActivityBase extends ComponentActivity {
         queueRenderController = new QueueRenderController(queueRenderListenerFactory.create(
                 this::playTrackListFromHost,
                 track -> libraryViewModel.onEvent(new LibraryEvent.ToggleFavorite(track)),
-                this::showAddToPlaylistIfReady,
-                this::removeQueueTrackIfReady,
-                this::confirmClearQueueIfReady,
+                track -> playlistDialogController.showAddToPlaylist(track),
+                track -> queueActionController.removeQueueTrack(track),
+                () -> queueActionController.confirmClearQueue(),
                 this::handleAppBack
         ));
         playbackActionController = new PlaybackActionController(
@@ -671,7 +566,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         heartbeatRecommendationController = new HeartbeatRecommendationController(
                 streamingRecommendationViewModel,
-                this::languageModeIfReady,
+                () -> settingsStore.languageMode(),
                 heartbeatRecommendationListenerFactory.create(
                         () -> playbackService != null,
                         provider -> heartbeatSeedBinder == null
@@ -679,7 +574,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                                 : heartbeatSeedBinder.request(provider),
                         () -> streamingRecommendationViewModel.stopHeartbeatRecommendationMode(),
                         presentation -> nowPlayingViewModel.appendToQueue(presentation.getTracks()),
-                        this::playHeartbeatRecommendationIfReady,
+                        presentation -> playbackStartController.playHeartbeatRecommendation(presentation),
                         this::logHeartbeatSeedMiss,
                         status -> statusMessageController.setStatus(status)
                 )
@@ -691,7 +586,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                         this::adaptiveStreamingQuality,
                         this::selectedStreamingQuality,
-                        () -> playbackStore == null ? Collections.emptyList() : playbackStore.queueSnapshot(),
+                        () -> playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot(),
                         snapshot -> heartbeatRecommendationController.maybeAppendHeartbeatRecommendations(snapshot),
                         this::applyPlaybackActionResult,
                         status -> statusMessageController.setStatus(status)
@@ -735,13 +630,10 @@ public abstract class MainActivityBase extends ComponentActivity {
                         this::applyPlaybackActionResult,
                         () -> playbackService != null,
                         (fromIndex, toIndex) -> playbackService.moveQueueTrack(fromIndex, toIndex),
-                        this::renderNowBarIfReady,
-                        this::renderSelectedTabIfReady,
-                        this::showClearQueueConfirmationIfReady,
-                        () -> AppLanguage.text(
-                                settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
-                                "queue.empty"
-                        ),
+                        () -> nowPlayingStateController.renderNowBar(),
+                        this::renderSelectedTab,
+                        () -> confirmationDialogController.confirmClearQueue(),
+                        () -> AppLanguage.text(settingsStore.languageMode(), "queue.empty"),
                         status -> statusMessageController.setStatus(status)
                 )
         );
@@ -767,7 +659,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             } else if (effect == SettingsEffect.OpenAudioFolderPicker.INSTANCE) {
                 documentPickerController.openAudioFolderPicker();
             } else if (effect == SettingsEffect.ReloadCurrentLyrics.INSTANCE) {
-                lyricsViewModel.reloadCurrentLyrics(languageModeIfReady());
+                lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode());
             } else if (effect instanceof SettingsEffect.StartSleepTimer) {
                 applyPlaybackActionResult(nowPlayingViewModel.startSleepTimer(((SettingsEffect.StartSleepTimer) effect).getMinutes()));
             } else if (effect == SettingsEffect.CancelSleepTimer.INSTANCE) {
@@ -794,7 +686,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 new StreamingPlaylistDialogController.LanguageProvider() {
                     @Override
                     public String languageMode() {
-                        return languageModeIfReady();
+                        return settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode();
                     }
 
                     @Override
@@ -823,15 +715,15 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         streamingPlaylistController = new StreamingPlaylistController(
                 streamingViewModel,
-                this::languageModeIfReady,
+                () -> settingsStore.languageMode(),
                 streamingPlaylistListenerFactory.create(
-                        this::selectedPlaylistId,
+                        () -> routeController.selectedPlaylistId(),
                         playlistId -> routeController.setSelectedPlaylistId(playlistId),
                         () -> MainActivityBase.this.loadCollections(),
                         () -> loadLibrary(true),
                         () -> MainActivityBase.this.selectedPlaylistName(),
-                        this::selectedPlaylistTracksIfReady,
-                        this::favoriteTracksIfReady,
+                        () -> libraryStore.selectedPlaylistTracks(),
+                        () -> libraryStore.favoriteTracks(),
                         () -> streamingViewModel.getStreaming().getValue().getSelectedProvider(),
                         (playlistName, tracks) ->
                                 streamingPlaylistDialogController.showStreamingProviderPicker(playlistName, tracks),
@@ -850,7 +742,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 new StreamingPlaylistImportDialogController.LanguageProvider() {
                     @Override
                     public String languageMode() {
-                        return languageModeIfReady();
+                        return settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode();
                     }
 
                     @Override
@@ -867,14 +759,14 @@ public abstract class MainActivityBase extends ComponentActivity {
         streamingManualCookieDialogController = new StreamingManualCookieDialogController(
                 this,
                 key -> AppLanguage.text(
-                        languageModeIfReady(),
+                        settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                         key
                 ),
                 (provider, cookieHeader) -> streamingManualCookieController.saveStreamingCookie(provider, cookieHeader)
         );
         streamingManualCookieController = new StreamingManualCookieController(
                 streamingViewModel,
-                this::languageModeIfReady,
+                () -> settingsStore.languageMode(),
                 streamingManualCookieListenerFactory.create(
                         () -> streamingViewModel.getStreaming().getValue().getSelectedProvider(),
                         dialogState -> streamingManualCookieDialogController.show(dialogState),
@@ -884,25 +776,12 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
     }
 
-    private String languageModeIfReady() {
-        return settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode();
-    }
-
-    private List<Track> selectedPlaylistTracksIfReady() {
-        return libraryStore == null ? Collections.emptyList() : libraryStore.selectedPlaylistTracks();
-    }
-
-    private List<Track> favoriteTracksIfReady() {
-        return libraryStore == null ? Collections.emptyList() : libraryStore.favoriteTracks();
-    }
-
     private StreamingSearchRenderController initializeStoresAndDataGateways(
             MainActivityStreamingActionGateway streamingActionGateway
     ) {
         libraryStore = libraryStoreFactory.create(viewModel);
         settingsStore.load(loadSettingsPreferencesUseCase.execute());
         libraryViewModel.bindPlaylistActionGateway(libraryPlaylistActionGateway);
-        playlistDialogController = createPlaylistDialogController();
         playHistoryActionController = playHistoryActionControllerFactory.create(
                 libraryViewModel,
                 () -> settingsStore.languageMode(),
@@ -1049,6 +928,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> permissionController
         );
         settingsViewModel.bindRuntimeEffectListener(settingsRuntimeApplier::apply);
+        playlistDialogController = createPlaylistDialogController();
     }
 
     private void initializeNetworkOwners(StreamingSearchRenderController streamingSearchRenderController) {
@@ -1414,18 +1294,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
     }
 
-    private void playRecommendationIfReady(StreamingRecommendationPresentation presentation) {
-        if (playbackStartController != null) {
-            playbackStartController.playRecommendation(presentation);
-        }
-    }
-
-    private void playHeartbeatRecommendationIfReady(StreamingRecommendationPresentation presentation) {
-        if (playbackStartController != null) {
-            playbackStartController.playHeartbeatRecommendation(presentation);
-        }
-    }
-
     private void renderLibraryGroupTrackList(LibraryGroupTrackListRequest request) {
         renderComposeTrackList(
                 request.getTitle(),
@@ -1637,7 +1505,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             return;
         }
         queueViewModel.bind(
-                playbackStore == null ? Collections.emptyList() : playbackStore.queueSnapshot(),
+                playbackService == null ? new ArrayList<>() : playbackService.queueSnapshot(),
                 playbackStore == null ? null : playbackStore.snapshot(),
                 libraryStore == null ? java.util.Collections.<Long>emptySet() : libraryStore.favoriteIds(),
                 settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()
@@ -1885,21 +1753,15 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void loadCollections() {
-        if (libraryStore == null) {
-            return;
-        }
         libraryViewModel.loadCollectionsJava(selectedPlaylistId(), result -> {
-            if (libraryStore == null) {
-                return;
-            }
             routeController.setSelectedPlaylistId(result.getSelectedPlaylistId());
             libraryStore.applyCollections(result);
-            renderNowBarIfReady();
+            nowPlayingStateController.renderNowBar();
             if (TAB_COLLECTIONS.equals(selectedTab())
                     || (TAB_LIBRARY.equals(selectedTab()) && LIBRARY_PLAYLISTS.equals(libraryMode()))
                     || TAB_NETWORK.equals(selectedTab())
                     || TAB_SETTINGS.equals(selectedTab())) {
-                renderSelectedTabIfReady();
+                renderSelectedTab();
             }
         });
     }
@@ -2162,17 +2024,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         syncNavHostState();
     }
 
-    private void renderSelectedTabIfReady() {
-        if (tabRenderDispatcher != null
-                && homeDashboardRenderController != null
-                && queueRenderController != null
-                && libraryStore != null
-                && networkRenderCoordinator != null
-                && settingsContextProvider != null) {
-            renderSelectedTab();
-        }
-    }
-
     private void renderHome() {
         boolean anyStreamingConnected = false;
         for (app.yukine.streaming.StreamingAuthState auth : streamingViewModel.getStreaming().getValue().getAuthStates().values()) {
@@ -2401,7 +2252,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private String selectedPlaylistName() {
-        return libraryStore == null ? "" : libraryStore.selectedPlaylistName(selectedPlaylistId());
+        return libraryStore.selectedPlaylistName(selectedPlaylistId());
     }
 
     private PlaylistDialogController createPlaylistDialogController() {
@@ -2512,7 +2363,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             return;
         }
         queueRenderController.render(
-                playbackStore.queueSnapshot(),
+                playbackService.queueSnapshot(),
                 playbackStore.snapshot(),
                 libraryStore.favoriteIds(),
                 settingsStore.languageMode()
@@ -2566,10 +2417,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         return libraryStore.visibleTracks();
     }
 
-    private List<Track> allLibraryTracksIfReady() {
-        return libraryStore == null ? Collections.emptyList() : libraryStore.allTracks();
-    }
-
     private void logHeartbeatSeedMiss(HeartbeatRecommendationSeedRequest request) {
         if (request == null || request.getSeedMissingMessage() == null || request.getSeedMissingMessage().isEmpty()) {
             return;
@@ -2614,12 +2461,12 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private boolean resolveCurrentStreamingQueueTrackIfNeeded() {
-        if (playbackService == null || streamingPlaybackController == null) {
+        if (playbackService == null) {
             return false;
         }
         StreamingQueueResolveTarget target = streamingViewModel.prepareCurrentStreamingQueueResolveTarget(
                 playbackService.snapshot(),
-                playbackStore == null ? Collections.emptyList() : playbackStore.queueSnapshot()
+                playbackService.queueSnapshot()
         );
         return target != null && streamingPlaybackController.resolveAndPlayStreamingTrack(target.getTracks(), target.getIndex());
     }
@@ -2671,15 +2518,13 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void publishPlaybackStore() {
-        if (playbackStore != null && playbackService != null) {
+        if (playbackStore != null) {
             playbackStore.publish(playbackQueueSnapshot());
         }
     }
 
     private List<Track> playbackQueueSnapshot() {
-        return playbackService == null
-                ? (playbackStore == null ? Collections.emptyList() : playbackStore.queueSnapshot())
-                : playbackService.queueSnapshot();
+        return playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot();
     }
 
 }

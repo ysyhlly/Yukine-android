@@ -2,85 +2,130 @@ package app.yukine.playback;
 
 import androidx.media3.common.Player;
 
-import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
-import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 final class PlaybackQueueMirroredTransitionOwner {
-    static final class Transition {
-        private final boolean stopAfterAutomaticAdvance;
-        private final Track currentTrack;
-
-        private Transition(
-                boolean stopAfterAutomaticAdvance,
-                Track currentTrack
-        ) {
-            this.stopAfterAutomaticAdvance = stopAfterAutomaticAdvance;
-            this.currentTrack = currentTrack;
-        }
-
-        boolean stopAfterAutomaticAdvance() {
-            return stopAfterAutomaticAdvance;
-        }
-
-        Track currentTrack() {
-            return currentTrack;
-        }
+    interface CurrentTrackVolumeApplier {
+        void applyCurrentTrackVolume();
     }
 
-    private final PlaybackQueueManager playbackQueueManager;
-    private final Runnable currentTrackVolumeApplier;
+    private final BiFunction<Integer, Boolean, PlaybackQueueManager.MirroredTransitionResult> applyMirroredTransitionIndex;
+    private final BooleanSupplier prepareMirroredTransitionPlaybackState;
+    private final CurrentTrackVolumeApplier currentTrackVolumeApplier;
     private final BooleanSupplier playerMirrorsQueue;
+    private final BooleanSupplier queueEmpty;
+
+    static PlaybackQueueMirroredTransitionOwner fromPlaybackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
+    ) {
+        return fromPlaybackQueueManager(playbackQueueManagerSupplier, null);
+    }
+
+    static PlaybackQueueMirroredTransitionOwner fromPlaybackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            CurrentTrackVolumeApplier currentTrackVolumeApplier
+    ) {
+        return fromPlaybackQueueManager(playbackQueueManagerSupplier, null, null, currentTrackVolumeApplier);
+    }
+
+    static PlaybackQueueMirroredTransitionOwner fromPlaybackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            BooleanSupplier playerMirrorsQueue,
+            BooleanSupplier queueEmpty,
+            CurrentTrackVolumeApplier currentTrackVolumeApplier
+    ) {
+        return new PlaybackQueueMirroredTransitionOwner(
+                (nextIndex, automaticAdvance) -> {
+                    PlaybackQueueManager playbackQueueManager =
+                            playbackQueueManagerSupplier == null
+                                    ? null
+                                    : playbackQueueManagerSupplier.get();
+                    return playbackQueueManager == null
+                            ? null
+                            : playbackQueueManager.applyMirroredTransitionIndex(nextIndex, automaticAdvance);
+                },
+                () -> {
+                    PlaybackQueueManager playbackQueueManager =
+                            playbackQueueManagerSupplier == null
+                                    ? null
+                                    : playbackQueueManagerSupplier.get();
+                    if (playbackQueueManager == null) {
+                        return false;
+                    }
+                    playbackQueueManager.prepareMirroredTransitionPlaybackState();
+                    return true;
+                },
+                currentTrackVolumeApplier,
+                playerMirrorsQueue,
+                queueEmpty
+        );
+    }
 
     PlaybackQueueMirroredTransitionOwner(
-            PlaybackQueueManager playbackQueueManager,
-            Runnable currentTrackVolumeApplier,
-            BooleanSupplier playerMirrorsQueue
+            BiFunction<Integer, Boolean, PlaybackQueueManager.MirroredTransitionResult> applyMirroredTransitionIndex,
+            BooleanSupplier prepareMirroredTransitionPlaybackState
     ) {
-        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.currentTrackVolumeApplier =
-                Objects.requireNonNull(currentTrackVolumeApplier, "currentTrackVolumeApplier");
-        this.playerMirrorsQueue = Objects.requireNonNull(playerMirrorsQueue, "playerMirrorsQueue");
+        this(applyMirroredTransitionIndex, prepareMirroredTransitionPlaybackState, null);
+    }
+
+    PlaybackQueueMirroredTransitionOwner(
+            BiFunction<Integer, Boolean, PlaybackQueueManager.MirroredTransitionResult> applyMirroredTransitionIndex,
+            BooleanSupplier prepareMirroredTransitionPlaybackState,
+            CurrentTrackVolumeApplier currentTrackVolumeApplier
+    ) {
+        this(applyMirroredTransitionIndex, prepareMirroredTransitionPlaybackState, currentTrackVolumeApplier, null, null);
+    }
+
+    PlaybackQueueMirroredTransitionOwner(
+            BiFunction<Integer, Boolean, PlaybackQueueManager.MirroredTransitionResult> applyMirroredTransitionIndex,
+            BooleanSupplier prepareMirroredTransitionPlaybackState,
+            CurrentTrackVolumeApplier currentTrackVolumeApplier,
+            BooleanSupplier playerMirrorsQueue,
+            BooleanSupplier queueEmpty
+    ) {
+        this.applyMirroredTransitionIndex = applyMirroredTransitionIndex;
+        this.prepareMirroredTransitionPlaybackState = prepareMirroredTransitionPlaybackState;
+        this.currentTrackVolumeApplier = currentTrackVolumeApplier;
+        this.playerMirrorsQueue = playerMirrorsQueue;
+        this.queueEmpty = queueEmpty;
     }
 
     boolean canApplyMirroredTransition() {
-        boolean mirrorsQueue = playerMirrorsQueue.getAsBoolean();
-        return mirrorsQueue && queueStateSnapshot().getQueueSize() > 0;
+        boolean mirrorsQueue = playerMirrorsQueue == null || playerMirrorsQueue.getAsBoolean();
+        boolean emptyQueue = queueEmpty != null && queueEmpty.getAsBoolean();
+        return mirrorsQueue && !emptyQueue;
     }
 
-    Transition applyMirroredTransitionReason(
+    PlaybackQueueManager.MirroredTransitionResult applyMirroredTransitionIndex(
+            int nextIndex,
+            boolean automaticAdvance
+    ) {
+        return applyMirroredTransitionIndex == null
+                ? null
+                : applyMirroredTransitionIndex.apply(nextIndex, automaticAdvance);
+    }
+
+    PlaybackQueueManager.MirroredTransitionResult applyMirroredTransitionReason(
             int nextIndex,
             int reason
     ) {
-        PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();
-        int currentIndex = queueStateSnapshot.getCurrentIndex();
-        int queueSize = queueStateSnapshot.getQueueSize();
-        if (nextIndex < 0 || nextIndex >= queueSize || nextIndex == currentIndex) {
-            return null;
-        }
-        boolean stopAfterAutomaticAdvance =
-                playbackQueueManager.applyMirroredTransitionIndex(
-                        nextIndex,
-                        isAutomaticMediaItemAdvance(reason)
-                );
-        Track currentTrack = null;
-        if (!stopAfterAutomaticAdvance) {
-            currentTrack = queueStateSnapshot().getCurrentTrack();
-            currentTrackVolumeApplier.run();
-        }
-        return new Transition(
-                stopAfterAutomaticAdvance,
-                currentTrack
-        );
+        return applyMirroredTransitionIndex(nextIndex, isAutomaticMediaItemAdvance(reason));
     }
 
     static boolean isAutomaticMediaItemAdvance(int reason) {
         return reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO;
     }
 
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        return playbackQueueManager.queueStateSnapshot();
+    void prepareMirroredTransitionPlaybackState() {
+        if (prepareMirroredTransitionPlaybackState != null
+                && prepareMirroredTransitionPlaybackState.getAsBoolean()) {
+            if (currentTrackVolumeApplier != null) {
+                currentTrackVolumeApplier.applyCurrentTrackVolume();
+            }
+        }
     }
 }

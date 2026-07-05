@@ -3,14 +3,12 @@ package app.yukine.playback
 import app.yukine.model.PlaybackQueueState
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackPositionManager
-import app.yukine.playback.manager.PlaybackMediaSourceProvider
 import app.yukine.playback.manager.PlaybackQueueManager
 import app.yukine.playback.manager.PlaybackQueueStore
 import app.yukine.playback.manager.PlaybackRuntimeStateManager
 import app.yukine.playback.manager.PlaybackTransitionStateManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -50,22 +48,6 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun playFirstQueuedTrackPreservesExistingResumeRequestedState() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        val manager = queueManager(store, provider)
-        manager.playQueue(listOf(track(7L), track(8L)), 1, 0L)
-        provider.queuePlaybackActions.prepareCurrentCalled = false
-        store.resumeRequested = false
-
-        manager.playFirstQueuedTrack()
-
-        assertEquals(0, manager.queueStateSnapshot().currentIndex)
-        assertTrue(provider.prepareCurrentCalled)
-        assertFalse(store.resumeRequested)
-    }
-
-    @Test
     fun playQueueUsesExplicitStartPositionForImmediateRestore() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
@@ -86,6 +68,35 @@ class PlaybackQueueManagerTest {
         manager.playQueue(listOf(track(9L)), 0, 0L)
 
         assertTrue(store.resumeRequested)
+    }
+
+    @Test
+    fun serviceBoundaryResumeRequestPersistsThroughQueueOwner() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+
+        manager.savePlaybackResumeRequested(true)
+        assertTrue(store.resumeRequested)
+
+        manager.savePlaybackResumeRequested(false)
+        assertFalse(store.resumeRequested)
+    }
+
+    @Test
+    fun serviceBoundaryPlaybackPositionPersistsThroughQueueOwner() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val current = track(10L, durationMs = 10_000L)
+        provider.playbackPositionMsValue = 4100L
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(current), 0)
+
+        manager.persistCurrentPlaybackPosition(force = false)
+        provider.playbackPositionMsValue = 4700L
+        manager.persistCurrentPlaybackPosition(force = true)
+
+        assertEquals(listOf(10L to 4100L, 10L to 4700L), store.savedPositions)
     }
 
     @Test
@@ -117,47 +128,131 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun preparePlaybackCompletionActionPreparesCurrentInternallyWhenRepeatOne() {
+    fun completionActionRepeatsCurrentWhenRepeatOne() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
         restoreQueue(manager, store, listOf(track(1L), track(2L)), 0)
         provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_ONE)
 
-        assertEquals(PlaybackQueueManager.PlaybackCompletionAction.REPEAT_CURRENT, manager.preparePlaybackCompletionAction())
-        assertTrue(provider.queuePlaybackActions.prepareCurrentCalled)
+        assertEquals(
+            PlaybackQueueManager.PlaybackCompletionAction.REPEAT_CURRENT,
+            manager.playbackCompletionAction()
+        )
     }
 
     @Test
-    fun preparePlaybackCompletionActionStopsAndClearsWhenQueueIsEmpty() {
+    fun completionActionStopsAndClearsWhenQueueIsEmpty() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
 
         assertEquals(
             PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR,
-            manager.preparePlaybackCompletionAction()
+            manager.playbackCompletionAction()
         )
     }
 
     @Test
-    fun preparePlaybackCompletionActionStopsAtEndWhenRepeatOff() {
+    fun completionActionStopsAtEndWhenRepeatOff() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
-        val current = track(2L, durationMs = 10_000L)
         val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(track(1L), current), 1)
+        restoreQueue(manager, store, listOf(track(1L), track(2L)), 1)
         provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF)
+
+        assertEquals(
+            PlaybackQueueManager.PlaybackCompletionAction.STOP_AT_END,
+            manager.playbackCompletionAction()
+        )
+    }
+
+    @Test
+    fun completionActionAdvancesWhenQueueCanContinue() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(track(1L), track(2L)), 0)
+        provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF)
+
+        assertEquals(
+            PlaybackQueueManager.PlaybackCompletionAction.ADVANCE_TO_NEXT,
+            manager.playbackCompletionAction()
+        )
+    }
+
+    @Test
+    fun upcomingTracksForPrecacheStopsAtQueueEndWhenRepeatOff() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(track(1L), track(2L), track(3L)), 1)
+        provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF)
+
+        assertEquals(
+            listOf(3L),
+            manager.upcomingTracksForPrecache(4).map { it.id }
+        )
+    }
+
+    @Test
+    fun upcomingTracksForPrecacheWrapsAndSkipsCurrentWhenRepeatAll() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(track(1L), track(2L), track(3L)), 2)
+        provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_ALL)
+
+        assertEquals(
+            listOf(1L, 2L),
+            manager.upcomingTracksForPrecache(4).map { it.id }
+        )
+    }
+
+    @Test
+    fun preparePlaybackCompletionResetsCompletedTrackAndClearsRepeatRestore() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val current = track(1L, durationMs = 10_000L)
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(current), 0)
+        provider.positionManager.setRestoredPosition(current.id, 4500L, explicit = true)
+
+        manager.preparePlaybackCompletion(PlaybackQueueManager.PlaybackCompletionAction.REPEAT_CURRENT)
+
+        assertEquals(listOf(1L to 0L), store.savedPositions)
+        assertEquals(0L, provider.positionManager.restoredPositionFor(current))
+    }
+
+    @Test
+    fun preparePlaybackCompletionKeepsRestoreForAdvanceAction() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val current = track(1L, durationMs = 10_000L)
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(current), 0)
+        provider.positionManager.setRestoredPosition(current.id, 4500L, explicit = true)
+
+        manager.preparePlaybackCompletion(PlaybackQueueManager.PlaybackCompletionAction.ADVANCE_TO_NEXT)
+
+        assertEquals(listOf(1L to 0L), store.savedPositions)
+        assertEquals(4500L, provider.positionManager.restoredPositionFor(current))
+    }
+
+    @Test
+    fun prepareStopAtEndOfQueueClearsQueuePlaybackStateThroughOwners() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val current = track(1L, durationMs = 10_000L)
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(current), 0)
         provider.positionManager.setRestoredPosition(current.id, 4000L, explicit = true)
         provider.runtimeStateManager.setPreparing(true)
         provider.runtimeStateManager.setErrorMessage("stale")
         provider.transitionStateManager.setLastMarkedTrack(current)
         store.resumeRequested = true
 
-        assertEquals(
-            PlaybackQueueManager.PlaybackCompletionAction.STOP_AT_END,
-            manager.preparePlaybackCompletionAction()
-        )
+        manager.prepareStopAtEndOfQueue()
 
         assertEquals(0L, provider.positionManager.restoredPositionFor(current))
         assertFalse(provider.runtimeStateManager.preparing())
@@ -167,57 +262,7 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun preparePlaybackCompletionActionAdvancesWhenQueueCanContinue() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(track(1L), track(2L)), 0)
-        provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF)
-
-        assertEquals(
-            PlaybackQueueManager.PlaybackCompletionAction.ADVANCE_TO_NEXT,
-            manager.preparePlaybackCompletionAction()
-        )
-    }
-
-    @Test
-    fun preparePlaybackCompletionActionResetsCompletedTrackAndClearsRepeatRestore() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        val current = track(1L, durationMs = 10_000L)
-        val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(current), 0)
-        provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_ONE)
-        provider.positionManager.setRestoredPosition(current.id, 4500L, explicit = true)
-
-        assertEquals(PlaybackQueueManager.PlaybackCompletionAction.REPEAT_CURRENT, manager.preparePlaybackCompletionAction())
-        assertTrue(provider.queuePlaybackActions.prepareCurrentCalled)
-
-        assertEquals(listOf(1L to 0L), store.savedPositions)
-        assertEquals(0L, provider.positionManager.restoredPositionFor(current))
-    }
-
-    @Test
-    fun preparePlaybackCompletionActionKeepsRestoreForAdvanceAction() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        val current = track(1L, durationMs = 10_000L)
-        val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(current, track(2L)), 0)
-        provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF)
-        provider.positionManager.setRestoredPosition(current.id, 4500L, explicit = true)
-
-        assertEquals(
-            PlaybackQueueManager.PlaybackCompletionAction.ADVANCE_TO_NEXT,
-            manager.preparePlaybackCompletionAction()
-        )
-
-        assertEquals(listOf(1L to 0L), store.savedPositions)
-        assertEquals(4500L, provider.positionManager.restoredPositionFor(current))
-    }
-
-    @Test
-    fun automaticMirroredTransitionStopPersistsAndResetsCompletedTrackInsideQueueManager() {
+    fun prepareStopAfterAutomaticAdvancePersistsAndResetsCompletedTrackThroughOwner() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         provider.playbackPositionMsValue = 5300L
@@ -231,9 +276,8 @@ class PlaybackQueueManagerTest {
                 ),
                 1
         )
-        provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF)
 
-        assertTrue(manager.applyMirroredTransitionIndex(0, automaticAdvance = true))
+        manager.prepareStopAfterAutomaticAdvance(completedIndex = 1)
 
         assertEquals(1, manager.queueStateSnapshot().currentIndex)
         assertEquals(listOf(2L to 5300L, 2L to 0L), store.savedPositions)
@@ -269,6 +313,59 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun consumeRestoredPositionAfterPrepareClearsOnlyWhenStartPositionWasUsed() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val current = track(1L, durationMs = 10_000L)
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(current), 0)
+        provider.positionManager.setRestoredPosition(current.id, 3200L, explicit = true)
+
+        manager.consumeRestoredPositionAfterPrepare(0L)
+
+        assertEquals(3200L, provider.positionManager.restoredPositionFor(current))
+
+        manager.consumeRestoredPositionAfterPrepare(3200L)
+
+        assertEquals(0L, provider.positionManager.restoredPositionFor(current))
+    }
+
+    @Test
+    fun restoredPositionForDelegatesThroughQueueOwner() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val current = track(1L, durationMs = 10_000L)
+        val streaming = track(2L, dataPath = "streaming:test:2", durationMs = 10_000L)
+        provider.queue.addAll(listOf(current, streaming))
+        val manager = queueManager(store, provider)
+
+        provider.positionManager.setRestoredPosition(current.id, 9900L, explicit = true)
+        assertEquals(8000L, manager.restoredPositionFor(current))
+
+        provider.positionManager.setRestoredPosition(streaming.id, 4000L, explicit = false)
+        assertEquals(0L, manager.restoredPositionFor(streaming))
+
+        provider.positionManager.setRestoredPosition(streaming.id, 4000L, explicit = true)
+        assertEquals(4000L, manager.restoredPositionFor(streaming))
+    }
+
+    @Test
+    fun persistCurrentPlaybackPositionUsesPositionOwnerThrottleAndForce() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val current = track(1L, durationMs = 10_000L)
+        provider.playbackPositionMsValue = 2300L
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(current), 0)
+
+        manager.persistCurrentPlaybackPosition(force = false)
+        manager.persistCurrentPlaybackPosition(force = false)
+        manager.persistCurrentPlaybackPosition(force = true)
+
+        assertEquals(listOf(1L to 2300L, 1L to 2300L), store.savedPositions)
+    }
+
+    @Test
     fun replaceQueuedTrackContinuesPreparingPlaybackFromRuntimeStateOwner() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
@@ -276,7 +373,7 @@ class PlaybackQueueManagerTest {
         restoreQueue(manager, store, listOf(track(1L)), 0)
         provider.runtimeStateManager.setPreparing(true)
 
-        manager.replaceQueuedTrackById(1L, track(1L, durationMs = 2_000L))
+        manager.replaceQueuedTrack(track(1L, durationMs = 2_000L))
 
         assertTrue(provider.prepareCurrentCalled)
     }
@@ -289,7 +386,7 @@ class PlaybackQueueManagerTest {
         restoreQueue(manager, store, listOf(track(1L), track(2L)), 1)
         val replacement = track(9L)
 
-        manager.replaceCurrentQueueTrack(replacement)
+        assertTrue(manager.replaceCurrentQueueTrack(replacement))
 
         assertEquals(listOf(1L, 9L), provider.queue.map { it.id })
         assertEquals(listOf(1L, 9L), store.savedTracks.map { it.id })
@@ -304,7 +401,7 @@ class PlaybackQueueManagerTest {
         val manager = queueManager(store, provider)
         setRawCurrentIndex(manager, 3)
 
-        manager.replaceCurrentQueueTrack(track(9L))
+        assertFalse(manager.replaceCurrentQueueTrack(track(9L)))
 
         assertEquals(listOf(1L), provider.queue.map { it.id })
         assertTrue(store.savedTracks.isEmpty())
@@ -317,12 +414,12 @@ class PlaybackQueueManagerTest {
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
 
-        store.playbackRestoreEnabled = false
-        manager.restorePlaybackQueue()
-        val snapshot = manager.queueStateSnapshot()
+        manager.setPlaybackRestoreEnabled(false)
+        val snapshot = manager.restorePlaybackQueue()
 
         assertTrue(provider.queue.isEmpty())
-        assertEquals(0, snapshot.queueSize)
+        assertEquals(-1, manager.queueStateSnapshot().currentIndex)
+        assertTrue(snapshot.isQueueEmpty)
         assertEquals(-1, snapshot.currentIndex)
     }
 
@@ -334,33 +431,28 @@ class PlaybackQueueManagerTest {
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
 
-        manager.restorePlaybackQueue()
-        val snapshot = manager.queueStateSnapshot()
+        val snapshot = manager.restorePlaybackQueue()
 
         assertTrue(provider.queue.isEmpty())
-        assertEquals(0, snapshot.queueSize)
+        assertEquals(-1, manager.queueStateSnapshot().currentIndex)
+        assertTrue(snapshot.isQueueEmpty)
     }
 
     @Test
-    fun restorePlaybackQueueReadsLatestEnablementFromStoreAtCallTime() {
+    fun setPlaybackRestoreEnabledPersistsThroughStore() {
         val store = FakeQueueStore()
-        store.restore = PlaybackQueueState(listOf(track(1L, android.net.Uri.parse("content://music/1"))), 0)
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
 
-        store.playbackRestoreEnabled = false
-        manager.restorePlaybackQueue()
-        assertTrue(provider.queue.isEmpty())
+        manager.setPlaybackRestoreEnabled(false)
+        manager.setPlaybackRestoreEnabled(true)
 
-        store.playbackRestoreEnabled = true
-        manager.restorePlaybackQueue()
-
-        assertEquals(listOf(1L), provider.queue.map { it.id })
+        assertEquals(listOf(false, true), store.savedPlaybackRestoreEnabledValues)
         assertTrue(store.playbackRestoreEnabled)
     }
 
     @Test
-    fun restorePlaybackQueueSkipsTracksRejectedByStreamingRestoreProvider() {
+    fun restorePlaybackQueueFiltersInvalidTracksInsideManager() {
         val store = FakeQueueStore()
         store.restore = PlaybackQueueState(
                 listOf(
@@ -374,60 +466,81 @@ class PlaybackQueueManagerTest {
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
 
-        manager.restorePlaybackQueue()
-        val snapshot = manager.queueStateSnapshot()
+        val snapshot = manager.restorePlaybackQueue()
 
         assertEquals(listOf(2L, 3L), provider.queue.map { it.id })
         assertEquals(listOf("streaming:netease:2", "/music/3"), provider.streamingRestoreProvider.restoredDataPaths)
+        assertEquals(0, manager.queueStateSnapshot().currentIndex)
         assertEquals(2L, snapshot.currentTrack?.id)
         assertEquals(0, snapshot.currentIndex)
         assertEquals(2, snapshot.queueSize)
+        assertFalse(snapshot.isQueueEmpty)
+        assertTrue(snapshot.hasCurrentTrack)
     }
 
     @Test
-    fun restorePlaybackQueueClampsCurrentIndexAfterFilteringInvalidTracks() {
+    fun restoreLastPlaybackReportsEmptyQueueWithoutServicePolicy() {
         val store = FakeQueueStore()
-        val current = track(3L, android.net.Uri.parse("content://music/3"), "/music/3")
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+
+        val result = manager.restoreLastPlayback(playWhenRestored = true)
+
+        assertFalse(result.shouldCreatePlayer)
+        assertFalse(result.shouldPrepare)
+        assertFalse(result.playWhenReady)
+    }
+
+    @Test
+    fun restoreLastPlaybackPreservesCreateWithoutPrepareForMissingCurrentTrack() {
+        val store = FakeQueueStore()
         store.restore = PlaybackQueueState(
-                listOf(
-                        track(-1L, android.net.Uri.parse("content://music/invalid"), "/music/invalid"),
-                        track(2L, null, "streaming:netease:2"),
-                        current
-                ),
-                2
+                listOf(track(1L, android.net.Uri.parse("content://music/1"))),
+                -1
         )
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
 
-        manager.restorePlaybackQueue()
-        val snapshot = manager.queueStateSnapshot()
+        val result = manager.restoreLastPlayback(playWhenRestored = true)
 
-        assertEquals(listOf(2L, 3L), provider.queue.map { it.id })
-        assertEquals(1, snapshot.currentIndex)
-        assertEquals(3L, snapshot.currentTrack?.id)
-        assertEquals(listOf(2L, 3L), store.savedTracks.map { it.id })
-        assertEquals(1, store.savedIndex)
+        assertTrue(result.shouldCreatePlayer)
+        assertFalse(result.shouldPrepare)
+        assertFalse(result.playWhenReady)
     }
 
     @Test
-    fun queueStateSnapshotOwnsSourceState() {
+    fun restoreLastPlaybackUsesExplicitPlayRequest() {
         val store = FakeQueueStore()
+        store.restore = PlaybackQueueState(
+                listOf(track(1L, android.net.Uri.parse("content://music/1"))),
+                0
+        )
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(track(1L), track(2L)), 0)
 
-        val first = manager.queueStateSnapshot()
+        val result = manager.restoreLastPlayback(playWhenRestored = true)
 
-        assertEquals(1L, first.currentTrack?.id)
-        assertEquals(0, first.currentIndex)
-        assertEquals(2, first.queueSize)
+        assertTrue(result.shouldCreatePlayer)
+        assertTrue(result.shouldPrepare)
+        assertTrue(result.playWhenReady)
+    }
 
-        manager.skipToNextImmediately()
-        val second = manager.queueStateSnapshot()
+    @Test
+    fun restoreLastPlaybackUsesPersistedResumeRequest() {
+        val store = FakeQueueStore()
+        store.restore = PlaybackQueueState(
+                listOf(track(1L, android.net.Uri.parse("content://music/1"))),
+                0
+        )
+        store.resumeRequested = true
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
 
-        assertEquals(2L, second.currentTrack?.id)
-        assertEquals(1, second.currentIndex)
-        assertEquals(2, second.queueSize)
+        val result = manager.restoreLastPlayback(playWhenRestored = false)
+
+        assertTrue(result.shouldCreatePlayer)
+        assertTrue(result.shouldPrepare)
+        assertTrue(result.playWhenReady)
     }
 
     @Test
@@ -503,43 +616,6 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun skipToPreviousReusesMirroredQueueWithoutPreparingNewMediaSources() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        provider.playbackPositionMsValue = 900L
-        provider.mirroredQueuePlayer.matchesCurrentQueueValue = true
-        provider.mirroredQueuePlayer.seekToValue = true
-        val manager = queueManager(store, provider)
-        restoreQueue(
-                manager,
-                store,
-                listOf(
-                        track(1L, durationMs = 10_000L),
-                        track(2L, durationMs = 10_000L),
-                        track(3L, durationMs = 10_000L)
-                ),
-                0
-        )
-        provider.streamingRestoreProvider.restoredDataPaths.clear()
-
-        val reused = manager.skipToPrevious()
-
-        assertTrue(reused)
-        assertEquals(2, manager.queueStateSnapshot().currentIndex)
-        assertEquals(3L, manager.queueStateSnapshot().currentTrack?.id)
-        assertEquals(2, provider.mirroredQueuePlayer.seekIndex)
-        assertEquals(0L, provider.mirroredQueuePlayer.seekPositionMs)
-        assertTrue(provider.mirroredQueuePlayer.seekPlayWhenReady)
-        assertEquals(listOf(1L, 2L, 3L), store.savedTracks.map { it.id })
-        assertEquals(2, store.savedIndex)
-        assertEquals(listOf(1L to 900L, 3L to 0L), store.savedPositions)
-        assertEquals(listOf("/music/3"), provider.streamingRestoreProvider.restoredDataPaths)
-        assertTrue(store.resumeRequested)
-        assertTrue(provider.queuePlaybackActions.published)
-        assertFalse(provider.prepareCurrentCalled)
-    }
-
-    @Test
     fun skipToPreviousNoOpsWhenQueueIsEmpty() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
@@ -596,29 +672,6 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun reuseMirroredQueueRequiresMatchingPlayerSnapshotBeforeStateMutation() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        provider.mirroredQueuePlayer.matchesCurrentQueueValue = false
-        provider.mirroredQueuePlayer.seekToValue = true
-        val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(track(1L), track(2L)), 1)
-        provider.streamingRestoreProvider.restoredDataPaths.clear()
-
-        val reused = manager.reuseMirroredQueueIfAvailable(playWhenReady = true, startPositionMs = 4500L)
-
-        assertFalse(reused)
-        assertEquals(2L, manager.queueStateSnapshot().currentTrack?.id)
-        assertEquals(-1, provider.mirroredQueuePlayer.seekIndex)
-        assertEquals(emptyList<Track>(), store.savedTracks)
-        assertTrue(store.savedPositions.isEmpty())
-        assertTrue(provider.streamingRestoreProvider.restoredDataPaths.isEmpty())
-        assertFalse(store.resumeRequested)
-        assertFalse(provider.queuePlaybackActions.published)
-        assertFalse(provider.prepareCurrentCalled)
-    }
-
-    @Test
     fun replaceCurrentTrackAndResumeSchedulesRecoveryForNewUri() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
@@ -631,7 +684,9 @@ class PlaybackQueueManagerTest {
 
         assertEquals(2L, provider.queue.first().id)
         assertEquals(1200L, provider.positionManager.restoredPositionFor(replacement))
-        assertEquals(1200L, recovery)
+        assertEquals(replacement, recovery.track)
+        assertEquals(1200L, recovery.restoredPositionMs)
+        assertTrue(recovery.playWhenReady)
     }
 
     @Test
@@ -642,22 +697,16 @@ class PlaybackQueueManagerTest {
         provider.mirroredQueuePlayer.seekToValue = true
         val manager = queueManager(store, provider)
         restoreQueue(manager, store, listOf(track(1L), track(2L)), 1)
-        val restoredSecond = track(20L, android.net.Uri.parse("content://music/restored-2"))
-        provider.streamingRestoreProvider.restoredTracks[2L] = restoredSecond
         provider.streamingRestoreProvider.restoredDataPaths.clear()
         provider.positionManager.setRestoredPosition(2L, 1200L, explicit = true)
 
         val reused = manager.reuseMirroredQueueIfAvailable(playWhenReady = true, startPositionMs = 4500L)
 
         assertTrue(reused)
-        assertEquals(20L, manager.queueStateSnapshot().currentTrack?.id)
-        assertEquals(listOf(1L, 20L), store.savedTracks.map { it.id })
-        assertEquals(1, store.savedIndex)
         assertEquals(1, provider.mirroredQueuePlayer.seekIndex)
         assertEquals(4500L, provider.mirroredQueuePlayer.seekPositionMs)
         assertTrue(store.resumeRequested)
-        assertEquals(listOf("/music/2"), provider.streamingRestoreProvider.restoredDataPaths)
-        assertEquals(0L, provider.positionManager.restoredPositionFor(restoredSecond))
+        assertEquals(0L, provider.positionManager.restoredPositionFor(track(2L)))
         assertFalse(provider.prepareCurrentCalled)
     }
 
@@ -677,26 +726,142 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun queuePreparationForNewPlayerRestoresMirroredHeadersAndReturnsSnapshot() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+        restoreQueue(
+                manager,
+                store,
+                listOf(
+                        track(1L, android.net.Uri.parse("content://music/1")),
+                        track(2L, android.net.Uri.parse("content://music/2"))
+                ),
+                0
+        )
+        provider.streamingRestoreProvider.restoredDataPaths.clear()
+
+        val tracks = manager.queuePreparationForNewPlayer().mirroredQueueTracks
+
+        assertEquals(listOf(1L, 2L), tracks?.map { it.id })
+        assertEquals(listOf("/music/1", "/music/2"), provider.streamingRestoreProvider.restoredDataPaths)
+    }
+
+    @Test
+    fun queuePreparationForNewPlayerRejectsUnplayableMirroredTrack() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+        manager.playQueue(listOf(track(1L, null, "")), 0, 0L)
+
+        val tracks = manager.queuePreparationForNewPlayer().mirroredQueueTracks
+
+        assertEquals(null, tracks)
+        assertTrue(provider.streamingRestoreProvider.restoredDataPaths.isEmpty())
+    }
+
+    @Test
+    fun queuePreparationForNewPlayerRejectsEmptyMirroredUriWithoutPartialRestore() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        provider.queue.addAll(
+                listOf(
+                        track(1L, android.net.Uri.parse("content://music/1")),
+                        track(2L, android.net.Uri.EMPTY, "/music/2")
+                )
+        )
+        val manager = queueManager(store, provider)
+        manager.playQueue(provider.queue.toList(), 0, 0L)
+
+        val tracks = manager.queuePreparationForNewPlayer().mirroredQueueTracks
+
+        assertEquals(null, tracks)
+        assertTrue(provider.streamingRestoreProvider.restoredDataPaths.isEmpty())
+    }
+
+    @Test
+    fun queuePreparationForNewPlayerReturnsCurrentTrackAndMirroredTracks() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+        restoreQueue(
+                manager,
+                store,
+                listOf(
+                        track(1L, android.net.Uri.parse("content://music/1")),
+                        track(2L, android.net.Uri.parse("content://music/2"))
+                ),
+                1
+        )
+        provider.streamingRestoreProvider.restoredDataPaths.clear()
+
+        val preparation = manager.queuePreparationForNewPlayer()
+
+        assertEquals(2L, preparation.currentTrack?.id)
+        assertEquals(1, preparation.startIndex)
+        assertEquals(listOf(1L, 2L), preparation.mirroredQueueTracks?.map { it.id })
+        assertEquals(listOf("/music/1", "/music/2"), provider.streamingRestoreProvider.restoredDataPaths)
+    }
+
+    @Test
+    fun queuePreparationForNewPlayerFallsBackToSingleTrackWhenMirrorRejected() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        provider.queue.addAll(
+                listOf(
+                        track(1L, android.net.Uri.parse("content://music/1")),
+                        track(2L, android.net.Uri.EMPTY, "/music/2")
+                )
+        )
+        val manager = queueManager(store, provider)
+        manager.playQueue(provider.queue.toList(), 0, 0L)
+
+        val preparation = manager.queuePreparationForNewPlayer()
+
+        assertEquals(1L, preparation.currentTrack?.id)
+        assertEquals(0, preparation.startIndex)
+        assertEquals(null, preparation.mirroredQueueTracks)
+        assertTrue(provider.streamingRestoreProvider.restoredDataPaths.isEmpty())
+    }
+
+    @Test
+    fun queuePreparationForNewPlayerIsEmptyWithoutCurrentTrack() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        provider.queue.add(track(1L, android.net.Uri.parse("content://music/1")))
+        val manager = queueManager(store, provider)
+        setRawCurrentIndex(manager, 3)
+
+        val preparation = manager.queuePreparationForNewPlayer()
+
+        assertEquals(null, preparation.currentTrack)
+        assertEquals(0, preparation.startIndex)
+        assertEquals(null, preparation.mirroredQueueTracks)
+        assertTrue(provider.streamingRestoreProvider.restoredDataPaths.isEmpty())
+    }
+
+    @Test
     fun currentIndexStateIsOwnedByQueueManager() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
 
         assertEquals(-1, manager.queueStateSnapshot().currentIndex)
+        assertTrue(manager.queueStateSnapshot().isQueueEmpty)
         assertEquals(0, manager.queueStateSnapshot().queueSize)
 
         setRawCurrentIndex(manager, 7)
         assertEquals(7, manager.queueStateSnapshot().currentIndex)
 
         provider.queue.addAll(listOf(track(1L), track(2L), track(3L)))
+        assertFalse(manager.queueStateSnapshot().isQueueEmpty)
         assertEquals(3, manager.queueStateSnapshot().queueSize)
-        provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF)
 
-        assertTrue(manager.applyMirroredTransitionIndex(1, automaticAdvance = true))
+        manager.prepareStopAfterAutomaticAdvance(completedIndex = 9)
         assertEquals(2, manager.queueStateSnapshot().currentIndex)
 
         provider.queue.clear()
-        manager.prepareStopAndClearPlaybackState()
+        manager.prepareStopAfterAutomaticAdvance(completedIndex = 2)
         assertEquals(-1, manager.queueStateSnapshot().currentIndex)
     }
 
@@ -743,19 +908,23 @@ class PlaybackQueueManagerTest {
         assertEquals(2L, snapshot.currentTrack?.id)
         assertEquals(1, snapshot.currentIndex)
         assertEquals(2, snapshot.queueSize)
+        assertFalse(snapshot.isQueueEmpty)
+        assertTrue(snapshot.hasCurrentTrack)
+        assertTrue(snapshot.hasMultipleTracks)
+        assertTrue(snapshot.isAtEndOfQueue)
     }
 
     @Test
-    fun emptyQueueStateSnapshotComesFromQueueManager() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        val manager = queueManager(store, provider)
-
-        val snapshot = manager.queueStateSnapshot()
+    fun emptyQueueStateSnapshotIsOwnedByQueueManager() {
+        val snapshot = PlaybackQueueManager.QueueStateSnapshot.empty()
 
         assertEquals(null, snapshot.currentTrack)
         assertEquals(-1, snapshot.currentIndex)
         assertEquals(0, snapshot.queueSize)
+        assertTrue(snapshot.isQueueEmpty)
+        assertFalse(snapshot.hasCurrentTrack)
+        assertFalse(snapshot.hasMultipleTracks)
+        assertTrue(snapshot.isAtEndOfQueue)
     }
 
     @Test
@@ -771,6 +940,10 @@ class PlaybackQueueManagerTest {
         assertEquals(null, snapshot.currentTrack)
         assertEquals(3, snapshot.currentIndex)
         assertEquals(1, snapshot.queueSize)
+        assertFalse(snapshot.isQueueEmpty)
+        assertFalse(snapshot.hasCurrentTrack)
+        assertFalse(snapshot.hasMultipleTracks)
+        assertTrue(snapshot.isAtEndOfQueue)
     }
 
     @Test
@@ -784,6 +957,10 @@ class PlaybackQueueManagerTest {
         assertEquals(null, snapshot.currentTrack)
         assertEquals(-1, snapshot.currentIndex)
         assertEquals(0, snapshot.queueSize)
+        assertTrue(snapshot.isQueueEmpty)
+        assertFalse(snapshot.hasCurrentTrack)
+        assertFalse(snapshot.hasMultipleTracks)
+        assertTrue(snapshot.isAtEndOfQueue)
     }
 
     @Test
@@ -798,120 +975,129 @@ class PlaybackQueueManagerTest {
         assertTrue(provider.queue.isEmpty())
         assertEquals(-1, manager.queueStateSnapshot().currentIndex)
         assertFalse(provider.queuePlaybackActions.published)
+        assertFalse(provider.queuePlaybackActions.stoppedAndCleared)
     }
 
     @Test
-    fun queueMutationReturnsStopRequestWhenQueueBecomesEmpty() {
+    fun persistQueueStateSavesCurrentSnapshotThroughQueueStore() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(track(1L)), 0)
+        restoreQueue(manager, store, listOf(track(1L), track(2L)), 1)
 
-        manager.removeTracksById(setOf(1L))
+        manager.persistQueueState()
 
-        assertTrue(provider.queue.isEmpty())
-        assertFalse(provider.queuePlaybackActions.prepareCurrentCalled)
-        assertFalse(provider.queuePlaybackActions.published)
-    }
-
-    @Test
-    fun removeTracksBeforeCurrentKeepsCurrentTrackAuthorityInQueueManager() {
-        val store = FakeQueueStore()
-        val provider = FakeQueueState()
-        val first = track(1L)
-        val second = track(2L)
-        val current = track(3L)
-        val manager = queueManager(store, provider)
-        restoreQueue(manager, store, listOf(first, second, current), 2)
-
-        manager.removeTracksById(setOf(first.id))
-
-        val snapshot = manager.queueStateSnapshot()
-        assertEquals(listOf(second.id, current.id), provider.queue.map { it.id })
-        assertEquals(current.id, snapshot.currentTrack?.id)
-        assertEquals(1, snapshot.currentIndex)
-        assertEquals(listOf(second.id, current.id), store.savedTracks.map { it.id })
+        assertEquals(listOf(1L, 2L), store.savedTracks.map { it.id })
         assertEquals(1, store.savedIndex)
-        assertTrue(provider.queuePlaybackActions.published)
-        assertFalse(provider.queuePlaybackActions.prepareCurrentCalled)
     }
 
     @Test
-    fun queueAdvanceSourceSnapshotIsOwnedByQueueManager() {
+    fun queueAdvanceSnapshotIsOwnedByQueueManager() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
 
-        assertEquals(0, manager.queueStateSnapshot().queueSize)
+        assertFalse(manager.queueStateSnapshot().hasMultipleTracks)
+        assertTrue(manager.queueStateSnapshot().isAtEndOfQueue)
 
         provider.queue.add(track(1L))
-        assertEquals(1, manager.queueStateSnapshot().queueSize)
+        assertFalse(manager.queueStateSnapshot().hasMultipleTracks)
+        assertFalse(manager.queueStateSnapshot().isAtEndOfQueue)
         restoreQueue(manager, store, listOf(track(1L)), 0)
-        assertEquals(0, manager.queueStateSnapshot().currentIndex)
+        assertTrue(manager.queueStateSnapshot().isAtEndOfQueue)
 
         provider.queue.clear()
         provider.queue.addAll(listOf(track(1L), track(2L), track(3L)))
-        assertEquals(3, manager.queueStateSnapshot().queueSize)
+        assertTrue(manager.queueStateSnapshot().hasMultipleTracks)
+        assertFalse(manager.queueStateSnapshot().isAtEndOfQueue)
 
         restoreQueue(manager, store, listOf(track(1L), track(2L), track(3L)), 2)
-        assertEquals(2, manager.queueStateSnapshot().currentIndex)
+        assertTrue(manager.queueStateSnapshot().isAtEndOfQueue)
 
         restoreQueue(manager, store, listOf(track(1L), track(2L), track(3L)), 4)
-        val outOfRangeEnd = manager.queueStateSnapshot()
-        assertTrue(outOfRangeEnd.currentIndex >= outOfRangeEnd.queueSize - 1)
+        assertTrue(manager.queueStateSnapshot().isAtEndOfQueue)
     }
 
     @Test
-    fun mirroredTransitionRepeatStopIsOwnedByQueueManager() {
+    fun mirroredTransitionIndexValidationAndRepeatStopAreOwnedByQueueManager() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val manager = queueManager(store, provider)
         restoreQueue(manager, store, listOf(track(1L), track(2L), track(3L)), 1)
 
-        assertEquals(false, manager.applyMirroredTransitionIndex(-1, automaticAdvance = false))
-        assertEquals(false, manager.applyMirroredTransitionIndex(3, automaticAdvance = false))
-        assertEquals(false, manager.applyMirroredTransitionIndex(1, automaticAdvance = false))
+        assertEquals(null, manager.applyMirroredTransitionIndex(-1, automaticAdvance = false))
+        assertEquals(null, manager.applyMirroredTransitionIndex(3, automaticAdvance = false))
+        assertEquals(null, manager.applyMirroredTransitionIndex(1, automaticAdvance = false))
         assertEquals(1, manager.queueStateSnapshot().currentIndex)
 
         val manualTransition = manager.applyMirroredTransitionIndex(2, automaticAdvance = false)
-        assertEquals(false, manualTransition)
+        assertEquals(1, manualTransition?.completedIndex)
+        assertEquals(false, manualTransition?.stopAfterAutomaticAdvance)
         assertEquals(2, manager.queueStateSnapshot().currentIndex)
-        store.savedPositions.clear()
 
         provider.runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_OFF)
         val automaticTransition = manager.applyMirroredTransitionIndex(0, automaticAdvance = true)
-        assertEquals(true, automaticTransition)
+        assertEquals(2, automaticTransition?.completedIndex)
+        assertEquals(true, automaticTransition?.stopAfterAutomaticAdvance)
         assertEquals(2, manager.queueStateSnapshot().currentIndex)
-        assertEquals(listOf(3L to 0L, 3L to 0L), store.savedPositions)
     }
 
     @Test
-    fun mirroredTransitionPersistsAndResetsNewCurrentTrack() {
+    fun prepareMirroredTransitionPlaybackStatePersistsAndResetsNewCurrentTrack() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
         val first = track(1L, durationMs = 10_000L)
         val second = track(2L, durationMs = 10_000L)
-        val restoredSecond = track(20L, android.net.Uri.parse("content://music/restored-2"))
         provider.playbackPositionMsValue = 4200L
         val manager = queueManager(store, provider)
         restoreQueue(manager, store, listOf(first, second), 0)
-        provider.streamingRestoreProvider.restoredTracks[2L] = restoredSecond
         provider.streamingRestoreProvider.restoredDataPaths.clear()
         provider.runtimeStateManager.setErrorMessage("stale")
         provider.transitionStateManager.setLastMarkedTrack(first)
         provider.positionManager.setRestoredPosition(second.id, 1200L, explicit = true)
 
         manager.applyMirroredTransitionIndex(1, automaticAdvance = false)
+        manager.prepareMirroredTransitionPlaybackState()
 
         assertEquals(1, manager.queueStateSnapshot().currentIndex)
-        assertEquals(20L, manager.queueStateSnapshot().currentTrack?.id)
-        assertEquals(listOf(2L to 4200L, 20L to 0L), store.savedPositions)
-        assertEquals(listOf(1L, 20L), store.savedTracks.map { it.id })
+        assertEquals(listOf(2L to 4200L, 2L to 0L), store.savedPositions)
+        assertEquals(listOf(1L, 2L), store.savedTracks.map { it.id })
         assertEquals(1, store.savedIndex)
         assertEquals("", provider.runtimeStateManager.errorMessage())
         assertEquals(null, provider.transitionStateManager.lastMarkedTrack())
         assertEquals(listOf("/music/2"), provider.streamingRestoreProvider.restoredDataPaths)
-        assertEquals(0L, provider.positionManager.restoredPositionFor(restoredSecond))
+        assertEquals(0L, provider.positionManager.restoredPositionFor(second))
+    }
+
+    @Test
+    fun matchesMirroredQueueChecksItemCountAndDelegatesTrackIdentity() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        provider.queue.addAll(listOf(track(1L), track(2L)))
+        val manager = queueManager(store, provider)
+        val matchedTrackIds = mutableListOf<Long>()
+
+        assertFalse(
+                manager.matchesMirroredQueue(1, object : PlaybackQueueManager.QueueTrackMatcher {
+                    override fun matches(index: Int, track: Track): Boolean = true
+                })
+        )
+
+        assertFalse(
+                manager.matchesMirroredQueue(2, object : PlaybackQueueManager.QueueTrackMatcher {
+                    override fun matches(index: Int, track: Track): Boolean {
+                        matchedTrackIds.add(track.id)
+                        return index == 0
+                    }
+                })
+        )
+        assertEquals(listOf(1L, 2L), matchedTrackIds)
+
+        assertTrue(
+                manager.matchesMirroredQueue(2, object : PlaybackQueueManager.QueueTrackMatcher {
+                    override fun matches(index: Int, track: Track): Boolean = track.id == index + 1L
+                })
+        )
     }
 
     private fun queueManager(store: FakeQueueStore, provider: FakeQueueState): PlaybackQueueManager {
@@ -1046,23 +1232,23 @@ class PlaybackQueueManagerTest {
     private class FakeQueuePlaybackActions : PlaybackQueueManager.QueuePlaybackActions {
         var prepareCurrentCalled = false
         var published = false
+        var stoppedAndCleared = false
         override fun prepareCurrent(playWhenReady: Boolean) {
             prepareCurrentCalled = playWhenReady
         }
         override fun publishState() {
             published = true
         }
+        override fun stopAndClear() {
+            stoppedAndCleared = true
+        }
     }
 
     private class FakeStreamingRestoreProvider : PlaybackQueueManager.StreamingRestoreProvider {
         val restoredDataPaths = mutableListOf<String?>()
-        val restoredTracks = mutableMapOf<Long, Track>()
-        override fun restoreTrackForPlayback(track: Track): Track? {
-            if (!PlaybackMediaSourceProvider.isRestorableQueueTrack(track)) {
-                return null
-            }
-            restoredDataPaths.add(track.dataPath)
-            return restoredTracks[track.id] ?: track
+        override fun restoredTrackFor(track: Track): Track? = track
+        override fun restoreForDataPath(dataPath: String?) {
+            restoredDataPaths.add(dataPath)
         }
     }
 
@@ -1071,12 +1257,10 @@ class PlaybackQueueManagerTest {
         var seekToValue = false
         var seekIndex = -1
         var seekPositionMs = -1L
-        var seekPlayWhenReady = false
         override fun matchesCurrentQueue(): Boolean = matchesCurrentQueueValue
         override fun seekTo(index: Int, positionMs: Long, playWhenReady: Boolean): Boolean {
             seekIndex = index
             seekPositionMs = positionMs
-            seekPlayWhenReady = playWhenReady
             return seekToValue
         }
     }

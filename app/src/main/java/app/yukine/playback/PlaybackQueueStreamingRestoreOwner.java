@@ -4,7 +4,6 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
-import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -16,47 +15,34 @@ final class PlaybackQueueStreamingRestoreOwner implements PlaybackQueueManager.S
             Function<Track, Track> restoredTrackForPreparation,
             Consumer<String> restoreHeadersForDataPath
     ) {
-        this.restoredTrackForPreparation = Objects.requireNonNull(
-                restoredTrackForPreparation,
-                "restoredTrackForPreparation"
-        );
-        this.restoreHeadersForDataPath = Objects.requireNonNull(
-                restoreHeadersForDataPath,
-                "restoreHeadersForDataPath"
-        );
+        this.restoredTrackForPreparation = restoredTrackForPreparation;
+        this.restoreHeadersForDataPath = restoreHeadersForDataPath;
     }
 
-    PlaybackQueueStreamingRestoreOwner(PlaybackMediaSourceProvider mediaSourceProvider) {
-        this(
-                restoredTrackForPreparation(mediaSourceProvider),
-                restoreHeadersForDataPath(mediaSourceProvider)
+    static PlaybackQueueStreamingRestoreOwner fromMediaSourceProvider(
+            PlaybackMediaSourceProvider mediaSourceProvider
+    ) {
+        return new PlaybackQueueStreamingRestoreOwner(
+                track -> mediaSourceProvider == null
+                        ? null
+                        : mediaSourceProvider.restoredTrackForPreparation(track),
+                dataPath -> {
+                    if (mediaSourceProvider != null) {
+                        mediaSourceProvider.restoreHeadersForDataPath(dataPath);
+                    }
+                }
         );
     }
 
     @Override
-    public Track restoreTrackForPlayback(Track track) {
-        if (!PlaybackMediaSourceProvider.isRestorableQueueTrack(track)) {
-            return null;
+    public Track restoredTrackFor(Track track) {
+        return restoredTrackForPreparation == null ? null : restoredTrackForPreparation.apply(track);
+    }
+
+    @Override
+    public void restoreForDataPath(String dataPath) {
+        if (restoreHeadersForDataPath != null) {
+            restoreHeadersForDataPath.accept(dataPath);
         }
-        Track restoredTrack = restoredTrackForPreparation.apply(track);
-        Track playbackTrack = restoredTrack == null ? track : restoredTrack;
-        restoreHeadersForDataPath.accept(playbackTrack.dataPath);
-        return playbackTrack;
-    }
-
-    private static Function<Track, Track> restoredTrackForPreparation(
-            PlaybackMediaSourceProvider mediaSourceProvider
-    ) {
-        PlaybackMediaSourceProvider mediaSourceOwner =
-                Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider");
-        return mediaSourceOwner::restoredTrackForPreparation;
-    }
-
-    private static Consumer<String> restoreHeadersForDataPath(
-            PlaybackMediaSourceProvider mediaSourceProvider
-    ) {
-        PlaybackMediaSourceProvider mediaSourceOwner =
-                Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider");
-        return mediaSourceOwner::restoreHeadersForDataPath;
     }
 }

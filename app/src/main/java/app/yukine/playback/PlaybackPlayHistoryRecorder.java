@@ -2,11 +2,10 @@ package app.yukine.playback;
 
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackTransitionStateManager;
 
-import java.util.Objects;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 final class PlaybackPlayHistoryRecorder {
     interface HistorySink {
@@ -20,46 +19,37 @@ final class PlaybackPlayHistoryRecorder {
             HistorySink historySink,
             PlaybackTransitionStateManager transitionStateManager
     ) {
-        this.historySink = Objects.requireNonNull(historySink, "historySink");
-        this.transitionStateManager = Objects.requireNonNull(transitionStateManager, "transitionStateManager");
+        this.historySink = historySink;
+        this.transitionStateManager = transitionStateManager;
     }
 
     static PlaybackPlayHistoryRecorder fromRepository(
             MusicLibraryRepository repository,
             PlaybackTransitionStateManager transitionStateManager
     ) {
-        return new PlaybackPlayHistoryRecorder(
-                Objects.requireNonNull(repository, "repository")::markPlayed,
-                transitionStateManager
-        );
+        return new PlaybackPlayHistoryRecorder(repository::markPlayed, transitionStateManager);
     }
 
     static Runnable recordIfPlaybackStartedAction(
-            PlaybackPlayHistoryRecorder recorder,
+            Supplier<PlaybackPlayHistoryRecorder> recorderProvider,
             BooleanSupplier playWhenReady,
-            PlaybackQueueManager playbackQueueManager
+            Supplier<Track> currentTrack
     ) {
-        PlaybackPlayHistoryRecorder requiredRecorder =
-                Objects.requireNonNull(recorder, "recorder");
-        BooleanSupplier requiredPlayWhenReady =
-                Objects.requireNonNull(playWhenReady, "playWhenReady");
-        PlaybackQueueManager requiredQueueManager =
-                Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
         return () -> {
-            requiredRecorder.recordIfPlaybackStarted(
-                    requiredPlayWhenReady.getAsBoolean(),
-                    currentTrack(requiredQueueManager)
+            PlaybackPlayHistoryRecorder recorder =
+                    recorderProvider == null ? null : recorderProvider.get();
+            if (recorder == null) {
+                return;
+            }
+            recorder.recordIfPlaybackStarted(
+                    playWhenReady != null && playWhenReady.getAsBoolean(),
+                    currentTrack == null ? null : currentTrack.get()
             );
         };
     }
 
-    private static Track currentTrack(PlaybackQueueManager playbackQueueManager) {
-        PlaybackQueueManager.QueueStateSnapshot snapshot = playbackQueueManager.queueStateSnapshot();
-        return snapshot.getCurrentTrack();
-    }
-
     void recordIfPlaybackStarted(boolean playWhenReady, Track track) {
-        if (!playWhenReady || track == null) {
+        if (!playWhenReady || track == null || transitionStateManager == null) {
             return;
         }
         Track lastMarked = transitionStateManager.lastMarkedTrack();

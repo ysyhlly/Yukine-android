@@ -25,13 +25,15 @@ public final class PlaybackNotificationArtworkManagerTest {
     @Test
     public void queuedArtworkResultAfterReleaseDoesNotWriteCacheOrNotify() {
         List<Runnable> pending = new ArrayList<>();
+        FakeStateProvider stateProvider = new FakeStateProvider();
         FakeNotificationBridge notificationBridge = new FakeNotificationBridge();
         Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
         byte[] artworkData = new byte[] {1, 2, 3};
         Track track = track(1L);
+        stateProvider.currentTrack = track;
         FakeArtworkLoader artworkLoader = new FakeArtworkLoader(bitmap);
         PlaybackNotificationArtworkManager manager = manager(
-                track,
+                stateProvider,
                 notificationBridge,
                 pending,
                 artworkLoader,
@@ -52,13 +54,15 @@ public final class PlaybackNotificationArtworkManagerTest {
     @Test
     public void releaseDuringArtworkDecodeDoesNotWriteCacheOrNotify() {
         List<Runnable> pending = new ArrayList<>();
+        FakeStateProvider stateProvider = new FakeStateProvider();
         FakeNotificationBridge notificationBridge = new FakeNotificationBridge();
         Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
         byte[] artworkData = new byte[] {4, 5, 6};
         Track track = track(2L);
+        stateProvider.currentTrack = track;
         final PlaybackNotificationArtworkManager[] holder = new PlaybackNotificationArtworkManager[1];
         holder[0] = manager(
-                track,
+                stateProvider,
                 notificationBridge,
                 pending,
                 ignored -> {
@@ -80,12 +84,14 @@ public final class PlaybackNotificationArtworkManagerTest {
     @Test
     public void releasePreventsFutureArtworkLoad() {
         List<Runnable> pending = new ArrayList<>();
+        FakeStateProvider stateProvider = new FakeStateProvider();
         FakeNotificationBridge notificationBridge = new FakeNotificationBridge();
         Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
         Track track = track(3L);
+        stateProvider.currentTrack = track;
         FakeArtworkLoader artworkLoader = new FakeArtworkLoader(bitmap);
         PlaybackNotificationArtworkManager manager = manager(
-                track,
+                stateProvider,
                 notificationBridge,
                 pending,
                 artworkLoader,
@@ -105,12 +111,14 @@ public final class PlaybackNotificationArtworkManagerTest {
     @Test
     public void releaseIsIdempotentAfterQueuedArtworkInvalidation() throws Exception {
         List<Runnable> pending = new ArrayList<>();
+        FakeStateProvider stateProvider = new FakeStateProvider();
         FakeNotificationBridge notificationBridge = new FakeNotificationBridge();
         Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
         Track track = track(5L);
+        stateProvider.currentTrack = track;
         FakeArtworkLoader artworkLoader = new FakeArtworkLoader(bitmap);
         PlaybackNotificationArtworkManager manager = manager(
-                track,
+                stateProvider,
                 notificationBridge,
                 pending,
                 artworkLoader,
@@ -135,12 +143,14 @@ public final class PlaybackNotificationArtworkManagerTest {
     @Test
     public void queuedArtworkResultCachesAndRefreshesForCurrentTrack() {
         List<Runnable> pending = new ArrayList<>();
+        FakeStateProvider stateProvider = new FakeStateProvider();
         FakeNotificationBridge notificationBridge = new FakeNotificationBridge();
         Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
         byte[] artworkData = new byte[] {7, 8, 9};
         Track track = track(4L);
+        stateProvider.currentTrack = track;
         PlaybackNotificationArtworkManager manager = manager(
-                track,
+                stateProvider,
                 notificationBridge,
                 pending,
                 ignored -> bitmap,
@@ -157,7 +167,7 @@ public final class PlaybackNotificationArtworkManagerTest {
     }
 
     private static PlaybackNotificationArtworkManager manager(
-            Track currentTrack,
+            PlaybackNotificationArtworkManager.StateProvider stateProvider,
             PlaybackNotificationArtworkManager.NotificationBridge notificationBridge,
             List<Runnable> pending,
             PlaybackNotificationArtworkManager.ArtworkLoader artworkLoader,
@@ -165,7 +175,7 @@ public final class PlaybackNotificationArtworkManagerTest {
     ) {
         return new PlaybackNotificationArtworkManager(
                 RuntimeEnvironment.getApplication(),
-                () -> currentTrack,
+                stateProvider,
                 notificationBridge,
                 pending::add,
                 artworkLoader,
@@ -191,6 +201,15 @@ public final class PlaybackNotificationArtworkManagerTest {
                 0L,
                 Uri.parse("content://artwork/" + id)
         );
+    }
+
+    private static final class FakeStateProvider implements PlaybackNotificationArtworkManager.StateProvider {
+        private Track currentTrack;
+
+        @Override
+        public Track currentTrack() {
+            return currentTrack;
+        }
     }
 
     private static final class FakeNotificationBridge implements PlaybackNotificationArtworkManager.NotificationBridge {

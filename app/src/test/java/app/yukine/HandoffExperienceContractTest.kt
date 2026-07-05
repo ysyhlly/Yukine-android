@@ -58,7 +58,7 @@ class HandoffExperienceContractTest {
     @Test
     fun streamingSearchFiltersOutNonSongResults() {
         val viewModel = read("app/src/main/java/app/yukine/StreamingViewModel.kt")
-        val merger = read("app/src/main/java/app/yukine/streaming/StreamingSearchMerger.kt")
+        val merger = read("feature/streaming/src/main/java/app/yukine/streaming/StreamingSearchMerger.kt")
         val screen = read("feature/ui-common/src/main/java/app/yukine/ui/StreamingSearchScreen.kt")
 
         assertTrue(viewModel.contains("trackOnlySearchResult()"))

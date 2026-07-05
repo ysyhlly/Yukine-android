@@ -2,7 +2,6 @@ package app.yukine.playback;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThrows;
 import static org.robolectric.Shadows.shadowOf;
 
 import android.content.Context;
@@ -12,12 +11,10 @@ import android.os.Looper;
 
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DataSpec;
-import androidx.media3.datasource.cache.CacheDataSource;
 
 import app.yukine.common.StreamingDataPathParser;
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackMediaCacheOperations;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.streaming.StreamingPlaybackHeaderStore;
 
@@ -27,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -36,33 +34,6 @@ import org.robolectric.RobolectricTestRunner;
 @UnstableApi
 @RunWith(RobolectricTestRunner.class)
 public final class PlaybackVisualizationCacheManagerTest {
-    @Test
-    public void constructorRequiresMediaCacheOperations() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackVisualizationCacheManager(
-                        new FakeStateProvider(),
-                        null,
-                        new FakeCacheWriterFactory()
-                )
-        );
-
-        assertEquals("mediaCacheOperations", error.getMessage());
-    }
-
-    @Test
-    public void fromMediaSourceProviderRequiresMediaSourceProvider() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> PlaybackVisualizationCacheManager.fromMediaSourceProvider(
-                        new FakeStateProvider(),
-                        null
-                )
-        );
-
-        assertEquals("mediaSourceProvider", error.getMessage());
-    }
-
     @Test
     public void releaseBeforeMainCallbackSkipsSchedulingCacheTask() {
         FakeStateProvider stateProvider = new FakeStateProvider();
@@ -102,15 +73,12 @@ public final class PlaybackVisualizationCacheManagerTest {
         Track track = track(8L);
         stateProvider.currentTrack = track;
         FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
-        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
-        PlaybackVisualizationCacheManager manager =
-                manager(stateProvider, mediaCacheOperations, writerFactory);
+        PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
 
         manager.release();
         manager.scheduleVisualizationCache(track);
         shadowOf(Looper.getMainLooper()).idle();
 
-        assertEquals(0, mediaCacheOperations.cacheKeyForPrecacheCalls);
         assertEquals(0, stateProvider.scheduledTasks.size());
         assertEquals(0, writerFactory.createCalls);
     }
@@ -177,90 +145,6 @@ public final class PlaybackVisualizationCacheManagerTest {
     }
 
     @Test
-    public void partiallyCachedVisualizationWindowResumesFromCachedBytes() {
-        FakeStateProvider stateProvider = new FakeStateProvider();
-        Track track = track(10L);
-        stateProvider.currentTrack = track;
-        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
-        long cachedBytes = 128L * 1024L;
-        mediaCacheOperations.cachedBytes = cachedBytes;
-        FakeCacheWriter writer = new FakeCacheWriter(null);
-        FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory(writer);
-        PlaybackVisualizationCacheManager manager =
-                manager(stateProvider, mediaCacheOperations, writerFactory);
-
-        manager.scheduleVisualizationCache(track);
-        shadowOf(Looper.getMainLooper()).idle();
-        stateProvider.scheduledTasks.get(0).run();
-
-        assertEquals(1, mediaCacheOperations.cachedBytesInRangeCalls);
-        assertSame(track, writerFactory.lastTrack);
-        assertEquals(cachedBytes, writerFactory.lastDataSpec.position);
-        assertEquals(64L * 1024L * 1024L - cachedBytes, writerFactory.lastDataSpec.length);
-        assertEquals(1, writer.cacheCalls);
-    }
-
-    @Test
-    public void visualizationCacheDataSpecUsesMediaCacheOperationsCacheKey() {
-        FakeStateProvider stateProvider = new FakeStateProvider();
-        Track track = track(12L);
-        stateProvider.currentTrack = track;
-        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
-        mediaCacheOperations.cacheKey = "webdav:3:/music/webdav.flac";
-        FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
-        PlaybackVisualizationCacheManager manager =
-                manager(stateProvider, mediaCacheOperations, writerFactory);
-
-        manager.scheduleVisualizationCache(track);
-        shadowOf(Looper.getMainLooper()).idle();
-        stateProvider.scheduledTasks.get(0).run();
-
-        assertEquals(2, mediaCacheOperations.cacheKeyForPrecacheCalls);
-        assertEquals("webdav:3:/music/webdav.flac", writerFactory.lastDataSpec.key);
-        assertEquals(1, writerFactory.createCalls);
-    }
-
-    @Test
-    public void emptyCacheKeyFromMediaCacheOperationsSkipsVisualizationCache() {
-        FakeStateProvider stateProvider = new FakeStateProvider();
-        Track track = track(14L);
-        stateProvider.currentTrack = track;
-        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
-        mediaCacheOperations.cacheKey = "";
-        FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
-        PlaybackVisualizationCacheManager manager =
-                manager(stateProvider, mediaCacheOperations, writerFactory);
-
-        manager.scheduleVisualizationCache(track);
-        shadowOf(Looper.getMainLooper()).idle();
-
-        assertEquals(1, mediaCacheOperations.cacheKeyForPrecacheCalls);
-        assertEquals(0, mediaCacheOperations.cachedBytesInRangeCalls);
-        assertEquals(0, stateProvider.scheduledTasks.size());
-        assertEquals(0, writerFactory.createCalls);
-    }
-
-    @Test
-    public void fullyCachedVisualizationWindowSkipsCacheWriterCreation() {
-        FakeStateProvider stateProvider = new FakeStateProvider();
-        Track track = track(11L);
-        stateProvider.currentTrack = track;
-        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
-        mediaCacheOperations.cachedBytes = 64L * 1024L * 1024L;
-        FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
-        PlaybackVisualizationCacheManager manager =
-                manager(stateProvider, mediaCacheOperations, writerFactory);
-
-        manager.scheduleVisualizationCache(track);
-        shadowOf(Looper.getMainLooper()).idle();
-        stateProvider.scheduledTasks.get(0).run();
-
-        assertEquals(1, stateProvider.scheduledTasks.size());
-        assertEquals(1, mediaCacheOperations.cachedBytesInRangeCalls);
-        assertEquals(0, writerFactory.createCalls);
-    }
-
-    @Test
     public void nonHttpTrackDoesNotScheduleVisualizationCache() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         Track track = track(7L, "content://media/audio/7");
@@ -273,6 +157,30 @@ public final class PlaybackVisualizationCacheManagerTest {
 
         assertEquals(0, stateProvider.scheduledTasks.size());
         assertEquals(0, writerFactory.createCalls);
+    }
+
+    @Test
+    public void scheduleVisualizationCacheActionFromSupplierDelegatesThroughManager() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        Track track = track(10L);
+        stateProvider.currentTrack = track;
+        FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
+        PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
+        Consumer<Track> action =
+                PlaybackVisualizationCacheManager.scheduleVisualizationCacheActionFromSupplier(() -> manager);
+
+        action.accept(track);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(1, stateProvider.scheduledTasks.size());
+    }
+
+    @Test
+    public void scheduleVisualizationCacheActionFromSupplierIgnoresMissingManager() {
+        Consumer<Track> action =
+                PlaybackVisualizationCacheManager.scheduleVisualizationCacheActionFromSupplier(() -> null);
+
+        action.accept(track(11L));
     }
 
     @Test
@@ -290,43 +198,13 @@ public final class PlaybackVisualizationCacheManagerTest {
         assertEquals(0, writerFactory.createCalls);
     }
 
-    @Test
-    public void mediaSourceProviderFactoryUsesProviderResolvedIdentityForScheduling() {
-        FakeStateProvider stateProvider = new FakeStateProvider();
-        PlaybackMediaSourceProvider mediaSourceProvider = mediaSourceProvider();
-        PlaybackVisualizationCacheManager manager =
-                PlaybackVisualizationCacheManager.fromMediaSourceProvider(stateProvider, mediaSourceProvider);
-        Track visualTrack = track(13L, "https://example.com/shared.mp3");
-
-        stateProvider.currentTrack = track(13L, "https://example.com/shared.mp3");
-        manager.scheduleVisualizationCache(visualTrack);
-        shadowOf(Looper.getMainLooper()).idle();
-
-        assertEquals(1, stateProvider.scheduledTasks.size());
-
-        stateProvider.scheduledTasks.clear();
-        stateProvider.currentTrack = track(13L, "https://example.com/different.mp3");
-        manager.scheduleVisualizationCache(visualTrack);
-        shadowOf(Looper.getMainLooper()).idle();
-
-        assertEquals(0, stateProvider.scheduledTasks.size());
-    }
-
     private static PlaybackVisualizationCacheManager manager(
             FakeStateProvider stateProvider,
-            PlaybackVisualizationCacheManager.VisualizationCacheWriterFactory writerFactory
-    ) {
-        return manager(stateProvider, new FakeMediaCacheOperations(), writerFactory);
-    }
-
-    private static PlaybackVisualizationCacheManager manager(
-            FakeStateProvider stateProvider,
-            FakeMediaCacheOperations mediaCacheOperations,
             PlaybackVisualizationCacheManager.VisualizationCacheWriterFactory writerFactory
     ) {
         return new PlaybackVisualizationCacheManager(
                 stateProvider,
-                mediaCacheOperations,
+                mediaSourceProvider(),
                 writerFactory
         );
     }
@@ -335,6 +213,15 @@ public final class PlaybackVisualizationCacheManagerTest {
         Field field = PlaybackVisualizationCacheManager.class.getDeclaredField("cacheGeneration");
         field.setAccessible(true);
         return ((AtomicInteger) field.get(manager)).get();
+    }
+
+    private static PlaybackMediaSourceProvider mediaSourceProvider() {
+        Context context = RuntimeEnvironment.getApplication();
+        return new PlaybackMediaSourceProvider(
+                context,
+                new MusicLibraryRepository(context, new FakeStreamingDataPathParser()),
+                new FakeStreamingPlaybackHeaderStore()
+        );
     }
 
     private static Track track(long id) {
@@ -350,15 +237,6 @@ public final class PlaybackVisualizationCacheManagerTest {
                 180_000L,
                 Uri.parse(uri),
                 "streaming:test:" + id
-        );
-    }
-
-    private static PlaybackMediaSourceProvider mediaSourceProvider() {
-        Context context = RuntimeEnvironment.getApplication();
-        return new PlaybackMediaSourceProvider(
-                context,
-                new MusicLibraryRepository(context, new FakeStreamingDataPathParser()),
-                new FakeStreamingPlaybackHeaderStore()
         );
     }
 
@@ -427,69 +305,6 @@ public final class PlaybackVisualizationCacheManagerTest {
         public void cancel() {
             cancelCalls++;
         }
-    }
-
-    private static final class FakeMediaCacheOperations
-            implements PlaybackMediaCacheOperations {
-        private int cacheKeyForPrecacheCalls;
-        private int cachedBytesInRangeCalls;
-        private String cacheKey;
-        private long cachedBytes;
-
-        @Override
-        public boolean tracksShareResolvedUriForReuse(Track current, Track candidate) {
-            return current != null
-                    && candidate != null
-                    && current.contentUri != null
-                    && current.contentUri.equals(candidate.contentUri);
-        }
-
-        @Override
-        public String cacheKeyForPrecache(Track track) {
-            cacheKeyForPrecacheCalls++;
-            if (cacheKey != null) {
-                return cacheKey;
-            }
-            String scheme = track == null || track.contentUri == null ? null : track.contentUri.getScheme();
-            if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
-                return null;
-            }
-            if (track.dataPath == null || track.dataPath.isEmpty()) {
-                return null;
-            }
-            return track.dataPath + "|url=" + track.contentUri;
-        }
-
-        @Override
-        public long cachedBytesInRange(String cacheKey, long position, long length) {
-            cachedBytesInRangeCalls++;
-            return cachedBytes;
-        }
-
-        @Override
-        public CacheDataSource cacheDataSourceForTrack(Track track) {
-            return null;
-        }
-
-        @Override
-        public long contentLengthForCacheKey(String cacheKey) {
-            return -1L;
-        }
-
-        @Override
-        public long probeSegmentedPrecacheContentLength(
-                Track track,
-                String cacheKey,
-                long start,
-                long length
-        ) {
-            return -1L;
-        }
-
-        @Override
-        public void releaseAudioCache() {
-        }
-
     }
 
     private static final class FakeStreamingDataPathParser implements StreamingDataPathParser {

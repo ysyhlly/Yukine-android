@@ -1,22 +1,11 @@
 package app.yukine.playback;
 
-import android.net.Uri;
-
-import androidx.media3.exoplayer.ExoPlayer;
-
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 
-import app.yukine.model.PlaybackQueueState;
-import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
-import app.yukine.playback.manager.PlaybackQueueStore;
-import app.yukine.playback.manager.PlaybackRuntimeStateManager;
-import app.yukine.playback.manager.PlaybackTransitionStateManager;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -43,7 +32,10 @@ public class PlaybackCrossfadeStateOwnerTest {
                     events.add("repeat");
                     return 2;
                 },
-                queueManagerWithQueue(2, 0),
+                () -> {
+                    events.add("queue");
+                    return queueStateSnapshot(1, 3);
+                },
                 () -> {
                     events.add("volume");
                     return 0.75f;
@@ -60,6 +52,7 @@ public class PlaybackCrossfadeStateOwnerTest {
                         "fadeOut",
                         "player",
                         "playing",
+                        "queue",
                         "repeat",
                         "volume"
                 ),
@@ -68,61 +61,31 @@ public class PlaybackCrossfadeStateOwnerTest {
     }
 
     @Test
-    public void crossfadeAdvancePolicyUsesQueueStateAndRepeatMode() {
-        PlaybackCrossfadeStateOwner singleTrack = owner(queueManagerWithQueue(1, 0), PlaybackRepeatMode.REPEAT_ALL);
-        PlaybackCrossfadeStateOwner repeatOffBeforeEnd = owner(queueManagerWithQueue(2, 0), PlaybackRepeatMode.REPEAT_OFF);
-        PlaybackCrossfadeStateOwner repeatOffAtEnd = owner(queueManagerWithQueue(2, 1), PlaybackRepeatMode.REPEAT_OFF);
-        PlaybackCrossfadeStateOwner repeatAllAtEnd = owner(queueManagerWithQueue(2, 1), PlaybackRepeatMode.REPEAT_ALL);
+    public void crossfadeAdvancePolicyUsesQueueSnapshotAndRepeatMode() {
+        PlaybackCrossfadeStateOwner missingQueue = owner(null, PlaybackRepeatMode.REPEAT_ALL);
+        PlaybackCrossfadeStateOwner singleTrack = owner(queueStateSnapshot(0, 1), PlaybackRepeatMode.REPEAT_ALL);
+        PlaybackCrossfadeStateOwner repeatOffBeforeEnd = owner(
+                queueStateSnapshot(0, 2),
+                PlaybackRepeatMode.REPEAT_OFF
+        );
+        PlaybackCrossfadeStateOwner repeatOffAtEnd = owner(
+                queueStateSnapshot(1, 2),
+                PlaybackRepeatMode.REPEAT_OFF
+        );
+        PlaybackCrossfadeStateOwner repeatAllAtEnd = owner(
+                queueStateSnapshot(1, 2),
+                PlaybackRepeatMode.REPEAT_ALL
+        );
 
+        assertFalse(missingQueue.canCrossfadeAdvance());
         assertFalse(singleTrack.canCrossfadeAdvance());
         assertTrue(repeatOffBeforeEnd.canCrossfadeAdvance());
         assertFalse(repeatOffAtEnd.canCrossfadeAdvance());
         assertTrue(repeatAllAtEnd.canCrossfadeAdvance());
     }
 
-    @Test(expected = NullPointerException.class)
-    public void constructorRequiresQueueManager() {
-        owner(null, PlaybackRepeatMode.REPEAT_ALL);
-    }
-
-    @Test
-    public void constructorRequiresPlaybackStateProvider() {
-        try {
-            new PlaybackCrossfadeStateOwner(
-                    () -> false,
-                    () -> true,
-                    null,
-                    () -> PlaybackRepeatMode.REPEAT_ALL,
-                    queueManagerWithQueue(2, 0),
-                    () -> 1.0f
-            );
-        } catch (NullPointerException expected) {
-            assertEquals("playbackStateProvider", expected.getMessage());
-            return;
-        }
-        throw new AssertionError("Expected constructor to require playbackStateProvider");
-    }
-
-    @Test
-    public void constructorRequiresBaseVolumeProvider() {
-        try {
-            new PlaybackCrossfadeStateOwner(
-                    () -> false,
-                    () -> true,
-                    () -> true,
-                    () -> PlaybackRepeatMode.REPEAT_ALL,
-                    queueManagerWithQueue(2, 0),
-                    null
-            );
-        } catch (NullPointerException expected) {
-            assertEquals("baseVolumeProvider", expected.getMessage());
-            return;
-        }
-        throw new AssertionError("Expected constructor to require baseVolumeProvider");
-    }
-
     private static PlaybackCrossfadeStateOwner owner(
-            PlaybackQueueManager playbackQueueManager,
+            PlaybackQueueManager.QueueStateSnapshot snapshot,
             int repeatMode
     ) {
         return new PlaybackCrossfadeStateOwner(
@@ -130,135 +93,19 @@ public class PlaybackCrossfadeStateOwnerTest {
                 () -> true,
                 () -> true,
                 () -> repeatMode,
-                playbackQueueManager,
+                snapshot == null ? null : () -> snapshot,
                 () -> 1.0f
         );
     }
 
-    private static PlaybackQueueManager queueManagerWithQueue(
-            int queueSize,
-            int currentIndex
+    private static PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot(
+            int currentIndex,
+            int queueSize
     ) {
-        PlaybackQueueManager queueManager = playbackQueueManager();
-        List<Track> queue = new ArrayList<>();
-        for (int index = 0; index < queueSize; index++) {
-            queue.add(track(index + 1L));
-        }
-        queueManager.playQueue(queue, currentIndex, -1L);
-        return queueManager;
-    }
-
-    private static Track track(long id) {
-        return new Track(id, "Track " + id, "Artist", "Album", 1000L, Uri.EMPTY, "file:" + id);
-    }
-
-    private static PlaybackQueueManager playbackQueueManager() {
-        return new PlaybackQueueManager(
-                new FakeQueueStore(),
-                new ArrayList<>(),
-                new NoopQueuePlaybackActions(),
+        return new PlaybackQueueManager.QueueStateSnapshot(
                 null,
-                new NoopStreamingRestoreProvider(),
-                new NoopMirroredQueuePlayer(),
-                playbackRuntimeStateManager(),
-                new PlaybackTransitionStateManager(),
-                new Random(1L)
+                currentIndex,
+                queueSize
         );
-    }
-
-    private static PlaybackRuntimeStateManager playbackRuntimeStateManager() {
-        return new PlaybackRuntimeStateManager(
-                new PlaybackRuntimeStateManager.StateProvider() {
-                    @Override
-                    public ExoPlayer player() {
-                        return null;
-                    }
-
-                    @Override
-                    public boolean playerMirrorsQueue() {
-                        return false;
-                    }
-
-                    @Override
-                    public Track currentTrack() {
-                        return null;
-                    }
-                }
-        );
-    }
-
-    private static final class FakeQueueStore implements PlaybackQueueStore {
-        @Override
-        public PlaybackQueueState load() {
-            return new PlaybackQueueState(Collections.emptyList(), -1);
-        }
-
-        @Override
-        public void save(List<Track> tracks, int currentIndex) {
-        }
-
-        @Override
-        public boolean loadResumeRequested() {
-            return false;
-        }
-
-        @Override
-        public void saveResumeRequested(boolean requested) {
-        }
-
-        @Override
-        public boolean loadPlaybackRestoreEnabled() {
-            return true;
-        }
-
-        @Override
-        public void savePlaybackRestoreEnabled(boolean enabled) {
-        }
-
-        @Override
-        public long loadPlaybackPositionTrackId() {
-            return -1L;
-        }
-
-        @Override
-        public long loadPlaybackPositionMs() {
-            return 0L;
-        }
-
-        @Override
-        public void savePlaybackPosition(long trackId, long positionMs) {
-        }
-    }
-
-    private static final class NoopQueuePlaybackActions
-            implements PlaybackQueueManager.QueuePlaybackActions {
-        @Override
-        public void prepareCurrent(boolean playWhenReady) {
-        }
-
-        @Override
-        public void publishState() {
-        }
-    }
-
-    private static final class NoopStreamingRestoreProvider
-            implements PlaybackQueueManager.StreamingRestoreProvider {
-        @Override
-        public Track restoreTrackForPlayback(Track track) {
-            return track;
-        }
-    }
-
-    private static final class NoopMirroredQueuePlayer
-            implements PlaybackQueueManager.MirroredQueuePlayer {
-        @Override
-        public boolean matchesCurrentQueue() {
-            return false;
-        }
-
-        @Override
-        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
-            return false;
-        }
     }
 }

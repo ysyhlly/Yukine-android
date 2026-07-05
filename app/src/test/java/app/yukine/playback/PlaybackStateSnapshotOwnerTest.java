@@ -2,20 +2,11 @@ package app.yukine.playback;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThrows;
 
 import android.net.Uri;
 
-import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
-import app.yukine.playback.manager.PlaybackQueueStore;
-import app.yukine.playback.manager.PlaybackRuntimeStateManager;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import org.junit.Test;
 
 public class PlaybackStateSnapshotOwnerTest {
@@ -27,12 +18,13 @@ public class PlaybackStateSnapshotOwnerTest {
         FakePlaybackPositionProvider playback = new FakePlaybackPositionProvider(321L, 7000L, true);
         FakeVisualizationProvider visualization = new FakeVisualizationProvider(waveform, spectrum, true);
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
-                queueManagerWithSnapshot(track, 2, 5),
+                () -> new PlaybackQueueManager.QueueStateSnapshot(track, 2, 5),
                 playback,
                 new FakeRuntimeStateProvider(true, "buffering", true, 1, 1.25f, 0.75f),
                 () -> 9000L,
                 visualization,
-                () -> 0.4f
+                () -> 0.4f,
+                3
         );
 
         PlaybackStateSnapshot snapshot = owner.snapshot();
@@ -59,14 +51,15 @@ public class PlaybackStateSnapshotOwnerTest {
     }
 
     @Test
-    public void buildsEmptyQueueSnapshotFromRequiredProviders() {
+    public void fallsBackToEmptySnapshotPiecesWhenDependenciesAreMissing() {
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
-                playbackQueueManager(),
-                new FakePlaybackPositionProvider(0L, 0L, false),
-                new FakeRuntimeStateProvider(false, "", false, 7, 1.0f, 1.0f),
-                () -> 0L,
-                FakeVisualizationProvider.empty(),
-                () -> 0.4f
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                7
         );
 
         PlaybackStateSnapshot snapshot = owner.snapshot();
@@ -89,113 +82,17 @@ public class PlaybackStateSnapshotOwnerTest {
         assertEquals(0f, snapshot.realtimeBeat, 0.001f);
     }
 
-    @Test(expected = NullPointerException.class)
-    public void constructorRequiresQueueManager() {
-        new PlaybackStateSnapshotOwner(
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-        );
-    }
-
-    @Test
-    public void constructorRequiresRuntimeStateProvider() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackStateSnapshotOwner(
-                        playbackQueueManager(),
-                        new FakePlaybackPositionProvider(0L, 0L, false),
-                        null,
-                        () -> 0L,
-                        FakeVisualizationProvider.empty(),
-                        () -> 0f
-                )
-        );
-
-        assertEquals("runtimeStateProvider", error.getMessage());
-    }
-
-    @Test
-    public void constructorRequiresPlaybackPositionProvider() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackStateSnapshotOwner(
-                        playbackQueueManager(),
-                        null,
-                        new FakeRuntimeStateProvider(false, "", false, 0, 1.0f, 1.0f),
-                        () -> 0L,
-                        FakeVisualizationProvider.empty(),
-                        () -> 0f
-                )
-        );
-
-        assertEquals("playbackPositionProvider", error.getMessage());
-    }
-
-    @Test
-    public void constructorRequiresSleepTimerProvider() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackStateSnapshotOwner(
-                        playbackQueueManager(),
-                        new FakePlaybackPositionProvider(0L, 0L, false),
-                        new FakeRuntimeStateProvider(false, "", false, 0, 1.0f, 1.0f),
-                        null,
-                        FakeVisualizationProvider.empty(),
-                        () -> 0f
-                )
-        );
-
-        assertEquals("sleepTimerProvider", error.getMessage());
-    }
-
-    @Test
-    public void constructorRequiresVisualizationProvider() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackStateSnapshotOwner(
-                        playbackQueueManager(),
-                        new FakePlaybackPositionProvider(0L, 0L, false),
-                        new FakeRuntimeStateProvider(false, "", false, 0, 1.0f, 1.0f),
-                        () -> 0L,
-                        null,
-                        () -> 0f
-                )
-        );
-
-        assertEquals("visualizationProvider", error.getMessage());
-    }
-
-    @Test
-    public void constructorRequiresRealtimeBeatProvider() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackStateSnapshotOwner(
-                        playbackQueueManager(),
-                        new FakePlaybackPositionProvider(0L, 0L, false),
-                        new FakeRuntimeStateProvider(false, "", false, 0, 1.0f, 1.0f),
-                        () -> 0L,
-                        FakeVisualizationProvider.empty(),
-                        null
-                )
-        );
-
-        assertEquals("realtimeBeatProvider", error.getMessage());
-    }
-
     @Test
     public void doesNotReadRealtimeBeatWhenPlaybackIsPaused() {
         CountingBeatProvider beatProvider = new CountingBeatProvider();
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
-                playbackQueueManager(),
+                () -> PlaybackQueueManager.QueueStateSnapshot.empty(),
                 new FakePlaybackPositionProvider(0L, 0L, false),
-                new FakeRuntimeStateProvider(false, "", false, 0, 1.0f, 1.0f),
-                () -> 0L,
-                FakeVisualizationProvider.empty(),
-                beatProvider
+                null,
+                null,
+                null,
+                beatProvider,
+                0
         );
 
         PlaybackStateSnapshot snapshot = owner.snapshot();
@@ -204,168 +101,16 @@ public class PlaybackStateSnapshotOwnerTest {
         assertEquals(0, beatProvider.calls);
     }
 
-    @Test
-    public void runtimeStateProviderReadsPlaybackRuntimeStateManagerDirectly() {
-        PlaybackRuntimeStateManager runtimeStateManager = playbackRuntimeStateManager();
-        runtimeStateManager.setPreparing(true);
-        runtimeStateManager.setErrorMessage("loading");
-        runtimeStateManager.setShuffleEnabled(true);
-        runtimeStateManager.setRepeatMode(PlaybackRepeatMode.REPEAT_ONE);
-        runtimeStateManager.setPlaybackSpeed(1.5f);
-        runtimeStateManager.setAppVolume(0.4f);
-        PlaybackStateSnapshotOwner.RuntimeStateProvider provider =
-                PlaybackStateSnapshotOwner.fromRuntimeStateManager(runtimeStateManager);
-
-        assertEquals(true, provider.preparing());
-        assertEquals("loading", provider.errorMessage());
-        assertEquals(true, provider.shuffleEnabled());
-        assertEquals(PlaybackRepeatMode.REPEAT_ONE, provider.repeatMode());
-        assertEquals(1.5f, provider.playbackSpeed(), 0.001f);
-        assertEquals(0.4f, provider.appVolume(), 0.001f);
-
-        runtimeStateManager.setPreparing(false);
-        runtimeStateManager.setErrorMessage(null);
-
-        assertEquals(false, provider.preparing());
-        assertEquals("", provider.errorMessage());
-    }
-
-    @Test
-    public void runtimeStateProviderRequiresPlaybackRuntimeStateManager() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> PlaybackStateSnapshotOwner.fromRuntimeStateManager(null)
-        );
-
-        assertEquals("runtimeStateManager", error.getMessage());
-    }
-
-    @Test
-    public void visualizationProviderRequiresVisualizationAnalyzer() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> PlaybackStateSnapshotOwner.fromVisualizationAnalyzer(null)
-        );
-
-        assertEquals("playbackVisualizationAnalyzer", error.getMessage());
-    }
-
     private static Track track() {
-        return track(42L);
-    }
-
-    private static Track track(long id) {
         return new Track(
-                id,
-                "Track " + id,
+                42L,
+                "Track",
                 "Artist",
                 "Album",
                 6000L,
                 Uri.parse("https://example.test/track.mp3"),
-                "streaming:test:" + id
+                "streaming:test:42"
         );
-    }
-
-    private static PlaybackRuntimeStateManager playbackRuntimeStateManager() {
-        return new PlaybackRuntimeStateManager(
-                PlaybackRuntimeStateManager.stateProviderFromPlaybackState(null, null)
-        );
-    }
-
-    private static PlaybackQueueManager queueManagerWithSnapshot(
-            Track currentTrack,
-            int currentIndex,
-            int queueSize
-    ) {
-        if (currentTrack == null || currentIndex < 0 || currentIndex >= queueSize || queueSize <= 0) {
-            return null;
-        }
-        PlaybackQueueManager queueManager = playbackQueueManager();
-        List<Track> queue = new ArrayList<>();
-        for (int index = 0; index < queueSize; index++) {
-            queue.add(index == currentIndex ? currentTrack : track(1000L + index));
-        }
-        queueManager.playQueue(queue, currentIndex, 0L);
-        return queueManager;
-    }
-
-    private static PlaybackQueueManager playbackQueueManager() {
-        return new PlaybackQueueManager(
-                new FakeQueueStore(),
-                new NoopQueuePlaybackActions(),
-                null,
-                track -> track,
-                new NoopMirroredQueuePlayer(),
-                playbackRuntimeStateManager(),
-                null
-        );
-    }
-
-    private static final class FakeQueueStore implements PlaybackQueueStore {
-        @Override
-        public PlaybackQueueState load() {
-            return new PlaybackQueueState(Collections.emptyList(), -1);
-        }
-
-        @Override
-        public void save(List<Track> tracks, int currentIndex) {
-        }
-
-        @Override
-        public boolean loadResumeRequested() {
-            return false;
-        }
-
-        @Override
-        public void saveResumeRequested(boolean requested) {
-        }
-
-        @Override
-        public boolean loadPlaybackRestoreEnabled() {
-            return true;
-        }
-
-        @Override
-        public void savePlaybackRestoreEnabled(boolean enabled) {
-        }
-
-        @Override
-        public long loadPlaybackPositionTrackId() {
-            return -1L;
-        }
-
-        @Override
-        public long loadPlaybackPositionMs() {
-            return 0L;
-        }
-
-        @Override
-        public void savePlaybackPosition(long trackId, long positionMs) {
-        }
-    }
-
-    private static final class NoopQueuePlaybackActions
-            implements PlaybackQueueManager.QueuePlaybackActions {
-        @Override
-        public void prepareCurrent(boolean playWhenReady) {
-        }
-
-        @Override
-        public void publishState() {
-        }
-    }
-
-    private static final class NoopMirroredQueuePlayer
-            implements PlaybackQueueManager.MirroredQueuePlayer {
-        @Override
-        public boolean matchesCurrentQueue() {
-            return false;
-        }
-
-        @Override
-        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
-            return false;
-        }
     }
 
     private static final class FakePlaybackPositionProvider
@@ -471,14 +216,6 @@ public class PlaybackStateSnapshotOwnerTest {
             this.deferGeneration = deferGeneration;
         }
 
-        private static FakeVisualizationProvider empty() {
-            return new FakeVisualizationProvider(
-                    PlaybackWaveformSnapshot.empty(),
-                    PlaybackSpectrumSnapshot.empty(),
-                    false
-            );
-        }
-
         @Override
         public boolean shouldDeferPlaybackVisualization() {
             return deferGeneration;
@@ -498,14 +235,13 @@ public class PlaybackStateSnapshotOwnerTest {
         }
     }
 
-    private static final class CountingBeatProvider implements java.util.function.DoubleSupplier {
+    private static final class CountingBeatProvider implements PlaybackStateSnapshotOwner.RealtimeBeatProvider {
         private int calls;
 
         @Override
-        public double getAsDouble() {
+        public float beat() {
             calls++;
             return 1f;
         }
     }
-
 }

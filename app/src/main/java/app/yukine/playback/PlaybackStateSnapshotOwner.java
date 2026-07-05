@@ -4,11 +4,11 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 
-import java.util.Objects;
-import java.util.function.DoubleSupplier;
-import java.util.function.LongSupplier;
-
 final class PlaybackStateSnapshotOwner {
+    interface QueueStateProvider {
+        PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot();
+    }
+
     interface PlaybackPositionProvider {
         long positionMs();
 
@@ -31,6 +31,14 @@ final class PlaybackStateSnapshotOwner {
         float appVolume();
     }
 
+    interface RuntimeStateManagerProvider {
+        PlaybackRuntimeStateManager runtimeStateManager();
+    }
+
+    interface SleepTimerProvider {
+        long sleepTimerRemainingMs();
+    }
+
     interface VisualizationProvider {
         boolean shouldDeferPlaybackVisualization();
 
@@ -39,79 +47,94 @@ final class PlaybackStateSnapshotOwner {
         PlaybackSpectrumSnapshot spectrumSnapshot(Track track, long durationMs, boolean deferGeneration);
     }
 
-    private final PlaybackQueueManager playbackQueueManager;
-    private final PlaybackPositionProvider playbackPositionProvider;
-    private final RuntimeStateProvider runtimeStateProvider;
-    private final LongSupplier sleepTimerProvider;
-    private final VisualizationProvider visualizationProvider;
-    private final DoubleSupplier realtimeBeatProvider;
-
-    PlaybackStateSnapshotOwner(
-            PlaybackQueueManager playbackQueueManager,
-            PlaybackPositionProvider playbackPositionProvider,
-            RuntimeStateProvider runtimeStateProvider,
-            LongSupplier sleepTimerProvider,
-            VisualizationProvider visualizationProvider,
-            DoubleSupplier realtimeBeatProvider
-    ) {
-        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.playbackPositionProvider = Objects.requireNonNull(
-                playbackPositionProvider,
-                "playbackPositionProvider"
-        );
-        this.runtimeStateProvider = Objects.requireNonNull(runtimeStateProvider, "runtimeStateProvider");
-        this.sleepTimerProvider = Objects.requireNonNull(sleepTimerProvider, "sleepTimerProvider");
-        this.visualizationProvider = Objects.requireNonNull(visualizationProvider, "visualizationProvider");
-        this.realtimeBeatProvider = Objects.requireNonNull(realtimeBeatProvider, "realtimeBeatProvider");
+    interface VisualizationAnalyzerProvider {
+        PlaybackVisualizationAnalyzer playbackVisualizationAnalyzer();
     }
 
-    static RuntimeStateProvider fromRuntimeStateManager(
-            PlaybackRuntimeStateManager runtimeStateManager
+    interface RealtimeBeatProvider {
+        float beat();
+    }
+
+    private final QueueStateProvider queueStateProvider;
+    private final PlaybackPositionProvider playbackPositionProvider;
+    private final RuntimeStateProvider runtimeStateProvider;
+    private final SleepTimerProvider sleepTimerProvider;
+    private final VisualizationProvider visualizationProvider;
+    private final RealtimeBeatProvider realtimeBeatProvider;
+    private final int defaultRepeatMode;
+
+    PlaybackStateSnapshotOwner(
+            QueueStateProvider queueStateProvider,
+            PlaybackPositionProvider playbackPositionProvider,
+            RuntimeStateProvider runtimeStateProvider,
+            SleepTimerProvider sleepTimerProvider,
+            VisualizationProvider visualizationProvider,
+            RealtimeBeatProvider realtimeBeatProvider,
+            int defaultRepeatMode
     ) {
-        PlaybackRuntimeStateManager runtimeStateOwner =
-                Objects.requireNonNull(runtimeStateManager, "runtimeStateManager");
+        this.queueStateProvider = queueStateProvider;
+        this.playbackPositionProvider = playbackPositionProvider;
+        this.runtimeStateProvider = runtimeStateProvider;
+        this.sleepTimerProvider = sleepTimerProvider;
+        this.visualizationProvider = visualizationProvider;
+        this.realtimeBeatProvider = realtimeBeatProvider;
+        this.defaultRepeatMode = defaultRepeatMode;
+    }
+
+    static RuntimeStateProvider fromRuntimeStateManagerProvider(
+            RuntimeStateManagerProvider runtimeStateManagerProvider
+    ) {
         return new RuntimeStateProvider() {
             @Override
             public boolean preparing() {
-                return runtimeStateOwner.preparing();
+                PlaybackRuntimeStateManager manager = runtimeStateManager();
+                return manager != null && manager.preparing();
             }
 
             @Override
             public String errorMessage() {
-                return runtimeStateOwner.errorMessage();
+                PlaybackRuntimeStateManager manager = runtimeStateManager();
+                return manager == null ? "" : manager.errorMessage();
             }
 
             @Override
             public boolean shuffleEnabled() {
-                return runtimeStateOwner.shuffleEnabled();
+                PlaybackRuntimeStateManager manager = runtimeStateManager();
+                return manager != null && manager.shuffleEnabled();
             }
 
             @Override
             public int repeatMode() {
-                return runtimeStateOwner.repeatMode();
+                PlaybackRuntimeStateManager manager = runtimeStateManager();
+                return manager == null ? 0 : manager.repeatMode();
             }
 
             @Override
             public float playbackSpeed() {
-                return runtimeStateOwner.playbackSpeed();
+                PlaybackRuntimeStateManager manager = runtimeStateManager();
+                return manager == null ? 1.0f : manager.playbackSpeed();
             }
 
             @Override
             public float appVolume() {
-                return runtimeStateOwner.appVolume();
+                PlaybackRuntimeStateManager manager = runtimeStateManager();
+                return manager == null ? 1.0f : manager.appVolume();
+            }
+
+            private PlaybackRuntimeStateManager runtimeStateManager() {
+                return runtimeStateManagerProvider == null ? null : runtimeStateManagerProvider.runtimeStateManager();
             }
         };
     }
 
-    static VisualizationProvider fromVisualizationAnalyzer(
-            PlaybackVisualizationAnalyzer playbackVisualizationAnalyzer
+    static VisualizationProvider fromVisualizationAnalyzerProvider(
+            VisualizationAnalyzerProvider visualizationAnalyzerProvider
     ) {
-        PlaybackVisualizationAnalyzer visualizationAnalyzer =
-                Objects.requireNonNull(playbackVisualizationAnalyzer, "playbackVisualizationAnalyzer");
         return new VisualizationProvider() {
             @Override
             public boolean shouldDeferPlaybackVisualization() {
-                return visualizationAnalyzer.shouldDeferPlaybackVisualization();
+                PlaybackVisualizationAnalyzer analyzer = playbackVisualizationAnalyzer();
+                return analyzer != null && analyzer.shouldDeferPlaybackVisualization();
             }
 
             @Override
@@ -120,7 +143,10 @@ final class PlaybackStateSnapshotOwner {
                     long durationMs,
                     boolean deferGeneration
             ) {
-                return visualizationAnalyzer.waveformSnapshot(track, durationMs, deferGeneration);
+                PlaybackVisualizationAnalyzer analyzer = playbackVisualizationAnalyzer();
+                return analyzer == null
+                        ? PlaybackWaveformSnapshot.empty()
+                        : analyzer.waveformSnapshot(track, durationMs, deferGeneration);
             }
 
             @Override
@@ -129,46 +155,57 @@ final class PlaybackStateSnapshotOwner {
                     long durationMs,
                     boolean deferGeneration
             ) {
-                return visualizationAnalyzer.spectrumSnapshot(track, durationMs, deferGeneration);
+                PlaybackVisualizationAnalyzer analyzer = playbackVisualizationAnalyzer();
+                return analyzer == null
+                        ? PlaybackSpectrumSnapshot.empty()
+                        : analyzer.spectrumSnapshot(track, durationMs, deferGeneration);
+            }
+
+            private PlaybackVisualizationAnalyzer playbackVisualizationAnalyzer() {
+                return visualizationAnalyzerProvider == null
+                        ? null
+                        : visualizationAnalyzerProvider.playbackVisualizationAnalyzer();
             }
         };
     }
 
     PlaybackStateSnapshot snapshot() {
-        PlaybackQueueManager.QueueStateSnapshot queueSnapshot = queueStateSnapshot();
-        Track track = queueSnapshot.getCurrentTrack();
-        int currentIndex = queueSnapshot.getCurrentIndex();
-        int queueSize = queueSnapshot.getQueueSize();
-        long positionMs = playbackPositionProvider.positionMs();
-        long playbackDurationMs = playbackPositionProvider.durationMs();
-        boolean playing = playbackPositionProvider.isPlaying();
+        PlaybackQueueManager.QueueStateSnapshot queueState = queueStateProvider == null
+                ? PlaybackQueueManager.QueueStateSnapshot.empty()
+                : queueStateProvider.queueStateSnapshot();
+        if (queueState == null) {
+            queueState = PlaybackQueueManager.QueueStateSnapshot.empty();
+        }
+        Track track = queueState.getCurrentTrack();
+        long positionMs = playbackPositionProvider == null ? 0L : playbackPositionProvider.positionMs();
+        long playbackDurationMs = playbackPositionProvider == null ? 0L : playbackPositionProvider.durationMs();
+        boolean playing = playbackPositionProvider != null && playbackPositionProvider.isPlaying();
         long durationMs = track == null ? 0L : Math.max(track.durationMs, playbackDurationMs);
-        boolean deferVisualGeneration = visualizationProvider.shouldDeferPlaybackVisualization();
-        PlaybackWaveformSnapshot waveform =
-                visualizationProvider.waveformSnapshot(track, durationMs, deferVisualGeneration);
-        PlaybackSpectrumSnapshot spectrum =
-                visualizationProvider.spectrumSnapshot(track, durationMs, deferVisualGeneration);
+        boolean deferVisualGeneration = visualizationProvider != null
+                && visualizationProvider.shouldDeferPlaybackVisualization();
+        PlaybackWaveformSnapshot waveform = visualizationProvider == null
+                ? PlaybackWaveformSnapshot.empty()
+                : visualizationProvider.waveformSnapshot(track, durationMs, deferVisualGeneration);
+        PlaybackSpectrumSnapshot spectrum = visualizationProvider == null
+                ? PlaybackSpectrumSnapshot.empty()
+                : visualizationProvider.spectrumSnapshot(track, durationMs, deferVisualGeneration);
         return new PlaybackStateSnapshot(
                 track,
-                currentIndex,
-                queueSize,
+                queueState.getCurrentIndex(),
+                queueState.getQueueSize(),
                 positionMs,
                 durationMs,
                 playing,
-                runtimeStateProvider.preparing(),
-                runtimeStateProvider.errorMessage(),
-                runtimeStateProvider.shuffleEnabled(),
-                runtimeStateProvider.repeatMode(),
-                runtimeStateProvider.playbackSpeed(),
-                runtimeStateProvider.appVolume(),
-                sleepTimerProvider.getAsLong(),
+                runtimeStateProvider != null && runtimeStateProvider.preparing(),
+                runtimeStateProvider == null ? "" : runtimeStateProvider.errorMessage(),
+                runtimeStateProvider != null && runtimeStateProvider.shuffleEnabled(),
+                runtimeStateProvider == null ? defaultRepeatMode : runtimeStateProvider.repeatMode(),
+                runtimeStateProvider == null ? 1.0f : runtimeStateProvider.playbackSpeed(),
+                runtimeStateProvider == null ? 1.0f : runtimeStateProvider.appVolume(),
+                sleepTimerProvider == null ? 0L : sleepTimerProvider.sleepTimerRemainingMs(),
                 waveform,
                 spectrum,
-                playing ? (float) realtimeBeatProvider.getAsDouble() : 0f
+                playing && realtimeBeatProvider != null ? realtimeBeatProvider.beat() : 0f
         );
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        return playbackQueueManager.queueStateSnapshot();
     }
 }

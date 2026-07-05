@@ -2,7 +2,6 @@ package app.yukine
 
 import android.net.Uri
 import app.yukine.model.Track
-import app.yukine.playback.PlaybackRepeatMode
 import app.yukine.playback.PlaybackStateSnapshot
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -112,26 +111,9 @@ class QueueActionControllerTest {
     ) : NowPlayingPlaybackGateway {
         val calls = mutableListOf<String>()
 
-        override fun snapshot(): PlaybackStateSnapshot? =
-            if (!connected) {
-                null
-            } else {
-            PlaybackStateSnapshot(
-                queue.firstOrNull(),
-                if (queue.isEmpty()) -1 else 0,
-                queue.size,
-                0L,
-                queue.firstOrNull()?.durationMs ?: 0L,
-                false,
-                false,
-                "",
-                false,
-                PlaybackRepeatMode.REPEAT_ALL,
-                1.0f,
-                1.0f,
-                0L
-            )
-            }
+        override fun serviceConnected(): Boolean = connected
+        override fun snapshot(): PlaybackStateSnapshot? = PlaybackStateSnapshot.empty()
+        override fun queueSnapshot(): List<Track> = queue
         override fun skipToPrevious() {}
         override fun skipToNext() {}
         override fun seekTo(positionMs: Long) {}
@@ -142,6 +124,7 @@ class QueueActionControllerTest {
             calls += "clear"
         }
         override fun moveQueueTrack(fromIndex: Int, toIndex: Int) {}
+        override fun replaceQueuedTrack(updated: Track) {}
         override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) {}
         override fun retainTracksById(trackIds: Set<Long>) {}
         override fun warmPlaybackTrack(track: Track) {}

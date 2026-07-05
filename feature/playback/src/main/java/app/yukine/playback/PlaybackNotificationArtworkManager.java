@@ -16,12 +16,15 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 
 import app.yukine.common.EmbeddedArtwork;
 import app.yukine.model.Track;
 
 final class PlaybackNotificationArtworkManager implements PlaybackNotificationArtworkSource {
+    interface StateProvider {
+        Track currentTrack();
+    }
+
     interface NotificationBridge {
         void refreshPlaybackSession();
         void updateMediaNotification();
@@ -39,7 +42,7 @@ final class PlaybackNotificationArtworkManager implements PlaybackNotificationAr
     private static final int NOTIFICATION_ARTWORK_CACHE_ENTRIES = 8;
 
     private final Context context;
-    private final Supplier<Track> currentTrackProvider;
+    private final StateProvider stateProvider;
     private final NotificationBridge notificationBridge;
     private final Executor artworkExecutor;
     private final ArtworkLoader artworkLoader;
@@ -52,12 +55,12 @@ final class PlaybackNotificationArtworkManager implements PlaybackNotificationAr
 
     PlaybackNotificationArtworkManager(
             Context context,
-            Supplier<Track> currentTrackProvider,
+            StateProvider stateProvider,
             NotificationBridge notificationBridge
     ) {
         this(
                 context,
-                currentTrackProvider,
+                stateProvider,
                 notificationBridge,
                 command -> context.getMainExecutor().execute(command),
                 null,
@@ -67,14 +70,14 @@ final class PlaybackNotificationArtworkManager implements PlaybackNotificationAr
 
     PlaybackNotificationArtworkManager(
             Context context,
-            Supplier<Track> currentTrackProvider,
+            StateProvider stateProvider,
             NotificationBridge notificationBridge,
             Executor artworkExecutor,
             ArtworkLoader artworkLoader,
             ArtworkEncoder artworkEncoder
     ) {
         this.context = context;
-        this.currentTrackProvider = currentTrackProvider;
+        this.stateProvider = stateProvider;
         this.notificationBridge = notificationBridge;
         this.artworkExecutor = artworkExecutor;
         this.artworkLoader = artworkLoader == null ? this::decodeNotificationArtwork : artworkLoader;
@@ -135,7 +138,7 @@ final class PlaybackNotificationArtworkManager implements PlaybackNotificationAr
             if (!isCurrentArtworkGeneration(generation)) {
                 return;
             }
-            Track current = currentTrack();
+            Track current = stateProvider.currentTrack();
             if (current == null || !key.equals(notificationArtworkKey(current))) {
                 return;
             }
@@ -146,10 +149,6 @@ final class PlaybackNotificationArtworkManager implements PlaybackNotificationAr
 
     private boolean isCurrentArtworkGeneration(int generation) {
         return !released && artworkGeneration.get() == generation;
-    }
-
-    private Track currentTrack() {
-        return currentTrackProvider == null ? null : currentTrackProvider.get();
     }
 
     private String notificationArtworkKey(Track track) {

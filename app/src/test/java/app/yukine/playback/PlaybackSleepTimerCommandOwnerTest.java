@@ -8,14 +8,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
 
 public class PlaybackSleepTimerCommandOwnerTest {
     @Test
     public void delegatesSleepTimerActionsToPlaybackCommands() {
         List<String> events = new ArrayList<>();
         PlaybackSleepTimerCommandOwner owner = new PlaybackSleepTimerCommandOwner(
-                () -> events.add("pause"),
+                new FakePlaybackCommands(events),
                 () -> events.add("publish")
         );
 
@@ -43,10 +42,10 @@ public class PlaybackSleepTimerCommandOwnerTest {
                 60000L
         );
         PlaybackSleepTimerCommandOwner owner = new PlaybackSleepTimerCommandOwner(
-                () -> events.add("pauseOwner"),
-                () -> events.add("publishOwner")
+                new FakePlaybackCommands(events),
+                () -> events.add("publishOwner"),
+                () -> manager
         );
-        owner.bindPlaybackSleepTimerManager(manager);
 
         owner.cancelSleepTimer(false);
         owner.cancelSleepTimer(true);
@@ -73,10 +72,10 @@ public class PlaybackSleepTimerCommandOwnerTest {
                 60000L
         );
         PlaybackSleepTimerCommandOwner owner = new PlaybackSleepTimerCommandOwner(
-                () -> events.add("pauseOwner"),
-                () -> events.add("publishOwner")
+                new FakePlaybackCommands(events),
+                () -> events.add("publishOwner"),
+                () -> manager
         );
-        owner.bindPlaybackSleepTimerManager(manager);
 
         owner.startSleepTimerMinutes(3);
 
@@ -92,26 +91,18 @@ public class PlaybackSleepTimerCommandOwnerTest {
     }
 
     @Test
-    public void requiresBoundSleepTimerManager() {
+    public void toleratesMissingSleepTimerManagerProvider() {
         PlaybackSleepTimerCommandOwner owner = new PlaybackSleepTimerCommandOwner(
-                () -> {
-                },
+                new FakePlaybackCommands(new ArrayList<>()),
                 () -> {
                 }
         );
 
-        assertEquals(
-                "sleepTimerManager",
-                assertThrows(NullPointerException.class, () -> owner.cancelSleepTimer(false)).getMessage()
-        );
-        assertEquals(
-                "sleepTimerManager",
-                assertThrows(NullPointerException.class, () -> owner.startSleepTimerMinutes(3)).getMessage()
-        );
-        assertEquals(
-                "sleepTimerManager",
-                assertThrows(NullPointerException.class, owner::sleepTimerRemainingMs).getMessage()
-        );
+        owner.cancelSleepTimer(false);
+        owner.cancelSleepTimer(true);
+        owner.startSleepTimerMinutes(3);
+
+        assertEquals(0L, owner.sleepTimerRemainingMs());
     }
 
     private static final class FakeSleepScheduler implements PlaybackSleepTimerManager.CallbackScheduler {
@@ -150,4 +141,46 @@ public class PlaybackSleepTimerCommandOwnerTest {
         }
     }
 
+    private static final class FakePlaybackCommands implements PlaybackNotificationCommandOwner.PlaybackCommands {
+        private final List<String> events;
+
+        FakePlaybackCommands(List<String> events) {
+            this.events = events;
+        }
+
+        @Override
+        public void play() {
+            events.add("play");
+        }
+
+        @Override
+        public void pause() {
+            events.add("pause");
+        }
+
+        @Override
+        public void skipToPrevious() {
+            events.add("previous");
+        }
+
+        @Override
+        public void skipToNext() {
+            events.add("next");
+        }
+
+        @Override
+        public void toggleCurrentFavorite() {
+            events.add("favorite");
+        }
+
+        @Override
+        public void restoreLastPlayback(boolean playWhenReady) {
+            events.add("restore:" + playWhenReady);
+        }
+
+        @Override
+        public void stopAndClear() {
+            events.add("stopAndClear");
+        }
+    }
 }

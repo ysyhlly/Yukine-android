@@ -8,7 +8,6 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 public class PlaybackCurrentTrackPreparationRuntimeOwnerTest {
@@ -77,16 +76,6 @@ public class PlaybackCurrentTrackPreparationRuntimeOwnerTest {
         assertTrue(owner.preparing());
         owner.setPreparing(false);
         assertFalse(owner.preparing());
-    }
-
-    @Test
-    public void runtimeStateManagerFactoryRequiresRuntimeStateManager() {
-        NullPointerException error = assertThrows(
-                NullPointerException.class,
-                () -> PlaybackCurrentTrackPreparationRuntimeOwner.fromRuntimeStateManager(null)
-        );
-
-        assertEquals("runtimeStateManager", error.getMessage());
     }
 
     @Test

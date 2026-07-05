@@ -57,29 +57,6 @@ public class PlaybackRealtimeVisualizationOwnerTest {
         assertEquals(0, owner.bands().length);
     }
 
-    @Test
-    public void factoryWrapsRealtimeBassDetectorBehindPlaybackGate() {
-        PlaybackRealtimeVisualizationOwner paused = PlaybackRealtimeVisualizationOwner.fromRealtimeBassDetector(
-                () -> false,
-                new RealtimeBassDetector()
-        );
-        PlaybackRealtimeVisualizationOwner playing = PlaybackRealtimeVisualizationOwner.fromRealtimeBassDetector(
-                () -> true,
-                new RealtimeBassDetector()
-        );
-        PlaybackRealtimeVisualizationOwner missingDetector = PlaybackRealtimeVisualizationOwner.fromRealtimeBassDetector(
-                () -> true,
-                null
-        );
-
-        assertEquals(0f, paused.beat(), 0.001f);
-        assertEquals(0, paused.bands().length);
-        assertEquals(0f, playing.beat(), 0.001f);
-        assertEquals(RealtimeBassDetector.REALTIME_BAND_COUNT, playing.bands().length);
-        assertEquals(0f, missingDetector.beat(), 0.001f);
-        assertEquals(0, missingDetector.bands().length);
-    }
-
     private static final class FakeRealtimeDataProvider
             implements PlaybackRealtimeVisualizationOwner.RealtimeDataProvider {
         private final float beat;

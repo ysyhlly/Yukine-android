@@ -7,6 +7,13 @@ import org.junit.Test;
 
 public class EchoPlaybackServiceTest {
     @Test
+    public void contentRangeTotalBytesAreParsedForSegmentedPrecacheProbe() {
+        assertEquals(1234567L, PlaybackPrecacheManager.totalBytesFromContentRange("bytes 524288-524288/1234567"));
+        assertEquals(-1L, PlaybackPrecacheManager.totalBytesFromContentRange("bytes 0-0/*"));
+        assertEquals(-1L, PlaybackPrecacheManager.totalBytesFromContentRange(""));
+    }
+
+    @Test
     public void segmentedPrecachePlanUsesProbedContentLengthWhenMetadataIsMissing() {
         java.util.List<PlaybackPrecacheManager.PrecacheSegment> segments =
                 PlaybackPrecacheManager.planPrecacheSegments(

@@ -7,14 +7,14 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.cache.CacheWriter;
 import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackMediaCacheOperations;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 final class PlaybackVisualizationCacheManager {
     private static final long VISUALIZATION_CACHE_BYTES = 64L * 1024L * 1024L;
@@ -35,39 +35,38 @@ final class PlaybackVisualizationCacheManager {
     }
 
     private final StateProvider stateProvider;
-    private final PlaybackMediaCacheOperations mediaCacheOperations;
+    private final PlaybackMediaSourceProvider mediaSourceProvider;
     private final VisualizationCacheWriterFactory cacheWriterFactory;
     private final Set<VisualizationCacheWriter> activeCacheWriters = Collections.synchronizedSet(new HashSet<>());
     private final AtomicInteger cacheGeneration = new AtomicInteger();
     private volatile boolean released;
 
-    static PlaybackVisualizationCacheManager fromMediaSourceProvider(
+    PlaybackVisualizationCacheManager(
             StateProvider stateProvider,
             PlaybackMediaSourceProvider mediaSourceProvider
     ) {
-        return new PlaybackVisualizationCacheManager(
-                stateProvider,
-                PlaybackMediaCacheOperations.fromMediaSourceProvider(
-                        Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider")
-                )
-        );
+        this(stateProvider, mediaSourceProvider, null);
     }
 
     PlaybackVisualizationCacheManager(
             StateProvider stateProvider,
-            PlaybackMediaCacheOperations mediaCacheOperations
-    ) {
-        this(stateProvider, mediaCacheOperations, null);
-    }
-
-    PlaybackVisualizationCacheManager(
-            StateProvider stateProvider,
-            PlaybackMediaCacheOperations mediaCacheOperations,
+            PlaybackMediaSourceProvider mediaSourceProvider,
             VisualizationCacheWriterFactory cacheWriterFactory
     ) {
         this.stateProvider = stateProvider;
-        this.mediaCacheOperations = Objects.requireNonNull(mediaCacheOperations, "mediaCacheOperations");
+        this.mediaSourceProvider = mediaSourceProvider;
         this.cacheWriterFactory = cacheWriterFactory == null ? this::createCacheWriter : cacheWriterFactory;
+    }
+
+    static Consumer<Track> scheduleVisualizationCacheActionFromSupplier(
+            Supplier<PlaybackVisualizationCacheManager> supplier
+    ) {
+        return track -> {
+            PlaybackVisualizationCacheManager manager = supplier == null ? null : supplier.get();
+            if (manager != null) {
+                manager.scheduleVisualizationCache(track);
+            }
+        };
     }
 
     void release() {
@@ -87,11 +86,7 @@ final class PlaybackVisualizationCacheManager {
     }
 
     void scheduleVisualizationCache(Track track) {
-        if (released) {
-            return;
-        }
-        String cacheKey = cacheKeyForVisualization(track);
-        if (cacheKey == null) {
+        if (released || !mediaSourceProvider.isHttpTrack(track)) {
             return;
         }
         int generation = cacheGeneration.get();
@@ -101,7 +96,7 @@ final class PlaybackVisualizationCacheManager {
                 return;
             }
             Track active = stateProvider.currentTrack();
-            if (!tracksShareMediaIdentityForReuse(active, visualTrack)) {
+            if (!mediaSourceProvider.tracksShareMediaIdentityForReuse(active, visualTrack)) {
                 return;
             }
             stateProvider.scheduleVisualizationCacheTask(() -> cacheVisualizationWindow(visualTrack, generation));
@@ -110,14 +105,14 @@ final class PlaybackVisualizationCacheManager {
 
     @OptIn(markerClass = UnstableApi.class)
     private void cacheVisualizationWindow(Track track, int generation) {
-        if (!isCurrentCacheGeneration(generation)) {
+        if (!isCurrentCacheGeneration(generation) || !mediaSourceProvider.isHttpTrack(track)) {
             return;
         }
-        String cacheKey = cacheKeyForVisualization(track);
-        if (cacheKey == null) {
+        String cacheKey = mediaSourceProvider.cacheKeyForTrack(track);
+        if (cacheKey == null || cacheKey.isEmpty()) {
             return;
         }
-        long cached = mediaCacheOperations.cachedBytesInRange(cacheKey, 0L, Long.MAX_VALUE);
+        long cached = mediaSourceProvider.continuousCachedBytes(cacheKey);
         if (cached >= VISUALIZATION_CACHE_BYTES) {
             return;
         }
@@ -149,21 +144,9 @@ final class PlaybackVisualizationCacheManager {
         return !released && cacheGeneration.get() == generation;
     }
 
-    private String cacheKeyForVisualization(Track track) {
-        String cacheKey = mediaCacheOperations.cacheKeyForPrecache(track);
-        return cacheKey == null || cacheKey.isEmpty() ? null : cacheKey;
-    }
-
-    private boolean tracksShareMediaIdentityForReuse(Track current, Track candidate) {
-        return current != null
-                && candidate != null
-                && current.id == candidate.id
-                && mediaCacheOperations.tracksShareResolvedUriForReuse(current, candidate);
-    }
-
     private VisualizationCacheWriter createCacheWriter(Track track, DataSpec dataSpec) {
         CacheWriter writer = new CacheWriter(
-                mediaCacheOperations.cacheDataSourceForTrack(track),
+                mediaSourceProvider.cacheDataSourceForTrack(track),
                 dataSpec,
                 new byte[16 * 1024],
                 null

@@ -3,35 +3,65 @@ package app.yukine.playback;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
-import java.util.Objects;
-import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 final class PlaybackCurrentTrackReplacementOwner {
-    private final PlaybackQueueManager playbackQueueManager;
-    private final BiConsumer<Track, Long> recoveryDiagnosticsRecorder;
-    private final Runnable recoveryScheduler;
+    interface RecoveryDiagnosticsRecorder {
+        void record(PlaybackQueueManager.CurrentTrackReplacementRecovery recovery);
+    }
+
+    interface RecoveryScheduler {
+        void scheduleCurrentPlaybackRecovery(boolean playWhenReady);
+    }
+
+    private final BiFunction<Track, Long, PlaybackQueueManager.CurrentTrackReplacementRecovery> replaceCurrentTrackAndResume;
+    private final RecoveryDiagnosticsRecorder recoveryDiagnosticsRecorder;
+    private final RecoveryScheduler recoveryScheduler;
 
     PlaybackCurrentTrackReplacementOwner(
-            PlaybackQueueManager playbackQueueManager,
-            BiConsumer<Track, Long> recoveryDiagnosticsRecorder,
-            Runnable recoveryScheduler
+            BiFunction<Track, Long, PlaybackQueueManager.CurrentTrackReplacementRecovery> replaceCurrentTrackAndResume,
+            RecoveryDiagnosticsRecorder recoveryDiagnosticsRecorder,
+            RecoveryScheduler recoveryScheduler
     ) {
-        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
+        this.replaceCurrentTrackAndResume = replaceCurrentTrackAndResume;
         this.recoveryDiagnosticsRecorder = recoveryDiagnosticsRecorder;
         this.recoveryScheduler = recoveryScheduler;
     }
 
+    static PlaybackCurrentTrackReplacementOwner fromPlaybackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            RecoveryDiagnosticsRecorder recoveryDiagnosticsRecorder,
+            RecoveryScheduler recoveryScheduler
+    ) {
+        return new PlaybackCurrentTrackReplacementOwner(
+                (replacement, positionMs) -> {
+                    PlaybackQueueManager playbackQueueManager = playbackQueueManagerSupplier == null
+                            ? null
+                            : playbackQueueManagerSupplier.get();
+                    return playbackQueueManager == null
+                            ? null
+                            : playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs);
+                },
+                recoveryDiagnosticsRecorder,
+                recoveryScheduler
+        );
+    }
+
     void replaceCurrentTrackAndResume(Track replacement, long positionMs) {
-        Long restoredPositionMs =
-                playbackQueueManager.replaceCurrentTrackAndResume(replacement, positionMs);
-        if (restoredPositionMs == null) {
+        if (replaceCurrentTrackAndResume == null) {
+            return;
+        }
+        PlaybackQueueManager.CurrentTrackReplacementRecovery recovery =
+                replaceCurrentTrackAndResume.apply(replacement, positionMs);
+        if (recovery == null) {
             return;
         }
         if (recoveryDiagnosticsRecorder != null) {
-            recoveryDiagnosticsRecorder.accept(replacement, restoredPositionMs);
+            recoveryDiagnosticsRecorder.record(recovery);
         }
         if (recoveryScheduler != null) {
-            recoveryScheduler.run();
+            recoveryScheduler.scheduleCurrentPlaybackRecovery(recovery.getPlayWhenReady());
         }
     }
 }

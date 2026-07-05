@@ -1,387 +1,241 @@
 package app.yukine.playback;
 
-import static app.yukine.playback.PlaybackRepeatMode.REPEAT_ALL;
-import static app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF;
-import static app.yukine.playback.PlaybackRepeatMode.REPEAT_ONE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
-import androidx.media3.exoplayer.ExoPlayer;
-
-import app.yukine.model.PlaybackQueueState;
-import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
-import app.yukine.playback.manager.PlaybackQueueStore;
-import app.yukine.playback.manager.PlaybackRuntimeStateManager;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 public class PlaybackQueueCompletionOwnerTest {
     @Test
-    public void repeatCurrentCompletionIsPreparedByQueueManagerWithoutBoundaryAction() {
-        FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
-        FakeQueueStore store = new FakeQueueStore();
-        PlaybackQueueManager queueManager = queueManagerWithTracks(
-                store,
-                Collections.singletonList(track(1L)),
-                0,
-                REPEAT_ONE,
-                runtimeStateManager(),
-                actions
-        );
-        actions.clearRecords();
+    public void routesRepeatCurrentCompletionThroughQueuePreparationAndBoundary() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueCompletionOwner owner = owner(queueManager, events);
+        PlaybackQueueCompletionOwner owner = owner(
+                new FakeQueueCompletionActions(
+                        events,
+                        PlaybackQueueManager.PlaybackCompletionAction.REPEAT_CURRENT
+                ),
+                new FakeCompletionBoundary(events)
+        );
 
         owner.playAfterCompletion();
 
-        assertEquals(1, actions.prepareCurrentCalls);
-        assertTrue(actions.lastPreparePlayWhenReady);
-        assertTrue(events.isEmpty());
+        assertEquals(
+                Arrays.asList("action", "prepare:REPEAT_CURRENT", "prepareCurrent:true"),
+                events
+        );
     }
 
     @Test
     public void routesStopAtEndCompletionThroughQueuePreparationAndBoundary() {
-        FakeQueueStore store = new FakeQueueStore();
-        PlaybackRuntimeStateManager runtimeStateManager = runtimeStateManager();
-        runtimeStateManager.setPreparing(true);
-        Track current = track(1L);
         List<String> events = new ArrayList<>();
-        PlaybackQueueManager queueManager = queueManagerWithTracks(
-                store,
-                Collections.singletonList(current),
-                0,
-                REPEAT_OFF,
-                runtimeStateManager
+        PlaybackQueueCompletionOwner owner = owner(
+                new FakeQueueCompletionActions(
+                        events,
+                        PlaybackQueueManager.PlaybackCompletionAction.STOP_AT_END
+                ),
+                new FakeCompletionBoundary(events)
         );
-        PlaybackQueueCompletionOwner owner = owner(queueManager, events);
 
         owner.playAfterCompletion();
 
-        assertEquals(0, queueManager.queueStateSnapshot().getCurrentIndex());
-        assertEquals(1L, queueManager.queueStateSnapshot().getCurrentTrack().id);
-        assertEquals(Collections.singletonList(false), store.savedResumeRequestedValues);
-        assertFalse(runtimeStateManager.preparing());
-        assertEquals(Collections.singletonList("stopAtEnd"), events);
+        assertEquals(
+                Arrays.asList("action", "prepare:STOP_AT_END", "stopAtEnd"),
+                events
+        );
     }
 
     @Test
     public void routesAdvanceCompletionThroughQueuePreparationAndBoundary() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueManager queueManager = queueManagerWithTracks(
-                new FakeQueueStore(),
-                Arrays.asList(track(1L), track(2L)),
-                0,
-                REPEAT_OFF
+        PlaybackQueueCompletionOwner owner = owner(
+                new FakeQueueCompletionActions(
+                        events,
+                        PlaybackQueueManager.PlaybackCompletionAction.ADVANCE_TO_NEXT
+                ),
+                new FakeCompletionBoundary(events)
         );
-        PlaybackQueueCompletionOwner owner = owner(queueManager, events);
 
         owner.playAfterCompletion();
 
-        assertEquals(Collections.singletonList("skipNext"), events);
+        assertEquals(
+                Arrays.asList("action", "prepare:ADVANCE_TO_NEXT", "skipNext"),
+                events
+        );
     }
 
     @Test
     public void stopAndClearCompletionDoesNotPrepareQueueCompletion() {
         List<String> events = new ArrayList<>();
         PlaybackQueueCompletionOwner owner = owner(
-                queueManager(new FakeQueueStore(), runtimeStateManager()),
-                events
+                new FakeQueueCompletionActions(
+                        events,
+                        PlaybackQueueManager.PlaybackCompletionAction.STOP_AND_CLEAR
+                ),
+                new FakeCompletionBoundary(events)
         );
 
         owner.playAfterCompletion();
 
-        assertEquals(Collections.singletonList("stopAndClear"), events);
+        assertEquals(Arrays.asList("action", "stopAndClear"), events);
     }
 
     @Test
-    public void requiresQueueManager() {
-        NullPointerException exception = assertThrows(
-                NullPointerException.class,
-                () -> owner(null, new ArrayList<>())
-        );
-
-        assertEquals("playbackQueueManager", exception.getMessage());
-    }
-
-    @Test
-    public void stopAndClearPlaybackPreparesQueueBeforeBoundary() {
-        FakeQueueStore store = new FakeQueueStore();
-        PlaybackRuntimeStateManager runtimeStateManager = runtimeStateManager();
-        runtimeStateManager.setPreparing(true);
-        PlaybackQueueManager queueManager = queueManagerWithTracks(
-                store,
-                Arrays.asList(track(5L), track(6L)),
-                1,
-                REPEAT_ALL,
-                runtimeStateManager
-        );
+    public void delegatesStopPreparationsToQueueOperations() {
         List<String> events = new ArrayList<>();
+        PlaybackQueueCompletionOwner owner = owner(
+                new FakeQueueCompletionActions(
+                        events,
+                        PlaybackQueueManager.PlaybackCompletionAction.STOP_AT_END
+                ),
+                null
+        );
 
-        owner(queueManager, events).stopAndClearPlayback();
+        assertTrue(owner.prepareStopAndClearPlaybackState());
+        assertTrue(owner.prepareStopAtEndOfQueue());
+        owner.prepareStopAfterAutomaticAdvance(7);
 
-        assertEquals(0, queueManager.queueStateSnapshot().getQueueSize());
-        assertEquals(-1, queueManager.queueStateSnapshot().getCurrentIndex());
-        assertTrue(store.savedTracks.isEmpty());
-        assertEquals(-1, store.savedIndex);
-        assertEquals(Collections.singletonList(false), store.savedResumeRequestedValues);
-        assertFalse(runtimeStateManager.preparing());
-        assertEquals(Collections.singletonList("stopAndClear"), events);
+        assertEquals(
+                Arrays.asList(
+                        "prepareStopAndClear",
+                        "prepareStopAtEnd",
+                        "prepareStopAfterAutomaticAdvance:7"
+                ),
+                events
+        );
     }
 
     @Test
-    public void requiresBoundaryActions() {
-        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), runtimeStateManager());
-
-        NullPointerException stopAndClearException = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackQueueCompletionOwner(queueManager, null, noOp(), noOp())
-        );
-        NullPointerException stopAtEndException = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackQueueCompletionOwner(queueManager, noOp(), null, noOp())
-        );
-        NullPointerException skipToNextException = assertThrows(
-                NullPointerException.class,
-                () -> new PlaybackQueueCompletionOwner(queueManager, noOp(), noOp(), null)
+    public void missingQueueOperationsUseStopAndClearBoundaryAndReportUnhandledStopAtEnd() {
+        List<String> events = new ArrayList<>();
+        PlaybackQueueCompletionOwner missingActions = new PlaybackQueueCompletionOwner(
+                null,
+                null,
+                null,
+                null,
+                null,
+                new FakeCompletionBoundary(events)
         );
 
-        assertEquals("stopAndClearAction", stopAndClearException.getMessage());
-        assertEquals("stopAtEndOfQueueAction", stopAtEndException.getMessage());
-        assertEquals("skipToNextAction", skipToNextException.getMessage());
+        missingActions.playAfterCompletion();
+        assertFalse(missingActions.prepareStopAndClearPlaybackState());
+        assertFalse(missingActions.prepareStopAtEndOfQueue());
+        missingActions.prepareStopAfterAutomaticAdvance(5);
+
+        assertEquals(Arrays.asList("stopAndClear"), events);
+    }
+
+    @Test
+    public void missingPlaybackQueueManagerSupplierUsesStopAndClearBoundary() {
+        List<String> events = new ArrayList<>();
+        PlaybackQueueCompletionOwner owner = PlaybackQueueCompletionOwner.fromPlaybackQueueManager(
+                null,
+                new FakeCompletionBoundary(events)
+        );
+
+        owner.playAfterCompletion();
+
+        assertFalse(owner.prepareStopAndClearPlaybackState());
+        assertFalse(owner.prepareStopAtEndOfQueue());
+        owner.prepareStopAfterAutomaticAdvance(7);
+        assertEquals(Arrays.asList("stopAndClear"), events);
+    }
+
+    @Test
+    public void missingBoundaryDoesNotCrash() {
+        PlaybackQueueCompletionOwner owner = owner(
+                new FakeQueueCompletionActions(
+                        new ArrayList<>(),
+                        PlaybackQueueManager.PlaybackCompletionAction.ADVANCE_TO_NEXT
+                ),
+                null
+        );
+
+        owner.playAfterCompletion();
     }
 
     private static PlaybackQueueCompletionOwner owner(
-            PlaybackQueueManager queueManager,
-            List<String> events
+            FakeQueueCompletionActions actions,
+            PlaybackQueueCompletionOwner.CompletionBoundary boundary
     ) {
         return new PlaybackQueueCompletionOwner(
-                queueManager,
-                action(events, "stopAndClear"),
-                action(events, "stopAtEnd"),
-                action(events, "skipNext")
+                actions::playbackCompletionAction,
+                actions::preparePlaybackCompletion,
+                actions::prepareStopAndClearPlaybackState,
+                actions::prepareStopAtEndOfQueue,
+                actions::prepareStopAfterAutomaticAdvance,
+                boundary
         );
     }
 
-    private static Runnable action(List<String> events, String event) {
-        return () -> events.add(event);
-    }
+    private static final class FakeQueueCompletionActions {
+        private final List<String> events;
+        private final PlaybackQueueManager.PlaybackCompletionAction completionAction;
 
-    private static Runnable noOp() {
-        return () -> {
-        };
-    }
-
-    private static PlaybackQueueManager queueManagerWithTracks(
-            FakeQueueStore store,
-            List<Track> tracks,
-            int currentIndex,
-            int repeatMode
-    ) {
-        return queueManagerWithTracks(store, tracks, currentIndex, repeatMode, runtimeStateManager());
-    }
-
-    private static PlaybackQueueManager queueManagerWithTracks(
-            FakeQueueStore store,
-            List<Track> tracks,
-            int currentIndex,
-            int repeatMode,
-            PlaybackRuntimeStateManager runtimeStateManager
-    ) {
-        return queueManagerWithTracks(
-                store,
-                tracks,
-                currentIndex,
-                repeatMode,
-                runtimeStateManager,
-                new NoopQueuePlaybackActions()
-        );
-    }
-
-    private static PlaybackQueueManager queueManagerWithTracks(
-            FakeQueueStore store,
-            List<Track> tracks,
-            int currentIndex,
-            int repeatMode,
-            PlaybackRuntimeStateManager runtimeStateManager,
-            PlaybackQueueManager.QueuePlaybackActions actions
-    ) {
-        runtimeStateManager.setRepeatMode(repeatMode);
-        PlaybackQueueManager queueManager = queueManager(store, runtimeStateManager, actions);
-        queueManager.playQueue(tracks, currentIndex, 0L);
-        store.clearRecords();
-        return queueManager;
-    }
-
-    private static PlaybackQueueManager queueManager(
-            FakeQueueStore store,
-            PlaybackRuntimeStateManager runtimeStateManager
-    ) {
-        return queueManager(store, runtimeStateManager, new NoopQueuePlaybackActions());
-    }
-
-    private static PlaybackQueueManager queueManager(
-            FakeQueueStore store,
-            PlaybackRuntimeStateManager runtimeStateManager,
-            PlaybackQueueManager.QueuePlaybackActions actions
-    ) {
-        return new PlaybackQueueManager(
-                store,
-                actions,
-                null,
-                new NoopStreamingRestoreProvider(),
-                new NoopMirroredQueuePlayer(),
-                runtimeStateManager,
-                null
-        );
-    }
-
-    private static PlaybackRuntimeStateManager runtimeStateManager() {
-        return new PlaybackRuntimeStateManager(new PlaybackRuntimeStateManager.StateProvider() {
-            @Override
-            public ExoPlayer player() {
-                return null;
-            }
-
-            @Override
-            public boolean playerMirrorsQueue() {
-                return false;
-            }
-
-            @Override
-            public Track currentTrack() {
-                return null;
-            }
-        });
-    }
-
-    private static Track track(long id) {
-        return new Track(
-                id,
-                "Track " + id,
-                "Artist",
-                "Album",
-                1000L,
-                null,
-                "streaming:netease:" + id
-        );
-    }
-
-    private static final class FakeQueueStore implements PlaybackQueueStore {
-        private List<Track> savedTracks = Collections.emptyList();
-        private int savedIndex = -1;
-        private final List<Boolean> savedResumeRequestedValues = new ArrayList<>();
-        private final List<String> savedPositions = new ArrayList<>();
-
-        @Override
-        public PlaybackQueueState load() {
-            return new PlaybackQueueState(savedTracks, savedIndex);
+        private FakeQueueCompletionActions(
+                List<String> events,
+                PlaybackQueueManager.PlaybackCompletionAction completionAction
+        ) {
+            this.events = events;
+            this.completionAction = completionAction;
         }
 
-        @Override
-        public void save(List<Track> tracks, int currentIndex) {
-            savedTracks = tracks == null ? Collections.emptyList() : new ArrayList<>(tracks);
-            savedIndex = currentIndex;
+        public PlaybackQueueManager.PlaybackCompletionAction playbackCompletionAction() {
+            events.add("action");
+            return completionAction;
         }
 
-        @Override
-        public boolean loadResumeRequested() {
-            return false;
+        public void preparePlaybackCompletion(PlaybackQueueManager.PlaybackCompletionAction action) {
+            events.add("prepare:" + action.name());
         }
 
-        @Override
-        public void saveResumeRequested(boolean requested) {
-            savedResumeRequestedValues.add(requested);
-        }
-
-        @Override
-        public boolean loadPlaybackRestoreEnabled() {
+        public boolean prepareStopAndClearPlaybackState() {
+            events.add("prepareStopAndClear");
             return true;
         }
 
-        @Override
-        public void savePlaybackRestoreEnabled(boolean enabled) {
+        public boolean prepareStopAtEndOfQueue() {
+            events.add("prepareStopAtEnd");
+            return true;
         }
 
-        @Override
-        public long loadPlaybackPositionTrackId() {
-            return -1L;
-        }
-
-        @Override
-        public long loadPlaybackPositionMs() {
-            return 0L;
-        }
-
-        @Override
-        public void savePlaybackPosition(long trackId, long positionMs) {
-            savedPositions.add(trackId + ":" + positionMs);
-        }
-
-        private void clearRecords() {
-            savedResumeRequestedValues.clear();
-            savedPositions.clear();
+        public void prepareStopAfterAutomaticAdvance(int completedIndex) {
+            events.add("prepareStopAfterAutomaticAdvance:" + completedIndex);
         }
     }
 
-    private static final class NoopQueuePlaybackActions
-            implements PlaybackQueueManager.QueuePlaybackActions {
-        @Override
-        public void prepareCurrent(boolean playWhenReady) {
+    private static final class FakeCompletionBoundary
+            implements PlaybackQueueCompletionOwner.CompletionBoundary {
+        private final List<String> events;
+
+        private FakeCompletionBoundary(List<String> events) {
+            this.events = events;
         }
 
         @Override
-        public void publishState() {
+        public void stopAndClear() {
+            events.add("stopAndClear");
         }
-    }
-
-    private static final class FakeQueuePlaybackActions
-            implements PlaybackQueueManager.QueuePlaybackActions {
-        private int prepareCurrentCalls;
-        private boolean lastPreparePlayWhenReady;
 
         @Override
         public void prepareCurrent(boolean playWhenReady) {
-            prepareCurrentCalls++;
-            lastPreparePlayWhenReady = playWhenReady;
+            events.add("prepareCurrent:" + playWhenReady);
         }
 
         @Override
-        public void publishState() {
+        public void stopAtEndOfQueue() {
+            events.add("stopAtEnd");
         }
 
-        private void clearRecords() {
-            prepareCurrentCalls = 0;
-            lastPreparePlayWhenReady = false;
+        @Override
+        public void skipToNext() {
+            events.add("skipNext");
         }
     }
-
-    private static final class NoopStreamingRestoreProvider
-            implements PlaybackQueueManager.StreamingRestoreProvider {
-        @Override
-        public Track restoreTrackForPlayback(Track track) {
-            return track;
-        }
-    }
-
-    private static final class NoopMirroredQueuePlayer
-            implements PlaybackQueueManager.MirroredQueuePlayer {
-        @Override
-        public boolean matchesCurrentQueue() {
-            return false;
-        }
-
-        @Override
-        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
-            return false;
-        }
-    }
-
 }

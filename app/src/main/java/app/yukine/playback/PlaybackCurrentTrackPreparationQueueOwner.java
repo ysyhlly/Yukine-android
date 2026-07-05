@@ -7,13 +7,14 @@ import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.playback.manager.PlaybackQueueManager;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 
-final class PlaybackCurrentTrackPreparationQueueOwner {
+final class PlaybackCurrentTrackPreparationQueueOwner
+        implements PlaybackCurrentTrackPreparationOwner.QueuePreparationController {
     static final class PreparedQueue {
         private final Track currentTrack;
         private final int startIndex;
@@ -46,117 +47,120 @@ final class PlaybackCurrentTrackPreparationQueueOwner {
         }
     }
 
-    private final PlaybackQueueManager playbackQueueManager;
-    private final Function<Track, Track> queueTrackForPreparation;
+    private final Consumer<Track> replaceCurrentQueueTrack;
+    private final Function<Track, Long> restoredPositionFor;
+    private final Supplier<PlaybackQueueManager.QueuePreparation> queuePreparationForNewPlayer;
     private final Function<List<Track>, List<MediaSource>> mediaSourcesForTracks;
+    private final LongConsumer consumeRestoredPositionAfterPrepare;
 
-    PlaybackCurrentTrackPreparationQueueOwner(
-            PlaybackQueueManager playbackQueueManager,
+    static PlaybackCurrentTrackPreparationQueueOwner fromPlaybackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            Function<List<Track>, List<MediaSource>> mediaSourcesForTracks
+    ) {
+        return new PlaybackCurrentTrackPreparationQueueOwner(
+                track -> {
+                    PlaybackQueueManager playbackQueueManager =
+                            playbackQueueManagerSupplier == null
+                                    ? null
+                                    : playbackQueueManagerSupplier.get();
+                    if (playbackQueueManager != null) {
+                        playbackQueueManager.replaceCurrentQueueTrack(track);
+                    }
+                },
+                track -> {
+                    PlaybackQueueManager playbackQueueManager =
+                            playbackQueueManagerSupplier == null
+                                    ? null
+                                    : playbackQueueManagerSupplier.get();
+                    return playbackQueueManager == null ? 0L : playbackQueueManager.restoredPositionFor(track);
+                },
+                () -> {
+                    PlaybackQueueManager playbackQueueManager =
+                            playbackQueueManagerSupplier == null
+                                    ? null
+                                    : playbackQueueManagerSupplier.get();
+                    return playbackQueueManager == null
+                            ? PlaybackQueueManager.QueuePreparation.empty()
+                            : playbackQueueManager.queuePreparationForNewPlayer();
+                },
+                mediaSourcesForTracks,
+                startPositionMs -> {
+                    PlaybackQueueManager playbackQueueManager =
+                            playbackQueueManagerSupplier == null
+                                    ? null
+                                    : playbackQueueManagerSupplier.get();
+                    if (playbackQueueManager != null) {
+                        playbackQueueManager.consumeRestoredPositionAfterPrepare(startPositionMs);
+                    }
+                }
+        );
+    }
+
+    static PlaybackCurrentTrackPreparationQueueOwner fromPlaybackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
             PlaybackMediaSourceProvider mediaSourceProvider,
             Function<Track, MediaMetadata> metadataProvider
     ) {
-        this(
-                playbackQueueManager,
-                queueTrackForPreparation(mediaSourceProvider),
-                mediaSourcesForTracks(mediaSourceProvider, metadataProvider)
+        return fromPlaybackQueueManager(
+                playbackQueueManagerSupplier,
+                tracks -> mediaSourceProvider == null
+                        ? null
+                        : mediaSourceProvider.mediaSourcesForTracks(
+                                tracks,
+                                metadataProvider == null ? null : metadataProvider::apply
+                        )
         );
     }
 
     PlaybackCurrentTrackPreparationQueueOwner(
-            PlaybackQueueManager playbackQueueManager,
-            Function<List<Track>, List<MediaSource>> mediaSourcesForTracks
+            Consumer<Track> replaceCurrentQueueTrack,
+            Function<Track, Long> restoredPositionFor,
+            Supplier<PlaybackQueueManager.QueuePreparation> queuePreparationForNewPlayer,
+            Function<List<Track>, List<MediaSource>> mediaSourcesForTracks,
+            LongConsumer consumeRestoredPositionAfterPrepare
     ) {
-        this(playbackQueueManager, track -> track, mediaSourcesForTracks);
+        this.replaceCurrentQueueTrack = replaceCurrentQueueTrack;
+        this.restoredPositionFor = restoredPositionFor;
+        this.queuePreparationForNewPlayer = queuePreparationForNewPlayer;
+        this.mediaSourcesForTracks = mediaSourcesForTracks;
+        this.consumeRestoredPositionAfterPrepare = consumeRestoredPositionAfterPrepare;
     }
 
-    PlaybackCurrentTrackPreparationQueueOwner(
-            PlaybackQueueManager playbackQueueManager,
-            Function<Track, Track> queueTrackForPreparation,
-            Function<List<Track>, List<MediaSource>> mediaSourcesForTracks
-    ) {
-        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.queueTrackForPreparation = Objects.requireNonNull(
-                queueTrackForPreparation,
-                "queueTrackForPreparation"
-        );
-        this.mediaSourcesForTracks = Objects.requireNonNull(
-                mediaSourcesForTracks,
-                "mediaSourcesForTracks"
-        );
+    @Override
+    public void replaceCurrentQueueTrack(Track track) {
+        if (replaceCurrentQueueTrack != null) {
+            replaceCurrentQueueTrack.accept(track);
+        }
+    }
+
+    @Override
+    public long restoredPositionFor(Track track) {
+        Long positionMs = restoredPositionFor == null ? null : restoredPositionFor.apply(track);
+        return positionMs == null ? 0L : positionMs;
     }
 
     PreparedQueue queuePreparationForNewPlayer() {
-        PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();
-        Track currentTrack = queueStateSnapshot.getCurrentTrack();
-        if (currentTrack == null) {
+        PlaybackQueueManager.QueuePreparation queuePreparation = queuePreparationForNewPlayer == null
+                ? PlaybackQueueManager.QueuePreparation.empty()
+                : queuePreparationForNewPlayer.get();
+        if (queuePreparation == null || queuePreparation.getCurrentTrack() == null) {
             return PreparedQueue.empty();
         }
-        List<Track> mirroredQueueTracks = mirroredQueueTracksForPreparation(queueStateSnapshot);
+        List<Track> mirroredQueueTracks = queuePreparation.getMirroredQueueTracks();
         List<MediaSource> mirroredQueueMediaSources =
-                mirroredQueueTracks == null || mirroredQueueTracks.isEmpty()
+                mirroredQueueTracks == null || mirroredQueueTracks.isEmpty() || mediaSourcesForTracks == null
                         ? null
                         : mediaSourcesForTracks.apply(mirroredQueueTracks);
         return new PreparedQueue(
-                currentTrack,
-                queueStateSnapshot.getCurrentIndex(),
+                queuePreparation.getCurrentTrack(),
+                queuePreparation.getStartIndex(),
                 mirroredQueueMediaSources
         );
     }
 
-    private List<Track> mirroredQueueTracksForPreparation(
-            PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot
-    ) {
-        List<Track> queue = queueSnapshot();
-        if (queue.isEmpty() || queueStateSnapshot.getCurrentTrack() == null) {
-            return null;
+    void consumeRestoredPositionAfterPrepare(long startPositionMs) {
+        if (consumeRestoredPositionAfterPrepare != null) {
+            consumeRestoredPositionAfterPrepare.accept(startPositionMs);
         }
-        List<Track> tracks = new ArrayList<>(queue.size());
-        for (Track track : queue) {
-            Track preparedTrack = preparedQueueTrack(track);
-            if (preparedTrack == null) {
-                return null;
-            }
-            tracks.add(preparedTrack);
-        }
-        return tracks;
-    }
-
-    private Track preparedQueueTrack(Track track) {
-        if (track == null || track.contentUri == null || track.contentUri.toString().isEmpty()) {
-            return null;
-        }
-        if (!PlaybackMediaSourceProvider.isRestorableQueueTrack(track)) {
-            return null;
-        }
-        Track preparedTrack = queueTrackForPreparation.apply(track);
-        return preparedTrack == null ? track : preparedTrack;
-    }
-
-    private List<Track> queueSnapshot() {
-        return playbackQueueManager.queueSnapshot();
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        return playbackQueueManager.queueStateSnapshot();
-    }
-
-    private static Function<Track, Track> queueTrackForPreparation(
-            PlaybackMediaSourceProvider mediaSourceProvider
-    ) {
-        PlaybackMediaSourceProvider mediaSourceOwner =
-                Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider");
-        return mediaSourceOwner::restoredTrackForPreparation;
-    }
-
-    private static Function<List<Track>, List<MediaSource>> mediaSourcesForTracks(
-            PlaybackMediaSourceProvider mediaSourceProvider,
-            Function<Track, MediaMetadata> metadataProvider
-    ) {
-        PlaybackMediaSourceProvider mediaSourceOwner =
-                Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider");
-        return tracks -> mediaSourceOwner.mediaSourcesForTracks(
-                tracks,
-                metadataProvider == null ? null : metadataProvider::apply
-        );
     }
 }

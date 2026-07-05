@@ -1,4 +1,4 @@
-package app.yukine.ui
+﻿package app.yukine.ui
 
 import android.net.Uri
 import app.yukine.TrackDownloadItem
@@ -53,7 +53,7 @@ internal const val HEATMAP_WEEK_COLUMNS = 12
 data class HomeDashboardUiState(
     val title: String = "",
     val subtitle: String = "",
-    val heroTitle: String = "今天想听点什么？",
+    val heroTitle: String = "浠婂ぉ鎯冲惉鐐逛粈涔堬紵",
     val heroSubtitle: String = "",
     val continueTitle: String = "",
     val continueSubtitle: String = "",
@@ -149,7 +149,7 @@ fun HomeDashboardScreen(
                     Box(Modifier.echoEnter(1)) { StreamingGuideCard { actions.onConnectStreaming.run() } }
                 }
             }
-            // Recommendations (每日推荐 / 心动推荐) are kept near the top so they're visible on first screen.
+            // Recommendations (姣忔棩鎺ㄨ崘 / 蹇冨姩鎺ㄨ崘) 鈥?kept near the top so they're visible on first screen
             item("recommendations") {
                 Box(Modifier.echoEnter(if (state.streamingConnected) 1 else 2)) {
                     RecommendationCards(actions, enabled = state.streamingConnected)
@@ -171,7 +171,7 @@ fun HomeDashboardScreen(
     }
 }
 
-// Hero Section (Mobile Optimized)
+// 鈹€鈹€ Hero Section (Mobile Optimized) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 @Composable
 private fun HomeSearchCard(
@@ -215,7 +215,7 @@ private fun HeroPanel(state: HomeDashboardUiState, actions: HomeDashboardActions
             )
             Spacer(Modifier.width(6.dp))
             Text(
-                "今日回声",
+                "浠婃棩鍥炲０",
                 style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
                 color = p.accent
             )
@@ -255,7 +255,7 @@ private fun HeroActionButtons(actions: HomeDashboardActions) {
                 onClick = { actions.onContinue.run() },
                 modifier = Modifier
                     .height(40.dp)
-                    .semantics { contentDescription = "继续播放" },
+                    .semantics { contentDescription = "缁х画鎾斁" },
                 shape = EchoShapes.medium,
                 color = p.accent
             ) {
@@ -265,15 +265,15 @@ private fun HeroActionButtons(actions: HomeDashboardActions) {
                 ) {
                     EchoIcon(EchoIconKind.Play, Modifier.size(18.dp), p.onAccent)
                     Spacer(Modifier.width(8.dp))
-                    Text("继续播放", style = EchoTypography.label, color = p.onAccent)
+                    Text("缁х画鎾斁", style = EchoTypography.label, color = p.onAccent)
                 }
             }
         }
-        item { HeroSecondaryButton("队列", EchoIconKind.Queue) { actions.onViewQueue.run() } }
-        item { HeroSecondaryButton("随机", EchoIconKind.Shuffle) { actions.onShuffleAll.run() } }
-        item { HeroSecondaryButton("收藏", EchoIconKind.Heart) { actions.onOpenCollections.run() } }
-        item { HeroSecondaryButton("搜索", EchoIconKind.Search) { actions.onSearch.run() } }
-        item { HeroSecondaryButton("刷新", EchoIconKind.Sync) { actions.onRefresh.run() } }
+        item { HeroSecondaryButton("闃熷垪", EchoIconKind.Queue) { actions.onViewQueue.run() } }
+        item { HeroSecondaryButton("闅忔満", EchoIconKind.Shuffle) { actions.onShuffleAll.run() } }
+        item { HeroSecondaryButton("鏀惰棌", EchoIconKind.Heart) { actions.onOpenCollections.run() } }
+        item { HeroSecondaryButton("鎼滅储", EchoIconKind.Search) { actions.onSearch.run() } }
+        item { HeroSecondaryButton("鍒锋柊", EchoIconKind.Sync) { actions.onRefresh.run() } }
     }
 }
 
@@ -299,7 +299,7 @@ private fun HeroSecondaryButton(label: String, icon: EchoIconKind, onClick: () -
     }
 }
 
-// Now Playing Card (Full Width for Mobile)
+// 鈹€鈹€ Now Playing Card (Full Width for Mobile) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 @Composable
 private fun NowPlayingCard(state: HomeDashboardUiState, actions: HomeDashboardActions) {
@@ -311,7 +311,7 @@ private fun NowPlayingCard(state: HomeDashboardUiState, actions: HomeDashboardAc
         modifier = Modifier
             .echoPressScale(interaction)
             .fillMaxWidth()
-            .semantics { contentDescription = "正在播放" },
+            .semantics { contentDescription = "姝ｅ湪鎾斁" },
         shape = EchoShapes.large,
         color = echoCardColor(p.surface)
     ) {
@@ -394,7 +394,7 @@ private fun NowPlayingCard(state: HomeDashboardUiState, actions: HomeDashboardAc
     }
 }
 
-// Stats Grid (2x2 for Mobile)
+// 鈹€鈹€ Stats Grid (2x2 for Mobile) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 @Composable
 private fun StatGrid(stats: List<HomeDashboardStatUiState>, actions: HomeDashboardActions) {
@@ -468,7 +468,7 @@ private fun StatCard(stat: HomeDashboardStatUiState, action: Runnable?, modifier
     }
 }
 
-// Recent Activity Section
+// 鈹€鈹€ Recent Activity Section 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 @Composable
 private fun RecentActivitySection(state: HomeDashboardUiState, actions: HomeDashboardActions) {
@@ -487,7 +487,7 @@ private fun RecentActivitySection(state: HomeDashboardUiState, actions: HomeDash
             )
             if (state.recent.isNotEmpty()) {
                 Text(
-                    "查看全部",
+                    "鏌ョ湅鍏ㄩ儴",
                     style = EchoTypography.caption.copy(fontWeight = FontWeight.Medium),
                     color = p.accent
                 )
@@ -574,7 +574,7 @@ private fun WeeklyRecapSection(state: HomeDashboardUiState) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         // Section header
         Text(
-            "本周回声",
+            "鏈懆鍥炲０",
             style = EchoTypography.title,
             color = p.text
         )
@@ -619,7 +619,7 @@ private fun WeeklyRecapSection(state: HomeDashboardUiState) {
                             maxLines = 1
                         )
                         Text(
-                            "聆听时长",
+                            "鑱嗗惉鏃堕暱",
                             style = EchoTypography.caption,
                             color = p.muted
                         )
@@ -770,7 +770,7 @@ private fun WaveProgress(progress: Float) {
     }
 }
 
-// Recommendations (每日推荐 / 心动推荐)
+// 鈹€鈹€ Recommendations (姣忔棩鎺ㄨ崘 / 蹇冨姩鎺ㄨ崘) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 @Composable
 private fun RecommendationCards(actions: HomeDashboardActions, enabled: Boolean = true) {
@@ -780,7 +780,7 @@ private fun RecommendationCards(actions: HomeDashboardActions, enabled: Boolean 
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         RecommendationCard(
-            title = "每日推荐",
+            title = "姣忔棩鎺ㄨ崘",
             subtitle = if (enabled) "每天为你精选" else "需要登录",
             icon = EchoIconKind.Sparkle,
             modifier = Modifier.weight(1f),
@@ -788,7 +788,7 @@ private fun RecommendationCards(actions: HomeDashboardActions, enabled: Boolean 
             onClick = { if (enabled) actions.onDailyRecommend.run() else actions.onConnectStreaming.run() }
         )
         RecommendationCard(
-            title = "心动推荐",
+            title = "蹇冨姩鎺ㄨ崘",
             subtitle = if (enabled) "根据喜好智能播放" else "需要登录",
             icon = EchoIconKind.Heart,
             modifier = Modifier.weight(1f),

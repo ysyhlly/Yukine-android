@@ -2,46 +2,66 @@ package app.yukine.playback;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackErrorRecoveryManager;
-import app.yukine.playback.manager.PlaybackQueueManager;
-
-import java.util.Objects;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryManager.Actions {
-    private final PlaybackQueueManager playbackQueueManager;
-    private final Consumer<Boolean> playbackPreparer;
-    private final Runnable skipToNextCommand;
-    private final Consumer<String> errorMessageStore;
-    private final Runnable statePublisher;
-    private final BiConsumer<String, Exception> warningLogger;
+    interface CurrentTrackProvider {
+        Track currentTrack();
+    }
+
+    interface FailedTrackPolicy {
+        boolean canSkipFailedTrack(Track failed);
+    }
+
+    interface PlaybackPreparer {
+        void prepareCurrent(boolean playWhenReady);
+    }
+
+    interface ErrorMessageStore {
+        void setErrorMessage(String message);
+    }
+
+    interface StatePublisher {
+        void publishState();
+    }
+
+    interface WarningLogger {
+        void logWarning(String message, Exception error);
+    }
+
+    private final CurrentTrackProvider currentTrackProvider;
+    private final FailedTrackPolicy failedTrackPolicy;
+    private final PlaybackPreparer playbackPreparer;
+    private final PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands;
+    private final ErrorMessageStore errorMessageStore;
+    private final StatePublisher statePublisher;
+    private final WarningLogger warningLogger;
 
     PlaybackErrorRecoveryCommandOwner(
-            PlaybackQueueManager playbackQueueManager,
-            Consumer<Boolean> playbackPreparer,
-            Runnable skipToNextCommand,
-            Consumer<String> errorMessageStore,
-            Runnable statePublisher,
-            BiConsumer<String, Exception> warningLogger
+            CurrentTrackProvider currentTrackProvider,
+            FailedTrackPolicy failedTrackPolicy,
+            PlaybackPreparer playbackPreparer,
+            PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands,
+            ErrorMessageStore errorMessageStore,
+            StatePublisher statePublisher,
+            WarningLogger warningLogger
     ) {
-        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.playbackPreparer = Objects.requireNonNull(playbackPreparer, "playbackPreparer");
-        this.skipToNextCommand = Objects.requireNonNull(skipToNextCommand, "skipToNextCommand");
-        this.errorMessageStore = Objects.requireNonNull(errorMessageStore, "errorMessageStore");
-        this.statePublisher = Objects.requireNonNull(statePublisher, "statePublisher");
-        this.warningLogger = Objects.requireNonNull(warningLogger, "warningLogger");
+        this.currentTrackProvider = currentTrackProvider;
+        this.failedTrackPolicy = failedTrackPolicy;
+        this.playbackPreparer = playbackPreparer;
+        this.playbackCommands = playbackCommands;
+        this.errorMessageStore = errorMessageStore;
+        this.statePublisher = statePublisher;
+        this.warningLogger = warningLogger;
     }
 
     @Override
     public Track currentTrack() {
-        return queueStateSnapshot().getCurrentTrack();
+        return currentTrackProvider.currentTrack();
     }
 
     @Override
     public boolean canSkipFailedTrack(Track failed) {
-        return failed != null
-                && failed.id != -1L
-                && queueStateSnapshot().getQueueSize() >= 2;
+        return failedTrackPolicy.canSkipFailedTrack(failed);
     }
 
     @Override
@@ -55,36 +75,28 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
                 + ", uri=" + track.contentUri;
     }
 
-    String debugCurrentTrack() {
-        return debugTrack(currentTrack());
-    }
-
     @Override
     public void prepareCurrent(boolean playWhenReady) {
-        playbackPreparer.accept(playWhenReady);
+        playbackPreparer.prepareCurrent(playWhenReady);
     }
 
     @Override
     public void skipToNext() {
-        skipToNextCommand.run();
+        playbackCommands.skipToNext();
     }
 
     @Override
     public void setErrorMessage(String message) {
-        errorMessageStore.accept(message);
+        errorMessageStore.setErrorMessage(message);
     }
 
     @Override
     public void publishState() {
-        statePublisher.run();
+        statePublisher.publishState();
     }
 
     @Override
     public void logWarning(String message, Exception error) {
-        warningLogger.accept(message, error);
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        return playbackQueueManager.queueStateSnapshot();
+        warningLogger.logWarning(message, error);
     }
 }

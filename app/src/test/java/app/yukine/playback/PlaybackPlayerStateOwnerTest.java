@@ -15,25 +15,23 @@ public class PlaybackPlayerStateOwnerTest {
     @Test
     public void returnsNormalizedPlayerStateWhenPlayerIsReadable() {
         PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
-                () -> fakePlayer(true, 2500L, 9000L, 5000L)
+                () -> fakePlayer(true, 2500L, 9000L)
         );
 
         assertEquals(true, owner.isPlaying());
         assertEquals(2500L, owner.positionMs());
         assertEquals(9000L, owner.durationMs());
-        assertEquals(5000L, owner.bufferedPositionMs());
     }
 
     @Test
     public void clampsNegativePositionAndUnsetDuration() {
         PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
-                () -> fakePlayer(false, -100L, C.TIME_UNSET, -500L)
+                () -> fakePlayer(false, -100L, C.TIME_UNSET)
         );
 
         assertEquals(false, owner.isPlaying());
         assertEquals(0L, owner.positionMs());
         assertEquals(0L, owner.durationMs());
-        assertEquals(0L, owner.bufferedPositionMs());
     }
 
     @Test
@@ -53,15 +51,9 @@ public class PlaybackPlayerStateOwnerTest {
         assertEquals(false, owner.isPlaying());
         assertEquals(0L, owner.positionMs());
         assertEquals(0L, owner.durationMs());
-        assertEquals(0L, owner.bufferedPositionMs());
     }
 
-    private static Player fakePlayer(
-            boolean playing,
-            long positionMs,
-            long durationMs,
-            long bufferedPositionMs
-    ) {
+    private static Player fakePlayer(boolean playing, long positionMs, long durationMs) {
         return playerProxy((proxy, method, args) -> {
             switch (method.getName()) {
                 case "isPlaying":
@@ -70,8 +62,6 @@ public class PlaybackPlayerStateOwnerTest {
                     return positionMs;
                 case "getDuration":
                     return durationMs;
-                case "getBufferedPosition":
-                    return bufferedPositionMs;
                 default:
                     return defaultValue(method);
             }
@@ -82,8 +72,7 @@ public class PlaybackPlayerStateOwnerTest {
         return playerProxy((proxy, method, args) -> {
             if ("isPlaying".equals(method.getName())
                     || "getCurrentPosition".equals(method.getName())
-                    || "getDuration".equals(method.getName())
-                    || "getBufferedPosition".equals(method.getName())) {
+                    || "getDuration".equals(method.getName())) {
                 throw new IllegalStateException("released");
             }
             return defaultValue(method);

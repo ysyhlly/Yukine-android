@@ -6,14 +6,25 @@ import androidx.media3.exoplayer.source.MediaSource;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
-import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 final class PlaybackCurrentTrackPreparationOwner {
+    interface QueuePreparationController {
+        void replaceCurrentQueueTrack(Track track);
+        long restoredPositionFor(Track track);
+    }
+
     interface RuntimeStateController {
         void setPreparing(boolean preparing);
         void setErrorMessage(String message);
+    }
+
+    interface StatePublisher {
+        void publishState();
+    }
+
+    interface RefusalLogger {
+        void logRefusingToPrepareEmptyUri(Track track);
     }
 
     static final class PreparedTrack {
@@ -39,12 +50,7 @@ final class PlaybackCurrentTrackPreparationOwner {
                 long startPositionMs,
                 Function<Track, MediaSource> mediaSourceResolver
         ) {
-            return new PreparedTrack(
-                    track,
-                    Math.max(0L, startPositionMs),
-                    true,
-                    Objects.requireNonNull(mediaSourceResolver, "mediaSourceResolver")
-            );
+            return new PreparedTrack(track, Math.max(0L, startPositionMs), true, mediaSourceResolver);
         }
 
         static PreparedTrack unplayable(Track track) {
@@ -64,7 +70,7 @@ final class PlaybackCurrentTrackPreparationOwner {
         }
 
         MediaSource mediaSource() {
-            if (!playable) {
+            if (mediaSourceResolver == null) {
                 return null;
             }
             return mediaSourceResolver.apply(track);
@@ -73,31 +79,30 @@ final class PlaybackCurrentTrackPreparationOwner {
 
     private final Function<Track, PlaybackMediaSourceProvider.PlaybackPreparation> playbackPreparationProvider;
     private final Function<Track, MediaSource> mediaSourceResolver;
-    private final Consumer<Track> currentQueueTrackReplacer;
-    private final Function<Track, Long> restoredPositionProvider;
+    private final QueuePreparationController queuePreparationController;
     private final RuntimeStateController runtimeStateController;
-    private final Runnable statePublisher;
-    private final Consumer<Track> refusalLogger;
+    private final StatePublisher statePublisher;
+    private final RefusalLogger refusalLogger;
 
     static PlaybackCurrentTrackPreparationOwner fromMediaSourceProvider(
             PlaybackMediaSourceProvider mediaSourceProvider,
             Function<Track, MediaMetadata> metadataProvider,
-            Consumer<Track> currentQueueTrackReplacer,
-            Function<Track, Long> restoredPositionProvider,
+            QueuePreparationController queuePreparationController,
             RuntimeStateController runtimeStateController,
-            Runnable statePublisher,
-            Consumer<Track> refusalLogger
+            StatePublisher statePublisher,
+            RefusalLogger refusalLogger
     ) {
-        PlaybackMediaSourceProvider mediaSourceOwner =
-                Objects.requireNonNull(mediaSourceProvider, "mediaSourceProvider");
         return new PlaybackCurrentTrackPreparationOwner(
-                mediaSourceOwner::prepareTrackForPlayback,
-                track -> mediaSourceOwner.mediaSourceForTrack(
-                        track,
-                        metadataProvider == null ? null : metadataProvider::apply
-                ),
-                currentQueueTrackReplacer,
-                restoredPositionProvider,
+                track -> mediaSourceProvider == null
+                        ? null
+                        : mediaSourceProvider.prepareTrackForPlayback(track),
+                track -> mediaSourceProvider == null
+                        ? null
+                        : mediaSourceProvider.mediaSourceForTrack(
+                                track,
+                                metadataProvider == null ? null : metadataProvider::apply
+                        ),
+                queuePreparationController,
                 runtimeStateController,
                 statePublisher,
                 refusalLogger
@@ -107,36 +112,26 @@ final class PlaybackCurrentTrackPreparationOwner {
     PlaybackCurrentTrackPreparationOwner(
             Function<Track, PlaybackMediaSourceProvider.PlaybackPreparation> playbackPreparationProvider,
             Function<Track, MediaSource> mediaSourceResolver,
-            Consumer<Track> currentQueueTrackReplacer,
-            Function<Track, Long> restoredPositionProvider,
+            QueuePreparationController queuePreparationController,
             RuntimeStateController runtimeStateController,
-            Runnable statePublisher,
-            Consumer<Track> refusalLogger
+            StatePublisher statePublisher,
+            RefusalLogger refusalLogger
     ) {
-        this.playbackPreparationProvider = Objects.requireNonNull(
-                playbackPreparationProvider,
-                "playbackPreparationProvider"
-        );
-        this.mediaSourceResolver = Objects.requireNonNull(mediaSourceResolver, "mediaSourceResolver");
-        this.currentQueueTrackReplacer = Objects.requireNonNull(
-                currentQueueTrackReplacer,
-                "currentQueueTrackReplacer"
-        );
-        this.restoredPositionProvider = Objects.requireNonNull(
-                restoredPositionProvider,
-                "restoredPositionProvider"
-        );
+        this.playbackPreparationProvider = playbackPreparationProvider;
+        this.mediaSourceResolver = mediaSourceResolver;
+        this.queuePreparationController = queuePreparationController;
         this.runtimeStateController = runtimeStateController;
         this.statePublisher = statePublisher;
         this.refusalLogger = refusalLogger;
     }
 
     PreparedTrack prepareCurrentTrack(Track track) {
-        PlaybackMediaSourceProvider.PlaybackPreparation preparation =
-                playbackPreparationProvider.apply(track);
+        PlaybackMediaSourceProvider.PlaybackPreparation preparation = playbackPreparationProvider == null
+                ? null
+                : playbackPreparationProvider.apply(track);
         Track restoredTrack = preparation == null ? null : preparation.getRestoredTrack();
         if (restoredTrack != null) {
-            currentQueueTrackReplacer.accept(restoredTrack);
+            queuePreparationController.replaceCurrentQueueTrack(restoredTrack);
         }
         Track preparedTrack = preparation == null ? track : preparation.getTrack();
         if (preparedTrack == null) {
@@ -146,19 +141,14 @@ final class PlaybackCurrentTrackPreparationOwner {
             String unplayableMessage = preparation.getUnplayableMessage();
             runtimeStateController.setPreparing(false);
             runtimeStateController.setErrorMessage(unplayableMessage);
-            refusalLogger.accept(preparedTrack);
-            statePublisher.run();
+            refusalLogger.logRefusingToPrepareEmptyUri(preparedTrack);
+            statePublisher.publishState();
             return PreparedTrack.unplayable(preparedTrack);
         }
         return PreparedTrack.playable(
                 preparedTrack,
-                restoredPositionFor(preparedTrack),
+                queuePreparationController.restoredPositionFor(preparedTrack),
                 mediaSourceResolver
         );
-    }
-
-    private long restoredPositionFor(Track track) {
-        Long positionMs = restoredPositionProvider.apply(track);
-        return positionMs == null ? 0L : positionMs;
     }
 }

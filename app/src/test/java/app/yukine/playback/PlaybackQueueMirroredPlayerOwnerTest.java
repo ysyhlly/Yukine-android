@@ -2,15 +2,12 @@ package app.yukine.playback;
 
 import android.net.Uri;
 
-import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackQueueManager;
-import app.yukine.playback.manager.PlaybackQueueStore;
 
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
@@ -33,6 +30,10 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                     return true;
                 },
                 preparing -> events.add("preparing:" + preparing),
+                () -> {
+                    events.add("track");
+                    return track;
+                },
                 resetTrack -> events.add("waveform:" + resetTrack.id),
                 () -> events.add("apply"),
                 (index, positionMs) -> events.add("seek:" + index + ":" + positionMs),
@@ -41,17 +42,16 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 enabled -> events.add("mirror:" + enabled),
                 error -> events.add("log")
         );
-        owner.bindPlaybackQueueManager(queueManager(track));
 
         assertTrue(owner.matchesCurrentQueue());
         assertTrue(owner.seekTo(2, 3000L, true));
 
         assertEquals(
                 java.util.Arrays.asList(
-                        "hasPlayer",
                         "matches",
                         "hasPlayer",
                         "preparing:false",
+                        "track",
                         "waveform:1",
                         "apply",
                         "seek:2:3000",
@@ -69,6 +69,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 () -> true,
                 () -> false,
                 preparing -> events.add("preparing"),
+                () -> track(1L),
                 track -> events.add("waveform"),
                 () -> events.add("apply"),
                 (index, positionMs) -> events.add("seek"),
@@ -83,70 +84,13 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     }
 
     @Test
-    public void seekSkipsWaveformResetWhenCurrentTrackIsMissing() {
-        List<String> events = new ArrayList<>();
-        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore());
-        PlaybackQueueMirroredPlayerOwner owner = new PlaybackQueueMirroredPlayerOwner(
-                () -> true,
-                () -> true,
-                preparing -> events.add("preparing:" + preparing),
-                track -> events.add("waveform"),
-                () -> events.add("apply"),
-                (index, positionMs) -> events.add("seek:" + index + ":" + positionMs),
-                playWhenReady -> events.add("ready:" + playWhenReady),
-                () -> events.add("play"),
-                enabled -> events.add("mirror"),
-                error -> events.add("log")
-        );
-        owner.bindPlaybackQueueManager(queueManager);
-
-        assertTrue(owner.seekTo(1, 1200L, false));
-
-        assertEquals(
-                java.util.Arrays.asList(
-                        "preparing:false",
-                        "apply",
-                        "seek:1:1200",
-                        "ready:false"
-                ),
-                events
-        );
-    }
-
-    @Test
-    public void matchesCurrentQueueFailsWithoutPlayer() {
-        List<String> events = new ArrayList<>();
-        PlaybackQueueMirroredPlayerOwner owner = new PlaybackQueueMirroredPlayerOwner(
-                () -> {
-                    events.add("matches");
-                    return true;
-                },
-                () -> {
-                    events.add("hasPlayer");
-                    return false;
-                },
-                preparing -> events.add("preparing"),
-                track -> events.add("waveform"),
-                () -> events.add("apply"),
-                (index, positionMs) -> events.add("seek"),
-                playWhenReady -> events.add("ready"),
-                () -> events.add("play"),
-                enabled -> events.add("mirror"),
-                error -> events.add("log")
-        );
-
-        assertFalse(owner.matchesCurrentQueue());
-        assertEquals(java.util.Collections.singletonList("hasPlayer"), events);
-    }
-
-    @Test
     public void seekFailureClearsMirroredQueueState() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore());
         PlaybackQueueMirroredPlayerOwner owner = new PlaybackQueueMirroredPlayerOwner(
                 () -> true,
                 () -> true,
                 preparing -> events.add("preparing:" + preparing),
+                () -> null,
                 track -> events.add("waveform"),
                 () -> events.add("apply"),
                 (index, positionMs) -> {
@@ -157,7 +101,6 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 enabled -> events.add("mirror:" + enabled),
                 error -> events.add("log:" + error.getMessage())
         );
-        owner.bindPlaybackQueueManager(queueManager);
 
         assertFalse(owner.seekTo(3, 4000L, true));
 
@@ -176,8 +119,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     public void matcherDelegatesMirroredQueueMatchInPlaybackOrder() {
         List<String> events = new ArrayList<>();
         Track track = track(7L);
-        List<Track> queueSnapshot = Collections.singletonList(track);
-        java.util.function.BiPredicate<Integer, Track> queueTrackMatcher = (index, matchedTrack) -> {
+        PlaybackQueueManager.QueueTrackMatcher queueTrackMatcher = (index, matchedTrack) -> {
             events.add("track:" + index + ":" + matchedTrack.id);
             return matchedTrack == track;
         };
@@ -188,10 +130,17 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                             return true;
                         },
                         () -> {
+                            events.add("hasPlayer");
+                            return true;
+                        },
+                        () -> {
                             events.add("count");
                             return 1;
                         },
-                        () -> queueSnapshot,
+                        () -> (itemCount, suppliedMatcher) -> {
+                            events.add("match:" + itemCount);
+                            return suppliedMatcher.matches(0, track);
+                        },
                         queueTrackMatcher
                 );
 
@@ -200,7 +149,9 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
         assertEquals(
                 java.util.Arrays.asList(
                         "mirrors",
+                        "hasPlayer",
                         "count",
+                        "match:1",
                         "track:0:7"
                 ),
                 events
@@ -208,25 +159,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     }
 
     @Test
-    public void matcherReturnsFalseWhenItemCountDiffers() {
-        List<String> events = new ArrayList<>();
-        BooleanSupplier matcher =
-                PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
-                        () -> true,
-                        () -> 2,
-                        () -> Collections.singletonList(track(7L)),
-                        (index, matchedTrack) -> {
-                            events.add("track:" + index + ":" + matchedTrack.id);
-                            return true;
-                        }
-                );
-
-        assertFalse(matcher.getAsBoolean());
-        assertEquals(Collections.emptyList(), events);
-    }
-
-    @Test
-    public void matcherReturnsFalseWhenMirrorStateIsMissing() {
+    public void matcherReturnsFalseWhenMirrorStateOrPlayerIsMissing() {
         List<String> events = new ArrayList<>();
         BooleanSupplier matcher =
                 PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
@@ -235,12 +168,16 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                             return false;
                         },
                         () -> {
+                            events.add("hasPlayer");
+                            return true;
+                        },
+                        () -> {
                             events.add("count");
                             return 1;
                         },
-                        () -> {
-                            events.add("snapshot");
-                            return Collections.emptyList();
+                        () -> (itemCount, suppliedMatcher) -> {
+                            events.add("operations");
+                            return true;
                         },
                         (index, track) -> true
                 );
@@ -254,10 +191,11 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
         BooleanSupplier matcher =
                 PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
                         () -> true,
+                        () -> true,
                         () -> {
                             throw new IllegalStateException("released");
                         },
-                        Collections::emptyList,
+                        () -> (itemCount, suppliedMatcher) -> true,
                         (index, track) -> true
                 );
 
@@ -265,220 +203,31 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
     }
 
     @Test
-    public void matcherRequiresQueueSnapshotSupplier() {
-        java.util.function.Supplier<List<Track>> missingQueueSnapshotProvider = null;
-        try {
-            PlaybackQueueMirroredPlayerOwner.mirroredQueueMatcher(
-                    () -> true,
-                    () -> 1,
-                    missingQueueSnapshotProvider,
-                    (index, track) -> true
-            );
-        } catch (NullPointerException expected) {
-            assertEquals("queueSnapshotProvider", expected.getMessage());
-            return;
-        }
-        throw new AssertionError("Expected matcher to require queueSnapshotProvider");
-    }
-
-    @Test
-    public void constructorRequiresPlayerAvailabilityDelegate() {
-        BooleanSupplier missingPlayerAvailability = null;
-        try {
-            new PlaybackQueueMirroredPlayerOwner(
-                    () -> true,
-                    missingPlayerAvailability,
-                    preparing -> {
-                    },
-                    track -> {
-                    },
-                    () -> {
-                    },
-                    (index, positionMs) -> {
-                    },
-                    playWhenReady -> {
-                    },
-                    () -> {
-                    },
-                    enabled -> {
-                    },
-                    error -> {
-                    }
-            );
-        } catch (NullPointerException expected) {
-            assertEquals("playerAvailability", expected.getMessage());
-            return;
-        }
-        throw new AssertionError("Expected constructor to require playerAvailability");
-    }
-
-    @Test
-    public void convenienceConstructorRequiresMirrorStateProvider() {
-        BooleanSupplier missingMirrorStateProvider = null;
-        try {
-            new PlaybackQueueMirroredPlayerOwner(
-                    missingMirrorStateProvider,
-                    () -> 1,
-                    (index, track) -> true,
-                    () -> true,
-                    preparing -> {
-                    },
-                    track -> {
-                    },
-                    () -> {
-                    },
-                    (index, positionMs) -> {
-                    },
-                    playWhenReady -> {
-                    },
-                    () -> {
-                    },
-                    enabled -> {
-                    },
-                    error -> {
-                    }
-            );
-        } catch (NullPointerException expected) {
-            assertEquals("mirrorStateProvider", expected.getMessage());
-            return;
-        }
-        throw new AssertionError("Expected constructor to require mirrorStateProvider");
-    }
-
-    @Test
-    public void matchesCurrentQueueRequiresQueueManagerBinding() {
-        PlaybackQueueMirroredPlayerOwner owner = new PlaybackQueueMirroredPlayerOwner(
-                () -> true,
-                () -> 1,
-                (index, track) -> true,
-                () -> true,
-                preparing -> {
-                },
-                resetTrack -> {
-                },
-                () -> {
-                },
-                (index, positionMs) -> {
-                },
-                playWhenReady -> {
-                },
-                () -> {
-                },
-                enabled -> {
-                },
-                error -> {
-                }
-        );
-
-        try {
-            owner.matchesCurrentQueue();
-        } catch (NullPointerException expected) {
-            return;
-        }
-        throw new AssertionError("Expected matchesCurrentQueue to require a bound queue manager");
-    }
-
-    @Test
-    public void convenienceConstructorReadsBoundQueueSnapshotForMirroredMatcher() {
-        FakeQueueStore store = new FakeQueueStore();
-        PlaybackQueueManager queueManager = queueManager(store);
-        PlaybackQueueManager emptyQueueManager = queueManager(new FakeQueueStore());
-        Track track = track(11L);
+    public void matcherReturnsFalseWhenPlaybackQueueManagerSupplierIsMissing() {
         List<String> events = new ArrayList<>();
-        PlaybackQueueMirroredPlayerOwner owner = new PlaybackQueueMirroredPlayerOwner(
-                () -> true,
-                () -> 1,
-                (index, matchedTrack) -> {
-                    events.add("track:" + index + ":" + matchedTrack.id);
-                    return matchedTrack == track;
-                },
-                () -> true,
-                preparing -> events.add("preparing"),
-                resetTrack -> events.add("waveform"),
-                () -> events.add("apply"),
-                (index, positionMs) -> events.add("seek"),
-                playWhenReady -> events.add("ready"),
-                () -> events.add("play"),
-                enabled -> events.add("mirror"),
-                error -> events.add("log")
-        );
-        owner.bindPlaybackQueueManager(emptyQueueManager);
+        BooleanSupplier matcher =
+                PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManager(
+                        () -> {
+                            events.add("mirrors");
+                            return true;
+                        },
+                        () -> {
+                            events.add("hasPlayer");
+                            return true;
+                        },
+                        () -> {
+                            events.add("count");
+                            return 1;
+                        },
+                        null,
+                        (index, track) -> true
+                );
 
-        assertFalse(owner.matchesCurrentQueue());
-        assertEquals(Collections.emptyList(), events);
-
-        queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        owner.bindPlaybackQueueManager(queueManager);
-
-        assertTrue(owner.matchesCurrentQueue());
-        assertEquals(Collections.singletonList("track:0:11"), events);
-    }
-
-    @Test
-    public void bindPlaybackQueueManagerReadsCurrentTrackFromQueueManager() {
-        FakeQueueStore store = new FakeQueueStore();
-        PlaybackQueueManager queueManager = queueManager(store);
-        PlaybackQueueManager emptyQueueManager = queueManager(new FakeQueueStore());
-        Track track = track(12L);
-        List<String> events = new ArrayList<>();
-        PlaybackQueueMirroredPlayerOwner owner = new PlaybackQueueMirroredPlayerOwner(
-                () -> true,
-                () -> true,
-                preparing -> events.add("preparing:" + preparing),
-                resetTrack -> events.add("waveform:" + resetTrack.id),
-                () -> events.add("apply"),
-                (index, positionMs) -> events.add("seek:" + index + ":" + positionMs),
-                playWhenReady -> events.add("ready:" + playWhenReady),
-                () -> events.add("play"),
-                enabled -> events.add("mirror:" + enabled),
-                error -> events.add("log:" + error.getMessage())
-        );
-        owner.bindPlaybackQueueManager(emptyQueueManager);
-
-        assertTrue(owner.seekTo(0, 0L, false));
+        assertFalse(matcher.getAsBoolean());
         assertEquals(
-                java.util.Arrays.asList(
-                        "preparing:false",
-                        "apply",
-                        "seek:0:0",
-                        "ready:false"
-                ),
+                java.util.Arrays.asList("mirrors", "hasPlayer"),
                 events
         );
-
-        queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        owner.bindPlaybackQueueManager(queueManager);
-        events.clear();
-
-        assertTrue(owner.seekTo(0, 0L, false));
-        assertEquals(
-                java.util.Arrays.asList(
-                        "preparing:false",
-                        "waveform:12",
-                        "apply",
-                        "seek:0:0",
-                        "ready:false"
-                ),
-                events
-        );
-    }
-
-    private static PlaybackQueueManager queueManager(FakeQueueStore store) {
-        return new PlaybackQueueManager(
-                store,
-                new NoopQueuePlaybackActions(),
-                null,
-                new NoopStreamingRestoreProvider(),
-                new NoopMirroredQueuePlayer(),
-                null,
-                null
-        );
-    }
-
-    private static PlaybackQueueManager queueManager(Track track) {
-        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore());
-        queueManager.playQueue(Collections.singletonList(track), 0, -1L);
-        return queueManager;
     }
 
     private static Track track(long id) {
@@ -492,80 +241,4 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 "/music/" + id + ".mp3"
         );
     }
-
-    private static final class FakeQueueStore implements PlaybackQueueStore {
-        @Override
-        public PlaybackQueueState load() {
-            return new PlaybackQueueState(Collections.emptyList(), -1);
-        }
-
-        @Override
-        public void save(List<Track> tracks, int currentIndex) {
-        }
-
-        @Override
-        public boolean loadResumeRequested() {
-            return false;
-        }
-
-        @Override
-        public void saveResumeRequested(boolean requested) {
-        }
-
-        @Override
-        public boolean loadPlaybackRestoreEnabled() {
-            return true;
-        }
-
-        @Override
-        public void savePlaybackRestoreEnabled(boolean enabled) {
-        }
-
-        @Override
-        public long loadPlaybackPositionTrackId() {
-            return -1L;
-        }
-
-        @Override
-        public long loadPlaybackPositionMs() {
-            return 0L;
-        }
-
-        @Override
-        public void savePlaybackPosition(long trackId, long positionMs) {
-        }
-    }
-
-    private static final class NoopQueuePlaybackActions
-            implements PlaybackQueueManager.QueuePlaybackActions {
-        @Override
-        public void prepareCurrent(boolean playWhenReady) {
-        }
-
-        @Override
-        public void publishState() {
-        }
-    }
-
-    private static final class NoopStreamingRestoreProvider
-            implements PlaybackQueueManager.StreamingRestoreProvider {
-        @Override
-        public Track restoreTrackForPlayback(Track track) {
-            return track;
-        }
-    }
-
-    private static final class NoopMirroredQueuePlayer
-            implements PlaybackQueueManager.MirroredQueuePlayer {
-        @Override
-        public boolean matchesCurrentQueue() {
-            return false;
-        }
-
-        @Override
-        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
-            return false;
-        }
-    }
-
 }

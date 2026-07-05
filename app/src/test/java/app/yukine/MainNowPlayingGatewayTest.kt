@@ -97,7 +97,9 @@ class MainNowPlayingGatewayTest {
     private class FakePlaybackGateway : NowPlayingPlaybackGateway {
         val calls = mutableListOf<String>()
 
+        override fun serviceConnected(): Boolean = true
         override fun snapshot(): PlaybackStateSnapshot? = snapshot(track(1L))
+        override fun queueSnapshot(): List<Track> = listOf(track(1L))
         override fun skipToPrevious() {
             calls += "previous"
         }
@@ -108,6 +110,7 @@ class MainNowPlayingGatewayTest {
         override fun removeTracksById(trackIds: Set<Long>) {}
         override fun clearQueue() {}
         override fun moveQueueTrack(fromIndex: Int, toIndex: Int) {}
+        override fun replaceQueuedTrack(updated: Track) {}
         override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) {}
         override fun retainTracksById(trackIds: Set<Long>) {}
         override fun warmPlaybackTrack(track: Track) {}

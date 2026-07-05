@@ -14,7 +14,6 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public final class PlaybackRuntimeSettingsStoreTest {
     @Test
@@ -35,21 +34,12 @@ public final class PlaybackRuntimeSettingsStoreTest {
     }
 
     @Test
-    public void runtimeStateManagerIsRequiredForRuntimeSettings() {
-        PlaybackRuntimeSettingsStore store = new PlaybackRuntimeSettingsStore(new FakeRuntimeSettings());
+    public void restoreIgnoresMissingRuntimeStateOwner() {
+        FakeRuntimeSettings settings = new FakeRuntimeSettings();
 
-        assertRequiresRuntimeStateManager(() -> store.restoreInto(null));
-        assertRequiresRuntimeStateManager(() -> store.setPlaybackSpeed(null, 1.36f));
-        assertRequiresRuntimeStateManager(() -> store.setAppVolume(null, 0.42f));
-        assertRequiresRuntimeStateManager(() -> store.setConcurrentPlaybackEnabled(null, true));
-        assertRequiresRuntimeStateManager(() -> store.setReplayGainEnabled(null, false));
-        assertRequiresRuntimeStateManager(() -> store.playbackSpeed(null));
-        assertRequiresRuntimeStateManager(() -> store.appVolume(null));
-        assertRequiresRuntimeStateManager(() -> store.currentTrackVolume(null));
-        assertRequiresRuntimeStateManager(() -> store.concurrentPlaybackEnabled(null));
-        assertRequiresRuntimeStateManager(() -> store.applyPlaybackParametersToPlayer(null));
-        assertRequiresRuntimeStateManager(() -> store.applyCurrentTrackVolumeToPlayer(null));
-        assertRequiresRuntimeStateManager(() -> store.applyAudioFocusHandling(null));
+        new PlaybackRuntimeSettingsStore(settings).restoreInto(null);
+
+        assertEquals(0, settings.loadCalls);
     }
 
     @Test
@@ -92,6 +82,25 @@ public final class PlaybackRuntimeSettingsStoreTest {
     }
 
     @Test
+    public void readRuntimeSettingsFallBackWhenRuntimeStateOwnerMissing() {
+        PlaybackRuntimeSettingsStore store = new PlaybackRuntimeSettingsStore(new FakeRuntimeSettings());
+
+        assertEquals(1.0f, store.playbackSpeed(null), 0.001f);
+        assertEquals(1.0f, store.appVolume(null), 0.001f);
+        assertEquals(1.0f, store.currentTrackVolume(null), 0.001f);
+        assertFalse(store.concurrentPlaybackEnabled(null));
+    }
+
+    @Test
+    public void applyPlaybackRuntimeSettingsIgnoreMissingRuntimeStateOwner() {
+        PlaybackRuntimeSettingsStore store = new PlaybackRuntimeSettingsStore(new FakeRuntimeSettings());
+
+        store.applyPlaybackParametersToPlayer(null);
+        store.applyCurrentTrackVolumeToPlayer(null);
+        store.applyAudioFocusHandling(null);
+    }
+
+    @Test
     public void applyCurrentTrackVolumeDelegatesToRuntimeStateOwner() {
         RecordingExoPlayer player = new RecordingExoPlayer();
         PlaybackRuntimeStateManager runtimeStateManager = runtimeStateManager(player);
@@ -104,17 +113,18 @@ public final class PlaybackRuntimeSettingsStoreTest {
         assertEquals(java.util.Arrays.asList("setVolume:0.42"), player.events);
     }
 
-    private static PlaybackRuntimeStateManager runtimeStateManager() {
-        return runtimeStateManager(null);
+    @Test
+    public void settersIgnoreMissingRuntimeStateOwner() {
+        PlaybackRuntimeSettingsStore store = new PlaybackRuntimeSettingsStore(new FakeRuntimeSettings());
+
+        store.setPlaybackSpeed(null, 1.36f);
+        store.setAppVolume(null, 0.42f);
+        store.setConcurrentPlaybackEnabled(null, true);
+        store.setReplayGainEnabled(null, false);
     }
 
-    private static void assertRequiresRuntimeStateManager(Runnable action) {
-        try {
-            action.run();
-            fail("Expected NullPointerException");
-        } catch (NullPointerException expected) {
-            assertEquals("runtimeStateManager", expected.getMessage());
-        }
+    private static PlaybackRuntimeStateManager runtimeStateManager() {
+        return runtimeStateManager(null);
     }
 
     private static PlaybackRuntimeStateManager runtimeStateManager(RecordingExoPlayer recordingPlayer) {

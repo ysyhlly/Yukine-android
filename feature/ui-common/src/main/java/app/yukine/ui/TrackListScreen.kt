@@ -1,4 +1,4 @@
-package app.yukine.ui
+﻿package app.yukine.ui
 
 import android.net.Uri
 import app.yukine.TrackDownloadItem
@@ -179,7 +179,7 @@ fun TrackListScreen(
                 items = headerMetrics,
                 key = { index, metric -> "metric:${metric.label}:$index" }
             ) { _, metric ->
-                if (metric.label == "歌手介绍" || metric.label == "Artist info") {
+                if (metric.label == "姝屾墜浠嬬粛" || metric.label == "Artist info") {
                     ArtistIntroRow(metric.value)
                 } else {
                     HeaderMetricRow(metric)
@@ -342,7 +342,7 @@ private fun ArtistIntroRow(intro: String) {
                 EchoIcon(EchoIconKind.Artist, Modifier.size(20.dp), p.accent)
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "歌手介绍",
+                    "姝屾墜浠嬬粛",
                     style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = p.text
                 )
@@ -361,7 +361,7 @@ private fun ArtistIntroRow(intro: String) {
 private fun FooterAlbumsTitle() {
     val p = EchoTheme.colors()
     Text(
-        "全部专辑",
+        "鍏ㄩ儴涓撹緫",
         style = EchoTypography.title,
         color = p.text,
         modifier = Modifier.padding(top = 12.dp, bottom = 2.dp)

@@ -1,50 +1,98 @@
 package app.yukine.playback;
 
 import app.yukine.playback.manager.PlaybackQueueManager;
-import app.yukine.playback.manager.PlaybackQueueStore;
 
-import java.util.Objects;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 final class PlaybackQueueRestoreOwner {
-    private final PlaybackQueueManager playbackQueueManager;
-    private final PlaybackQueueStore playbackQueueStore;
+    private final Runnable restorePlaybackQueue;
+    private final Function<Boolean, PlaybackQueueManager.RestorePlaybackResult> restoreLastPlayback;
+    private final Consumer<Boolean> setPlaybackRestoreEnabled;
     private final Runnable createPlayerIfNeeded;
-    private final PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions;
+    private final Consumer<Boolean> prepareCurrent;
+    private final Runnable statePublisher;
 
     PlaybackQueueRestoreOwner(
-            PlaybackQueueManager playbackQueueManager,
-            PlaybackQueueStore playbackQueueStore,
+            Runnable restorePlaybackQueue,
+            Function<Boolean, PlaybackQueueManager.RestorePlaybackResult> restoreLastPlayback,
+            Consumer<Boolean> setPlaybackRestoreEnabled,
             Runnable createPlayerIfNeeded,
-            PlaybackQueueManager.QueuePlaybackActions queuePlaybackActions
+            Consumer<Boolean> prepareCurrent,
+            Runnable statePublisher
     ) {
-        this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.playbackQueueStore = playbackQueueStore;
+        this.restorePlaybackQueue = restorePlaybackQueue;
+        this.restoreLastPlayback = restoreLastPlayback;
+        this.setPlaybackRestoreEnabled = setPlaybackRestoreEnabled;
         this.createPlayerIfNeeded = createPlayerIfNeeded;
-        this.queuePlaybackActions = queuePlaybackActions;
+        this.prepareCurrent = prepareCurrent;
+        this.statePublisher = statePublisher;
+    }
+
+    static PlaybackQueueRestoreOwner fromPlaybackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier,
+            Runnable createPlayerIfNeeded,
+            Consumer<Boolean> prepareCurrent,
+            Runnable statePublisher
+    ) {
+        return new PlaybackQueueRestoreOwner(
+                () -> {
+                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
+                    if (playbackQueueManager != null) {
+                        playbackQueueManager.restorePlaybackQueue();
+                    }
+                },
+                playWhenRestored -> {
+                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
+                    return playbackQueueManager == null
+                            ? null
+                            : playbackQueueManager.restoreLastPlayback(playWhenRestored);
+                },
+                enabled -> {
+                    PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
+                    if (playbackQueueManager != null) {
+                        playbackQueueManager.setPlaybackRestoreEnabled(enabled);
+                    }
+                },
+                createPlayerIfNeeded,
+                prepareCurrent,
+                statePublisher
+        );
+    }
+
+    private static PlaybackQueueManager playbackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
+    ) {
+        return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }
 
     void restoreLastPlayback(boolean playWhenRestored) {
-        playbackQueueManager.restorePlaybackQueue();
-        PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot = queueStateSnapshot();
-        if (queueStateSnapshot.getQueueSize() <= 0) {
+        PlaybackQueueManager.RestorePlaybackResult restoreResult = restoreLastPlayback == null
+                ? PlaybackQueueManager.RestorePlaybackResult.empty()
+                : restoreLastPlayback.apply(playWhenRestored);
+        if (restoreResult == null) {
+            restoreResult = PlaybackQueueManager.RestorePlaybackResult.empty();
+        }
+        if (restoreResult.getShouldCreatePlayer()) {
+            createPlayerIfNeeded();
+        }
+        if (!restoreResult.getShouldPrepare()) {
             publishState();
             return;
         }
-        createPlayerIfNeeded();
-        if (queueStateSnapshot.getCurrentTrack() == null) {
-            publishState();
-            return;
-        }
-        prepareCurrent(playWhenRestored || loadResumeRequested());
+        prepareCurrent(restoreResult.getPlayWhenReady());
     }
 
-    void restoreQueueForStartup() {
-        playbackQueueManager.restorePlaybackQueue();
+    void restorePlaybackQueue() {
+        if (restorePlaybackQueue != null) {
+            restorePlaybackQueue.run();
+        }
     }
 
     void setPlaybackRestoreEnabled(boolean enabled) {
-        if (playbackQueueStore != null) {
-            playbackQueueStore.savePlaybackRestoreEnabled(enabled);
+        if (setPlaybackRestoreEnabled != null) {
+            setPlaybackRestoreEnabled.accept(enabled);
         }
     }
 
@@ -55,23 +103,14 @@ final class PlaybackQueueRestoreOwner {
     }
 
     private void prepareCurrent(boolean playWhenReady) {
-        if (queuePlaybackActions != null) {
-            queuePlaybackActions.prepareCurrent(playWhenReady);
+        if (prepareCurrent != null) {
+            prepareCurrent.accept(playWhenReady);
         }
     }
 
     private void publishState() {
-        if (queuePlaybackActions != null) {
-            queuePlaybackActions.publishState();
+        if (statePublisher != null) {
+            statePublisher.run();
         }
     }
-
-    private boolean loadResumeRequested() {
-        return playbackQueueStore != null && playbackQueueStore.loadResumeRequested();
-    }
-
-    private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {
-        return playbackQueueManager.queueStateSnapshot();
-    }
-
 }

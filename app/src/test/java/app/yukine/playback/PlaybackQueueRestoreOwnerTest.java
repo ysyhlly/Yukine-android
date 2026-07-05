@@ -1,246 +1,176 @@
 package app.yukine.playback;
 
-import static org.junit.Assert.assertEquals;
-
-import app.yukine.model.PlaybackQueueState;
-import app.yukine.model.Track;
-import app.yukine.playback.manager.PlaybackQueueManager;
-import app.yukine.playback.manager.PlaybackQueueStore;
+import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
-import org.junit.Test;
+import app.yukine.playback.manager.PlaybackQueueManager;
+
+import static org.junit.Assert.assertEquals;
 
 public class PlaybackQueueRestoreOwnerTest {
     @Test
     public void restoresAndPreparesPlaybackWhenQueueIsRestorable() {
         List<String> events = new ArrayList<>();
-        FakeQueueStore store = new FakeQueueStore(
-                new PlaybackQueueState(Collections.singletonList(track(1L)), 0),
-                false
+        FakeQueueRestoreActions actions = new FakeQueueRestoreActions(
+                events,
+                new PlaybackQueueManager.RestorePlaybackResult(true, true, true)
         );
-        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, new FakeRestorePlaybackBoundary(events));
-
-        owner.restoreLastPlayback(true);
-
-        assertEquals("create,prepare:true", String.join(",", events));
-    }
-
-    @Test
-    public void restoresPlaybackPausedWhenResumeIsNotRequested() {
-        List<String> events = new ArrayList<>();
-        FakeQueueStore store = new FakeQueueStore(
-                new PlaybackQueueState(Collections.singletonList(track(11L)), 0),
-                false
-        );
-        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, new FakeRestorePlaybackBoundary(events));
+        PlaybackQueueRestoreOwner owner = owner(actions, new FakeRestorePlaybackBoundary(events));
 
         owner.restoreLastPlayback(false);
 
-        assertEquals("create,prepare:false", String.join(",", events));
+        assertEquals(
+                Arrays.asList(
+                        "restore:false",
+                        "create",
+                        "prepare:true"
+                ),
+                events
+        );
     }
 
     @Test
     public void publishesStateWhenRestoreDoesNotPreparePlayback() {
         List<String> events = new ArrayList<>();
-        FakeQueueStore store = new FakeQueueStore(
-                new PlaybackQueueState(Collections.singletonList(track(2L)), -1),
-                false
+        FakeQueueRestoreActions actions = new FakeQueueRestoreActions(
+                events,
+                new PlaybackQueueManager.RestorePlaybackResult(true, false, false)
         );
-        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, new FakeRestorePlaybackBoundary(events));
+        PlaybackQueueRestoreOwner owner = owner(actions, new FakeRestorePlaybackBoundary(events));
 
         owner.restoreLastPlayback(true);
 
-        assertEquals("create,publish", String.join(",", events));
+        assertEquals(
+                Arrays.asList(
+                        "restore:true",
+                        "create",
+                        "publish"
+                ),
+                events
+        );
     }
 
     @Test
-    public void restoresPlaybackUsingPersistedResumeRequest() {
+    public void missingQueueActionsPublishesEmptyRestoreState() {
         List<String> events = new ArrayList<>();
-        FakeQueueStore store = new FakeQueueStore(
-                new PlaybackQueueState(Collections.singletonList(track(21L)), 0),
-                true
+        PlaybackQueueRestoreOwner missingActions = owner(null, new FakeRestorePlaybackBoundary(events));
+
+        missingActions.restoreLastPlayback(false);
+
+        assertEquals(Collections.singletonList("publish"), events);
+    }
+
+    @Test
+    public void missingPlaybackQueueManagerSupplierPublishesEmptyRestoreState() {
+        List<String> events = new ArrayList<>();
+        PlaybackQueueRestoreOwner owner = PlaybackQueueRestoreOwner.fromPlaybackQueueManager(
+                null,
+                () -> events.add("create"),
+                playWhenReady -> events.add("prepare:" + playWhenReady),
+                () -> events.add("publish")
         );
-        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, new FakeRestorePlaybackBoundary(events));
 
         owner.restoreLastPlayback(false);
 
-        assertEquals("create,prepare:true", String.join(",", events));
-    }
-
-    @Test
-    public void constructorRequiresQueueManager() {
-        try {
-            new PlaybackQueueRestoreOwner(
-                    null,
-                    null,
-                    null,
-                    null
-            );
-        } catch (NullPointerException expected) {
-            return;
-        }
-        throw new AssertionError("Expected NullPointerException");
-    }
-
-    @Test
-    public void emptyRestoreQueuePublishesStateWithoutCreatingPlayer() {
-        List<String> events = new ArrayList<>();
-        FakeQueueStore store = new FakeQueueStore(
-                new PlaybackQueueState(Collections.emptyList(), -1),
-                false
-        );
-        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, new FakeRestorePlaybackBoundary(events));
-
-        owner.restoreLastPlayback(true);
-
-        assertEquals("publish", String.join(",", events));
+        assertEquals(Collections.singletonList("publish"), events);
     }
 
     @Test
     public void ignoresMissingRestoreBoundary() {
-        FakeQueueStore store = new FakeQueueStore(
-                new PlaybackQueueState(Collections.singletonList(track(3L)), 0),
-                true
+        List<String> events = new ArrayList<>();
+        FakeQueueRestoreActions actions = new FakeQueueRestoreActions(
+                events,
+                new PlaybackQueueManager.RestorePlaybackResult(true, true, true)
         );
-        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, null);
+        PlaybackQueueRestoreOwner owner = owner(actions, null);
 
         owner.restoreLastPlayback(false);
 
-        assertEquals(1, store.loadCalls);
-    }
-
-    @Test
-    public void startupRestoreOnlyRestoresQueueWithoutPlaybackBoundary() {
-        List<String> events = new ArrayList<>();
-        FakeQueueStore store = new FakeQueueStore(
-                new PlaybackQueueState(Collections.singletonList(track(4L)), 0),
-                true
-        );
-        PlaybackQueueManager queueManager = queueManager(store);
-        PlaybackQueueRestoreOwner owner = owner(queueManager, store, new FakeRestorePlaybackBoundary(events));
-
-        owner.restoreQueueForStartup();
-
-        assertEquals(1, store.loadCalls);
-        assertEquals(1, queueManager.queueStateSnapshot().getQueueSize());
-        assertEquals(0, queueManager.queueStateSnapshot().getCurrentIndex());
-        assertEquals("", String.join(",", events));
+        assertEquals(Collections.singletonList("restore:false"), events);
     }
 
     @Test
     public void delegatesRestoreEnabledSetting() {
-        FakeQueueStore store = new FakeQueueStore(new PlaybackQueueState(Collections.emptyList(), -1), false);
-        PlaybackQueueRestoreOwner owner = owner(queueManager(store), store, null);
+        List<String> events = new ArrayList<>();
+        FakeQueueRestoreActions actions = new FakeQueueRestoreActions(events, null);
+        PlaybackQueueRestoreOwner owner = owner(actions, null);
+        PlaybackQueueRestoreOwner missingActions = owner(null, null);
 
         owner.setPlaybackRestoreEnabled(true);
+        missingActions.setPlaybackRestoreEnabled(false);
 
-        assertEquals(1, store.saveRestoreEnabledCalls);
-        assertEquals(true, store.lastRestoreEnabled);
+        assertEquals(Collections.singletonList("enabled:true"), events);
+    }
+
+    @Test
+    public void delegatesQueueRestoreSnapshot() {
+        List<String> events = new ArrayList<>();
+        FakeQueueRestoreActions actions = new FakeQueueRestoreActions(events, null);
+        PlaybackQueueRestoreOwner owner = owner(actions, null);
+        PlaybackQueueRestoreOwner missingActions = owner(null, null);
+
+        owner.restorePlaybackQueue();
+        missingActions.restorePlaybackQueue();
+
+        assertEquals(Collections.singletonList("restoreQueue"), events);
+    }
+
+    private static final class FakeQueueRestoreActions {
+        private final List<String> events;
+        private final PlaybackQueueManager.RestorePlaybackResult restoreResult;
+
+        private FakeQueueRestoreActions(
+                List<String> events,
+                PlaybackQueueManager.RestorePlaybackResult restoreResult
+        ) {
+            this.events = events;
+            this.restoreResult = restoreResult;
+        }
+
+        public PlaybackQueueManager.QueueStateSnapshot restorePlaybackQueue() {
+            events.add("restoreQueue");
+            return PlaybackQueueManager.QueueStateSnapshot.empty();
+        }
+
+        public PlaybackQueueManager.RestorePlaybackResult restoreLastPlayback(boolean playWhenRestored) {
+            events.add("restore:" + playWhenRestored);
+            return restoreResult;
+        }
+
+        public void setPlaybackRestoreEnabled(boolean enabled) {
+            events.add("enabled:" + enabled);
+        }
     }
 
     private static PlaybackQueueRestoreOwner owner(
-            PlaybackQueueManager queueManager,
-            PlaybackQueueStore queueStore,
+            FakeQueueRestoreActions actions,
             FakeRestorePlaybackBoundary boundary
     ) {
+        Runnable restorePlaybackQueue = actions == null ? null : actions::restorePlaybackQueue;
+        Function<Boolean, PlaybackQueueManager.RestorePlaybackResult> restoreLastPlayback =
+                actions == null ? null : actions::restoreLastPlayback;
+        Consumer<Boolean> setPlaybackRestoreEnabled =
+                actions == null ? null : actions::setPlaybackRestoreEnabled;
+        Runnable createPlayerIfNeeded = boundary == null ? null : boundary::createPlayerIfNeeded;
+        Consumer<Boolean> prepareCurrent = boundary == null ? null : boundary::prepareCurrent;
+        Runnable publishState = boundary == null ? null : boundary::publishState;
         return new PlaybackQueueRestoreOwner(
-                queueManager,
-                queueStore,
-                boundary == null ? null : boundary::createPlayerIfNeeded,
-                boundary
+                restorePlaybackQueue,
+                restoreLastPlayback,
+                setPlaybackRestoreEnabled,
+                createPlayerIfNeeded,
+                prepareCurrent,
+                publishState
         );
     }
 
-    private static PlaybackQueueManager queueManager(FakeQueueStore store) {
-        return new PlaybackQueueManager(
-                store,
-                new ArrayList<>(),
-                new NoopQueuePlaybackActions(),
-                null,
-                new NoopStreamingRestoreProvider(),
-                new NoopMirroredQueuePlayer(),
-                null,
-                null,
-                new Random(0L)
-        );
-    }
-
-    private static Track track(long id) {
-        return new Track(
-                id,
-                "Track " + id,
-                "Artist",
-                "Album",
-                1000L,
-                null,
-                "streaming:netease:" + id
-        );
-    }
-
-    private static final class FakeQueueStore implements PlaybackQueueStore {
-        private final PlaybackQueueState state;
-        private final boolean resumeRequested;
-        private int loadCalls;
-        private int saveRestoreEnabledCalls;
-        private boolean lastRestoreEnabled;
-
-        private FakeQueueStore(PlaybackQueueState state, boolean resumeRequested) {
-            this.state = state;
-            this.resumeRequested = resumeRequested;
-        }
-
-        @Override
-        public PlaybackQueueState load() {
-            loadCalls++;
-            return state;
-        }
-
-        @Override
-        public void save(List<Track> tracks, int currentIndex) {
-        }
-
-        @Override
-        public boolean loadResumeRequested() {
-            return resumeRequested;
-        }
-
-        @Override
-        public void saveResumeRequested(boolean requested) {
-        }
-
-        @Override
-        public boolean loadPlaybackRestoreEnabled() {
-            return true;
-        }
-
-        @Override
-        public void savePlaybackRestoreEnabled(boolean enabled) {
-            saveRestoreEnabledCalls++;
-            lastRestoreEnabled = enabled;
-        }
-
-        @Override
-        public long loadPlaybackPositionTrackId() {
-            return -1L;
-        }
-
-        @Override
-        public long loadPlaybackPositionMs() {
-            return 0L;
-        }
-
-        @Override
-        public void savePlaybackPosition(long trackId, long positionMs) {
-        }
-    }
-
-
-    private static final class FakeRestorePlaybackBoundary
-            implements PlaybackQueueManager.QueuePlaybackActions {
+    private static final class FakeRestorePlaybackBoundary {
         private final List<String> events;
 
         private FakeRestorePlaybackBoundary(List<String> events) {
@@ -251,46 +181,12 @@ public class PlaybackQueueRestoreOwnerTest {
             events.add("create");
         }
 
-        @Override
         public void prepareCurrent(boolean playWhenReady) {
             events.add("prepare:" + playWhenReady);
         }
 
-        @Override
         public void publishState() {
             events.add("publish");
-        }
-    }
-
-    private static final class NoopQueuePlaybackActions
-            implements PlaybackQueueManager.QueuePlaybackActions {
-        @Override
-        public void prepareCurrent(boolean playWhenReady) {
-        }
-
-        @Override
-        public void publishState() {
-        }
-    }
-
-    private static final class NoopStreamingRestoreProvider
-            implements PlaybackQueueManager.StreamingRestoreProvider {
-        @Override
-        public Track restoreTrackForPlayback(Track track) {
-            return track;
-        }
-    }
-
-    private static final class NoopMirroredQueuePlayer
-            implements PlaybackQueueManager.MirroredQueuePlayer {
-        @Override
-        public boolean matchesCurrentQueue() {
-            return false;
-        }
-
-        @Override
-        public boolean seekTo(int index, long positionMs, boolean playWhenReady) {
-            return false;
         }
     }
 }

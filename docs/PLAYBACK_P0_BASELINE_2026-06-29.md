@@ -165,11 +165,2103 @@ this baseline; the next implementation slice should be a small
 `PlaybackQueueManager` authority-source change with focused tests first and
 device smoke recorded before claiming runtime coverage.
 
+## P1 Delta - Queue Authority Slices
 
-## 历史切片 delta（已归档）
+After the first P1 queue-authority slices:
 
-本文件曾记录每个 playback 切片的 P1-P6 Delta（约 4400 行）。这些内容属于 git log 而非基线文档，已于 2026-07-05 移除以恢复可审查性。历史 delta 见：
+- `PlaybackQueueManager` owns restored track eligibility directly, and
+  `PlaybackQueueManager.QueueProvider` no longer exposes
+  `isRestorableQueueTrack(track: Track): Boolean`.
+- `PlaybackQueueManager` owns current-index state and clamping directly, and
+  `PlaybackQueueManager.QueueProvider` no longer exposes `currentIndex()` or
+  `setCurrentIndex(index)`.
+- `PlaybackQueueRuntimeStateManager` now keeps only MediaSession mirror state
+  for this area; it no longer owns current-index state.
+- Queue-driven resume-request writes go through
+  `PlaybackQueueManager -> PlaybackQueueStore.saveResumeRequested(...)`, and
+  `PlaybackQueueManager.QueueProvider` no longer exposes
+  `savePlaybackResumeRequested(requested)`.
+- MediaSession mirror eligibility now flows through
+  `PlaybackQueueManager.mirroredQueueTracksForPreparation()`. The service no
+  longer keeps a separate `canMirrorQueueToPlayer()` precheck; it receives a
+  queue snapshot from the queue owner and falls back to single-track
+  preparation when the owner rejects the queue.
+- Queue skip/previous mirrored-player reuse now goes through
+  `PlaybackQueueManager.reuseMirroredQueueAtCurrentIndex(...)`. The
+  `PlaybackQueueManager.QueueProvider` no longer exposes
+  `seekMirroredQueueToCurrentIndex(playWhenReady)`.
+- Current playback position reads for queue persistence and streaming
+  replacement resume now go through `PlaybackPositionManager.positionMs()`.
+  `PlaybackQueueManager.QueueProvider` no longer exposes
+  `playbackPositionMs()`.
+- Current `EchoPlaybackService.java`: 2344 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 23 methods.
+- Behavior guards:
+  `PlaybackQueueManagerTest.restorePlaybackQueueFiltersInvalidTracksInsideManager`,
+  `PlaybackQueueManagerTest.currentIndexStateIsOwnedByQueueManager`, and the
+  existing previous/replace-current/mirrored-queue tests, plus
+  `PlaybackQueueManagerTest.queuePlaybackStartPersistsResumeRequestThroughStore`
+  and
+  `PlaybackQueueManagerTest.mirroredQueueTracksForPreparationRejectsEmptyUriWithoutPartialRestore`
+  and
+  `PlaybackQueueManagerTest.skipToNextReusesMirroredQueueWithoutPreparingNewMediaSources`,
+  plus
+  `PlaybackPositionManagerTest.positionMsReadsCurrentPlaybackPositionFromStateProvider`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`
+  plus `MainActivityArchitectureContractTest.playbackQueueRuntimeStateIsOwnedOutsideEchoPlaybackService`.
+- Verification:
 
-```bash
-git log --oneline docs/PLAYBACK_P0_BASELINE_2026-06-29.md
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Delta - Queue Advance Predicates Owned By Queue Manager
+
+After the next queue ownership slice:
+
+- `PlaybackQueueManager.hasMultipleTracks()` now owns the queue-length
+  predicate used by automatic fade-out advancement.
+- `PlaybackQueueManager.isAtEndOfQueue()` now owns the current-index versus
+  queue-size predicate used by repeat-off completion and fade-out advancement.
+- `EchoPlaybackService` no longer combines `queueSize() < 2` or
+  `currentIndex() >= queueSize() - 1` directly for queue advance policy.
+- Current `EchoPlaybackService.java`: 2182 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Behavior guard:
+  `PlaybackQueueManagerTest.queueAdvancePredicatesAreOwnedByQueueManager`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Delta - Error Recovery Uses Queue Predicate Instead Of Raw Size
+
+After the next queue ownership slice:
+
+- `PlaybackErrorRecoveryManager.Actions` now asks for
+  `hasMultipleQueueTracks()` instead of raw `queueSize()`.
+- `EchoPlaybackService` wires that predicate to the existing queue owner
+  delegate, `PlaybackQueueManager.hasMultipleTracks()`.
+- Error recovery still owns retry/skip policy, but it no longer interprets
+  queue size directly.
+- Current `EchoPlaybackService.java`: 2182 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Behavior guards:
+  `PlaybackErrorRecoveryManagerTest.retriesStreamingTrackOnceBeforeSkipping`
+  and
+  `PlaybackErrorRecoveryManagerTest.singleTrackErrorDoesNotSkipToNext`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackErrorRecoveryIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackErrorRecoveryManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Delta - Remove Unused Queue Forwarding Wrappers
+
+After the next queue ownership cleanup:
+
+- Removed unused `EchoPlaybackService.advanceQueueIndexToNext()` and
+  `EchoPlaybackService.clampedCurrentIndex()` wrappers.
+- `EchoPlaybackService` no longer exposes a forwarding-only entry point for
+  queue index advancement.
+- Current `EchoPlaybackService.java`: 2167 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackErrorRecoveryManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Delta - Mirrored Transition Index Owned By Queue Manager
+
+After the next queue ownership slice:
+
+- `PlaybackQueueManager.applyMirroredTransitionIndex(nextIndex, automaticAdvance)`
+  now owns validation of player-reported mirrored queue indexes.
+- Repeat-off automatic Media3 transitions now return a queue-manager result
+  telling the service to stop at the completed index; normal transitions update
+  the current index inside the queue owner.
+- `EchoPlaybackService` no longer checks `nextIndex < 0`,
+  `nextIndex >= queueSize()`, or `nextIndex == currentIndex()` directly, and
+  the unused `setCurrentIndex(int)` service wrapper was removed.
+- Current `EchoPlaybackService.java`: 2177 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Behavior guard:
+  `PlaybackQueueManagerTest.mirroredTransitionIndexValidationAndRepeatStopAreOwnedByQueueManager`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackErrorRecoveryManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Delta - Queue Index Clamping Size Hidden Inside Queue Manager
+
+After the next queue ownership slice:
+
+- `PlaybackQueueManager.clampCurrentIndex()` and
+  `PlaybackQueueManager.setClampedCurrentIndex(index)` now derive queue size
+  from the queue owner instead of accepting size from `EchoPlaybackService`.
+- `EchoPlaybackService` no longer passes `queueSize()` back into queue index
+  normalization.
+- Current `EchoPlaybackService.java`: 2182 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Behavior guard:
+  `PlaybackQueueManagerTest.currentIndexStateIsOwnedByQueueManager`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueRuntimeStateIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Delta - Queue Data Source Split From Playback Actions
+
+After the next queue ownership slice:
+
+- `PlaybackQueueManager.QueueProvider` is now a queue data source only. It
+  exposes `queue()` and no longer carries service playback actions.
+- Service callbacks for `isPlaying()`, `prepareCurrent(...)`, `publishState()`,
+  and `stopAndClear()` moved to the narrow
+  `PlaybackQueueManager.QueuePlaybackActions` port.
+- `EchoPlaybackService` still supplies the Android/Media3 boundary behavior,
+  but queue mutation policy now calls `queuePlaybackActions` for playback
+  effects and `queueProvider.queue()` only for queue data.
+- Current `EchoPlaybackService.java`: 2189 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Behavior guard:
+  `PlaybackQueueManagerTest`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Delta - Queue Clear And Persist State Owned By Queue Manager
+
+After the next queue ownership slice:
+
+- `PlaybackQueueManager.clearQueueState()` now owns clearing the mutable queue
+  and resetting the current index.
+- `PlaybackQueueManager.persistQueueState()` now owns explicit queue snapshot
+  persistence for service lifecycle and player transition callbacks.
+- `EchoPlaybackService.clearQueueState()` and `persistPlaybackQueue()` are
+  reduced to boundary delegates and no longer call `queue.clear()` or
+  `queueStore().save(new ArrayList<>(queue), currentIndex())` directly.
+- Current `EchoPlaybackService.java`: 2174 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Behavior guards:
+  `PlaybackQueueManagerTest.clearQueueStateClearsQueueAndCurrentIndexWithoutPublishing`
+  and
+  `PlaybackQueueManagerTest.persistQueueStateSavesCurrentSnapshotThroughQueueStore`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Delta - Mirrored Queue Traversal Owned By Queue Manager
+
+After the next queue ownership slice:
+
+- `PlaybackQueueManager.matchesMirroredQueue(...)` now owns queue-side mirrored
+  player traversal and item-count matching.
+- `EchoPlaybackService.mirroredQueueMatchesCurrentPlayer()` still owns the
+  Android/Media3 boundary: checking player state, reading `MediaItem`s, and
+  asking `PlaybackMediaSourceProvider` whether each player item matches a
+  queue track.
+- `EchoPlaybackService` no longer loops over `queue.size()` or reads
+  `queue.get(i)` for mirrored queue comparison.
+- Current `EchoPlaybackService.java`: 2171 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Behavior guard:
+  `PlaybackQueueManagerTest.matchesMirroredQueueChecksItemCountAndDelegatesTrackIdentity`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Delta - Current Queue Track Replacement Owned By Queue Manager
+
+After the next queue ownership slice:
+
+- `PlaybackQueueManager.replaceCurrentQueueTrack(...)` now owns the
+  current-index queue slot replacement used after streaming header restoration.
+- `EchoPlaybackService.replaceCurrentQueueTrack(...)` is reduced to a boundary
+  delegate and no longer calls `queue.set(currentIndex(), track)` or persists
+  that replacement directly.
+- Current `EchoPlaybackService.java`: 2168 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Behavior guards:
+  `PlaybackQueueManagerTest.replaceCurrentQueueTrackPersistsCurrentSlotOnly`
+  and
+  `PlaybackQueueManagerTest.replaceCurrentQueueTrackRejectsMissingCurrentSlot`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Delta - Queue Empty Size And Safe Index Owned By Queue Manager
+
+After the next queue ownership slice:
+
+- `PlaybackQueueManager` now exposes `isQueueEmpty()`, `queueSize()`, and
+  `safeCurrentIndex()` for service boundary code that only needs derived queue
+  state.
+- `EchoPlaybackService` no longer uses `queue.isEmpty()` or simple
+  `queue.size()` checks for skip, restore, snapshot, notification-worthiness,
+  mirrored queue preparation entry checks, or safe current index selection.
+- A stale service-local `indexOfTrackOccurrence(...)` helper was removed after
+  confirming it had no callers; the active implementation already lives inside
+  `PlaybackQueueManager`.
+- The remaining direct queue traversal in service is limited to mirrored player
+  queue comparison and current-track replacement, which are separate follow-up
+  slices.
+- Current `EchoPlaybackService.java`: 2170 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Behavior guard:
+  `PlaybackQueueManagerTest.currentIndexStateIsOwnedByQueueManager`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Delta - Queue Snapshot Derivation Owned By Queue Manager
+
+After the next queue ownership slice:
+
+- `PlaybackQueueManager.queueSnapshot()` now owns the defensive queue snapshot
+  used by UI/service state readers.
+- `EchoPlaybackService.queueSnapshot()` delegates to the queue manager, and the
+  precache state provider now reuses that service snapshot instead of copying
+  the mutable service queue directly.
+- Current `EchoPlaybackService.java`: 2186 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Behavior guard:
+  `PlaybackQueueManagerTest.queueSnapshotIsOwnedByQueueManagerAndDefensive`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Delta - Current Track Derivation Owned By Queue Manager
+
+After the next queue ownership slice:
+
+- `PlaybackQueueManager.currentTrack()` is now the owner for deriving the
+  current track from the queue and current index.
+- `EchoPlaybackService.currentTrack()` delegates to the queue manager instead
+  of reading `queue.get(currentIndex())` directly. The service still keeps the
+  Android/Media3 boundary calls that need the current track.
+- Current `EchoPlaybackService.java`: 2186 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Behavior guard:
+  `PlaybackQueueManagerTest.currentTrackStateIsOwnedByQueueManager`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - NowPlaying ViewModel Avoids Concrete Service Constants
+
+After the first P6 structure-dependency slice:
+
+- `NowPlayingViewModel` no longer imports `EchoPlaybackService` for transport
+  action strings or repeat-mode constants.
+- Offline previous/next service startup now uses the existing
+  `PlaybackServiceActions` owner.
+- Bottom playback-mode cycling and repeat-mode UI mapping now use
+  `PlaybackRepeatMode`.
+- The concrete service dependency remains confined to
+  `NowPlayingPlaybackGatewayAdapter`, which is the current Android service
+  boundary adapter for `NowPlayingPlaybackGateway`.
+- Current `EchoPlaybackService.java`: unchanged by this slice.
+- Current `PlaybackQueueManager.QueueProvider`: unchanged at 23 methods.
+- Current `PlaybackPrecacheManager.StateProvider`: unchanged at 8 methods.
+- Behavior guard: `NowPlayingViewModelTest`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackStateListenerStaysOutOfMainActivity`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.NowPlayingViewModelTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.PlaybackServiceActionsTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - External Playback Actions Use Action Owner
+
+After the second P6 structure-dependency slice:
+
+- Live-lyrics notification controls, playback widget controls, and boot
+  restore now use `PlaybackServiceActions` for playback action strings.
+- `EchoPlaybackService` remains the Android service `Intent` target and keeps
+  `ACTION_*` aliases only as compatibility aliases guarded by
+  `PlaybackServiceActionsTest`.
+- `NowBarStateFactory` no longer imports `EchoPlaybackService`; now-playing
+  state tests use `PlaybackRepeatMode` instead of concrete service repeat
+  aliases.
+- Production code no longer contains `EchoPlaybackService.ACTION_*` callers
+  outside the service alias definitions.
+- Current `EchoPlaybackService.java`: unchanged by this slice at 2046 lines.
+- Current `PlaybackQueueManager.QueueProvider`: unchanged at 23 methods.
+- Current `PlaybackPrecacheManager.StateProvider`: unchanged at 8 methods.
+- Behavior guards:
+  `NowPlayingPlaybackGatewayAdapterTest`, `NowPlayingStateFactoryTest`,
+  `NowPlayingStateControllerTest`, and `PlaybackServiceActionsTest`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.liveLyricsNotificationServiceKeepsOppoFluidCloudContract`
+  and `MainActivityArchitectureContractTest.playbackStateListenerStaysOutOfMainActivity`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.NowPlayingPlaybackGatewayAdapterTest --tests app.yukine.NowPlayingStateFactoryTest --tests app.yukine.NowPlayingStateControllerTest --tests app.yukine.playback.PlaybackServiceActionsTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P3/P5 Delta - Visualization Cache Policy Stays In Analyzer
+
+After the visualization cleanup slice:
+
+- `EchoPlaybackService` no longer keeps stale private
+  `maybeGenerateSpectrum(...)`, `maybeGenerateStreamingWaveform(...)`, or
+  `visualizationCachedProgress(...)` helpers. Streaming waveform/spectrum
+  scheduling and cached-progress calculation remain in
+  `PlaybackVisualizationAnalyzer`.
+- Unused `waveformKey(...)` and `audioCache()` helpers were removed from the
+  service.
+- Visualization state providers now call `PlaybackMediaSourceProvider`
+  directly for cache data sources, cache keys, continuous cached bytes, and
+  content length instead of routing through service-private cache proxy
+  methods. `bufferedProgress(...)` remains in the service because it reads the
+  active Media3 player state.
+- Current `EchoPlaybackService.java`: 2002 lines.
+- Current `PlaybackQueueManager.QueueProvider`: unchanged at 23 methods.
+- Current `PlaybackPrecacheManager.StateProvider`: unchanged at 8 methods.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackStartDefersHeavyVisualizationWork`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P4 Delta - Notification Foreground Boundary Split
+
+After the next P4 notification bridge slice:
+
+- `PlaybackNotificationManager.ForegroundPresenter` was split into
+  `ForegroundController` and `StateProvider`.
+- `ForegroundController` now owns Android notification boundary actions:
+  activity pending intent, service action pending intents, and starting
+  foreground playback.
+- `StateProvider` now owns playback/session state reads used to build the
+  notification: notification-worthy state, playing, preparing, current track,
+  and MediaSession platform token.
+- Notification construction and action mapping remain inside
+  `PlaybackNotificationManager`; `EchoPlaybackService` only supplies the
+  Android/Media3 boundary callbacks and state reads.
+- Current `EchoPlaybackService.java`: 2084 lines.
+- Current `PlaybackNotificationManager.ForegroundController`: 3 methods.
+- Current `PlaybackNotificationManager.StateProvider`: 5 methods.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.liveLyricsNotificationServiceKeepsOppoFluidCloudContract`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1/P5 Delta - QueueProvider No Longer Carries Wi-Fi Lock Actions
+
+After the queue/provider boundary cleanup:
+
+- `PlaybackQueueManager.QueueProvider` no longer exposes
+  `acquireWifiLockIfStreaming()`. Queue code reports whether mirrored queue
+  reuse succeeded; `EchoPlaybackService`, as the Android boundary, calls the
+  existing `PlaybackWifiLockManager` when playback is being resumed through a
+  reused mirrored queue.
+- `PlaybackQueueManager.skipToNextImmediately()` and
+  `PlaybackQueueManager.skipToPrevious()` now return a boolean reuse result
+  instead of triggering platform lock side effects through the queue provider.
+- `PlaybackWifiLockManager` remains the Wi-Fi lock owner. The service still
+  binds lock lifetime to `onIsPlayingChanged(...)` as the broad safety path.
+- Current `EchoPlaybackService.java`: 2004 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 22 methods.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Playback Store Publishes Queue Snapshots, Not Services
+
+After the playback state dependency cleanup:
+
+- `MainPlaybackStore.publish(...)` now accepts a `List<Track>` queue snapshot
+  instead of an `EchoPlaybackService?`. The store no longer imports or depends
+  on the concrete playback service.
+- `PlaybackStateEventController.QueueSnapshotSource` now supplies queue
+  snapshots directly. The controller no longer imports `EchoPlaybackService`
+  just to refresh the view-model queue state after playback state events.
+- `MainActivityBase`, which already owns the concrete bound service boundary,
+  converts `playbackService.queueSnapshot()` through a private
+  `playbackQueueSnapshot()` helper and calls `publishPlaybackStore()` at the
+  existing state publish sites.
+- Current `EchoPlaybackService.java`: 2004 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 22 methods.
+- Architecture guards:
+  `MainActivityArchitectureContractTest.navigationStateMovesOutOfMainActivity`
+  and `MainActivityArchitectureContractTest.mainPlaybackStoreIsKotlinStateHolder`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1/P5 Delta - QueueProvider No Longer Starts Progress Updates
+
+After the second queue/provider boundary cleanup:
+
+- `PlaybackQueueManager.QueueProvider` no longer exposes
+  `startProgressUpdates()`. Mirrored queue reuse remains a queue decision, but
+  progress update scheduling is now triggered from `EchoPlaybackService` after
+  the queue owner reports successful reuse.
+- `EchoPlaybackService.onMirroredQueueReused(...)` now centralizes the service
+  side effects that follow mirrored queue reuse: Wi-Fi lock acquisition when
+  playback is requested, plus progress update scheduling.
+- Current `EchoPlaybackService.java`: 2002 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 21 methods.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1/P2 Delta - Mirrored Queue Seek Owns Player/Visualization Side Effects
+
+After the third queue/provider boundary cleanup:
+
+- `PlaybackQueueManager.QueueProvider` no longer exposes
+  `resetWaveformIfTrackChanged(...)`, `applyPlaybackParametersToPlayer()`, or
+  `applyPlaybackModeToPlayer()`.
+- Mirrored queue reuse remains a queue decision, but the actual Media3 seek
+  boundary in `EchoPlaybackService.seekMirroredQueueTo(...)` now applies
+  playback parameters, playback mode, and waveform reset before seeking the
+  mirrored player queue.
+- `restoreForDataPath(...)` stays on the provider for now because it is used by
+  both mirrored queue reuse and queue restoration/preparation loops.
+- Current `EchoPlaybackService.java`: 1996 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 18 methods.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1/P5 Delta - Mirrored Queue Runtime Flags Stay At Service Boundary
+
+After the fourth queue/provider boundary cleanup:
+
+- `PlaybackQueueManager.QueueProvider` no longer exposes
+  `setPreparing(...)` or `setPlayerMirrorsQueue(...)`.
+- The Media3 seek boundary in `EchoPlaybackService.seekMirroredQueueTo(...)`
+  now clears `preparing` before reusing the mirrored player queue and clears the
+  mirrored-queue runtime flag when the player seek fails.
+- `PlaybackRuntimeStateManager` and `PlaybackQueueRuntimeStateManager` remain
+  the runtime state owners; this change only removes those writes from the queue
+  provider bridge.
+- Current `EchoPlaybackService.java`: 1994 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 16 methods.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1/P5 Delta - Streaming Recovery Scheduling Stays At Service Boundary
+
+After the fifth queue/provider boundary cleanup:
+
+- `PlaybackQueueManager.QueueProvider` no longer exposes
+  `recordStreamingRecovery(...)` or `schedulePrepareCurrent(...)`.
+- `PlaybackQueueManager.replaceCurrentTrackAndResume(...)` still owns the
+  queue replacement and restored-position write, then returns a narrow
+  `CurrentTrackReplacementRecovery` request when a new playable item requires
+  service-bound recovery work.
+- `EchoPlaybackService.replaceCurrentTrackAndResume(...)`, as the Android
+  boundary, records streaming diagnostics and schedules the main-thread
+  `prepareCurrent(...)` recovery task from that request.
+- Current `EchoPlaybackService.java`: 2208 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 14 methods.
+- Behavior guard:
+  `PlaybackQueueManagerTest.replaceCurrentTrackAndResumeSchedulesRecoveryForNewUri`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1/P2 Delta - Streaming Header Restore Uses A Narrow Queue Port
+
+After the sixth queue/provider boundary cleanup:
+
+- `PlaybackQueueManager.QueueProvider` no longer exposes
+  `restoredTrackFor(...)` or `restoreForDataPath(...)`.
+- Streaming playback header restoration for queue restore and mirrored queue
+  preparation now goes through the narrow
+  `PlaybackQueueManager.StreamingRestoreProvider` port. `EchoPlaybackService`
+  adapts that port to the existing `StreamingPlaybackHeaderStore`.
+- `PlaybackQueueManager` still owns the queue mutation and mirrored queue
+  eligibility decisions; service-local `prepareCurrent(...)` and Media3
+  preparation still keep their direct Android/Media3 boundary calls.
+- Current `EchoPlaybackService.java`: 2209 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 12 methods.
+- Behavior guards:
+  `PlaybackQueueManagerTest.restorePlaybackQueueFiltersInvalidTracksInsideManager`,
+  `PlaybackQueueManagerTest.skipToNextReusesMirroredQueueWithoutPreparingNewMediaSources`,
+  and the mirrored queue preparation tests.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Delta - Queue Runtime State Writes Use Existing Owners
+
+After the seventh queue/provider boundary cleanup:
+
+- `PlaybackQueueManager.QueueProvider` no longer exposes
+  `setErrorMessage(...)` or `setLastMarkedTrack(...)`.
+- Queue mutations that clear stale playback errors now call the existing
+  `PlaybackRuntimeStateManager` owner through a local
+  `clearErrorMessage()` helper.
+- Queue mutations that clear transition marker state now call the existing
+  `PlaybackTransitionStateManager` owner through a local
+  `clearLastMarkedTrack()` helper.
+- `EchoPlaybackService` no longer bridges these state writes through the
+  queue provider; it only supplies the existing state owners to
+  `PlaybackQueueManager`.
+- Current `EchoPlaybackService.java`: 2201 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 10 methods.
+- Behavior guard:
+  `PlaybackQueueManagerTest.queuePlaybackStartClearsRuntimeErrorAndTransitionMarkerThroughOwners`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Delta - Queue Playback Mode Reads Use Runtime State Owner
+
+After the eighth queue/provider boundary cleanup:
+
+- `PlaybackQueueManager.QueueProvider` no longer exposes `repeatMode()` or
+  `shuffleEnabled()`.
+- Queue next-index calculation now reads playback mode from the existing
+  `PlaybackRuntimeStateManager` owner. The fallback behavior remains
+  `REPEAT_ALL` and shuffle disabled when no runtime owner is supplied.
+- `EchoPlaybackService` no longer bridges repeat/shuffle reads through the
+  queue provider; it supplies the runtime state owner to
+  `PlaybackQueueManager`.
+- Current `EchoPlaybackService.java`: 2191 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 8 methods.
+- Behavior guard:
+  `PlaybackQueueManagerTest.advanceQueueIndexToNextReadsRepeatModeFromRuntimeStateOwner`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1/P2 Delta - Mirrored Queue Player Boundary Uses A Narrow Port
+
+After the ninth queue/provider boundary cleanup:
+
+- `PlaybackQueueManager.QueueProvider` no longer exposes
+  `mirroredQueueMatchesCurrentPlayer()` or
+  `seekMirroredQueueTo(...)`.
+- Mirrored queue reuse still remains a queue decision inside
+  `PlaybackQueueManager`, but Media3 player identity checks and player seeks
+  now go through the narrow `PlaybackQueueManager.MirroredQueuePlayer` port.
+- `EchoPlaybackService` adapts that port to the existing Android/Media3
+  boundary code that checks player queue identity, resets waveform state,
+  reapplies playback parameters/mode, seeks the player, and clears mirror state
+  on seek failure.
+- Current `EchoPlaybackService.java`: 2193 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 6 methods.
+- Behavior guards:
+  `PlaybackQueueManagerTest.skipToNextReusesMirroredQueueWithoutPreparingNewMediaSources`,
+  `PlaybackQueueManagerTest.reuseMirroredQueueAppliesQueueStateWithoutPreparingNewMediaSources`,
+  and
+  `PlaybackQueueManagerTest.reuseMirroredQueueFallsBackWhenPlayerSeekFails`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Delta - Queue Preparing Reads Use Runtime State Owner
+
+After the tenth queue/provider boundary cleanup:
+
+- `PlaybackQueueManager.QueueProvider` no longer exposes `preparing()`.
+- Queue replacement decisions that need to preserve active preparation now read
+  the existing `PlaybackRuntimeStateManager` owner through a local
+  `preparing()` helper.
+- `EchoPlaybackService` no longer bridges preparing state through the queue
+  provider; it still owns direct service/runtime uses of preparing state for
+  seek, snapshot, notification worthiness, and lifecycle persistence.
+- Current `EchoPlaybackService.java`: 2188 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 5 methods.
+- Behavior guard:
+  `PlaybackQueueManagerTest.replaceQueuedTrackContinuesPreparingPlaybackFromRuntimeStateOwner`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P3 Prep Delta - Precache Cache Owner Surface
+
+After the first P3-prep cache/precache ownership slice:
+
+- `PlaybackPrecacheManager` now receives the existing
+  `PlaybackMediaSourceProvider` directly for cache operations. Cache headers,
+  audio cache access, cache data source creation, and content-length metadata
+  no longer pass through `EchoPlaybackService` via
+  `PlaybackPrecacheManager.StateProvider`.
+- `PlaybackPrecacheManager.StateProvider` is reduced to playback/queue state,
+  active-player reuse checks, diagnostics, and main-thread scheduling. Its
+  method count is now 9.
+- `EchoPlaybackService` still owns the Android/Media3 player boundary for
+  `currentPlayerLoadsCacheKey(...)`, but it no longer proxies precache cache
+  storage operations.
+- Current `EchoPlaybackService.java`: 2273 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 23 methods.
+- Current `PlaybackPrecacheManager.StateProvider`: 9 methods.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.streamingPlaybackCacheUsesSegmentedConcurrentPrecache`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.EchoPlaybackServiceTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P4 Prep Delta - Notification Action Vocabulary
+
+After the first P4-prep notification/action ownership slice:
+
+- Playback service action strings moved into `PlaybackServiceActions`.
+  `EchoPlaybackService.ACTION_*` remain as compatibility aliases while active
+  notification, widget, restore, and UI callers move to the action owner.
+- `PlaybackNotificationManager` no longer duplicates raw playback action
+  strings in notification button construction. It maps notification buttons to
+  `PlaybackServiceActions` and still receives only Android `PendingIntent`
+  construction from the service boundary.
+- `EchoPlaybackService.isPlaybackServiceAction(...)` now delegates action
+  recognition to `PlaybackServiceActions`.
+- Current `EchoPlaybackService.java`: 2266 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 23 methods.
+- Current `PlaybackPrecacheManager.StateProvider`: 9 methods.
+- Behavior guards:
+  `PlaybackServiceActionsTest.serviceConstantsRemainCompatibilityAliasesForSharedActions`
+  and
+  `PlaybackServiceActionsTest.actionOwnerRecognizesPlaybackServiceActions`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest` notification ownership assertions for
+  `PlaybackServiceActions`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackServiceActionsTest --tests app.yukine.playback.EchoPlaybackServiceTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P4 Prep Delta - Lyrics Setting Bridge
+
+After the second P4-prep notification/lyrics ownership slice:
+
+- `PlaybackLyricsManager` now owns the status-bar lyrics setting side effects:
+  live-lyrics notification service sync, playback session refresh, and forced
+  media notification refresh.
+- `EchoPlaybackService.setStatusBarLyricsEnabled(...)` is reduced to delegating
+  the setting change to `PlaybackLyricsManager`; the service still supplies the
+  Android/Media3 boundary callbacks through `PlaybackLyricsManager.StateProvider`.
+- Current `EchoPlaybackService.java`: 2269 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 23 methods.
+- Current `PlaybackPrecacheManager.StateProvider`: 9 methods.
+- Behavior guard:
+  `PlaybackLyricsManagerTest.statusBarLyricsSettingChangeRefreshesSessionAndNotificationFromLyricsOwner`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest` live-lyrics notification assertions for
+  `PlaybackLyricsManager` ownership.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackLyricsManagerTest --tests app.yukine.playback.PlaybackServiceActionsTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Prep Delta - Service Callback Shutdown Owner
+
+After the first P5-prep shutdown/concurrency ownership slice:
+
+- Full service teardown now routes main-thread callback clearing through
+  `PlaybackShutdownCoordinator.releaseServiceResources()`. `EchoPlaybackService`
+  persists the final playback position and delegates teardown instead of
+  directly clearing `mainHandler` callbacks in `onDestroy()`.
+- `releasePlaybackResources()` still keeps service-level callbacks and
+  schedulers alive. Full service teardown unregisters receivers, shuts down task
+  schedulers before clearing main-thread callbacks, then releases artwork,
+  precache work, the Wi-Fi lock, and the player.
+- Current `EchoPlaybackService.java`: 2274 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 23 methods.
+- Current `PlaybackPrecacheManager.StateProvider`: 9 methods.
+- Behavior guard:
+  `PlaybackShutdownCoordinatorTest.releaseServiceResourcesRunsFullServiceTeardown`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackServiceShutdownIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackShutdownCoordinatorTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Prep Delta - Precache Callback Cancellation Owner
+
+After the second P5-prep shutdown/concurrency ownership slice:
+
+- `PlaybackPrecacheManager` now owns delayed precache callback scheduling and
+  cancellation through a narrow `CallbackScheduler`. It tracks pending delayed
+  precache callbacks, cancels stale callbacks when the current precache
+  generation changes, and cancels remaining callbacks during `release()`.
+- `PlaybackPrecacheManager.StateProvider` no longer exposes Android `Handler`;
+  the broad state provider method count is now 8. `EchoPlaybackService` still
+  provides the Android main-thread boundary through the scheduler adapter.
+- Current `EchoPlaybackService.java`: 2279 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 23 methods.
+- Current `PlaybackPrecacheManager.StateProvider`: 8 methods.
+- Behavior guards:
+  `PlaybackPrecacheManagerTest.releaseCancelsDelayedPrecacheCallbacksOwnedByManager`
+  and
+  `PlaybackPrecacheManagerTest.replacingCurrentPrecacheCancelsPreviousDelayedCallbacks`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.streamingPlaybackCacheUsesSegmentedConcurrentPrecache`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheManagerTest --tests app.yukine.playback.EchoPlaybackServiceTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P2 Prep Delta - MediaItem Reuse Identity Owner
+
+After the first P2-prep URI/MediaItem ownership slice:
+
+- MediaItem reuse identity checks moved from `EchoPlaybackService` to the
+  existing `PlaybackMediaSourceProvider` owner. This keeps the resolved URI,
+  media item id, and custom cache key comparison next to media item/cache-key
+  construction instead of adding a new resolver facade.
+- Playback `MediaItem` construction now also flows through
+  `PlaybackMediaSourceProvider.mediaItemForTrack(...)`. The service supplies
+  track metadata and receives the playable item; it no longer builds playback
+  `MediaItem`s inline or asks `PlaybackMediaLibraryCallback` to build playback
+  items for player preparation.
+- `PlaybackMediaLibraryCallback.DataSource` now receives a ready
+  `mediaItemForTrack(track)` for playable children instead of a playback
+  cache-key callback. The callback still asks for metadata separately for
+  browsable Android Auto items.
+- `EchoPlaybackService` still performs the Android/Media3 boundary checks for
+  the active player, but it now calls
+  `PlaybackMediaSourceProvider.mediaItemMatchesTrackForReuse(...)` for both
+  current-track precache reuse and mirrored queue reuse.
+- `EchoPlaybackService` no longer defines
+  `mediaItemMatchesTrackForReuse(...)`,
+  `mediaItemIdentityMatchesForReuse(...)`, or
+  `cacheKeyMatchesForReuse(...)`.
+- Streaming/local media cache-key policy is tested through
+  `PlaybackMediaSourceProvider`; `EchoPlaybackService` no longer exposes
+  static `mediaCacheKey(...)` helpers for tests or callers.
+- Current `EchoPlaybackService.java`: 2293 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 23 methods.
+- Behavior guards:
+  `PlaybackMediaSourceProviderTest.playbackMediaItemForLocalTrackPreservesUriAndMetadataWithoutCacheKey`,
+  `PlaybackMediaSourceProviderTest.playbackMediaItemForStreamingTrackPreservesResolvedUriAndStreamingCacheKeyRule`,
+  `PlaybackMediaSourceProviderTest.streamingCacheKeyIncludesResolvedUrl`,
+  `PlaybackMediaSourceProviderTest.mirroredQueueReuseRequiresResolvedUriToMatch`
+  and
+  `PlaybackMediaSourceProviderTest.mirroredQueueReuseAllowsSameResolvedMediaItem`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackMediaItemReuseIdentityIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest :app:testDebugUnitTest --tests app.yukine.playback.EchoPlaybackServiceTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest :app:testDebugUnitTest --tests app.yukine.playback.EchoPlaybackServiceTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackQueueRuntimeStateManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P2 Delta - Playable URI Validation Owner
+
+After the next P2 URI/MediaItem ownership slice:
+
+- Empty playback URI validation moved from `EchoPlaybackService.prepareCurrent()`
+  to the existing `PlaybackMediaSourceProvider` owner. The service now asks for
+  an unplayable-track message and only applies runtime state/logging at the
+  Android/Media3 boundary.
+- Streaming placeholder detection now uses `StreamingDataPathMetadata` inside
+  `PlaybackMediaSourceProvider`; `EchoPlaybackService` no longer carries the
+  private `isStreamingPlaceholder(...)` helper or hard-coded
+  `track.dataPath.startsWith("streaming:")` check for prepare validation.
+- The first P2 slice remains a small extension of the existing media-source
+  owner, not a new resolver/facade.
+- Current `EchoPlaybackService.java`: 2160 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Behavior guards:
+  `PlaybackMediaSourceProviderTest.resolvedTrackIsPlayable`,
+  `PlaybackMediaSourceProviderTest.emptyLocalUriReturnsGenericOpenError`, and
+  `PlaybackMediaSourceProviderTest.emptyStreamingPlaceholderReturnsResolutionError`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackMediaItemReuseIdentityIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackErrorRecoveryManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest --console=plain
+```
+
+```powershell
+.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P2 Delta - Streaming Header Restore Owner
+
+After the next P2 URI/MediaItem ownership slice:
+
+- Prepare-time streaming playback header restore now flows through
+  `PlaybackMediaSourceProvider`. `EchoPlaybackService` no longer directly calls
+  `streamingPlaybackHeaderStore.restoredTrackFor(track)` or
+  `streamingPlaybackHeaderStore.restoreForDataPath(track.dataPath)` in
+  transition, mirrored-queue prepare, or single-track prepare paths.
+- The queue-restore bridge also delegates its `StreamingRestoreProvider`
+  callbacks to `PlaybackMediaSourceProvider`, keeping restored streaming track
+  resolution next to headers, media item, URI validation, and cache-key policy.
+- `StreamingPlaybackHeaderStore` is still injected into the service and passed
+  to the media-source owner; this is a dependency wiring boundary, not service
+  ownership of URI/header restore policy.
+- Current `EchoPlaybackService.java`: 2160 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Behavior guards:
+  `PlaybackMediaSourceProviderTest.restoredTrackForPreparationDelegatesToHeaderStore`,
+  `PlaybackMediaSourceProviderTest.restoreHeadersForTrackDelegatesDataPathToHeaderStore`,
+  and
+  `PlaybackMediaSourceProviderTest.restoreHeadersForDataPathDelegatesToHeaderStore`.
+- Architecture guards:
+  `MainActivityArchitectureContractTest.playbackServiceUsesInjectableStreamingHeaderStore`
+  and
+  `MainActivityArchitectureContractTest.playbackMediaItemReuseIdentityIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackErrorRecoveryManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest --console=plain
+```
+
+```powershell
+.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P3 Delta - Precache Cache-Key Policy Owner
+
+After the first P3 cache/precache ownership slice:
+
+- `PlaybackPrecacheManager.StateProvider` no longer exposes
+  `isHttpUri(Uri)` or `cacheKeyForTrack(Track)`. Current-track, upcoming-track,
+  and segmented precache now ask the injected `PlaybackMediaSourceProvider`
+  directly for HTTP eligibility and playback cache keys.
+- `EchoPlaybackService` no longer supplies cache-key or HTTP URI callbacks to
+  `PlaybackPrecacheManager`; it still supplies live player state through
+  `currentPlayerLoadsCacheKey(...)`, which remains a Media3 boundary concern.
+- Existing delayed-precache cancellation tests now construct the same
+  `PlaybackMediaSourceProvider` dependency shape used by production instead of
+  keeping cache policy in a fake service state provider.
+- Current `EchoPlaybackService.java`: 2150 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Current `PlaybackPrecacheManager.StateProvider`: 6 methods.
+- Behavior guards:
+  `PlaybackPrecacheManagerTest.releaseCancelsDelayedPrecacheCallbacksOwnedByManager`
+  and
+  `PlaybackPrecacheManagerTest.replacingCurrentPrecacheCancelsPreviousDelayedCallbacks`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.streamingPlaybackCacheUsesSegmentedConcurrentPrecache`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheManagerTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackErrorRecoveryManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P3 Delta - Visualization Cache Policy Owner
+
+After the next P3 cache/precache ownership slice:
+
+- `PlaybackVisualizationCacheManager` now holds the existing
+  `PlaybackMediaSourceProvider` directly for HTTP eligibility, playback cache
+  keys, continuous cached bytes, and cache data sources.
+- `PlaybackVisualizationCacheManager.StateProvider` no longer exposes
+  `isHttpUri(Uri)`, `cacheKeyForTrack(Track)`,
+  `continuousCachedBytes(String)`, or `cacheDependencies()`. It now only
+  receives runtime scheduling/current-track boundaries from the service.
+- `EchoPlaybackService` no longer wires visualization cache-specific cache
+  strategy callbacks or anonymous `PlaybackCacheDependencies`; those decisions
+  live with the cache/media-source owner.
+- Current `EchoPlaybackService.java`: 2126 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Current `PlaybackPrecacheManager.StateProvider`: 6 methods.
+- Current `PlaybackVisualizationCacheManager.StateProvider`: 3 methods.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackStartDefersHeavyVisualizationWork`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackErrorRecoveryManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P3 Delta - Visualization Analyzer Cache Policy Owner
+
+After the next P3 cache/precache ownership slice:
+
+- `PlaybackVisualizationAnalyzer` now holds the existing
+  `PlaybackMediaSourceProvider` directly for streaming HTTP eligibility,
+  playback cache keys, continuous cached bytes, cache data sources, and cached
+  content length.
+- `PlaybackVisualizationAnalyzer.StateProvider` no longer exposes
+  `isHttpUri(Uri)`, `cacheDataSourceForTrack(Track)`,
+  `mediaCacheKeyForTrack(Track)`, `continuousCachedBytes(String)`, or
+  `contentLengthForCacheKey(String)`. It now only receives runtime visibility,
+  buffered playback progress, and state publication callbacks from the service.
+- `EchoPlaybackService` no longer wires visualization analyzer-specific cache
+  strategy callbacks; waveform and spectrum generation ask the cache/media
+  source owner for cache policy directly.
+- Current `EchoPlaybackService.java`: 2101 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Current `PlaybackPrecacheManager.StateProvider`: 6 methods.
+- Current `PlaybackVisualizationCacheManager.StateProvider`: 3 methods.
+- Current `PlaybackVisualizationAnalyzer.StateProvider`: 3 methods.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackStartDefersHeavyVisualizationWork`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.PlaybackErrorRecoveryManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P3 Delta - Streaming URI Policy Owner
+
+After the next P3 cache/streaming ownership slice:
+
+- `PlaybackErrorRecoveryManager` now holds the existing
+  `PlaybackMediaSourceProvider` directly for streaming HTTP eligibility before
+  deciding whether a playback error should retry the current track.
+- `PlaybackWifiLockManager` now holds the same media-source owner for streaming
+  HTTP eligibility before acquiring the Wi-Fi lock.
+- `EchoPlaybackService` no longer exposes private `isHttpUri(...)`,
+  `cacheKeyForTrack(...)`, or `headersForTrack(...)` wrappers. The remaining
+  mirrored Media3 reuse check asks `PlaybackMediaSourceProvider` directly for
+  the playback cache key.
+- Current `EchoPlaybackService.java`: 2079 lines.
+- Current `PlaybackQueueManager.QueueProvider`: 1 method.
+- Current `PlaybackPrecacheManager.StateProvider`: 6 methods.
+- Current `PlaybackErrorRecoveryManager.Actions`: 8 methods.
+- Current `PlaybackWifiLockManager.StreamingTrackProvider`: 1 method.
+- Behavior guards:
+  `PlaybackErrorRecoveryManagerTest` and `PlaybackWifiLockManagerTest`.
+- Architecture guards:
+  `MainActivityArchitectureContractTest.playbackErrorRecoveryIsOwnedOutsideEchoPlaybackService`,
+  `MainActivityArchitectureContractTest.playbackWifiLockIsOwnedOutsideEchoPlaybackService`,
+  and
+  `MainActivityArchitectureContractTest.streamingPlaybackCacheUsesSegmentedConcurrentPrecache`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackErrorRecoveryManagerTest --tests app.yukine.playback.PlaybackWifiLockManagerTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P4 Delta - Lyrics Notification Bridge Split
+
+After the first P4 notification/lyrics bridge slice:
+
+- `PlaybackLyricsManager.StateProvider` now only exposes playback/visibility
+  state needed for lyrics decisions: notification-worthy state, app visibility,
+  current track, playing, and preparing.
+- Notification refresh actions moved to a dedicated
+  `PlaybackLyricsManager.NotificationBridge`, separating lyrics state reads
+  from notification/session side effects while preserving the existing service
+  boundary callbacks.
+- `EchoPlaybackService.setStatusBarLyricsEnabled(...)` still delegates only to
+  the lyrics owner; session refresh and forced notification update remain owned
+  by `PlaybackLyricsManager`.
+- Current `EchoPlaybackService.java`: 2082 lines.
+- Current `PlaybackLyricsManager.StateProvider`: 5 methods.
+- Current `PlaybackLyricsManager.NotificationBridge`: 2 methods.
+- Behavior guard:
+  `PlaybackLyricsManagerTest.statusBarLyricsSettingChangeRefreshesSessionAndNotificationFromLyricsOwner`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.liveLyricsNotificationServiceKeepsOppoFluidCloudContract`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackLyricsManagerTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P4 Delta - Notification Artwork Bridge Split
+
+After the next P4 notification bridge slice:
+
+- `PlaybackNotificationArtworkManager.StateProvider` now only exposes the
+  current track needed to decide whether a decoded artwork result still belongs
+  to the active notification/session.
+- Notification and MediaSession refresh actions moved to
+  `PlaybackNotificationArtworkManager.NotificationBridge`, separating artwork
+  state reads from notification/session side effects while preserving the
+  existing service boundary callbacks.
+- `EchoPlaybackService` still supplies the Android/Media3 boundary actions,
+  but no longer exposes them through the artwork state provider.
+- Current `EchoPlaybackService.java`: 2083 lines.
+- Current `PlaybackNotificationArtworkManager.StateProvider`: 1 method.
+- Current `PlaybackNotificationArtworkManager.NotificationBridge`: 2 methods.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackStartDefersHeavyVisualizationWork`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Delta - Shutdown Resource Boundary Split
+
+After the first P5 concurrency/shutdown audit slice:
+
+- `PlaybackShutdownCoordinator` no longer accepts eight raw `Runnable`
+  constructor arguments. Its inputs are now split into:
+  `PlaybackResources` for lyrics, Wi-Fi lock, and player release, and
+  `ServiceResources` for noisy receiver unregister, scheduler shutdown,
+  main-handler callback clearing, notification artwork release, and precache
+  release.
+- The shutdown order is still owned by `PlaybackShutdownCoordinator`:
+  playback-only release runs lyrics, Wi-Fi lock, then player; full service
+  teardown runs lyrics, noisy receiver unregister, task scheduler shutdown,
+  main callback clearing, artwork release, precache release, Wi-Fi lock
+  release, then player release.
+- `EchoPlaybackService` still supplies Android/Media3 boundary actions, but it
+  no longer describes the shutdown sequence through a long positional list of
+  anonymous `Runnable`s.
+- Current `EchoPlaybackService.java`: 2078 lines.
+- Current `PlaybackShutdownCoordinator.PlaybackResources`: 3 methods.
+- Current `PlaybackShutdownCoordinator.ServiceResources`: 5 methods.
+- Behavior guard:
+  `PlaybackShutdownCoordinatorTest`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackServiceShutdownIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackShutdownCoordinatorTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Delta - Notification Artwork Async Release Guard
+
+After the next P5 concurrency/shutdown audit slice:
+
+- `PlaybackNotificationArtworkManager` now owns invalidation of queued artwork
+  decode results. `release()` increments an artwork generation before clearing
+  caches and misses; queued async work checks the generation before decode,
+  after decode, and before notification/session refresh.
+- A queued artwork task from before service teardown can no longer repopulate
+  `artworkCache` / `artworkDataCache` or call notification/session bridge
+  callbacks after the manager has been released.
+- The production path still uses the existing `Context.getMainExecutor()` and
+  decode/encode logic. A package-private constructor exposes only executor,
+  loader, and encoder seams for focused shutdown tests.
+- Current `EchoPlaybackService.java`: 2078 lines.
+- Current `PlaybackNotificationArtworkManager.java`: 247 lines.
+- Behavior guard:
+  `PlaybackNotificationArtworkManagerTest`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackStartDefersHeavyVisualizationWork`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackNotificationArtworkManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Delta - Visualization Cache Writer Shutdown
+
+After the next P5 concurrency/shutdown audit slice:
+
+- `PlaybackVisualizationCacheManager` now owns shutdown invalidation for queued
+  and active visualization cache work. `release()` increments a cache
+  generation and cancels every active visualization `CacheWriter` wrapper.
+- Main-handler warmup callbacks and scheduled visualization cache tasks carry
+  the generation they were created under; tasks from before release no longer
+  create cache writers or continue cache work after service teardown.
+- `PlaybackVisualizationCacheManager.StateProvider` no longer exposes the
+  concrete `PlaybackTaskScheduler`; it receives a single
+  `scheduleVisualizationCacheTask(Runnable)` boundary from the service.
+- `PlaybackShutdownCoordinator.ServiceResources` now includes
+  `releaseVisualizationCache()` after scheduler shutdown and main callback
+  clearing, before artwork/precache release.
+- Current `EchoPlaybackService.java`: 2085 lines.
+- Current `PlaybackVisualizationCacheManager.java`: 151 lines.
+- Current `PlaybackShutdownCoordinator.ServiceResources`: 6 methods.
+- Behavior guards:
+  `PlaybackVisualizationCacheManagerTest` and
+  `PlaybackShutdownCoordinatorTest`.
+- Architecture guards:
+  `MainActivityArchitectureContractTest.playbackStartDefersHeavyVisualizationWork`
+  and
+  `MainActivityArchitectureContractTest.playbackServiceShutdownIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackVisualizationCacheManagerTest --tests app.yukine.playback.PlaybackShutdownCoordinatorTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Delta - Playback Task Scheduler Shutdown Baseline
+
+After the next P5 concurrency/shutdown audit slice:
+
+- `PlaybackTaskScheduler` now keeps its worker alive when one scheduled
+  playback/cache/resolve task throws `RuntimeException`; later queued playback
+  work can still run instead of silently losing the scheduler thread.
+- Focused scheduler tests now pin the existing shutdown contract:
+  `shutdownNow()` clears queued tasks, interrupts the worker, and ignores tasks
+  scheduled after shutdown.
+- This is a scheduler-owner hardening slice. `EchoPlaybackService` still only
+  calls `shutdownNow()` through `PlaybackShutdownCoordinator.ServiceResources`.
+- Current `EchoPlaybackService.java`: 2085 lines.
+- Current `PlaybackTaskScheduler.java`: 102 lines.
+- Behavior guard:
+  `PlaybackTaskSchedulerTest`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackServiceShutdownIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackTaskSchedulerTest --tests app.yukine.playback.PlaybackVisualizationCacheManagerTest --tests app.yukine.playback.PlaybackShutdownCoordinatorTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Delta - Error Recovery Retry Cancellation
+
+After the next P5 concurrency/shutdown audit slice:
+
+- `PlaybackErrorRecoveryManager` now owns cancellation of its delayed streaming
+  retry callback. `RetryScheduler` exposes `removeCallbacks`, and pending retry
+  work is canceled and invalidated when playback becomes ready or when the
+  manager is released.
+- `PlaybackShutdownCoordinator.ServiceResources` now includes
+  `releaseErrorRecovery()` after scheduler shutdown and before global main
+  callback clearing, so the retry owner explicitly tears down its own callback
+  instead of relying only on `mainHandler.removeCallbacksAndMessages(null)`.
+- Current `EchoPlaybackService.java`: 2097 lines.
+- Current `PlaybackErrorRecoveryManager.kt`: 83 lines.
+- Current `PlaybackShutdownCoordinator.ServiceResources`: 7 methods.
+- Behavior guards:
+  `PlaybackErrorRecoveryManagerTest` and `PlaybackShutdownCoordinatorTest`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackServiceShutdownIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackErrorRecoveryManagerTest --tests app.yukine.playback.PlaybackShutdownCoordinatorTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Delta - Progress Update Callback Release
+
+After the next P5 concurrency/shutdown audit slice:
+
+- `PlaybackProgressUpdateManager` already owns progress tick scheduling through
+  `startIfNeeded()` and `stop()`. Service teardown now calls that owner
+  explicitly instead of relying only on
+  `mainHandler.removeCallbacksAndMessages(null)`.
+- `PlaybackShutdownCoordinator.ServiceResources` now includes
+  `releaseProgressUpdates()` after error recovery release and before global
+  main callback clearing. Owner-specific callback cancellation stays ahead of
+  the broad handler cleanup.
+- Current `EchoPlaybackService.java`: 2102 lines.
+- Current `PlaybackProgressUpdateManager.kt`: 50 lines.
+- Current `PlaybackShutdownCoordinator.ServiceResources`: 8 methods.
+- Behavior guards:
+  `PlaybackProgressUpdateManagerTest` and
+  `PlaybackShutdownCoordinatorTest`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackServiceShutdownIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackProgressUpdateManagerTest --tests app.yukine.playback.PlaybackShutdownCoordinatorTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Delta - Sleep Timer Callback Release
+
+After the next P5 concurrency/shutdown audit slice:
+
+- `PlaybackSleepTimerManager` already owns sleep timer scheduling through
+  `startMinutes()` and `cancel(publish)`. Service teardown now cancels it
+  explicitly with `cancel(false)`, preserving the existing silent shutdown
+  behavior used by `stopAndClear()`.
+- `PlaybackShutdownCoordinator.ServiceResources` now includes
+  `releaseSleepTimer()` after progress update release and before global main
+  callback clearing. Sleep timer callbacks are canceled by their owner before
+  the service-wide handler cleanup runs.
+- Current `EchoPlaybackService.java`: 2109 lines.
+- Current `PlaybackSleepTimerManager.kt`: 76 lines.
+- Current `PlaybackShutdownCoordinator.ServiceResources`: 9 methods.
+- Behavior guards:
+  `PlaybackSleepTimerManagerTest` and `PlaybackShutdownCoordinatorTest`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackServiceShutdownIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackSleepTimerManagerTest --tests app.yukine.playback.PlaybackShutdownCoordinatorTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Delta - Precache Release Late Task Guard
+
+After the next P5 concurrency/shutdown audit slice:
+
+- `PlaybackPrecacheManager.release()` now marks the owner as released before
+  invalidating generation, clearing callbacks, canceling active cache writers,
+  and shutting down its executor.
+- Late `precacheTrack()`, delayed callback registration, executor submission,
+  and generation checks now all stop when the precache owner has been released.
+  This prevents service-destroy races from writing new streaming diagnostics or
+  queueing callbacks after teardown.
+- Current `EchoPlaybackService.java`: 2109 lines.
+- Current `PlaybackPrecacheManager.java`: 679 lines.
+- Current `PlaybackShutdownCoordinator.ServiceResources`: 9 methods.
+- Behavior guard:
+  `PlaybackPrecacheManagerTest.releasePreventsLatePrecacheDiagnosticsAndCallbacks`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackServiceShutdownIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheManagerTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Delta - State Publisher Listener Release
+
+After the next P5 concurrency/shutdown audit slice:
+
+- `PlaybackStatePublisher` now owns listener teardown through `release()`.
+  Releasing the publisher clears registered `PlaybackStateListener` instances
+  and makes later state, notification, buffering, and registration calls no-op.
+- `PlaybackShutdownCoordinator.ServiceResources` now includes
+  `releaseStatePublisher()` after precache release and before wifi/player
+  release. Service destroy no longer relies only on connection-side unregister
+  to drop UI/state listeners.
+- Current `EchoPlaybackService.java`: 2116 lines.
+- Current `PlaybackStatePublisher.kt`: 84 lines.
+- Current `PlaybackShutdownCoordinator.ServiceResources`: 10 methods.
+- Behavior guard:
+  `PlaybackStatePublisherTest.releaseClearsListenersAndStopsFutureCallbacks`.
+- Architecture guards:
+  `MainActivityArchitectureContractTest.playbackStateBroadcastsAreOwnedOutsideEchoPlaybackService`
+  and
+  `MainActivityArchitectureContractTest.playbackServiceShutdownIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackStatePublisherTest --tests app.yukine.playback.PlaybackShutdownCoordinatorTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Delta - Warmup Fanout Release
+
+After the next P5 concurrency/shutdown audit slice:
+
+- `PlaybackWarmupCoordinator` now owns shutdown gating for playback warmup
+  fanout. `release()` stops future warmup calls from dispatching precache or
+  visualization cache work.
+- `PlaybackShutdownCoordinator.ServiceResources` now includes
+  `releaseWarmup()` after noisy receiver unregister and before scheduler
+  shutdown. This stops the fanout entry point before downstream precache and
+  visualization cache owners are released.
+- Current `EchoPlaybackService.java`: 2123 lines.
+- Current `PlaybackWarmupCoordinator.kt`: 23 lines.
+- Current `PlaybackShutdownCoordinator.ServiceResources`: 11 methods.
+- Behavior guards:
+  `PlaybackWarmupCoordinatorTest.releaseStopsFutureWarmupFanout` and
+  `PlaybackShutdownCoordinatorTest`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.playbackServiceShutdownIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackWarmupCoordinatorTest --tests app.yukine.playback.PlaybackShutdownCoordinatorTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Delta - Visualization Analyzer Task Release
+
+After the next P5 concurrency/shutdown audit slice:
+
+- `PlaybackVisualizationAnalyzer` now owns shutdown gating for waveform and
+  spectrum analysis. `release()` stops future snapshot generation, clears
+  active generation keys, and prevents queued visualization tasks from
+  publishing playback state after service teardown.
+- `PlaybackShutdownCoordinator.ServiceResources` now includes
+  `releaseVisualizationAnalyzer()` after warmup release and before scheduler
+  shutdown. This invalidates analyzer task callbacks before the shared
+  visualization scheduler is stopped.
+- Current `EchoPlaybackService.java`: 2130 lines.
+- Current `PlaybackVisualizationAnalyzer.kt`: 358 lines.
+- Current `PlaybackShutdownCoordinator.ServiceResources`: 12 methods.
+- Behavior guards:
+  `PlaybackVisualizationAnalyzerTest.releaseStopsFutureSpectrumTaskScheduling`,
+  `PlaybackVisualizationAnalyzerTest.releaseBeforeScheduledTaskPreventsPublishState`,
+  and `PlaybackShutdownCoordinatorTest`.
+- Architecture guards:
+  `MainActivityArchitectureContractTest.playbackStartDefersHeavyVisualizationWork`
+  and
+  `MainActivityArchitectureContractTest.playbackServiceShutdownIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackVisualizationAnalyzerTest --tests app.yukine.playback.PlaybackShutdownCoordinatorTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Delta - Lyrics Owner Release Guard
+
+After the next P5 concurrency/shutdown audit slice:
+
+- `PlaybackLyricsManager.release()` now marks the lyrics owner as released
+  before removing the floating lyrics listener and stopping the live lyrics
+  notification service.
+- Released lyrics owners no-op future status-bar lyrics setting changes,
+  floating lyrics playback-state sync, listener callbacks, and notification
+  lyric reads. This prevents service teardown races from restarting live lyrics
+  notification work or rewriting floating lyrics state after destroy.
+- Shutdown order is unchanged: `PlaybackShutdownCoordinator` still releases
+  lyrics first through `PlaybackResources.releaseLyrics()`.
+- Current `EchoPlaybackService.java`: 2130 lines.
+- Current `PlaybackLyricsManager.kt`: 164 lines.
+- Current `PlaybackShutdownCoordinator.ServiceResources`: 12 methods.
+- Behavior guards:
+  `PlaybackLyricsManagerTest.releaseStopsFutureStatusBarSettingRefreshes` and
+  `PlaybackLyricsManagerTest.releaseStopsFutureFloatingLyricsSync`.
+- Architecture guards:
+  `MainActivityArchitectureContractTest.liveLyricsNotificationServiceKeepsOppoFluidCloudContract`
+  and
+  `MainActivityArchitectureContractTest.playbackServiceShutdownIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackLyricsManagerTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Delta - Crossfade Advance Release Owner
+
+After the next P5 concurrency/shutdown audit slice:
+
+- `PlaybackCrossfadeAdvanceManager` now owns fade-out advance scheduling,
+  active runnable cancellation, fade-out transition flag updates, volume
+  stepping, and final next-track handoff.
+- `EchoPlaybackService` no longer keeps the crossfade `Handler` loop or
+  crossfade timing constants. It delegates skip-to-next fade-out to the owner
+  and only supplies Android/Media3 boundary actions such as player volume and
+  queue advancement.
+- `stopAndClear()` cancels an active crossfade without permanently releasing
+  the owner. Service destroy releases the owner through
+  `PlaybackShutdownCoordinator.ServiceResources.releaseCrossfade()` after the
+  sleep timer and before global main-handler callback clearing.
+- Current `EchoPlaybackService.java`: 2179 lines.
+- Current `PlaybackCrossfadeAdvanceManager.kt`: 113 lines.
+- Current `PlaybackShutdownCoordinator.ServiceResources`: 13 methods.
+- Behavior guards:
+  `PlaybackCrossfadeAdvanceManagerTest.fadeOutCompletesBySkippingNextAndRestoringVolume`,
+  `PlaybackCrossfadeAdvanceManagerTest.releaseCancelsPendingFadeAndStopsFuturePlayerWrites`,
+  and `PlaybackShutdownCoordinatorTest`.
+- Architecture guards:
+  `MainActivityArchitectureContractTest.playbackTransitionStateIsOwnedOutsideEchoPlaybackService`
+  and
+  `MainActivityArchitectureContractTest.playbackServiceShutdownIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackCrossfadeAdvanceManagerTest --tests app.yukine.playback.PlaybackShutdownCoordinatorTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P5 Delta - Current Playback Recovery Scheduler Owner
+
+After the next P5 concurrency/shutdown audit slice:
+
+- `PlaybackRecoveryScheduler` now owns current-playback recovery scheduling:
+  background queue handoff, main-thread post, pending main callback removal,
+  generation invalidation, and release guard.
+- `EchoPlaybackService.replaceCurrentTrackAndResume()` still records streaming
+  diagnostics and receives the recovery decision from `PlaybackQueueManager`,
+  but no longer builds the `playbackTaskScheduler -> mainHandler.post ->
+  prepareCurrent()` callback chain inline.
+- Service destroy releases `PlaybackRecoveryScheduler` before shutting down
+  the shared playback/visualization task schedulers, so queued recovery work
+  cannot prepare the player after teardown.
+- Current `EchoPlaybackService.java`: 2205 lines.
+- Current `PlaybackRecoveryScheduler.kt`: 56 lines.
+- Current `PlaybackShutdownCoordinator.ServiceResources`: 14 methods.
+- Behavior guards:
+  `PlaybackRecoverySchedulerTest.recoveryPostsPrepareToMainThread`,
+  `PlaybackRecoverySchedulerTest.releaseBeforeBackgroundTaskRunsPreventsPreparePost`,
+  `PlaybackRecoverySchedulerTest.releaseBeforeMainTaskRunsRemovesAndSuppressesPrepare`,
+  and `PlaybackShutdownCoordinatorTest`.
+- Architecture guards:
+  `MainActivityArchitectureContractTest.playbackQueueCurrentTrackReplacementIsOwnedByQueueManager`
+  and
+  `MainActivityArchitectureContractTest.playbackServiceShutdownIsOwnedOutsideEchoPlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackRecoverySchedulerTest --tests app.yukine.playback.PlaybackShutdownCoordinatorTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Settings Runtime Playback Controls Boundary
+
+After the first P6 structure-dependency slice:
+
+- `SettingsRuntimeApplier` no longer imports or accepts concrete
+  `EchoPlaybackService`. Its factory now receives the existing
+  `SettingsPlaybackServiceControlsProvider`, keeping runtime settings on the
+  semantic controls interface.
+- `MainSettingsPlaybackServiceControls` moved to
+  `SettingsPlaybackServiceControlsAdapter.kt`, where the concrete service
+  calls remain at the app/service boundary.
+- `MainActivityBase` still owns the bound-service lookup, but it now adapts
+  that lookup to `SettingsPlaybackServiceControls` before constructing the
+  runtime applier.
+- Current `SettingsRuntimeApplier.kt`: 187 lines.
+- Current `SettingsPlaybackServiceControlsAdapter.kt`: 36 lines.
+- Architecture guard:
+  `MainActivityArchitectureContractTest` asserts the runtime applier does not
+  mention `EchoPlaybackService` or own `MainSettingsPlaybackServiceControls`,
+  while the boundary adapter owns the concrete service calls.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.SettingsRuntimeApplierTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - UI/ViewModel Playback Service Dependency Guard
+
+After the next P6 structure-dependency slice:
+
+- `MainActivityArchitectureContractTest.uiAndViewModelsDoNotDependOnConcretePlaybackService`
+  now scans app `*ViewModel*` files, app UI/navigation sources, feature
+  UI-common sources, and feature navigation sources for concrete
+  `EchoPlaybackService` references.
+- UI progress KDoc no longer names the concrete playback service class. It
+  describes the dependency as the playback service boundary, matching the
+  target `UI/ViewModel -> semantic command owner -> service boundary` shape.
+- Concrete service references remain allowed in explicit boundary adapters
+  such as `NowPlayingPlaybackGatewayAdapter` and
+  `SettingsPlaybackServiceControlsAdapter`.
+- Architecture guard:
+  `MainActivityArchitectureContractTest.uiAndViewModelsDoNotDependOnConcretePlaybackService`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Runtime Player Settings Owner
+
+After the next playback-owner slice:
+
+- `PlaybackRuntimeStateManager` now owns the combined application of playback
+  parameters and playback mode through
+  `applyPlaybackModeAndParametersToPlayer()`.
+- `EchoPlaybackService` still performs the Media3 boundary calls through its
+  runtime-state owner, but no longer sequences the paired speed/volume and
+  shuffle/repeat application inline when reusing a mirrored queue or creating
+  the player.
+- `PlaybackRuntimeStateManagerTest` uses a JVM `ExoPlayer` proxy to verify the
+  owner applies speed, volume, shuffle, and repeat as one runtime snapshot.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackRuntimeStateManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Current Track Volume Owner
+
+After the next runtime/player owner slice:
+
+- `PlaybackRuntimeStateManager` now owns the effective current-track volume
+  calculation through `currentTrackVolume()`, including app volume,
+  replay-gain multiplier, and final normalization.
+- `EchoPlaybackService` no longer computes
+  `appVolume * replayGainMultiplierForTrack(currentTrack())` inside the
+  crossfade wiring. The service asks the runtime owner for the base volume and
+  triggers `applyCurrentTrackVolumeToPlayer()` on track transitions or
+  crossfade restore.
+- `PlaybackRuntimeStateManagerTest` covers replay-gain volume calculation and
+  the player volume application path with the existing JVM `ExoPlayer` proxy.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackRuntimeStateManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Crossfade Queue-End Policy Owner
+
+After the next crossfade owner slice:
+
+- `PlaybackCrossfadeAdvanceManager` now owns the `REPEAT_OFF` plus
+  end-of-queue decision that suppresses fade-out advance.
+- `EchoPlaybackService` no longer combines repeat mode and queue position in
+  the crossfade wiring. It only supplies `repeatMode()` and
+  `isAtEndOfQueue()` snapshots to the crossfade owner.
+- `PlaybackCrossfadeAdvanceManagerTest` covers the queue-end suppression path
+  so future crossfade changes do not reintroduce the policy into the service.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackCrossfadeAdvanceManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Crossfade Fade Volume Owner
+
+After the next crossfade owner slice:
+
+- `PlaybackCrossfadeAdvanceManager` now clamps fade-out volume internally
+  before writing it to the player.
+- `EchoPlaybackService` no longer provides a `normalizedVolume()` callback for
+  crossfade. It supplies the already-normalized base volume snapshot, while
+  the crossfade owner owns fade-step volume safety.
+- `PlaybackCrossfadeAdvanceManagerTest.fadeOutVolumeIsClampedByOwner` covers
+  the clamp path.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackCrossfadeAdvanceManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Playback Completion Queue Action Owner
+
+After the next queue-owner slice:
+
+- `PlaybackQueueManager` now owns the post-completion queue decision through
+  `playbackCompletionAction()`, returning whether completion should clear the
+  queue, repeat the current track, stop at the end, or advance to the next
+  track.
+- `EchoPlaybackService.playAfterCompletion()` no longer combines queue
+  emptiness, repeat mode, and end-of-queue state directly. It still performs
+  the Android/Media3 boundary actions such as preparing, stopping, and
+  advancing playback.
+- `PlaybackQueueManagerTest` covers all four completion actions:
+  `STOP_AND_CLEAR`, `REPEAT_CURRENT`, `STOP_AT_END`, and `ADVANCE_TO_NEXT`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Mirrored Transition Playback State Owner
+
+After the next queue-position owner slice:
+
+- `PlaybackQueueManager` now owns the playback state preparation after a
+  mirrored MediaItem transition through `prepareMirroredTransitionPlaybackState()`.
+- `EchoPlaybackService.onMediaItemTransition()` no longer directly persists the
+  transition position, clears runtime/transition/restored state, resets the
+  new current track position, or persists the queue on the normal transition
+  path. It still owns the Android/Media3 boundary work: reading the player
+  transition index, waveform/header updates, volume application, state publish,
+  and progress updates.
+- `PlaybackQueueManagerTest.prepareMirroredTransitionPlaybackStatePersistsAndResetsNewCurrentTrack`
+  covers the owner-side ordering and cleanup contract.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Current Playback Position Persistence Owner
+
+After the next queue-position owner slice:
+
+- `PlaybackQueueManager` now exposes
+  `persistCurrentPlaybackPosition(force)` as the service-facing entry point for
+  saving the current track position.
+- `EchoPlaybackService.persistPlaybackPositionThrottled()` no longer asks
+  `PlaybackPositionManager` directly on the normal path. It delegates through
+  the queue owner while preserving the fallback path for early construction.
+- `PlaybackQueueManagerTest.persistCurrentPlaybackPositionUsesPositionOwnerThrottleAndForce`
+  covers the owner-side throttle and force behavior.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Restored Position Query Owner
+
+After the next queue-position owner slice:
+
+- `PlaybackQueueManager` now exposes `restoredPositionFor(track)` as the
+  service-facing restored-position query.
+- `EchoPlaybackService.prepareCurrent()` still decides when to prepare the
+  current item, but its normal path no longer asks `PlaybackPositionManager`
+  directly for the start position.
+- `PlaybackQueueManagerTest.restoredPositionForDelegatesThroughQueueOwner`
+  covers the owner-side query contract, including duration clamping and the
+  streaming implicit-restore suppression rule.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Restored Position Consumption Owner
+
+After the next queue-position owner slice:
+
+- `PlaybackQueueManager` now owns the post-prepare restored-position
+  consumption rule through `consumeRestoredPositionAfterPrepare(startPositionMs)`.
+- `EchoPlaybackService.prepareMirroredQueue()` and
+  `EchoPlaybackService.prepareSingleTrack()` no longer directly decide when
+  restored position should be cleared after a successful prepare. They still
+  own the Android/Media3 player prepare, seek, warmup, publish, and
+  notification boundary work.
+- `PlaybackQueueManagerTest.consumeRestoredPositionAfterPrepareClearsOnlyWhenStartPositionWasUsed`
+  covers the rule that `0L` keeps the restored position and a positive consumed
+  start position clears it.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Stop-And-Clear Playback State Owner
+
+After the next queue-owner slice:
+
+- `PlaybackQueueManager` now owns the playback state cleanup for
+  stop-and-clear through `prepareStopAndClearPlaybackState()`: playback
+  position reset, runtime preparing/error reset, transition reset, queue clear
+  and persistence, and resume-request clearing.
+- `EchoPlaybackService.stopAndClear()` no longer directly mutates those queue
+  and playback state owners on the normal path. It still owns Android/service
+  boundary work: crossfade/sleep cancellation, playback resource release,
+  progress updates, foreground state, publish, and `stopSelf()`.
+- `PlaybackQueueManagerTest.prepareStopAndClearPlaybackStateClearsQueuePositionRuntimeAndResumeState`
+  covers the owner-side cleanup contract.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Playback Completion State Preparation Owner
+
+After the next queue-owner slice:
+
+- `PlaybackQueueManager` now owns the state preparation that happens after a
+  track completes but before the service performs the repeat, stop-at-end, or
+  advance boundary action through `preparePlaybackCompletion(action)`.
+- `EchoPlaybackService.playAfterCompletion()` no longer directly reads the
+  completed track, saves its playback position at `0L`, or clears restored
+  position for repeat-current on the normal path.
+- `PlaybackQueueManagerTest` covers both completion preparation branches:
+  repeat-current clears restored position, while advance only resets the
+  completed track position.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Automatic Advance Stop Queue Position Owner
+
+After the next queue-owner slice:
+
+- `PlaybackQueueManager` now owns the queue-position cleanup for mirrored
+  automatic advance that must stop at the end of the queue through
+  `prepareStopAfterAutomaticAdvance(completedIndex)`.
+- `EchoPlaybackService.stopAfterAutomaticAdvance()` no longer directly
+  persists the current playback position, clamps the current index, or saves
+  the completed track at `0L` on the normal path. It still enters
+  `stopAtEndOfQueue()` for the Android/Media3 stop boundary.
+- `PlaybackQueueManagerTest.prepareStopAfterAutomaticAdvancePersistsAndResetsCompletedTrackThroughOwner`
+  covers the owner-side ordering: persist the completed track position first,
+  then reset that completed track to `0L`.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Stop-At-End Queue State Owner
+
+After the next queue-owner slice:
+
+- `PlaybackQueueManager` now owns the queue playback state cleanup needed when
+  playback stops at the end of the queue through `prepareStopAtEndOfQueue()`.
+- `EchoPlaybackService.stopAtEndOfQueue()` no longer directly clears restored
+  position, runtime preparing/error state, transition marker, or resume
+  request on the normal path. It still owns the Android/Media3 boundary work:
+  progress updates, player pause/seek/create fallback, and state publication.
+- `PlaybackQueueManagerTest.prepareStopAtEndOfQueueClearsQueuePlaybackStateThroughOwners`
+  covers the owner-side cleanup contract.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Activity Reverse Dependency And Facade Guard
+
+After the next P6 structure-dependency slice:
+
+- `MainActivityArchitectureContractTest.playbackServiceAndOwnersDoNotDependOnActivityClasses`
+  now guards `EchoPlaybackService` plus feature playback owners from depending
+  on `MainActivity` or `MainActivityBase`.
+- The widget provider remains an app/playback Android boundary and can open
+  the launcher activity; the guard is scoped to the service and feature
+  playback owners.
+- `MainActivityArchitectureContractTest.rootPackageDoesNotAddPlaybackFacadeOrBroadCoordinatorFiles`
+  now prevents root-package `*Facade*` files and keeps root-package
+  `*Coordinator*` files limited to the existing `NetworkRenderCoordinator`.
+  Playback-specific service facade/coordinator names are explicitly blocked.
+- Architecture guards:
+  `MainActivityArchitectureContractTest.playbackServiceDoesNotDependOnMainActivityClass`,
+  `MainActivityArchitectureContractTest.playbackServiceAndOwnersDoNotDependOnActivityClasses`,
+  and
+  `MainActivityArchitectureContractTest.rootPackageDoesNotAddPlaybackFacadeOrBroadCoordinatorFiles`.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P6 Delta - Obsolete Service Position Helper Cleanup
+
+After the next queue-owner cleanup slice:
+
+- `EchoPlaybackService.resetCurrentPlaybackPosition()` was removed after all
+  normal-path current-position reset calls moved behind `PlaybackQueueManager`.
+- `PlaybackQueueManager` remains the only playback owner that directly calls
+  `PlaybackPositionManager.resetCurrentPlaybackPosition()` for queue state
+  transitions.
+- `EchoPlaybackService.playAfterCompletion()` also dropped its unreachable
+  null-manager save/clear fallback branch; when the queue owner is missing,
+  completion already resolves to `STOP_AND_CLEAR` before owner preparation.
+- The service still keeps fallback position helpers for manager construction
+  or degraded paths, but no longer exposes a direct reset helper.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P2 Delta - Mirrored Queue MediaItem Match Owner
+
+After the next URI/media-item owner slice:
+
+- `PlaybackMediaSourceProvider` now owns MediaItem-to-Track reuse matching for
+  mirrored queue checks through `mediaItemMatchesTrackForReuse(mediaItem,
+  track)`.
+- `EchoPlaybackService.mirroredQueueMatchesCurrentPlayer()` no longer computes
+  the track cache key or passes URI/cache-key identity pieces directly; it only
+  passes the current player item and queue track to the media source owner.
+- `PlaybackMediaSourceProviderTest.providerMatchesMediaItemForTrackUsingOwnedCacheKeyRule`
+  covers that the owner applies the streaming cache-key rule when matching.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P3 Delta - Precache Current Player Match Owner
+
+After the next cache/precache owner slice:
+
+- `PlaybackPrecacheManager` no longer asks the service whether the current
+  player already loads a specific cache key. Its `StateProvider` now exposes
+  only the current `MediaItem` snapshot from the Android/Media3 boundary.
+- `PlaybackPrecacheManager.currentPlayerLoadsTrack(track)` delegates
+  MediaItem-to-Track matching to `PlaybackMediaSourceProvider`, keeping the
+  URI/cache-key comparison rule with the media source owner.
+- `EchoPlaybackService` no longer computes cache-key match policy for current
+  leading-range precache suppression.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P3 Delta - Precache Upcoming Queue Owner
+
+After the next cache/queue owner slice:
+
+- `PlaybackQueueManager` now owns upcoming-track selection for precache through
+  `upcomingTracksForPrecache(maxCount)`, including the repeat-off rule that
+  stops at the queue end and the repeat-all wraparound rule that skips the
+  current track.
+- `PlaybackPrecacheManager` no longer computes upcoming queue indices from a
+  service-provided queue snapshot, current index, and repeat mode. It asks the
+  queue owner for candidate tracks, then keeps cache-specific URI/cache-key
+  filtering locally.
+- `EchoPlaybackService` no longer forwards queue snapshot, current index, or
+  repeat mode into `PlaybackPrecacheManager.StateProvider`; the adapter only
+  exposes the current track, current MediaItem boundary snapshot, and
+  diagnostics.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P4 Delta - Notification Worthy State Owner
+
+After the next notification-owner slice:
+
+- `PlaybackNotificationManager` now owns the notification-worthy state rule
+  through `hasNotificationWorthyState()`.
+- `PlaybackNotificationManager.StateProvider` no longer asks the service for a
+  precomputed notification policy result. It receives raw playback state:
+  current track, queue empty, preparing, playing, and session token.
+- `EchoPlaybackService` still owns lifecycle trigger points that decide when to
+  request notification publication, but the notification manager now decides
+  whether its own update should produce a foreground notification.
+- `PlaybackNotificationManagerTest.notificationWorthyStateIsOwnedByNotificationManager`
+  covers empty-state suppression and queue-backed notification publication.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackNotificationManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P1 Audit - QueueProvider Removed From Production Source
+
+Current audit date: 2026-07-01.
+
+- `PlaybackQueueManager.QueueProvider` is no longer present in production
+  source. The previous service-state provider interface has been replaced by
+  explicit constructor dependencies on `PlaybackQueueStore`, queue state,
+  `PlaybackQueueManager.QueuePlaybackActions`, `PlaybackPositionManager`,
+  `PlaybackQueueManager.StreamingRestoreProvider`,
+  `PlaybackQueueManager.MirroredQueuePlayer`, runtime state, and transition
+  state.
+- Source scan result: `QueueProvider`, `PlaybackQueueManager.QueueProvider`,
+  and `queueProvider.` appear only in historical docs and architecture
+  contract assertions, not in `app/src/main/java/app/yukine/playback` or
+  `feature/playback/src/main/java`.
+- The active P1 contract is now
+  `MainActivityArchitectureContractTest.playbackQueueManagerPublicApiStaysExplicitlyAudited`.
+  It scans playback production sources to prevent the old provider from
+  returning and pins the current `PlaybackQueueManager` class-level public API
+  into four groups:
+  queue mutation, queue restore/persistence, mirrored queue operations, and
+  derived read APIs.
+- Remaining P1 work should reduce or split the pinned `PlaybackQueueManager`
+  public API by small behavior-preserving slices. Do not reintroduce a generic
+  queue provider, and do not move queue policy back into `EchoPlaybackService`.
+
+## P5 Delta - Service Lifecycle Shutdown Boundary
+
+After the first shutdown/concurrency slice:
+
+- `PlaybackShutdownCoordinator` now owns the task-removed lifecycle policy:
+  persist playback position, persist queue, save the resume-requested flag from
+  playing/preparing state, and publish a media notification only when the
+  notification owner reports a worthy state.
+- `PlaybackShutdownCoordinator` also owns the service-destroyed policy: persist
+  the current playback position before running full service resource teardown.
+- `EchoPlaybackService.onTaskRemoved()` is reduced to the Android callback
+  boundary plus an early-init fallback, and `onDestroy()` now delegates the
+  normal teardown path to the shutdown coordinator.
+- `PlaybackShutdownCoordinatorTest.handleTaskRemovedPersistsResumeRequestFromPlaybackState`
+  and `handleTaskRemovedPublishesNotificationOnlyWhenWorthy` cover the
+  task-removed behavior.
+- `PlaybackShutdownCoordinatorTest.handleServiceDestroyedPersistsPositionBeforeFullServiceTeardown`
+  covers the destroy-time persist-before-release ordering.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackShutdownCoordinatorTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P2/P3 Delta - Precache Track Identity Resolver
+
+After the next resolver/cache-owner slice:
+
+- `PlaybackMediaSourceProvider` now owns the resolved-URI track reuse rule
+  through `tracksShareResolvedUriForReuse(current, candidate)`.
+- `PlaybackPrecacheManager` no longer performs direct `contentUri.equals(...)`
+  checks when deciding whether a requested precache target still matches the
+  current track. It asks the media source provider for that identity decision.
+- The slice preserves the existing resolved-URI behavior instead of changing
+  precache identity to a stricter id/cache-key rule.
+- `PlaybackMediaSourceProviderTest.providerMatchesTracksForReuseUsingResolvedUriRule`
+  covers the owner-side rule.
+- `PlaybackPrecacheManagerTest.resolvedUriMatchUsesCurrentTrackPrecachePath`
+  covers the current-track precache path through the resolver-owned rule.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackPrecacheManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P2/P3 Delta - Visualization Cache Media Identity Resolver
+
+After the next resolver/cache-owner slice:
+
+- `PlaybackMediaSourceProvider` now owns the stricter track media-identity rule
+  through `tracksShareMediaIdentityForReuse(current, candidate)`, which requires
+  both track id and resolved URI to match.
+- `PlaybackVisualizationCacheManager` no longer compares track id and
+  `contentUri` directly before scheduling waveform/visualization cache work.
+  It asks the media source provider whether the pending visualization target
+  still matches the active track identity.
+- Existing behavior is preserved: a shared resolved URI with a different track
+  id is not enough to schedule visualization cache work.
+- `PlaybackMediaSourceProviderTest.providerMatchesTrackMediaIdentityUsingIdAndResolvedUri`
+  covers the resolver-owned rule.
+- `PlaybackVisualizationCacheManagerTest.sameResolvedUriWithDifferentTrackIdDoesNotScheduleVisualizationCache`
+  covers the manager-side scheduling guard.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest --tests app.yukine.playback.PlaybackVisualizationCacheManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P2 Delta - MediaLibrary Playable URI Rule Owner
+
+After the next MediaLibrary resolver slice:
+
+- `PlaybackMediaSourceProvider` now owns the "track has a playable media URI"
+  rule through `hasPlayableMediaUri(track)`.
+- `PlaybackMediaLibraryCallback` no longer checks `track.contentUri` and
+  `Uri.EMPTY` directly when exposing auto library items. It asks the media
+  source provider whether the track can be represented as a playable media
+  item.
+- `PlaybackMediaSourceProviderTest` covers playable and empty-URI behavior
+  through the resolver-owned rule.
+- `PlaybackMediaLibraryCallbackTest.autoItemsForTracksUsesMediaSourcePlayableUriRule`
+  covers the MediaLibrary auto list filtering path.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest --tests app.yukine.playback.manager.PlaybackMediaLibraryCallbackTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P2/P3 Delta - Visualization Analyzer Playable URI Rule
+
+After the next visualization resolver slice:
+
+- `PlaybackVisualizationAnalyzer` now asks
+  `PlaybackMediaSourceProvider.hasPlayableMediaUri(track)` before scheduling
+  spectrum generation for local or streaming tracks.
+- The analyzer no longer owns the `contentUri == null` / `Uri.EMPTY` playable
+  check for spectrum snapshots; that URI rule stays with the media source
+  provider.
+- `PlaybackVisualizationAnalyzerTest.emptyUriTrackDoesNotScheduleSpectrumTask`
+  covers the analyzer-side scheduling guard.
+- Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackVisualizationAnalyzerTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P4 Delta - Lyrics Notification Worthy State Owner
+
+After the next lyrics-bridge slice:
+
+- `PlaybackLyricsManager` now owns the notification-worthy state rule for
+  floating-lyrics-driven media notification refreshes through
+  `hasNotificationWorthyState()`.
+- `PlaybackLyricsManager.StateProvider` no longer asks the service for a
+  precomputed notification policy result. It receives raw playback state:
+  current track, queue empty, preparing, playing, and app visibility.
+- `EchoPlaybackService` still owns lifecycle trigger points that decide when to
+  request notification publication, but the lyrics bridge now decides whether a
+  lyric update should request a media notification refresh.
+- `PlaybackLyricsManagerTest.notificationWorthyStateIsOwnedByLyricsManager`
+  covers the owner-side rule for an empty current track with a non-empty queue.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackLyricsManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+```
+
+## P4 Delta - Service Notification Worthy Delegation
+
+After the next notification boundary slice:
+
+- `EchoPlaybackService.hasNotificationWorthyState()` now delegates to
+  `PlaybackNotificationManager.hasNotificationWorthyState()` on the normal
+  path, keeping only an early-initialization fallback.
+- Service lifecycle trigger points (`onCreate`, `onStartCommand`,
+  `onTaskRemoved`, app visibility) still decide when to request notification
+  publication, but the notification-worthy policy is owned by the notification
+  manager.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackNotificationManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```

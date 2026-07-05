@@ -197,32 +197,19 @@ internal class PlaybackRuntimeStateManager(
         return replayGainMultiplierForTrack(replayGainEnabled, track)
     }
 
-    class PlaybackStateProvider(
-        private val playerSupplier: Supplier<ExoPlayer?>?,
-        private val mirroredQueueSupplier: BooleanSupplier?
-    ) : StateProvider {
-        private var playbackQueueManager: PlaybackQueueManager? = null
-
-        fun bindPlaybackQueueManager(playbackQueueManager: PlaybackQueueManager) {
-            this.playbackQueueManager = playbackQueueManager
-        }
-
-        override fun player(): ExoPlayer? = playerSupplier?.get()
-
-        override fun playerMirrorsQueue(): Boolean = mirroredQueueSupplier?.asBoolean == true
-
-        override fun currentTrack(): Track? =
-            checkNotNull(playbackQueueManager) { "playbackQueueManager" }
-                .queueStateSnapshot()
-                .currentTrack
-    }
-
     companion object {
         @JvmStatic
         fun stateProviderFromPlaybackState(
             playerSupplier: Supplier<ExoPlayer?>?,
-            mirroredQueueSupplier: BooleanSupplier?
-        ): PlaybackStateProvider = PlaybackStateProvider(playerSupplier, mirroredQueueSupplier)
+            mirroredQueueSupplier: BooleanSupplier?,
+            currentTrackSupplier: Supplier<Track?>?
+        ): StateProvider = object : StateProvider {
+            override fun player(): ExoPlayer? = playerSupplier?.get()
+
+            override fun playerMirrorsQueue(): Boolean = mirroredQueueSupplier?.asBoolean == true
+
+            override fun currentTrack(): Track? = currentTrackSupplier?.get()
+        }
 
         fun media3RepeatModeForAppRepeatMode(appRepeatMode: Int, playerMirrorsQueue: Boolean): Int {
             if (appRepeatMode == REPEAT_ONE) {
