@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import app.yukine.R;
 import app.yukine.common.EmbeddedArtwork;
@@ -397,7 +396,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                     return session == null ? null : session.getPlatformToken();
                 }
         );
-        final Supplier<Track> currentTrackSupplier = playbackNotificationStateOwner::currentTrack;
         final PlaybackNotificationArtworkSource playbackNotificationArtworkSource =
                 PlaybackNotificationArtworkSource.fromSupplier(
                         () -> playbackNotificationArtworkManager
@@ -608,7 +606,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         );
         playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(
                 this,
-                currentTrackSupplier,
+                playbackNotificationStateOwner::currentTrack,
                 new PlaybackNotificationArtworkBridgeOwner(
                         playbackSessionRefresher,
                         playbackNotificationCommandOwner::publishPlaybackNotification

@@ -2762,10 +2762,15 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(normalizedPlaybackService.contains(
                 "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
                         + "                this,\n"
+                        + "                playbackNotificationStateOwner::currentTrack,"
+        ));
+        assertFalse(playbackService.contains(
+                "final Supplier<Track> currentTrackSupplier = playbackNotificationStateOwner::currentTrack;"));
+        assertFalse(normalizedPlaybackService.contains(
+                "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
+                        + "                this,\n"
                         + "                currentTrackSupplier,"
         ));
-        assertEquals(1, countOccurrences(playbackService,
-                "final Supplier<Track> currentTrackSupplier = playbackNotificationStateOwner::currentTrack;"));
         assertFalse(normalizedPlaybackService.contains(
                 "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
                         + "                this,\n"
@@ -8866,7 +8871,7 @@ public final class MainActivityArchitectureContractTest {
                 "                playbackQueueManager,\n" +
                         "                mediaSourceProvider::isHttpTrack"));
         assertEquals(1, countOccurrences(service, "playbackNotificationStateOwner::currentTrack"));
-        assertEquals(1, countOccurrences(service,
+        assertFalse(service.contains(
                 "final Supplier<Track> currentTrackSupplier = playbackNotificationStateOwner::currentTrack;"));
         assertFalse(service.contains(
                 "                currentTrackSupplier,\n" +
@@ -10490,6 +10495,10 @@ public final class MainActivityArchitectureContractTest {
                         + "                PlaybackNotificationArtworkSource.fromSupplier("));
         assertTrue(service.contains("                playbackNotificationArtworkSource,"));
         assertTrue(service.contains(
+                "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
+                        + "                this,\n"
+                        + "                playbackNotificationStateOwner::currentTrack,"));
+        assertFalse(service.contains(
                 "playbackNotificationArtworkManager = new PlaybackNotificationArtworkManager(\n"
                         + "                this,\n"
                         + "                currentTrackSupplier,"));
