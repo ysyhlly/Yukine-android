@@ -861,9 +861,7 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     @Override
     public void warmPlaybackTrack(Track track) {
-        if (playbackWarmupCoordinator != null) {
-            playbackWarmupCoordinator.warmup(track);
-        }
+        playbackWarmupCoordinator.warmup(track);
     }
 
     public void retainTracksById(Set<Long> trackIdsToKeep) {
@@ -1028,9 +1026,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         player.setPlayWhenReady(playWhenReady);
         try {
             player.prepare();
-            if (playbackWarmupCoordinator != null) {
-                playbackWarmupCoordinator.warmup(track);
-            }
+            playbackWarmupCoordinator.warmup(track);
             playbackPositionManager.consumeRestoredPositionAfterPrepare(startPositionMs);
             publishState();
             playbackNotificationCommandOwner.publishPlaybackNotification(true);
@@ -1063,9 +1059,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         player.setPlayWhenReady(playWhenReady);
         try {
             player.prepare();
-            if (playbackWarmupCoordinator != null) {
-                playbackWarmupCoordinator.warmup(track);
-            }
+            playbackWarmupCoordinator.warmup(track);
             if (startPositionMs > 0L) {
                 player.seekTo(startPositionMs);
             }

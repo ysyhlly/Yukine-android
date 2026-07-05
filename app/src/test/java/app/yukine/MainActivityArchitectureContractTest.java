@@ -3120,7 +3120,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("return player.getCurrentMediaItem();"));
         assertFalse(playbackService.contains("new PlaybackPrecacheManager.StateProvider()"));
         assertTrue(playbackService.contains("public void warmPlaybackTrack(Track track)"));
-        assertTrue(normalizedPlaybackService.contains("public void warmPlaybackTrack(Track track) {\n        if (playbackWarmupCoordinator != null) {\n            playbackWarmupCoordinator.warmup(track);\n        }\n    }"));
+        assertTrue(normalizedPlaybackService.contains("public void warmPlaybackTrack(Track track) {\n        playbackWarmupCoordinator.warmup(track);\n    }"));
+        assertFalse(playbackService.contains("playbackWarmupCoordinator != null"));
         assertFalse(normalizedPlaybackService.contains("public void warmPlaybackTrack(Track track) {\n        if (playbackPrecacheManager != null) {\n            playbackPrecacheManager.precacheTrack(track);\n        }\n    }"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackWarmupActionsOwner.java")));
         assertFalse(playbackService.contains("PlaybackWarmupActionsOwner"));
