@@ -109,6 +109,11 @@ public final class EchoPlaybackService extends MediaLibraryService
     private ExoPlayer player;
     private final PlaybackPlayerStateOwner playbackPlayerStateOwner =
             new PlaybackPlayerStateOwner(() -> player);
+    private final PlaybackRealtimeVisualizationOwner playbackRealtimeVisualizationOwnerDelegate =
+            PlaybackRealtimeVisualizationOwner.fromRealtimeBassDetector(
+                    playbackPlayerStateOwner::isPlaying,
+                    realtimeBassDetector
+            );
     private PlaybackQueueManager playbackQueueManager;
     private final PlaybackQueueRuntimeStateManager playbackQueueRuntimeStateManager =
             new PlaybackQueueRuntimeStateManager();
@@ -124,6 +129,8 @@ public final class EchoPlaybackService extends MediaLibraryService
             );
     private final PlaybackRuntimeStateManager playbackRuntimeStateManager =
             new PlaybackRuntimeStateManager(playbackRuntimeStateProvider);
+    private final PlaybackCurrentTrackPreparationRuntimeOwner playbackCurrentTrackPreparationRuntimeOwnerDelegate =
+            PlaybackCurrentTrackPreparationRuntimeOwner.fromRuntimeStateManager(playbackRuntimeStateManager);
     private final PlaybackAudioEffectManager audioEffectManager =
             new PlaybackAudioEffectManager(TAG);
     private PlaybackSessionManager playbackSessionManager;
@@ -1208,7 +1215,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     private PlaybackCurrentTrackPreparationRuntimeOwner playbackCurrentTrackPreparationRuntimeOwner() {
-        return PlaybackCurrentTrackPreparationRuntimeOwner.fromRuntimeStateManager(playbackRuntimeStateManager);
+        return playbackCurrentTrackPreparationRuntimeOwnerDelegate;
     }
 
     private PlaybackStateSnapshotOwner playbackStateSnapshotOwner() {
@@ -1223,10 +1230,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     private PlaybackRealtimeVisualizationOwner playbackRealtimeVisualizationOwner() {
-        return PlaybackRealtimeVisualizationOwner.fromRealtimeBassDetector(
-                playbackPlayerStateOwner::isPlaying,
-                realtimeBassDetector
-        );
+        return playbackRealtimeVisualizationOwnerDelegate;
     }
 
     private PlaybackQueueRestoreOwner playbackQueueRestoreOwner() {

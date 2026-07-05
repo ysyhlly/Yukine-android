@@ -1256,6 +1256,8 @@ sealed interface LibraryAction {
 `StreamingViewModel` 已经从旧全局 ViewModel 中拆出，但仍偏大，职责包含：
 
 - provider 列表和状态�?- 搜索�?- 登录/认证�?- Cookie 导入�?- 歌单导入�?- 播放 URL 解析�?- 推荐�?- 音质选择状态参与�?- 与本地歌�?匹配信息交互�?
+> 2026-07-05 进展：`StreamingViewModel.kt` 的 11 个纯领域函数（相似度排序 + 跨源合并）已外提到 `StreamingSearchMerger.kt` / `StreamingSearchRanker.kt` 并补了 18 个直接单测，文件从 2018 降到 1808 行。这是 9.2 拆分目标的前置切片（先把可独立测试的纯算法搬出），剩余 6 职责（搜索/认证/歌单/推荐/解析/Cookie）的 owner 拆分仍按 9.2 顺序推进。详见 `docs/ARCHITECTURE_STABILIZATION_PIVOT_2026-06-27.md` 的 2026-07-05 段。
+
 ### 9.2 目标拆分
 
 建议拆成�?

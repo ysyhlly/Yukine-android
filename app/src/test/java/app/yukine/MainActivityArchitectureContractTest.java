@@ -2712,7 +2712,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("return isPlaying() ? realtimeBassDetector.bands() : EMPTY_REALTIME_BANDS;"));
         assertFalse(playbackService.contains("return isPlaying() ? realtimeBassDetector.beat() : 0f;"));
         assertFalse(playbackService.contains("() -> realtimeBassDetector.beat()"));
-        assertFalse(playbackService.contains("private PlaybackRealtimeVisualizationOwner playbackRealtimeVisualizationOwner;"));
+        assertTrue(playbackService.contains("private final PlaybackRealtimeVisualizationOwner playbackRealtimeVisualizationOwnerDelegate"));
         assertTrue(playbackService.contains("private PlaybackRealtimeVisualizationOwner playbackRealtimeVisualizationOwner()"));
         assertTrue(playbackService.contains("PlaybackRealtimeVisualizationOwner.fromRealtimeBassDetector("));
         assertTrue(playbackService.contains("playbackPlayerStateOwner::isPlaying"));
@@ -8758,7 +8758,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(preparationQueueOwner.contains("mediaSourceProvider == null"));
         assertFalse(preparationQueueOwner.contains("mediaSourceProvider != null"));
         assertTrue(preparationQueueOwner.contains("metadataProvider == null ? null : metadataProvider::apply"));
-        assertFalse(service.contains("private final PlaybackCurrentTrackPreparationRuntimeOwner playbackCurrentTrackPreparationRuntimeOwner"));
+        assertTrue(service.contains("private final PlaybackCurrentTrackPreparationRuntimeOwner playbackCurrentTrackPreparationRuntimeOwnerDelegate"));
         assertTrue(service.contains("private PlaybackCurrentTrackPreparationRuntimeOwner playbackCurrentTrackPreparationRuntimeOwner()"));
         assertTrue(service.contains("PlaybackCurrentTrackPreparationRuntimeOwner.fromRuntimeStateManager(playbackRuntimeStateManager)"));
         assertTrue(service.contains("playbackCurrentTrackPreparationRuntimeOwner().beginPreparing();"));

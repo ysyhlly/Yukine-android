@@ -361,6 +361,52 @@ Playback tests outrank UI snapshots for this area: queue restore, skip next/prev
   `MainLibraryGroupsRenderListenerTest` and `MainActivityArchitectureContractTest`,
   then `compileDebugKotlin + compileDebugJavaWithJavac`.
 
+## 2026-07-05 StreamingViewModel 算法外提 + EchoPlaybackService 热路径 Owner 缓存
+
+按 ROI 优先执行了首个切片（不再按 MainActivity→Service→DB→StreamingVM 的旧顺序，
+因为 StreamingViewModel facade 拆分已在 2026-06-19 完成，剩余的 2018 行 6 职责混杂
+才是最高 ROI、最低风险的目标——纯 Kotlin、34 个行为测试保护、6 职责边界清晰）。
+
+- `StreamingViewModel.kt` 的 11 个纯领域函数（相似度排序簇 + 跨源合并簇，原 L468-673）
+  外提到两个独立纯文件，不改算法体：
+  - `app/src/main/java/app/yukine/streaming/StreamingSearchRanker.kt`：
+    `levenshteinDistance`、`similarityScore`、`searchSimilarityScore`、
+    `rankBySearchSimilarity`、`rankItemsBySearchSimilarity`、`rankText`。
+  - `app/src/main/java/app/yukine/streaming/StreamingSearchMerger.kt`：
+    `mergeCrossSourceDuplicates`、`crossSourceMergeKey`、`isSameSongAcrossSource`、
+    `mergeSourcesIntoRepresentative`、`trackOnlySearchResult`。
+  - `StreamingViewModel` 改为委托调用，删除原私有函数体、`CROSS_SOURCE_DURATION_TOLERANCE_MS`
+    常量、`kotlin.math.max` 导入。文件从 2018 行降到 1808 行。
+- 这 11 个函数原本没有任何直接单测，只通过 3 个跨源搜索测试间接覆盖。本次同步补了
+  18 个直接单测：`StreamingSearchRankerTest`（8 个）、`StreamingSearchMergerTest`（10 个），
+  覆盖 levenshtein 已知对、相似度分阶、rankText 归一化、稳定排序、跨源合并主键、
+  时长容差、代表项折叠、非 track 项过滤。
+- `EchoPlaybackService.java` 的 2 个全 final 依赖 Owner 从 per-call 构造改为 final 字段：
+  - `playbackRealtimeVisualizationOwner`（依赖 `playbackPlayerStateOwner`/`realtimeBassDetector`，
+    均 final）——`realtimeBeat()`/`realtimeBands()` 每帧不再 new。
+  - `playbackCurrentTrackPreparationRuntimeOwner`（依赖 `playbackRuntimeStateManager`，
+    final）——每次播放状态变更不再 new。
+  - 其余 7 个 Owner（Completion/Navigation/Mutation/CurrentTrackPreparationQueue/
+    CurrentTrackPreparation/StateSnapshot/QueueRestore）经审查**不能安全缓存**：
+    其依赖（如 `playbackQueueManager`）在首次调用时为 null（如 Navigation 首次调用在
+    `onCreate` L319，`playbackQueueManager` 到 L370 才赋值），per-call 构造保证读取最新
+    字段值，缓存会冻结 null/stale 值导致 NPE。这解释了契约测试为何显式锁定 per-call
+    构造——是刻意设计，不是过时清单。
+- 契约测试同步（等价覆盖，非删测试）：`MainActivityArchitectureContractTest` 的 2 个
+  `assertFalse(field)` 字段禁令（Realtime L2715、Runtime L8761）改为 `assertTrue(delegate 字段)`；
+  `HandoffExperienceContractTest.streamingSearchFiltersOutNonSongResults` 的函数体断言从
+  `StreamingViewModel.kt` 改指向 `StreamingSearchMerger.kt`（调用点断言仍留在 ViewModel）。
+- 验证用默认 Gradle daemon/workers：`compileDebugKotlin + compileDebugJavaWithJavac`，
+  然后 `StreamingViewModelTest`（34）、`StreamingSearchRankerTest`（8）、
+  `StreamingSearchMergerTest`（10）、`EchoPlaybackServiceTest`（5）、
+  `MainActivityArchitectureContractTest`（87）单独全过。
+- 已知预存失败（非本次引入）：`HandoffExperienceContractTest.defaultPlayerActionsUseChineseFallbacks`
+  与 `MainNowPlayingGatewayTest.transportActionsUsePlaybackActionControllerAndSeekHandler`
+  在 clean base 上也失败；流媒体协程测试（StreamingPlaylistController / StreamingRecommendation
+  / StreamingViewModel preResolve）存在 flaky 顺序污染，每次跑到的具体测试不同。
+- 顺带把 8 个改动文件统一为 LF 行尾（stash 操作触发了 autocrlf CRLF 转换，导致契约测试
+  6 个多行 `\n` 断言失败；转回 LF 后恢复——这 6 个是 base 工作树 CRLF 下的预存失败）。
+
 ## 对既有计划的覆盖
 
 本文件不删除 `docs/ARCHITECTURE_REMEDIATION_PLAN_2026-06-26.md`，但从 2026-06-27 起覆盖其中“继续推进拆分”的默认解释。

@@ -57,13 +57,15 @@ class HandoffExperienceContractTest {
     @Test
     fun streamingSearchFiltersOutNonSongResults() {
         val viewModel = read("app/src/main/java/app/yukine/StreamingViewModel.kt")
+        val merger = read("app/src/main/java/app/yukine/streaming/StreamingSearchMerger.kt")
         val screen = read("feature/ui-common/src/main/java/app/yukine/ui/StreamingSearchScreen.kt")
 
         assertTrue(viewModel.contains("trackOnlySearchResult()"))
-        assertTrue(viewModel.contains("albums = emptyList()"))
-        assertTrue(viewModel.contains("artists = emptyList()"))
-        assertTrue(viewModel.contains("playlists = emptyList()"))
-        assertTrue(viewModel.contains("mvs = emptyList()"))
+        assertTrue(merger.contains("trackOnlySearchResult()"))
+        assertTrue(merger.contains("albums = emptyList()"))
+        assertTrue(merger.contains("artists = emptyList()"))
+        assertTrue(merger.contains("playlists = emptyList()"))
+        assertTrue(merger.contains("mvs = emptyList()"))
         assertTrue(screen.contains("val tracks = result?.tracks.orEmpty()"))
         assertFalse(screen.contains("val albums = result?.albums.orEmpty()"))
         assertFalse(screen.contains("val artists = result?.artists.orEmpty()"))
