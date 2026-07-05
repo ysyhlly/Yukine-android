@@ -41,16 +41,7 @@ internal class PlaybackQueueManager(
         val currentTrack: Track?,
         val currentIndex: Int,
         val queueSize: Int
-    ) {
-        companion object {
-            @JvmStatic
-            fun empty(): QueueStateSnapshot = QueueStateSnapshot(
-                currentTrack = null,
-                currentIndex = -1,
-                queueSize = 0
-            )
-        }
-    }
+    )
 
     enum class PlaybackCompletionAction {
         STOP_AND_CLEAR,

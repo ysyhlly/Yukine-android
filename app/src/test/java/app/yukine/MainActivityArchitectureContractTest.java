@@ -7788,7 +7788,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("Collections.unmodifiableList(new ArrayList<>(queue))"));
         assertFalse(service.contains("return new ArrayList<>(queue);"));
         assertTrue(owner.contains("fun queueStateSnapshot(): QueueStateSnapshot"));
-        assertTrue(owner.contains("fun empty(): QueueStateSnapshot = QueueStateSnapshot("));
+        assertFalse(owner.contains("fun empty(): QueueStateSnapshot"));
+        assertFalse(owner.contains("QueueStateSnapshot.empty()"));
         assertFalse(owner.contains("isQueueEmpty = queue.isEmpty()"));
         assertFalse(owner.contains("hasCurrentTrack = currentTrack != null"));
         assertFalse(owner.contains("hasMultipleTracks = queue.size >= 2"));
@@ -8465,25 +8466,19 @@ public final class MainActivityArchitectureContractTest {
         )), playbackSourceFileNamesContaining("playbackQueueManager.replaceCurrentTrackAndResume("));
         String queueStateSnapshot = normalizedOwner.substring(
                 normalizedOwner.indexOf("data class QueueStateSnapshot("),
-                normalizedOwner.indexOf("        companion object {", normalizedOwner.indexOf("data class QueueStateSnapshot("))
+                normalizedOwner.indexOf("\n    )", normalizedOwner.indexOf("data class QueueStateSnapshot("))
         );
         String queueStateSnapshotConstructor = normalizedOwner.substring(
                 normalizedOwner.indexOf("data class QueueStateSnapshot("),
-                normalizedOwner.indexOf("\n    ) {", normalizedOwner.indexOf("data class QueueStateSnapshot("))
-        );
-        String queueStateSnapshotCompanion = normalizedOwner.substring(
-                normalizedOwner.indexOf("        companion object {", normalizedOwner.indexOf("data class QueueStateSnapshot(")),
-                normalizedOwner.indexOf("\n        }", normalizedOwner.indexOf("        companion object {",
-                        normalizedOwner.indexOf("data class QueueStateSnapshot(")))
+                normalizedOwner.indexOf("\n    )", normalizedOwner.indexOf("data class QueueStateSnapshot("))
         );
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "currentIndex",
                 "currentTrack",
                 "queueSize"
         )), kotlinConstructorPropertyNames(queueStateSnapshotConstructor));
-        assertEquals(new java.util.TreeSet<>(java.util.Collections.singletonList(
-                "empty"
-        )), kotlinPublicFunNames(queueStateSnapshotCompanion));
+        assertFalse(queueStateSnapshot.contains("companion object"));
+        assertFalse(owner.contains("fun empty(): QueueStateSnapshot"));
         assertFalse(queueStateSnapshot.contains("val isQueueEmpty: Boolean"));
         assertFalse(queueStateSnapshot.contains("get() = queueSize <= 0"));
         assertFalse(queueStateSnapshot.contains("val hasCurrentTrack: Boolean"));

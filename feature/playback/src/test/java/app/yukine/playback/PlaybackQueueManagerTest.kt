@@ -746,8 +746,12 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun emptyQueueStateSnapshotIsOwnedByQueueManager() {
-        val snapshot = PlaybackQueueManager.QueueStateSnapshot.empty()
+    fun emptyQueueStateSnapshotComesFromQueueManager() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+
+        val snapshot = manager.queueStateSnapshot()
 
         assertEquals(null, snapshot.currentTrack)
         assertEquals(-1, snapshot.currentIndex)
