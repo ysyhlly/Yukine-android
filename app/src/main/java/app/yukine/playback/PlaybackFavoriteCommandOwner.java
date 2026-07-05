@@ -15,11 +15,13 @@ final class PlaybackFavoriteCommandOwner {
             ToggleFavoriteUseCase toggleFavoriteUseCase,
             Runnable statePublisher
     ) {
+        ToggleFavoriteUseCase requiredToggleFavoriteUseCase =
+                Objects.requireNonNull(toggleFavoriteUseCase, "toggleFavoriteUseCase");
+        Runnable requiredStatePublisher =
+                Objects.requireNonNull(statePublisher, "statePublisher");
         Track track = currentTrack(playbackQueueManager);
-        if (toggleFavoriteUseCase != null && toggleFavoriteUseCase.toggle(track)) {
-            if (statePublisher != null) {
-                statePublisher.run();
-            }
+        if (requiredToggleFavoriteUseCase.toggle(track)) {
+            requiredStatePublisher.run();
         }
     }
 

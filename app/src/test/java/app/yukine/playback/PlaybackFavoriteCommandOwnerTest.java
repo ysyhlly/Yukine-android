@@ -2,6 +2,7 @@ package app.yukine.playback;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 
 import app.yukine.FavoriteOperations;
 import app.yukine.ToggleFavoriteUseCase;
@@ -54,16 +55,34 @@ public class PlaybackFavoriteCommandOwnerTest {
     }
 
     @Test
-    public void missingUseCaseSkipsPublish() {
+    public void requiresToggleFavoriteUseCase() {
         FakeStatePublisher statePublisher = new FakeStatePublisher();
 
-        PlaybackFavoriteCommandOwner.toggleCurrentFavorite(
-                queueManagerWithTrack(track(8L)),
-                null,
-                statePublisher::publishState
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> PlaybackFavoriteCommandOwner.toggleCurrentFavorite(
+                        queueManagerWithTrack(track(8L)),
+                        null,
+                        statePublisher::publishState
+                )
         );
 
+        assertEquals("toggleFavoriteUseCase", error.getMessage());
         assertEquals(0, statePublisher.publishStateCalls);
+    }
+
+    @Test
+    public void requiresStatePublisher() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> PlaybackFavoriteCommandOwner.toggleCurrentFavorite(
+                        queueManagerWithTrack(track(8L)),
+                        new ToggleFavoriteUseCase(new FakeFavoriteOperations()),
+                        null
+                )
+        );
+
+        assertEquals("statePublisher", error.getMessage());
     }
 
     @Test(expected = NullPointerException.class)

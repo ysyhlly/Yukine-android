@@ -10440,6 +10440,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(favoriteCommandOwner.contains("private static Track currentTrack(PlaybackQueueStateOwner queueStateOwner)"));
         assertTrue(favoriteCommandOwner.contains("import java.util.Objects;"));
         assertTrue(favoriteCommandOwner.contains("PlaybackQueueManager playbackQueueManager"));
+        assertTrue(favoriteCommandOwner.contains(
+                "Objects.requireNonNull(toggleFavoriteUseCase, \"toggleFavoriteUseCase\")"));
+        assertTrue(favoriteCommandOwner.contains(
+                "Objects.requireNonNull(statePublisher, \"statePublisher\")"));
         assertFalse(favoriteCommandOwner.contains(
                 "Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotSupplier"));
         assertFalse(favoriteCommandOwner.contains("return queueStateSnapshot(queueStateSnapshotSupplier).getCurrentTrack();"));
@@ -10449,8 +10453,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(favoriteCommandOwner.contains("playbackQueueManager.queueStateSnapshot();"));
         assertTrue(favoriteCommandOwner.contains("return snapshot.getCurrentTrack();"));
         assertFalse(favoriteCommandOwner.contains("currentTrackSupplier == null ? null : currentTrackSupplier.get()"));
-        assertTrue(favoriteCommandOwner.contains("toggleFavoriteUseCase.toggle(track)"));
-        assertTrue(favoriteCommandOwner.contains("statePublisher.run();"));
+        assertFalse(favoriteCommandOwner.contains("toggleFavoriteUseCase != null"));
+        assertFalse(favoriteCommandOwner.contains("statePublisher != null"));
+        assertTrue(favoriteCommandOwner.contains("requiredToggleFavoriteUseCase.toggle(track)"));
+        assertTrue(favoriteCommandOwner.contains("requiredStatePublisher.run();"));
         assertFalse(service.contains("private PlaybackFavoriteCommandOwner playbackFavoriteCommandOwner;"));
         assertEquals(0, countOccurrences(service, "EchoPlaybackService.this::currentTrackFromQueueStateSnapshot"));
         assertTrue(service.contains("toggleFavoriteUseCase.isFavorite(track)"));
