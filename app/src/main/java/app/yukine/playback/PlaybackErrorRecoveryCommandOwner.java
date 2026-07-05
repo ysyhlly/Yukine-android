@@ -25,11 +25,11 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
             BiConsumer<String, Exception> warningLogger
     ) {
         this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.playbackPreparer = playbackPreparer;
-        this.skipToNextCommand = skipToNextCommand;
-        this.errorMessageStore = errorMessageStore;
-        this.statePublisher = statePublisher;
-        this.warningLogger = warningLogger;
+        this.playbackPreparer = Objects.requireNonNull(playbackPreparer, "playbackPreparer");
+        this.skipToNextCommand = Objects.requireNonNull(skipToNextCommand, "skipToNextCommand");
+        this.errorMessageStore = Objects.requireNonNull(errorMessageStore, "errorMessageStore");
+        this.statePublisher = Objects.requireNonNull(statePublisher, "statePublisher");
+        this.warningLogger = Objects.requireNonNull(warningLogger, "warningLogger");
     }
 
     @Override

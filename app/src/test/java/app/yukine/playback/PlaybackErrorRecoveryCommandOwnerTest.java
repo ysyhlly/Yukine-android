@@ -21,6 +21,7 @@ import app.yukine.playback.manager.PlaybackTransitionStateManager;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 public class PlaybackErrorRecoveryCommandOwnerTest {
@@ -114,6 +115,85 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
                 },
                 (message, error) -> {
                 }
+        );
+    }
+
+    @Test
+    public void constructorRequiresRecoveryDelegates() {
+        assertEquals(
+                "playbackPreparer",
+                assertThrows(NullPointerException.class, () -> new PlaybackErrorRecoveryCommandOwner(
+                        playbackQueueManager(),
+                        null,
+                        () -> {
+                        },
+                        message -> {
+                        },
+                        () -> {
+                        },
+                        (message, error) -> {
+                        }
+                )).getMessage()
+        );
+        assertEquals(
+                "skipToNextCommand",
+                assertThrows(NullPointerException.class, () -> new PlaybackErrorRecoveryCommandOwner(
+                        playbackQueueManager(),
+                        playWhenReady -> {
+                        },
+                        null,
+                        message -> {
+                        },
+                        () -> {
+                        },
+                        (message, error) -> {
+                        }
+                )).getMessage()
+        );
+        assertEquals(
+                "errorMessageStore",
+                assertThrows(NullPointerException.class, () -> new PlaybackErrorRecoveryCommandOwner(
+                        playbackQueueManager(),
+                        playWhenReady -> {
+                        },
+                        () -> {
+                        },
+                        null,
+                        () -> {
+                        },
+                        (message, error) -> {
+                        }
+                )).getMessage()
+        );
+        assertEquals(
+                "statePublisher",
+                assertThrows(NullPointerException.class, () -> new PlaybackErrorRecoveryCommandOwner(
+                        playbackQueueManager(),
+                        playWhenReady -> {
+                        },
+                        () -> {
+                        },
+                        message -> {
+                        },
+                        null,
+                        (message, error) -> {
+                        }
+                )).getMessage()
+        );
+        assertEquals(
+                "warningLogger",
+                assertThrows(NullPointerException.class, () -> new PlaybackErrorRecoveryCommandOwner(
+                        playbackQueueManager(),
+                        playWhenReady -> {
+                        },
+                        () -> {
+                        },
+                        message -> {
+                        },
+                        () -> {
+                        },
+                        null
+                )).getMessage()
         );
     }
 

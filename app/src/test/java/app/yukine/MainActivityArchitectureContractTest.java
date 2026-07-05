@@ -10013,6 +10013,16 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("import java.util.Objects;"));
         assertFalse(commandOwner.contains("import java.util.function.Supplier;"));
         assertFalse(commandOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
+        assertTrue(commandOwner.contains(
+                "this.playbackPreparer = Objects.requireNonNull(playbackPreparer, \"playbackPreparer\");"));
+        assertTrue(commandOwner.contains(
+                "this.skipToNextCommand = Objects.requireNonNull(skipToNextCommand, \"skipToNextCommand\");"));
+        assertTrue(commandOwner.contains(
+                "this.errorMessageStore = Objects.requireNonNull(errorMessageStore, \"errorMessageStore\");"));
+        assertTrue(commandOwner.contains(
+                "this.statePublisher = Objects.requireNonNull(statePublisher, \"statePublisher\");"));
+        assertTrue(commandOwner.contains(
+                "this.warningLogger = Objects.requireNonNull(warningLogger, \"warningLogger\");"));
         assertFalse(commandOwner.contains("hasMultipleTracksSupplier.getAsBoolean()"));
         assertFalse(commandOwner.contains("return queueStateOwner == null ? null : queueStateOwner.currentTrack();"));
         assertFalse(commandOwner.contains("static Supplier<PlaybackQueueManager.QueueStateSnapshot> queueStateSnapshotProvider("));
