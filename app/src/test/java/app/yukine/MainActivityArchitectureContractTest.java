@@ -10268,6 +10268,17 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(stateOwner.contains("private final DoubleSupplier baseVolumeProvider;"));
         assertTrue(stateOwner.contains("import java.util.function.DoubleSupplier;"));
         assertTrue(stateOwner.contains("import java.util.Objects;"));
+        assertTrue(stateOwner.contains(
+                "this.transitionStateProvider = Objects.requireNonNull(transitionStateProvider, \"transitionStateProvider\");"));
+        assertTrue(stateOwner.contains(
+                "this.playerAvailabilityProvider = Objects.requireNonNull("));
+        assertTrue(stateOwner.contains("\"playerAvailabilityProvider\""));
+        assertTrue(stateOwner.contains(
+                "this.playbackStateProvider = Objects.requireNonNull(playbackStateProvider, \"playbackStateProvider\");"));
+        assertTrue(stateOwner.contains(
+                "this.repeatModeProvider = Objects.requireNonNull(repeatModeProvider, \"repeatModeProvider\");"));
+        assertTrue(stateOwner.contains(
+                "this.baseVolumeProvider = Objects.requireNonNull(baseVolumeProvider, \"baseVolumeProvider\");"));
         assertFalse(stateOwner.contains("import java.util.function.Supplier;"));
         assertTrue(stateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertFalse(stateOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
@@ -10303,7 +10314,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(stateOwner.contains("queueStateSnapshot.isAtEndOfQueue()"));
         assertFalse(stateOwner.contains(
                 "return repeatModeProvider.getAsInt() != REPEAT_OFF || !queueStateOwner.isAtEndOfQueue();"));
-        assertTrue(stateOwner.contains("return baseVolumeProvider == null ? 1.0f : (float) baseVolumeProvider.getAsDouble();"));
+        assertFalse(stateOwner.contains("baseVolumeProvider == null ? 1.0f"));
+        assertTrue(stateOwner.contains("return (float) baseVolumeProvider.getAsDouble();"));
     }
 
     @Test

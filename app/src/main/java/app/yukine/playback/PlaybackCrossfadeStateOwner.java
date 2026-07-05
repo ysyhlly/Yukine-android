@@ -26,12 +26,15 @@ final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManag
             PlaybackQueueManager playbackQueueManager,
             DoubleSupplier baseVolumeProvider
     ) {
-        this.transitionStateProvider = transitionStateProvider;
-        this.playerAvailabilityProvider = playerAvailabilityProvider;
-        this.playbackStateProvider = playbackStateProvider;
-        this.repeatModeProvider = repeatModeProvider;
+        this.transitionStateProvider = Objects.requireNonNull(transitionStateProvider, "transitionStateProvider");
+        this.playerAvailabilityProvider = Objects.requireNonNull(
+                playerAvailabilityProvider,
+                "playerAvailabilityProvider"
+        );
+        this.playbackStateProvider = Objects.requireNonNull(playbackStateProvider, "playbackStateProvider");
+        this.repeatModeProvider = Objects.requireNonNull(repeatModeProvider, "repeatModeProvider");
         this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.baseVolumeProvider = baseVolumeProvider;
+        this.baseVolumeProvider = Objects.requireNonNull(baseVolumeProvider, "baseVolumeProvider");
     }
 
     @Override
@@ -60,7 +63,7 @@ final class PlaybackCrossfadeStateOwner implements PlaybackCrossfadeAdvanceManag
 
     @Override
     public float baseVolume() {
-        return baseVolumeProvider == null ? 1.0f : (float) baseVolumeProvider.getAsDouble();
+        return (float) baseVolumeProvider.getAsDouble();
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {

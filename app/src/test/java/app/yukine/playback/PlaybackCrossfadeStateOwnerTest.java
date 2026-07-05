@@ -85,6 +85,42 @@ public class PlaybackCrossfadeStateOwnerTest {
         owner(null, PlaybackRepeatMode.REPEAT_ALL);
     }
 
+    @Test
+    public void constructorRequiresPlaybackStateProvider() {
+        try {
+            new PlaybackCrossfadeStateOwner(
+                    () -> false,
+                    () -> true,
+                    null,
+                    () -> PlaybackRepeatMode.REPEAT_ALL,
+                    queueManagerWithQueue(2, 0),
+                    () -> 1.0f
+            );
+        } catch (NullPointerException expected) {
+            assertEquals("playbackStateProvider", expected.getMessage());
+            return;
+        }
+        throw new AssertionError("Expected constructor to require playbackStateProvider");
+    }
+
+    @Test
+    public void constructorRequiresBaseVolumeProvider() {
+        try {
+            new PlaybackCrossfadeStateOwner(
+                    () -> false,
+                    () -> true,
+                    () -> true,
+                    () -> PlaybackRepeatMode.REPEAT_ALL,
+                    queueManagerWithQueue(2, 0),
+                    null
+            );
+        } catch (NullPointerException expected) {
+            assertEquals("baseVolumeProvider", expected.getMessage());
+            return;
+        }
+        throw new AssertionError("Expected constructor to require baseVolumeProvider");
+    }
+
     private static PlaybackCrossfadeStateOwner owner(
             PlaybackQueueManager playbackQueueManager,
             int repeatMode
