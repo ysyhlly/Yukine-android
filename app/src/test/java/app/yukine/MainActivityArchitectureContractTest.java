@@ -1101,6 +1101,15 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void featureGradleModulesDoNotDependOnAppModule() throws Exception {
+        for (String buildFile : featureBuildFiles()) {
+            String gradle = read(buildFile);
+            assertFalse(buildFile + " must not depend on :app", gradle.contains("project(\":app\")"));
+            assertFalse(buildFile + " must not depend on :app", gradle.contains("project(':app')"));
+        }
+    }
+
+    @Test
     public void coreModulesDoNotDependOnAppOrFeatureImplementations() throws Exception {
         for (String directory : coreMainSourceDirectories()) {
             for (Path source : sourceFiles(directory)) {
@@ -11095,6 +11104,16 @@ public final class MainActivityArchitectureContractTest {
         return new String[]{
                 "core/model/src/main/java",
                 "core/common/src/main/java"
+        };
+    }
+
+    private static String[] featureBuildFiles() {
+        return new String[]{
+                "feature/data/build.gradle",
+                "feature/navigation/build.gradle",
+                "feature/playback/build.gradle",
+                "feature/streaming/build.gradle",
+                "feature/ui-common/build.gradle"
         };
     }
 
