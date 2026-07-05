@@ -3028,8 +3028,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(visualizationCacheStateOwner.contains("interface CurrentTrackProvider"));
         assertFalse(visualizationCacheStateOwner.contains("interface CacheTaskScheduler"));
         assertTrue(visualizationCacheStateOwner.contains("private final Handler mainHandler;"));
+        assertTrue(visualizationCacheStateOwner.contains(
+                "this.mainHandler = Objects.requireNonNull(mainHandler, \"mainHandler\");"));
         assertFalse(visualizationCacheStateOwner.contains("private final Supplier<Handler> mainHandlerProvider;"));
         assertTrue(visualizationCacheStateOwner.contains("private final Consumer<Runnable> cacheTaskScheduler;"));
+        assertTrue(visualizationCacheStateOwner.contains(
+                "this.cacheTaskScheduler = Objects.requireNonNull(cacheTaskScheduler, \"cacheTaskScheduler\");"));
         assertTrue(visualizationCacheStateOwner.contains("import app.yukine.playback.manager.PlaybackQueueManager;"));
         assertFalse(visualizationCacheStateOwner.contains("private final PlaybackStateSnapshotOwner.QueueStateProvider queueStateProvider;"));
         assertFalse(visualizationCacheStateOwner.contains("private final PlaybackQueueStateOwner queueStateOwner;"));
@@ -3048,7 +3052,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(visualizationCacheStateOwner.contains("return playbackQueueManager.queueStateSnapshot();"));
         assertFalse(visualizationCacheStateOwner.contains("return currentTrackSupplier == null ? null : currentTrackSupplier.get();"));
         assertFalse(visualizationCacheStateOwner.contains("return currentTrackProvider.currentTrack();"));
-        assertTrue(visualizationCacheStateOwner.contains("if (cacheTaskScheduler != null)"));
+        assertFalse(visualizationCacheStateOwner.contains("if (cacheTaskScheduler != null)"));
         assertTrue(visualizationCacheStateOwner.contains("cacheTaskScheduler.accept(task);"));
         assertFalse(visualizationCacheManager.contains("boolean isHttpUri(Uri uri);"));
         assertFalse(visualizationCacheManager.contains("String cacheKeyForTrack(Track track);"));

@@ -18,9 +18,9 @@ final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizatio
             PlaybackQueueManager playbackQueueManager,
             Consumer<Runnable> cacheTaskScheduler
     ) {
-        this.mainHandler = mainHandler;
+        this.mainHandler = Objects.requireNonNull(mainHandler, "mainHandler");
         this.playbackQueueManager = Objects.requireNonNull(playbackQueueManager, "playbackQueueManager");
-        this.cacheTaskScheduler = cacheTaskScheduler;
+        this.cacheTaskScheduler = Objects.requireNonNull(cacheTaskScheduler, "cacheTaskScheduler");
     }
 
     @Override
@@ -35,9 +35,7 @@ final class PlaybackVisualizationCacheStateOwner implements PlaybackVisualizatio
 
     @Override
     public void scheduleVisualizationCacheTask(Runnable task) {
-        if (cacheTaskScheduler != null) {
-            cacheTaskScheduler.accept(task);
-        }
+        cacheTaskScheduler.accept(task);
     }
 
     private PlaybackQueueManager.QueueStateSnapshot queueStateSnapshot() {

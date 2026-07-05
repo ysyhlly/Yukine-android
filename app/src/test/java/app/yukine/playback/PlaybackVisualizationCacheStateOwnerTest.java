@@ -16,6 +16,7 @@ import app.yukine.playback.manager.PlaybackQueueStore;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 
 public class PlaybackVisualizationCacheStateOwnerTest {
     @Test
@@ -48,7 +49,7 @@ public class PlaybackVisualizationCacheStateOwnerTest {
         Track track = new Track(42L, "Track", "Artist", "Album", 1000L, null, "file:42");
         PlaybackQueueManager queueManager = queueManager(null);
         PlaybackVisualizationCacheStateOwner nullTrackOwner = new PlaybackVisualizationCacheStateOwner(
-                null,
+                new Handler(),
                 queueManager,
                 task -> {
                 }
@@ -62,11 +63,40 @@ public class PlaybackVisualizationCacheStateOwnerTest {
     @Test(expected = NullPointerException.class)
     public void constructorRequiresPlaybackQueueManager() {
         new PlaybackVisualizationCacheStateOwner(
-                null,
+                new Handler(),
                 null,
                 task -> {
                 }
         );
+    }
+
+    @Test
+    public void constructorRequiresMainHandler() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackVisualizationCacheStateOwner(
+                        null,
+                        queueManager(null),
+                        task -> {
+                        }
+                )
+        );
+
+        assertEquals("mainHandler", error.getMessage());
+    }
+
+    @Test
+    public void constructorRequiresCacheTaskScheduler() {
+        NullPointerException error = assertThrows(
+                NullPointerException.class,
+                () -> new PlaybackVisualizationCacheStateOwner(
+                        new Handler(),
+                        queueManager(null),
+                        null
+                )
+        );
+
+        assertEquals("cacheTaskScheduler", error.getMessage());
     }
 
     private static PlaybackQueueManager queueManager(Track current) {
