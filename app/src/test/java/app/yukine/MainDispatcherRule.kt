@@ -19,6 +19,9 @@ class MainDispatcherRule : TestRule {
                 try {
                     base.evaluate()
                 } finally {
+                    // Drain any pending coroutines to prevent leaking into
+                    // subsequent tests as UncaughtExceptionsBeforeTest.
+                    dispatcher.scheduler.advanceUntilIdle()
                     Dispatchers.resetMain()
                 }
             }
