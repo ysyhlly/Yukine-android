@@ -495,7 +495,7 @@ class StreamingViewModelTest {
         viewModel.signOutStreaming(StreamingProviderName.NETEASE).join()
         waitUntil { !viewModel.streaming.value.loading }
 
-        assertEquals(1, provider.signOutCalls)
+        assertEquals(1, provider.signOutCalls.get())
         assertFalse(viewModel.streaming.value.authStates[StreamingProviderName.NETEASE]?.connected == true)
         assertFalse(viewModel.streaming.value.loading)
     }
@@ -1133,11 +1133,14 @@ class StreamingViewModelTest {
             pageSize = 20
         )
     ) : StreamingProvider {
-        val searchRequests = mutableListOf<StreamingSearchRequest>()
-        val playbackRequests = mutableListOf<StreamingPlaybackRequest>()
-        val startAuthRedirectUris = mutableListOf<String?>()
-        val completeAuthCalls = mutableListOf<String>()
-        var signOutCalls = 0
+        // resolvePlaybackTrack runs on Dispatchers.IO and may resolve multiple
+        // candidates concurrently, so the recorded calls must be thread-safe —
+        // a plain ArrayList loses concurrent add() calls (the next-3 race).
+        val searchRequests: MutableList<StreamingSearchRequest> = java.util.concurrent.CopyOnWriteArrayList()
+        val playbackRequests: MutableList<StreamingPlaybackRequest> = java.util.concurrent.CopyOnWriteArrayList()
+        val startAuthRedirectUris: MutableList<String?> = java.util.concurrent.CopyOnWriteArrayList()
+        val completeAuthCalls: MutableList<String> = java.util.concurrent.CopyOnWriteArrayList()
+        val signOutCalls = java.util.concurrent.atomic.AtomicInteger(0)
         var startAuthResult: StreamingAuthResult = StreamingAuthResult(
             StreamingProviderName.NETEASE,
             StreamingAuthState()
@@ -1175,7 +1178,7 @@ class StreamingViewModelTest {
         }
 
         override suspend fun signOut(): StreamingAuthState {
-            signOutCalls += 1
+            signOutCalls.incrementAndGet()
             currentAuthState = signOutState
             return signOutState
         }
