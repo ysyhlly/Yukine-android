@@ -42,7 +42,9 @@ class StreamingPlaylistControllerTest {
     }
 
     @Test
-    fun loginSuccessLoadsAccountPlaylistsAndShowsImportPicker() = runTest {
+    fun loginSuccessLoadsAccountPlaylistsAndShowsImportPicker() = runTest(
+        mainDispatcherRule.testScheduler
+    ) {
         val gateway = FakeGateway(
             userPlaylistsResult = listOf(
                 StreamingPlaylist(
@@ -76,7 +78,9 @@ class StreamingPlaylistControllerTest {
     }
 
     @Test
-    fun syncSelectedPlaylistRefreshesLibraryAfterSuccessfulSync() = runTest {
+    fun syncSelectedPlaylistRefreshesLibraryAfterSuccessfulSync() = runTest(
+        mainDispatcherRule.testScheduler
+    ) {
         val gateway = FakeGateway(userPlaylistsResult = emptyList())
         val operations = FakeStreamingLocalPlaylistOperations()
         operations.linkedPlaylist = StreamingPlaylistSyncStore.LinkedPlaylist(
@@ -112,7 +116,9 @@ class StreamingPlaylistControllerTest {
     }
 
     @Test
-    fun selectedAccountPlaylistImportRefreshesLibraryAfterImport() = runTest {
+    fun selectedAccountPlaylistImportRefreshesLibraryAfterImport() = runTest(
+        mainDispatcherRule.testScheduler
+    ) {
         val gateway = FakeGateway(userPlaylistsResult = emptyList())
         gateway.playlistDetail = StreamingPlaylistDetail(
             provider = StreamingProviderName.NETEASE,

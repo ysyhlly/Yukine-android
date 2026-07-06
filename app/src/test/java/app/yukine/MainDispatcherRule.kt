@@ -11,17 +11,17 @@ import org.junit.runners.model.Statement
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainDispatcherRule : TestRule {
+    val testScheduler = kotlinx.coroutines.test.TestCoroutineScheduler()
+
     override fun apply(base: Statement, description: Description): Statement {
         return object : Statement() {
             override fun evaluate() {
-                val dispatcher = UnconfinedTestDispatcher()
+                val dispatcher = UnconfinedTestDispatcher(testScheduler)
                 Dispatchers.setMain(dispatcher)
                 try {
                     base.evaluate()
                 } finally {
-                    // Drain any pending coroutines to prevent leaking into
-                    // subsequent tests as UncaughtExceptionsBeforeTest.
-                    dispatcher.scheduler.advanceUntilIdle()
+                    testScheduler.advanceUntilIdle()
                     Dispatchers.resetMain()
                 }
             }
