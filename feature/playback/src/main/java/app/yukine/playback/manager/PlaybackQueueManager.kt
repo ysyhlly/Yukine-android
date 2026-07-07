@@ -25,6 +25,11 @@ internal class PlaybackQueueManager(
     private val playbackTransitionStateManager: PlaybackTransitionStateManager? = null,
     private val random: Random = Random()
 ) {
+    private companion object {
+        const val MAX_MIRRORED_QUEUE_TRACKS = 64
+        const val MAX_SYNC_PERSISTED_QUEUE_TRACKS = 64
+    }
+
     private var playbackRestoreEnabled = queueStore.loadPlaybackRestoreEnabled()
     private var currentIndex = -1
 
@@ -32,6 +37,7 @@ internal class PlaybackQueueManager(
         fun prepareCurrent(playWhenReady: Boolean)
         fun publishState()
         fun stopAndClear()
+        fun persistQueueAsync(tracks: List<Track>, currentIndex: Int): Boolean
     }
 
     interface StreamingRestoreProvider {
@@ -624,6 +630,9 @@ internal class PlaybackQueueManager(
         if (queue.isEmpty() || currentTrack() == null) {
             return null
         }
+        if (queue.size > MAX_MIRRORED_QUEUE_TRACKS) {
+            return null
+        }
         for (track in queue) {
             if (track.contentUri == null || track.contentUri.toString().isEmpty()) {
                 return null
@@ -810,7 +819,14 @@ internal class PlaybackQueueManager(
     }
 
     private fun persistQueue() {
-        queueStore.save(queue.toList(), currentIndex())
+        val tracks = queue.toList()
+        val index = currentIndex()
+        if (tracks.size > MAX_SYNC_PERSISTED_QUEUE_TRACKS &&
+            queuePlaybackActions.persistQueueAsync(tracks, index)
+        ) {
+            return
+        }
+        queueStore.save(tracks, index)
     }
 
     private fun persistPlaybackPosition() {
@@ -943,6 +959,7 @@ internal class PlaybackQueueManager(
         override fun prepareCurrent(playWhenReady: Boolean) {}
         override fun publishState() {}
         override fun stopAndClear() {}
+        override fun persistQueueAsync(tracks: List<Track>, currentIndex: Int): Boolean = false
     }
 
     private object NoopStreamingRestoreProvider : StreamingRestoreProvider {

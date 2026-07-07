@@ -424,7 +424,7 @@ private fun BottomWaveformProgress(
             onSeek = onSeek,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(36.dp)
+                .height(18.dp)
         )
     }
 }
@@ -698,7 +698,10 @@ private fun WaveformProgress(
     } else {
         placeholderWaveform.size
     }.coerceIn(0, barCount)
-    val cachedProgress = waveformCachedProgressForDraw(serviceWaveformCachedProgress, serviceGeneratedBars)
+    val cachedProgress = waveformCachedProgressForDraw(
+        serviceWaveformCachedProgress,
+        serviceHasVisibleWaveform
+    )
     val visiblePeakRange = remember(waveform, generatedBars) {
         visibleWaveformPeakRange(waveform, generatedBars)
     }
@@ -823,9 +826,9 @@ internal fun hasVisibleWaveformBars(waveformBars: FloatArray, generatedBars: Int
     return false
 }
 
-internal fun waveformCachedProgressForDraw(serviceCachedProgress: Float, serviceGeneratedBars: Int): Float {
+internal fun waveformCachedProgressForDraw(serviceCachedProgress: Float, serviceHasVisibleWaveform: Boolean): Float {
     val clampedServiceProgress = serviceCachedProgress.coerceIn(0f, 1f)
-    return if (serviceGeneratedBars > 0 || clampedServiceProgress > 0f) {
+    return if (serviceHasVisibleWaveform) {
         clampedServiceProgress
     } else {
         1f

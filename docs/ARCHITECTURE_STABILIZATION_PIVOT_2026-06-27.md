@@ -510,6 +510,46 @@ Follow-up pure-forwarding convergence slice:
 Verification:
 
 ```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest.streamingRestoreProviderPortDelegatesToHeaderStore --console=plain
+# BUILD SUCCESSFUL
+
 .\gradlew.bat :feature:playback:compileDebugKotlin :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+# BUILD SUCCESSFUL
+```
+
+## 2026-07-07 Playback Owner Candidate Re-Audit
+
+Read-only follow-up after the P0 automated gate refresh. The goal was to avoid deleting owners whose value is
+guard/policy, even if their call surface looks thin.
+
+Current metrics remain stable: `EchoPlaybackService.java` 1459 lines, 55 `private Playback*` fields,
+8 `fromPlaybackQueueManager(...)` calls, 0 `queueStateSnapshot()` suppliers, 41 `Playback*Owner` files.
+
+Candidates reviewed and kept:
+
+- `PlaybackQueueMutationOwner`: thin boundary, but it keeps null/missing-manager/empty-input guards and queue
+  mutation command shape outside `EchoPlaybackService`. `PlaybackQueueMutationOwnerTest` covers the guard behavior,
+  unset start-position behavior, and empty retain-set clearing.
+- `PlaybackNoisyReceiverRegistrarOwner`: not pure forwarding; it owns the Android receiver registration API split
+  between pre-33 registration and API 33+ `RECEIVER_NOT_EXPORTED` registration. Keep this platform boundary.
+- `PlaybackQueueCommandOwner`: mostly delegation, but it is the named `QueuePlaybackActions` bridge used by
+  `PlaybackQueueManager` and avoids reintroducing an anonymous multi-method queue action implementation inside
+  the service. Do not delete it unless a smaller existing playback command owner can absorb the exact behavior
+  without growing `EchoPlaybackService`.
+
+Next safe convergence filter: only remove a playback owner when the replacement reduces total forwarding code,
+does not move policy or anonymous listener bodies into the service, and has behavior coverage replacing any
+string-only architecture contract.
+
+Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests StreamingViewModelTest --console=plain
+# BUILD SUCCESSFUL
+
+.\scripts\p0-stability-gate.ps1 -SkipDeviceProbe -IncludeAssemble
+# BUILD SUCCESSFUL; report app/build/p0-stability-gate/20260707-091345.md
+
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest --console=plain
 # BUILD SUCCESSFUL
 ```

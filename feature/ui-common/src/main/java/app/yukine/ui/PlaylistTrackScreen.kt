@@ -157,7 +157,7 @@ private fun PlaylistTrackRow(
                 ) {
                     actions.onFavorite.run()
                 }
-                PlIconButton(EchoIconKind.Import, "涓嬭浇") {
+                PlIconButton(EchoIconKind.Import, "下载") {
                     actions.onDownload.run()
                 }
                 PlIconButton(

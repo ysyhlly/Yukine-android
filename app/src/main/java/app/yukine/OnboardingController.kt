@@ -73,7 +73,6 @@ internal class OnboardingController(
 
     fun canFinishOnboarding(): Boolean {
         return listener.hasAudioPermission()
-            && listener.hasNotificationPermission()
             && libraryScanCompleted
     }
 
@@ -81,9 +80,6 @@ internal class OnboardingController(
         val missing = ArrayList<String>()
         if (!listener.hasAudioPermission()) {
             missing.add("音频权限")
-        }
-        if (!listener.hasNotificationPermission()) {
-            missing.add("通知权限")
         }
         if (!libraryScanCompleted) {
             missing.add(if (libraryScanInProgress) "等待曲库扫描完成" else "扫描本地曲库")

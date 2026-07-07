@@ -45,7 +45,7 @@ public final class PlaybackPrecacheManagerTest {
         manager.precacheTrack(stateProvider.currentTrack);
         manager.release();
 
-        assertEquals(2, scheduler.removedCallbacks);
+        assertEquals(1, scheduler.removedCallbacks);
         assertEquals(0, scheduler.pendingCallbacks.size());
     }
 
@@ -60,7 +60,7 @@ public final class PlaybackPrecacheManagerTest {
         manager.release();
         manager.release();
 
-        assertEquals(2, scheduler.removedCallbacks);
+        assertEquals(1, scheduler.removedCallbacks);
         assertEquals(0, scheduler.pendingCallbacks.size());
     }
 
@@ -178,7 +178,7 @@ public final class PlaybackPrecacheManagerTest {
         manager.precacheTrack(second);
         manager.release();
 
-        assertEquals(4, scheduler.removedCallbacks);
+        assertEquals(2, scheduler.removedCallbacks);
         assertEquals(0, scheduler.pendingCallbacks.size());
     }
 
@@ -303,6 +303,56 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
+    public void currentPlayerMediaItemSkipsCurrentSegmentPrecache() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                (IntFunction<List<Track>>) null,
+                mediaCacheOperations,
+                scheduler,
+                new FakeAudioCacheReleaseAction()::releaseAudioCache,
+                executor
+        );
+        Track track = track(1L, "https://example.test/one.mp3");
+
+        stateProvider.currentTrack = track;
+        mediaCacheOperations.mediaItemMatchesForReuse = true;
+        manager.precacheTrack(track);
+        scheduler.runNext();
+        manager.release();
+
+        assertEquals(1, executor.submittedTasks.size());
+    }
+
+    @Test
+    public void currentSegmentPrecacheCanRunBeforePlayerOwnsTrack() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                (IntFunction<List<Track>>) null,
+                mediaCacheOperations,
+                scheduler,
+                new FakeAudioCacheReleaseAction()::releaseAudioCache,
+                executor
+        );
+        Track track = track(1L, "https://example.test/one.mp3");
+
+        stateProvider.currentTrack = track;
+        mediaCacheOperations.mediaItemMatchesForReuse = false;
+        manager.precacheTrack(track);
+        scheduler.runNext();
+        manager.release();
+
+        assertEquals(2, executor.submittedTasks.size());
+    }
+
+    @Test
     public void fullyCachedCurrentLeadingRangeCompletesWithoutOpeningCacheDataSource() throws Exception {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
@@ -418,11 +468,102 @@ public final class PlaybackPrecacheManagerTest {
         stateProvider.currentTrack = current;
         manager.precacheTrack(current);
         scheduler.runNext();
-        scheduler.runNext();
         manager.release();
 
         assertEquals(PlaybackPrecacheManager.SEGMENTED_PRECACHE_CONCURRENCY, upcomingTracksProvider.lastMaxCount);
         assertEquals(1, upcomingTracksProvider.calls);
+    }
+
+    @Test
+    public void repeatedUpcomingPrecacheKeepsOneTaskPerPlaybackGeneration() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                (IntFunction<List<Track>>) null,
+                mediaCacheOperations,
+                scheduler,
+                new FakeAudioCacheReleaseAction()::releaseAudioCache,
+                executor
+        );
+        Track current = track(1L, "https://example.test/current.mp3");
+        Track upcoming = track(2L, "https://example.test/upcoming.mp3");
+
+        stateProvider.currentTrack = current;
+        manager.precacheTrack(upcoming);
+        manager.precacheTrack(upcoming);
+        manager.precacheTrack(upcoming);
+        manager.release();
+
+        assertEquals(1, stateProvider.diagnostics.snapshot().precacheAttempts);
+        assertEquals(1, executor.submittedTasks.size());
+    }
+
+    @Test
+    public void repeatedStreamingUpcomingPrecacheUsesStableDataPathAcrossCdnUrls() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                (IntFunction<List<Track>>) null,
+                mediaCacheOperations,
+                scheduler,
+                new FakeAudioCacheReleaseAction()::releaseAudioCache,
+                executor
+        );
+        Track current = track(1L, "https://example.test/current.mp3");
+        Track firstCdn = track(
+                2L,
+                "https://m704.music.126.net/song.mp3",
+                "streaming:netease:quantum-theory"
+        );
+        Track secondCdn = track(
+                2L,
+                "https://m804.music.126.net/song.mp3",
+                "streaming:netease:quantum-theory"
+        );
+
+        stateProvider.currentTrack = current;
+        manager.precacheTrack(firstCdn);
+        manager.precacheTrack(secondCdn);
+        manager.release();
+
+        assertEquals(1, stateProvider.diagnostics.snapshot().precacheAttempts);
+        assertEquals(1, executor.submittedTasks.size());
+    }
+
+    @Test
+    public void currentTrackChangeAllowsUpcomingPrecacheToBeScheduledAgain() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeMediaCacheOperations mediaCacheOperations = new FakeMediaCacheOperations();
+        CapturingPlaybackCacheExecutor executor = new CapturingPlaybackCacheExecutor();
+        PlaybackPrecacheManager manager = new PlaybackPrecacheManager(
+                stateProvider,
+                (IntFunction<List<Track>>) null,
+                mediaCacheOperations,
+                scheduler,
+                new FakeAudioCacheReleaseAction()::releaseAudioCache,
+                executor
+        );
+        Track firstCurrent = track(1L, "https://example.test/current-one.mp3");
+        Track secondCurrent = track(3L, "https://example.test/current-two.mp3");
+        Track upcoming = track(2L, "https://example.test/upcoming.mp3");
+
+        stateProvider.currentTrack = firstCurrent;
+        manager.precacheTrack(firstCurrent);
+        manager.precacheTrack(upcoming);
+        stateProvider.currentTrack = secondCurrent;
+        manager.precacheTrack(secondCurrent);
+        manager.precacheTrack(upcoming);
+        manager.release();
+
+        assertEquals(4, stateProvider.diagnostics.snapshot().precacheAttempts);
+        assertEquals(4, executor.submittedTasks.size());
     }
 
     private static Track track(long id, String uri) {

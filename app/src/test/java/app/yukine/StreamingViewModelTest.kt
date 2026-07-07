@@ -50,6 +50,7 @@ import org.junit.Rule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 
@@ -539,6 +540,7 @@ class StreamingViewModelTest {
 
         assertTrue(scheduled)
         assertEquals(1, taskQueue.nextUrlResolveCount)
+        advanceUntilIdle()
         waitUntil { resolved.isNotEmpty() }
         assertEquals(
             listOf(StreamingPlaybackRequest(StreamingProviderName.NETEASE, "next-2", StreamingAudioQuality.HIGH)),
@@ -567,6 +569,7 @@ class StreamingViewModelTest {
 
         assertTrue(scheduled)
         assertEquals(1, taskQueue.currentUrlResolveCount)
+        advanceUntilIdle()
         waitUntil { resolved.isNotEmpty() }
         assertEquals(
             listOf(StreamingPlaybackRequest(StreamingProviderName.NETEASE, "play-2", StreamingAudioQuality.HIGH)),

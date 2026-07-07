@@ -43,11 +43,21 @@ class NowBarWaveformRangeTest {
     }
 
     @Test
-    fun cachedProgressUsesServiceProgressBeforeWaveformBarsExist() {
-        assertEquals(0.35f, waveformCachedProgressForDraw(0.35f, 0), 0.0001f)
-        assertEquals(0.72f, waveformCachedProgressForDraw(0.72f, 12), 0.0001f)
-        assertEquals(1f, waveformCachedProgressForDraw(0f, 0), 0.0001f)
-        assertEquals(1f, waveformCachedProgressForDraw(2f, 0), 0.0001f)
+    fun cachedProgressShowsFallbackWaveformBeforeServiceBarsExist() {
+        assertEquals(1f, waveformCachedProgressForDraw(0.35f, false), 0.0001f)
+        assertEquals(0.72f, waveformCachedProgressForDraw(0.72f, true), 0.0001f)
+        assertEquals(1f, waveformCachedProgressForDraw(0f, false), 0.0001f)
+        assertEquals(1f, waveformCachedProgressForDraw(2f, false), 0.0001f)
+    }
+
+    @Test
+    fun cachedProgressShowsFallbackWhenServiceBarsAreGeneratedButInvisible() {
+        val serviceBars = FloatArray(96) { 0f }
+
+        val serviceHasVisibleWaveform = hasVisibleWaveformBars(serviceBars, 96)
+
+        assertEquals(false, serviceHasVisibleWaveform)
+        assertEquals(1f, waveformCachedProgressForDraw(0f, serviceHasVisibleWaveform), 0.0001f)
     }
 
     @Test

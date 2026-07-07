@@ -1,5 +1,6 @@
 package app.yukine.playback.manager
 
+import android.os.SystemClock
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
@@ -7,13 +8,18 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import app.yukine.model.Track
+import java.util.function.LongSupplier
+
 @UnstableApi
-internal class PlaybackSessionPlayer(
+internal class PlaybackSessionPlayer @JvmOverloads constructor(
     player: Player,
-    private val delegate: Delegate
+    private val delegate: Delegate,
+    private val elapsedRealtimeMs: LongSupplier = LongSupplier { SystemClock.elapsedRealtime() }
 ) : ForwardingPlayer(player) {
 
     companion object {
+        private const val SESSION_POSITION_REFRESH_MS = 1_000L
+
         private fun isAppQueueNavigationCommand(command: Int): Boolean =
             command == Player.COMMAND_SEEK_TO_PREVIOUS
                     || command == Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM
@@ -42,12 +48,27 @@ internal class PlaybackSessionPlayer(
         ): Boolean
         fun currentTrack(): Track?
         fun mediaMetadataForTrack(track: Track): MediaMetadata?
+        fun positionMs(): Long
+        fun sessionPositionMs(): Long
+        fun durationMs(): Long
     }
+
+    private var lastSessionPositionMs = Long.MIN_VALUE
+    private var lastSessionPositionReadAtMs = Long.MIN_VALUE
 
     override fun play() = delegate.play()
     override fun pause() = delegate.pause()
-    override fun seekTo(positionMs: Long) = delegate.seekTo(safeSeekPosition(positionMs))
-    override fun seekTo(mediaItemIndex: Int, positionMs: Long) = delegate.seekTo(safeSeekPosition(positionMs))
+    override fun seekTo(positionMs: Long) {
+        val targetPositionMs = safeSeekPosition(positionMs)
+        delegate.seekTo(targetPositionMs)
+        seedSessionPosition(targetPositionMs)
+    }
+
+    override fun seekTo(mediaItemIndex: Int, positionMs: Long) {
+        val targetPositionMs = safeSeekPosition(positionMs)
+        delegate.seekTo(targetPositionMs)
+        seedSessionPosition(targetPositionMs)
+    }
 
     override fun isCommandAvailable(command: Int): Boolean {
         if (isAppQueueNavigationCommand(command)
@@ -90,13 +111,36 @@ internal class PlaybackSessionPlayer(
         return super.getMediaMetadata()
     }
 
+    override fun getCurrentPosition(): Long {
+        val nowMs = maxOf(0L, elapsedRealtimeMs.asLong)
+        val currentPositionMs = maxOf(0L, delegate.sessionPositionMs())
+        if (lastSessionPositionMs == Long.MIN_VALUE ||
+            currentPositionMs < lastSessionPositionMs ||
+            currentPositionMs - lastSessionPositionMs >= SESSION_POSITION_REFRESH_MS ||
+            nowMs - lastSessionPositionReadAtMs >= SESSION_POSITION_REFRESH_MS
+        ) {
+            lastSessionPositionMs = currentPositionMs
+            lastSessionPositionReadAtMs = nowMs
+        }
+        return maxOf(0L, lastSessionPositionMs)
+    }
+
+    override fun getContentPosition(): Long = currentPosition
+
+    override fun getDuration(): Long {
+        val durationMs = delegate.durationMs()
+        return if (durationMs <= 0L) super.getDuration() else durationMs
+    }
+
     override fun setMediaItem(mediaItem: MediaItem) {
+        resetSessionPosition()
         if (!delegate.setControllerMediaItems(listOf(mediaItem), 0, C.TIME_UNSET)) {
             super.setMediaItem(mediaItem)
         }
     }
 
     override fun setMediaItem(mediaItem: MediaItem, startPositionMs: Long) {
+        seedSessionPosition(startPositionMs)
         if (!delegate.setControllerMediaItems(listOf(mediaItem), 0, startPositionMs)) {
             super.setMediaItem(mediaItem, startPositionMs)
         }
@@ -104,12 +148,14 @@ internal class PlaybackSessionPlayer(
 
     override fun setMediaItem(mediaItem: MediaItem, resetPosition: Boolean) {
         val pos = if (resetPosition) 0L else C.TIME_UNSET
+        seedSessionPosition(pos)
         if (!delegate.setControllerMediaItems(listOf(mediaItem), 0, pos)) {
             super.setMediaItem(mediaItem, resetPosition)
         }
     }
 
     override fun setMediaItems(mediaItems: MutableList<MediaItem>) {
+        resetSessionPosition()
         if (!delegate.setControllerMediaItems(mediaItems, 0, C.TIME_UNSET)) {
             super.setMediaItems(mediaItems)
         }
@@ -117,6 +163,7 @@ internal class PlaybackSessionPlayer(
 
     override fun setMediaItems(mediaItems: MutableList<MediaItem>, resetPosition: Boolean) {
         val pos = if (resetPosition) 0L else C.TIME_UNSET
+        seedSessionPosition(pos)
         if (!delegate.setControllerMediaItems(mediaItems, 0, pos)) {
             super.setMediaItems(mediaItems, resetPosition)
         }
@@ -125,8 +172,23 @@ internal class PlaybackSessionPlayer(
     override fun setMediaItems(
         mediaItems: MutableList<MediaItem>, startIndex: Int, startPositionMs: Long
     ) {
+        seedSessionPosition(startPositionMs)
         if (!delegate.setControllerMediaItems(mediaItems, startIndex, startPositionMs)) {
             super.setMediaItems(mediaItems, startIndex, startPositionMs)
         }
+    }
+
+    private fun seedSessionPosition(positionMs: Long) {
+        if (positionMs == C.TIME_UNSET) {
+            resetSessionPosition()
+            return
+        }
+        lastSessionPositionMs = maxOf(0L, positionMs)
+        lastSessionPositionReadAtMs = maxOf(0L, elapsedRealtimeMs.asLong)
+    }
+
+    private fun resetSessionPosition() {
+        lastSessionPositionMs = Long.MIN_VALUE
+        lastSessionPositionReadAtMs = Long.MIN_VALUE
     }
 }

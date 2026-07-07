@@ -238,7 +238,8 @@ try {
 
     if ($EvidenceDir.Trim().Length -eq 0) {
         $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-        $EvidenceDir = Join-Path $ProjectRoot "app/build/playback-stability/$timestamp-$ResolvedSerial"
+        $safeSerial = $ResolvedSerial -replace '[^A-Za-z0-9._-]', '_'
+        $EvidenceDir = Join-Path $ProjectRoot "app/build/playback-stability/$timestamp-$safeSerial"
     } elseif (![System.IO.Path]::IsPathRooted($EvidenceDir)) {
         $EvidenceDir = Join-Path $ProjectRoot $EvidenceDir
     }

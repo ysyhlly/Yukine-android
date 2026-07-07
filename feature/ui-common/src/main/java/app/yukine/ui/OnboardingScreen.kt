@@ -59,8 +59,8 @@ fun OnboardingScreen(
     actions: OnboardingActions
 ) {
     val p = EchoTheme.colors()
-    val permissionsReady = audioPermissionGranted && notificationPermissionGranted
-    val setupComplete = permissionsReady && libraryScanCompleted
+    val permissionsReady = audioPermissionGranted
+    val setupComplete = audioPermissionGranted && libraryScanCompleted
     val missingSetupText = missingSetupText(
         audioPermissionGranted = audioPermissionGranted,
         notificationPermissionGranted = notificationPermissionGranted,
@@ -90,11 +90,15 @@ fun OnboardingScreen(
                 OnboardingStep(
                     number = "01",
                     icon = EchoIconKind.Action,
-                    title = "第 1 步：允许访问音乐和通知",
+                    title = "第 1 步：允许访问音乐",
                     status = if (permissionsReady) {
-                        "已完成。Yukine 可以读取音乐，也能在通知栏显示播放控制。"
+                        if (notificationPermissionGranted) {
+                            "已完成。Yukine 可以读取音乐，也能在通知栏显示播放控制。"
+                        } else {
+                            "已完成。通知权限可稍后在系统设置里打开，不会影响进入首页。"
+                        }
                     } else {
-                        "先点这里授权。没有这些权限，Yukine 还不能帮你找歌和保持播放控制。"
+                        "先点这里授权。没有音乐权限，Yukine 还不能帮你找歌。"
                     },
                     actionLabel = if (permissionsReady) "已完成" else "去授权",
                     active = !permissionsReady,
@@ -251,10 +255,10 @@ private fun StartupSummary(
                         color = p.heading
                     )
                     Text(
-                        if (permissionsReady && libraryScanCompleted) {
-                            "已经准备好，可以进入首页"
-                        } else {
-                            "从第 1 步开始，按顺序完成"
+        if (audioPermissionGranted && libraryScanCompleted) {
+            "已经准备好，可以进入首页"
+        } else {
+            "从第 1 步开始，按顺序完成"
                         },
                         style = EchoTypography.caption,
                         color = p.muted,
@@ -284,7 +288,7 @@ private fun missingSetupText(
     libraryScanInProgress: Boolean
 ): String {
     val missing = ArrayList<String>()
-    if (!audioPermissionGranted || !notificationPermissionGranted) {
+    if (!audioPermissionGranted) {
         missing.add("第 1 步授权")
     }
     if (!libraryScanCompleted) {

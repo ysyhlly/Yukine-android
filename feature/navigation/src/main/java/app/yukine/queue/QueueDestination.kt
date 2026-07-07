@@ -27,8 +27,8 @@ fun QueueDestination(provider: QueueDestinationStateProvider, modifier: Modifier
     val labels by provider.labels.collectAsState()
 
     val rows = uiState.rows
-    val actions = remember(rows) {
-        rows.indices.map { index ->
+    val actionForIndex = remember(provider) {
+        { index: Int ->
             QueueTrackActions(
                 onPlay = Runnable { provider.onPlayAt(index) },
                 onFavorite = Runnable { provider.onToggleFavorite(index) },
@@ -42,7 +42,8 @@ fun QueueDestination(provider: QueueDestinationStateProvider, modifier: Modifier
     Box(modifier = modifier) {
         QueueScreen(
             tracks = rows,
-            actions = actions,
+            actionForIndex = actionForIndex,
+            onMove = { fromIndex, toIndex -> provider.onMove(fromIndex, toIndex) },
             onClearQueue = Runnable { provider.onClearQueue() },
             labels = labels,
             onBack = Runnable { provider.onBack() }

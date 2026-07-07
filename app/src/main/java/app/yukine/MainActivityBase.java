@@ -201,13 +201,13 @@ public abstract class MainActivityBase extends ComponentActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         initializeViewModels(createActivityViewModels());
+        initializeRouteStoresAndStatus();
         MainActivityStreamingActionGateway streamingActionGateway = createStreamingActionGateway();
         initializeStreamingPlaybackCoordinator();
         initializeNowPlayingGateways();
         initializeDownloadRequests();
         initializeLibraryGateway();
         initializeStreamingStartup(streamingActionGateway);
-        initializeRouteStoresAndStatus();
         initializePlatformControllers();
         initializePlaybackLifecycleControllers();
         initializeNavigationRendering();
@@ -648,6 +648,9 @@ public abstract class MainActivityBase extends ComponentActivity {
         settingsViewModel.bindEffectListener(effect -> {
             if (effect instanceof SettingsEffect.ShowStatus) {
                 statusMessageController.setStatus(((SettingsEffect.ShowStatus) effect).getMessage());
+            } else if (effect instanceof SettingsEffect.NavigatePage) {
+                routeController.setSettingsPage(SettingsPage.route(((SettingsEffect.NavigatePage) effect).getPage()));
+                renderAndPersistSelectedTab();
             } else if (effect == SettingsEffect.OpenNetworkSources.INSTANCE) {
                 navigateToNetworkTabPage(NETWORK_HOME);
             } else if (effect == SettingsEffect.OpenDownloads.INSTANCE) {
@@ -960,6 +963,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 lyricsViewModel,
                 streamingGatewaySettingsStore
         );
+        refreshSettingsContext();
         DialogLanguageProvider dialogLanguageProvider =
                 () -> settingsStore.languageMode();
         networkDialogController = new NetworkDialogController(this, dialogLanguageProvider, networkRequestController);
@@ -1656,10 +1660,20 @@ public abstract class MainActivityBase extends ComponentActivity {
                     }
                     if (onboardingController != null) {
                         onboardingController.onLibraryScanResult(canScan);
+                        if (showOnboarding()) {
+                            mountNavHostShell();
+                        }
                     }
                 },
                 status -> {
                     statusMessageController.setStatus(status);
+                    if (onboardingController != null) {
+                        onboardingController.onLibraryScanResult(false);
+                    }
+                    if (showOnboarding()) {
+                        mountNavHostShell();
+                        return;
+                    }
                     renderSelectedTab();
                 }
         );
@@ -2401,6 +2415,16 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
         settingsViewModel.renderPageFromHost(
                 SettingsPage.fromRoute(settingsPage()),
+                settingsContextProvider.preferencesSnapshot(),
+                settingsContextProvider.runtimeStatus()
+        );
+    }
+
+    private void refreshSettingsContext() {
+        if (settingsContextProvider == null) {
+            return;
+        }
+        settingsViewModel.updateSettingsContext(
                 settingsContextProvider.preferencesSnapshot(),
                 settingsContextProvider.runtimeStatus()
         );

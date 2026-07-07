@@ -8,6 +8,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.delay
 import kotlin.math.abs
 
 /**
@@ -17,8 +18,9 @@ import kotlin.math.abs
  * The service remains the single source of truth: every time [positionMs], [durationMs] or [playing]
  * changes, the local clock is re-seeded from the authoritative value (this is the calibration that
  * keeps the local estimate from drifting, and that snaps to the real value on seek / track change /
- * pause / buffer). While [playing] is true the value is advanced once per display frame via
- * [withFrameNanos], which is frame-synced and self-cancels when this composable leaves the
+ * pause / buffer). While [playing] is true the value is advanced at a low UI tick rate, which
+ * avoids turning playback progress into a continuous main-thread recomposition source and
+ * self-cancels when this composable leaves the
  * composition or when the keys change.
  *
  * The returned [State] is intended to be read inside a draw lambda (so it only triggers a redraw,
@@ -54,8 +56,9 @@ fun rememberSmoothPosition(
         if (playing) {
             val startNanos = withFrameNanos { it }
             while (position.value < duration) {
-                val frameNanos = withFrameNanos { it }
-                val elapsedMs = (frameNanos - startNanos) / 1_000_000L
+                delay(POSITION_UI_TICK_MS)
+                val elapsedNanos = withFrameNanos { it } - startNanos
+                val elapsedMs = elapsedNanos / 1_000_000L
                 val nextPosition = (startBase + elapsedMs).coerceIn(0L, duration)
                 if (position.value != nextPosition) {
                     position.value = nextPosition
@@ -121,3 +124,4 @@ fun rememberScrubbablePlaybackPosition(
 }
 
 private const val POSITION_SNAP_THRESHOLD_MS = 250L
+private const val POSITION_UI_TICK_MS = 250L

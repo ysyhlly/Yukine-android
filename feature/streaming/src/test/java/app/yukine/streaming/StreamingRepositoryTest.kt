@@ -9,9 +9,6 @@ import app.yukine.streaming.cache.StreamingPlaylistCacheEntity
 import app.yukine.streaming.cache.StreamingSearchCacheEntity
 import app.yukine.model.Track
 import kotlinx.coroutines.test.runTest
-import java.net.ServerSocket
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -262,43 +259,28 @@ class StreamingRepositoryTest {
     }
 
     @Test
-    fun resolvePlaybackTrackRecordsPreflightDiagnostics() = runTest {
-        var nowMs = 1_000L
-        val server = PreflightTestServer()
-        server.start()
-        try {
-            val source = playbackSource("${server.baseUrl}/track-1.flac")
-            val gateway = FakeStreamingGateway(
-                playbackSource = source
-            )
-            val repository = StreamingRepository(
-                gateway = gateway,
-                playbackTrackAdapter = object : StreamingPlaybackTrackAdapter {
-                    override fun toTrack(source: StreamingPlaybackSource, metadata: StreamingTrack?): Track {
-                        return Track(1L, "Echo", "Tester", "Album", 0L, android.net.Uri.EMPTY, "streaming:netease:track-1")
-                    }
-                },
-                clockMs = {
-                    nowMs += 25L
-                    nowMs
+    fun resolvePlaybackTrackDoesNotBlockOnCdnPreflight() = runTest {
+        val gateway = FakeStreamingGateway(
+            playbackSource = playbackSource("https://10.255.255.1/slow-track.flac")
+        )
+        val repository = StreamingRepository(
+            gateway = gateway,
+            playbackTrackAdapter = object : StreamingPlaybackTrackAdapter {
+                override fun toTrack(source: StreamingPlaybackSource, metadata: StreamingTrack?): Track {
+                    return Track(1L, "Echo", "Tester", "Album", 0L, android.net.Uri.EMPTY, "streaming:netease:track-1")
                 }
-            )
+            }
+        )
 
-            repository.resolvePlaybackTrack(
-                provider = StreamingProviderName.NETEASE,
-                providerTrackId = "track-1",
-                quality = StreamingAudioQuality.HIGH,
-                metadata = null
-            )
+        val result = repository.resolvePlaybackTrack(
+            provider = StreamingProviderName.NETEASE,
+            providerTrackId = "track-1",
+            quality = StreamingAudioQuality.HIGH,
+            metadata = null
+        )
 
-            val diagnostics = repository.diagnostics()
-            val preflight = diagnostics.recentLogs.first { it.operation == "playback_preflight" }
-            assertEquals(StreamingProviderName.NETEASE, preflight.provider)
-            assertTrue(preflight.message.orEmpty().contains("http=204"))
-            assertTrue(preflight.message.orEmpty().contains("host=127.0.0.1"))
-        } finally {
-            server.stop()
-        }
+        assertEquals("https://10.255.255.1/slow-track.flac", result.source.url)
+        assertTrue(repository.diagnostics().recentLogs.none { it.operation == "playback_preflight" })
     }
 
     @Test
@@ -716,45 +698,6 @@ private class FakeStreamingGateway(
     }
 
     override suspend fun signOut(provider: StreamingProviderName): StreamingAuthState = authState
-}
-
-private class PreflightTestServer {
-    private val server = ServerSocket(0)
-    private val ready = CountDownLatch(1)
-    private lateinit var thread: Thread
-    @Volatile
-    private var running = false
-    val baseUrl: String
-        get() = "http://127.0.0.1:${server.localPort}"
-
-    fun start() {
-        running = true
-        thread = Thread {
-            ready.countDown()
-            while (running && !server.isClosed) {
-                try {
-                    server.accept().use { socket ->
-                        socket.getInputStream().bufferedReader().readLine()
-                        socket.getOutputStream().write(
-                            "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n".toByteArray()
-                        )
-                        socket.getOutputStream().flush()
-                    }
-                } catch (_: Exception) {
-                    if (running) throw RuntimeException("Preflight test server failed")
-                }
-            }
-        }
-        thread.name = "StreamingPreflightTestServer"
-        thread.isDaemon = true
-        thread.start()
-        ready.await(2, TimeUnit.SECONDS)
-    }
-
-    fun stop() {
-        running = false
-        server.close()
-    }
 }
 
 private class FakePlaybackTrackAdapter : StreamingPlaybackTrackAdapter {

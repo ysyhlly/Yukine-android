@@ -7,9 +7,7 @@ import app.yukine.streaming.cache.StreamingCachePolicy
 import app.yukine.streaming.cache.StreamingCacheRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
 import java.net.URI
-import java.net.URL
 
 data class StreamingResolvedPlayback(
     val source: StreamingPlaybackSource,
@@ -213,7 +211,7 @@ class StreamingRepository(
             attempts.forEachIndexed { index, attempt ->
                 val attemptResult = runCatching {
                     val source = resolvePlayback(attempt.provider, attempt.providerTrackId, quality)
-                    preflightPlaybackSource(source)
+                    validatePlaybackSource(source)
                     source
                 }
                 attemptResult.getOrNull()?.let { source ->
@@ -419,34 +417,6 @@ class StreamingRepository(
         }
     }
 
-    private fun preflightPlaybackSource(source: StreamingPlaybackSource) {
-        validatePlaybackSource(source)
-        if (!source.url.startsWith("http://", ignoreCase = true)
-            && !source.url.startsWith("https://", ignoreCase = true)
-        ) {
-            return
-        }
-        val started = clockMs()
-        runCatching {
-            val headCode = preflightConnection(source, "HEAD", false)
-            if (headCode == HttpURLConnection.HTTP_BAD_METHOD || headCode == HttpURLConnection.HTTP_FORBIDDEN) {
-                preflightConnection(source, "GET", true)
-            } else {
-                headCode
-            }
-        }.onSuccess { code ->
-            recordPreflightResult(source, started, code, null)
-            if (code < 200 || code >= 400) {
-                logWarning("CDN preflight returned HTTP $code for ${source.provider.wireName}:${source.providerTrackId}")
-            } else {
-                logDebug("CDN preflight OK HTTP $code for ${source.provider.wireName}:${source.providerTrackId}")
-            }
-        }.onFailure { error ->
-            recordPreflightResult(source, started, null, error)
-            logWarning("CDN preflight failed for ${source.provider.wireName}:${source.providerTrackId}", error)
-        }
-    }
-
     private fun validatePlaybackSource(source: StreamingPlaybackSource) {
         val cleanUrl = source.url.trim()
         if (cleanUrl.isBlank()) {
@@ -476,60 +446,6 @@ class StreamingRepository(
         }
     }
 
-    private fun recordPreflightResult(
-        source: StreamingPlaybackSource,
-        started: Long,
-        statusCode: Int?,
-        error: Throwable?
-    ) {
-        val ended = clockMs()
-        val host = runCatching { URL(source.url).host }.getOrDefault("")
-        synchronized(diagnosticsLock) {
-            totalRequests += 1
-            addLogLocked(
-                StreamingGatewayLogEntry(
-                    operation = "playback_preflight",
-                    provider = source.provider,
-                    durationMs = (ended - started).coerceAtLeast(0L),
-                    cacheHit = false,
-                    errorCode = when {
-                        error != null -> StreamingErrorCode.UNKNOWN
-                        statusCode != null && (statusCode < 200 || statusCode >= 400) -> StreamingErrorCode.SOURCE_UNAVAILABLE
-                        else -> null
-                    },
-                    message = listOfNotNull(
-                        statusCode?.let { "http=$it" },
-                        host.takeIf { it.isNotBlank() }?.let { "host=$it" },
-                        error?.message
-                    ).joinToString(" ").ifBlank { null },
-                    timestampMs = ended
-                )
-            )
-        }
-    }
-
-    private fun preflightConnection(
-        source: StreamingPlaybackSource,
-        method: String,
-        rangeProbe: Boolean
-    ): Int {
-        val connection = (URL(source.url).openConnection() as HttpURLConnection).apply {
-            instanceFollowRedirects = true
-            requestMethod = method
-            connectTimeout = PREFLIGHT_CONNECT_TIMEOUT_MS
-            readTimeout = PREFLIGHT_READ_TIMEOUT_MS
-            source.headers.forEach { (key, value) -> setRequestProperty(key, value) }
-            if (rangeProbe) {
-                setRequestProperty("Range", "bytes=0-0")
-            }
-        }
-        return try {
-            connection.responseCode
-        } finally {
-            connection.disconnect()
-        }
-    }
-
     private fun logDebug(message: String) {
         runCatching { Log.d(TAG, message) }
     }
@@ -547,8 +463,6 @@ class StreamingRepository(
     private companion object {
         const val MAX_RECENT_LOGS = 20
         const val TAG = "StreamingRepository"
-        const val PREFLIGHT_CONNECT_TIMEOUT_MS = 1500
-        const val PREFLIGHT_READ_TIMEOUT_MS = 2000
     }
 }
 

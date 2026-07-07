@@ -26,6 +26,12 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
 
     interface StateProvider {
         Track currentTrack();
+
+        long positionMs();
+
+        long sessionPositionMs();
+
+        long durationMs();
     }
 
     interface MetadataProvider {
@@ -103,5 +109,20 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
     @Override
     public MediaMetadata mediaMetadataForTrack(Track track) {
         return metadataProvider.mediaMetadataForTrack(track);
+    }
+
+    @Override
+    public long positionMs() {
+        return stateProvider.positionMs();
+    }
+
+    @Override
+    public long sessionPositionMs() {
+        return stateProvider.sessionPositionMs();
+    }
+
+    @Override
+    public long durationMs() {
+        return stateProvider.durationMs();
     }
 }

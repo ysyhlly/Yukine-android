@@ -10,6 +10,7 @@ import org.junit.Test;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.function.LongSupplier;
 
 public class PlaybackPlayerStateOwnerTest {
     @Test
@@ -47,6 +48,123 @@ public class PlaybackPlayerStateOwnerTest {
         assertEmptyState(throwing);
     }
 
+    @Test
+    public void estimatesPlayingPositionWhenPlayerPositionStopsAdvancing() {
+        MutableClock clock = new MutableClock(1_000L);
+        MutablePlayerState state = new MutablePlayerState(true, 0L, 9_000L);
+        PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
+                () -> fakePlayer(state),
+                clock
+        );
+
+        assertEquals(0L, owner.positionMs());
+        clock.nowMs = 2_250L;
+        assertEquals(1_250L, owner.positionMs());
+        clock.nowMs = 3_000L;
+        assertEquals(2_000L, owner.positionMs());
+    }
+
+    @Test
+    public void resetPositionEstimateStartsAgainFromPlayerPosition() {
+        MutableClock clock = new MutableClock(1_000L);
+        MutablePlayerState state = new MutablePlayerState(true, 0L, 9_000L);
+        PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
+                () -> fakePlayer(state),
+                clock
+        );
+
+        owner.positionMs();
+        clock.nowMs = 3_000L;
+        assertEquals(2_000L, owner.positionMs());
+
+        owner.resetPositionEstimate();
+        state.positionMs = 0L;
+        clock.nowMs = 4_000L;
+        assertEquals(0L, owner.positionMs());
+    }
+
+    @Test
+    public void keepsEstimatedPositionWhenPausedPlayerReportsZero() {
+        MutableClock clock = new MutableClock(1_000L);
+        MutablePlayerState state = new MutablePlayerState(true, 0L, 9_000L);
+        PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
+                () -> fakePlayer(state),
+                clock
+        );
+
+        owner.positionMs();
+        clock.nowMs = 3_000L;
+        assertEquals(2_000L, owner.positionMs());
+
+        state.playing = false;
+        state.positionMs = 0L;
+        clock.nowMs = 3_500L;
+        assertEquals(2_000L, owner.positionMs());
+        clock.nowMs = 5_000L;
+        assertEquals(2_000L, owner.positionMs());
+    }
+
+    @Test
+    public void resumesProgressFromPausedEstimateWhenPlayerStillReportsZero() {
+        MutableClock clock = new MutableClock(1_000L);
+        MutablePlayerState state = new MutablePlayerState(true, 0L, 9_000L);
+        PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
+                () -> fakePlayer(state),
+                clock
+        );
+
+        owner.positionMs();
+        clock.nowMs = 3_000L;
+        assertEquals(2_000L, owner.positionMs());
+        state.playing = false;
+        clock.nowMs = 3_500L;
+        assertEquals(2_000L, owner.positionMs());
+
+        state.playing = true;
+        state.positionMs = 0L;
+        clock.nowMs = 4_000L;
+        assertEquals(2_000L, owner.positionMs());
+        clock.nowMs = 4_750L;
+        assertEquals(2_750L, owner.positionMs());
+    }
+
+    @Test
+    public void explicitPositionEstimateSeedsSeekTargetWhenPlayerReportsZero() {
+        MutableClock clock = new MutableClock(1_000L);
+        MutablePlayerState state = new MutablePlayerState(false, 0L, 9_000L);
+        PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
+                () -> fakePlayer(state),
+                clock
+        );
+
+        owner.setPositionEstimate(4_200L);
+
+        assertEquals(4_200L, owner.positionMs());
+        state.playing = true;
+        clock.nowMs = 1_500L;
+        assertEquals(4_200L, owner.positionMs());
+        clock.nowMs = 2_000L;
+        assertEquals(4_700L, owner.positionMs());
+    }
+
+    @Test
+    public void sessionPositionReadsKnownEstimateWithoutAdvancingIt() {
+        MutableClock clock = new MutableClock(1_000L);
+        MutablePlayerState state = new MutablePlayerState(true, 0L, 9_000L);
+        PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
+                () -> fakePlayer(state),
+                clock
+        );
+
+        assertEquals(0L, owner.positionMs());
+        clock.nowMs = 2_500L;
+
+        assertEquals(0L, owner.sessionPositionMs());
+        assertEquals(1_500L, owner.positionMs());
+        clock.nowMs = 3_000L;
+        assertEquals(1_500L, owner.sessionPositionMs());
+    }
+
     private static void assertEmptyState(PlaybackPlayerStateOwner owner) {
         assertEquals(false, owner.isPlaying());
         assertEquals(0L, owner.positionMs());
@@ -54,14 +172,18 @@ public class PlaybackPlayerStateOwnerTest {
     }
 
     private static Player fakePlayer(boolean playing, long positionMs, long durationMs) {
+        return fakePlayer(new MutablePlayerState(playing, positionMs, durationMs));
+    }
+
+    private static Player fakePlayer(MutablePlayerState state) {
         return playerProxy((proxy, method, args) -> {
             switch (method.getName()) {
                 case "isPlaying":
-                    return playing;
+                    return state.playing;
                 case "getCurrentPosition":
-                    return positionMs;
+                    return state.positionMs;
                 case "getDuration":
-                    return durationMs;
+                    return state.durationMs;
                 default:
                     return defaultValue(method);
             }
@@ -105,5 +227,30 @@ public class PlaybackPlayerStateOwnerTest {
             return 0.0d;
         }
         return null;
+    }
+
+    private static final class MutableClock implements LongSupplier {
+        long nowMs;
+
+        MutableClock(long nowMs) {
+            this.nowMs = nowMs;
+        }
+
+        @Override
+        public long getAsLong() {
+            return nowMs;
+        }
+    }
+
+    private static final class MutablePlayerState {
+        boolean playing;
+        long positionMs;
+        long durationMs;
+
+        MutablePlayerState(boolean playing, long positionMs, long durationMs) {
+            this.playing = playing;
+            this.positionMs = positionMs;
+            this.durationMs = durationMs;
+        }
     }
 }

@@ -87,9 +87,10 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
         val tracks = queue ?: emptyList()
         boundTracks = tracks
         val currentTrack = playbackState?.currentTrack
+        val rowKeys = TrackRowKeyPolicy.occurrenceKeys(tracks)
         val rows = tracks.mapIndexed { index, track ->
             TrackRowStateFactory.queueRow(
-                TrackRowKeyPolicy.occurrenceKey(tracks, index),
+                rowKeys[index],
                 track,
                 currentTrack,
                 favoriteIds

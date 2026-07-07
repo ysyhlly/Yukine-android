@@ -18,4 +18,17 @@ internal object TrackRowKeyPolicy {
         }
         return "$trackId:$occurrence"
     }
+
+    @JvmStatic
+    fun occurrenceKeys(tracks: List<Track>?): List<String> {
+        if (tracks.isNullOrEmpty()) {
+            return emptyList()
+        }
+        val occurrences = HashMap<Long, Int>(tracks.size)
+        return tracks.map { track ->
+            val occurrence = (occurrences[track.id] ?: 0) + 1
+            occurrences[track.id] = occurrence
+            "${track.id}:$occurrence"
+        }
+    }
 }

@@ -14,6 +14,7 @@ import android.os.Looper;
 import android.os.Process;
 import android.util.Log;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -280,6 +281,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             if (player == null || !playbackQueueMirroredTransitionOwner.canApplyMirroredTransition()) {
                 return;
             }
+            playbackPlayerStateOwner.resetPositionEstimate();
             int nextIndex = player.getCurrentMediaItemIndex();
             PlaybackQueueManager.MirroredTransitionResult transition =
                     playbackQueueMirroredTransitionOwner.applyMirroredTransitionReason(nextIndex, reason);
@@ -342,7 +344,9 @@ public final class EchoPlaybackService extends MediaLibraryService
                 PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager(
                         () -> playbackQueueManager,
                         mediaSourceProvider,
-                        playbackNotificationManager::mediaMetadataForTrack
+                        track -> playbackNotificationManager == null
+                                ? null
+                                : playbackNotificationManager.mediaMetadataForTrack(track)
                 );
         playerFactory = new PlaybackPlayerFactory(this, realtimeBassAudioProcessor);
         playbackAudioEffectSettingsStore = PlaybackAudioEffectSettingsStore.fromRepository(repository);
@@ -504,7 +508,15 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackQueueCommandOwner = new PlaybackQueueCommandOwner(
                 EchoPlaybackService.this::prepareCurrent,
                 EchoPlaybackService.this::publishState,
-                EchoPlaybackService.this
+                EchoPlaybackService.this,
+                (tracks, currentIndex) -> {
+                    final List<Track> snapshot = new ArrayList<>(tracks);
+                    playbackTaskScheduler.schedule(
+                            PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE,
+                            () -> queueStore.save(snapshot, currentIndex)
+                    );
+                    return true;
+                }
         );
         playbackMirroredQueueTrackMatcherOwner =
                 PlaybackMirroredQueueTrackMatcherOwner.fromMediaSourceProvider(
@@ -562,6 +574,9 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackMediaLibraryCallback,
                 this::activityPendingIntent
         );
+        if (player != null) {
+            playbackSessionManager.bind();
+        }
         playbackBufferedProgressOwner = PlaybackBufferedProgressOwner.fromPlayerProvider(
                 playbackPlayerStateOwner,
                 () -> player
@@ -775,7 +790,27 @@ public final class EchoPlaybackService extends MediaLibraryService
                     EchoPlaybackService.this::seekTo,
                     EchoPlaybackService.this::setRepeatMode,
                     playbackControllerMediaItemsOwner,
-                    playbackQueueStateOwner::currentTrack,
+                    new PlaybackSessionCommandOwner.StateProvider() {
+                        @Override
+                        public Track currentTrack() {
+                            return playbackQueueStateOwner.currentTrack();
+                        }
+
+                        @Override
+                        public long positionMs() {
+                            return playbackPlayerStateOwner.positionMs();
+                        }
+
+                        @Override
+                        public long sessionPositionMs() {
+                            return playbackPlayerStateOwner.sessionPositionMs();
+                        }
+
+                        @Override
+                        public long durationMs() {
+                            return playbackPlayerStateOwner.durationMs();
+                        }
+                    },
                     playbackNotificationManager::mediaMetadataForTrack
             );
         }
@@ -890,6 +925,7 @@ public final class EchoPlaybackService extends MediaLibraryService
         }
         if (player.getPlaybackState() == Player.STATE_ENDED) {
             player.seekTo(0L);
+            playbackPlayerStateOwner.setPositionEstimate(0L);
         }
         player.play();
         savePlaybackResumeRequested(true);
@@ -918,7 +954,9 @@ public final class EchoPlaybackService extends MediaLibraryService
             return;
         }
         try {
-            player.seekTo(Math.max(0L, positionMs));
+            long targetPositionMs = Math.max(0L, positionMs);
+            player.seekTo(targetPositionMs);
+            playbackPlayerStateOwner.setPositionEstimate(targetPositionMs);
             persistPlaybackPositionThrottled(true);
             publishState();
         } catch (IllegalStateException ignored) {
@@ -1211,6 +1249,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             }
             if (startPositionMs > 0L) {
                 player.seekTo(startPositionMs);
+                playbackPlayerStateOwner.setPositionEstimate(startPositionMs);
             }
             playbackCurrentTrackPreparationQueueOwner.consumeRestoredPositionAfterPrepare(startPositionMs);
             publishState();
@@ -1285,6 +1324,7 @@ public final class EchoPlaybackService extends MediaLibraryService
             try {
                 player.setPlayWhenReady(false);
                 player.seekTo(0L);
+                playbackPlayerStateOwner.setPositionEstimate(0L);
             } catch (IllegalStateException ignored) {
                 releasePlaybackPlayerResources();
                 createPlayerIfNeeded();

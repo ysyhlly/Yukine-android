@@ -75,6 +75,34 @@ class StreamingRecommendationViewModelTest {
     }
 
     @Test
+    fun dailyRecommendationPresentationLimitsInitialPlaybackQueue() {
+        val viewModel = StreamingRecommendationViewModel(FakeRepositorySource(FakeDailyGateway()))
+        val presentation = viewModel.prepareDailyRecommendationPresentation(
+            (1..45).map { streamingTrack("daily-$it") },
+            emptyStatus = "Empty",
+            title = "Daily recommendations"
+        )
+
+        assertEquals(30, presentation.tracks.size)
+        assertEquals("Daily recommendations (30)", presentation.readyStatus)
+        assertEquals("daily-1", presentation.tracks.first().dataPath.substringAfterLast(':'))
+        assertEquals("daily-30", presentation.tracks.last().dataPath.substringAfterLast(':'))
+    }
+
+    @Test
+    fun dailyRecommendationPresentationKeepsSmallQueueCount() {
+        val viewModel = StreamingRecommendationViewModel(FakeRepositorySource(FakeDailyGateway()))
+        val presentation = viewModel.prepareDailyRecommendationPresentation(
+            (1..12).map { streamingTrack("daily-$it") },
+            emptyStatus = "Empty",
+            title = "Daily recommendations"
+        )
+
+        assertEquals(12, presentation.tracks.size)
+        assertEquals("Daily recommendations (12)", presentation.readyStatus)
+    }
+
+    @Test
     fun typedDailyActionRunsThroughRecommendationViewModel() = runTest {
         val gateway = FakeDailyGateway()
         gateway.dailyTracks = listOf(streamingTrack("daily-action"))

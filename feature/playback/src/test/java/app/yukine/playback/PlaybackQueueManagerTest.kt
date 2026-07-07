@@ -1004,6 +1004,48 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun queuePreparationForLargeQueueAvoidsMirroringAndStreamingRestore() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+        val tracks = (1L..120L).map { id ->
+            track(id, android.net.Uri.parse("content://music/$id"), "streaming:netease:$id")
+        }
+        restoreQueue(manager, store, tracks, 70)
+        provider.streamingRestoreProvider.restoredDataPaths.clear()
+
+        val preparation = manager.queuePreparationForNewPlayer()
+
+        assertEquals(71L, preparation.currentTrack?.id)
+        assertEquals(70, preparation.startIndex)
+        assertEquals(null, preparation.mirroredQueueTracks)
+        assertTrue(provider.streamingRestoreProvider.restoredDataPaths.isEmpty())
+    }
+
+    @Test
+    fun playLargeQueueDefersFullQueuePersistenceUntilAfterPlaybackStart() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        provider.queuePlaybackActions.deferQueuePersistence = true
+        val manager = queueManager(store, provider)
+        val tracks = (1L..120L).map { id ->
+            track(id, android.net.Uri.parse("content://music/$id"), "streaming:netease:$id")
+        }
+
+        manager.playQueue(tracks, 70, 0L)
+
+        assertTrue(provider.prepareCurrentCalled)
+        assertTrue(store.savedTracks.isEmpty())
+        assertEquals(120, provider.queuePlaybackActions.deferredQueueTracks.size)
+        assertEquals(70, provider.queuePlaybackActions.deferredQueueIndex)
+
+        provider.queuePlaybackActions.flushDeferredQueue(store)
+
+        assertEquals((1L..120L).toList(), store.savedTracks.map { it.id })
+        assertEquals(70, store.savedIndex)
+    }
+
+    @Test
     fun queuePreparationForNewPlayerFallsBackToSingleTrackWhenMirrorRejected() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
@@ -1434,6 +1476,9 @@ class PlaybackQueueManagerTest {
         var lastPreparePlayWhenReady = false
         var published = false
         var stoppedAndCleared = false
+        var deferQueuePersistence = false
+        var deferredQueueTracks: List<Track> = emptyList()
+        var deferredQueueIndex = -1
         override fun prepareCurrent(playWhenReady: Boolean) {
             prepareCurrentCalled = true
             lastPreparePlayWhenReady = playWhenReady
@@ -1443,6 +1488,17 @@ class PlaybackQueueManagerTest {
         }
         override fun stopAndClear() {
             stoppedAndCleared = true
+        }
+        override fun persistQueueAsync(tracks: List<Track>, currentIndex: Int): Boolean {
+            if (!deferQueuePersistence) {
+                return false
+            }
+            deferredQueueTracks = tracks
+            deferredQueueIndex = currentIndex
+            return true
+        }
+        fun flushDeferredQueue(store: FakeQueueStore) {
+            store.save(deferredQueueTracks, deferredQueueIndex)
         }
     }
 

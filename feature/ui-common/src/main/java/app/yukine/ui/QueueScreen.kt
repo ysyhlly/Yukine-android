@@ -85,15 +85,33 @@ fun QueueScreen(
     labels: QueueScreenLabels,
     onBack: Runnable?
 ) {
+    QueueScreen(
+        tracks = tracks,
+        actionForIndex = { index -> actions.getOrNull(index) },
+        onMove = { fromIndex, toIndex -> actions.getOrNull(fromIndex)?.onMove?.invoke(fromIndex, toIndex) },
+        onClearQueue = onClearQueue,
+        labels = labels,
+        onBack = onBack
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun QueueScreen(
+    tracks: List<QueueTrackUiState>,
+    actionForIndex: (Int) -> QueueTrackActions?,
+    onMove: (fromIndex: Int, toIndex: Int) -> Unit,
+    onClearQueue: Runnable,
+    labels: QueueScreenLabels,
+    onBack: Runnable?
+) {
     val p = EchoTheme.colors()
     val listState = rememberLazyListState()
     val dragState = rememberQueueDragState(
         itemKeyPrefix = "track-",
-        onMove = { fromIndex, toIndex ->
-            actions.getOrNull(fromIndex)?.onMove?.invoke(fromIndex, toIndex)
-        }
+        onMove = onMove
     )
-    LaunchedEffect(tracks.map { it.key }) {
+    LaunchedEffect(tracks) {
         dragState.clear()
     }
     LazyColumn(
@@ -137,7 +155,7 @@ fun QueueScreen(
             items = tracks,
             key = { _, track -> "track-${track.key}" }
         ) { i, track ->
-            actions.getOrNull(i)?.let { action ->
+            actionForIndex(i)?.let { action ->
                 QueueTrackRow(
                     track = track,
                     actions = action,

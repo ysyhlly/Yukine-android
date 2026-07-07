@@ -110,6 +110,56 @@ class PlaybackLyricsManagerTest {
     }
 
     @Test
+    fun liveLyricsCloudDoesNotStartWhileAppIsVisible() {
+        val context = FakeContext(ApplicationProvider.getApplicationContext())
+        val provider = FakeStateProvider(
+            appVisible = true,
+            currentTrack = track(),
+            playing = true
+        )
+        val manager = PlaybackLyricsManager(
+            context,
+            provider,
+            FakeNotificationBridge()
+        )
+
+        manager.setStatusBarLyricsEnabled(false)
+        manager.setStatusBarLyricsEnabled(true)
+
+        assertEquals(emptyList<String>(), context.startedServices)
+        assertEquals(
+            listOf(
+                LiveLyricsNotificationService::class.java.name,
+                LiveLyricsNotificationService::class.java.name
+            ),
+            context.stoppedServices
+        )
+    }
+
+    @Test
+    fun liveLyricsCloudStartsOnlyWhenPlaybackContinuesInBackground() {
+        val context = FakeContext(ApplicationProvider.getApplicationContext())
+        val provider = FakeStateProvider(
+            appVisible = false,
+            currentTrack = track(),
+            playing = true
+        )
+        val manager = PlaybackLyricsManager(
+            context,
+            provider,
+            FakeNotificationBridge()
+        )
+
+        manager.setStatusBarLyricsEnabled(false)
+        manager.setStatusBarLyricsEnabled(true)
+
+        assertEquals(
+            listOf(LiveLyricsNotificationService::class.java.name),
+            context.startedServices
+        )
+    }
+
+    @Test
     fun floatingLyricsNotificationRefreshUsesNotificationBridgeWorthiness() {
         FloatingLyricsPublisher.clear()
         val provider = FakeStateProvider()
@@ -220,18 +270,34 @@ class PlaybackLyricsManagerTest {
         )
     }
 
-    private class FakeStateProvider : PlaybackLyricsManager.StateProvider {
-        override fun isAppVisible(): Boolean = true
+    private class FakeStateProvider(
+        private val appVisible: Boolean = true,
+        private val currentTrack: Track? = null,
+        private val playing: Boolean = false,
+        private val preparing: Boolean = false
+    ) : PlaybackLyricsManager.StateProvider {
+        override fun isAppVisible(): Boolean = appVisible
 
-        override fun currentTrack(): Track? = null
+        override fun currentTrack(): Track? = currentTrack
 
-        override fun isPlaying(): Boolean = false
+        override fun isPlaying(): Boolean = playing
 
-        override fun isPreparing(): Boolean = false
+        override fun isPreparing(): Boolean = preparing
     }
 
     private class FakeContext(base: Context) : ContextWrapper(base) {
+        val startedServices = mutableListOf<String>()
         val stoppedServices = mutableListOf<String>()
+
+        override fun startForegroundService(service: Intent?): android.content.ComponentName? {
+            service?.component?.className?.let(startedServices::add)
+            return service?.component
+        }
+
+        override fun startService(service: Intent?): android.content.ComponentName? {
+            service?.component?.className?.let(startedServices::add)
+            return service?.component
+        }
 
         override fun stopService(name: Intent?): Boolean {
             name?.component?.className?.let(stoppedServices::add)

@@ -14,6 +14,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.lang.reflect.Proxy
+import java.util.function.LongSupplier
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -129,8 +130,45 @@ class PlaybackSessionPlayerTest {
         )
     }
 
+    @Test
+    fun sessionPositionUsesDelegateCompensatedPlaybackState() {
+        val delegate = RecordingDelegate().apply {
+            reportedPositionMs = 4_200L
+            reportedSessionPositionMs = 4_200L
+            reportedDurationMs = 9_000L
+        }
+        val player = PlaybackSessionPlayer(fakePlayer(), delegate)
+
+        assertEquals(4_200L, player.currentPosition)
+        assertEquals(4_200L, player.contentPosition)
+        assertEquals(9_000L, player.duration)
+    }
+
+    @Test
+    fun sessionPositionIsThrottledForSystemMediaReads() {
+        val clock = MutableClock(1_000L)
+        val delegate = RecordingDelegate().apply {
+            reportedSessionPositionMs = 1_000L
+        }
+        val player = PlaybackSessionPlayer(fakePlayer(), delegate, clock)
+
+        assertEquals(1_000L, player.currentPosition)
+        delegate.reportedSessionPositionMs = 1_250L
+        clock.nowMs = 1_250L
+
+        assertEquals(1_000L, player.currentPosition)
+
+        delegate.reportedSessionPositionMs = 2_000L
+        clock.nowMs = 2_000L
+
+        assertEquals(2_000L, player.currentPosition)
+    }
+
     private class RecordingDelegate : PlaybackSessionPlayer.Delegate {
         val events = mutableListOf<String>()
+        var reportedPositionMs: Long = 0L
+        var reportedSessionPositionMs: Long = 0L
+        var reportedDurationMs: Long = 0L
 
         override fun play() {
             events += "play"
@@ -172,6 +210,16 @@ class PlaybackSessionPlayerTest {
         override fun currentTrack(): Track? = null
 
         override fun mediaMetadataForTrack(track: Track): MediaMetadata? = null
+
+        override fun positionMs(): Long = reportedPositionMs
+
+        override fun sessionPositionMs(): Long = reportedSessionPositionMs
+
+        override fun durationMs(): Long = reportedDurationMs
+    }
+
+    private class MutableClock(var nowMs: Long) : LongSupplier {
+        override fun getAsLong(): Long = nowMs
     }
 
     companion object {

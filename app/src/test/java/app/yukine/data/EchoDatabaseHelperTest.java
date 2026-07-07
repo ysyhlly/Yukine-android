@@ -795,6 +795,83 @@ public final class EchoDatabaseHelperTest {
         Assert.assertEquals(writers * tracksPerWriter, tracks.size());
     }
 
+    @Test
+    public void concurrentPlaybackQueueWritesKeepOneCompleteQueueSnapshot() throws Exception {
+        helper = new EchoDatabaseHelper(ApplicationProvider.getApplicationContext(), CONCURRENT_DATABASE);
+        int writers = 6;
+        int queueSize = 3;
+        ExecutorService executor = Executors.newFixedThreadPool(writers);
+        CountDownLatch start = new CountDownLatch(1);
+        ArrayList<Future<?>> futures = new ArrayList<>();
+        try {
+            for (int writer = 0; writer < writers; writer++) {
+                final int writerIndex = writer;
+                futures.add(executor.submit(() -> {
+                    start.await(5, TimeUnit.SECONDS);
+                    long baseId = 4_000L + writerIndex * 10L;
+                    helper.savePlaybackQueue(Arrays.asList(
+                            localTrack(baseId, "QueueWriter" + writerIndex + "A"),
+                            localTrack(baseId + 1L, "QueueWriter" + writerIndex + "B"),
+                            localTrack(baseId + 2L, "QueueWriter" + writerIndex + "C")
+                    ), writerIndex % queueSize);
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (Future<?> future : futures) {
+                future.get(10, TimeUnit.SECONDS);
+            }
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+
+        List<Track> queue = helper.loadPlaybackQueueTracks();
+        Assert.assertEquals(queueSize, queue.size());
+        long firstTrackId = queue.get(0).id;
+        Assert.assertTrue(firstTrackId >= 4_000L);
+        Assert.assertEquals(0L, (firstTrackId - 4_000L) % 10L);
+        long writerIndex = (firstTrackId - 4_000L) / 10L;
+        Assert.assertTrue(writerIndex >= 0L && writerIndex < writers);
+        long expectedBaseId = 4_000L + writerIndex * 10L;
+        Assert.assertEquals(expectedBaseId, queue.get(0).id);
+        Assert.assertEquals(expectedBaseId + 1L, queue.get(1).id);
+        Assert.assertEquals(expectedBaseId + 2L, queue.get(2).id);
+        Assert.assertEquals((int) (writerIndex % queueSize), helper.loadPlaybackQueueIndex());
+    }
+
+    @Test
+    public void concurrentPlaybackPositionWritesKeepTrackAndPositionPairAtomic() throws Exception {
+        helper = new EchoDatabaseHelper(ApplicationProvider.getApplicationContext(), CONCURRENT_DATABASE);
+        int writers = 8;
+        ExecutorService executor = Executors.newFixedThreadPool(writers);
+        CountDownLatch start = new CountDownLatch(1);
+        ArrayList<Future<?>> futures = new ArrayList<>();
+        try {
+            for (int writer = 0; writer < writers; writer++) {
+                final int writerIndex = writer;
+                futures.add(executor.submit(() -> {
+                    start.await(5, TimeUnit.SECONDS);
+                    helper.savePlaybackPosition(5_000L + writerIndex, (writerIndex + 1L) * 1_000L);
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (Future<?> future : futures) {
+                future.get(10, TimeUnit.SECONDS);
+            }
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+
+        long trackId = helper.loadPlaybackPositionTrackId();
+        long positionMs = helper.loadPlaybackPositionMs();
+        Assert.assertTrue(trackId >= 5_000L && trackId < 5_000L + writers);
+        long writerIndex = trackId - 5_000L;
+        Assert.assertEquals((writerIndex + 1L) * 1_000L, positionMs);
+    }
+
     private static void createLegacyVersionOneDatabase(Context context, String databaseName) {
         deleteDatabase(context, databaseName);
         File databaseFile = context.getDatabasePath(databaseName);

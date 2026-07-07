@@ -50,7 +50,6 @@ internal class PlaybackStartController(
         }
         listener.setStatus(presentation.readyStatus)
         playTrackListInternal(presentation.tracks, 0)
-        listener.openQueue()
     }
 
     fun playHeartbeatRecommendation(presentation: StreamingRecommendationPresentation) {

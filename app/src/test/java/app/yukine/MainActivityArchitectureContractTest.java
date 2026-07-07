@@ -56,6 +56,89 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(exists("app/src/main/java/app/yukine/StreamingCoordinator.kt"));
     }
 
+    @Test
+    public void mainActivityInitializesRouteStatusStoresBeforeGatewayBindings() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        int routeStores = activity.indexOf("initializeRouteStoresAndStatus();");
+        int downloadRequests = activity.indexOf("initializeDownloadRequests();");
+        int libraryGateway = activity.indexOf("initializeLibraryGateway();");
+
+        assertTrue("route/status/store owners must be initialized before gateway lambdas capture them", routeStores >= 0);
+        assertTrue("download request initialization must stay in onCreate", downloadRequests >= 0);
+        assertTrue("library gateway initialization must stay in onCreate", libraryGateway >= 0);
+        assertTrue(routeStores < downloadRequests);
+        assertTrue(routeStores < libraryGateway);
+    }
+
+    @Test
+    public void mainActivityPushesLoadedSettingsContextBeforeSettingsPageNavigation() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        int loadPreferences = activity.indexOf("settingsStore.load(loadSettingsPreferencesUseCase.execute());");
+        int createContextProvider = activity.indexOf("settingsContextProvider = new SettingsContextProvider");
+        int refreshContext = activity.indexOf("refreshSettingsContext();");
+        int renderSettings = activity.indexOf("private void renderSettings()");
+        int refreshMethod = activity.indexOf("private void refreshSettingsContext()");
+
+        assertTrue("startup settings preferences must be loaded from persistence", loadPreferences >= 0);
+        assertTrue("startup must create the settings context provider", createContextProvider >= 0);
+        assertTrue("startup must push settings context into SettingsViewModel chrome state", refreshContext >= 0);
+        assertTrue(createContextProvider < refreshContext);
+        assertTrue(refreshContext < renderSettings);
+        assertTrue(refreshMethod > renderSettings);
+        assertTrue(activity.substring(refreshMethod).contains("settingsViewModel.updateSettingsContext("));
+    }
+
+    @Test
+    public void playbackServiceDoesNotCaptureNotificationManagerBeforeItIsInitialized() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        int queuePreparationOwner = service.indexOf("playbackCurrentTrackPreparationQueueOwner =");
+        int notificationManager = service.indexOf("playbackNotificationManager = new PlaybackNotificationManager");
+
+        assertTrue(queuePreparationOwner >= 0);
+        assertTrue(notificationManager >= 0);
+        assertTrue(queuePreparationOwner < notificationManager);
+        String earlyInitializationWindow = service.substring(queuePreparationOwner, notificationManager);
+        assertFalse(
+                "early service initialization must not dereference playbackNotificationManager",
+                earlyInitializationWindow.contains("playbackNotificationManager::mediaMetadataForTrack")
+        );
+        assertTrue(service.contains("track -> playbackNotificationManager == null"));
+    }
+
+    @Test
+    public void playbackServiceBindsMediaSessionAfterEarlyPlayerCreation() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        int earlyCreatePlayer = service.indexOf("createPlayerIfNeeded();");
+        int sessionManager = service.indexOf("playbackSessionManager = new PlaybackSessionManager");
+        int bufferedProgressOwner = service.indexOf("playbackBufferedProgressOwner =");
+
+        assertTrue("startup still creates the ExoPlayer before all playback managers are wired", earlyCreatePlayer >= 0);
+        assertTrue("service must create the MediaSession manager", sessionManager >= 0);
+        assertTrue("session manager setup should stay before playback state owners consume session tokens", bufferedProgressOwner >= 0);
+        assertTrue(earlyCreatePlayer < sessionManager);
+        assertTrue(sessionManager < bufferedProgressOwner);
+
+        String sessionSetupWindow = service.substring(sessionManager, bufferedProgressOwner);
+        assertTrue(
+                "the early-created player must be attached to MediaSession so Android media controls see active playback",
+                sessionSetupWindow.contains("if (player != null)") && sessionSetupWindow.contains("playbackSessionManager.bind();")
+        );
+    }
+
+    @Test
+    public void audioSpecParserDoesNotOpenStreamingPlaybackUrls() throws Exception {
+        String parser = read("feature/data/src/main/java/app/yukine/data/AudioSpecParser.java");
+        int streamingGuard = parser.indexOf("if (isStreamingTrack(track))");
+        int extractorRead = parser.indexOf("track.needsAudioSpecParsing() ? read(track.contentUri)");
+        int replayGainRead = parser.indexOf("replayGainParser.read(track.contentUri)");
+
+        assertTrue("streaming tracks must return before local audio parsers open their HTTP URLs", streamingGuard >= 0);
+        assertTrue(extractorRead >= 0);
+        assertTrue(replayGainRead >= 0);
+        assertTrue(streamingGuard < extractorRead);
+        assertTrue(streamingGuard < replayGainRead);
+    }
+
 
     @Test
     public void productionPlaybackQueueManagerDoesNotReintroduceQueueProviderInterface() throws Exception {
@@ -635,7 +718,7 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
-    public void localArtworkUsesEmbeddedPicturesOnly() throws Exception {
+    public void localArtworkUsesLazyEmbeddedPicturesOnly() throws Exception {
         String scanner = read("app/src/main/java/app/yukine/data/MediaStoreMusicScanner.java");
         String importer = read("app/src/main/java/app/yukine/data/DocumentMusicImporter.java");
         String embeddedArtwork = read("app/src/main/java/app/yukine/data/EmbeddedArtwork.java");
@@ -644,7 +727,8 @@ public final class MainActivityArchitectureContractTest {
 
         assertFalse(scanner.contains("content://media/external/audio/albumart"));
         assertFalse(scanner.contains("albumArtUri(albumId)"));
-        assertTrue(scanner.contains("EmbeddedArtwork.uriIfEmbeddedPicture(context, uri)"));
+        assertTrue(scanner.contains("EmbeddedArtwork.uriFor(uri)"));
+        assertFalse(scanner.contains("EmbeddedArtwork.uriIfEmbeddedPicture(context, uri)"));
         assertTrue(importer.contains("EmbeddedArtwork.uriIfEmbeddedPicture(context, uri)"));
         assertTrue(embeddedArtwork.contains("retriever.getEmbeddedPicture()"));
         assertTrue(embeddedArtwork.contains("LruCache<String, byte[]>"));
@@ -729,7 +813,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackStateEventController.contains(": PlaybackStateListener"));
         assertTrue(playbackStateEventController.contains("playbackStore.replaceSnapshot(snapshot)"));
         assertTrue(playbackStateEventController.contains("interface QueueSnapshotSource"));
+        assertTrue(playbackStateEventController.contains("publishQueueIfChanged(snapshot)"));
+        assertTrue(playbackStateEventController.contains("private data class QueueKey"));
         assertTrue(playbackStateEventController.contains("playbackStore.publish(queueSnapshotSource.queueSnapshot())"));
+        assertFalse(playbackStateEventController.contains("playbackStore.publish(queueSnapshotSource.queueSnapshot())\n        listener.renderNowBar()"));
         assertFalse(playbackStateEventController.contains("EchoPlaybackService"));
         assertFalse(playbackStateEventController.contains("serviceQueueSource.service()"));
         assertFalse(exists("app/src/main/java/app/yukine/PlaybackStateEventBindings.kt"));
@@ -1169,7 +1256,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackStartController.contains("fun playHeartbeatRecommendation(presentation: StreamingRecommendationPresentation)"));
         assertFalse(playbackStartController.contains("fun playHeartbeatRecommendationTrackList("));
         assertTrue(playbackStartController.contains("listener.stopHeartbeatRecommendationMode()"));
-        assertTrue(playbackStartController.contains("listener.openQueue()"));
+        assertFalse(playbackStartController.contains("listener.openQueue()"));
         assertTrue(playbackStartController.contains("fun playPendingTracksIfNeeded()"));
         assertTrue(playbackStartController.contains("listener.savePendingPlayback(tracks ?: emptyList(), index)"));
         assertTrue(playbackStartController.contains("private val streamingTrackListResolver: StreamingTrackListResolver"));
@@ -1589,12 +1676,17 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(hostState.contains("private val EmptyRealtimeBands = FloatArray(0)"));
         assertTrue(hostState.contains("val realtimeBandsProvider: () -> FloatArray = { EmptyRealtimeBands }"));
         assertFalse(hostState.contains("val realtimeBandsProvider: () -> FloatArray = { FloatArray(0) }"));
-        assertTrue(navGraph.contains("val realtimeVisualsActive = hostState.visualMotionEnabled && playbackState.playing"));
+        assertTrue(navGraph.contains("val realtimeVisualsActive = hostState.visualMotionEnabled &&"));
+        assertTrue(navGraph.contains("playbackState.playing &&"));
         assertTrue(navGraph.contains("if (!realtimeVisualsActive)"));
         assertTrue(navGraph.contains("return@LaunchedEffect"));
-        assertTrue(navGraph.contains("if (!realtimeBands.contentEquals(nextBands))"));
+        assertTrue(navGraph.contains("if (shouldUpdateRealtimeBands(realtimeBands, nextBands))"));
         assertTrue(navGraph.contains("realtimeBands = if (nextBands.isEmpty()) EmptyRealtimeBands else nextBands"));
-        assertTrue(navGraph.contains("private const val RealtimeVisualPollMs = 33L"));
+        assertTrue(navGraph.contains("realtimeVisualsVisible(selectedTab)"));
+        assertTrue(navGraph.contains("private const val RealtimeVisualPollMs = 500L"));
+        assertTrue(navGraph.contains("private const val RealtimeBeatUpdateDelta = 0.06f"));
+        assertTrue(navGraph.contains("private const val RealtimeBandUpdateDelta = 0.08f"));
+        assertFalse(navGraph.contains("withFrameNanos"));
         assertTrue(navGraph.contains("delay(RealtimeVisualPollMs)"));
     }
 
@@ -1639,7 +1731,9 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playerStateOwner.contains("PlayerStateOperationsProvider"));
         assertFalse(playerStateOwner.contains("Media3PlayerStateOperations"));
         assertTrue(playerStateOwner.contains("return player.isPlaying();"));
-        assertTrue(playerStateOwner.contains("return Math.max(0L, player.getCurrentPosition());"));
+        assertTrue(playerStateOwner.contains("long rawPositionMs = Math.max(0L, player.getCurrentPosition());"));
+        assertTrue(playerStateOwner.contains("estimatedPositionMs = Math.max(rawPositionMs, estimatedPositionMs + elapsedMs);"));
+        assertTrue(playerStateOwner.contains("synchronized void resetPositionEstimate()"));
         assertTrue(playerStateOwner.contains("durationMs == C.TIME_UNSET ? 0L : Math.max(0L, durationMs)"));
         assertFalse(playbackService.contains("private static final float[] EMPTY_REALTIME_BANDS = new float[0];"));
         assertFalse(playbackService.contains("return isPlaying() ? realtimeBassDetector.bands() : EMPTY_REALTIME_BANDS;"));
@@ -3518,6 +3612,7 @@ public final class MainActivityArchitectureContractTest {
         String libraryModule = read("app/src/main/java/app/yukine/LibraryModule.kt");
         String collectionUseCases = read("app/src/main/java/app/yukine/LibraryCollectionUseCases.kt");
         String importUseCases = read("app/src/main/java/app/yukine/LibraryImportUseCases.kt");
+        String repository = read("app/src/main/java/app/yukine/data/MusicLibraryRepository.java");
         String documentPickerController = read("app/src/main/java/app/yukine/DocumentPickerController.kt");
         String settingsControls = read("app/src/main/java/app/yukine/SettingsControls.kt");
         String settingsRuntimeApplier = read("app/src/main/java/app/yukine/SettingsRuntimeApplier.kt");
@@ -3957,6 +4052,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(importUseCases.contains("LoadLibraryUseCase(operations).cached().toUi()"));
         assertTrue(importUseCases.contains("ParseMissingAudioSpecsUseCase(operations).execute()"));
         assertTrue(importUseCases.contains("LibraryLoadResultUi(tracks, favorites, \"Library updated\")"));
+        assertTrue(repository.contains("AUDIO_SPEC_PARSE_BATCH_LIMIT"));
+        assertTrue(repository.contains("parsedCandidates >= AUDIO_SPEC_PARSE_BATCH_LIMIT"));
         assertFalse(mainActivity.contains("new MusicLibraryCollectionOperations(repository)"));
         assertFalse(mainActivity.contains("new MusicLibraryImportOperations(repository)"));
         assertFalse(mainActivity.contains("void onCollectionsLoaded(LibraryActionsController.CollectionsSnapshot snapshot)"));
@@ -6025,9 +6122,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queuePlaybackActions.contains("fun prepareCurrent(playWhenReady: Boolean)"));
         assertTrue(queuePlaybackActions.contains("fun publishState()"));
         assertTrue(queuePlaybackActions.contains("fun stopAndClear()"));
+        assertTrue(queuePlaybackActions.contains("fun persistQueueAsync(tracks: List<Track>, currentIndex: Int): Boolean"));
         assertTrue(owner.contains("queuePlaybackActions.prepareCurrent("));
         assertTrue(owner.contains("queuePlaybackActions.publishState()"));
         assertTrue(owner.contains("queuePlaybackActions.stopAndClear()"));
+        assertTrue(owner.contains("queuePlaybackActions.persistQueueAsync(tracks, index)"));
         assertFalse(owner.contains("queueProvider.prepareCurrent("));
         assertFalse(owner.contains("queueProvider.publishState()"));
         assertFalse(owner.contains("queueProvider.stopAndClear()"));
@@ -6148,16 +6247,17 @@ public final class MainActivityArchitectureContractTest {
                 owner.indexOf("interface StreamingRestoreProvider"));
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "prepareCurrent",
+                "persistQueueAsync",
                 "publishState",
                 "stopAndClear"
         )), kotlinInterfaceFunNames(queuePlaybackActions));
-        assertFalse(queuePlaybackActions.contains("currentTrack"));
-        assertFalse(queuePlaybackActions.contains("currentIndex"));
-        assertFalse(queuePlaybackActions.contains("queueSnapshot"));
-        assertFalse(queuePlaybackActions.contains("queueStateSnapshot"));
-        assertFalse(queuePlaybackActions.contains("restoredPosition"));
-        assertFalse(queuePlaybackActions.contains("isPlaying"));
-        assertFalse(queuePlaybackActions.contains("preparing"));
+        assertFalse(queuePlaybackActions.contains("fun currentTrack"));
+        assertFalse(queuePlaybackActions.contains("fun currentIndex"));
+        assertFalse(queuePlaybackActions.contains("fun queueSnapshot"));
+        assertFalse(queuePlaybackActions.contains("fun queueStateSnapshot"));
+        assertFalse(queuePlaybackActions.contains("fun restoredPosition"));
+        assertFalse(queuePlaybackActions.contains("fun isPlaying"));
+        assertFalse(queuePlaybackActions.contains("fun preparing"));
         assertFalse(owner.contains("\n    fun currentIndex(): Int"));
         assertFalse(owner.contains("\n    fun setCurrentIndex(index: Int)"));
         assertFalse(owner.contains("\n    fun currentTrack(): Track?"));

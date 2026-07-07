@@ -1,16 +1,19 @@
 package app.yukine.library
 
+import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import app.yukine.LibraryTrackListDestinationState
 import app.yukine.ui.EchoTheme
+import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackRowActions
 import app.yukine.ui.TrackRowUiState
 import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,7 +25,7 @@ import org.robolectric.annotation.Config
 class LibraryTrackListDestinationTest {
 
     @get:Rule
-    val composeRule = createComposeRule()
+    val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     private val staticMotion = YukineOrbAudioMotion.Empty.copy(visualMotionEnabled = false)
 
@@ -82,5 +85,35 @@ class LibraryTrackListDestinationTest {
 
         composeRule.onNodeWithText("Songs").assertIsDisplayed()
         composeRule.onAllNodesWithText("Echo").assertCountEquals(2)
+    }
+
+    @Test
+    fun systemBackRunsHeaderBackAction() {
+        var backCount = 0
+        val state = MutableStateFlow(
+            LibraryTrackListDestinationState(
+                title = "Album",
+                rows = listOf(row(1L, "First")),
+                actions = actions(1),
+                headerActions = listOf(
+                    TrackListHeaderAction("返回", Runnable { backCount++ }),
+                    TrackListHeaderAction("播放分组", Runnable {})
+                )
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                LibraryTrackListDestination(state, audioMotion = staticMotion)
+            }
+        }
+
+        composeRule.runOnIdle {
+            composeRule.activity.onBackPressedDispatcher.onBackPressed()
+        }
+
+        composeRule.runOnIdle {
+            assertEquals(1, backCount)
+        }
     }
 }

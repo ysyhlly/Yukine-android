@@ -284,6 +284,7 @@ internal class CollectionsRenderController(
     ) {
         val rows = ArrayList<TrackRowUiState>()
         val rowActions = ArrayList<TrackRowActions>()
+        val rowKeys = TrackRowKeyPolicy.occurrenceKeys(tracks)
         for (index in tracks.indices) {
             val track = tracks[index]
             rows.add(
@@ -293,7 +294,7 @@ internal class CollectionsRenderController(
                     favoriteIds,
                     if (details != null && index < details.size) details[index] else "",
                     true,
-                    TrackRowKeyPolicy.occurrenceKey(tracks, index)
+                    rowKeys[index]
                 )
             )
             rowActions.add(
@@ -352,11 +353,12 @@ internal class CollectionsRenderController(
         currentTrack: Track?,
         favoriteIds: Set<Long>
     ) {
+        val rowKeys = TrackRowKeyPolicy.occurrenceKeys(selectedPlaylistTracks)
         for (index in selectedPlaylistTracks.indices) {
             val track = selectedPlaylistTracks[index]
             rows.add(
                 TrackRowStateFactory.playlistRow(
-                    TrackRowKeyPolicy.occurrenceKey(selectedPlaylistTracks, index),
+                    rowKeys[index],
                     track,
                     currentTrack,
                     favoriteIds,

@@ -71,12 +71,10 @@ public final class MediaStoreMusicScanner {
                         uri,
                         dataPath,
                         albumId,
-                        EmbeddedArtwork.uriIfEmbeddedPicture(context, uri)
+                        EmbeddedArtwork.uriFor(uri)
                 );
-                // 不在扫描循环里做 audioSpecParser.enrich：解析音频规格(codec/采样率/位深等)需要
-                // 对每首歌新建 MediaExtractor + MediaMetadataRetriever，是重 IO，大曲库首扫会很慢。
-                // 这些规格由后台懒解析 MusicLibraryRepository.parseMissingAudioSpecs() 兜底补齐
-                // （曲库刷新后 replaceLibrary 会无条件触发它），扫描时只入库基础信息即可。
+                // 扫描只入库基础信息。音频规格和内嵌封面都要懒加载；同步打开每个媒体文件会让
+                // 大曲库、坏文件或部分模拟器 MediaStore 卡在扫描循环里。
                 tracks.add(track);
             }
         }

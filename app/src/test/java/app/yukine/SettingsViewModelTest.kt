@@ -151,6 +151,27 @@ class SettingsViewModelTest {
             AppLanguage.text(AppLanguage.MODE_SYSTEM, "page.background"),
             viewModel.state.value.ui.title
         )
+        assertEquals(listOf(SettingsEffect.NavigatePage(SettingsPage.PageBackground)), viewModel.drainEffects())
+    }
+
+    @Test
+    fun navigateLibrarySettingsPageEmitsRouteSyncEffect() {
+        val effects = mutableListOf<SettingsEffect>()
+        val viewModel = SettingsViewModel()
+        viewModel.bindEffectListener { effect -> effects += effect }
+
+        viewModel.onEvent(SettingsEvent.NavigateSettingsPage(SettingsPage.LibraryGroup))
+        viewModel.onEvent(SettingsEvent.NavigateSettingsPage(SettingsPage.Library))
+
+        assertEquals(SettingsPage.Library, viewModel.state.value.page)
+        assertEquals(
+            listOf(
+                SettingsEffect.NavigatePage(SettingsPage.LibraryGroup),
+                SettingsEffect.NavigatePage(SettingsPage.Library)
+            ),
+            effects
+        )
+        assertEquals(effects, viewModel.drainEffects())
     }
 
     @Test
@@ -375,7 +396,10 @@ class SettingsViewModelTest {
         content.actions[1].onClick.run()
 
         assertEquals(
-            listOf(SettingsEffect.ApplyStreamingGatewayEndpoint(StreamingGatewaySettingsStore.EMULATOR_HOST_ENDPOINT)),
+            listOf(
+                SettingsEffect.NavigatePage(SettingsPage.SourcesGroup),
+                SettingsEffect.ApplyStreamingGatewayEndpoint(StreamingGatewaySettingsStore.EMULATOR_HOST_ENDPOINT)
+            ),
             viewModel.drainEffects()
         )
         assertEquals(SettingsPage.SourcesGroup, viewModel.state.value.page)
@@ -435,6 +459,82 @@ class SettingsViewModelTest {
         assertEquals(
             "dark|teal|en|2.0|0.0|lossless|false|true|false|true|${TrackShareStyle.CARD}|content://bg",
             mirror.snapshots.last()
+        )
+    }
+
+    @Test
+    fun enablingFloatingLyricsDisablesStatusBarLyricsWhenOverlayStarts() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val viewModel = SettingsViewModel(dispatcher)
+        val preferenceGateway = FakePreferenceGateway()
+        val runtimeEffects = mutableListOf<SettingsRuntimeEffect>()
+        viewModel.bindPreferenceGateway(preferenceGateway)
+        viewModel.bindRuntimeEffectListener { effect ->
+            runtimeEffects += effect
+            true
+        }
+        viewModel.renderCurrentPage(
+            SettingsPage.Lyrics,
+            SettingsPreferencesSnapshot(statusBarLyricsEnabled = true, floatingLyricsEnabled = false),
+            RuntimeSettingsStatus()
+        )
+
+        viewModel.setFloatingLyricsEnabled(true)
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.state.value.preferences.statusBarLyricsEnabled)
+        assertEquals(true, viewModel.state.value.preferences.floatingLyricsEnabled)
+        assertEquals(
+            listOf("floatingLyrics:true", "statusLyrics:false"),
+            runtimeEffects.map { effect ->
+                when (effect) {
+                    is SettingsRuntimeEffect.ApplyFloatingLyrics -> "floatingLyrics:${effect.enabled}"
+                    is SettingsRuntimeEffect.SetStatusBarLyrics -> "statusLyrics:${effect.enabled}"
+                    else -> error("Unexpected runtime effect $effect")
+                }
+            }
+        )
+        assertEquals(
+            listOf("statusLyrics:false", "floatingLyrics:true"),
+            preferenceGateway.events
+        )
+    }
+
+    @Test
+    fun enablingStatusBarLyricsDisablesFloatingLyrics() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val viewModel = SettingsViewModel(dispatcher)
+        val preferenceGateway = FakePreferenceGateway()
+        val runtimeEffects = mutableListOf<SettingsRuntimeEffect>()
+        viewModel.bindPreferenceGateway(preferenceGateway)
+        viewModel.bindRuntimeEffectListener { effect ->
+            runtimeEffects += effect
+            true
+        }
+        viewModel.renderCurrentPage(
+            SettingsPage.Lyrics,
+            SettingsPreferencesSnapshot(statusBarLyricsEnabled = false, floatingLyricsEnabled = true),
+            RuntimeSettingsStatus()
+        )
+
+        viewModel.setStatusBarLyricsEnabled(true)
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.state.value.preferences.statusBarLyricsEnabled)
+        assertEquals(false, viewModel.state.value.preferences.floatingLyricsEnabled)
+        assertEquals(
+            listOf("floatingLyrics:false", "statusLyrics:true"),
+            runtimeEffects.map { effect ->
+                when (effect) {
+                    is SettingsRuntimeEffect.ApplyFloatingLyrics -> "floatingLyrics:${effect.enabled}"
+                    is SettingsRuntimeEffect.SetStatusBarLyrics -> "statusLyrics:${effect.enabled}"
+                    else -> error("Unexpected runtime effect $effect")
+                }
+            }
+        )
+        assertEquals(
+            listOf("floatingLyrics:false", "statusLyrics:true"),
+            preferenceGateway.events
         )
     }
 

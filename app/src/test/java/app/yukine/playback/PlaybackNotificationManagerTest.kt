@@ -44,6 +44,47 @@ class PlaybackNotificationManagerTest {
     }
 
     @Test
+    fun nonForcedDuplicateUpdatesDoNotRepostForegroundNotification() {
+        val state = FakeStateProvider()
+        state.track = track(7L)
+        state.playing = true
+        val foreground = FakeForegroundController()
+        val manager = manager(state, foreground)
+
+        manager.updateMediaNotification(force = false)
+        manager.updateMediaNotification(force = false)
+        manager.updateMediaNotification(force = false)
+
+        assertEquals(1, foreground.startedNotifications)
+
+        manager.updateMediaNotification(force = true)
+
+        assertEquals(2, foreground.startedNotifications)
+    }
+
+    @Test
+    fun changedNotificationContentRepostsWithoutForce() {
+        val state = FakeStateProvider()
+        state.track = track(7L)
+        state.playing = true
+        val foreground = FakeForegroundController()
+        val publisherSource = MutableLyricsPublisherSource()
+        publisherSource.publisher = FakeLyricsPublisher("first")
+        val manager = manager(
+            state,
+            foreground,
+            lyricsPublisherSupplier = java.util.function.Supplier { publisherSource.publisher }
+        )
+
+        manager.updateMediaNotification(force = false)
+        manager.updateMediaNotification(force = false)
+        publisherSource.publisher = FakeLyricsPublisher("second")
+        manager.updateMediaNotification(force = false)
+
+        assertEquals(2, foreground.startedNotifications)
+    }
+
+    @Test
     fun notificationWorthyFallbackPolicyIsOwnedByNotificationManager() {
         assertFalse(
             PlaybackNotificationManager.isNotificationWorthy(

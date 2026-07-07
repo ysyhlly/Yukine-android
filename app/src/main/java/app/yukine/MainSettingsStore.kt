@@ -30,7 +30,7 @@ internal class MainSettingsStore {
         streamingAudioQuality = preferences.streamingAudioQuality
         concurrentPlaybackEnabled = preferences.concurrentPlaybackEnabled
         audioEffectSettings = preferences.audioEffectSettings
-        statusBarLyricsEnabled = preferences.statusBarLyricsEnabled
+        statusBarLyricsEnabled = preferences.statusBarLyricsEnabled && !preferences.floatingLyricsEnabled
         floatingLyricsEnabled = preferences.floatingLyricsEnabled
         nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled
         playbackRestoreEnabled = preferences.playbackRestoreEnabled
@@ -50,7 +50,7 @@ internal class MainSettingsStore {
         streamingAudioQuality = StreamingQualityPreference.normalize(preferences.streamingAudioQuality)
         concurrentPlaybackEnabled = preferences.concurrentPlaybackEnabled
         audioEffectSettings = preferences.audioEffectSettings
-        statusBarLyricsEnabled = preferences.statusBarLyricsEnabled
+        statusBarLyricsEnabled = preferences.statusBarLyricsEnabled && !preferences.floatingLyricsEnabled
         floatingLyricsEnabled = preferences.floatingLyricsEnabled
         nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled
         playbackRestoreEnabled = preferences.playbackRestoreEnabled

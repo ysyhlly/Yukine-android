@@ -151,7 +151,11 @@ internal class PlaybackLyricsManager(
     }
 
     private fun updateLiveLyricsNotificationService() {
-        if (!statusBarLyricsEnabled || stateProvider.currentTrack() == null || (!stateProvider.isPlaying() && !stateProvider.isPreparing())) {
+        if (!statusBarLyricsEnabled ||
+            stateProvider.isAppVisible() ||
+            stateProvider.currentTrack() == null ||
+            (!stateProvider.isPlaying() && !stateProvider.isPreparing())
+        ) {
             LiveLyricsNotificationService.stop(context)
             return
         }

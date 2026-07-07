@@ -3017,5 +3017,85 @@ Verification:
   `PlaybackQueueManager.StreamingRestoreProvider`。
 - 行为护栏：`PlaybackMediaSourceProviderTest.streamingRestoreProviderPortDelegatesToHeaderStore` 覆盖 queue restore port，验证 restored track lookup 与 data-path header restore 都委托到既有 `StreamingPlaybackHeaderStore`，避免只依赖字符串契约。
 - 验证命令：
+  - `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest.streamingRestoreProviderPortDelegatesToHeaderStore --console=plain` — 通过（BUILD SUCCESSFUL）。
   - `./gradlew.bat :feature:playback:compileDebugKotlin :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain` — 通过（BUILD SUCCESSFUL）。
 - 设备状态：这是 owner 收敛和 JVM/Robolectric 层恢复护栏，不替代冷启动/杀进程恢复、后台播放、锁屏/通知、耳机/蓝牙/来电中断的真机录屏和 logcat。
+
+## 2026-07-07 P0 Automated Gate Refresh
+
+- 覆盖矩阵：P0 单元测试护栏、`EchoDatabaseHelper` 测试基线、feature playback JVM/Robolectric 回归、debug APK 打包可用性。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests StreamingViewModelTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./scripts/p0-stability-gate.ps1 -SkipDeviceProbe -IncludeAssemble` — 通过；报告 `app/build/p0-stability-gate/20260707-091345.md`。
+- Gate 报告结果：`playback-stability-smoke.ps1` 语法通过、`StreamingViewModelTest` 通过、`EchoDatabaseHelperTest` 通过、`:feature:playback:testDebugUnitTest` 通过、`:app:assembleDebug` 通过，APK `app/build/outputs/apk/debug/app-debug.apk` 大小 36,332,646 bytes。
+- 设备状态：`adb devices` 当前未列出设备；本次 gate 使用 `-SkipDeviceProbe`，因此不替代播放服务稳定性矩阵中的本地播放、后台/锁屏/通知控制、冷启动/杀进程恢复、耳机/蓝牙/来电中断真机验收。
+
+## 2026-07-07 MuMu Launch Smoke Crash Fix
+
+- 覆盖矩阵：播放服务稳定性矩阵 / debug APK 安装、MainActivity 冷启动、播放服务创建、force-stop 后重启、fatal-crash logcat 采样。
+- 发现问题 1：MuMu `127.0.0.1:7555` 首次启动 debug APK 后，`MainActivityBase.initializeLibraryGateway()` 在 `initializeRouteStoresAndStatus()` 之前执行，导致 Hilt 提供的 `MainLibraryGatewayFactory` 收到 null `routeActions` 并在 Kotlin 非空参数处崩溃。
+- 修复点 1：`MainActivityBase.onCreate()` 现在在 gateway 绑定前初始化 route/status/store owners；`MainActivityArchitectureContractTest.mainActivityInitializesRouteStatusStoresBeforeGatewayBindings` 防止顺序回退。
+- 发现问题 2：修复 Activity 启动后，`EchoPlaybackService.onCreate()` 在 `playbackNotificationManager` 初始化前捕获 `playbackNotificationManager::mediaMetadataForTrack`，服务创建时触发 NPE。
+- 修复点 2：早期 queue preparation owner 改为延迟 lambda，notification manager 尚未初始化时返回 null metadata；后续已初始化路径仍可使用正常 metadata provider。`MainActivityArchitectureContractTest.playbackServiceDoesNotCaptureNotificationManagerBeforeItIsInitialized` 覆盖危险初始化窗口。
+- 设备脚本修复：`playback-stability-smoke.ps1` 默认 evidence 目录名会将设备 serial 中的冒号替换为 `_`，避免 Windows 路径下 `adb pull` 失败。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest.mainActivityInitializesRouteStatusStoresBeforeGatewayBindings --tests app.yukine.MainActivityArchitectureContractTest.playbackServiceDoesNotCaptureNotificationManagerBeforeItIsInitialized :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :app:assembleDebug --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./scripts/playback-stability-smoke.ps1 -SkipBuild -SkipManualCheckpoint -DeviceSerial 127.0.0.1:7555 -LaunchWaitSeconds 8 -RelaunchWaitSeconds 8` — 通过；证据目录 `app/build/playback-stability/20260707-094019-127.0.0.1_7555`。
+- 设备状态：MuMu smoke 已证明安装、冷启动、进程存活、force-stop 后重启和 fatal-crash 采样；手工播放/暂停/切歌/seek、后台、锁屏、通知、耳机/蓝牙/来电中断仍需人工录屏与 logcat，不能标为完成。
+
+## 2026-07-07 Startup Page Background Restore Fix
+
+- 覆盖矩阵：启动稳定性与设置持久化回归；不替代播放服务人工矩阵。
+- 发现问题：更换页面背景后，重新进入应用时导航根先绑定空的 `SettingsViewModel.chromeState`；持久化的 `PageBackgrounds` 虽已加载进 `MainSettingsStore`，但只有进入设置页渲染时才会同步到 chrome state，导致背景看起来没有固化。
+- 修复点：`SettingsContextProvider` 创建完成后立即刷新一次 settings context，把已加载的 `pageBackgrounds` 和 `nowPlayingGesturesEnabled` 推入 `SettingsViewModel.chromeState`，让 `EchoNavGraph` 冷启动时直接拿到持久化背景。
+- 回归护栏：`SettingsViewModelTest.updateSettingsContextPublishesPreferencesAndRuntimeStatus` 覆盖 chrome state 行为；`MainActivityArchitectureContractTest.mainActivityPushesLoadedSettingsContextBeforeSettingsPageNavigation` 覆盖启动 wiring，防止再次依赖“进入设置页”触发同步。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.SettingsViewModelTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :app:assembleDebug --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `adb -s 127.0.0.1:7555 install -r app/build/outputs/apk/debug/app-debug.apk && adb -s 127.0.0.1:7555 shell am start -W -n app.yukine/.MainActivity` — MuMu 冷启动通过，logcat 300 行未发现 `FATAL EXCEPTION` / `AndroidRuntime`。
+- 设备状态：已安装到 MuMu `127.0.0.1:7555` 并完成冷启动崩溃采样；背景视觉需在已有自定义背景数据的设备上复核。
+
+## 2026-07-07 EchoDatabaseHelper Concurrent Playback Restore Baseline
+
+- 覆盖矩阵：P0 `EchoDatabaseHelper` 测试基线 / 并发写入保护；播放服务矩阵 / 冷启动队列恢复、杀进程恢复的持久化前置护栏。
+- 新增测试：
+  - `EchoDatabaseHelperTest.concurrentPlaybackQueueWritesKeepOneCompleteQueueSnapshot`：多线程同时保存不同播放队列时，最终数据库只能出现一个完整队列快照，不能混入不同 writer 的队列行或错配 `playback_queue_index`。
+  - `EchoDatabaseHelperTest.concurrentPlaybackPositionWritesKeepTrackAndPositionPairAtomic`：多线程同时保存播放进度时，最终 `playback_position_track_id` 与 `playback_position_ms` 必须来自同一次写入，避免冷启动恢复成错配曲目/进度。
+- 已有基线：migration 测试覆盖 legacy v1 和 partial playback queue schema；事务回滚测试覆盖 tracks、remote source、play history、playlist、queue、playback position 等路径；并发 upsert 测试覆盖同 ID 和多 ID track 写入。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest --tests StreamingViewModelTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 JVM/Robolectric 层持久化护栏，不替代 MuMu/真机上的冷启动队列恢复、杀进程恢复录屏和 logcat。
+
+## 2026-07-07 Paused Playback Position Retention Fix
+
+- 覆盖矩阵：播放服务稳定性矩阵 / 暂停/恢复、进度保存、冷启动恢复位置前置护栏。
+- 发现问题：前一轮 `PlaybackPlayerStateOwner` 只在 `player.isPlaying()` 时对停滞的 raw `currentPosition` 做单调时钟补偿；暂停后如果 Media3/MuMu raw position 回到 `0`，暂停态快照会把最后有效进度覆盖成 `0:00`。
+- 修复点：
+  - `PlaybackPlayerStateOwner.positionMs()` 在暂停态返回 raw position 与最后估算进度的较大值，避免暂停瞬间清零。
+  - 播放从暂停或显式 seek 恢复时，如果 raw position 仍低于已知可信进度，先保留该进度，再在后续播放 tick 中继续推进。
+  - `EchoPlaybackService.seekTo(...)`、恢复位置 seek 和队尾归零 seek 改为用 `setPositionEstimate(...)` seed 目标位置，而不是一律 reset。
+- 新增自动化护栏：
+  - `PlaybackPlayerStateOwnerTest.keepsEstimatedPositionWhenPausedPlayerReportsZero`
+  - `PlaybackPlayerStateOwnerTest.resumesProgressFromPausedEstimateWhenPlayerStillReportsZero`
+  - `PlaybackPlayerStateOwnerTest.explicitPositionEstimateSeedsSeekTargetWhenPlayerReportsZero`
+- MuMu 设备证据：当前 debug APK 安装到 `127.0.0.1:7555` 后播放再暂停，暂停按钮状态为 `content-desc=播放`；UI dump 显示暂停采样 `0:04/4:25`、稍后采样 `0:07/4:25`，数据库 raw dump 显示 `playback_position_ms4765` / `playback_position_ms7488`，fatal 过滤为空。证据文件在 `app/build/yukine-pause-playing.xml`、`app/build/yukine-pause-paused.xml`、`app/build/yukine-pause-paused-later.xml`、`app/build/yukine-pause-retain-logcat.txt`。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests StreamingViewModelTest --tests app.yukine.playback.PlaybackPlayerStateOwnerTest --tests app.yukine.playback.PlaybackStateSnapshotOwnerTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :app:assembleDebug --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：本次覆盖 MuMu 播放页暂停后进度不归零和数据库保存非零进度；通知/锁屏暂停恢复、耳机/蓝牙/来电中断仍需按矩阵补录屏与 logcat。
+
+## 2026-07-07 Queue Sheet Open/Close Freeze Fix
+
+- 覆盖矩阵：播放服务稳定性矩阵 / 播放队列打开、关闭、队列渲染响应性前置护栏。
+- 发现问题：队列页行 key 通过 `TrackRowKeyPolicy.occurrenceKey(tracks, index)` 逐行向前扫描；`QueueViewModel.bind(...)`、曲库列表和合集列表在同一轮渲染中重复调用时会把大列表构建放大到 O(n²)。底部队列弹层打开时还会为整条队列一次性创建 `QueueTrackActions` 和全量 key list，增加主线程分配压力。
+- 修复点：
+  - `TrackRowKeyPolicy.occurrenceKeys(...)` 一次遍历生成重复曲目稳定 key，保持 `id:occurrence` 语义不变。
+  - `QueueViewModel`、`TrackListRenderController`、`CollectionsRenderController` 改用批量 key，避免大队列/大曲库平方级构建。
+  - `QueueDestination` 改为按可见行懒创建 `QueueTrackActions`；`QueueScreen` 保留旧 list API，并新增 lazy action 入口；拖拽状态清理不再每次重组分配 `tracks.map { key }`。
+- 新增自动化护栏：`TrackRowKeyPolicyTest.occurrenceKeysMatchPerRowOccurrenceKeyForDuplicateTracks` 与 `occurrenceKeysReturnsEmptyListForMissingTracks`。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.TrackRowKeyPolicyTest --tests app.yukine.queue.QueueViewModelTest --tests app.yukine.queue.QueueDestinationTest :feature:ui-common:compileDebugKotlin :feature:navigation:compileDebugKotlin :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :app:assembleDebug --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - MuMu `127.0.0.1:7555` 安装启动后连续 3 次点击底部队列按钮并用 Back 关闭；UI dump 证据 `app/build/yukine-queue-open-1.xml` 到 `app/build/yukine-queue-open-3.xml` 显示队列 sheet（30 曲目），`app/build/yukine-queue-close-1.xml` 到 `app/build/yukine-queue-close-3.xml` 关闭后不再包含队列 sheet；logcat 700 行未发现 `FATAL EXCEPTION`、`ANR in app.yukine` 或 `Input dispatching timed out`。
+- 设备状态：MuMu 自动开关烟测证明未卡死/未崩溃；大于当前 30 首队列的极端大队列仍建议手动复测手感。
