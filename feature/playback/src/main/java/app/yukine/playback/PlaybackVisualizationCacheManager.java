@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+@OptIn(markerClass = UnstableApi.class)
 final class PlaybackVisualizationCacheManager {
     private static final long VISUALIZATION_CACHE_BYTES = 64L * 1024L * 1024L;
 

@@ -1,5 +1,7 @@
 package app.yukine.playback.manager
 
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import app.yukine.playback.PlaybackRepeatMode.REPEAT_ALL
 import app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF
 import app.yukine.playback.PlaybackRepeatMode.REPEAT_ONE
@@ -11,6 +13,7 @@ import java.util.LinkedList
 import java.util.Random
 import java.util.concurrent.CopyOnWriteArrayList
 
+@OptIn(UnstableApi::class)
 internal class PlaybackQueueManager(
     private val queueStore: PlaybackQueueStore,
     private val queue: MutableList<Track>,
@@ -238,13 +241,14 @@ internal class PlaybackQueueManager(
         clearRestoredPosition()
         persistQueue()
         resetCurrentPlaybackPosition()
+        savePlaybackResumeRequested(true)
         queuePlaybackActions.prepareCurrent(true)
     }
 
-    private fun advanceQueueIndexToNext() {
+    private fun advanceQueueIndexToNext(): Boolean {
         val queue = this.queue
         if (queue.isEmpty()) {
-            return
+            return false
         }
         if (shuffleEnabled() && queue.size > 1) {
             var nextIndex = currentIndex()
@@ -252,18 +256,19 @@ internal class PlaybackQueueManager(
                 nextIndex = random.nextInt(queue.size)
             }
             setCurrentIndex(nextIndex)
-            return
+            return true
         }
         if (currentIndex() >= queue.size - 1) {
             if (repeatMode() == REPEAT_OFF) {
                 persistQueue()
                 queuePlaybackActions.publishState()
-                return
+                return false
             }
             setCurrentIndex(0)
-            return
+            return true
         }
         setCurrentIndex(currentIndex() + 1)
+        return true
     }
 
     fun skipToNextImmediately(): Boolean {
@@ -271,7 +276,9 @@ internal class PlaybackQueueManager(
             return false
         }
         persistPlaybackPosition()
-        advanceQueueIndexToNext()
+        if (!advanceQueueIndexToNext()) {
+            return false
+        }
         if (reuseMirroredQueueAtCurrentIndex(true)) {
             return true
         }
@@ -446,7 +453,11 @@ internal class PlaybackQueueManager(
     }
 
     fun retainTracksById(trackIdsToKeep: Set<Long>) {
-        if (trackIdsToKeep.isEmpty() || queue.isEmpty()) {
+        if (queue.isEmpty()) {
+            return
+        }
+        if (trackIdsToKeep.isEmpty()) {
+            clearQueue()
             return
         }
         val trackIdsToRemove = HashSet<Long>()
@@ -738,19 +749,36 @@ internal class PlaybackQueueManager(
         }
         val queue = this.queue
         queue.clear()
-        for (track in restored.tracks) {
+        var restoredCurrentIndex = -1
+        var fallbackBeforeRestoredIndex = -1
+        var fallbackAfterRestoredIndex = -1
+        for ((storedIndex, track) in restored.tracks.withIndex()) {
             if (!PlaybackMediaSourceProvider.isRestorableQueueTrack(track)) {
                 continue
             }
             val queueTrack = streamingRestoreProvider.restoredTrackFor(track) ?: track
             queue.add(queueTrack)
+            val restoredQueueIndex = queue.lastIndex
+            when {
+                storedIndex == restored.currentIndex -> restoredCurrentIndex = restoredQueueIndex
+                storedIndex < restored.currentIndex -> fallbackBeforeRestoredIndex = restoredQueueIndex
+                fallbackAfterRestoredIndex < 0 -> fallbackAfterRestoredIndex = restoredQueueIndex
+            }
             streamingRestoreProvider.restoreForDataPath(queueTrack.dataPath)
         }
         if (queue.isEmpty()) {
             setCurrentIndex(-1)
+            persistQueue()
+            savePlaybackResumeRequested(false)
             return queueStateSnapshot()
         }
-        setCurrentIndex(restored.currentIndex)
+        when {
+            restored.currentIndex < 0 -> setCurrentIndex(-1)
+            restoredCurrentIndex >= 0 -> setCurrentIndex(restoredCurrentIndex)
+            fallbackAfterRestoredIndex >= 0 -> setCurrentIndex(fallbackAfterRestoredIndex)
+            fallbackBeforeRestoredIndex >= 0 -> setCurrentIndex(fallbackBeforeRestoredIndex)
+            else -> setClampedCurrentIndex(restored.currentIndex)
+        }
         setRestoredPosition(
             queueStore.loadPlaybackPositionTrackId(),
             queueStore.loadPlaybackPositionMs(),

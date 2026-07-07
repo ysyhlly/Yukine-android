@@ -17,6 +17,7 @@ browser                 = "1.8.0"
 media3                  = "1.4.1"
 room                    = "2.7.2"
 wechat-opensdk          = "6.8.0"
+desugar-jdk-libs       = "2.1.5"
 
 # ── Test ────────────────────────────────────────────────────────────────────
 junit                   = "4.13.2"
@@ -63,6 +64,9 @@ androidx-media3-session                 = { group = "androidx.media3",          
 
 # ── Share SDK ────────────────────────────────────────────────────────────────
 wechat-opensdk                         = { group = "com.tencent.mm.opensdk",      name = "wechat-sdk-android-without-mta", version.ref = "wechat-opensdk" }
+
+# ── Java desugaring ─────────────────────────────────────────────────────────
+desugar-jdk-libs                     = { group = "com.android.tools",          name = "desugar_jdk_libs",             version.ref = "desugar-jdk-libs" }
 
 # ── Room ─────────────────────────────────────────────────────────────────────
 androidx-room-runtime                   = { group = "androidx.room",               name = "room-runtime",                 version.ref = "room" }

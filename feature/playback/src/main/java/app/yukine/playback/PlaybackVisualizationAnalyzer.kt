@@ -2,9 +2,12 @@ package app.yukine.playback
 
 import android.content.Context
 import androidx.media3.datasource.DataSpec
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackMediaSourceProvider
 
+@OptIn(UnstableApi::class)
 internal class PlaybackVisualizationAnalyzer internal constructor(
     private val context: Context,
     private val taskScheduler: VisualizationTaskScheduler,

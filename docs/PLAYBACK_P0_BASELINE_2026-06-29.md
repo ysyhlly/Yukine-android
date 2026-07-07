@@ -141,6 +141,29 @@ Passed with default Gradle daemon/workers:
 No daemon, KSP, or file-lock issue reproduced during this checkpoint, so
 `--no-daemon` and `--max-workers=1` were not used.
 
+2026-07-07 continuation verification:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-release.ps1
+# BUILD SUCCESSFUL
+# Covers assembleDebugAndroidTest, assembleDebug, lintDebug, assembleRelease, bundleRelease, lintRelease.
+
+.\gradlew.bat :app:testDebugUnitTest --tests StreamingViewModelTest --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest --console=plain
+# BUILD SUCCESSFUL
+
+adb devices
+# List of devices attached
+# <empty>
+```
+
+This proves the non-device release gates and P0 unit-test guards on the
+current workstation. It does not prove the device-only playback stability
+matrix rows; those still require a connected Android device and recorded
+screens/logcat.
+
 ## Smoke Table
 
 Device smoke was not executed during this documentation checkpoint. These
@@ -2265,3 +2288,734 @@ After the next notification boundary slice:
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackNotificationManagerTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 ```
+
+## 2026-07-07 P0 Automation And Device-Gate Update
+
+Scope for this checkpoint:
+
+- Kept the `StreamingViewModelTest` unit-test guard green after the thread-safe fake provider fix.
+- Added the first `EchoDatabaseHelper` Robolectric baseline covering schema upgrade, transaction rollback, and concurrent writes before any new schema work.
+- Re-ran the playback matrix pre/post automated gates available on this workstation.
+
+Commands and results:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.StreamingViewModelTest --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.StreamingViewModelTest --tests app.yukine.data.EchoDatabaseHelperTest --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :app:testDebugUnitTest :app:assembleDebug --console=plain
+# First run: LibraryGroupsRenderControllerTest.ignoresStaleArtistInfoWhenAnotherArtistIsOpened failed once.
+# Focused rerun of that test: BUILD SUCCESSFUL.
+# Second full rerun: BUILD SUCCESSFUL.
+```
+
+Device-gated playback matrix status:
+
+```powershell
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" devices
+# List of devices attached
+# <empty>
+```
+
+No Android device was connected on this workstation, so the manual/half-automated rows in
+`docs/PLAYBACK_SERVICE_STABILITY_MATRIX.md` remain **not executed** for this checkpoint, including:
+
+- Local song playback/pause/skip/seek on hardware.
+- Background playback, lock-screen controls, and notification controls.
+- Cold-start queue restore and process-kill restore.
+- Headset disconnect, Bluetooth switching, and call interruption.
+
+Do not claim runtime playback-service acceptance from this checkpoint alone. The next device run should use
+`app/build/outputs/apk/debug/app-debug.apk`, capture `adb logcat` for `EchoPlaybackService`, `MediaSession`,
+`ExoPlayer`, and `AudioManager`, and fill the execution record in `PLAYBACK_SERVICE_STABILITY_MATRIX.md`.
+
+## 2026-07-07 Playback Queue Restore Transaction Guard
+
+Additional non-device P0 guard added while no ADB device was available for the full playback matrix:
+
+- `EchoDatabaseHelperTest.savePlaybackQueueRollsBackOldQueueWhenReplacementBatchFails`
+  - Seeds a two-track playback queue at index 1.
+  - Attempts to replace it with a malformed queue batch that fails after the table delete.
+  - Verifies the previous queue rows and saved index are still available for cold-start restore.
+
+Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest --console=plain
+# BUILD SUCCESSFUL
+```
+
+This does not replace device smoke for cold-start/process-kill restore, but it protects the SQLite transaction
+that runtime restore depends on.
+
+## 2026-07-07 Hardware Interruption Guard
+
+Added a focused non-device guard for the headset/Bluetooth disconnect row while no ADB device was available:
+
+- `PlaybackNoisyReceiverManagerTest.audioBecomingNoisyBroadcastPausesOnlyActivePlayback`
+  - Dispatches `AudioManager.ACTION_AUDIO_BECOMING_NOISY` through the registered receiver.
+  - Verifies active playback pauses exactly once.
+  - Verifies unrelated broadcasts do not pause and inactive playback is not paused.
+
+This does not replace the hardware row in `PLAYBACK_SERVICE_STABILITY_MATRIX.md`, but it protects the core
+no-sudden-speaker behavior behind that row until the real device pass can be recorded.
+
+Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackNoisyReceiverManagerTest --console=plain
+# BUILD SUCCESSFUL
+```
+
+## 2026-07-07 Task-Removed Resume Flag Guard
+
+Added another non-device guard for cold-start/process-kill restore behavior:
+
+- `PlaybackShutdownCoordinatorTest.handleTaskRemovedClearsResumeRequestWhenPlaybackIsInactive`
+  - Verifies `handleTaskRemoved()` persists current position and queue before writing the resume flag.
+  - Verifies the resume flag is explicitly saved as `false` when playback is neither playing nor preparing.
+
+This complements the existing positive `resume:true` cases and prevents stale resume requests from causing an
+unexpected auto-resume after task removal or process recreation.
+
+Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackShutdownCoordinatorTest --console=plain
+# BUILD SUCCESSFUL
+```
+
+## 2026-07-07 Notification Control Action Guard
+
+Added a focused non-device guard for the notification-control row:
+
+- `PlaybackNotificationManagerTest.notificationActionsMapToPlaybackServiceControls`
+  - Builds the playback notification with a paused track and verifies action pending-intents map to
+    `PREVIOUS`, `RESTORE_AND_PLAY`, `NEXT`, and `TOGGLE_FAVORITE`.
+  - Rebuilds while playing and verifies the compact middle action switches to `PAUSE`.
+
+This does not replace lock-screen/notification tray hardware interaction, but it protects the notification action
+mapping that those controls dispatch into `EchoPlaybackService.onStartCommand()`.
+
+Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackNotificationManagerTest --console=plain
+# BUILD SUCCESSFUL
+```
+
+## 2026-07-07 MediaSession / Lock-Screen Command Guard
+
+Added a focused non-device guard for lock-screen / MediaSession transport controls:
+
+- `PlaybackSessionPlayerTest.lockScreenTransportCommandsDelegateToPlaybackOwner`
+  - Verifies `play`, `pause`, `setPlayWhenReady`, seek, previous/next, repeat-mode, and stop calls are routed
+    to the playback delegate instead of only mutating the wrapped Media3 player.
+- `PlaybackSessionPlayerTest.lockScreenQueueNavigationAndRepeatCommandsAreAdvertised`
+  - Runs under Robolectric so Media3 `Player.Commands` uses Android collection semantics.
+  - Verifies previous/next queue navigation and repeat controls are available both through
+    `isCommandAvailable()` and `availableCommands`.
+  - Verifies an unrelated base seek command still remains unavailable when the wrapped player does not advertise it.
+- `PlaybackSessionPlayerTest.controllerMediaItemCommandsRouteThroughDelegateBeforeFallback`
+  - Verifies controller-provided media items are offered to the app queue delegate before any fallback path.
+
+This does not replace the physical lock-screen row in `PLAYBACK_SERVICE_STABILITY_MATRIX.md`, but it protects the
+MediaSession command bridge that lock-screen controls use.
+
+Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackSessionPlayerTest --console=plain
+# BUILD SUCCESSFUL
+```
+
+
+## 2026-07-07 Audio Focus Handling Guard
+
+Added a focused non-device guard for the call-interruption/audio-focus side of the hardware interruption row:
+
+- `PlaybackRuntimeStateManagerTest.concurrentPlaybackSetterAppliesAudioFocusHandling`
+  - Verifies disabling concurrent playback applies Media3 audio attributes with `USAGE_MEDIA` and
+    `AUDIO_CONTENT_TYPE_MUSIC`, and enables audio-focus handling.
+  - Verifies enabling concurrent playback keeps the same media/music attributes but disables audio-focus handling,
+    preserving the intentional "play alongside other apps" setting.
+
+This does not replace an actual incoming-call interruption pass on a device, but it protects the audio-focus
+configuration that determines whether Android will pause/duck Yukine during competing audio focus events.
+
+Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackRuntimeStateManagerTest.concurrentPlaybackSetterAppliesAudioFocusHandling --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --console=plain
+# BUILD SUCCESSFUL
+```
+
+
+## 2026-07-07 Queue Restore Filtered-Index Guard
+
+Fixed and guarded a cold-start restore edge case where persisted queue indexes could point at a row that is later
+filtered out as non-restorable, or beyond the filtered queue length:
+
+- `PlaybackQueueManager.restorePlaybackQueue()` now maps the persisted current index through the filtered,
+  restorable queue before publishing/persisting the restored queue.
+- A persisted `-1` still preserves the existing "queue exists but no current track" state.
+- Non-negative indexes that survive filtering keep the intended current track; non-negative indexes that are out of
+  range are clamped to a valid restored track instead of leaving an invalid current index.
+
+Regression coverage:
+
+- `PlaybackQueueManagerTest.restorePlaybackQueueKeepsCurrentTrackAfterFilteringInvalidRows`
+- `PlaybackQueueManagerTest.restorePlaybackQueueClampsOutOfRangePersistedIndexAfterFilteringInvalidRows`
+- Existing `restoreLastPlaybackPreservesCreateWithoutPrepareForMissingCurrentTrack` remains green to protect the
+  `currentIndex == -1` semantics.
+
+This does not replace device cold-start/process-kill recovery smoke, but it protects the queue/index restoration
+logic those rows depend on after invalid local rows or missing URI rows are dropped.
+
+Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --console=plain
+# BUILD SUCCESSFUL
+```
+
+
+## 2026-07-07 Invalid Local Track Recovery Guard
+
+Added a focused non-device guard for the `无效本地 URI` / local playback error row:
+
+- `PlaybackErrorRecoveryManagerTest.invalidLocalTrackSkipsToNextWhenQueueCanContinue`
+  - Simulates a failed local `content://` track.
+  - Verifies the error recovery owner does not schedule a streaming retry for local media.
+  - Verifies recoverable queue failures clear the visible error state and skip to the next track.
+  - Verifies no delayed retry remains pending after the local failure path.
+
+This does not replace device playback of a truly missing media-store row, but it protects the service-side failure
+policy that prevents an unplayable local item from crashing playback or trapping the queue when another track can be
+played.
+
+Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackErrorRecoveryManagerTest --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --console=plain
+# BUILD SUCCESSFUL
+```
+
+
+## 2026-07-07 Seek / Progress Drag Boundary Guard
+
+Added a focused non-device guard for the `进度拖动` row:
+
+- `PlaybackSessionPlayer.seekTo(...)` now clamps negative positions to `0` before delegating to the playback owner.
+- `PlaybackSessionPlayerTest.seekCommandsClampNegativePositionsBeforeDelegating`
+  - Verifies direct MediaSession seek and indexed seek both clamp negative positions to the track start.
+  - Verifies valid positive seek positions still pass through unchanged.
+
+This does not replace device drag/lyrics/waveform synchronization smoke, but it prevents malformed slider/session input
+from propagating a negative seek position into the playback service path.
+
+Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackSessionPlayerTest --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --console=plain
+# BUILD SUCCESSFUL
+```
+
+
+## 2026-07-07 Queue Restore Filtered-Current Fallback Guard
+
+Tightened the cold-start/process-kill queue restore guard for the case where the persisted current row is itself
+filtered out as non-restorable:
+
+- `PlaybackQueueManager.restorePlaybackQueue()` now prefers the first restorable row after the removed persisted-current
+  row, falling back to the last restorable row before it when there is no later item.
+- `PlaybackQueueManagerTest.restorePlaybackQueueFallsForwardWhenPersistedCurrentTrackIsFilteredOut`
+  - Persists a queue where index `1` points at a missing local URI.
+  - Verifies restore filters that row but resumes at the next playable local item instead of incorrectly clamping to the
+    previous track.
+  - Verifies the remapped index is persisted back through the queue store.
+
+This does not replace the device cold-start/process-kill recovery matrix rows, but it protects the deterministic queue
+selection rule used when stale media-store rows disappear between launches.
+
+Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.StreamingViewModelTest --console=plain
+# BUILD SUCCESSFUL
+```
+
+
+## 2026-07-07 MediaSession / Android Auto Queue Start Index Guard
+
+Added a focused non-device guard for external controller queue requests used by MediaSession, lock-screen/headset flows,
+and Android Auto browse/playback:
+
+- `PlaybackMediaLibraryCallback.controllerQueueForMediaItems()` now remaps the controller-provided `startIndex` after
+  unresolved media items are filtered from the requested queue.
+- If the requested item survives filtering, playback starts from that same logical item in the filtered queue.
+- If the requested item is filtered out, restore/playback falls forward to the next resolved item, falls back to the last
+  resolved item when there is no later item, and clamps negative indexes to the first resolved item.
+- `onSetMediaItems()` uses the same remapping rule so platform controller queue replacement and app-side queue playback
+  stay aligned.
+
+Regression coverage:
+
+- `PlaybackMediaLibraryCallbackTest.controllerQueueForMediaItemsRemapsStartIndexAfterFilteringUnresolvedItems`
+- `PlaybackMediaLibraryCallbackTest.controllerQueueForMediaItemsFallsForwardOrBackWhenRequestedStartItemIsFiltered`
+
+This does not replace Android Auto DHU or real Bluetooth/headset validation, but it protects the queue selection rule
+that those external controller paths depend on when stale/missing media IDs are present.
+
+Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.manager.PlaybackMediaLibraryCallbackTest --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --console=plain
+# BUILD SUCCESSFUL
+```
+
+
+## 2026-07-07 Controller Queue Start Position Guard
+
+Added explicit regression coverage for external controller queue requests that provide a start position:
+
+- `PlaybackQueueManagerTest.playQueueClampsExplicitStartPositionForImmediateRestore`
+  - Verifies an over-large controller start position is clamped to the last safe resume point for the selected track.
+  - Verifies a negative controller start position does not create a negative restored position and resolves to track start.
+
+This protects the `本地歌曲播放 / 进度拖动 / 外部控制器队列播放` rows from malformed MediaSession/Android Auto start
+positions. It does not replace physical progress-drag validation on a device, but it confirms the queue owner never
+persists an unsafe immediate-restore position from controller input.
+
+Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest.playQueueClampsExplicitStartPositionForImmediateRestore --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --tests app.yukine.playback.manager.PlaybackMediaLibraryCallbackTest --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --console=plain
+# BUILD SUCCESSFUL
+```
+
+
+## 2026-07-07 Notification Stop Action Mapping Guard
+
+Tightened the non-device notification control guard:
+
+- `PlaybackNotificationManagerTest.notificationActionsMapToPlaybackServiceControls` now also verifies the fifth
+  notification action maps to `PlaybackServiceActions.STOP` in both paused and playing notification states.
+- This protects the notification stop/clear entry point from action-order or PendingIntent mapping regressions while the
+  real notification-control matrix row still needs device validation.
+
+Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackNotificationManagerTest.notificationActionsMapToPlaybackServiceControls --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --console=plain
+# BUILD SUCCESSFUL
+```
+
+
+## 2026-07-07 Database Same-ID Concurrent Upsert Guard
+
+Expanded the `EchoDatabaseHelper` concurrency baseline before future schema changes:
+
+- `EchoDatabaseHelperTest.concurrentUpsertSameTrackIdKeepsSingleCompleteRow`
+  - Starts multiple writers that concurrently upsert the same track primary key.
+  - Verifies the database keeps a single row for that id instead of duplicating or corrupting the record.
+  - Verifies the surviving row is a complete track row with the expected stable fields.
+
+This complements the existing multi-id concurrent write test and protects the library/cache update path where repeated
+scans or streaming metadata refreshes can race on the same track id.
+
+Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.concurrentUpsertSameTrackIdKeepsSingleCompleteRow --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --console=plain
+# BUILD SUCCESSFUL
+```
+
+
+## 2026-07-07 Database Partial Playback Queue Migration Guard
+
+Expanded the `EchoDatabaseHelper` migration baseline for users upgrading from an intermediate schema that already has a
+`playback_queue` table but lacks the newer audio-spec and replay-gain columns:
+
+- `EchoDatabaseHelperTest.upgradeFromPartialPlaybackQueueSchemaAddsAudioColumnsAndPreservesQueueRows`
+  - Builds a version-10 style database with an older `playback_queue` shape.
+  - Verifies upgrade adds `codec`, `bitrate_kbps`, `sample_rate_hz`, `bits_per_sample`, `channel_count`,
+    `replay_gain_track_db`, and `replay_gain_album_db`.
+  - Verifies the saved playback queue row and queue index survive the upgrade with safe default audio metadata values.
+
+This complements the version-1 legacy migration test by covering idempotent `ALTER TABLE` behavior for partial schemas,
+which is the path most likely to be hit by users who have upgraded through several app versions.
+
+Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.upgradeFromPartialPlaybackQueueSchemaAddsAudioColumnsAndPreservesQueueRows --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --console=plain
+# BUILD SUCCESSFUL
+```
+
+## 2026-07-07 Sleep Timer Cancel Race Guard
+
+- 覆盖矩阵：基础状态矩阵 / 睡眠定时。
+- 新增自动化护栏：`PlaybackSleepTimerManagerTest.cancelPreventsAlreadyDequeuedExpiryTickFromPausingPlayback`。
+- 验证点：睡眠定时倒计时回调已经从主线程队列取出后，如果用户先取消定时器，该旧回调即使随后执行也不能再次暂停播放或发布过期状态，避免“取消后仍到时暂停”的 P1/P0 体验问题。
+- 验证命令：
+  - `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackSleepTimerManagerTest.cancelPreventsAlreadyDequeuedExpiryTickFromPausingPlayback --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：当前 `adb devices` 未发现连接设备；真机睡眠定时录屏仍需在播放服务稳定性矩阵中补证据。
+
+## 2026-07-07 Verification Refresh
+
+- `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.StreamingViewModelTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- `./gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --console=plain` — 通过（BUILD SUCCESSFUL）。
+- `adb devices` — 未发现连接设备；`PLAYBACK_SERVICE_STABILITY_MATRIX.md` 中本地播放、后台/锁屏/通知、冷启动/杀进程恢复、耳机/蓝牙/来电等真机行仍需补录屏和 logcat 证据。
+
+## 2026-07-07 Deleted Current Track / Empty Retain Guard
+
+- 覆盖矩阵：恢复与异常矩阵 / 删除当前曲目、空队列控制。
+- 修复点：`PlaybackQueueMutationOwner.retainTracksById(...)` 不再把空集合当作 no-op；当曲库同步结果表示没有任何可保留曲目时，转发给 `PlaybackQueueManager`。
+- 修复点：`PlaybackQueueManager.retainTracksById(emptySet())` 现在会走既有 `clearQueue()`/`stopAndClear` 边界，而不是保留已从曲库删除的队列项。
+- 新增自动化护栏：
+  - `PlaybackQueueManagerTest.retainTracksWithEmptyKeepSetClearsQueueAndStopsPlayback`
+  - `PlaybackQueueMutationOwnerTest.retainEmptyTrackSetClearsExistingQueueThroughManager`
+- 验证点：当曲库删除/同步后当前队列没有任何可保留 track id，播放队列会停止并清空，随后 `prepareStopAndClearPlaybackState()` 持久化空队列、`currentIndex = -1` 和 `resumeRequested = false`，避免冷启动恢复已删除曲目。
+- 验证命令：
+  - `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest.retainTracksWithEmptyKeepSetClearsQueueAndStopsPlayback :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMutationOwnerTest.retainEmptyTrackSetClearsExistingQueueThroughManager --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueMutationOwnerTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：当前仍未发现 ADB 设备；真实“播放中删除当前曲目/移出曲库”录屏仍需在播放服务稳定性矩阵中补证据。
+
+## 2026-07-07 Streaming Retry Stale Callback Guard
+
+- 覆盖矩阵：流媒体播放矩阵 / 播放中断网、URL 过期恢复。
+- 修复点：`PlaybackErrorRecoveryManager` 在决定跳过失败曲目或发布不可播放错误前，会取消仍挂起的流媒体延迟重试，递增 retry generation 并移除旧 callback。
+- 新增自动化护栏：`PlaybackErrorRecoveryManagerTest.repeatedStreamingErrorBeforeRetryCancelsStaleRetryBeforeSkipping`。
+- 验证点：同一流媒体 track 第一次错误会安排一次 URL/播放重试；如果重试执行前又收到同 track 错误并进入 skip 分支，旧 retry 不会在 skip 后再次 `prepareCurrent(true)`，避免跳歌后旧回调把过期 URL/失败曲目重新拉起。
+- 验证命令：
+  - `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackErrorRecoveryManagerTest.repeatedStreamingErrorBeforeRetryCancelsStaleRetryBeforeSkipping --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackErrorRecoveryManagerTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：仍需在真实网络切换/URL 过期场景下补 `PLAYBACK_SERVICE_STABILITY_MATRIX.md` 录屏和 logcat 证据。
+
+## 2026-07-07 Current Track Removal Queue Guard
+
+- 覆盖矩阵：恢复与异常矩阵 / 删除当前曲目。
+- 新增自动化护栏：`PlaybackQueueManagerTest.removeCurrentTrackKeepsQueueAtNextTrackAndPreparesPausedPlayback`。
+- 验证点：播放队列中删除当前曲目时，队列会保留剩余曲目并把 current index 指向下一首；持久化队列/index 同步更新；播放准备以 paused 状态触发；新当前曲目的恢复位置重置为 0，避免恢复已删除曲目或继承旧曲目进度。
+- 验证命令：
+  - `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest.removeCurrentTrackKeepsQueueAtNextTrackAndPreparesPausedPlayback --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：当前仍需在真机播放中删除当前曲目/移出曲库场景补录屏与 logcat 证据。
+
+## 2026-07-07 All-Invalid Restore Cleanup Guard
+
+- 覆盖矩阵：恢复与异常矩阵 / 冷启动恢复、无效本地 URI。
+- 修复点：`PlaybackQueueManager.restorePlaybackQueue()` 在持久化队列存在但所有行都被 `PlaybackMediaSourceProvider.isRestorableQueueTrack(...)` 过滤掉时，现在会持久化空队列、`currentIndex = -1`，并清理 stale `resumeRequested`，而不是只返回内存空状态。
+- 新增自动化护栏：`PlaybackQueueManagerTest.restorePlaybackQueueClearsPersistedStateWhenAllRowsAreFilteredOut`。
+- 验证点：冷启动遇到全坏队列时，不会在下一次启动继续反复尝试同一批不可恢复行；持久化恢复状态被清理为明确空队列，且不会因旧 resume 标记立即恢复播放。
+- 验证命令：
+  - `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest.restorePlaybackQueueClearsPersistedStateWhenAllRowsAreFilteredOut --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：当前仍需在真机冷启动/杀进程恢复和缺失文件场景补录屏与 logcat 证据。
+
+## 2026-07-07 Verification Refresh - Resume Cleanup
+
+- `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest.restorePlaybackQueueClearsPersistedStateWhenAllRowsAreFilteredOut --console=plain` — 通过（BUILD SUCCESSFUL）。
+- `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.StreamingViewModelTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- `./gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --console=plain` — 通过（BUILD SUCCESSFUL）。
+- `adb devices` — 未发现连接设备；播放服务稳定性矩阵里的本地播放、后台/锁屏/通知、冷启动/杀进程恢复、耳机/蓝牙/来电仍需真机证据。
+
+## 2026-07-07 Repeat-Off Queue-End Skip Guard
+
+- 覆盖矩阵：基础状态矩阵 / 切歌、通知控制、锁屏控制。
+- 修复点：`PlaybackQueueManager.skipToNextImmediately()` 现在会让 `advanceQueueIndexToNext()` 明确返回是否真的移动到下一首；当队列已经在末尾且 repeat mode 为 `REPEAT_OFF` 时，只持久化/发布当前状态，不再继续 `prepareCurrent(true)` 重新播放当前曲。
+- 新增自动化护栏：`PlaybackQueueManagerTest.skipToNextAtQueueEndWithRepeatOffDoesNotRestartCurrentTrack`。
+- 验证点：用户在队尾点“下一首”（含通知/锁屏委托到同一 queue owner 的路径）不会把最后一首从当前位置重启，也不会写入新的 `resumeRequested=true`；状态只发布一次并保留当前 index。
+- 验证命令：
+  - `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest.skipToNextAtQueueEndWithRepeatOffDoesNotRestartCurrentTrack --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：仍需真机录屏确认播放页、通知、锁屏三处“下一首”在队尾 repeat-off 下的可感知行为一致。
+
+## 2026-07-07 Play-First Resume Persistence Guard
+
+- 覆盖矩阵：恢复与异常矩阵 / 冷启动恢复；基础状态矩阵 / 本地歌曲首次播放。
+- 修复点：`PlaybackQueueManager.playFirstQueuedTrack()` 作为空播放器或无当前曲目时的播放入口，现在会与 `playQueue(...)`、`appendToQueue(...)`、手动切歌路径一致写入 `resumeRequested = true`。
+- 新增自动化护栏：`PlaybackQueueManagerTest.playFirstQueuedTrackPersistsResumeRequestForColdStartRestore`。
+- 验证点：当已有恢复队列但 `currentIndex = -1`，用户点击播放第一首后会持久化 `currentIndex = 0`、重置当前曲位置并写入 resume 标记，避免后续进程重建只恢复队列但不恢复“用户请求继续播放”的状态。
+- 验证命令：
+  - `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest.playFirstQueuedTrackPersistsResumeRequestForColdStartRestore --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackQueueManagerTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：仍需真机冷启动/杀进程恢复录屏确认播放页、服务和通知表现一致。
+
+## 2026-07-07 Play History Event Transaction Guard
+
+- 覆盖矩阵：恢复与异常矩阵 / 数据一致性；成熟度路线图 / 智能歌单数据基线。
+- 修复点：`EchoDatabaseHelper.markPlayed(...)` 写入 `play_events` 现在使用 `insertOrThrow(...)`；如果事件表写入失败，会抛出异常并让同一事务回滚，而不是在 `play_history` 中留下半更新的 `play_count`。
+- 新增自动化护栏：`EchoDatabaseHelperTest.markPlayedRollsBackHistoryWhenPlayEventInsertFails`。
+- 验证点：先记录一次播放历史，再模拟 `play_events` 写入失败；第二次 `markPlayed(...)` 不允许把 `play_history.play_count` 从 1 半更新到 2，保护最近播放/最常播放/智能歌单依赖的数据一致性。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.markPlayedRollsBackHistoryWhenPlayEventInsertFails --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：该项为 SQLite 事务护栏；仍需真机播放历史/最近播放 UI 冒烟作为发布验收补充。
+
+## 2026-07-07 Track Reference Migration Baseline Guard
+
+- 覆盖矩阵：恢复与异常矩阵 / 数据一致性；EchoDatabaseHelper schema 前事务/引用基线。
+- 新增自动化护栏：`EchoDatabaseHelperTest.replaceTrackAndMigrateReferencesMovesAllUserDataToReplacementTrack`。
+- 验证点：`replaceTrackAndMigrateReferences(...)` 将旧 track id 迁移到 replacement track 时，收藏、播放历史聚合、歌单项、播放队列、播放队列 index、播放位置 track id/position 都一起迁移，旧 track 从曲库移除，避免本地/流媒体解析替换后用户数据丢失或队列恢复指向孤儿 track。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.replaceTrackAndMigrateReferencesMovesAllUserDataToReplacementTrack --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.StreamingViewModelTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :feature:playback:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：该项为 SQLite 引用迁移护栏；仍需真机播放队列恢复、最近播放/收藏/歌单 UI 冒烟补充证据。
+
+## 2026-07-07 Track Delete Reference Cleanup Guard
+
+- 覆盖矩阵：恢复与异常矩阵 / 删除当前曲目；数据库基线 / CRUD 事务边界。
+- 修复点：`EchoDatabaseHelper.deleteTracksWhere(...)` 现在在删除曲目时同步清理 `play_events`，与 favorites、play_history、playlist_tracks、playback_queue 一起保持引用一致，避免曲目删除后周/月播放统计继续残留孤儿事件。
+- 新增自动化护栏：`EchoDatabaseHelperTest.deleteTrackRemovesReferencesEventsAndReconcilesPlaybackState`。
+- 验证点：删除曲目会清理收藏、最近播放聚合、play_events、歌单引用、播放队列引用；如果删除的是保存的播放位置曲目，会重置恢复位置；如果删除的是当前队列前方曲目，会压缩队列并重映射 current index。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.deleteTrackRemovesReferencesEventsAndReconcilesPlaybackState --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：真机播放中删除当前曲目/移出曲库仍需补录屏与 logcat；当前仅证明 SQLite 引用清理和恢复状态重映射的自动化基线。
+
+## 2026-07-07 Missing Playlist Delete Transaction Guard
+
+- 覆盖矩阵：数据库基线 / CRUD 操作事务边界。
+- 修复点：`EchoDatabaseHelper.deletePlaylist(...)` 现在会先确认 playlist 行存在；当 playlist 不存在时直接返回 `false`，不会先删除同 id 的 `playlist_tracks` 残留行，避免“删除失败但已改变数据库”的半提交语义。
+- 新增自动化护栏：`EchoDatabaseHelperTest.deleteMissingPlaylistDoesNotMutateDanglingPlaylistRows`。
+- 验证点：在无外键约束或迁移遗留导致存在 dangling playlist_tracks 的情况下，删除不存在的 playlist 不会清掉这些行，也不会误删曲库曲目；真实删除路径仍由已有 playlist 删除测试覆盖。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.deleteMissingPlaylistDoesNotMutateDanglingPlaylistRows --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 Robolectric/SQLite 层基线，不替代真机播放服务矩阵。
+
+## 2026-07-07 Playlist Membership Missing Row Guard
+
+- 覆盖矩阵：数据库基线 / CRUD 操作事务边界；播放服务矩阵 / 大歌单流媒体队列（同步歌单会清空并重建成员）。
+- 修复点：`EchoDatabaseHelper.removeTrackFromPlaylist(...)` 与 `clearPlaylistTracks(...)` 现在会先确认 playlist 行存在；当迁移遗留或异常状态只剩 dangling `playlist_tracks` 时，不会误删除/清空这些成员行。
+- 新增自动化护栏：`EchoDatabaseHelperTest.removeTrackFromMissingPlaylistLeavesMembershipUntouched`、`EchoDatabaseHelperTest.clearMissingPlaylistLeavesMembershipUntouched`。
+- 验证点：缺失 playlist 行时，移出/清空歌单成员入口不改变 dangling membership，避免“目标 playlist 不存在但成员行被改动”的半提交语义；正常存在 playlist 的移出/清空路径仍由同一 EchoDatabaseHelper 测试集覆盖。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.removeTrackFromMissingPlaylistLeavesMembershipUntouched --tests app.yukine.data.EchoDatabaseHelperTest.clearMissingPlaylistLeavesMembershipUntouched --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 Robolectric/SQLite 层基线，不替代真机播放服务矩阵中的流媒体大歌单同步/连续切歌录屏与 logcat。
+
+## 2026-07-07 Clear Play History Transaction Guard
+
+- 覆盖矩阵：数据库基线 / CRUD 操作事务边界；播放服务矩阵 / 播放历史与数据一致性。
+- 新增自动化护栏：`EchoDatabaseHelperTest.clearPlayHistoryRollsBackHistoryWhenEventDeleteFails`。
+- 验证点：`EchoDatabaseHelper.clearPlayHistory()` 已在单个 SQLite transaction 内同时删除 `play_history` 与 `play_events`；当 `play_events` 删除失败时，`play_history` 删除会回滚，避免最近播放 UI 清空但事件统计仍失败/不一致的半提交状态。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.clearPlayHistoryRollsBackHistoryWhenEventDeleteFails --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 Robolectric/SQLite 层基线，不替代真机最近播放/播放历史 UI 冒烟。
+
+## 2026-07-07 WebDAV Source Edit Transaction Guard
+
+- 覆盖矩阵：数据库基线 / CRUD 操作事务边界；播放服务矩阵 / 后台被杀、冷启动恢复中的远程源缓存数据一致性。
+- 修复点：编辑 WebDAV 源时，旧 `webdav:<sourceId>:` 曲目清理现在下沉到 `EchoDatabaseHelper.saveRemoteSource(...)`，与 `remote_sources` 更新处于同一个 SQLite transaction；`MusicLibraryRepository.saveWebDavSource(...)` 不再在保存前先独立删除旧曲目。
+- 新增自动化护栏：`EchoDatabaseHelperTest.saveRemoteSourceRollsBackTrackDeleteWhenSourceUpdateFails`。
+- 验证点：当远程源更新失败时，旧远程缓存曲目删除会回滚，避免“源未更新但缓存曲目已丢失”的数据丢失状态；成功编辑仍会在同一 DB owner 内清理旧源曲目并保存新源信息。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.saveRemoteSourceRollsBackTrackDeleteWhenSourceUpdateFails --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 Robolectric/SQLite 层基线，不替代真机 WebDAV 源编辑/同步和播放恢复录屏与 logcat。
+
+## 2026-07-07 WebDAV Source Edit Success Cleanup Guard
+
+- 覆盖矩阵：数据库基线 / CRUD 操作事务边界；播放服务矩阵 / 远程源缓存数据一致性。
+- 新增自动化护栏：`EchoDatabaseHelperTest.saveRemoteSourceUpdateDeletesOldCachedTracksAndKeepsSource`。
+- 验证点：编辑已有 WebDAV 源成功时，会保留同一个 source id 并更新 `remote_sources` 信息；旧 `webdav:<sourceId>:` 缓存曲目会被清理；其他远程源曲目和本地曲目不会被误删。该成功路径与 `saveRemoteSourceRollsBackTrackDeleteWhenSourceUpdateFails` 一起覆盖编辑远程源的提交/回滚两侧。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.saveRemoteSourceUpdateDeletesOldCachedTracksAndKeepsSource --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 Robolectric/SQLite 层基线，不替代真机 WebDAV 源编辑/同步和播放恢复录屏与 logcat。
+
+## 2026-07-07 Playback Position Settings Transaction Guard
+
+- 覆盖矩阵：恢复与异常矩阵 / 冷启动恢复、后台被杀；数据库基线 / CRUD 操作事务边界。
+- 新增自动化护栏：`EchoDatabaseHelperTest.savePlaybackPositionRollsBackTrackIdWhenPositionWriteFails`。
+- 验证点：`EchoDatabaseHelper.savePlaybackPosition(...)` 会把 `playback_position_track_id` 与 `playback_position_ms` 放在同一个 SQLite transaction 内；当位置毫秒写入失败时，track id 写入也会回滚，避免冷启动恢复时出现“曲目 id 是新值但位置仍是旧值”的错配恢复状态。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.savePlaybackPositionRollsBackTrackIdWhenPositionWriteFails --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 Robolectric/SQLite 层基线，不替代真机冷启动/后台被杀恢复录屏与 logcat。
+
+## 2026-07-07 Audio Specs Queue Mirror Transaction Guard
+
+- 覆盖矩阵：数据库基线 / CRUD 操作事务边界；播放服务矩阵 / 本地歌曲播放、冷启动恢复（队列快照音频规格一致性）。
+- 新增自动化护栏：`EchoDatabaseHelperTest.updateAudioSpecsRollsBackTrackUpdateWhenQueueMirrorFails`。
+- 验证点：`EchoDatabaseHelper.updateAudioSpecs(...)` 更新 `tracks` 音频规格与 `playback_queue` 镜像处于同一 transaction；当队列镜像写入失败时，`tracks` 表音频规格更新回滚，避免曲库与冷启动队列快照 codec/bitrate 不一致。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.updateAudioSpecsRollsBackTrackUpdateWhenQueueMirrorFails --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：Robolectric/SQLite 层基线，不替代真机本地播放/队列恢复录屏与 logcat。
+
+## 2026-07-07 Playlist Add Missing Row Guard
+
+- 覆盖矩阵：数据库基线 / CRUD 操作事务边界；播放服务矩阵 / 播放历史与数据一致性、流媒体歌单同步后的本地歌单成员一致性。
+- 修复点：`EchoDatabaseHelper.addTrackToPlaylist(...)` 现在会先确认 playlist 行存在；当 playlist 已缺失时返回 `false`，不会创建新的 dangling `playlist_tracks` 行。
+- 新增自动化护栏：`EchoDatabaseHelperTest.addTrackToPlaylistMissingPlaylistReturnsFalseWithoutDanglingMembership`。
+- 验证点：在迁移遗留或异常状态下 playlist 行已不存在时，添加歌单成员不会留下“playlist 不存在但成员已添加”的半提交状态；该路径与移出/清空/移动歌单成员缺失行护栏一起覆盖歌单 CRUD 的成员变更原子性。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.addTrackToPlaylistMissingPlaylistReturnsFalseWithoutDanglingMembership --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 Robolectric/SQLite 层基线，不替代真机本地歌单添加/流媒体歌单同步录屏与 logcat。
+
+## 2026-07-07 Playlist Move Transaction Guard
+
+- 覆盖矩阵：数据库基线 / CRUD 操作事务边界；播放服务矩阵 / 歌单成员顺序一致性、流媒体歌单同步后的本地歌单手动重排。
+- 新增自动化护栏：`EchoDatabaseHelperTest.movePlaylistTrackAtSwapsByVisibleIndex`、`EchoDatabaseHelperTest.movePlaylistTrackAtMissingPlaylistReturnsFalseWithoutReorder`。
+- 验证点：`EchoDatabaseHelper.movePlaylistTrackAt(...)` 按 UI 可见 index 与相邻成员交换 position；当 playlist 行缺失时，移动返回 `false` 且不重排 dangling membership，避免目标 playlist 不存在但本地歌单顺序仍被改动的半提交状态。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.movePlaylistTrackAtSwapsByVisibleIndex --tests app.yukine.data.EchoDatabaseHelperTest.movePlaylistTrackAtMissingPlaylistReturnsFalseWithoutReorder --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 Robolectric/SQLite 层基线，不替代真机本地歌单拖动/上下移动和播放队列联动录屏与 logcat。
+
+## 2026-07-07 Missing Playlist Membership Mutation Guard
+
+- 覆盖矩阵：数据库基线 / CRUD 操作事务边界；播放服务矩阵 / 歌单成员一致性、流媒体歌单同步后的本地歌单成员保护。
+- 修复点：`EchoDatabaseHelper.addTrackToPlaylist(...)`、`removeTrackFromPlaylist(...)`、`clearPlaylistTracks(...)`、`movePlaylistTrackAt(...)` 现在会先确认 playlist 行存在；当 playlist 已被删除或迁移遗留只剩 dangling `playlist_tracks` 时，不会再新增、删除、清空或重排这些成员行。
+- 新增/更新自动化护栏：`EchoDatabaseHelperTest.addTrackToPlaylistMissingPlaylistReturnsFalseWithoutDanglingMembership`、`removeTrackFromMissingPlaylistLeavesMembershipUntouched`、`clearMissingPlaylistLeavesMembershipUntouched`、`movePlaylistTrackAtMissingPlaylistReturnsFalseWithoutReorder`。
+- 验证点：缺失 playlist 行时，添加返回 `false` 且不创建 dangling membership；移出/清空保持遗留 membership 不变；按 index 移动返回 `false` 且不重排，避免“操作失败但数据库成员已改变”的半提交语义。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.addTrackToPlaylistMissingPlaylistReturnsFalseWithoutDanglingMembership --tests app.yukine.data.EchoDatabaseHelperTest.removeTrackFromMissingPlaylistLeavesMembershipUntouched --tests app.yukine.data.EchoDatabaseHelperTest.clearMissingPlaylistLeavesMembershipUntouched --tests app.yukine.data.EchoDatabaseHelperTest.movePlaylistTrackAtMissingPlaylistReturnsFalseWithoutReorder --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 Robolectric/SQLite 层基线，不替代真机本地歌单添加/删除/清空/重排和流媒体歌单同步录屏与 logcat。
+
+## 2026-07-07 WebDAV Source Delete Transaction Guard
+
+- 覆盖矩阵：数据库基线 / CRUD 操作事务边界；播放服务矩阵 / 远程源缓存数据一致性、冷启动恢复中的 WebDAV 队列引用保护。
+- 新增自动化护栏：`EchoDatabaseHelperTest.deleteRemoteSourceRollsBackTrackDeleteWhenSourceDeleteFails`。
+- 验证点：`EchoDatabaseHelper.deleteRemoteSource(...)` 删除 `remote_sources` 行与清理对应 `webdav:<sourceId>:` 缓存曲目处于同一个 SQLite transaction；当远程源行删除失败时，缓存曲目删除会回滚，避免“源仍存在但缓存曲目已丢失”的数据丢失状态。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.deleteRemoteSourceRollsBackTrackDeleteWhenSourceDeleteFails --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 Robolectric/SQLite 层基线，不替代真机 WebDAV 源删除、播放队列恢复和 logcat 验收。
+
+## 2026-07-07 Stream Track Delete Reference Rollback Guard
+
+- 覆盖矩阵：数据库基线 / CRUD 操作事务边界；播放服务矩阵 / 流媒体曲目删除、播放历史与队列引用一致性。
+- 新增自动化护栏：`EchoDatabaseHelperTest.deleteStreamTracksRollsBackTrackDeleteWhenReferenceCleanupFails`。
+- 验证点：`EchoDatabaseHelper.deleteStreamTracks()` 通过 `deleteTracksWhere(...)` 在同一个 SQLite transaction 内清理 stream 曲目、收藏、最近播放、play_events、歌单项和播放队列引用；当引用清理失败时，stream 曲目删除会回滚，避免“引用仍在但曲目已丢失”的孤儿数据状态。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.deleteStreamTracksRollsBackTrackDeleteWhenReferenceCleanupFails --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 Robolectric/SQLite 层基线，不替代真机删除流媒体曲目/清空全部流媒体曲目后的播放队列、最近播放 UI 和 logcat 验收。
+
+## 2026-07-07 WebDAV Cache-Only Delete Reference Rollback Guard
+
+- 覆盖矩阵：数据库基线 / CRUD 操作事务边界；播放服务矩阵 / WebDAV 同步刷新缓存、远程源缓存数据一致性。
+- 新增自动化护栏：`EchoDatabaseHelperTest.deleteRemoteSourceTracksRollsBackWhenReferenceCleanupFails`。
+- 验证点：`EchoDatabaseHelper.deleteRemoteSourceTracks(...)` 只清理指定 WebDAV source 的 `webdav:<sourceId>:` 缓存曲目，不删除 `remote_sources` 行；当 play_history 等引用清理失败时，缓存曲目删除会回滚，避免 WebDAV 同步/刷新缓存时出现“源仍存在但缓存曲目或历史引用半丢失”的状态。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.deleteRemoteSourceTracksRollsBackWhenReferenceCleanupFails --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 Robolectric/SQLite 层基线，不替代真机 WebDAV 同步、播放队列恢复和最近播放 UI 验收。
+
+## 2026-07-07 Playback/App Broad Unit Regression Gate
+
+- 覆盖矩阵：P0 单元测试护栏；播放服务矩阵 / 队列恢复、通知控制、耳机断开、错误恢复、睡眠定时、MediaLibrary 过滤、Session seek 边界。
+- 验证目的：在继续真机矩阵前，先确认本轮 `EchoPlaybackService` owner 收敛、`PlaybackQueueManager` 恢复规则、`PlaybackSessionPlayer` seek 边界和数据库事务护栏没有破坏现有 Robolectric/JVM 基线。
+- 验证命令：
+  - `./gradlew.bat :feature:playback:testDebugUnitTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.* --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :app:testDebugUnitTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：`adb devices` 仍未列出设备；这些自动化结果只证明单元层和 Robolectric 层回归通过，不替代 `PLAYBACK_SERVICE_STABILITY_MATRIX.md` 中后台播放、锁屏/通知控制、蓝牙/耳机/来电中断和杀进程恢复的真机证据。
+
+## 2026-07-07 Queued Streaming Placeholder Playlist Delete Guard
+
+- 覆盖矩阵：数据库基线 / CRUD 操作事务边界；播放服务矩阵 / 冷启动队列恢复、流媒体队列恢复。
+- 修复点：`EchoDatabaseHelper.deletePlaylist(...)` 中 streaming orphan 删除路径复用现有 `deleteTracksByIds(...)` 引用清理 owner，并移除重复的 `deleteStreamingTracksByIds(...)` 纯转发/重复实现，避免两套引用清理规则分叉。
+- 新增自动化护栏：`EchoDatabaseHelperTest.deletePlaylistKeepsQueuedStreamingPlaceholderForPlaybackRestore`。
+- 验证点：删除只包含某个 streaming placeholder 的 playlist 时，如果该 placeholder 仍在 playback queue 中，曲目和队列快照必须保留，当前队列索引不能被重写；这样冷启动/杀进程恢复仍能看到原队列，而 playlist membership 已被删除。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest.deletePlaylistKeepsQueuedStreamingPlaceholderForPlaybackRestore --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 SQLite/Robolectric 层队列恢复基线，不替代真机冷启动、杀进程恢复和流媒体队列播放录屏/logcat。
+
+## 2026-07-07 Streaming Guard And Debug APK Build Gate
+
+- 覆盖矩阵：P0 单元测试护栏；播放服务矩阵 / 真机验收前 APK 可安装性前置门禁。
+- 验证目的：在当前大量播放/数据库稳定性改动之后，重新确认 `StreamingViewModelTest` 仍保持绿色，并且 `:app:assembleDebug` 能产出 debug APK，避免进入设备矩阵前才发现核心编译或打包失败。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.StreamingViewModelTest :app:assembleDebug --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 产物入口：`app/build/outputs/apk/debug/app-debug.apk`。
+- 设备状态：本门禁只证明核心 streaming 单测与 debug APK 构建通过；后台播放、锁屏/通知、蓝牙/耳机/来电、冷启动/杀进程恢复仍需连接设备后按 `PLAYBACK_SERVICE_STABILITY_MATRIX.md` 录屏和采集 logcat。
+
+## 2026-07-07 Playback Queue Restore Owner Collapse
+
+- 覆盖矩阵：P1 收敛已有抽象层；播放服务矩阵 / 冷启动队列恢复、杀进程恢复的非真机 owner 边界。
+- 修复点：删除纯转发 `PlaybackQueueRestoreOwner` 与对应孤立转发测试；`EchoPlaybackService` 直接调用现有
+  `PlaybackQueueManager.restorePlaybackQueue()`、`restoreLastPlayback(...)`、`setPlaybackRestoreEnabled(...)`。
+- 边界说明：队列恢复、resume 标记、持久化读写和 enablement 状态仍由 `PlaybackQueueManager` / `PlaybackQueueStore`
+  拥有；Service 只把 `RestorePlaybackResult` 映射到已有生命周期动作（创建 player、prepare、publish state），没有新增
+  Manager/Coordinator/Controller。
+- 架构护栏：`MainActivityArchitectureContractTest` 现在明确禁止 `PlaybackQueueRestoreOwner` 回归，同时继续禁止 Service 直接读取
+  playback queue/position/resume repository 状态。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat :app:testDebugUnitTest --tests StreamingViewModelTest :feature:playback:testDebugUnitTest :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-release.ps1` — 通过（BUILD SUCCESSFUL）。
+  - `git diff --check` — 通过；仅有 Windows CRLF 工作区提示。
+  - `adb devices` — 未发现设备。
+- 设备状态：这是架构收敛与非真机回归门禁，不替代冷启动/杀进程恢复的真机录屏与 logcat。
+
+## 2026-07-07 Repository-Level Unit Gate Flake Fix
+
+- 覆盖矩阵：P0 单元测试护栏；播放服务矩阵 / 人工矩阵前后仓库级 `testDebugUnitTest` 门禁。
+- 发现问题：`./gradlew.bat testDebugUnitTest --console=plain` 首次运行暴露 `LibraryGroupsRenderControllerTest.ignoresStaleArtistInfoWhenAnotherArtistIsOpened` 偶发失败；focused rerun 可过，说明测试只等待 pending UI 回调数量，可能只执行到预览/旧请求回调而未等到最终 LiSA 在线简介渲染。
+- 修复点：该测试现在同步收集 pending UI 回调，并在 `waitUntil` 中持续 drain 回调直到当前 track list 是 LiSA 且 artist intro 包含 `LiSA online`，再断言旧 Aimer 简介未污染当前页面。
+- 验证命令：
+  - `./gradlew.bat :app:testDebugUnitTest --tests app.yukine.LibraryGroupsRenderControllerTest.ignoresStaleArtistInfoWhenAnotherArtistIsOpened --console=plain` — 通过（BUILD SUCCESSFUL）。
+  - `./gradlew.bat testDebugUnitTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 JVM/Robolectric 层门禁恢复，不替代真机播放服务矩阵。
+
+## 2026-07-07 Streaming Restore Owner Collapse
+
+- 覆盖矩阵：P1 收敛已有抽象层；播放服务矩阵 / 冷启动队列恢复、杀进程恢复、流媒体队列恢复的非真机 owner 边界。
+- 修复点：删除纯转发 `PlaybackQueueStreamingRestoreOwner` 与对应孤立转发测试；`PlaybackMediaSourceProvider` 直接实现
+  `PlaybackQueueManager.StreamingRestoreProvider`，让 restored track lookup 与 streaming header restore 留在既有 URI/media-item/cache-key owner 内。
+- 边界说明：`EchoPlaybackService` 只把既有 `mediaSourceProvider` 传给 `PlaybackQueueManager`；Service 不直接读取
+  `StreamingPlaybackHeaderStore`，也不新增匿名 `StreamingRestoreProvider` 或新的 Manager/Coordinator/Controller。
+- 架构护栏：`MainActivityArchitectureContractTest` 禁止 `PlaybackQueueStreamingRestoreOwner` 回归，并要求 provider 继续实现
+  `PlaybackQueueManager.StreamingRestoreProvider`。
+- 行为护栏：`PlaybackMediaSourceProviderTest.streamingRestoreProviderPortDelegatesToHeaderStore` 覆盖 queue restore port，验证 restored track lookup 与 data-path header restore 都委托到既有 `StreamingPlaybackHeaderStore`，避免只依赖字符串契约。
+- 验证命令：
+  - `./gradlew.bat :feature:playback:compileDebugKotlin :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain` — 通过（BUILD SUCCESSFUL）。
+- 设备状态：这是 owner 收敛和 JVM/Robolectric 层恢复护栏，不替代冷启动/杀进程恢复、后台播放、锁屏/通知、耳机/蓝牙/来电中断的真机录屏和 logcat。

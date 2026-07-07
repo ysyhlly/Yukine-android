@@ -6,6 +6,8 @@ import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.util.LruCache;
 
+import androidx.core.content.ContextCompat;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -62,7 +64,7 @@ final class PlaybackNotificationArtworkManager implements PlaybackNotificationAr
                 context,
                 stateProvider,
                 notificationBridge,
-                command -> context.getMainExecutor().execute(command),
+                command -> ContextCompat.getMainExecutor(context).execute(command),
                 null,
                 null
         );

@@ -10,9 +10,12 @@ import app.yukine.R
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackNotificationArtworkSource
 import app.yukine.playback.service.PlaybackServiceActions
+import androidx.annotation.OptIn
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.util.UnstableApi
 import java.util.function.Supplier
 
+@OptIn(UnstableApi::class)
 internal class PlaybackNotificationManager(
     private val context: Context,
     private val foregroundController: ForegroundController,

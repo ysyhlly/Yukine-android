@@ -368,3 +368,148 @@ Playback tests outrank UI snapshots for this area: queue restore, skip next/prev
 4. 为 `EchoDatabaseHelper` 设计 migration/事务测试基线，不在无测试状态下直接 Room 重写。
 5. 增加结构性依赖检查和 smoke 记录：`EchoPlaybackService` 不应依赖 `MainActivity`，播放/通知/队列恢复路径必须可复现。
 6. 在继续代码迁移前，先完成一次可审查基线提交或用户确认的稳定点。
+
+## 2026-07-07 Abstraction Convergence Audit
+
+This pass intentionally did **not** add any new Manager/Coordinator/Controller layer. It checked the
+current root/app playback owner surface before choosing the next slice.
+
+Commands/evidence used:
+
+```powershell
+# Controller/Manager/Coordinator size and listener reference inventory across app + feature modules.
+# Focused CodeGraph queries for MainActivityBase, PlaybackStateUpdateController,
+# PlaybackControllerMediaItemsOwner, MainUiShellController, and playback queue owner candidates.
+```
+
+Findings:
+
+- `PlaybackStateUpdateController` is small, but it is not pure forwarding: it owns playback-state derived
+  decisions (`loadLyrics`, history refresh, selected-tab render, Now Playing update, error display) and is
+  protected by `PlaybackStateUpdateControllerTest` plus architecture contracts. Do not delete it as a
+  cosmetic cleanup.
+- `PlaybackControllerMediaItemsOwner` is also small, but it owns the Media3 controller-queue resolution to
+  local queue playback handoff and has dedicated tests. Keep it until controller media item handling is moved
+  into a stronger playback command boundary.
+- `MainUiShellController` centralizes theme-surface and toast/status suppression; deleting it would push UI
+  shell state back into `MainActivityBase`, which violates the current Activity slimming direction.
+- Playback `*Owner` classes remain numerous. Many are architecture-contract protected, so removing one safely
+  requires replacing string-only contracts with behavior tests for the affected shutdown/queue/notification path
+  first.
+- The safest immediate P0 work is still behavior evidence, not structural deletion. This pass therefore
+  strengthened `EchoDatabaseHelperTest` transaction coverage instead of forcing a risky owner removal.
+
+Next candidate convergence slices:
+
+1. Replace brittle architecture assertions for one playback owner with behavior tests, then remove or merge the
+   owner only if the replacement shortens the Service path and reduces total forwarding methods.
+2. Audit `PlaybackQueueRuntimeStateManager` + `PlaybackQueueMirrorStateOwner` together. They currently isolate
+   `playerMirrorsQueue`; merging is only acceptable if it does not reintroduce direct runtime-state calls into
+   `EchoPlaybackService`.
+3. Audit shutdown owners (`PlaybackQueuePersistenceOwner`, lifecycle/service/playback resource owners) as a
+   batch. Do not collapse them until shutdown order has behavior tests for queue persistence, resume-request
+   clearing, notification teardown, and player release.
+
+## 2026-07-07 QueueProvider Production Guard
+
+Follow-up architecture guard after the abstraction audit:
+
+- Production source no longer contains `PlaybackQueueManager.QueueProvider` or a `QueueProvider` interface.
+- Added `MainActivityArchitectureContractTest.productionPlaybackQueueManagerDoesNotReintroduceQueueProviderInterface` to scan `feature/playback/src/main/java` and `app/src/main/java/app/yukine/playback` for `QueueProvider` / `queueProvider` reintroduction.
+- This is a regression alarm only; behavior remains protected by the focused queue, restore, persistence, and database transaction tests.
+
+Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest.productionPlaybackQueueManagerDoesNotReintroduceQueueProviderInterface --console=plain
+# BUILD SUCCESSFUL
+```
+
+## 2026-07-07 Playback Queue Persistence Owner Collapse
+
+Follow-up to the abstraction convergence audit: `PlaybackQueuePersistenceOwner` was removed as a pure
+forwarding owner.
+
+## 2026-07-07 Playback Queue Restore Owner Collapse
+
+Follow-up pure-forwarding convergence slice:
+
+- Removed `PlaybackQueueRestoreOwner` and its isolated forwarding test.
+- `EchoPlaybackService` now calls the existing `PlaybackQueueManager` restore APIs directly for service start,
+  user-requested restore, and restore-enable runtime setting updates.
+- Queue restore policy remains in `PlaybackQueueManager`; the service only maps
+  `RestorePlaybackResult` to existing service lifecycle actions (`createPlayerIfNeeded`,
+  `prepareCurrent`, `publishState`).
+- `MainActivityArchitectureContractTest` now prevents `PlaybackQueueRestoreOwner` from returning, while still
+  requiring persistence and restore-enable state to stay out of the service.
+- Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+# BUILD SUCCESSFUL
+
+.\gradlew.bat :app:testDebugUnitTest --tests StreamingViewModelTest :feature:playback:testDebugUnitTest :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest --console=plain
+# BUILD SUCCESSFUL
+
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-release.ps1
+# BUILD SUCCESSFUL
+```
+
+What changed:
+
+- Deleted `app/src/main/java/app/yukine/playback/PlaybackQueuePersistenceOwner.java` and its forwarding-only
+  unit test.
+- `EchoPlaybackService` now calls the existing real owner, `PlaybackQueueManager`, directly for play/pause
+  resume-request writes and throttled position persistence.
+- Shutdown queue persistence still stays out of anonymous service wiring through
+  `PlaybackShutdownLifecycleResourcesOwner.playbackQueueLifecycleStoreFromQueueManager(...)`, which adapts the
+  existing `PlaybackQueueManager` to the lifecycle shutdown boundary.
+- Added behavior coverage for the lifecycle adapter in `PlaybackShutdownLifecycleResourcesOwnerTest` so this
+  is not protected only by string contracts.
+
+Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackShutdownLifecycleResourcesOwnerTest --tests app.yukine.MainActivityArchitectureContractTest.playbackQueuePersistenceIsOwnedOutsideEchoPlaybackService --tests app.yukine.MainActivityArchitectureContractTest.playbackQueueMutationKeepsOneClearlyNamedEntryPointCluster --tests app.yukine.MainActivityArchitectureContractTest.playbackServiceShutdownIsOwnedOutsideEchoPlaybackService --console=plain
+# BUILD SUCCESSFUL
+```
+
+## 2026-07-07 EchoPlaybackService Forwarding Cleanup
+
+Small convergence slice after the P0 gate work:
+
+- Removed the private `EchoPlaybackService.currentTrack()` and `EchoPlaybackService.isPlaying()` forwarding
+  helpers.
+- Service call sites now consume the existing state owners directly:
+  `PlaybackQueueStateOwner.currentTrack()` and `PlaybackPlayerStateOwner.isPlaying()`.
+- Updated `MainActivityArchitectureContractTest` so the contract prevents the private current-track forwarding
+  helper from returning, while still requiring current-track reads to go through `PlaybackQueueStateOwner`.
+- Audit metrics after the slice: `EchoPlaybackService.java` 1464 lines, 56 `private Playback*` fields,
+  8 `fromPlaybackQueueManager(...)` calls, 42 app playback `Playback*Owner.java` files.
+- This did not add a Manager/Coordinator/Controller and did not move policy back into the service.
+
+Verification:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --tests app.yukine.playback.EchoPlaybackServiceTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+# BUILD SUCCESSFUL
+```
+
+## 2026-07-07 Streaming Restore Owner Collapse
+
+Follow-up pure-forwarding convergence slice:
+
+- Removed `PlaybackQueueStreamingRestoreOwner` and its isolated forwarding-only test.
+- `PlaybackMediaSourceProvider` now directly implements `PlaybackQueueManager.StreamingRestoreProvider`, keeping streaming header restore and restored-track lookup beside URI/media-item/cache-key policy.
+- `EchoPlaybackService` passes the existing media-source owner into `PlaybackQueueManager`; it no longer owns a `PlaybackQueueStreamingRestoreOwner` field or a wrapper construction step.
+- Updated `MainActivityArchitectureContractTest` to prevent the wrapper from returning while still requiring queue restore to go through the narrow `StreamingRestoreProvider` port.
+- Added behavior coverage in `PlaybackMediaSourceProviderTest.streamingRestoreProviderPortDelegatesToHeaderStore`, proving the queue restore port delegates both restored-track lookup and data-path header restore to the existing header store.
+- Audit metrics after the slice: `EchoPlaybackService.java` 1459 lines, 55 `private Playback*` fields, 8 `fromPlaybackQueueManager(...)` calls, 0 `queueStateSnapshot()` suppliers, 41 `Playback*Owner` files.
+- This did not add a Manager/Coordinator/Controller and did not move streaming restore policy into the service.
+
+Verification:
+
+```powershell
+.\gradlew.bat :feature:playback:compileDebugKotlin :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackMediaSourceProviderTest --tests app.yukine.playback.PlaybackQueueManagerTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest --console=plain
+# BUILD SUCCESSFUL
+```

@@ -1,5 +1,7 @@
 package app.yukine.playback;
 
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 
@@ -8,6 +10,7 @@ import java.util.List;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackSessionPlayer;
 
+@OptIn(markerClass = UnstableApi.class)
 final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegate {
     interface SeekController {
         void seekTo(long positionMs);

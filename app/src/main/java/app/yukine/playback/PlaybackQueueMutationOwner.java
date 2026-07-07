@@ -52,7 +52,7 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
     }
 
     void retainTracksById(Set<Long> trackIdsToKeep) {
-        if (trackIdsToKeep == null || trackIdsToKeep.isEmpty()) {
+        if (trackIdsToKeep == null) {
             return;
         }
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();

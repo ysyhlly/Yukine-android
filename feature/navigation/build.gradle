@@ -28,6 +28,13 @@ android {
     buildFeatures {
         compose true
     }
+
+    lint {
+        // AGP 8.7 lint crashes in androidx.lifecycle's NullSafeMutableLiveData detector
+        // while analyzing this Compose navigation module's Kotlin UAST. Keep lint enabled and disable
+        // only the broken detector until the AndroidX lint/Kotlin analysis mismatch is fixed.
+        disable "NullSafeMutableLiveData"
+    }
 }
 
 dependencies {

@@ -1,5 +1,7 @@
 package app.yukine.playback;
 
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.exoplayer.source.MediaSource;
 
@@ -8,6 +10,7 @@ import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
 import java.util.function.Function;
 
+@OptIn(markerClass = UnstableApi.class)
 final class PlaybackCurrentTrackPreparationOwner {
     interface QueuePreparationController {
         void replaceCurrentQueueTrack(Track track);

@@ -35,6 +35,7 @@ import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
+@OptIn(markerClass = UnstableApi.class)
 final class PlaybackPrecacheManager {
     static final int PRECACHE_BYTES = 512 * 1024;
     static final int UPCOMING_TRACK_PRECACHE_BYTES = 256 * 1024;

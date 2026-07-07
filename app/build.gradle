@@ -34,6 +34,7 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
     }
 
     kotlinOptions {
@@ -61,7 +62,8 @@ android {
         // while analyzing Kotlin UAST in release builds. Keep lintVital enabled and
         // disable only the broken detector so assembleRelease remains a usable gate.
         disable "NullSafeMutableLiveData"
-        // Existing lint issues are recorded in lint-baseline.xml. New issues outside the baseline fail the build.        baseline = file("lint-baseline.xml")
+        // Existing lint issues are recorded in lint-baseline.xml. New issues outside the baseline fail the build.
+        baseline = file("lint-baseline.xml")
     }
 
     signingConfigs {
@@ -92,6 +94,8 @@ ksp {
 }
 
 dependencies {
+    coreLibraryDesugaring libs.desugar.jdk.libs
+
     // Project modules
     implementation project(":core:model")
     implementation project(":core:common")

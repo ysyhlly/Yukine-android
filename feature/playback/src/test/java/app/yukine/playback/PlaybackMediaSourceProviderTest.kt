@@ -10,6 +10,7 @@ import app.yukine.common.StreamingDataPathParser
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackMediaSourceProvider
+import app.yukine.playback.manager.PlaybackQueueManager
 import app.yukine.streaming.StreamingPlaybackHeaderStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -472,6 +473,28 @@ class PlaybackMediaSourceProviderTest {
 
         assertSame(unresolved, headerStore.restoredTrackInput)
         assertSame(resolved, result)
+    }
+
+    @Test
+    fun streamingRestoreProviderPortDelegatesToHeaderStore() {
+        val unresolved = Track(42L, "Stream", "Artist", "Album", 180_000L, Uri.EMPTY, "streaming:netease:42")
+        val resolved = Track(
+            42L,
+            "Stream",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://audio.example/current.flac"),
+            "streaming:netease:42"
+        )
+        val headerStore = FakeStreamingPlaybackHeaderStore(restoredTrack = resolved)
+        val restoreProvider: PlaybackQueueManager.StreamingRestoreProvider = provider(headerStore)
+
+        assertSame(resolved, restoreProvider.restoredTrackFor(unresolved))
+        restoreProvider.restoreForDataPath("streaming:netease:42")
+
+        assertSame(unresolved, headerStore.restoredTrackInput)
+        assertEquals("streaming:netease:42", headerStore.restoredDataPath)
     }
 
     @Test

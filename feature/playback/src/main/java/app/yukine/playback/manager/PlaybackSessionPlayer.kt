@@ -25,6 +25,8 @@ internal class PlaybackSessionPlayer(
             Player.REPEAT_MODE_OFF -> 2
             else -> 0
         }
+
+        private fun safeSeekPosition(positionMs: Long): Long = maxOf(0L, positionMs)
     }
 
     interface Delegate {
@@ -44,8 +46,8 @@ internal class PlaybackSessionPlayer(
 
     override fun play() = delegate.play()
     override fun pause() = delegate.pause()
-    override fun seekTo(positionMs: Long) = delegate.seekTo(positionMs)
-    override fun seekTo(mediaItemIndex: Int, positionMs: Long) = delegate.seekTo(positionMs)
+    override fun seekTo(positionMs: Long) = delegate.seekTo(safeSeekPosition(positionMs))
+    override fun seekTo(mediaItemIndex: Int, positionMs: Long) = delegate.seekTo(safeSeekPosition(positionMs))
 
     override fun isCommandAvailable(command: Int): Boolean {
         if (isAppQueueNavigationCommand(command)

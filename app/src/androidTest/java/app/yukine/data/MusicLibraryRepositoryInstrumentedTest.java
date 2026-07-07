@@ -22,6 +22,7 @@ import app.yukine.model.PlaylistImportResult;
 import app.yukine.model.StreamImportResult;
 import app.yukine.model.Track;
 import app.yukine.model.TrackPlayRecord;
+import app.yukine.common.StreamingDataPathParser;
 
 @RunWith(AndroidJUnit4.class)
 public final class MusicLibraryRepositoryInstrumentedTest {
@@ -34,7 +35,7 @@ public final class MusicLibraryRepositoryInstrumentedTest {
     public void setUp() {
         context = ApplicationProvider.getApplicationContext();
         context.deleteDatabase(DATABASE_NAME);
-        repository = new MusicLibraryRepository(context);
+        repository = new MusicLibraryRepository(context, new FakeStreamingDataPathParser());
     }
 
     @After
@@ -241,5 +242,23 @@ public final class MusicLibraryRepositoryInstrumentedTest {
         assertEquals("本地曲目", playlistTracks.get(0).title);
         assertEquals("网络曲目", playlistTracks.get(1).title);
         assertEquals(2, repository.loadCachedTracks().size());
+    }
+
+
+    private static final class FakeStreamingDataPathParser implements StreamingDataPathParser {
+        @Override
+        public boolean isStreamingTrack(String dataPath) {
+            return dataPath != null && dataPath.startsWith("streaming:");
+        }
+
+        @Override
+        public String providerName(String dataPath) {
+            return null;
+        }
+
+        @Override
+        public String providerTrackId(String dataPath) {
+            return "";
+        }
     }
 }

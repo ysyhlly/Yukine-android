@@ -192,9 +192,6 @@ public final class MusicLibraryRepository {
     }
 
     public long saveWebDavSource(long sourceId, String name, String baseUrl, String username, String password, String rootPath) {
-        if (sourceId > 0L) {
-            database.deleteRemoteSourceTracks(sourceId);
-        }
         RemoteSource source = new RemoteSource(
                 sourceId,
                 RemoteSource.TYPE_WEBDAV,

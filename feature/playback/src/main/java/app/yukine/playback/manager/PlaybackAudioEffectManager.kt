@@ -8,7 +8,10 @@ import android.os.Build
 import android.util.Log
 import app.yukine.playback.AudioEffectSettings
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 
+@OptIn(UnstableApi::class)
 internal class PlaybackAudioEffectManager(
     private val logTag: String
 ) {

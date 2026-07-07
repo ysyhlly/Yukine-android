@@ -91,6 +91,60 @@ class PlaybackMediaLibraryCallbackTest {
     }
 
     @Test
+    fun controllerQueueForMediaItemsRemapsStartIndexAfterFilteringUnresolvedItems() {
+        val callback = PlaybackMediaLibraryCallback(
+            FakeDataSource(
+                listOf(
+                    track(1L, Uri.parse("file:///music/one.flac")),
+                    track(3L, Uri.parse("file:///music/three.flac")),
+                    track(4L, Uri.parse("file:///music/four.flac"))
+                )
+            )
+        )
+
+        val queue = callback.controllerQueueForMediaItems(
+            listOf(
+                MediaItem.Builder().setMediaId("1").build(),
+                MediaItem.Builder().setMediaId("missing").build(),
+                MediaItem.Builder().setMediaId("echo:auto:track:3").build(),
+                MediaItem.Builder().setMediaId("4").build()
+            ),
+            startIndex = 2,
+            startPositionMs = 3600L
+        )
+
+        assertEquals(listOf(1L, 3L, 4L), queue?.tracks?.map { it.id })
+        assertEquals(1, queue?.startIndex)
+        assertEquals(3600L, queue?.startPositionMs)
+    }
+
+    @Test
+    fun controllerQueueForMediaItemsFallsForwardOrBackWhenRequestedStartItemIsFiltered() {
+        val callback = PlaybackMediaLibraryCallback(
+            FakeDataSource(
+                listOf(
+                    track(1L, Uri.parse("file:///music/one.flac")),
+                    track(3L, Uri.parse("file:///music/three.flac"))
+                )
+            )
+        )
+        val mediaItems = listOf(
+            MediaItem.Builder().setMediaId("1").build(),
+            MediaItem.Builder().setMediaId("missing").build(),
+            MediaItem.Builder().setMediaId("echo:auto:track:3").build()
+        )
+
+        val fallsForward = callback.controllerQueueForMediaItems(mediaItems, startIndex = 1, startPositionMs = 0L)
+        val fallsBack = callback.controllerQueueForMediaItems(mediaItems, startIndex = 99, startPositionMs = 0L)
+        val negativeClampsToFirst = callback.controllerQueueForMediaItems(mediaItems, startIndex = -5, startPositionMs = 0L)
+
+        assertEquals(listOf(1L, 3L), fallsForward?.tracks?.map { it.id })
+        assertEquals(1, fallsForward?.startIndex)
+        assertEquals(1, fallsBack?.startIndex)
+        assertEquals(0, negativeClampsToFirst?.startIndex)
+    }
+
+    @Test
     fun controllerQueueForMediaItemsReturnsNullWhenNothingResolves() {
         val callback = PlaybackMediaLibraryCallback(
             FakeDataSource(listOf(track(1L, Uri.parse("file:///music/one.flac"))))

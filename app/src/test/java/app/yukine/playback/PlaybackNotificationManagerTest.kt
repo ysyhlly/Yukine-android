@@ -14,6 +14,7 @@ import app.yukine.playback.service.PlaybackServiceActions
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -84,6 +85,29 @@ class PlaybackNotificationManagerTest {
                 playing = true
             )
         )
+    }
+
+    @Test
+    fun notificationActionsMapToPlaybackServiceControls() {
+        val state = FakeStateProvider()
+        state.track = track(8L)
+        state.playing = false
+        val foreground = FakeForegroundController()
+        val manager = manager(state, foreground)
+
+        var notification = manager.playbackNotification(state.track)
+
+        assertEquals(PlaybackServiceActions.PREVIOUS, foreground.actionFor(notification.actions[0]))
+        assertEquals(PlaybackServiceActions.RESTORE_AND_PLAY, foreground.actionFor(notification.actions[1]))
+        assertEquals(PlaybackServiceActions.NEXT, foreground.actionFor(notification.actions[2]))
+        assertEquals(PlaybackServiceActions.TOGGLE_FAVORITE, foreground.actionFor(notification.actions[3]))
+        assertEquals(PlaybackServiceActions.STOP, foreground.actionFor(notification.actions[4]))
+
+        state.playing = true
+        notification = manager.playbackNotification(state.track)
+
+        assertEquals(PlaybackServiceActions.PAUSE, foreground.actionFor(notification.actions[1]))
+        assertEquals(PlaybackServiceActions.STOP, foreground.actionFor(notification.actions[4]))
     }
 
     @Test
@@ -309,17 +333,25 @@ class PlaybackNotificationManagerTest {
 
     private class FakeForegroundController : PlaybackNotificationManager.ForegroundController {
         var startedNotifications = 0
+        private val pendingIntentActions = mutableMapOf<PendingIntent, String>()
 
         override fun activityPendingIntent(): PendingIntent {
             return pendingIntent()
         }
 
         override fun serviceActionPendingIntent(action: String, requestCode: Int): PendingIntent {
-            return pendingIntent(requestCode)
+            val intent = pendingIntent(requestCode)
+            pendingIntentActions[intent] = action
+            return intent
         }
 
         override fun startPlaybackForeground(notification: Notification) {
             startedNotifications++
+        }
+
+        fun actionFor(action: Notification.Action): String? {
+            assertNotNull(action.actionIntent)
+            return pendingIntentActions[action.actionIntent]
         }
 
         private fun pendingIntent(requestCode: Int = 0): PendingIntent {

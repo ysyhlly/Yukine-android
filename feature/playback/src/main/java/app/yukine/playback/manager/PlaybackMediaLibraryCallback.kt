@@ -8,6 +8,8 @@ import androidx.media3.session.MediaLibraryService.LibraryParams
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionError
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import app.yukine.model.Playlist
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
@@ -16,6 +18,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import java.util.ArrayList
 
+@OptIn(UnstableApi::class)
 internal class PlaybackMediaLibraryCallback(
     private val dataSource: DataSource
 ) : MediaLibrarySession.Callback {
@@ -95,17 +98,21 @@ internal class PlaybackMediaLibraryCallback(
         startIndex: Int,
         startPositionMs: Long
     ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        val resolvedTracks = resolvedTracksForMediaItems(mediaItems)
         val resolved = ArrayList<MediaItem>()
-        for (track in tracksForMediaItems(mediaItems)) {
-            resolved.add(mediaItemForTrack(track))
+        for (resolvedTrack in resolvedTracks) {
+            resolved.add(mediaItemForTrack(resolvedTrack.track))
         }
-        if (resolved.isEmpty()) {
+        val resolvedStartIndex = if (resolved.isEmpty()) {
             resolved.addAll(mediaItems)
+            maxOf(0, minOf(startIndex, maxOf(resolved.size - 1, 0)))
+        } else {
+            remappedControllerStartIndex(resolvedTracks, startIndex)
         }
         return Futures.immediateFuture(
             MediaSession.MediaItemsWithStartPosition(
                 resolved,
-                maxOf(0, minOf(startIndex, maxOf(resolved.size - 1, 0))),
+                resolvedStartIndex,
                 startPositionMs
             )
         )
@@ -223,14 +230,23 @@ internal class PlaybackMediaLibraryCallback(
         return items
     }
 
-    private fun tracksForMediaItems(mediaItems: List<MediaItem>?): List<Track> {
+    private data class ResolvedControllerTrack(
+        val originalIndex: Int,
+        val track: Track
+    )
+
+    private fun tracksForMediaItems(mediaItems: List<MediaItem>?): List<Track> =
+        resolvedTracksForMediaItems(mediaItems).map { it.track }
+
+    private fun resolvedTracksForMediaItems(mediaItems: List<MediaItem>?): List<ResolvedControllerTrack> {
         if (mediaItems == null || mediaItems.isEmpty()) {
             return emptyList()
         }
         val tracksById = dataSource.loadCachedTracks().associateBy { it.id }
-        val tracks = ArrayList<Track>()
-        for (mediaItem in mediaItems) {
-            trackForMediaItem(mediaItem, tracksById)?.let { tracks.add(it) }
+        val tracks = ArrayList<ResolvedControllerTrack>()
+        for ((index, mediaItem) in mediaItems.withIndex()) {
+            val track = trackForMediaItem(mediaItem, tracksById) ?: continue
+            tracks.add(ResolvedControllerTrack(index, track))
         }
         return tracks
     }
@@ -240,11 +256,30 @@ internal class PlaybackMediaLibraryCallback(
         startIndex: Int,
         startPositionMs: Long
     ): ControllerQueue? {
-        val tracks = tracksForMediaItems(mediaItems)
-        if (tracks.isEmpty()) {
+        val resolvedTracks = resolvedTracksForMediaItems(mediaItems)
+        if (resolvedTracks.isEmpty()) {
             return null
         }
-        return ControllerQueue(tracks, startIndex, startPositionMs)
+        val remappedStartIndex = remappedControllerStartIndex(resolvedTracks, startIndex)
+        return ControllerQueue(resolvedTracks.map { it.track }, remappedStartIndex, startPositionMs)
+    }
+
+    private fun remappedControllerStartIndex(
+        resolvedTracks: List<ResolvedControllerTrack>,
+        requestedStartIndex: Int
+    ): Int {
+        if (requestedStartIndex < 0) {
+            return 0
+        }
+        val exactMatch = resolvedTracks.indexOfFirst { it.originalIndex == requestedStartIndex }
+        if (exactMatch >= 0) {
+            return exactMatch
+        }
+        val firstAfterRequested = resolvedTracks.indexOfFirst { it.originalIndex > requestedStartIndex }
+        if (firstAfterRequested >= 0) {
+            return firstAfterRequested
+        }
+        return resolvedTracks.lastIndex
     }
 
     private fun trackForMediaItem(mediaItem: MediaItem?, tracksById: Map<Long, Track>): Track? {
