@@ -16,8 +16,12 @@ internal fun interface SelectedStreamingQualityProvider {
     fun selectedStreamingQuality(): StreamingAudioQuality
 }
 
-internal fun interface StreamingQueueSnapshotSource {
+internal interface StreamingQueueReadSource {
     fun queueSnapshot(): List<Track>
+
+    fun queueSize(): Int
+
+    fun queueTrackAt(index: Int): Track?
 }
 
 internal fun interface HeartbeatRecommendationAppendHandler {
@@ -33,7 +37,7 @@ internal fun interface MainStreamingPlaybackListenerFactory {
         languageProvider: StreamingPlaybackLanguageProvider,
         adaptiveQualityProvider: AdaptiveStreamingQualityProvider,
         selectedQualityProvider: SelectedStreamingQualityProvider,
-        queueSnapshotSource: StreamingQueueSnapshotSource,
+        queueSource: StreamingQueueReadSource,
         heartbeatAppendHandler: HeartbeatRecommendationAppendHandler,
         resultSink: PlaybackActionResultSink,
         statusSink: StreamingPlaybackStatusSink
@@ -44,7 +48,7 @@ internal class MainStreamingPlaybackListener(
     private val languageProvider: StreamingPlaybackLanguageProvider,
     private val adaptiveQualityProvider: AdaptiveStreamingQualityProvider,
     private val selectedQualityProvider: SelectedStreamingQualityProvider,
-    private val queueSnapshotSource: StreamingQueueSnapshotSource,
+    private val queueSource: StreamingQueueReadSource,
     private val heartbeatAppendHandler: HeartbeatRecommendationAppendHandler,
     private val resultSink: PlaybackActionResultSink,
     private val statusSink: StreamingPlaybackStatusSink
@@ -59,7 +63,13 @@ internal class MainStreamingPlaybackListener(
         selectedQualityProvider.selectedStreamingQuality()
 
     override fun queueSnapshot(): List<Track> =
-        queueSnapshotSource.queueSnapshot()
+        queueSource.queueSnapshot()
+
+    override fun queueSize(): Int =
+        queueSource.queueSize()
+
+    override fun queueTrackAt(index: Int): Track? =
+        queueSource.queueTrackAt(index)
 
     override fun maybeAppendHeartbeatRecommendations(snapshot: PlaybackStateSnapshot) {
         heartbeatAppendHandler.maybeAppendHeartbeatRecommendations(snapshot)

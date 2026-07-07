@@ -6,6 +6,9 @@ import app.yukine.streaming.StreamingProviderName
 import kotlin.random.Random
 
 private const val HEARTBEAT_SEED_SAMPLE_SIZE = 12
+private const val HEARTBEAT_QUEUE_CONTEXT_LIMIT = 48
+private const val HEARTBEAT_LIBRARY_CONTEXT_LIMIT = 16
+private const val HEARTBEAT_CURRENT_WINDOW_RADIUS = 6
 
 internal fun interface HeartbeatSeedRequestProvider {
     fun request(provider: StreamingProviderName): HeartbeatRecommendationSeedRequest
@@ -40,19 +43,22 @@ internal class HeartbeatRecommendationSeedResolver(
         viewModelQueue: List<Track?>?,
         libraryContextTracks: List<Track?>? = null
     ): HeartbeatRecommendationSeedRequest {
-        val mergedServiceQueue = mergeQueues(serviceQueue, libraryContextTracks)
+        val boundedServiceQueue = boundedSeedQueue(serviceQueue, serviceSnapshot)
+        val boundedViewModelQueue = boundedSeedQueue(viewModelQueue, storeSnapshot)
+        val boundedLibraryContext = libraryContextTracks?.take(HEARTBEAT_LIBRARY_CONTEXT_LIMIT)
+        val mergedServiceQueue = mergeQueues(boundedServiceQueue, boundedLibraryContext)
         val candidates = randomSeedCandidates(
             trackMatchStore.heartbeatSeedCandidates(
                 serviceSnapshot,
                 mergedServiceQueue,
                 storeSnapshot,
-                viewModelQueue
+                boundedViewModelQueue
             )
         )
         val seedTrackId = trackMatchStore.providerTrackIdFromCandidates(candidates, provider).trim()
         val queue = trackMatchStore.snapshotQueueForHeartbeat(
             mergedServiceQueue,
-            viewModelQueue,
+            boundedViewModelQueue,
             storeSnapshot
         )
         val diagnosticSnapshot = serviceSnapshot ?: storeSnapshot
@@ -81,6 +87,39 @@ internal class HeartbeatRecommendationSeedResolver(
             return contextTracks
         }
         return contextTracks + primaryQueue
+    }
+
+    private fun boundedSeedQueue(
+        queue: List<Track?>?,
+        snapshot: PlaybackStateSnapshot?
+    ): List<Track?>? {
+        if (queue.isNullOrEmpty() || queue.size <= HEARTBEAT_QUEUE_CONTEXT_LIMIT) {
+            return queue
+        }
+        val bounded = ArrayList<Track?>(HEARTBEAT_QUEUE_CONTEXT_LIMIT)
+        val seenIndexes = HashSet<Int>()
+        fun addIndex(index: Int) {
+            if (index in queue.indices &&
+                bounded.size < HEARTBEAT_QUEUE_CONTEXT_LIMIT &&
+                seenIndexes.add(index)
+            ) {
+                bounded += queue[index]
+            }
+        }
+        val currentIndex = snapshot?.currentIndex ?: -1
+        if (currentIndex in queue.indices) {
+            val start = (currentIndex - HEARTBEAT_CURRENT_WINDOW_RADIUS).coerceAtLeast(0)
+            val end = (currentIndex + HEARTBEAT_CURRENT_WINDOW_RADIUS).coerceAtMost(queue.lastIndex)
+            for (index in start..end) {
+                addIndex(index)
+            }
+        }
+        var index = 0
+        while (bounded.size < HEARTBEAT_QUEUE_CONTEXT_LIMIT && index < queue.size) {
+            addIndex(index)
+            index += 1
+        }
+        return bounded
     }
 
     private fun randomSeedCandidates(candidates: List<Track>): List<Track> {

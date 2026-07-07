@@ -84,7 +84,7 @@ internal object DashboardJson {
             title = obj.optString("title", ""),
             artist = obj.optString("artist", ""),
             album = obj.optString("album", ""),
-            artworkUrl = obj.optString("artworkUrl", null),
+            artworkUrl = obj.optNullableString("artworkUrl"),
             isPlaying = obj.optBoolean("isPlaying", false),
             positionMs = obj.optLong("positionMs", 0L),
             durationMs = obj.optLong("durationMs", 0L)
@@ -96,11 +96,11 @@ internal object DashboardJson {
             isPlaying = obj.optBoolean("isPlaying", false),
             positionMs = obj.optLong("positionMs", 0L),
             durationMs = obj.optLong("durationMs", 0L),
-            trackId = obj.optString("trackId", null),
-            title = obj.optString("title", null),
-            artist = obj.optString("artist", null),
-            album = obj.optString("album", null),
-            artworkUrl = obj.optString("artworkUrl", null)
+            trackId = obj.optNullableString("trackId"),
+            title = obj.optNullableString("title"),
+            artist = obj.optNullableString("artist"),
+            album = obj.optNullableString("album"),
+            artworkUrl = obj.optNullableString("artworkUrl")
         )
     }
 
@@ -113,7 +113,7 @@ internal object DashboardJson {
                 type = obj.optString("type", "played"),
                 title = obj.optString("title", ""),
                 subtitle = obj.optString("subtitle", ""),
-                artworkUrl = obj.optString("artworkUrl", null),
+                artworkUrl = obj.optNullableString("artworkUrl"),
                 timestamp = obj.optLong("timestamp", 0L)
             )
         }
@@ -136,5 +136,12 @@ internal object DashboardJson {
                 count = obj.optInt("count", 0)
             )
         }
+    }
+
+    private fun JSONObject.optNullableString(name: String): String? {
+        if (!has(name) || isNull(name)) {
+            return null
+        }
+        return optString(name, "")
     }
 }

@@ -745,12 +745,18 @@ private fun WaveformProgress(
                             )
                         }
                     }
-                    val cachedWidth = width * cachedProgress.coerceAtLeast(progress)
+                    val visibleWidth = width * waveformVisibleProgressForDraw(
+                        cachedProgress = cachedProgress,
+                        playbackProgress = progress,
+                        serviceHasVisibleWaveform = serviceHasVisibleWaveform,
+                        generatedBars = generatedBars,
+                        barCount = barCount
+                    )
                     for (index in 0 until barCount) {
                         val x = index * (barWidth + gap)
                         val played = x + barWidth / 2f <= playedWidth
-                        val cached = x + barWidth / 2f <= cachedWidth
-                        if (index >= generatedBars || (!played && !cached)) {
+                        val visible = x + barWidth / 2f <= visibleWidth
+                        if (index >= generatedBars || (!played && !visible)) {
                             continue
                         }
                         val normalizedPeak = ((waveformBars.getOrElse(index) { 0f } - visibleMinPeak) / visibleSpan)
@@ -833,6 +839,21 @@ internal fun waveformCachedProgressForDraw(serviceCachedProgress: Float, service
     } else {
         1f
     }
+}
+
+internal fun waveformVisibleProgressForDraw(
+    cachedProgress: Float,
+    playbackProgress: Float,
+    serviceHasVisibleWaveform: Boolean,
+    generatedBars: Int,
+    barCount: Int
+): Float {
+    val baseProgress = cachedProgress.coerceAtLeast(playbackProgress).coerceIn(0f, 1f)
+    if (!serviceHasVisibleWaveform || barCount <= 0) {
+        return baseProgress
+    }
+    val generatedProgress = (generatedBars.toFloat() / barCount.toFloat()).coerceIn(0f, 1f)
+    return baseProgress.coerceAtLeast(generatedProgress)
 }
 
 @Composable

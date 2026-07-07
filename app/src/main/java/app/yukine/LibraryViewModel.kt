@@ -677,6 +677,30 @@ class LibraryViewModel @JvmOverloads constructor(
         )
     }
 
+    fun updateTrackListContentAndChrome(
+        title: String,
+        rows: List<TrackRowUiState>,
+        footerAlbums: List<TrackListAlbumCardUiState>,
+        actions: List<TrackRowActions>,
+        headerMetrics: List<TrackListHeaderMetric>,
+        headerActions: List<TrackListHeaderAction>,
+        emptyText: String,
+        modeActions: List<TrackListModeAction>,
+        labels: TrackListLabels
+    ) {
+        trackListState.value = trackListState.value.copy(
+            title = title,
+            rows = rows.toList(),
+            footerAlbums = footerAlbums.toList(),
+            actions = actions.toList(),
+            headerMetrics = headerMetrics.toList(),
+            headerActions = headerActions.toList(),
+            emptyText = emptyText,
+            modeActions = modeActions.toList(),
+            labels = labels
+        )
+    }
+
     fun clearTrackList() {
         trackListState.value = LibraryTrackListDestinationState()
     }

@@ -47,6 +47,7 @@ internal object PlaybackUiModule {
                 favoriteIdsSource,
                 lyricsStateSource,
                 languageModeSource,
+                queueVisibilitySource,
                 floatingLyricsSink,
                 queueInputsSyncer ->
             MainNowPlayingStateListener(
@@ -55,6 +56,7 @@ internal object PlaybackUiModule {
                 favoriteIdsSource,
                 lyricsStateSource,
                 languageModeSource,
+                queueVisibilitySource,
                 floatingLyricsSink,
                 queueInputsSyncer
             )
@@ -88,26 +90,6 @@ internal object PlaybackUiModule {
                 clearQueueConfirmer,
                 emptyStatusProvider,
                 statusSink
-            )
-        }
-
-    @Provides
-    @ActivityScoped
-    fun provideMainQueueRenderListenerFactory(): MainQueueRenderListenerFactory =
-        MainQueueRenderListenerFactory {
-                trackListPlayer,
-                favoriteToggler,
-                playlistAdder,
-                queueTrackRemover,
-                clearQueueConfirmer,
-                backRequester ->
-            MainQueueRenderListener(
-                trackListPlayer,
-                favoriteToggler,
-                playlistAdder,
-                queueTrackRemover,
-                clearQueueConfirmer,
-                backRequester
             )
         }
 

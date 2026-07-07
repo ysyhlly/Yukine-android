@@ -61,6 +61,43 @@ class NowBarWaveformRangeTest {
     }
 
     @Test
+    fun generatedServiceWaveformStaysVisibleBeforePlaybackOrCacheAdvance() {
+        assertEquals(
+            1f,
+            waveformVisibleProgressForDraw(
+                cachedProgress = 0f,
+                playbackProgress = 0f,
+                serviceHasVisibleWaveform = true,
+                generatedBars = 96,
+                barCount = 96
+            ),
+            0.0001f
+        )
+        assertEquals(
+            0.25f,
+            waveformVisibleProgressForDraw(
+                cachedProgress = 0f,
+                playbackProgress = 0f,
+                serviceHasVisibleWaveform = true,
+                generatedBars = 24,
+                barCount = 96
+            ),
+            0.0001f
+        )
+        assertEquals(
+            0.60f,
+            waveformVisibleProgressForDraw(
+                cachedProgress = 0.60f,
+                playbackProgress = 0.10f,
+                serviceHasVisibleWaveform = true,
+                generatedBars = 24,
+                barCount = 96
+            ),
+            0.0001f
+        )
+    }
+
+    @Test
     fun liveWaveformPeakOnlyMovesWhilePlaying() {
         assertEquals(0.42f, liveWaveformPeak(0.42f, 4, 0.35f, false), 0.0001f)
 

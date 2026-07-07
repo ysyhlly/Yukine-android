@@ -28,14 +28,45 @@ class TrackListRenderControllerTest {
         assertEquals("1", listener.chromeState?.headerMetrics?.single()?.value)
     }
 
+    @Test
+    fun renderPublishesRowsAndActionsTogetherForSecondTrackClick() {
+        val viewModel = LibraryViewModel()
+        val listener = FakeListener()
+        val controller = TrackListRenderController(viewModel, listener)
+        val tracks = listOf(track(1L), track(2L), track(3L))
+
+        controller.render(
+            "Playlist",
+            tracks,
+            true,
+            listOf("", "", ""),
+            false,
+            emptyList(),
+            emptyList(),
+            "",
+            emptyList(),
+            TrackListLabels(),
+            null,
+            emptySet()
+        )
+        viewModel.trackList.value.actions[1].onPlay.run()
+
+        assertEquals(3, viewModel.trackList.value.rows.size)
+        assertEquals(3, viewModel.trackList.value.actions.size)
+        assertEquals(listOf("play:3:1"), listener.playCalls)
+    }
+
     private fun track(id: Long): Track {
         return Track(id, "Track $id", "Artist", "Album", 1000L, Uri.EMPTY, "file:$id")
     }
 
     private class FakeListener : TrackListRenderController.Listener {
         var chromeState: TrackListChromeState? = null
+        val playCalls = ArrayList<String>()
 
-        override fun playTrackList(tracks: List<Track>, index: Int) = Unit
+        override fun playTrackList(tracks: List<Track>, index: Int) {
+            playCalls.add("play:${tracks.size}:$index")
+        }
 
         override fun toggleFavorite(track: Track) = Unit
 

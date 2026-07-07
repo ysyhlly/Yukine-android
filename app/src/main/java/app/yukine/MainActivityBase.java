@@ -91,7 +91,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject MainBackgroundImagePickerListenerFactory backgroundImagePickerListenerFactory;
     @Inject MainPermissionListenerFactory permissionListenerFactory;
     @Inject MainTrackListRenderListenerFactory trackListRenderListenerFactory;
-    @Inject MainQueueRenderListenerFactory queueRenderListenerFactory;
     @Inject LoadLyricsSettingsUseCase loadLyricsSettingsUseCase;
     @Inject LyricsLoader lyricsLoader;
     @Inject NetworkActionUseCases networkActionUseCases;
@@ -163,7 +162,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     private NetworkRenderCoordinator networkRenderCoordinator;
     private SettingsContextProvider settingsContextProvider;
     private TrackListRenderController trackListRenderController;
-    private QueueRenderController queueRenderController;
     private QueueActionController queueActionController;
     private PlaybackActionController playbackActionController;
     private PlaybackStartController playbackStartController;
@@ -547,14 +545,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> runRecommendationAction(new RecommendationAction.PlayHeartbeat(StreamingProviderName.NETEASE)),
                 actions -> homeDashboardViewModel.updateHomeDashboardActions(actions)
         ));
-        queueRenderController = new QueueRenderController(queueRenderListenerFactory.create(
-                this::playTrackListFromHost,
-                track -> libraryViewModel.onEvent(new LibraryEvent.ToggleFavorite(track)),
-                track -> playlistDialogController.showAddToPlaylist(track),
-                track -> queueActionController.removeQueueTrack(track),
-                () -> queueActionController.confirmClearQueue(),
-                this::handleAppBack
-        ));
         playbackActionController = new PlaybackActionController(
                 nowPlayingViewModel,
                 playbackActionListenerFactory.create(
@@ -586,7 +576,22 @@ public abstract class MainActivityBase extends ComponentActivity {
                         () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                         this::adaptiveStreamingQuality,
                         this::selectedStreamingQuality,
-                        () -> playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot(),
+                        new StreamingQueueReadSource() {
+                            @Override
+                            public List<Track> queueSnapshot() {
+                                return playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot();
+                            }
+
+                            @Override
+                            public int queueSize() {
+                                return playbackService == null ? 0 : playbackService.queueSize();
+                            }
+
+                            @Override
+                            public Track queueTrackAt(int index) {
+                                return playbackService == null ? null : playbackService.queueTrackAt(index);
+                            }
+                        },
                         snapshot -> heartbeatRecommendationController.maybeAppendHeartbeatRecommendations(snapshot),
                         this::applyPlaybackActionResult,
                         status -> statusMessageController.setStatus(status)
@@ -615,6 +620,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> libraryStore.favoriteIds(),
                 () -> lyricsViewModel == null ? new LyricsState() : lyricsViewModel.stateSnapshot(),
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                () -> TAB_QUEUE.equals(selectedTab()),
                 (trackTitle, artist, coverUri, playing, activeLine) -> FloatingLyricsPublisher.update(
                         trackTitle,
                         artist,
@@ -2376,12 +2382,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             );
             return;
         }
-        queueRenderController.render(
-                playbackService.queueSnapshot(),
-                playbackStore.snapshot(),
-                libraryStore.favoriteIds(),
-                settingsStore.languageMode()
-        );
+        bindQueueViewModelInputs();
     }
 
     private boolean updateNowPlayingContent() {

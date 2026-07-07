@@ -284,7 +284,49 @@ internal class PlaybackSessionPlayer @JvmOverloads constructor(
         val firstId = delegate.sessionQueueTrackAt(0)?.id ?: -1L
         val currentId = delegate.sessionQueueTrackAt(index)?.id ?: -1L
         val lastId = delegate.sessionQueueTrackAt(size - 1)?.id ?: -1L
-        return SessionQueueKey(size, index, firstId, currentId, lastId)
+        return SessionQueueKey(size, index, firstId, currentId, lastId, sessionQueueFingerprint(size, index))
+    }
+
+    private fun sessionQueueFingerprint(size: Int, currentIndex: Int): Long {
+        var fingerprint = 0xcbf29ce484222325UL.toLong()
+        for (sampleIndex in sessionQueueFingerprintSampleIndices(size, currentIndex)) {
+            val trackId = delegate.sessionQueueTrackAt(sampleIndex)?.id ?: -1L
+            fingerprint = (fingerprint xor sampleIndex.toLong()) * 0x100000001b3L
+            fingerprint = (fingerprint xor trackId) * 0x100000001b3L
+        }
+        return fingerprint
+    }
+
+    private fun sessionQueueFingerprintSampleIndices(size: Int, currentIndex: Int): List<Int> {
+        if (size <= 0) {
+            return emptyList()
+        }
+        if (size <= 32) {
+            return (0 until size).toList()
+        }
+        val indices = LinkedHashSet<Int>()
+        fun add(index: Int) {
+            if (index in 0 until size) {
+                indices.add(index)
+            }
+        }
+        add(0)
+        add(size - 1)
+        for (offset in -3..3) {
+            add(currentIndex + offset)
+        }
+        val fractions = intArrayOf(4, 3, 2)
+        for (divisor in fractions) {
+            add(size / divisor)
+            add(size - 1 - (size / divisor))
+        }
+        val step = maxOf(1, size / 8)
+        var index = step
+        while (index < size - 1) {
+            add(index)
+            index += step
+        }
+        return indices.toList()
     }
 
     private data class SessionQueueKey(
@@ -292,7 +334,8 @@ internal class PlaybackSessionPlayer @JvmOverloads constructor(
         val currentIndex: Int,
         val firstTrackId: Long,
         val currentTrackId: Long,
-        val lastTrackId: Long
+        val lastTrackId: Long,
+        val sampledFingerprint: Long
     )
 
     private class SessionQueueTimeline(private val mediaItems: List<MediaItem>) : Timeline() {

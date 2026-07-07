@@ -110,6 +110,9 @@ internal class PlaybackStateEventController(
     }
 
     private fun publishQueueIfChanged(snapshot: PlaybackStateSnapshot) {
+        if (listener.selectedTab() != MainRoutes.TAB_QUEUE) {
+            return
+        }
         val nextKey = QueueKey.from(snapshot)
         if (nextKey == lastPublishedQueueKey) {
             return

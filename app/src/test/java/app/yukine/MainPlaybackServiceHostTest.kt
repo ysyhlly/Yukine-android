@@ -117,6 +117,10 @@ class MainPlaybackServiceHostTest {
 
         override fun queueSnapshot(): List<Track> = emptyList()
 
+        override fun queueSize(): Int = 0
+
+        override fun queueTrackAt(index: Int): Track? = null
+
         override fun skipToPrevious() = Unit
 
         override fun skipToNext() = Unit

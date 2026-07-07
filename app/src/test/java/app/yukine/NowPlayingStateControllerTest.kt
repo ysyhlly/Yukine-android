@@ -83,9 +83,27 @@ class NowPlayingStateControllerTest {
         assertEquals(3, listener.calls.count { it == "queue" })
     }
 
+    @Test
+    fun queueIdentityChangesDoNotSyncQueueInputsWhenQueueIsHidden() {
+        val listener = FakeListener(
+            queueVisible = false,
+            snapshot = snapshot(positionMs = 1_000L, queueSize = 500)
+        )
+        val controller = NowPlayingStateController(NowPlayingViewModel(), listener)
+
+        controller.renderNowBar()
+        listener.snapshot = snapshot(trackId = 8L, positionMs = 0L, queueSize = 500)
+        controller.renderNowBar()
+        listener.snapshot = snapshot(trackId = 9L, positionMs = 0L, queueSize = 500)
+        controller.renderNowBar()
+
+        assertEquals(0, listener.calls.count { it == "queue" })
+    }
+
     private class FakeListener(
         var storesReady: Boolean = true,
-        var snapshot: PlaybackStateSnapshot = snapshot()
+        var snapshot: PlaybackStateSnapshot = snapshot(),
+        var queueVisible: Boolean = true
     ) : NowPlayingStateController.Listener {
         val calls = mutableListOf<String>()
 
@@ -101,6 +119,8 @@ class NowPlayingStateControllerTest {
         override fun lyricsState(): LyricsState? = null
 
         override fun languageMode(): String = AppLanguage.MODE_ENGLISH
+
+        override fun queueVisible(): Boolean = queueVisible
 
         override fun publishFloatingLyrics(state: NowPlayingUiState) {
             calls += "floating:${state.trackTitle}"

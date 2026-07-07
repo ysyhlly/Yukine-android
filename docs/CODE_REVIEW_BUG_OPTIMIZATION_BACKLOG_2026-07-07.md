@@ -159,7 +159,7 @@ Impact:
 
 ### P2 - Search Input Preserves Unsubmitted Text During Route Refresh
 
-Status: Fixed in current working tree, keep regression coverage; still needs an end-to-end Compose input smoke when UI test infrastructure is available.
+Status: Fixed and guarded in current working tree.
 
 Evidence:
 
@@ -320,62 +320,380 @@ Guardrail:
 
 - `PlaybackSessionCommandOwnerTest.delegatesMediaSessionCommandsToPlaybackOwners`
 
-## Open Findings
+### P2 - Session Queue Timeline Reuses Cached Timeline And Narrow Reads
 
-### P2 - Session Queue Timeline Rebuilds The Full Queue On System Reads
-
-Status: Open.
+Status: Fixed in current working tree, keep regression coverage.
 
 Evidence:
 
-- `PlaybackSessionPlayer.getCurrentTimeline()` calls `sessionQueueTimeline()`.
-- `sessionQueueTimeline()` calls `sessionQueueTracks()` and maps every track into a `MediaItem` for a new `SessionQueueTimeline`.
-- `PlaybackSessionCommandOwner.sessionQueueTracks()` currently calls `stateProvider.queueSnapshot()`, which copies the full queue.
-- `getMediaItemCount()` and `getMediaItemAt(index)` also call `sessionQueueTracks()`; `getMediaItemAt(index)` then converts the requested track into a `MediaItem`.
+- `PlaybackSessionPlayer.getMediaItemCount()` now uses `delegate.sessionQueueSize()` instead of reading a full queue snapshot.
+- `PlaybackSessionPlayer.getMediaItemAt(index)` now uses `delegate.sessionQueueTrackAt(index)` and only materializes the requested `MediaItem`.
+- `PlaybackSessionPlayer.sessionQueueTimeline()` caches `SessionQueueTimeline` by a cheap queue key: size, current index, first track id, current track id, and last track id.
+- `PlaybackQueueStateOwner` and `PlaybackQueueManager` expose `queueSize()` / `trackAt(index)` so the session player can avoid full-list copies on common system reads.
 
 Impact:
 
-- The system queue visibility fix is correct, but frequent MediaSession reads on a 500-track streaming queue can repeatedly copy the full app queue and rebuild many `MediaItem` objects.
-- This work is outside the ExoPlayer preparation path, so it should not reintroduce the original playback-start freeze, but it can still add avoidable allocation pressure while system media UI is open.
+- Android media UI and lock-screen queue reads no longer need to copy the full app queue for count, current index, or single-item access.
+- Timeline construction still materializes the visible session queue once per queue key, but repeated reads reuse the cached timeline until the queue changes.
+- This keeps the queue visible to Android without reintroducing ExoPlayer full-queue mirroring for large streaming queues.
 
-Low-risk approach:
+Guardrail:
 
-- Keep the session-facing queue view.
-- Cache `SessionQueueTimeline` by a cheap queue key such as `(queueSize, currentIndex, currentTrackId, first/last track id or queue version)` and rebuild only when that key changes.
-- Prefer narrow access for `getMediaItemCount()` / `getCurrentMediaItemIndex()` so those calls do not need a full queue snapshot.
-- Keep `getMediaItemAt(index)` lazy; do not restore or resolve streaming URLs just to build session metadata.
+- `PlaybackSessionPlayerTest.repeatedSessionQueueReadsReuseTimelineAndPreferNarrowAccess`
+- `PlaybackSessionCommandOwnerTest.delegatesMediaSessionCommandsToPlaybackOwners`
 
-Suggested tests:
+### P1 - Streaming Playlist Pagination Has A Local Safety Cap
 
-- Extend `PlaybackSessionPlayerTest` with a delegate that counts `sessionQueueTracks()` calls across repeated `mediaItemCount`, `currentMediaItemIndex`, and `currentTimeline` reads.
-- Add a regression that queue changes invalidate the cached timeline while repeated reads of the same queue do not rebuild every item.
-
-### P1 - Streaming Playlist Pagination Has No Local Safety Cap
-
-Status: Open.
+Status: Fixed in current working tree, keep regression coverage.
 
 Evidence:
 
 - `StreamingViewModel.loadStreamingPlaylistTracks(...)` requests remote playlist pages with `pageSize = 2000`.
-- The loop stops only when `detail.hasMore` is false, `detail.tracks` is empty, or the optional remote `total` has been reached.
-- If a provider or gateway keeps returning non-empty pages with `hasMore = true` and no reliable `total`, the import/sync job can keep fetching pages for a long time.
-- Existing coverage, `StreamingViewModelTest.fetchStreamingPlaylistTracksLoadsAllPages`, protects the normal two-page path but does not cover a misbehaving provider.
+- The loop now also stops at `STREAMING_PLAYLIST_MAX_PAGES = 50`.
+- The accepted track list is capped by `STREAMING_PLAYLIST_MAX_TRACKS`, derived from page size and max pages.
+- The loop preserves the normal stop conditions: `detail.hasMore == false`, empty page, and declared remote `total` reached.
 
 Impact:
 
 - This fits the "scanning/importing songs can get stuck" symptom family for provider-backed playlist imports.
-- The work runs in `viewModelScope`, so it should not block the UI thread directly, but it can keep network/provider work alive and hold the streaming loading state until cancellation or failure.
+- A bad provider that keeps returning non-empty `hasMore = true` pages without a reliable `total` can no longer fetch forever from this ViewModel path.
+- The work still runs in `viewModelScope`, so this guards long-lived import/sync jobs without moving provider work onto the UI thread.
+
+Guardrail:
+
+- `StreamingViewModelTest.fetchStreamingPlaylistTracksLoadsAllPages`
+- `StreamingViewModelTest.fetchStreamingPlaylistTracksStopsAtLocalPaginationCap`
+
+### P1 - Streaming Pre-Resolve Uses Bounded Queue Reads On Playback State Ticks
+
+Status: Fixed in current working tree, keep regression coverage.
+
+Evidence:
+
+- `PlaybackStateEventController.handlePlaybackState(...)` calls `listener.preResolveNextStreamingTrack(snapshot)` on every playback-state update.
+- `StreamingPlaybackController.preResolveNextStreamingTrack(...)` now calls `boundedPreResolveQueue(snapshot)` instead of `listener.queueSnapshot()`.
+- `MainStreamingPlaybackListener` now delegates through `StreamingQueueReadSource`, which exposes full snapshot reads for existing UI paths plus narrow `queueSize()` / `queueTrackAt(index)` reads for pre-resolve.
+- `MainActivityBase` binds the streaming playback listener to `playbackService.queueSize()` and `playbackService.queueTrackAt(index)`.
+- `EchoPlaybackService` exposes `queueSize()` and `queueTrackAt(index)` through `PlaybackQueueStateOwner`, which already delegates to `PlaybackQueueManager.queueSize()` / `trackAt(index)`.
+- The pre-resolve queue passed into the existing `StreamingViewModel` logic is normalized to current index `0` and bounded to current track, next track, and up to three unresolved streaming placeholders found through a small lookahead window.
+
+Impact:
+
+- This is a remaining large-streaming-queue pressure point after the MediaSession and queue UI optimizations.
+- A 500-track streaming queue no longer allocates a full queue copy on frequent playback-state updates just to warm one next track and a small pre-resolve window.
+- The policy stays in `StreamingPlaybackController`; `MainActivityBase` only wires the existing service boundary to the listener factory.
+- `PlaybackStateEventController.publishQueueIfChanged(...)` still uses full `queueSnapshot()` only when the Queue tab is visible and the UI queue publication key changes.
+
+Guardrail:
+
+- `StreamingPlaybackControllerTest.preResolveUsesBoundedQueueReadsWithoutFullSnapshot`
+- `StreamingPlaybackControllerTest.preResolveSkipsResolvedLookaheadTracksForStreamingCandidatesWithoutFullSnapshot`
+- `MainStreamingPlaybackListenerTest.delegatesStreamingPlaybackCallbacksToInjectedOwners`
+- `MainStreamingPlaybackListenerTest.factoryCreatesStreamingPlaybackControllerListener`
+- `MainActivityArchitectureContractTest.streamingActionsLiveInMainActivityViewModelAndGateway`
+
+### P1 - Now Bar Queue Input Sync Is Visibility-Gated
+
+Status: Fixed in current working tree, keep regression coverage.
+
+Evidence:
+
+- `PlaybackStateEventController.handlePlaybackState(...)` calls `listener.renderNowBar()` on playback-state updates.
+- `NowPlayingStateController.renderNowBar()` publishes the Now Bar state and used to call `syncQueueInputsIfChanged(snapshot)` whenever the current track/index/queue size changed.
+- `MainActivityBase.bindQueueViewModelInputs()` pulls `playbackService.queueSnapshot()` before binding the queue ViewModel, so hidden Now Bar updates could still copy and bind a large queue on every track change.
+- `renderQueue()` already performs a fresh queue render when the queue tab is selected.
+
+Fix:
+
+- `NowPlayingStateController` now checks `listener.queueVisible()` before calling `syncQueueInputs()`.
+- `MainActivityBase` wires queue visibility as `TAB_QUEUE.equals(selectedTab())`.
+- Entering the queue tab still renders through `renderQueue()`, so visible queue state remains fresh without background rebinding while Home/Search/Settings/Now tabs are active.
+
+Impact:
+
+- Large streaming queues no longer force QueueViewModel rebinding from hidden Now Bar updates on every current-track change.
+- This removes one more "large queue feels fine after a long wait" pressure point without changing queue screen behavior.
+
+Guardrail:
+
+- `NowPlayingStateControllerTest.queueIdentityChangesDoNotSyncQueueInputsWhenQueueIsHidden`
+- `NowPlayingStateControllerTest.queueIdentityChangesResyncQueueInputs`
+- `MainNowPlayingStateListenerTest.delegatesNowPlayingStateInputsToInjectedOwners`
+- `MainNowPlayingStateListenerTest.factoryCreatesNowPlayingStateControllerListener`
+- `MainActivityArchitectureContractTest.streamingActionsLiveInMainActivityViewModelAndGateway`
+
+### P1 - Playback Store Queue Publishing Is Queue-Tab Gated
+
+Status: Fixed in current working tree, keep regression coverage.
+
+Evidence:
+
+- `PlaybackStateEventController.handlePlaybackState(...)` updates the lightweight playback snapshot first, then calls `publishQueueIfChanged(snapshot)`.
+- `publishQueueIfChanged(...)` used to call `playbackStore.publish(queueSnapshotSource.queueSnapshot())` whenever current track, current index, or queue size changed.
+- `PlaybackViewModel.updatePlayback(...)` defensively copies the supplied queue, so a 500-track service snapshot could become two full-list copies on each track change while Home/Search/Settings/Now tabs were visible.
+- The active Queue tab path no longer depends on that legacy `PlaybackViewState.queue`; `renderQueue()` binds `QueueViewModel` directly from `playbackService.queueSnapshot()`.
+
+Fix:
+
+- `PlaybackStateEventController.publishQueueIfChanged(...)` now returns early unless `listener.selectedTab() == MainRoutes.TAB_QUEUE`.
+- The existing queue identity key is still used while the Queue tab is visible.
+- Hidden queue changes do not update `lastPublishedQueueKey`, so the same playback snapshot can still publish when the user later switches to Queue.
+
+Impact:
+
+- Large streaming queues no longer republish and copy the full queue into `PlaybackViewModel` on every hidden-tab track change.
+- Queue tab freshness is preserved by the direct `QueueViewModel` bind path when the tab is rendered.
+
+Guardrail:
+
+- `PlaybackStateEventControllerTest.hiddenQueueTabDoesNotReadLargeQueueOnTrackChanges`
+- `PlaybackStateEventControllerTest.queueTabPublishesAfterHiddenQueueChanges`
+- `MainActivityArchitectureContractTest.streamingActionsLiveInMainActivityViewModelAndGateway`
+
+### P2 - Search Input Has A Compose Regression Guard
+
+Status: Guarded in current working tree, keep regression coverage.
+
+Evidence:
+
+- User-reported search regressions can happen at the Compose boundary even when `SearchViewModel.updateQuery(...)` is correct.
+- `UnifiedSearchScreen` is a controlled input: `TextField.value` comes from `UnifiedSearchUiState.query`, while typing calls `UnifiedSearchActions.onQueryChange`.
+- `SearchDestination` collects `UnifiedSearchUiState` and passes the state's current `actions` into `UnifiedSearchScreen`.
+
+Fix:
+
+- Added a stable `testTag("unified-search-input")` to the search `TextField`.
+- Added `SearchDestinationTest.searchInputAcceptsTextAndSubmitsLatestQuery`, which types Chinese text, verifies it is displayed, and verifies IME search submits the latest query.
+
+Impact:
+
+- Future route/ViewModel/action rewiring cannot silently break basic search input without failing a focused Compose test.
+- The test tag is not visible in the app UI and does not change interaction behavior.
+
+Guardrail:
+
+- `SearchDestinationTest.searchInputAcceptsTextAndSubmitsLatestQuery`
+
+### P2 - Settings Library Back Navigation Has UI And ViewModel Guards
+
+Status: Guarded in current working tree, keep regression coverage.
+
+Evidence:
+
+- User feedback identified the Settings -> Library page back path as fragile.
+- `SettingsBackStack.parent(SettingsPage.Library)` already maps to `SettingsPage.LibraryGroup`, and `SettingsBackStack.parent(SettingsPage.LibraryGroup)` maps to `SettingsPage.Home`.
+- `SettingsScreen` promotes the first back action into the title bar icon, so this path needs both ViewModel action coverage and Compose title-back coverage.
+
+Fix:
+
+- Added `SettingsViewModelTest.librarySettingsBackActionsNavigateThroughExpectedParents`.
+- Added `SettingsDestinationTest.titleBackActionRunsLibrarySettingsBackAction`.
+
+Impact:
+
+- The visible title-bar back icon and the ViewModel-generated library back action are now regression-tested.
+- This locks the intended navigation chain: Library settings -> Library group -> Settings home.
+
+Guardrail:
+
+- `SettingsViewModelTest.librarySettingsBackActionsNavigateThroughExpectedParents`
+- `SettingsDestinationTest.titleBackActionRunsLibrarySettingsBackAction`
+
+### P1 - Queue Tab Entry Avoids Legacy No-Op Action Construction
+
+Status: Fixed in current working tree, keep regression coverage.
+
+Evidence:
+
+- `MainActivityBase.renderQueue()` used to call `queueRenderController.render(playbackService.queueSnapshot(), ...)`.
+- `QueueRenderController.render(...)` builds one `QueueTrackActions` object per queue item before calling `listener.publishQueueChrome(...)`.
+- The active `MainQueueRenderListener.publishQueueChrome(...)` intentionally keeps legacy no-op behavior because the Queue tab is backed by `QueueViewModel` / `QueueDestinationState`.
+- This means entering the Queue tab could still allocate per-row action wrappers for hundreds of tracks even though the resulting chrome payload was discarded.
+
+Fix:
+
+- `MainActivityBase.renderQueue()` now calls `bindQueueViewModelInputs()` directly.
+- This keeps the queue tab refresh on entry, which is especially important now that hidden Now Bar queue syncing is visibility-gated.
+- The legacy `QueueRenderController`, `MainQueueRenderListener`, Hilt provider, Activity field, and focused no-op listener test were removed.
+- `TrackListPlaybackAction` moved out of the deleted queue render file and now lives with the network event playback entry that still uses it.
+
+Impact:
+
+- Queue tab entry avoids one all-items action-construction pass.
+- Large queue opening now relies on the existing lazy `QueueViewModel` row path instead of doing both lazy MVVM binding and discarded legacy chrome construction.
+- The app also has one fewer forwarding/no-op render layer and one fewer Activity injection/field.
+
+Guardrail:
+
+- `MainActivityArchitectureContractTest.streamingActionsLiveInMainActivityViewModelAndGateway`
+- `QueueViewModelTest`
+- `NetworkMenuEventControllerPlaybackTest`
+
+### P3 - Dashboard JSON Nullable Strings Are Parsed Explicitly
+
+Status: Fixed in current working tree, keep regression coverage.
+
+Evidence:
+
+- `DashboardJson.kt` passed `null` as the fallback to Java `JSONObject.optString(...)` for nullable fields such as `artworkUrl`, `trackId`, `title`, `artist`, and `album`.
+- Kotlin reported Java type-mismatch warnings during `:app:compileDebugKotlin`.
+- The intended contract is nullable JSON string output: missing field and JSON `null` map to Kotlin `null`, while a present empty string remains `""`.
+
+Fix:
+
+- Added a local `JSONObject.optNullableString(...)` helper in `DashboardJson`.
+- Replaced nullable `optString(..., null)` calls with the helper.
+- Added `DashboardJsonTest` coverage for missing, explicit `null`, and empty-string values.
+
+Impact:
+
+- Removes Dashboard JSON Java interop warnings without changing the API contract.
+- Makes remote dashboard null handling explicit and regression-tested.
+
+Guardrail:
+
+- `DashboardJsonTest.playbackStateParsesMissingNullAndEmptyNullableStrings`
+- `DashboardJsonTest.recentActivityParsesNullableArtworkUrlWithoutDroppingEmptyString`
+
+### P1 - Expanded Now Bar waveform can disappear at playback start
+
+Finding:
+
+- `WaveformProgress` already fell back to generated preview bars when service bars were missing, but when service bars existed and `serviceWaveformCachedProgress == 0f`, the draw loop skipped every unplayed/uncached bar.
+- On a freshly started streaming track this could leave only the rail/thumb visible, so tapping the progress bar looked like the waveform was never drawn.
+
+Change:
+
+- Added `waveformVisibleProgressForDraw(...)` so visible generated service bars are not hidden behind media-cache progress.
+- Kept the existing fallback behavior for missing or invisible service bars.
+- Updated the architecture contract so this guard remains explicit.
+
+Guardrail:
+
+- `NowBarWaveformRangeTest.generatedServiceWaveformStaysVisibleBeforePlaybackOrCacheAdvance`
+- `MainActivityArchitectureContractTest.swipeAndWaveformRegressionsStayFixed`
+
+### P1 - Heartbeat recommendation seed matching scans full large queues
+
+Finding:
+
+- `HeartbeatRecommendationSeedResolver.request()` pulled service queue, playback-store queue, ViewModel queue, and library context before seed matching.
+- `StreamingTrackMatchUseCase.heartbeatSeedCandidates(...)` and `snapshotQueueForHeartbeat(...)` then walked those lists; for hundreds of streaming tracks this could add visible delay around daily/heartbeat recommendation actions even though only a small seed sample is used.
+
+Change:
+
+- Added bounded queue context before seed matching.
+- Service and ViewModel queues now keep the current-track neighborhood plus a small leading context window.
+- Library context is capped before merging with the service queue.
+- Current-track snapshot candidates are still passed separately, so the primary seed path remains intact.
+
+Guardrail:
+
+- `HeartbeatRecommendationSeedResolverTest.largeSeedQueuesAreBoundedAroundCurrentTrackBeforeMatching`
+
+## Open Findings
+
+### P1 Open - MediaSession timeline cache can miss middle-queue replacements
+
+Evidence:
+
+- `PlaybackSessionPlayer.getCurrentTimeline()` returns `sessionQueueTimeline()`.
+- `sessionQueueTimeline()` is cached by `SessionQueueKey`.
+- The key uses queue size, current index, first track id, current track id, and last track id.
+- Large streaming queues can replace unresolved placeholders in the middle of the queue while size/current/first/last remain unchanged.
+
+Risk:
+
+- Android system media UI may keep a stale timeline for middle queue entries after background streaming pre-resolve or queue replacement.
+- This is a plausible contributor to "songs still do not appear correctly in Android's media playback list" when the app queue is present but the system-facing timeline does not refresh.
 
 Low-risk approach:
 
-- Keep loading all normal pages, but add a local safety cap such as max pages and/or max tracks per import.
-- Stop with a partial result plus status when the cap is hit, rather than looping indefinitely.
-- Preserve existing two-page and empty-playlist behavior.
+- Add a lightweight queue version or content revision from the queue owner and include it in `SessionQueueKey`.
+- If a version is not available, include a small deterministic fingerprint over sampled queue ids around the current item and the requested visible window.
+- Keep `getMediaItemCount()` and `getMediaItemAt(index)` narrow; avoid going back to full queue snapshots for common system reads.
 
 Suggested tests:
 
-- Add a fake gateway that always returns `hasMore = true` with non-empty tracks and no `total`; assert `loadStreamingPlaylistTracks(...)` stops at the local cap.
-- Add a normal multi-page test below the cap to preserve existing full-import behavior.
+- Extend `PlaybackSessionPlayerTest` with a queue of at least five items, build a timeline, replace a middle non-current item while size/current/first/last stay the same, then assert `getCurrentTimeline()` exposes the replacement after the key changes.
+- Add a negative check that repeated reads without queue changes still reuse the cached timeline.
+
+Device check:
+
+- With a large NetEase queue, start playback, wait for several background URL resolves, then inspect Android media output / media session dump to confirm the visible queue titles match the app queue.
+
+### P2 Open - MediaLibrary child paging materializes full lists before slicing
+
+Evidence:
+
+- `PlaybackMediaLibraryCallback.onGetChildren(...)` calls `childrenForAutoParent(parentId)` first.
+- `childrenForAutoParent(AUTO_ALL)` calls `autoItemsForTracks(dataSource.loadCachedTracks())`.
+- Playlist, artist, and album child paths also build all matching `MediaItem`s before `pagedItems(children, page, pageSize)` slices the result.
+
+Risk:
+
+- Android Auto or a system browser requesting a small page from a large local library still pays the cost of loading and converting the full matching list.
+- This is outside the immediate playback-start path, but can add background allocation pressure while the Android media browser is open.
+
+Low-risk approach:
+
+- Push paging into each child branch before converting tracks to `MediaItem`.
+- Preserve the existing root/folder structure and `onSetMediaItems(...)` behavior.
+- Keep grouped artist/album folders deterministic; only page final child lists.
+
+Suggested tests:
+
+- Extend `PlaybackMediaLibraryCallbackTest` with a fake data source that counts converted tracks for a small page request from a large library.
+- Assert `onGetChildren(AUTO_ALL, page = 0, pageSize = 20)` does not convert every cached track.
+
+### P1 Open - Onboarding library scan has no timeout or cancellation recovery
+
+Evidence:
+
+- `OnboardingController.scanLibraryFromOnboarding()` sets `libraryScanInProgress = true`, mounts the shell, and calls `listener.loadLibrary(false)`.
+- `OnboardingController.onLibraryScanResult(...)` is the only path that clears `libraryScanInProgress`.
+- `MainActivityBase.loadLibrary(false)` forwards success and failure callbacks into `onLibraryScanResult(...)`, but there is no timeout or cancellation path if the refresh job never returns.
+- `OnboardingControllerTest.failedScanClearsInProgressSoOnboardingCanRetry` covers explicit failure, but not a hung scan.
+
+Risk:
+
+- If MediaStore, database replacement, or repository refresh stalls, the initial page can remain on the second step with "等待曲库扫描完成" and no way to finish onboarding.
+- This matches the reported "初始页点击第二步就不动了就进不去程序" failure mode.
+
+Low-risk approach:
+
+- Add an onboarding-level scan timeout that clears `libraryScanInProgress`, shows a retryable status, and lets the user continue to streaming/manual import only if product requirements allow skipping local scan.
+- Keep the actual library refresh on the existing IO path; do not move scan work to the UI thread.
+- Consider exposing a cancel/retry command rather than auto-retrying, because repeated MediaStore stalls can otherwise loop.
+
+Suggested tests:
+
+- Add an `OnboardingControllerTest` case where scan starts but no callback arrives; drive a timeout hook and assert `libraryScanInProgress()` becomes false and the missing setup message returns to "扫描本地曲库".
+- Add an Activity-level contract that `loadLibrary(false)` failure and timeout both remount onboarding instead of leaving a permanent in-progress state.
+
+### P1 Open - Device scan refresh replaces the whole local table in one transaction
+
+Evidence:
+
+- `MusicLibraryRepository.refreshFromDevice()` runs `scanner.scan()`, then `database.replaceTracks(tracks)`, then `database.loadTracks()`.
+- `MediaStoreMusicScanner.scan()` avoids opening each audio file, which is good, but returns the whole scanned list before any database write starts.
+- `EchoDatabaseHelper.replaceTracks(...)` deletes non-document/non-stream rows and inserts every scanned track inside one transaction.
+
+Risk:
+
+- A large local library still has an all-or-nothing scan/replace/load cycle with no progress checkpoint and no cancellation signal.
+- On slow storage or emulators, this can feel like "扫描歌曲直接卡住" even though the work is on `ioDispatcher`, because UI state only updates after the full replace and reload completes.
+
+Low-risk approach:
+
+- Preserve the current full-refresh semantics, but add progress/timeout instrumentation around scan, replace, and reload phases so logs can identify which phase stalls.
+- Consider chunked replacement or staged temp-table swap later; that is riskier and should only follow database tests.
+- Reuse existing `EchoDatabaseHelper` transaction tests before changing table replacement behavior.
+
+Suggested tests:
+
+- Add a fake `LibraryImportOperations.refreshFromDevice()` that delays indefinitely and verify the ViewModel/onboarding path exposes a retryable in-progress timeout.
+- Add database-level tests for a chunked or staged refresh before changing `replaceTracks(...)`.
 
 ## Reviewed And Not Flagged
 
@@ -383,7 +701,7 @@ Suggested tests:
 - `MainExecutors` has an explicit `shutdownNow()` method and guards rejected execution.
 - `PlaybackPrecacheManager` uses a named daemon `ThreadFactory` for a managed executor path; the raw `Thread` creation is localized to thread factory construction.
 - Persisted page backgrounds are hydrated before settings page navigation: `MainActivityBase` calls `settingsStore.load(loadSettingsPreferencesUseCase.execute())`, creates `SettingsContextProvider`, then calls `refreshSettingsContext()`; `MainActivityArchitectureContractTest.mainActivityPushesLoadedSettingsContextBeforeSettingsPageNavigation` protects that ordering.
-- Android Auto / MediaLibrary support is not absent: `PlaybackMediaLibraryCallback` implements `onGetLibraryRoot`, `onGetChildren`, `onGetItem`, `onAddMediaItems`, and `onSetMediaItems`; active playback timeline exposure for large queues is now covered by `PlaybackSessionPlayer`, with the remaining concern narrowed to repeated full queue/timeline rebuilding.
+- Android Auto / MediaLibrary support is not absent: `PlaybackMediaLibraryCallback` implements `onGetLibraryRoot`, `onGetChildren`, `onGetItem`, `onAddMediaItems`, and `onSetMediaItems`; active playback timeline exposure for large queues is covered by `PlaybackSessionPlayer`, with remaining system-facing risks tracked under Open Findings.
 - `TrackDownloadManager` has several `while (true)` loops, but the reviewed ones are bounded stream-copy loops that break on EOF and check pause/removal between chunks; `TrackDownloadManagerTest.shutdownStopsExecutorsAndRejectsNewAppManagedDownloads` covers executor shutdown.
 
 ## Verification Commands
@@ -403,6 +721,24 @@ Passed during this review batch:
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.playback.PlaybackSessionCommandOwnerTest --tests app.yukine.StreamingViewModelTest.fetchStreamingPlaylistTracksLoadsAllPages --console=plain
 .\gradlew.bat :app:testDebugUnitTest --tests app.yukine.StreamingPlaybackTaskSchedulerTest --tests app.yukine.queue.QueueViewModelTest --tests app.yukine.StreamingHeartbeatRecommendationUseCaseTest --tests app.yukine.StreamingRecommendationViewModelTest --tests app.yukine.SearchViewModelTest --tests app.yukine.NowPlayingViewModelTest --tests app.yukine.data.EchoDatabaseHelperTest :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackTaskSchedulerTest --console=plain
 .\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+.\gradlew.bat --no-daemon :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackSessionPlayerTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackSessionCommandOwnerTest --console=plain
+.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+.\gradlew.bat --no-build-cache :app:testDebugUnitTest --tests app.yukine.StreamingPlaybackControllerTest --tests app.yukine.MainStreamingPlaybackListenerTest --tests app.yukine.MainActivityArchitectureContractTest.streamingActionsLiveInMainActivityViewModelAndGateway --console=plain
+.\gradlew.bat --no-build-cache :app:testDebugUnitTest --tests app.yukine.MainPlaybackServiceHostTest --console=plain
+.\gradlew.bat --no-daemon --no-configuration-cache --no-build-cache :app:testDebugUnitTest --tests app.yukine.StreamingViewModelTest --console=plain
+.\gradlew.bat --no-daemon --no-configuration-cache --no-build-cache :app:testDebugUnitTest --tests app.yukine.StreamingPlaybackControllerTest --tests app.yukine.StreamingViewModelTest --console=plain
+.\gradlew.bat --no-daemon --no-configuration-cache --no-build-cache :feature:playback:testDebugUnitTest --tests app.yukine.playback.PlaybackSessionPlayerTest :app:testDebugUnitTest --tests app.yukine.playback.PlaybackSessionCommandOwnerTest --tests app.yukine.playback.PlaybackQueueStateOwnerTest --console=plain
+.\gradlew.bat --no-daemon --no-configuration-cache --no-build-cache :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
+.\gradlew.bat --no-build-cache :app:testDebugUnitTest --tests app.yukine.NowPlayingStateControllerTest --tests app.yukine.MainNowPlayingStateListenerTest --tests app.yukine.MainActivityArchitectureContractTest.streamingActionsLiveInMainActivityViewModelAndGateway --console=plain
+.\gradlew.bat --no-build-cache :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest.streamingActionsLiveInMainActivityViewModelAndGateway --tests app.yukine.NowPlayingStateControllerTest --tests app.yukine.queue.QueueViewModelTest --console=plain
+.\gradlew.bat --no-build-cache :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest.streamingActionsLiveInMainActivityViewModelAndGateway --tests app.yukine.queue.QueueViewModelTest --tests app.yukine.NetworkMenuEventControllerPlaybackTest --tests app.yukine.NetworkSourcesEventControllerTest --console=plain
+.\gradlew.bat --no-build-cache :app:testDebugUnitTest --tests app.yukine.dashboard.DashboardJsonTest :app:compileDebugKotlin --console=plain
+.\gradlew.bat --no-build-cache :app:testDebugUnitTest --tests app.yukine.PlaybackStateEventControllerTest --tests app.yukine.MainActivityArchitectureContractTest.streamingActionsLiveInMainActivityViewModelAndGateway --console=plain
+.\gradlew.bat --no-build-cache :app:testDebugUnitTest --tests app.yukine.search.SearchDestinationTest :feature:ui-common:compileDebugKotlin --console=plain
+.\gradlew.bat --no-build-cache :app:testDebugUnitTest --tests app.yukine.SettingsViewModelTest.librarySettingsBackActionsNavigateThroughExpectedParents --tests app.yukine.settings.SettingsDestinationTest --console=plain
+.\gradlew.bat --no-build-cache :feature:ui-common:testDebugUnitTest --tests app.yukine.ui.NowBarWaveformRangeTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest.swipeAndWaveformRegressionsStayFixed :feature:ui-common:compileDebugKotlin --console=plain
+.\gradlew.bat --no-build-cache :app:testDebugUnitTest --tests app.yukine.HeartbeatRecommendationSeedResolverTest --console=plain
+python C:\Users\31283\.codex\skills\chinese-utf8-development\scripts\scan_mojibake.py app/src/main/java app/src/test/java feature core
 ```
 
 Device smoke performed:
@@ -421,8 +757,6 @@ Result:
 
 ## Next Safe Slices
 
-1. Device-smoke the lazy queue UI with 500 streaming tracks.
-2. Cache the session-facing queue timeline and add narrow reads so repeated Android media UI queries do not rebuild the full queue.
-3. Add a local pagination/track cap for streaming playlist import and sync.
-4. Add a Compose-level search input regression test before changing the route/ViewModel query handoff again.
-5. Audit remaining explicit full `queueSnapshot()` consumers and add narrower reads only where the caller does not need queue contents.
+1. Device-smoke the bounded streaming pre-resolve, hidden Now Bar queue sync gating, and direct QueueViewModel entry path with 500 streaming tracks.
+2. Audit remaining explicit full `queueSnapshot()` consumers and add narrower reads only where the caller does not need queue contents.
+3. Continue targeted UI regression guards around previously reported issues, especially Now Playing waveform visibility and playback-page jank.

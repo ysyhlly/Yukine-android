@@ -8,6 +8,8 @@ import org.junit.Assert.assertFalse
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackSessionPlayer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -213,6 +215,43 @@ class PlaybackSessionPlayerTest {
         )
 
         assertEquals(5, player.currentTimeline.windowCount)
+        assertEquals(2, delegate.queueSnapshotReads)
+    }
+
+    @Test
+    fun sessionQueueTimelineRefreshesWhenMiddleQueueEntryChanges() {
+        val delegate = RecordingDelegate().apply {
+            queueTracks = (1L..5L).map { id ->
+                Track(id, "Track $id", "Artist", "Album", 60_000L, android.net.Uri.EMPTY, "streaming:$id")
+            }
+            queueCurrentIndex = 1
+        }
+        val player = PlaybackSessionPlayer(fakePlayer(), delegate)
+        val window = androidx.media3.common.Timeline.Window()
+
+        val firstTimeline = player.currentTimeline
+        assertEquals("Track 4", firstTimeline.getWindow(3, window).mediaItem.mediaMetadata.title.toString())
+        assertEquals(1, delegate.queueSnapshotReads)
+
+        assertSame(firstTimeline, player.currentTimeline)
+        assertEquals(1, delegate.queueSnapshotReads)
+
+        delegate.queueTracks = delegate.queueTracks.toMutableList().also { tracks ->
+            tracks[3] = Track(
+                99L,
+                "Resolved Track",
+                "Artist",
+                "Album",
+                60_000L,
+                android.net.Uri.EMPTY,
+                "streaming:99"
+            )
+        }
+
+        val refreshedTimeline = player.currentTimeline
+
+        assertNotSame(firstTimeline, refreshedTimeline)
+        assertEquals("Resolved Track", refreshedTimeline.getWindow(3, window).mediaItem.mediaMetadata.title.toString())
         assertEquals(2, delegate.queueSnapshotReads)
     }
 

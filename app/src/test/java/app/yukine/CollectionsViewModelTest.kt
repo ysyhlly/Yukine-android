@@ -97,6 +97,39 @@ class CollectionsViewModelTest {
         assertEquals(actions, viewModel.screen.value.actions)
     }
 
+    @Test
+    fun updateScreenWithActionsPublishesRowsAndActionsAtomically() {
+        val viewModel = CollectionsViewModel()
+        val actions = CollectionsActions(
+            onBack = Runnable { },
+            topActions = listOf(Runnable { }),
+            trackSections = emptyList(),
+            playlistActions = emptyList(),
+            selectedPlaylistTopActions = emptyList(),
+            selectedPlaylistTrackActions = emptyList()
+        )
+        val screen = CollectionsUiState(
+            title = "Collections",
+            metrics = emptyList(),
+            topActions = listOf(app.yukine.ui.CollectionActionUiState("Play")),
+            trackSections = emptyList(),
+            playlistTitle = "Playlists",
+            playlistEmptyText = "",
+            playlistEmptyDescription = "",
+            playlists = emptyList(),
+            selectedPlaylistVisible = false,
+            selectedPlaylistTitle = "",
+            selectedPlaylistEmptyText = "",
+            selectedPlaylistEmptyDescription = "",
+            selectedPlaylistTopActions = emptyList(),
+            selectedPlaylistTracks = emptyList()
+        )
+
+        viewModel.updateScreenWithActions(screen, actions)
+
+        assertEquals(screen.copy(actions = actions), viewModel.screen.value)
+    }
+
     private fun track(id: Long): Track {
         return Track(id, "Track $id", "Artist", "Album", 1000L, Uri.EMPTY, "file:$id")
     }

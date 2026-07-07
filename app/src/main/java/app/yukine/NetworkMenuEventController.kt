@@ -6,6 +6,10 @@ import app.yukine.model.RemoteSource
 import app.yukine.model.Track
 import java.util.ArrayList
 
+internal fun interface TrackListPlaybackAction {
+    fun play(tracks: List<Track>, index: Int)
+}
+
 internal class NetworkMenuEventController(
     private val navigator: Navigator,
     private val showAddStreamAction: Runnable,

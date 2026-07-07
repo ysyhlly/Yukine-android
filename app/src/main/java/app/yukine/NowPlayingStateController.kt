@@ -19,6 +19,8 @@ internal class NowPlayingStateController(
 
         fun languageMode(): String
 
+        fun queueVisible(): Boolean
+
         fun publishFloatingLyrics(state: NowPlayingUiState)
 
         fun syncQueueInputs()
@@ -51,7 +53,9 @@ internal class NowPlayingStateController(
             return
         }
         lastSyncedQueueKey = nextKey
-        listener.syncQueueInputs()
+        if (listener.queueVisible()) {
+            listener.syncQueueInputs()
+        }
     }
 
     private data class QueueKey(

@@ -68,6 +68,56 @@ class PlaybackStateEventControllerTest {
         assertEquals(10L, playbackViewModel.playback.value.queue.first().id)
     }
 
+    @Test
+    fun hiddenQueueTabDoesNotReadLargeQueueOnTrackChanges() {
+        val playbackViewModel = PlaybackViewModel()
+        val playbackStore = MainPlaybackStore(playbackViewModel)
+        val queueSource = CountingQueueSource(
+            List(500) { index -> track(index.toLong()) }
+        )
+        val listener = RecordingListener(selectedTab = MainRoutes.TAB_HOME)
+        val controller = PlaybackStateEventController(
+            Handler(Looper.getMainLooper()),
+            playbackStore,
+            queueSource,
+            listener
+        )
+
+        controller.onPlaybackStateChanged(snapshot(track = track(7L), positionMs = 1_000L, queueSize = 500))
+        idleMain()
+        controller.onPlaybackStateChanged(snapshot(track = track(8L), positionMs = 0L, queueSize = 500))
+        idleMain()
+
+        assertEquals(0, queueSource.calls)
+        assertEquals(emptyList<Track>(), playbackViewModel.playback.value.queue)
+    }
+
+    @Test
+    fun queueTabPublishesAfterHiddenQueueChanges() {
+        val playbackViewModel = PlaybackViewModel()
+        val playbackStore = MainPlaybackStore(playbackViewModel)
+        val queueSource = CountingQueueSource(
+            List(500) { index -> track(index.toLong()) }
+        )
+        val listener = RecordingListener(selectedTab = MainRoutes.TAB_HOME)
+        val controller = PlaybackStateEventController(
+            Handler(Looper.getMainLooper()),
+            playbackStore,
+            queueSource,
+            listener
+        )
+        val playing = snapshot(track = track(7L), positionMs = 1_000L, queueSize = 500)
+
+        controller.onPlaybackStateChanged(playing)
+        idleMain()
+        listener.selectedTab = MainRoutes.TAB_QUEUE
+        controller.onPlaybackStateChanged(playing)
+        idleMain()
+
+        assertEquals(1, queueSource.calls)
+        assertEquals(500, playbackViewModel.playback.value.queue.size)
+    }
+
     private class CountingQueueSource(
         var queue: List<Track>
     ) : PlaybackStateEventController.QueueSnapshotSource {
@@ -79,8 +129,10 @@ class PlaybackStateEventControllerTest {
         }
     }
 
-    private class RecordingListener : PlaybackStateEventController.Listener {
-        override fun selectedTab(): String = MainRoutes.TAB_QUEUE
+    private class RecordingListener(
+        var selectedTab: String = MainRoutes.TAB_QUEUE
+    ) : PlaybackStateEventController.Listener {
+        override fun selectedTab(): String = selectedTab
 
         override fun currentLyricsTrackId(): Long = -1L
 

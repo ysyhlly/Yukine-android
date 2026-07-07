@@ -21,7 +21,7 @@ class MainStreamingPlaybackListenerTest {
             languageProvider = StreamingPlaybackLanguageProvider { "zh-CN" },
             adaptiveQualityProvider = AdaptiveStreamingQualityProvider { StreamingAudioQuality.HIGH },
             selectedQualityProvider = SelectedStreamingQualityProvider { StreamingAudioQuality.LOSSLESS },
-            queueSnapshotSource = StreamingQueueSnapshotSource { queue },
+            queueSource = queueSource(queue),
             heartbeatAppendHandler = HeartbeatRecommendationAppendHandler { appendedSnapshots += it },
             resultSink = PlaybackActionResultSink { appliedResults += it },
             statusSink = StreamingPlaybackStatusSink { statuses += it }
@@ -31,6 +31,8 @@ class MainStreamingPlaybackListenerTest {
         assertEquals(StreamingAudioQuality.HIGH, listener.adaptiveStreamingQuality())
         assertEquals(StreamingAudioQuality.LOSSLESS, listener.selectedStreamingQuality())
         assertEquals(queue, listener.queueSnapshot())
+        assertEquals(2, listener.queueSize())
+        assertSame(queue[1], listener.queueTrackAt(1))
         listener.maybeAppendHeartbeatRecommendations(snapshot)
         listener.applyPlaybackActionResult(result)
         listener.setStatus("Resolving")
@@ -49,7 +51,7 @@ class MainStreamingPlaybackListenerTest {
             StreamingPlaybackLanguageProvider { "en" },
             AdaptiveStreamingQualityProvider { StreamingAudioQuality.STANDARD },
             SelectedStreamingQualityProvider { StreamingAudioQuality.HIRES },
-            StreamingQueueSnapshotSource { listOf(streamingPlaybackTrack(3L)) },
+            queueSource(listOf(streamingPlaybackTrack(3L))),
             HeartbeatRecommendationAppendHandler { calls += "heartbeat:${it.queueSize}" },
             PlaybackActionResultSink { calls += "result:${it?.status}" },
             StreamingPlaybackStatusSink { calls += "status:$it" }
@@ -60,6 +62,8 @@ class MainStreamingPlaybackListenerTest {
         assertEquals(StreamingAudioQuality.STANDARD, listener.adaptiveStreamingQuality())
         assertEquals(StreamingAudioQuality.HIRES, listener.selectedStreamingQuality())
         assertEquals(listOf(3L), listener.queueSnapshot().map { it.id })
+        assertEquals(1, listener.queueSize())
+        assertEquals(3L, listener.queueTrackAt(0)?.id)
         listener.maybeAppendHeartbeatRecommendations(snapshot)
         listener.applyPlaybackActionResult(result)
         listener.setStatus("Queued")
@@ -67,6 +71,15 @@ class MainStreamingPlaybackListenerTest {
         assertEquals(listOf("heartbeat:0", "result:queued", "status:Queued"), calls)
     }
 }
+
+private fun queueSource(queue: List<Track>): StreamingQueueReadSource =
+    object : StreamingQueueReadSource {
+        override fun queueSnapshot(): List<Track> = queue
+
+        override fun queueSize(): Int = queue.size
+
+        override fun queueTrackAt(index: Int): Track? = queue.getOrNull(index)
+    }
 
 private fun streamingPlaybackTrack(id: Long): Track =
     Track(id, "Track $id", "Artist", "Album", 1_000L, Uri.EMPTY, "file:$id")

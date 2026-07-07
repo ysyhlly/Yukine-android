@@ -97,11 +97,17 @@ internal class TrackListRenderController(
         }
 
         viewModel.clearLibraryGroups()
-        if (footerAlbums.isEmpty()) {
-            viewModel.updateTrackList(title, rows)
-        } else {
-            viewModel.updateTrackList(title, rows, footerAlbums)
-        }
+        viewModel.updateTrackListContentAndChrome(
+            title,
+            rows,
+            footerAlbums,
+            actions,
+            headerMetrics,
+            effectiveHeaderActions,
+            emptyText,
+            modeActions,
+            labels
+        )
         listener.publishTrackListChrome(actions, headerMetrics, effectiveHeaderActions, emptyText, modeActions, labels)
     }
 
@@ -134,22 +140,35 @@ internal class TrackListRenderController(
                 )
             )
         }
+        val headerMetrics = listOf(TrackListHeaderMetric(AppLanguage.text(languageMode, "tracks"), "${tracks.size}"))
+        val headerActions = listOf(TrackListHeaderAction(AppLanguage.text(languageMode, "download.current.list"), Runnable { listener.downloadTracks(tracks) }))
+        val labels = TrackListLabels(
+            AppLanguage.text(languageMode, "favorite"),
+            AppLanguage.text(languageMode, "remove.favorite"),
+            AppLanguage.text(languageMode, "add.to.playlist"),
+            AppLanguage.text(languageMode, "edit"),
+            AppLanguage.text(languageMode, "delete"),
+            AppLanguage.text(languageMode, "download")
+        )
         viewModel.clearLibraryGroups()
-        viewModel.updateTrackList(title, rows)
-        listener.publishTrackListChrome(
+        viewModel.updateTrackListContentAndChrome(
+            title,
+            rows,
+            emptyList(),
             actions,
-            listOf(TrackListHeaderMetric(AppLanguage.text(languageMode, "tracks"), "${tracks.size}")),
-            listOf(TrackListHeaderAction(AppLanguage.text(languageMode, "download.current.list"), Runnable { listener.downloadTracks(tracks) })),
+            headerMetrics,
+            headerActions,
             "",
             emptyList(),
-            TrackListLabels(
-                AppLanguage.text(languageMode, "favorite"),
-                AppLanguage.text(languageMode, "remove.favorite"),
-                AppLanguage.text(languageMode, "add.to.playlist"),
-                AppLanguage.text(languageMode, "edit"),
-                AppLanguage.text(languageMode, "delete"),
-                AppLanguage.text(languageMode, "download")
-            )
+            labels
+        )
+        listener.publishTrackListChrome(
+            actions,
+            headerMetrics,
+            headerActions,
+            "",
+            emptyList(),
+            labels
         )
     }
 }

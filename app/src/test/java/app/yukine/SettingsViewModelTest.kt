@@ -175,6 +175,32 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun librarySettingsBackActionsNavigateThroughExpectedParents() {
+        val viewModel = SettingsViewModel()
+        viewModel.renderCurrentPage(
+            SettingsPage.Library,
+            SettingsPreferencesSnapshot(languageMode = AppLanguage.MODE_CHINESE),
+            RuntimeSettingsStatus(librarySongCount = 128)
+        )
+
+        viewModel.state.value.actions.first().onClick.run()
+
+        assertEquals(SettingsPage.LibraryGroup, viewModel.state.value.page)
+        assertEquals(
+            listOf(SettingsEffect.NavigatePage(SettingsPage.LibraryGroup)),
+            viewModel.drainEffects()
+        )
+
+        viewModel.state.value.actions.first().onClick.run()
+
+        assertEquals(SettingsPage.Home, viewModel.state.value.page)
+        assertEquals(
+            listOf(SettingsEffect.NavigatePage(SettingsPage.Home)),
+            viewModel.drainEffects()
+        )
+    }
+
+    @Test
     fun renderPageFromHostUpdatesCurrentPage() {
         val viewModel = SettingsViewModel()
 

@@ -255,8 +255,7 @@ internal class CollectionsRenderController(
             selectedPlaylistActions,
             selectedPlaylistTrackActions
         )
-        viewModel.updateScreen(state)
-        viewModel.updateActions(actions)
+        viewModel.updateScreenWithActions(state, actions)
     }
 
     private fun addCollectionAction(

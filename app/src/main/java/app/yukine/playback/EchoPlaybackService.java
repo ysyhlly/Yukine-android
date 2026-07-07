@@ -1004,6 +1004,31 @@ public final class EchoPlaybackService extends MediaLibraryService
         return playbackQueueStateOwner.queueSnapshot();
     }
 
+    public int queueSize() {
+        return playbackQueueStateOwner.queueSize();
+    }
+
+    public Track queueTrackAt(int index) {
+        return playbackQueueStateOwner.trackAt(index);
+    }
+
+    public List<Track> queueWindowFrom(int startIndex, int maxCount) {
+        int size = playbackQueueStateOwner.queueSize();
+        if (size <= 0 || maxCount <= 0) {
+            return java.util.Collections.emptyList();
+        }
+        int count = Math.min(maxCount, size);
+        int safeStart = Math.floorMod(startIndex, size);
+        List<Track> tracks = new ArrayList<>(count);
+        for (int offset = 0; offset < count; offset++) {
+            Track track = playbackQueueStateOwner.trackAt((safeStart + offset) % size);
+            if (track != null) {
+                tracks.add(track);
+            }
+        }
+        return tracks;
+    }
+
     public void moveQueueTrack(int fromIndex, int toIndex) {
         playbackQueueMutationOwner.moveQueueTrack(fromIndex, toIndex);
     }
