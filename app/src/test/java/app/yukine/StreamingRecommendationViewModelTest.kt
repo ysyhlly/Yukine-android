@@ -103,6 +103,24 @@ class StreamingRecommendationViewModelTest {
     }
 
     @Test
+    fun heartbeatRecommendationPresentationLimitsInitialPlaybackQueue() {
+        val viewModel = StreamingRecommendationViewModel(FakeRepositorySource(FakeDailyGateway()))
+        val playingStatus = AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.recommend.heartbeat.playing")
+        val emptyStatus = AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.recommend.heartbeat.empty")
+
+        val presentation = viewModel.prepareHeartbeatRecommendationPresentation(
+            (1..45).map { streamingTrack("heart-$it") },
+            emptyStatus,
+            playingStatus
+        )
+
+        assertEquals(30, presentation.tracks.size)
+        assertEquals("$playingStatus (30)", presentation.readyStatus)
+        assertEquals("heart-1", presentation.tracks.first().dataPath.substringAfterLast(':'))
+        assertEquals("heart-30", presentation.tracks.last().dataPath.substringAfterLast(':'))
+    }
+
+    @Test
     fun typedDailyActionRunsThroughRecommendationViewModel() = runTest {
         val gateway = FakeDailyGateway()
         gateway.dailyTracks = listOf(streamingTrack("daily-action"))

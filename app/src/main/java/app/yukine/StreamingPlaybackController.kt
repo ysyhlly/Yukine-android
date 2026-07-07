@@ -55,10 +55,12 @@ internal class StreamingPlaybackController(
             return
         }
         listener.maybeAppendHeartbeatRecommendations(snapshot)
+        val queue = listener.queueSnapshot()
+        val quality = listener.adaptiveStreamingQuality()
         streamingViewModel.preResolveNextStreamingTrack(
             snapshot,
-            listener.queueSnapshot(),
-            listener.adaptiveStreamingQuality()
+            queue,
+            quality
         ) { oldTrackId, resolved ->
             if (resolved == null) {
                 return@preResolveNextStreamingTrack
@@ -68,8 +70,8 @@ internal class StreamingPlaybackController(
         }
         streamingViewModel.preResolveStreamingQueueWindow(
             snapshot,
-            listener.queueSnapshot(),
-            listener.adaptiveStreamingQuality()
+            queue,
+            quality
         ) { oldTrackId, resolved ->
             if (resolved == null) {
                 return@preResolveStreamingQueueWindow

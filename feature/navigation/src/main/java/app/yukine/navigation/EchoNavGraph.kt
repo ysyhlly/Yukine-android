@@ -115,7 +115,12 @@ fun EchoNavGraph(
     var activeDownload by remember(hostState.trackDownloadController) {
         mutableStateOf<TrackDownloadItem?>(null)
     }
-    LaunchedEffect(hostState.trackDownloadController) {
+    val activeDownloadVisible = selectedInPager || selectedTab == SearchTab || selectedTab == NowTab
+    LaunchedEffect(hostState.trackDownloadController, activeDownloadVisible) {
+        if (!activeDownloadVisible) {
+            activeDownload = null
+            return@LaunchedEffect
+        }
         while (true) {
             activeDownload = hostState.trackDownloadController
                 ?.snapshot()

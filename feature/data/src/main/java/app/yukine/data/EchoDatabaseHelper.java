@@ -5,6 +5,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.database.sqlite.SQLiteStatement;
 import android.net.Uri;
 
 import java.util.ArrayList;
@@ -740,6 +741,39 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         return values;
     }
 
+    private static String playbackQueueInsertSql() {
+        return "INSERT OR REPLACE INTO " + TABLE_PLAYBACK_QUEUE + " ("
+                + "position, track_id, title, artist, album, duration_ms, content_uri, data_path, "
+                + "album_id, album_art_uri, codec, bitrate_kbps, sample_rate_hz, bits_per_sample, "
+                + "channel_count, replay_gain_track_db, replay_gain_album_db"
+                + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    }
+
+    private static void bindPlaybackQueue(SQLiteStatement statement, Track track, int position) {
+        statement.clearBindings();
+        statement.bindLong(1, position);
+        statement.bindLong(2, track.id);
+        bindString(statement, 3, track.title);
+        bindString(statement, 4, track.artist);
+        bindString(statement, 5, track.album);
+        statement.bindLong(6, track.durationMs);
+        bindString(statement, 7, track.contentUri.toString());
+        bindString(statement, 8, track.dataPath);
+        statement.bindLong(9, track.albumId);
+        bindString(statement, 10, track.albumArtUriString());
+        bindString(statement, 11, track.codec);
+        statement.bindLong(12, track.bitrateKbps);
+        statement.bindLong(13, track.sampleRateHz);
+        statement.bindLong(14, track.bitsPerSample);
+        statement.bindLong(15, track.channelCount);
+        statement.bindDouble(16, track.replayGainTrackDb);
+        statement.bindDouble(17, track.replayGainAlbumDb);
+    }
+
+    private static void bindString(SQLiteStatement statement, int index, String value) {
+        statement.bindString(index, value == null ? "" : value);
+    }
+
     private ContentValues playbackQueueTrackValues(Track track) {
         ContentValues values = new ContentValues();
         values.put("track_id", track.id);
@@ -956,8 +990,11 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         try {
             db.delete(TABLE_PLAYBACK_QUEUE, null, null);
             if (tracks != null) {
-                for (int i = 0; i < tracks.size(); i++) {
-                    db.insertWithOnConflict(TABLE_PLAYBACK_QUEUE, null, playbackQueueValues(tracks.get(i), i), SQLiteDatabase.CONFLICT_REPLACE);
+                try (SQLiteStatement statement = db.compileStatement(playbackQueueInsertSql())) {
+                    for (int i = 0; i < tracks.size(); i++) {
+                        bindPlaybackQueue(statement, tracks.get(i), i);
+                        statement.executeInsert();
+                    }
                 }
             }
             saveSettingWithDatabase(db, SETTING_PLAYBACK_QUEUE_INDEX, String.valueOf(currentIndex));
@@ -1237,8 +1274,11 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     private int compactPlaybackQueue(SQLiteDatabase db) {
         ArrayList<Track> orderedTracks = loadPlaybackQueueTrackSnapshots(db);
         db.delete(TABLE_PLAYBACK_QUEUE, null, null);
-        for (int i = 0; i < orderedTracks.size(); i++) {
-            db.insertWithOnConflict(TABLE_PLAYBACK_QUEUE, null, playbackQueueValues(orderedTracks.get(i), i), SQLiteDatabase.CONFLICT_REPLACE);
+        try (SQLiteStatement statement = db.compileStatement(playbackQueueInsertSql())) {
+            for (int i = 0; i < orderedTracks.size(); i++) {
+                bindPlaybackQueue(statement, orderedTracks.get(i), i);
+                statement.executeInsert();
+            }
         }
         return orderedTracks.size();
     }

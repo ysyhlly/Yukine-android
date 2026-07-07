@@ -2608,7 +2608,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueContracts.contains("val labels: StateFlow<QueueScreenLabels>"));
         assertTrue(queueViewModel.contains("class QueueViewModel : ViewModel(), QueueDestinationStateProvider"));
         assertTrue(queueViewModel.contains("override val uiState: StateFlow<QueueDestinationState>"));
-        assertTrue(queueViewModel.contains("_uiState.value = QueueDestinationState(rows)"));
+        assertTrue(queueViewModel.contains("rowCount = tracks.size"));
+        assertTrue(queueViewModel.contains("rowAt = { index ->"));
         assertFalse(queueViewModel.contains("MainActivityQueueUiState"));
         assertFalse(mainViewModel.contains("data class MainActivityQueueUiState"));
         assertTrue(queueDestination.contains("fun QueueDestination(provider: QueueDestinationStateProvider"));
@@ -3198,7 +3199,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainViewModel.contains("updatePlaylistList"));
         assertFalse(mainViewModel.contains("updateQueue"));
         assertTrue(queueViewModel.contains("override val uiState: StateFlow<QueueDestinationState>"));
-        assertTrue(queueViewModel.contains("_uiState.value = QueueDestinationState(rows)"));
+        assertTrue(queueViewModel.contains("rowCount = tracks.size"));
+        assertTrue(queueViewModel.contains("rowAt = { index ->"));
         assertFalse(queueViewModel.contains("MainActivityQueueUiState"));
     }
 
@@ -4675,7 +4677,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(streamingPlaybackController.contains("MainActivityViewModel"));
         assertTrue(streamingPlaybackController.contains("fun preResolveNextStreamingTrack(snapshot: PlaybackStateSnapshot?)"));
         assertTrue(streamingPlaybackController.contains("listener.maybeAppendHeartbeatRecommendations(snapshot)"));
-        assertTrue(streamingPlaybackController.contains("listener.queueSnapshot()"));
+        assertTrue(streamingPlaybackController.contains("val queue = listener.queueSnapshot()"));
+        assertEquals(1, countOccurrences(streamingPlaybackController, "listener.queueSnapshot()"));
         assertTrue(streamingPlaybackController.contains("streamingViewModel.preResolveNextStreamingTrack("));
         assertTrue(streamingPlaybackController.contains("nowPlayingViewModel.replaceQueuedTrack(oldTrackId, resolved)"));
         assertTrue(streamingPlaybackController.contains("nowPlayingViewModel.warmPlaybackTrack(resolved)"));

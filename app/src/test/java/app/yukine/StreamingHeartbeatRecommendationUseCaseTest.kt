@@ -56,6 +56,24 @@ class StreamingHeartbeatRecommendationUseCaseTest {
     }
 
     @Test
+    fun playlistPlaceholdersCapsInitialPlaybackWindowButAppendCanRefillMore() {
+        val useCase = StreamingHeartbeatRecommendationUseCase(initialPlaybackLimit = 3)
+        useCase.startLoading(StreamingProviderName.NETEASE)
+
+        val initial = useCase.playlistPlaceholders((1..6).map { streamingTrack("$it") })
+        val appended = useCase.appendPlaceholders((4..6).map { streamingTrack("$it") })
+
+        assertEquals(
+            listOf("streaming:netease:1", "streaming:netease:2", "streaming:netease:3"),
+            initial.map { it.dataPath }
+        )
+        assertEquals(
+            listOf("streaming:netease:4", "streaming:netease:5", "streaming:netease:6"),
+            appended.map { it.dataPath }
+        )
+    }
+
+    @Test
     fun stopClearsModeAndSeenTracks() {
         val useCase = StreamingHeartbeatRecommendationUseCase()
         useCase.startLoading(StreamingProviderName.NETEASE)

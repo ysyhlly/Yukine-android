@@ -26,7 +26,8 @@ fun QueueDestination(provider: QueueDestinationStateProvider, modifier: Modifier
     val uiState by provider.uiState.collectAsState()
     val labels by provider.labels.collectAsState()
 
-    val rows = uiState.rows
+    val rowCount = uiState.rowCount
+    val rowAt = uiState.rowAt
     val actionForIndex = remember(provider) {
         { index: Int ->
             QueueTrackActions(
@@ -41,7 +42,8 @@ fun QueueDestination(provider: QueueDestinationStateProvider, modifier: Modifier
 
     Box(modifier = modifier) {
         QueueScreen(
-            tracks = rows,
+            trackCount = rowCount,
+            trackAt = rowAt,
             actionForIndex = actionForIndex,
             onMove = { fromIndex, toIndex -> provider.onMove(fromIndex, toIndex) },
             onClearQueue = Runnable { provider.onClearQueue() },

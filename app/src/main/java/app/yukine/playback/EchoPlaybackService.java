@@ -810,6 +810,26 @@ public final class EchoPlaybackService extends MediaLibraryService
                         public long durationMs() {
                             return playbackPlayerStateOwner.durationMs();
                         }
+
+                        @Override
+                        public List<Track> queueSnapshot() {
+                            return playbackQueueStateOwner.queueSnapshot();
+                        }
+
+                        @Override
+                        public int currentIndex() {
+                            return playbackQueueStateOwner.queueStateSnapshot().getCurrentIndex();
+                        }
+
+                        @Override
+                        public int queueSize() {
+                            return playbackQueueStateOwner.queueSize();
+                        }
+
+                        @Override
+                        public Track trackAt(int index) {
+                            return playbackQueueStateOwner.trackAt(index);
+                        }
                     },
                     playbackNotificationManager::mediaMetadataForTrack
             );

@@ -68,6 +68,37 @@ class QueueViewModelTest {
     }
 
     @Test
+    fun bind_largeQueueKeepsRowsLazyAndStillResolvesIndexedRows() {
+        val vm = QueueViewModel()
+        val tracks = (0 until 160).map { track(it.toLong()) }
+
+        vm.bind(tracks, snapshot(tracks[120]), setOf(120L), "en")
+
+        val state = vm.uiState.value
+        assertEquals(160, state.rowCount)
+        assertEquals(96, state.rows.size)
+        val lateRow = state.rowAt(120)
+        assertEquals("Track 120", lateRow?.title)
+        assertTrue(lateRow?.current == true)
+        assertTrue(lateRow?.favorite == true)
+        assertEquals(tracks, vm.tracks())
+    }
+
+    @Test
+    fun bind_largeQueueCachesLateDuplicateRowKeys() {
+        val vm = QueueViewModel()
+        val tracks = (0 until 160).map { index ->
+            if (index == 0 || index == 120) track(7L) else track(1_000L + index)
+        }
+
+        vm.bind(tracks, snapshot(null), emptySet(), "en")
+
+        val lateDuplicate = vm.uiState.value.rowAt(120)
+        assertEquals("7:2", lateDuplicate?.key)
+        assertEquals("Track 7", lateDuplicate?.title)
+    }
+
+    @Test
     fun bind_withNullQueue_yieldsEmptyRows() {
         val vm = QueueViewModel()
 

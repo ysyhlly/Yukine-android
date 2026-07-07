@@ -899,6 +899,15 @@ internal class PlaybackQueueManager(
         return Collections.unmodifiableList(ArrayList(queue))
     }
 
+    fun queueSize(): Int {
+        return queue.size
+    }
+
+    fun trackAt(index: Int): Track? {
+        val queue = this.queue
+        return if (index in queue.indices) queue[index] else null
+    }
+
     fun queueStateSnapshot(): QueueStateSnapshot {
         val queue = this.queue
         val index = currentIndex()

@@ -44,6 +44,10 @@ import javax.inject.Inject
 
 private const val STREAMING_QUEUE_PRE_RESOLVE_LIMIT = 3
 private const val CROSS_SOURCE_DURATION_TOLERANCE_MS = 3_000L
+internal const val STREAMING_PLAYLIST_PAGE_SIZE = 2_000
+internal const val STREAMING_PLAYLIST_MAX_PAGES = 50
+private const val STREAMING_PLAYLIST_MAX_TRACKS =
+    STREAMING_PLAYLIST_PAGE_SIZE * STREAMING_PLAYLIST_MAX_PAGES
 
 @HiltViewModel
 class StreamingViewModel @Inject constructor(
@@ -1719,7 +1723,6 @@ class StreamingViewModel @Inject constructor(
         provider: StreamingProviderName,
         providerPlaylistId: String
     ): Pair<String, List<StreamingTrack>> {
-        val pageSize = 2000
         val tracks = ArrayList<StreamingTrack>()
         var playlistName: String? = null
         var page = 1
@@ -1729,17 +1732,31 @@ class StreamingViewModel @Inject constructor(
                 provider = provider,
                 providerPlaylistId = providerPlaylistId,
                 page = page,
-                pageSize = pageSize,
+                pageSize = STREAMING_PLAYLIST_PAGE_SIZE,
                 useCache = false
             )
             if (playlistName.isNullOrBlank()) {
                 playlistName = detail.playlist?.title?.takeIf { it.isNotBlank() }
             }
             total = detail.total ?: total
-            tracks.addAll(detail.tracks)
+            val remainingCapacity = STREAMING_PLAYLIST_MAX_TRACKS - tracks.size
+            val acceptedTracks = if (remainingCapacity > 0) {
+                detail.tracks.take(remainingCapacity)
+            } else {
+                emptyList()
+            }
+            tracks.addAll(acceptedTracks)
 
             val reachedTotal = total?.let { expected -> tracks.size >= expected } == true
-            if (!detail.hasMore || detail.tracks.isEmpty() || reachedTotal) {
+            val reachedLocalPageCap = page >= STREAMING_PLAYLIST_MAX_PAGES
+            val reachedLocalTrackCap = acceptedTracks.size < detail.tracks.size ||
+                tracks.size >= STREAMING_PLAYLIST_MAX_TRACKS
+            if (!detail.hasMore ||
+                detail.tracks.isEmpty() ||
+                reachedTotal ||
+                reachedLocalPageCap ||
+                reachedLocalTrackCap
+            ) {
                 break
             }
             page += 1

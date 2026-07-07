@@ -14,7 +14,8 @@ data class HeartbeatRefillRequest(
 internal class StreamingHeartbeatRecommendationUseCase(
     private val clockMs: () -> Long = { System.currentTimeMillis() },
     private val refillRemainingThreshold: Int = 18,
-    private val refillRetryMs: Long = 8_000L
+    private val refillRetryMs: Long = 8_000L,
+    private val initialPlaybackLimit: Int = 30
 ) {
     private var active = false
     private var loading = false
@@ -78,7 +79,7 @@ internal class StreamingHeartbeatRecommendationUseCase(
     fun playlistPlaceholders(tracks: List<StreamingTrack>?): ArrayList<Track> {
         loading = false
         seenKeys.clear()
-        val placeholders = uniquePlaceholders(tracks)
+        val placeholders = uniquePlaceholders(tracks, initialPlaybackLimit)
         if (placeholders.isEmpty()) {
             stop()
             return placeholders
@@ -92,9 +93,12 @@ internal class StreamingHeartbeatRecommendationUseCase(
         return uniquePlaceholders(tracks)
     }
 
-    private fun uniquePlaceholders(tracks: List<StreamingTrack>?): ArrayList<Track> {
+    private fun uniquePlaceholders(tracks: List<StreamingTrack>?, limit: Int = Int.MAX_VALUE): ArrayList<Track> {
         val placeholders = ArrayList<Track>()
         tracks.orEmpty().forEach { track ->
+            if (placeholders.size >= limit) {
+                return@forEach
+            }
             if (!isPlayableRecommendation(track)) {
                 return@forEach
             }

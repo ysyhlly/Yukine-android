@@ -13,6 +13,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -22,7 +23,18 @@ import org.robolectric.RobolectricTestRunner;
 public final class PlaybackTaskSchedulerTest {
     @Test
     public void runtimeExceptionDoesNotStopSchedulerWorker() throws Exception {
-        PlaybackTaskScheduler scheduler = scheduler();
+        AtomicReference<PlaybackTaskScheduler.Priority> failedPriority = new AtomicReference<>();
+        AtomicReference<RuntimeException> failure = new AtomicReference<>();
+        PlaybackTaskScheduler scheduler = new PlaybackTaskScheduler(
+                "test-playback-task-scheduler",
+                Process.THREAD_PRIORITY_BACKGROUND,
+                () -> {
+                },
+                (priority, exception) -> {
+                    failedPriority.set(priority);
+                    failure.set(exception);
+                }
+        );
         CountDownLatch afterFailure = new CountDownLatch(1);
 
         scheduler.schedule(
@@ -34,6 +46,8 @@ public final class PlaybackTaskSchedulerTest {
         scheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY, afterFailure::countDown);
 
         assertTrue(afterFailure.await(2, TimeUnit.SECONDS));
+        assertEquals(PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY, failedPriority.get());
+        assertTrue(failure.get() instanceof IllegalStateException);
         scheduler.shutdownNow();
     }
 

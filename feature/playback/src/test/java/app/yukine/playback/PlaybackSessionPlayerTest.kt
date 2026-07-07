@@ -164,11 +164,66 @@ class PlaybackSessionPlayerTest {
         assertEquals(2_000L, player.currentPosition)
     }
 
+    @Test
+    fun sessionQueueExposesLargeAppQueueWithoutMirroringDelegatePlayer() {
+        val delegate = RecordingDelegate().apply {
+            queueTracks = (1L..80L).map { id ->
+                Track(id, "Track $id", "Artist $id", "Album", 60_000L, android.net.Uri.EMPTY, "streaming:$id")
+            }
+            queueCurrentIndex = 65
+        }
+        val player = PlaybackSessionPlayer(fakePlayer(), delegate)
+
+        assertEquals(80, player.mediaItemCount)
+        assertEquals(65, player.currentMediaItemIndex)
+        assertEquals("queue:65:66", player.currentMediaItem?.mediaId)
+        assertEquals("queue:79:80", player.getMediaItemAt(79).mediaId)
+        assertEquals(80, player.currentTimeline.windowCount)
+        assertEquals(80, player.currentTimeline.periodCount)
+        assertEquals("Track 66", player.currentMediaItem?.mediaMetadata?.title.toString())
+    }
+
+    @Test
+    fun repeatedSessionQueueReadsReuseTimelineAndPreferNarrowAccess() {
+        val delegate = RecordingDelegate().apply {
+            queueTracks = (1L..4L).map { id ->
+                Track(id, "Track $id", "Artist", "Album", 60_000L, android.net.Uri.EMPTY, "streaming:$id")
+            }
+            queueCurrentIndex = 1
+        }
+        val player = PlaybackSessionPlayer(fakePlayer(), delegate)
+
+        assertEquals(4, player.mediaItemCount)
+        assertEquals(1, player.currentMediaItemIndex)
+        assertEquals("queue:2:3", player.getMediaItemAt(2).mediaId)
+        assertEquals(0, delegate.queueSnapshotReads)
+
+        assertEquals(4, player.currentTimeline.windowCount)
+        assertEquals(4, player.currentTimeline.windowCount)
+        assertEquals(1, delegate.queueSnapshotReads)
+
+        delegate.queueTracks = delegate.queueTracks + Track(
+            5L,
+            "Track 5",
+            "Artist",
+            "Album",
+            60_000L,
+            android.net.Uri.EMPTY,
+            "streaming:5"
+        )
+
+        assertEquals(5, player.currentTimeline.windowCount)
+        assertEquals(2, delegate.queueSnapshotReads)
+    }
+
     private class RecordingDelegate : PlaybackSessionPlayer.Delegate {
         val events = mutableListOf<String>()
         var reportedPositionMs: Long = 0L
         var reportedSessionPositionMs: Long = 0L
         var reportedDurationMs: Long = 0L
+        var queueTracks: List<Track> = emptyList()
+        var queueCurrentIndex: Int = -1
+        var queueSnapshotReads: Int = 0
 
         override fun play() {
             events += "play"
@@ -207,9 +262,25 @@ class PlaybackSessionPlayerTest {
             return true
         }
 
+        override fun sessionQueueTracks(): List<Track> {
+            queueSnapshotReads++
+            return queueTracks
+        }
+
+        override fun sessionQueueSize(): Int = queueTracks.size
+
+        override fun sessionQueueCurrentIndex(): Int = queueCurrentIndex
+
+        override fun sessionQueueTrackAt(index: Int): Track? = queueTracks.getOrNull(index)
+
         override fun currentTrack(): Track? = null
 
-        override fun mediaMetadataForTrack(track: Track): MediaMetadata? = null
+        override fun mediaMetadataForTrack(track: Track): MediaMetadata? =
+            MediaMetadata.Builder()
+                .setTitle(track.title)
+                .setArtist(track.artist)
+                .setAlbumTitle(track.album)
+                .build()
 
         override fun positionMs(): Long = reportedPositionMs
 

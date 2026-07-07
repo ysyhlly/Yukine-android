@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListItemInfo
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -86,7 +86,8 @@ fun QueueScreen(
     onBack: Runnable?
 ) {
     QueueScreen(
-        tracks = tracks,
+        trackCount = tracks.size,
+        trackAt = { index -> tracks.getOrNull(index) },
         actionForIndex = { index -> actions.getOrNull(index) },
         onMove = { fromIndex, toIndex -> actions.getOrNull(fromIndex)?.onMove?.invoke(fromIndex, toIndex) },
         onClearQueue = onClearQueue,
@@ -105,13 +106,35 @@ fun QueueScreen(
     labels: QueueScreenLabels,
     onBack: Runnable?
 ) {
+    QueueScreen(
+        trackCount = tracks.size,
+        trackAt = { index -> tracks.getOrNull(index) },
+        actionForIndex = actionForIndex,
+        onMove = onMove,
+        onClearQueue = onClearQueue,
+        labels = labels,
+        onBack = onBack
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun QueueScreen(
+    trackCount: Int,
+    trackAt: (Int) -> QueueTrackUiState?,
+    actionForIndex: (Int) -> QueueTrackActions?,
+    onMove: (fromIndex: Int, toIndex: Int) -> Unit,
+    onClearQueue: Runnable,
+    labels: QueueScreenLabels,
+    onBack: Runnable?
+) {
     val p = EchoTheme.colors()
     val listState = rememberLazyListState()
     val dragState = rememberQueueDragState(
         itemKeyPrefix = "track-",
         onMove = onMove
     )
-    LaunchedEffect(tracks) {
+    LaunchedEffect(trackCount) {
         dragState.clear()
     }
     LazyColumn(
@@ -121,9 +144,9 @@ fun QueueScreen(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item(key = "title") {
-            QueueHeader(labels, tracks.size, onBack)
+            QueueHeader(labels, trackCount, onBack)
         }
-        if (tracks.isNotEmpty()) {
+        if (trackCount > 0) {
             item(key = "clear-queue") {
                 Surface(
                     onClick = { onClearQueue.run() },
@@ -146,16 +169,17 @@ fun QueueScreen(
                 }
             }
         }
-        if (tracks.isEmpty()) {
+        if (trackCount == 0) {
             item(key = "empty") {
                 EchoStateCard(labels.empty, labels.emptyDescription, icon = EchoIconKind.Queue)
             }
         }
-        itemsIndexed(
-            items = tracks,
-            key = { _, track -> "track-${track.key}" }
-        ) { i, track ->
-            actionForIndex(i)?.let { action ->
+        items(
+            count = trackCount,
+            key = { index -> "track-${trackAt(index)?.key ?: index}" }
+        ) { index ->
+            val track = trackAt(index) ?: return@items
+            actionForIndex(index)?.let { action ->
                 QueueTrackRow(
                     track = track,
                     actions = action,
@@ -165,7 +189,7 @@ fun QueueScreen(
                             translationY = dragState.dragOffsetFor("track-${track.key}")
                             shadowElevation = if (dragState.isDragging("track-${track.key}")) 12.dp.toPx() else 0f
                         },
-                    dragHandleModifier = Modifier.pointerInput(track.key, tracks.size) {
+                    dragHandleModifier = Modifier.pointerInput(track.key, trackCount) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { offset ->
                                 dragState.start(listState.layoutInfo.visibleItemsInfo, "track-${track.key}", offset)

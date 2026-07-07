@@ -29,4 +29,14 @@ class SearchViewModelTest {
         assertSame(actions, viewModel.uiState.value.actions)
         assertEquals("周杰伦", latestQuery)
     }
+
+    @Test
+    fun updateResultsDoesNotOverwriteUnsubmittedInputWithStaleRouteQuery() {
+        val viewModel = SearchViewModel()
+
+        viewModel.updateQuery("周杰伦")
+        viewModel.updateResults("", emptyList())
+
+        assertEquals("周杰伦", viewModel.uiState.value.query)
+    }
 }
