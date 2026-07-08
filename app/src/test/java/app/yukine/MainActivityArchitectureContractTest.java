@@ -6073,7 +6073,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("queue.clear();"));
         assertFalse(service.contains("queueStore().save(new ArrayList<>(queue), currentIndex());"));
         assertFalse(owner.contains("\n    fun isQueueEmpty(): Boolean"));
-        assertFalse(owner.contains("\n    fun queueSize(): Int"));
+        assertTrue(owner.contains("\n    fun queueSize(): Int"));
         assertFalse(owner.contains("\n    fun hasMultipleTracks(): Boolean"));
         assertTrue(owner.contains("fun savePlaybackResumeRequested(requested: Boolean)"));
         assertFalse(owner.contains("private fun savePlaybackResumeRequested(requested: Boolean)"));
@@ -6224,9 +6224,11 @@ public final class MainActivityArchitectureContractTest {
         java.util.Set<String> queueDerivedReadApi = new java.util.TreeSet<>(java.util.Arrays.asList(
                 "playbackCompletionAction",
                 "queuePreparationForNewPlayer",
+                "queueSize",
                 "queueSnapshot",
                 "queueStateSnapshot",
                 "restoredPositionFor",
+                "trackAt",
                 "upcomingTracksForPrecache"
         ));
         java.util.Set<String> expectedPublicApi = new java.util.TreeSet<>();
@@ -6239,9 +6241,11 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "playbackCompletionAction",
                 "queuePreparationForNewPlayer",
+                "queueSize",
                 "queueSnapshot",
                 "queueStateSnapshot",
                 "restoredPositionFor",
+                "trackAt",
                 "upcomingTracksForPrecache"
         )), queueDerivedReadApi);
         assertFalse(owner.contains("interface QueueProvider"));
@@ -6267,7 +6271,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("\n    fun setCurrentIndex(index: Int)"));
         assertFalse(owner.contains("\n    fun currentTrack(): Track?"));
         assertFalse(owner.contains("\n    fun isQueueEmpty(): Boolean"));
-        assertFalse(owner.contains("\n    fun queueSize(): Int"));
+        assertTrue(owner.contains("\n    fun queueSize(): Int"));
         assertFalse(owner.contains("\n    fun hasMultipleTracks(): Boolean"));
         assertFalse(owner.contains("\n    fun canSkipFailedTrack("));
         assertFalse(owner.contains("\n    fun canCrossfadeAdvance("));
