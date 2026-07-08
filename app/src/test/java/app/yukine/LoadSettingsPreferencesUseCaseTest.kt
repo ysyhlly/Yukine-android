@@ -49,6 +49,18 @@ class LoadSettingsPreferencesUseCaseTest {
         )
     }
 
+    @Test
+    fun floatingLyricsWinsWhenStoredStatusBarLyricsIsAlsoEnabled() {
+        val operations = FakeSettingsPreferenceLoadOperations()
+        operations.statusBarLyricsEnabled = true
+        operations.floatingLyricsEnabled = true
+
+        val result = LoadSettingsPreferencesUseCase(operations).execute()
+
+        assertFalse(result.statusBarLyricsEnabled)
+        assertEquals(true, result.floatingLyricsEnabled)
+    }
+
     private class FakeSettingsPreferenceLoadOperations : SettingsPreferenceLoadOperations {
         val events = mutableListOf<String>()
         var themeMode = EchoTheme.MODE_SYSTEM

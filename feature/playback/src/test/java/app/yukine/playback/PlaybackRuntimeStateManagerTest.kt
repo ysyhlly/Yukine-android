@@ -2,6 +2,8 @@ package app.yukine.playback
 
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackRuntimeStateManager
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -130,7 +132,17 @@ class PlaybackRuntimeStateManagerTest {
         manager.setConcurrentPlaybackEnabled(true)
 
         assertEquals(listOf("setAudioAttributes"), player.calls)
+        assertEquals(C.USAGE_MEDIA, player.audioAttributes?.usage)
+        assertEquals(C.AUDIO_CONTENT_TYPE_MUSIC, player.audioAttributes?.contentType)
         assertEquals(false, player.handleAudioFocus)
+
+        player.calls.clear()
+        manager.setConcurrentPlaybackEnabled(false)
+
+        assertEquals(listOf("setAudioAttributes"), player.calls)
+        assertEquals(C.USAGE_MEDIA, player.audioAttributes?.usage)
+        assertEquals(C.AUDIO_CONTENT_TYPE_MUSIC, player.audioAttributes?.contentType)
+        assertEquals(true, player.handleAudioFocus)
     }
 
     @Test
@@ -287,6 +299,7 @@ class PlaybackRuntimeStateManagerTest {
         var shuffleModeEnabled = false
         var repeatMode = Player.REPEAT_MODE_OFF
         var handleAudioFocus = true
+        var audioAttributes: AudioAttributes? = null
         var playing = false
 
         val proxy: ExoPlayer = Proxy.newProxyInstance(
@@ -316,6 +329,7 @@ class PlaybackRuntimeStateManagerTest {
                 }
                 "setAudioAttributes" -> {
                     calls += method.name
+                    audioAttributes = args?.get(0) as AudioAttributes
                     handleAudioFocus = args?.get(1) as Boolean
                     null
                 }

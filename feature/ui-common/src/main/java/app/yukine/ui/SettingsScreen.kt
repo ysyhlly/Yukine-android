@@ -262,4 +262,4 @@ private fun iconForAction(label: String): EchoIconKind {
 private fun isBackAction(label: String): Boolean =
     label.startsWith("Back", ignoreCase = true) ||
         label.contains("\u8fd4\u56de") ||
-        label.contains("杩斿洖")
+        label.contains("返回")

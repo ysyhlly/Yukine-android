@@ -1,11 +1,5 @@
 package app.yukine.ui
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,13 +12,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -102,37 +89,23 @@ fun YukineDownloadOrb(
     modifier: Modifier = Modifier
 ) {
     val p = EchoTheme.colors()
-    val fallbackPulse = if (audioMotion.visualMotionEnabled) {
-        rememberInfiniteTransition(label = "yukineOrbPulse").animateFloat(
-            initialValue = 0.12f,
-            targetValue = 0.44f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 920, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "yukineOrbPulseValue"
-        ).value
-    } else {
-        0.18f
-    }
-    val waveformPhase = if (audioMotion.visualMotionEnabled) {
-        rememberInfiniteTransition(label = "yukineOrbWaveformPhase").animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 620, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "yukineOrbWaveformPhaseValue"
-        ).value
-    } else {
-        0f
-    }
     val smoothPosition = rememberSmoothPosition(
         positionMs = audioMotion.positionMs,
         durationMs = audioMotion.durationMs,
         playing = audioMotion.playing
     )
+    val waveformPhase = if (audioMotion.visualMotionEnabled && (audioMotion.playing || item?.status != null)) {
+        ((smoothPosition.value % YukineOrbPhasePeriodMs).toFloat() / YukineOrbPhasePeriodMs.toFloat())
+            .coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val fallbackPulse = if (audioMotion.visualMotionEnabled) {
+        (0.18f + ((sin((waveformPhase * 2f * PI).toFloat()) + 1f) * 0.5f) * 0.20f)
+            .coerceIn(0.12f, 0.44f)
+    } else {
+        0.18f
+    }
     val progress = when (item?.status) {
         null, TrackDownloadStatus.Finished -> 1f
         else -> item.progressPercent.coerceIn(0, 100) / 100f
@@ -280,93 +253,13 @@ private data class YukineOrbRenderedSpectrumState(
 private const val YukineOrbSpectrumBarCount = 24
 private const val YukineOrbKickBandStart = 1
 private const val YukineOrbKickBandEndExclusive = 3
+private const val YukineOrbPhasePeriodMs = 4000L
 
 @Composable
 private fun rememberYukineOrbRenderedSpectrum(
     target: YukineOrbSpectrumState
 ): YukineOrbRenderedSpectrumState {
-    if (!target.visualMotionEnabled) {
-        return YukineOrbRenderedSpectrumState(target.bars, target.bars, target.bars, target.bass)
-    }
-    val targetState by rememberUpdatedState(target)
-    var rendered by remember {
-        mutableStateOf(
-            YukineOrbRenderedSpectrumState(
-                bars = List(YukineOrbSpectrumBarCount) { 0f },
-                peaks = List(YukineOrbSpectrumBarCount) { 0f },
-                baselines = List(YukineOrbSpectrumBarCount) { 0f },
-                beat = 0f
-            )
-        )
-    }
-    LaunchedEffect(Unit) {
-        var lastNanos = withFrameNanos { it }
-        while (true) {
-            val nowNanos = withFrameNanos { it }
-            val frameScale = ((nowNanos - lastNanos) / 16_666_667f).coerceIn(0.25f, 3f)
-            lastNanos = nowNanos
-            val current = rendered
-            val currentTarget = targetState
-            val beatAttack = if (currentTarget.hasSignal) 0.999f else 0.2f
-            val beatDecay = if (currentTarget.hasSignal) 0.78f else 0.1f
-            val barAttack = if (currentTarget.hasSignal) 0.90f else 0.28f
-            val barDecay = if (currentTarget.hasSignal) 0.34f else 0.12f
-            val baselineAttack = if (currentTarget.hasSignal) 0.045f else 0.04f
-            val baselineDecay = if (currentTarget.hasSignal) 0.18f else 0.08f
-            val nextBeat = envelopeFollower(
-                current = current.beat,
-                target = currentTarget.bass,
-                attack = beatAttack,
-                decay = beatDecay,
-                frameScale = frameScale
-            )
-            val nextBars = List(YukineOrbSpectrumBarCount) { index ->
-                val targetValue = currentTarget.bars.getOrElse(index) { 0f }
-                val baseline = current.baselines.getOrElse(index) { 0f }
-                val dynamicTarget = dynamicOrbSpectrumTarget(targetValue, baseline)
-                envelopeFollower(
-                    current = current.bars.getOrElse(index) { 0f },
-                    target = dynamicTarget,
-                    attack = barAttack,
-                    decay = barDecay,
-                    frameScale = frameScale
-                )
-            }
-            val nextBaselines = List(YukineOrbSpectrumBarCount) { index ->
-                envelopeFollower(
-                    current = current.baselines.getOrElse(index) { 0f },
-                    target = currentTarget.bars.getOrElse(index) { 0f },
-                    attack = baselineAttack,
-                    decay = baselineDecay,
-                    frameScale = frameScale
-                )
-            }
-            val nextPeaks = List(YukineOrbSpectrumBarCount) { index ->
-                val bar = nextBars.getOrElse(index) { 0f }
-                val previousPeak = current.peaks.getOrElse(index) { 0f }
-                if (bar >= previousPeak) {
-                    bar
-                } else {
-                    envelopeFollower(
-                        current = previousPeak,
-                        target = bar,
-                        attack = 0.28f,
-                        decay = if (currentTarget.hasSignal) 0.115f else 0.045f,
-                        frameScale = frameScale
-                    )
-                }
-            }
-            rendered = YukineOrbRenderedSpectrumState(nextBars, nextPeaks, nextBaselines, nextBeat)
-        }
-    }
-    return rendered
-}
-
-private fun dynamicOrbSpectrumTarget(value: Float, baseline: Float): Float {
-    val bounded = value.coerceIn(0f, 1f)
-    val floorReduced = max(0f, bounded - 0.045f)
-    val delta = max(0f, bounded - baseline * 0.76f - 0.025f)
-    return (delta * 1.95f + floorReduced * 0.22f).coerceIn(0f, 1f)
+    return YukineOrbRenderedSpectrumState(target.bars, target.bars, target.bars, target.bass)
 }
 
 data class YukineOrbAudioMotion(
@@ -547,20 +440,6 @@ private fun lerpFloat(start: Float, stop: Float, fraction: Float): Float =
 private fun transientBeatCurve(value: Float): Float {
     val clean = value.coerceIn(0f, 1f)
     return 1f - (1f - clean) * (1f - clean) * (1f - clean)
-}
-
-private fun envelopeFollower(
-    current: Float,
-    target: Float,
-    attack: Float,
-    decay: Float,
-    frameScale: Float
-): Float {
-    val boundedCurrent = current.coerceIn(0f, 1f)
-    val boundedTarget = target.coerceIn(0f, 1f)
-    val base = if (boundedTarget > boundedCurrent) attack else decay
-    val coefficient = 1f - (1f - base.coerceIn(0f, 0.995f)).pow(frameScale.coerceIn(0.25f, 3f))
-    return (boundedCurrent + (boundedTarget - boundedCurrent) * coefficient).coerceIn(0f, 1f)
 }
 
 private fun yukineQualityColor(quality: String, base: Color, fallback: Color): Color = when (quality.normalizedQuality()) {

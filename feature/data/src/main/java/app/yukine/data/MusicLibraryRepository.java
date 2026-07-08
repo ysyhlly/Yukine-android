@@ -33,6 +33,8 @@ import javax.inject.Singleton;
 
 @Singleton
 public final class MusicLibraryRepository {
+    private static final int AUDIO_SPEC_PARSE_BATCH_LIMIT = 24;
+
     private final EchoDatabaseHelper database;
     private final MediaStoreMusicScanner scanner;
     private final DocumentMusicImporter documentImporter;
@@ -192,9 +194,6 @@ public final class MusicLibraryRepository {
     }
 
     public long saveWebDavSource(long sourceId, String name, String baseUrl, String username, String password, String rootPath) {
-        if (sourceId > 0L) {
-            database.deleteRemoteSourceTracks(sourceId);
-        }
         RemoteSource source = new RemoteSource(
                 sourceId,
                 RemoteSource.TYPE_WEBDAV,
@@ -672,10 +671,15 @@ public final class MusicLibraryRepository {
     public int parseMissingAudioSpecs() {
         List<Track> tracks = database.loadTracks();
         ArrayList<Track> enriched = new ArrayList<>();
+        int parsedCandidates = 0;
         for (Track track : tracks) {
             if (track == null || !track.needsAudioSpecParsing()) {
                 continue;
             }
+            if (parsedCandidates >= AUDIO_SPEC_PARSE_BATCH_LIMIT) {
+                break;
+            }
+            parsedCandidates++;
             Track parsed = audioSpecParser.enrich(track);
             if (parsed != null && parsed.hasAudioSpec()) {
                 enriched.add(parsed);

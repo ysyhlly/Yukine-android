@@ -22,6 +22,10 @@ internal fun interface NowPlayingLanguageModeSource {
     fun languageMode(): String
 }
 
+internal fun interface NowPlayingQueueVisibilitySource {
+    fun queueVisible(): Boolean
+}
+
 internal fun interface NowPlayingFloatingLyricsSink {
     fun publishFloatingLyrics(
         trackTitle: String,
@@ -43,6 +47,7 @@ internal fun interface MainNowPlayingStateListenerFactory {
         favoriteIdsSource: NowPlayingFavoriteIdsSource,
         lyricsStateSource: NowPlayingLyricsStateSource,
         languageModeSource: NowPlayingLanguageModeSource,
+        queueVisibilitySource: NowPlayingQueueVisibilitySource,
         floatingLyricsSink: NowPlayingFloatingLyricsSink,
         queueInputsSyncer: NowPlayingQueueInputsSyncer
     ): NowPlayingStateController.Listener
@@ -54,6 +59,7 @@ internal class MainNowPlayingStateListener(
     private val favoriteIdsSource: NowPlayingFavoriteIdsSource,
     private val lyricsStateSource: NowPlayingLyricsStateSource,
     private val languageModeSource: NowPlayingLanguageModeSource,
+    private val queueVisibilitySource: NowPlayingQueueVisibilitySource,
     private val floatingLyricsSink: NowPlayingFloatingLyricsSink,
     private val queueInputsSyncer: NowPlayingQueueInputsSyncer
 ) : NowPlayingStateController.Listener {
@@ -71,6 +77,9 @@ internal class MainNowPlayingStateListener(
 
     override fun languageMode(): String =
         languageModeSource.languageMode()
+
+    override fun queueVisible(): Boolean =
+        queueVisibilitySource.queueVisible()
 
     override fun publishFloatingLyrics(state: NowPlayingUiState) {
         floatingLyricsSink.publishFloatingLyrics(

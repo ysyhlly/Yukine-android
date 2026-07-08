@@ -4,6 +4,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class StreamingPlaybackTaskSchedulerTest {
     @Test
@@ -79,5 +80,50 @@ public class StreamingPlaybackTaskSchedulerTest {
         });
 
         Assert.assertEquals(0, calls.get());
+    }
+
+    @Test
+    public void throwingCriticalTaskReportsFailureAndDrainsNextCriticalTask() {
+        AtomicReference<StreamingPlaybackTaskScheduler.Priority> failedPriority = new AtomicReference<>();
+        AtomicReference<RuntimeException> failure = new AtomicReference<>();
+        StreamingPlaybackTaskScheduler scheduler = new StreamingPlaybackTaskScheduler((priority, exception) -> {
+            failedPriority.set(priority);
+            failure.set(exception);
+        });
+        StringBuilder order = new StringBuilder();
+
+        scheduler.scheduleCurrentUrlResolve(completion -> {
+            order.append("throw,");
+            throw new IllegalStateException("critical");
+        });
+        scheduler.scheduleCurrentPlaybackRecovery(completion -> {
+            order.append("recovery,");
+            completion.run();
+        });
+
+        Assert.assertEquals("throw,recovery,", order.toString());
+        Assert.assertEquals(StreamingPlaybackTaskScheduler.Priority.CURRENT_URL_RESOLVE, failedPriority.get());
+        Assert.assertTrue(failure.get() instanceof IllegalStateException);
+    }
+
+    @Test
+    public void throwingNextResolveTaskReportsFailureAndDrainsNextResolveTask() {
+        AtomicReference<StreamingPlaybackTaskScheduler.Priority> failedPriority = new AtomicReference<>();
+        StreamingPlaybackTaskScheduler scheduler = new StreamingPlaybackTaskScheduler((priority, exception) ->
+                failedPriority.set(priority)
+        );
+        StringBuilder order = new StringBuilder();
+
+        scheduler.scheduleNextUrlResolve(completion -> {
+            order.append("throw,");
+            throw new IllegalStateException("next");
+        });
+        scheduler.scheduleNextUrlResolve(completion -> {
+            order.append("next,");
+            completion.run();
+        });
+
+        Assert.assertEquals("throw,next,", order.toString());
+        Assert.assertEquals(StreamingPlaybackTaskScheduler.Priority.NEXT_URL_RESOLVE, failedPriority.get());
     }
 }

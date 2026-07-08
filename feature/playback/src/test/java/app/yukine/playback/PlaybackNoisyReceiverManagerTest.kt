@@ -1,12 +1,21 @@
 package app.yukine.playback
 
 import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
 import android.content.IntentFilter
+import android.media.AudioManager
+import org.junit.Assert.assertTrue
 import app.yukine.playback.manager.PlaybackNoisyReceiverManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
 class PlaybackNoisyReceiverManagerTest {
     @Test
     fun registerAndUnregisterAreIdempotent() {
@@ -35,6 +44,41 @@ class PlaybackNoisyReceiverManagerTest {
 
         assertEquals(1, registrar.registerCalls)
         assertEquals(1, registrar.unregisterCalls)
+    }
+
+    @Test
+    fun audioBecomingNoisyBroadcastPausesOnlyActivePlayback() {
+        val playingActions = CountingActions(playing = true)
+        val playingRegistrar = FakeRegistrar()
+        val playingManager = PlaybackNoisyReceiverManager(
+            playingRegistrar,
+            PlaybackNoisyReceiverManager.actionsFromPlaybackState(
+                playingActions::playing,
+                Runnable { playingActions.pauseCalls += 1 }
+            )
+        )
+
+        playingManager.register()
+        assertTrue(playingRegistrar.filter?.hasAction(AudioManager.ACTION_AUDIO_BECOMING_NOISY) == true)
+        playingRegistrar.deliverMatchingBroadcast(Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY))
+        playingRegistrar.deliverMatchingBroadcast(Intent("other.action"))
+
+        assertEquals(1, playingActions.pauseCalls)
+
+        val stoppedActions = CountingActions(playing = false)
+        val stoppedRegistrar = FakeRegistrar()
+        val stoppedManager = PlaybackNoisyReceiverManager(
+            stoppedRegistrar,
+            PlaybackNoisyReceiverManager.actionsFromPlaybackState(
+                stoppedActions::playing,
+                Runnable { stoppedActions.pauseCalls += 1 }
+            )
+        )
+
+        stoppedManager.register()
+        stoppedRegistrar.deliverMatchingBroadcast(Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY))
+
+        assertEquals(0, stoppedActions.pauseCalls)
     }
 
     @Test
@@ -90,6 +134,20 @@ class PlaybackNoisyReceiverManagerTest {
                 throw IllegalArgumentException("already unregistered")
             }
         }
+
+        fun deliverMatchingBroadcast(intent: Intent) {
+            if (filter?.hasAction(intent.action) == true) {
+                receiver?.onReceive(null as Context?, intent)
+            }
+        }
+    }
+
+    private class CountingActions(
+        private val playing: Boolean
+    ) {
+        var pauseCalls = 0
+
+        fun playing(): Boolean = playing
     }
 
     private class FakeActions : PlaybackNoisyReceiverManager.Actions {

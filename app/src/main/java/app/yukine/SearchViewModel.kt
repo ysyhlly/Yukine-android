@@ -17,10 +17,17 @@ class SearchViewModel : ViewModel() {
     }
 
     fun updateResults(query: String, localTracks: List<Track>) {
+        val current = searchState.value
+        val displayQuery = if (current.query.isNotBlank() && current.query != query) {
+            current.query
+        } else {
+            query
+        }
         searchState.value = UnifiedSearchUiState(
-            query = query,
+            query = displayQuery,
             localTracks = localTracks,
-            searched = query.isNotBlank()
+            searched = query.isNotBlank(),
+            actions = current.actions
         )
     }
 

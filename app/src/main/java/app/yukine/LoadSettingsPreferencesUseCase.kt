@@ -84,24 +84,35 @@ internal class MusicLibrarySettingsPreferenceLoadOperations(
 internal class LoadSettingsPreferencesUseCase(
     private val operations: SettingsPreferenceLoadOperations
 ) {
-    fun execute(): LoadedSettingsPreferences =
-        LoadedSettingsPreferences(
-            themeMode = EchoThemeModeNormalizer.themeMode(operations.loadThemeMode()),
-            accentMode = EchoThemeModeNormalizer.accentMode(operations.loadAccentMode()),
-            languageMode = AppLanguage.normalizeMode(operations.loadLanguageMode()),
-            playbackSpeed = operations.loadPlaybackSpeed(),
-            appVolume = operations.loadAppVolume(),
-            streamingAudioQuality = StreamingQualityPreference.normalize(operations.loadStreamingAudioQuality()),
-            concurrentPlaybackEnabled = operations.loadConcurrentPlaybackEnabled(),
-            audioEffectSettings = operations.loadAudioEffectSettings(),
-            statusBarLyricsEnabled = operations.loadStatusBarLyricsEnabled(),
-            floatingLyricsEnabled = operations.loadFloatingLyricsEnabled(),
+    fun execute(): LoadedSettingsPreferences {
+        val themeMode = EchoThemeModeNormalizer.themeMode(operations.loadThemeMode())
+        val accentMode = EchoThemeModeNormalizer.accentMode(operations.loadAccentMode())
+        val languageMode = AppLanguage.normalizeMode(operations.loadLanguageMode())
+        val playbackSpeed = operations.loadPlaybackSpeed()
+        val appVolume = operations.loadAppVolume()
+        val streamingAudioQuality = StreamingQualityPreference.normalize(operations.loadStreamingAudioQuality())
+        val concurrentPlaybackEnabled = operations.loadConcurrentPlaybackEnabled()
+        val audioEffectSettings = operations.loadAudioEffectSettings()
+        val statusBarLyricsEnabled = operations.loadStatusBarLyricsEnabled()
+        val floatingLyricsEnabled = operations.loadFloatingLyricsEnabled()
+        return LoadedSettingsPreferences(
+            themeMode = themeMode,
+            accentMode = accentMode,
+            languageMode = languageMode,
+            playbackSpeed = playbackSpeed,
+            appVolume = appVolume,
+            streamingAudioQuality = streamingAudioQuality,
+            concurrentPlaybackEnabled = concurrentPlaybackEnabled,
+            audioEffectSettings = audioEffectSettings,
+            statusBarLyricsEnabled = statusBarLyricsEnabled && !floatingLyricsEnabled,
+            floatingLyricsEnabled = floatingLyricsEnabled,
             nowPlayingGesturesEnabled = operations.loadNowPlayingGesturesEnabled(),
             playbackRestoreEnabled = operations.loadPlaybackRestoreEnabled(),
             replayGainEnabled = operations.loadReplayGainEnabled(),
             shareStyle = TrackShareStyle.normalize(operations.loadShareStyle()),
             pageBackgrounds = operations.loadPageBackgrounds()
         )
+    }
 }
 
 private object EchoThemeModeNormalizer {

@@ -25,6 +25,9 @@ final class AudioSpecParser {
         if (track == null) {
             return track;
         }
+        if (isStreamingTrack(track)) {
+            return track;
+        }
         Spec spec = track.needsAudioSpecParsing() ? read(track.contentUri) : Spec.fromTrack(track);
         if (!spec.hasAudioSpec()) {
             Spec inferred = inferFromPath(track.dataPath);
@@ -57,6 +60,12 @@ final class AudioSpecParser {
                 replayGain.trackDb,
                 replayGain.albumDb
         );
+    }
+
+    private boolean isStreamingTrack(Track track) {
+        return track != null
+                && track.dataPath != null
+                && track.dataPath.startsWith("streaming:");
     }
 
     private Spec read(Uri uri) {

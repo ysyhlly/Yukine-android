@@ -26,11 +26,6 @@ import app.yukine.streaming.StreamingSearchItem
 import app.yukine.streaming.StreamingSearchResult
 import app.yukine.streaming.StreamingTrack
 import app.yukine.streaming.StreamingTrackMatchPolicy
-import app.yukine.streaming.mergeCrossSourceDuplicates
-import app.yukine.streaming.mergeStreamingSearchResults
-import app.yukine.streaming.rankBySearchSimilarity
-import app.yukine.streaming.rankItemsBySearchSimilarity
-import app.yukine.streaming.trackOnlySearchResult
 import app.yukine.ui.StreamingSearchActions
 import app.yukine.ui.StreamingSearchLabels
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -44,9 +39,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.max
 import javax.inject.Inject
 
 private const val STREAMING_QUEUE_PRE_RESOLVE_LIMIT = 3
+private const val CROSS_SOURCE_DURATION_TOLERANCE_MS = 3_000L
+internal const val STREAMING_PLAYLIST_PAGE_SIZE = 2_000
+internal const val STREAMING_PLAYLIST_MAX_PAGES = 50
+private const val STREAMING_PLAYLIST_MAX_TRACKS =
+    STREAMING_PLAYLIST_PAGE_SIZE * STREAMING_PLAYLIST_MAX_PAGES
 
 @HiltViewModel
 class StreamingViewModel @Inject constructor(
@@ -420,6 +421,259 @@ class StreamingViewModel @Inject constructor(
                 onResolved.onResult(null)
             }
         }
+    }
+
+    private fun mergeStreamingSearchResults(
+        query: String,
+        pageSize: Int,
+        results: List<StreamingSearchResult>
+    ): StreamingSearchResult {
+        val tracks = results
+            .flatMap { it.tracks }
+            .distinctBy { "${it.provider.wireName}:${it.providerTrackId}" }
+            .rankBySearchSimilarity(query)
+        val albums = results
+            .flatMap { it.albums }
+            .distinctBy { "${it.provider.wireName}:${it.providerAlbumId}" }
+        val artists = results
+            .flatMap { it.artists }
+            .distinctBy { "${it.provider.wireName}:${it.providerArtistId}" }
+        val playlists = results
+            .flatMap { it.playlists }
+            .distinctBy { "${it.provider.wireName}:${it.providerPlaylistId}" }
+        val mvs = results
+            .flatMap { it.mvs }
+            .distinctBy { "${it.provider.wireName}:${it.providerMvId}" }
+        return StreamingSearchResult(
+            provider = results.firstOrNull { it.tracks.isNotEmpty() }?.provider
+                ?: results.first().provider,
+            query = query,
+            page = 1,
+            pageSize = pageSize,
+            total = results.mapNotNull { it.total }.takeIf { it.isNotEmpty() }?.sum(),
+            hasMore = false,
+            tracks = tracks,
+            albums = albums,
+            artists = artists,
+            playlists = playlists,
+            mvs = mvs,
+            cached = results.all { it.cached },
+            items = results.flatMap { it.unifiedItems }
+                .distinctBy { "${it.provider.wireName}:${it.type.wireName}:${it.id}" }
+                .rankItemsBySearchSimilarity(query)
+        )
+    }
+
+    /**
+     * 把不同音源里「同作者 + 同曲名」（时长在容差内）的曲目合并为一条，列表只保留一条代表项，
+     * 其余音源折叠进代表项的 [StreamingTrack.playbackCandidates]，供播放解析失败时自动回退、
+     * 以及在播放页手动切换音源使用。仅在多音源聚合搜索结果上调用。
+     */
+    private fun StreamingSearchResult.mergeCrossSourceDuplicates(): StreamingSearchResult {
+        if (tracks.size <= 1) {
+            return this
+        }
+        val itemsByKey = unifiedItems
+            .filter { it.type == StreamingMediaType.TRACK && it.track != null }
+            .associateBy { "${it.provider.wireName}:${it.id}" }
+        // 保持原有排序：按首次出现的代表项顺序聚类。
+        val clusters = LinkedHashMap<String, MutableList<StreamingTrack>>()
+        tracks.forEach { track ->
+            val key = track.crossSourceMergeKey()
+            val bucket = clusters.getOrPut(key) { mutableListOf() }
+            val sibling = bucket.firstOrNull { it.isSameSongAcrossSource(track) }
+            if (sibling != null || bucket.isEmpty()) {
+                bucket.add(track)
+            } else {
+                // 同作者+同曲名但时长差异过大（疑似同名不同曲），归入带序号的独立簇避免误合并。
+                clusters.getOrPut("$key#${clusters.size}") { mutableListOf() }.add(track)
+            }
+        }
+        val mergedTracks = clusters.values
+            .filter { it.isNotEmpty() }
+            .map { group -> group.mergeSourcesIntoRepresentative() }
+        if (mergedTracks.size == tracks.size) {
+            return this
+        }
+        val mergedItems = mergedTracks.map { track ->
+            itemsByKey["${track.provider.wireName}:${track.providerTrackId}"]
+                ?.copy(track = track)
+                ?: StreamingSearchItem.fromTrack(track)
+        }
+        return copy(
+            tracks = mergedTracks,
+            total = mergedTracks.size,
+            items = mergedItems
+        )
+    }
+
+    /** 归一化「作者 + 曲名」作为合并主键；作者多人时排序 token 以兼容不同音源的拼接顺序。 */
+    private fun StreamingTrack.crossSourceMergeKey(): String {
+        val normalizedTitle = title.rankText()
+        val normalizedArtist = artist.rankText()
+            .split(' ')
+            .filter { it.isNotBlank() }
+            .sorted()
+            .joinToString(" ")
+        return "$normalizedArtist$normalizedTitle"
+    }
+
+    /** 作者名与曲名归一化相同，且时长缺失或落在 ±3 秒容差内时，判定为同一首歌。 */
+    private fun StreamingTrack.isSameSongAcrossSource(other: StreamingTrack): Boolean {
+        if (crossSourceMergeKey() != other.crossSourceMergeKey()) {
+            return false
+        }
+        val left = durationMs
+        val right = other.durationMs
+        if (left == null || right == null || left <= 0L || right <= 0L) {
+            return true
+        }
+        return kotlin.math.abs(left - right) <= CROSS_SOURCE_DURATION_TOLERANCE_MS
+    }
+
+    /** 选可播放的首项作代表，其余音源折叠为备用候选；代表项已有候选保留在前。 */
+    private fun List<StreamingTrack>.mergeSourcesIntoRepresentative(): StreamingTrack {
+        if (size == 1) {
+            return first()
+        }
+        val representative = firstOrNull { it.playable } ?: first()
+        val seen = linkedSetOf("${representative.provider.wireName}:${representative.providerTrackId}")
+        val candidates = representative.playbackCandidates.toMutableList()
+        forEach { track ->
+            val identity = "${track.provider.wireName}:${track.providerTrackId}"
+            if (!seen.add(identity)) {
+                return@forEach
+            }
+            candidates += StreamingPlaybackCandidate(
+                provider = track.provider,
+                quality = null,
+                label = track.provider.wireName,
+                providerTrackId = track.providerTrackId,
+                available = track.playable
+            )
+        }
+        return representative.copy(playbackCandidates = candidates)
+    }
+
+    private fun StreamingSearchResult.trackOnlySearchResult(): StreamingSearchResult {
+        val trackItems = unifiedItems
+            .filter { it.type == StreamingMediaType.TRACK && it.track != null }
+            .distinctBy { "${it.provider.wireName}:${it.id}" }
+        val trackItemsByKey = trackItems.associateBy { "${it.provider.wireName}:${it.id}" }
+        val normalizedTracks = (tracks + trackItems.mapNotNull { it.track })
+            .distinctBy { "${it.provider.wireName}:${it.providerTrackId}" }
+        val normalizedItems = normalizedTracks.map { track ->
+            trackItemsByKey["${track.provider.wireName}:${track.providerTrackId}"]
+                ?: StreamingSearchItem.fromTrack(track)
+        }
+        return copy(
+            tracks = normalizedTracks,
+            albums = emptyList(),
+            artists = emptyList(),
+            playlists = emptyList(),
+            mvs = emptyList(),
+            total = normalizedTracks.size,
+            items = normalizedItems
+        )
+    }
+
+    private fun List<StreamingTrack>.rankBySearchSimilarity(query: String): List<StreamingTrack> {
+        val normalizedQuery = query.rankText()
+        if (normalizedQuery.isBlank() || size <= 1) {
+            return this
+        }
+        return withIndex()
+            .sortedWith(
+                compareByDescending<IndexedValue<StreamingTrack>> { (_, track) ->
+                    track.searchSimilarityScore(normalizedQuery)
+                }.thenBy { it.index }
+            )
+            .map { it.value }
+    }
+
+    private fun List<StreamingSearchItem>.rankItemsBySearchSimilarity(query: String): List<StreamingSearchItem> {
+        val normalizedQuery = query.rankText()
+        if (normalizedQuery.isBlank() || size <= 1) {
+            return this
+        }
+        return withIndex()
+            .sortedWith(
+                compareByDescending<IndexedValue<StreamingSearchItem>> { (_, item) ->
+                    item.track?.searchSimilarityScore(normalizedQuery) ?: 0
+                }.thenBy { it.index }
+            )
+            .map { it.value }
+    }
+
+    private fun StreamingTrack.searchSimilarityScore(normalizedQuery: String): Int {
+        val title = title.rankText()
+        val artist = artist.rankText()
+        val album = album.orEmpty().rankText()
+        return similarityScore(normalizedQuery, title) * 6 +
+            similarityScore(normalizedQuery, "$title $artist") * 3 +
+            similarityScore(normalizedQuery, artist) * 2 +
+            similarityScore(normalizedQuery, album)
+    }
+
+    private fun similarityScore(query: String, candidate: String): Int {
+        if (query.isBlank() || candidate.isBlank()) {
+            return 0
+        }
+        if (query == candidate) {
+            return 1_000
+        }
+        if (candidate.startsWith(query)) {
+            return 850
+        }
+        if (candidate.contains(query)) {
+            return 720
+        }
+        val queryTokens = query.split(' ').filter { it.isNotBlank() }
+        val candidateTokens = candidate.split(' ').filter { it.isNotBlank() }
+        val tokenHits = queryTokens.count { token ->
+            candidateTokens.any { it == token || it.startsWith(token) || it.contains(token) }
+        }
+        val tokenScore = if (queryTokens.isNotEmpty()) tokenHits * 500 / queryTokens.size else 0
+        val distance = levenshteinDistance(query, candidate)
+        val maxLength = max(query.length, candidate.length).coerceAtLeast(1)
+        val fuzzyScore = ((maxLength - distance).coerceAtLeast(0) * 360) / maxLength
+        return max(tokenScore, fuzzyScore)
+    }
+
+    private fun levenshteinDistance(first: String, second: String): Int {
+        if (first == second) {
+            return 0
+        }
+        if (first.isEmpty()) {
+            return second.length
+        }
+        if (second.isEmpty()) {
+            return first.length
+        }
+        var previous = IntArray(second.length + 1) { it }
+        var current = IntArray(second.length + 1)
+        for (i in first.indices) {
+            current[0] = i + 1
+            for (j in second.indices) {
+                val cost = if (first[i] == second[j]) 0 else 1
+                current[j + 1] = minOf(
+                    current[j] + 1,
+                    previous[j + 1] + 1,
+                    previous[j] + cost
+                )
+            }
+            val swap = previous
+            previous = current
+            current = swap
+        }
+        return previous[second.length]
+    }
+
+    private fun String.rankText(): String {
+        return lowercase()
+            .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
     }
 
     fun refreshStreamingAuthState(provider: StreamingProviderName) {
@@ -1469,7 +1723,6 @@ class StreamingViewModel @Inject constructor(
         provider: StreamingProviderName,
         providerPlaylistId: String
     ): Pair<String, List<StreamingTrack>> {
-        val pageSize = 2000
         val tracks = ArrayList<StreamingTrack>()
         var playlistName: String? = null
         var page = 1
@@ -1479,17 +1732,31 @@ class StreamingViewModel @Inject constructor(
                 provider = provider,
                 providerPlaylistId = providerPlaylistId,
                 page = page,
-                pageSize = pageSize,
+                pageSize = STREAMING_PLAYLIST_PAGE_SIZE,
                 useCache = false
             )
             if (playlistName.isNullOrBlank()) {
                 playlistName = detail.playlist?.title?.takeIf { it.isNotBlank() }
             }
             total = detail.total ?: total
-            tracks.addAll(detail.tracks)
+            val remainingCapacity = STREAMING_PLAYLIST_MAX_TRACKS - tracks.size
+            val acceptedTracks = if (remainingCapacity > 0) {
+                detail.tracks.take(remainingCapacity)
+            } else {
+                emptyList()
+            }
+            tracks.addAll(acceptedTracks)
 
             val reachedTotal = total?.let { expected -> tracks.size >= expected } == true
-            if (!detail.hasMore || detail.tracks.isEmpty() || reachedTotal) {
+            val reachedLocalPageCap = page >= STREAMING_PLAYLIST_MAX_PAGES
+            val reachedLocalTrackCap = acceptedTracks.size < detail.tracks.size ||
+                tracks.size >= STREAMING_PLAYLIST_MAX_TRACKS
+            if (!detail.hasMore ||
+                detail.tracks.isEmpty() ||
+                reachedTotal ||
+                reachedLocalPageCap ||
+                reachedLocalTrackCap
+            ) {
                 break
             }
             page += 1

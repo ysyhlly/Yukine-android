@@ -3,12 +3,18 @@ package app.yukine
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.streaming.StreamingAudioQuality
+import app.yukine.streaming.StreamingPlaybackAdapter
 
 internal class StreamingPlaybackController(
     private val streamingViewModel: StreamingViewModel,
     private val nowPlayingViewModel: NowPlayingViewModel,
     private val listener: Listener
 ) {
+    private companion object {
+        private const val PRE_RESOLVE_WINDOW_TARGETS = 3
+        private const val PRE_RESOLVE_LOOKAHEAD_LIMIT = 32
+    }
+
     interface Listener {
         fun languageMode(): String
 
@@ -17,6 +23,10 @@ internal class StreamingPlaybackController(
         fun selectedStreamingQuality(): StreamingAudioQuality
 
         fun queueSnapshot(): List<Track>
+
+        fun queueSize(): Int
+
+        fun queueTrackAt(index: Int): Track?
 
         fun maybeAppendHeartbeatRecommendations(snapshot: PlaybackStateSnapshot)
 
@@ -55,11 +65,13 @@ internal class StreamingPlaybackController(
             return
         }
         listener.maybeAppendHeartbeatRecommendations(snapshot)
-        val queueSnapshot = listener.queueSnapshot()
+        val queue = boundedPreResolveQueue(snapshot) ?: return
+        val preResolveSnapshot = preResolveSnapshot(snapshot, queue)
+        val quality = listener.adaptiveStreamingQuality()
         streamingViewModel.preResolveNextStreamingTrack(
-            snapshot,
-            queueSnapshot,
-            listener.adaptiveStreamingQuality()
+            preResolveSnapshot,
+            queue,
+            quality
         ) { oldTrackId, resolved ->
             if (resolved == null) {
                 return@preResolveNextStreamingTrack
@@ -68,9 +80,9 @@ internal class StreamingPlaybackController(
             nowPlayingViewModel.warmPlaybackTrack(resolved)
         }
         streamingViewModel.preResolveStreamingQueueWindow(
-            snapshot,
-            queueSnapshot,
-            listener.adaptiveStreamingQuality()
+            preResolveSnapshot,
+            queue,
+            quality
         ) { oldTrackId, resolved ->
             if (resolved == null) {
                 return@preResolveStreamingQueueWindow
@@ -79,6 +91,58 @@ internal class StreamingPlaybackController(
             nowPlayingViewModel.warmPlaybackTrack(resolved)
         }
     }
+
+    private fun boundedPreResolveQueue(snapshot: PlaybackStateSnapshot): List<Track>? {
+        val queueSize = listener.queueSize()
+        val currentIndex = snapshot.currentIndex
+        if (queueSize <= 1 || currentIndex !in 0 until queueSize) {
+            return null
+        }
+        val current = snapshot.currentTrack ?: listener.queueTrackAt(currentIndex) ?: return null
+        val nextIndex = (currentIndex + 1).floorMod(queueSize)
+        if (nextIndex == currentIndex) {
+            return null
+        }
+        val next = listener.queueTrackAt(nextIndex) ?: return null
+        val maxWindowSize = 2 + PRE_RESOLVE_WINDOW_TARGETS
+        val queue = ArrayList<Track>(minOf(queueSize, maxWindowSize))
+        queue += current
+        queue += next
+
+        val maxLookahead = minOf(queueSize - 2, PRE_RESOLVE_LOOKAHEAD_LIMIT)
+        var offset = 2
+        while (offset < 2 + maxLookahead && queue.size < maxWindowSize) {
+            val index = (currentIndex + offset).floorMod(queueSize)
+            val candidate = listener.queueTrackAt(index)
+            if (candidate != null && StreamingPlaybackAdapter.isUnresolvedStreamingTrack(candidate)) {
+                queue += candidate
+            }
+            offset += 1
+        }
+        return queue
+    }
+
+    private fun preResolveSnapshot(
+        source: PlaybackStateSnapshot,
+        queue: List<Track>
+    ): PlaybackStateSnapshot = PlaybackStateSnapshot(
+        queue.firstOrNull(),
+        0,
+        queue.size,
+        source.positionMs,
+        source.durationMs,
+        source.playing,
+        source.preparing,
+        source.errorMessage,
+        source.shuffleEnabled,
+        source.repeatMode,
+        source.playbackSpeed,
+        source.appVolume,
+        source.sleepTimerRemainingMs,
+        source.waveform,
+        source.spectrum,
+        source.realtimeBeat
+    )
 
     fun recoverStreamingBuffering(snapshot: PlaybackStateSnapshot?) {
         if (snapshot == null) {
@@ -107,4 +171,6 @@ internal class StreamingPlaybackController(
             ).qualityDowngrading
         )
     }
+
+    private fun Int.floorMod(modulus: Int): Int = ((this % modulus) + modulus) % modulus
 }

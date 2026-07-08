@@ -20,7 +20,8 @@ class MainNowPlayingStateListenerTest {
             snapshot = snapshot,
             favoriteIds = setOf(1L, 2L),
             lyricsState = lyricsState,
-            languageMode = AppLanguage.MODE_ENGLISH
+            languageMode = AppLanguage.MODE_ENGLISH,
+            queueVisible = true
         )
 
         assertEquals(true, listener.storesReady())
@@ -28,6 +29,7 @@ class MainNowPlayingStateListenerTest {
         assertEquals(setOf(1L, 2L), listener.favoriteIds())
         assertEquals(lyricsState, listener.lyricsState())
         assertEquals(AppLanguage.MODE_ENGLISH, listener.languageMode())
+        assertEquals(true, listener.queueVisible())
         listener.syncQueueInputs()
 
         assertEquals(listOf("queue"), calls)
@@ -78,6 +80,7 @@ class MainNowPlayingStateListenerTest {
             NowPlayingFavoriteIdsSource { setOf(7L) },
             NowPlayingLyricsStateSource { null },
             NowPlayingLanguageModeSource { AppLanguage.MODE_SYSTEM },
+            NowPlayingQueueVisibilitySource { true },
             NowPlayingFloatingLyricsSink { title, _, _, _, activeLine -> calls += "floating:$title:$activeLine" },
             NowPlayingQueueInputsSyncer { calls += "queue" }
         )
@@ -85,6 +88,7 @@ class MainNowPlayingStateListenerTest {
         assertEquals(false, listener.storesReady())
         assertEquals(setOf(7L), listener.favoriteIds())
         assertEquals(AppLanguage.MODE_SYSTEM, listener.languageMode())
+        assertEquals(true, listener.queueVisible())
         listener.publishFloatingLyrics(
             NowPlayingUiState(
                 trackTitle = "Song",
@@ -102,7 +106,8 @@ class MainNowPlayingStateListenerTest {
         snapshot: PlaybackStateSnapshot = snapshot(),
         favoriteIds: Set<Long> = emptySet(),
         lyricsState: LyricsState? = null,
-        languageMode: String = AppLanguage.MODE_SYSTEM
+        languageMode: String = AppLanguage.MODE_SYSTEM,
+        queueVisible: Boolean = true
     ): MainNowPlayingStateListener =
         MainNowPlayingStateListener(
             storesReadySource = NowPlayingStoresReadySource { storesReady },
@@ -110,6 +115,7 @@ class MainNowPlayingStateListenerTest {
             favoriteIdsSource = NowPlayingFavoriteIdsSource { favoriteIds },
             lyricsStateSource = NowPlayingLyricsStateSource { lyricsState },
             languageModeSource = NowPlayingLanguageModeSource { languageMode },
+            queueVisibilitySource = NowPlayingQueueVisibilitySource { queueVisible },
             floatingLyricsSink = NowPlayingFloatingLyricsSink { title, artist, coverUri, playing, activeLine ->
                 calls += "floating:$title:$artist:${coverUri.orEmpty()}:$playing:$activeLine"
             },

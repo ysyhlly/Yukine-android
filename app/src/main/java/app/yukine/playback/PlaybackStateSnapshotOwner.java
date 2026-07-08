@@ -177,10 +177,11 @@ final class PlaybackStateSnapshotOwner {
             queueState = PlaybackQueueManager.QueueStateSnapshot.empty();
         }
         Track track = queueState.getCurrentTrack();
-        long positionMs = playbackPositionProvider == null ? 0L : playbackPositionProvider.positionMs();
+        long rawPositionMs = playbackPositionProvider == null ? 0L : playbackPositionProvider.positionMs();
         long playbackDurationMs = playbackPositionProvider == null ? 0L : playbackPositionProvider.durationMs();
         boolean playing = playbackPositionProvider != null && playbackPositionProvider.isPlaying();
         long durationMs = track == null ? 0L : Math.max(track.durationMs, playbackDurationMs);
+        long positionMs = durationMs > 0L ? Math.min(rawPositionMs, durationMs) : rawPositionMs;
         boolean deferVisualGeneration = visualizationProvider != null
                 && visualizationProvider.shouldDeferPlaybackVisualization();
         PlaybackWaveformSnapshot waveform = visualizationProvider == null

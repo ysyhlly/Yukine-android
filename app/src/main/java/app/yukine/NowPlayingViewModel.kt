@@ -237,7 +237,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun hasQueue(): Boolean {
         val player = playbackGateway ?: return false
-        return player.serviceConnected() && player.queueSnapshot().isNotEmpty()
+        return player.serviceConnected() && (player.snapshot()?.queueSize ?: 0) > 0
     }
 
     fun clearQueue(): PlaybackActionResultUi {

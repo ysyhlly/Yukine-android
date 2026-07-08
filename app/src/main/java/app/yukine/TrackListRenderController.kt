@@ -71,6 +71,7 @@ internal class TrackListRenderController(
             effectiveHeaderActions.add(TrackListHeaderAction("下载当前列表", Runnable { listener.downloadTracks(tracks) }))
         }
         val currentTrack = playbackState?.currentTrack
+        val rowKeys = TrackRowKeyPolicy.occurrenceKeys(tracks)
         for (index in tracks.indices) {
             val track = tracks[index]
             rows.add(
@@ -80,7 +81,7 @@ internal class TrackListRenderController(
                     favoriteIds,
                     if (index < details.size) details[index] else "",
                     showPlaylistAction,
-                    TrackRowKeyPolicy.occurrenceKey(tracks, index)
+                    rowKeys[index]
                 )
             )
             actions.add(
@@ -96,11 +97,17 @@ internal class TrackListRenderController(
         }
 
         viewModel.clearLibraryGroups()
-        if (footerAlbums.isEmpty()) {
-            viewModel.updateTrackList(title, rows)
-        } else {
-            viewModel.updateTrackList(title, rows, footerAlbums)
-        }
+        viewModel.updateTrackListContentAndChrome(
+            title,
+            rows,
+            footerAlbums,
+            actions,
+            headerMetrics,
+            effectiveHeaderActions,
+            emptyText,
+            modeActions,
+            labels
+        )
         listener.publishTrackListChrome(actions, headerMetrics, effectiveHeaderActions, emptyText, modeActions, labels)
     }
 
@@ -111,6 +118,7 @@ internal class TrackListRenderController(
     fun renderRecommendation(title: String, tracks: List<Track>, languageMode: String) {
         val rows = ArrayList<TrackRowUiState>()
         val actions = ArrayList<TrackRowActions>()
+        val rowKeys = TrackRowKeyPolicy.occurrenceKeys(tracks)
         for (index in tracks.indices) {
             val track = tracks[index]
             rows.add(
@@ -120,7 +128,7 @@ internal class TrackListRenderController(
                     emptySet(),
                     "",
                     true,
-                    TrackRowKeyPolicy.occurrenceKey(tracks, index)
+                    rowKeys[index]
                 )
             )
             actions.add(
@@ -132,22 +140,35 @@ internal class TrackListRenderController(
                 )
             )
         }
+        val headerMetrics = listOf(TrackListHeaderMetric(AppLanguage.text(languageMode, "tracks"), "${tracks.size}"))
+        val headerActions = listOf(TrackListHeaderAction(AppLanguage.text(languageMode, "download.current.list"), Runnable { listener.downloadTracks(tracks) }))
+        val labels = TrackListLabels(
+            AppLanguage.text(languageMode, "favorite"),
+            AppLanguage.text(languageMode, "remove.favorite"),
+            AppLanguage.text(languageMode, "add.to.playlist"),
+            AppLanguage.text(languageMode, "edit"),
+            AppLanguage.text(languageMode, "delete"),
+            AppLanguage.text(languageMode, "download")
+        )
         viewModel.clearLibraryGroups()
-        viewModel.updateTrackList(title, rows)
-        listener.publishTrackListChrome(
+        viewModel.updateTrackListContentAndChrome(
+            title,
+            rows,
+            emptyList(),
             actions,
-            listOf(TrackListHeaderMetric(AppLanguage.text(languageMode, "tracks"), "${tracks.size}")),
-            listOf(TrackListHeaderAction(AppLanguage.text(languageMode, "download.current.list"), Runnable { listener.downloadTracks(tracks) })),
+            headerMetrics,
+            headerActions,
             "",
             emptyList(),
-            TrackListLabels(
-                AppLanguage.text(languageMode, "favorite"),
-                AppLanguage.text(languageMode, "remove.favorite"),
-                AppLanguage.text(languageMode, "add.to.playlist"),
-                AppLanguage.text(languageMode, "edit"),
-                AppLanguage.text(languageMode, "delete"),
-                AppLanguage.text(languageMode, "download")
-            )
+            labels
+        )
+        listener.publishTrackListChrome(
+            actions,
+            headerMetrics,
+            headerActions,
+            "",
+            emptyList(),
+            labels
         )
     }
 }

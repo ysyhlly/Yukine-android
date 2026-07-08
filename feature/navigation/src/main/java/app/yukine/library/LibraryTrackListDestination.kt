@@ -1,5 +1,6 @@
 package app.yukine.library
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -26,6 +27,12 @@ fun LibraryTrackListDestination(
     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
     val uiState by state.collectAsState()
+    val backAction = uiState.headerActions.firstOrNull { action ->
+        action.label.contains("Back", ignoreCase = true) || action.label.contains("返回")
+    }
+    BackHandler(enabled = backAction != null) {
+        backAction?.onClick?.run()
+    }
     TrackListScreen(
         uiState.title,
         uiState.rows,

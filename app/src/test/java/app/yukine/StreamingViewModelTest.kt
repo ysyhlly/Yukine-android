@@ -50,6 +50,7 @@ import org.junit.Rule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 
@@ -547,6 +548,7 @@ class StreamingViewModelTest {
 
         assertTrue(scheduled)
         assertEquals(1, taskQueue.nextUrlResolveCount)
+        advanceUntilIdle()
         waitUntil { resolved.isNotEmpty() }
         assertEquals(
             listOf(StreamingPlaybackRequest(StreamingProviderName.NETEASE, "next-2", StreamingAudioQuality.HIGH)),
@@ -575,6 +577,7 @@ class StreamingViewModelTest {
 
         assertTrue(scheduled)
         assertEquals(1, taskQueue.currentUrlResolveCount)
+        advanceUntilIdle()
         waitUntil { resolved.isNotEmpty() }
         assertEquals(
             listOf(StreamingPlaybackRequest(StreamingProviderName.NETEASE, "play-2", StreamingAudioQuality.HIGH)),
@@ -713,6 +716,27 @@ class StreamingViewModelTest {
         assertEquals(listOf(2000, 2000), gateway.playlistRequests.map { it.pageSize })
         assertEquals(listOf("Remote Playlist"), resolvedNames)
         assertEquals(listOf(listOf("track-1", "track-2", "track-3")), resolvedTrackIds)
+        assertFalse(viewModel.streaming.value.loading)
+    }
+
+    @Test
+    fun fetchStreamingPlaylistTracksStopsAtLocalPaginationCap() = runTest {
+        val provider = FakeProvider()
+        val gateway = FakeGateway(provider)
+        gateway.playlistAlwaysHasMoreWithoutTotal = true
+        val viewModel = StreamingViewModel()
+        viewModel.bindStreamingRepository(StreamingRepository(gateway))
+        val resolvedTrackIds = mutableListOf<List<String>>()
+
+        viewModel.fetchStreamingPlaylistTracks(StreamingProviderName.NETEASE, "playlist-loop") { _, tracks ->
+            resolvedTrackIds += tracks.map { it.providerTrackId }
+        }.join()
+
+        assertEquals((1..STREAMING_PLAYLIST_MAX_PAGES).toList(), gateway.playlistRequests.map { it.page })
+        assertEquals(
+            (1..STREAMING_PLAYLIST_MAX_PAGES).map { page -> "loop-$page" },
+            resolvedTrackIds.single()
+        )
         assertFalse(viewModel.streaming.value.loading)
     }
 
@@ -1245,6 +1269,7 @@ class StreamingViewModelTest {
         var heartbeatRecommendationsResult: List<StreamingTrack> = emptyList()
         var playlistTitle: String? = "Remote Playlist"
         var playlistTrackIds: List<String> = listOf("track-1", "track-2", "track-3")
+        var playlistAlwaysHasMoreWithoutTotal: Boolean = false
 
         override suspend fun providers(): List<StreamingProviderDescriptor> = listOf(provider.descriptor)
 
@@ -1257,6 +1282,33 @@ class StreamingViewModelTest {
 
         override suspend fun playlist(request: StreamingPlaylistRequest): StreamingPlaylistDetail {
             playlistRequests += request
+            if (playlistAlwaysHasMoreWithoutTotal) {
+                val trackId = "loop-${request.page}"
+                return StreamingPlaylistDetail(
+                    provider = provider.descriptor.name,
+                    providerPlaylistId = request.providerPlaylistId,
+                    playlist = StreamingPlaylist(
+                        provider = provider.descriptor.name,
+                        providerPlaylistId = request.providerPlaylistId,
+                        title = playlistTitle.orEmpty(),
+                        trackCount = 0
+                    ),
+                    tracks = listOf(
+                        StreamingTrack(
+                            provider = provider.descriptor.name,
+                            providerTrackId = trackId,
+                            title = "Track $trackId",
+                            artist = "Artist",
+                            album = "Album",
+                            durationMs = 1_000L
+                        )
+                    ),
+                    total = null,
+                    page = request.page,
+                    pageSize = request.pageSize,
+                    hasMore = true
+                )
+            }
             val tracks = if (request.page == 1) playlistTrackIds.take(2) else playlistTrackIds.drop(2)
             return StreamingPlaylistDetail(
                 provider = provider.descriptor.name,

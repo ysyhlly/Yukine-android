@@ -61,7 +61,7 @@ class PlaybackStartControllerTest {
     }
 
     @Test
-    fun playsRecommendationPresentationAndOpensQueue() {
+    fun playsRecommendationPresentationWithoutForcingQueueOpen() {
         val listener = FakeListener(hasService = true, streamResolved = false)
         val controller = listener.controller()
 
@@ -74,7 +74,7 @@ class PlaybackStartControllerTest {
         )
 
         assertEquals(
-            listOf("status:Ready", "startService", "resolve:1:0", "play:1:0", "result:played", "openQueue"),
+            listOf("status:Ready", "startService", "resolve:1:0", "play:1:0", "result:played"),
             listener.calls
         )
     }

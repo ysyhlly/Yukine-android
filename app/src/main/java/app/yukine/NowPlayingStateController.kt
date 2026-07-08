@@ -6,6 +6,8 @@ internal class NowPlayingStateController(
     private val viewModel: NowPlayingViewModel,
     private val listener: Listener
 ) {
+    private var lastSyncedQueueKey = QueueKey.empty()
+
     interface Listener {
         fun storesReady(): Boolean
 
@@ -17,6 +19,8 @@ internal class NowPlayingStateController(
 
         fun languageMode(): String
 
+        fun queueVisible(): Boolean
+
         fun publishFloatingLyrics(state: NowPlayingUiState)
 
         fun syncQueueInputs()
@@ -26,8 +30,9 @@ internal class NowPlayingStateController(
         if (!listener.storesReady()) {
             return
         }
-        publish(listener.playbackSnapshot())
-        listener.syncQueueInputs()
+        val snapshot = listener.playbackSnapshot()
+        publish(snapshot)
+        syncQueueInputsIfChanged(snapshot)
     }
 
     fun publish(snapshot: PlaybackStateSnapshot): NowPlayingUiState {
@@ -40,5 +45,33 @@ internal class NowPlayingStateController(
         val state = viewModel.uiState.value
         listener.publishFloatingLyrics(state)
         return state
+    }
+
+    private fun syncQueueInputsIfChanged(snapshot: PlaybackStateSnapshot) {
+        val nextKey = QueueKey.from(snapshot)
+        if (nextKey == lastSyncedQueueKey) {
+            return
+        }
+        lastSyncedQueueKey = nextKey
+        if (listener.queueVisible()) {
+            listener.syncQueueInputs()
+        }
+    }
+
+    private data class QueueKey(
+        val currentTrackId: Long,
+        val currentIndex: Int,
+        val queueSize: Int
+    ) {
+        companion object {
+            fun empty(): QueueKey = QueueKey(-1L, -1, 0)
+
+            fun from(snapshot: PlaybackStateSnapshot): QueueKey =
+                QueueKey(
+                    snapshot.currentTrack?.id ?: -1L,
+                    snapshot.currentIndex,
+                    snapshot.queueSize
+                )
+        }
     }
 }

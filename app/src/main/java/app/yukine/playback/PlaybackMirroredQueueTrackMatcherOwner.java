@@ -1,5 +1,7 @@
 package app.yukine.playback;
 
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 
@@ -11,6 +13,7 @@ import java.util.function.BiPredicate;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
+@OptIn(markerClass = UnstableApi.class)
 final class PlaybackMirroredQueueTrackMatcherOwner
         implements PlaybackQueueManager.QueueTrackMatcher {
     private final IntFunction<MediaItem> playerMediaItemProvider;

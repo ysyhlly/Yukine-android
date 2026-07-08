@@ -8,145 +8,203 @@ import app.yukine.streaming.StreamingPlaybackAdapter
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Rule
 import org.junit.Test
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import java.util.ArrayList
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class StreamingPlaybackControllerTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private fun createViewModel(): StreamingViewModel {
+    @Test
+    fun preResolveUsesBoundedQueueReadsWithoutFullSnapshot() {
+        val currentIndex = 250
+        val queue = (0 until 500).map { index ->
+            if (index in 252..254) {
+                streamingPlaceholderTrack(index.toLong())
+            } else {
+                track(index.toLong())
+            }
+        }
+        val listener = CountingListener(queue)
+        val planner = RecordingPlanner()
         val viewModel = StreamingViewModel()
-        viewModel.bindIoDispatcherForTest(Dispatchers.Main)
-        return viewModel
-    }
-
-    @Test
-    fun preResolveNextStreamingTrackReusesOneQueueSnapshotForNextAndWindow() {
-        val queue = listOf(
-            localTrack(1L),
-            streamingPlaceholderTrack(2L, "next-2"),
-            streamingPlaceholderTrack(3L, "next-3")
-        )
-        val listener = FakeListener(queue)
+        viewModel.bindStreamingPlaybackCoordinator(planner, NoopStreamingPlaybackTaskQueue)
         val controller = StreamingPlaybackController(
-            createViewModel(),
+            viewModel,
             NowPlayingViewModel(),
             listener
         )
 
         controller.preResolveNextStreamingTrack(
-            playbackSnapshot(
-                currentTrack = queue[0],
-                currentIndex = 0,
-                queueSize = queue.size,
-                playing = true
+            PlaybackStateSnapshot(
+                queue[currentIndex],
+                currentIndex,
+                queue.size,
+                90_000L,
+                120_000L,
+                true,
+                false,
+                "",
+                false,
+                0,
+                1.0f,
+                1.0f,
+                0L
             )
         )
 
-        assertEquals(1, listener.queueSnapshotCalls)
-        assertEquals(1, listener.heartbeatSnapshots.size)
+        assertEquals(0, listener.queueSnapshotReads)
+        assertEquals(listOf(251, 252, 253, 254), listener.trackAtReads)
+        val plannedQueue = planner.queue.orEmpty()
+        assertEquals(5, plannedQueue.size)
+        assertSame(queue[250], plannedQueue[0])
+        assertSame(queue[251], plannedQueue[1])
+        assertSame(queue[252], plannedQueue[2])
+        assertSame(queue[253], plannedQueue[3])
+        assertSame(queue[254], plannedQueue[4])
+        assertEquals(0, planner.snapshot?.currentIndex)
+        assertEquals(5, planner.snapshot?.queueSize)
+        assertSame(queue[currentIndex], planner.snapshot?.currentTrack)
     }
 
     @Test
-    fun preResolveNextStreamingTrackDoesNotReadQueueWhenPlaybackIsNotActive() {
-        val listener = FakeListener(listOf(localTrack(1L)))
+    fun preResolveSkipsResolvedLookaheadTracksForStreamingCandidatesWithoutFullSnapshot() {
+        val currentIndex = 10
+        val queue = (0 until 100).map { index -> track(index.toLong()) }.toMutableList()
+        queue[15] = streamingPlaceholderTrack(15L)
+        queue[18] = streamingPlaceholderTrack(18L)
+        queue[20] = streamingPlaceholderTrack(20L)
+        val listener = CountingListener(queue)
+        val planner = RecordingPlanner()
+        val viewModel = StreamingViewModel()
+        viewModel.bindStreamingPlaybackCoordinator(planner, NoopStreamingPlaybackTaskQueue)
         val controller = StreamingPlaybackController(
-            createViewModel(),
+            viewModel,
             NowPlayingViewModel(),
             listener
         )
 
         controller.preResolveNextStreamingTrack(
-            playbackSnapshot(
-                currentTrack = null,
-                currentIndex = -1,
-                queueSize = 0,
-                playing = false
+            PlaybackStateSnapshot(
+                queue[currentIndex],
+                currentIndex,
+                queue.size,
+                90_000L,
+                120_000L,
+                true,
+                false,
+                "",
+                false,
+                0,
+                1.0f,
+                1.0f,
+                0L
             )
         )
 
-        assertEquals(0, listener.queueSnapshotCalls)
-        assertEquals(0, listener.heartbeatSnapshots.size)
-    }
-}
-
-private class FakeListener(
-    private val queue: List<Track>
-) : StreamingPlaybackController.Listener {
-    var queueSnapshotCalls = 0
-    val heartbeatSnapshots = mutableListOf<PlaybackStateSnapshot>()
-    val results = mutableListOf<PlaybackActionResultUi?>()
-    val statuses = mutableListOf<String>()
-
-    override fun languageMode(): String = AppLanguage.MODE_ENGLISH
-
-    override fun adaptiveStreamingQuality(): StreamingAudioQuality = StreamingAudioQuality.HIGH
-
-    override fun selectedStreamingQuality(): StreamingAudioQuality = StreamingAudioQuality.LOSSLESS
-
-    override fun queueSnapshot(): List<Track> {
-        queueSnapshotCalls += 1
-        return queue
+        assertEquals(0, listener.queueSnapshotReads)
+        assertEquals((11..20).toList(), listener.trackAtReads)
+        val plannedQueue = planner.queue.orEmpty()
+        assertEquals(5, plannedQueue.size)
+        assertSame(queue[10], plannedQueue[0])
+        assertSame(queue[11], plannedQueue[1])
+        assertSame(queue[15], plannedQueue[2])
+        assertSame(queue[18], plannedQueue[3])
+        assertSame(queue[20], plannedQueue[4])
+        assertEquals(0, planner.snapshot?.currentIndex)
+        assertEquals(5, planner.snapshot?.queueSize)
+        assertSame(queue[currentIndex], planner.snapshot?.currentTrack)
     }
 
-    override fun maybeAppendHeartbeatRecommendations(snapshot: PlaybackStateSnapshot) {
-        heartbeatSnapshots += snapshot
+    private class CountingListener(
+        private val queue: List<Track>
+    ) : StreamingPlaybackController.Listener {
+        var queueSnapshotReads: Int = 0
+            private set
+        val trackAtReads = mutableListOf<Int>()
+
+        override fun languageMode(): String = "en"
+
+        override fun adaptiveStreamingQuality(): StreamingAudioQuality = StreamingAudioQuality.HIGH
+
+        override fun selectedStreamingQuality(): StreamingAudioQuality = StreamingAudioQuality.HIGH
+
+        override fun queueSnapshot(): List<Track> {
+            queueSnapshotReads += 1
+            return queue
+        }
+
+        override fun queueSize(): Int = queue.size
+
+        override fun queueTrackAt(index: Int): Track? {
+            trackAtReads += index
+            return queue.getOrNull(index)
+        }
+
+        override fun maybeAppendHeartbeatRecommendations(snapshot: PlaybackStateSnapshot) {}
+
+        override fun applyPlaybackActionResult(result: PlaybackActionResultUi?) {}
+
+        override fun setStatus(status: String) {}
     }
 
-    override fun applyPlaybackActionResult(result: PlaybackActionResultUi?) {
-        results += result
+    private class RecordingPlanner : StreamingPlaybackResolvePlanner {
+        var snapshot: PlaybackStateSnapshot? = null
+            private set
+        var queue: List<Track>? = null
+            private set
+
+        override fun prepareNextPreResolve(
+            snapshot: PlaybackStateSnapshot?,
+            queue: List<Track>?
+        ): StreamingPreResolveRequest? {
+            this.snapshot = snapshot
+            this.queue = queue
+            return null
+        }
+
+        override fun clearPreResolve(key: String?) {}
+
+        override fun prepare(tracks: List<Track>?, index: Int): ResolveStreamingPlaybackRequest? = null
+
+        override fun replaceResolvedTrack(
+            request: ResolveStreamingPlaybackRequest,
+            resolved: Track
+        ): ArrayList<Track> = ArrayList(request.tracks)
+
+        override fun prepareDownload(track: Track?): StreamingDownloadResolveRequest? = null
+
+        override fun prepareRecovery(
+            snapshot: PlaybackStateSnapshot?,
+            selectedQuality: StreamingAudioQuality,
+            adaptiveQuality: StreamingAudioQuality
+        ): StreamingRecoveryRequest? = null
+
+        override fun clearRecovery(key: String?) {}
     }
 
-    override fun setStatus(status: String) {
-        statuses += status
+    private object NoopStreamingPlaybackTaskQueue : StreamingPlaybackTaskQueue {
+        override fun scheduleCurrentPlaybackRecovery(task: StreamingPlaybackTask) {}
+
+        override fun scheduleCurrentUrlResolve(task: StreamingPlaybackTask) {}
+
+        override fun scheduleNextUrlResolve(task: StreamingPlaybackTask) {}
     }
-}
 
-private fun playbackSnapshot(
-    currentTrack: Track?,
-    currentIndex: Int,
-    queueSize: Int,
-    playing: Boolean
-): PlaybackStateSnapshot =
-    PlaybackStateSnapshot(
-        currentTrack,
-        currentIndex,
-        queueSize,
-        1_000L,
-        120_000L,
-        playing,
-        false,
-        "",
-        false,
-        0,
-        1f,
-        1f,
-        0L
-    )
+    private fun track(id: Long): Track =
+        Track(id, "Track $id", "Artist", "Album", 1_000L, Uri.EMPTY, "file:$id")
 
-private fun localTrack(id: Long): Track =
-    Track(id, "Local $id", "Artist", "Album", 1_000L, Uri.EMPTY, "local:$id")
-
-private fun streamingPlaceholderTrack(id: Long, providerTrackId: String): Track =
-    StreamingPlaybackAdapter.placeholderTrack(
-        StreamingTrack(
-            provider = StreamingProviderName.NETEASE,
-            providerTrackId = providerTrackId,
-            title = "Streaming $id",
-            artist = "Artist"
+    private fun streamingPlaceholderTrack(id: Long): Track =
+        StreamingPlaybackAdapter.placeholderTrack(
+            StreamingTrack(
+                provider = StreamingProviderName.NETEASE,
+                providerTrackId = id.toString(),
+                title = "Streaming $id",
+                artist = "Artist",
+                album = "Album",
+                durationMs = 1_000L
+            )
         )
-    ).let { placeholder ->
-        Track(
-            id,
-            placeholder.title,
-            placeholder.artist,
-            placeholder.album,
-            placeholder.durationMs,
-            placeholder.contentUri,
-            placeholder.dataPath
-        )
-    }
+}

@@ -440,7 +440,7 @@ private fun SongInfoPanel(
         ) {
             if (songInfo.isNotBlank()) {
                 Text(
-                    "姝屾洸浠嬬粛",
+                    "歌曲介绍",
                     style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
                     color = p.heading
                 )
@@ -464,7 +464,7 @@ private fun SongInfoPanel(
             if (sourceOptions.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "闊虫簮鍒囨崲",
+                    "音源切换",
                     style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
                     color = p.heading
                 )
@@ -531,13 +531,13 @@ private fun NowPlayingQuickActions(onShare: Runnable, onDownload: Runnable) {
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         NowPlayingQuickAction(
-            label = "鍒嗕韩闊虫簮鍗＄墖",
+            label = "分享音源卡片",
             icon = EchoIconKind.Network,
             modifier = Modifier.weight(1f),
             onClick = { onShare.run() }
         )
         NowPlayingQuickAction(
-            label = "涓嬭浇",
+            label = "下载",
             icon = EchoIconKind.Import,
             modifier = Modifier.weight(1f),
             onClick = { onDownload.run() }

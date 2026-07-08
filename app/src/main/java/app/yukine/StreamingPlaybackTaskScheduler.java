@@ -1,11 +1,15 @@
 package app.yukine;
 
+import android.util.Log;
+
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicLong;
 
 final class StreamingPlaybackTaskScheduler implements StreamingPlaybackTaskQueue {
+    private static final String TAG = "StreamingPlaybackTask";
+
     enum Priority {
         CURRENT_PLAYBACK_RECOVERY,
         CURRENT_URL_RESOLVE,
@@ -18,6 +22,20 @@ final class StreamingPlaybackTaskScheduler implements StreamingPlaybackTaskQueue
 
     interface Completion {
         void complete();
+    }
+
+    interface ErrorSink {
+        void onTaskFailure(Priority priority, RuntimeException exception);
+    }
+
+    private final ErrorSink errorSink;
+
+    StreamingPlaybackTaskScheduler() {
+        this(StreamingPlaybackTaskScheduler::logTaskFailure);
+    }
+
+    StreamingPlaybackTaskScheduler(ErrorSink errorSink) {
+        this.errorSink = errorSink == null ? StreamingPlaybackTaskScheduler::logTaskFailure : errorSink;
     }
 
     @Override
@@ -80,15 +98,18 @@ final class StreamingPlaybackTaskScheduler implements StreamingPlaybackTaskQueue
             return;
         }
         criticalActive = true;
-        next.task.run(() -> {
-            synchronized (StreamingPlaybackTaskScheduler.this) {
-                if (shutdown) {
-                    return;
+        try {
+            next.task.run(() -> {
+                synchronized (StreamingPlaybackTaskScheduler.this) {
+                    completeCritical();
                 }
-                criticalActive = false;
-                drainCritical();
+            });
+        } catch (RuntimeException exception) {
+            errorSink.onTaskFailure(next.priority, exception);
+            synchronized (StreamingPlaybackTaskScheduler.this) {
+                completeCritical();
             }
-        });
+        }
     }
 
     private synchronized void drainNextResolve() {
@@ -100,15 +121,38 @@ final class StreamingPlaybackTaskScheduler implements StreamingPlaybackTaskQueue
             return;
         }
         nextResolveActive = true;
-        next.task.run(() -> {
-            synchronized (StreamingPlaybackTaskScheduler.this) {
-                if (shutdown) {
-                    return;
+        try {
+            next.task.run(() -> {
+                synchronized (StreamingPlaybackTaskScheduler.this) {
+                    completeNextResolve();
                 }
-                nextResolveActive = false;
-                drainNextResolve();
+            });
+        } catch (RuntimeException exception) {
+            errorSink.onTaskFailure(next.priority, exception);
+            synchronized (StreamingPlaybackTaskScheduler.this) {
+                completeNextResolve();
             }
-        });
+        }
+    }
+
+    private void completeCritical() {
+        if (shutdown) {
+            return;
+        }
+        criticalActive = false;
+        drainCritical();
+    }
+
+    private void completeNextResolve() {
+        if (shutdown) {
+            return;
+        }
+        nextResolveActive = false;
+        drainNextResolve();
+    }
+
+    private static void logTaskFailure(Priority priority, RuntimeException exception) {
+        Log.w(TAG, "Streaming playback task failed: " + priority, exception);
     }
 
     private static final class ScheduledTask implements Comparable<ScheduledTask> {

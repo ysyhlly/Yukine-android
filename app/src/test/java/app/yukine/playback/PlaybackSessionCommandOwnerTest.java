@@ -22,6 +22,8 @@ public class PlaybackSessionCommandOwnerTest {
     public void delegatesMediaSessionCommandsToPlaybackOwners() {
         List<String> events = new ArrayList<>();
         Track track = track(3L);
+        Track nextTrack = track(4L);
+        List<Track> queue = java.util.Arrays.asList(track, nextTrack);
         MediaMetadata metadata = new MediaMetadata.Builder().setTitle("Session title").build();
         PlaybackSessionCommandOwner owner = new PlaybackSessionCommandOwner(
                 new FakePlaybackCommands(events),
@@ -31,7 +33,47 @@ public class PlaybackSessionCommandOwnerTest {
                     events.add("controllerItems:" + mediaItems.size() + ":" + startIndex + ":" + startPositionMs);
                     return true;
                 },
-                () -> track,
+                new PlaybackSessionCommandOwner.StateProvider() {
+                    @Override
+                    public Track currentTrack() {
+                        return track;
+                    }
+
+                    @Override
+                    public long positionMs() {
+                        return 4200L;
+                    }
+
+                    @Override
+                    public long sessionPositionMs() {
+                        return 4000L;
+                    }
+
+                    @Override
+                    public long durationMs() {
+                        return 9000L;
+                    }
+
+                    @Override
+                    public List<Track> queueSnapshot() {
+                        return queue;
+                    }
+
+                    @Override
+                    public int currentIndex() {
+                        return 0;
+                    }
+
+                    @Override
+                    public int queueSize() {
+                        return queue.size();
+                    }
+
+                    @Override
+                    public Track trackAt(int index) {
+                        return index >= 0 && index < queue.size() ? queue.get(index) : null;
+                    }
+                },
                 requestedTrack -> {
                     events.add("metadata:" + requestedTrack.id);
                     return metadata;
@@ -48,6 +90,13 @@ public class PlaybackSessionCommandOwnerTest {
         assertTrue(owner.setControllerMediaItems(Collections.singletonList(MediaItem.fromUri("content://track/3")), 1, 3000L));
         assertSame(track, owner.currentTrack());
         assertSame(metadata, owner.mediaMetadataForTrack(track));
+        assertEquals(4200L, owner.positionMs());
+        assertEquals(4000L, owner.sessionPositionMs());
+        assertEquals(9000L, owner.durationMs());
+        assertSame(queue, owner.sessionQueueTracks());
+        assertEquals(queue.size(), owner.sessionQueueSize());
+        assertEquals(0, owner.sessionQueueCurrentIndex());
+        assertSame(nextTrack, owner.sessionQueueTrackAt(1));
 
         assertEquals(
                 java.util.Arrays.asList(

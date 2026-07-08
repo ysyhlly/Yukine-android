@@ -54,6 +54,10 @@ class CollectionsViewModel : ViewModel(), CollectionsDestinationStateProvider {
         screenState.value = state
     }
 
+    fun updateScreenWithActions(state: CollectionsUiState, actions: CollectionsActions) {
+        screenState.value = state.copy(actions = actions)
+    }
+
     fun updateActions(actions: CollectionsActions) {
         screenState.value = screenState.value.copy(actions = actions)
     }

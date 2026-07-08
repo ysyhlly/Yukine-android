@@ -35,12 +35,13 @@ import app.yukine.model.Track;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
+@OptIn(markerClass = UnstableApi.class)
 final class PlaybackPrecacheManager {
     static final int PRECACHE_BYTES = 512 * 1024;
     static final int UPCOMING_TRACK_PRECACHE_BYTES = 256 * 1024;
-    static final long SEGMENTED_PRECACHE_BYTES = 12L * 1024L * 1024L;
+    static final long SEGMENTED_PRECACHE_BYTES = 2L * 1024L * 1024L;
     static final long SEGMENTED_PRECACHE_CHUNK_BYTES = 1024L * 1024L;
-    static final int SEGMENTED_PRECACHE_CONCURRENCY = 4;
+    static final int SEGMENTED_PRECACHE_CONCURRENCY = 1;
     static final int PLAYBACK_CACHE_PRIORITY_QUEUE_INITIAL_CAPACITY = SEGMENTED_PRECACHE_CONCURRENCY * 8;
     static final int PLAYBACK_CACHE_QUEUE_CAPACITY = SEGMENTED_PRECACHE_CONCURRENCY * 8;
     static final int PRECACHE_RANGE_PROBE_BYTES = 1;
@@ -84,6 +85,8 @@ final class PlaybackPrecacheManager {
     private final Set<String> activePrecacheRanges =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<CacheWriter> activePrecacheWriters =
+            Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<String> upcomingPrecacheKeys =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final List<Runnable> pendingPrecacheCallbacks =
             Collections.synchronizedList(new ArrayList<>());
@@ -150,6 +153,7 @@ final class PlaybackPrecacheManager {
         precacheGeneration.incrementAndGet();
         cancelPendingPrecacheCallbacks();
         activePrecacheRanges.clear();
+        upcomingPrecacheKeys.clear();
         cancelActivePrecacheWriters();
         playbackCacheExecutor.shutdownNow();
         releaseAudioCache();
@@ -215,17 +219,13 @@ final class PlaybackPrecacheManager {
         }
         if (current != null) {
             int generation = precacheGeneration.get();
-            final Track upcomingTrack = track;
-            stateProvider.streamingDiagnostics().recordPrecacheQueued(upcomingTrack);
-            submitPlaybackCacheTask(
-                    PrecachePriority.UPCOMING_TRACK,
-                    () -> precacheWithMediaCache(upcomingTrack, generation, PrecacheMode.UPCOMING_TRACK, false)
-            );
+            scheduleUpcomingTrackPrecache(track, cacheKey, generation);
             return;
         }
         lastPrecacheKey = cacheKey;
         int generation = precacheGeneration.incrementAndGet();
         activePrecacheRanges.clear();
+        upcomingPrecacheKeys.clear();
         cancelPendingPrecacheCallbacks();
         cancelActivePrecacheWriters();
         playbackCacheExecutor.getQueue().clear();
@@ -246,6 +246,7 @@ final class PlaybackPrecacheManager {
         lastPrecacheKey = cacheKey;
         int generation = precacheGeneration.incrementAndGet();
         activePrecacheRanges.clear();
+        upcomingPrecacheKeys.clear();
         cancelPendingPrecacheCallbacks();
         cancelActivePrecacheWriters();
         playbackCacheExecutor.getQueue().clear();
@@ -277,7 +278,9 @@ final class PlaybackPrecacheManager {
                             playerAlreadyLoadsLeadingRange
                     )
             );
-            scheduleCurrentSegmentedPrecache(precacheTrack, cacheKey, generation);
+            if (!playerAlreadyLoadsLeadingRange) {
+                scheduleCurrentSegmentedPrecache(precacheTrack, cacheKey, generation);
+            }
             scheduleUpcomingTrackPrecache(generation);
         };
         if (CURRENT_TRACK_LEADING_PRECACHE_DELAY_MS <= 0L) {
@@ -306,14 +309,40 @@ final class PlaybackPrecacheManager {
     @OptIn(markerClass = UnstableApi.class)
     private void precacheUpcomingTracks(int generation) {
         for (Track upcomingTrack : upcomingTracksForPrecache()) {
-            if (cacheKeyForPrecache(upcomingTrack) == null) {
+            String cacheKey = cacheKeyForPrecache(upcomingTrack);
+            if (cacheKey == null) {
                 continue;
             }
-            submitPlaybackCacheTask(
-                    PrecachePriority.UPCOMING_TRACK,
-                    () -> precacheWithMediaCache(upcomingTrack, generation, PrecacheMode.UPCOMING_TRACK, false)
-            );
+            scheduleUpcomingTrackPrecache(upcomingTrack, cacheKey, generation);
         }
+    }
+
+    private void scheduleUpcomingTrackPrecache(Track track, String cacheKey, int generation) {
+        if (track == null || cacheKey == null || cacheKey.isEmpty()) {
+            return;
+        }
+        if (!isCurrentPrecacheGeneration(generation, cacheKey)) {
+            return;
+        }
+        if (!upcomingPrecacheKeys.add(upcomingPrecacheSchedulingKey(track, cacheKey))) {
+            return;
+        }
+        final Track upcomingTrack = track;
+        stateProvider.streamingDiagnostics().recordPrecacheQueued(upcomingTrack);
+        submitPlaybackCacheTask(
+                PrecachePriority.UPCOMING_TRACK,
+                () -> precacheWithMediaCache(upcomingTrack, generation, PrecacheMode.UPCOMING_TRACK, false)
+        );
+    }
+
+    private String upcomingPrecacheSchedulingKey(Track track, String cacheKey) {
+        if (track != null
+                && track.dataPath != null
+                && track.dataPath.startsWith("streaming:")
+                && !track.dataPath.isEmpty()) {
+            return track.dataPath;
+        }
+        return cacheKey;
     }
 
     private List<Track> upcomingTracksForPrecache() {
@@ -387,6 +416,9 @@ final class PlaybackPrecacheManager {
             Track current = stateProvider.currentTrack();
             if (!mediaCacheOperations.tracksShareResolvedUriForReuse(current, track)
                     || !isCurrentPrecacheGeneration(generation, cacheKey)) {
+                return;
+            }
+            if (currentPlayerLoadsTrack(track)) {
                 return;
             }
             submitPlaybackCacheTask(PrecachePriority.CURRENT_SEGMENT, () -> {
@@ -682,6 +714,7 @@ final class PlaybackPrecacheManager {
 
     private void clearPrecacheState() {
         activePrecacheRanges.clear();
+        upcomingPrecacheKeys.clear();
         cancelActivePrecacheWriters();
         playbackCacheExecutor.getQueue().clear();
         playbackCacheExecutor.purge();

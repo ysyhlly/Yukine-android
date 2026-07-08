@@ -615,6 +615,7 @@ internal object SettingsPageStateBuilder {
 
     fun library(
         languageMode: String,
+        backPage: SettingsPage,
         songCount: Int,
         albumCount: Int,
         artistCount: Int,
@@ -631,7 +632,7 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "audio.permission"), permissionLabel(audioPermissionGranted, languageMode))
         )
         val actions = listOf(
-            navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.Library), onNavigate),
+            navigationAction(text(languageMode, "back"), backPage, onNavigate),
             SettingsAction(text(languageMode, "scan.library"), Runnable { onLoadLibrary() }),
             SettingsAction(text(languageMode, "import.audio.files"), Runnable { onOpenAudioFilePicker() }),
             SettingsAction(text(languageMode, "import.audio.folder"), Runnable { onOpenAudioFolderPicker() })

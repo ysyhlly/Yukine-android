@@ -49,6 +49,16 @@ class PlaybackShutdownCoordinatorTest {
     }
 
     @Test
+    fun handleTaskRemovedClearsResumeRequestWhenPlaybackIsInactive() {
+        val calls = mutableListOf<String>()
+        val coordinator = coordinator(calls, playing = false, preparing = false, notificationWorthy = false)
+
+        coordinator.handleTaskRemoved()
+
+        assertEquals(listOf("position", "queue", "resume:false"), calls)
+    }
+
+    @Test
     fun handleTaskRemovedPublishesNotificationOnlyWhenWorthy() {
         val calls = mutableListOf<String>()
         val coordinator = coordinator(calls, playing = true, preparing = false, notificationWorthy = true)

@@ -85,6 +85,26 @@ class PlaybackSleepTimerManagerTest {
     }
 
     @Test
+    fun cancelPreventsAlreadyDequeuedExpiryTickFromPausingPlayback() {
+        val scheduler = FakeScheduler()
+        val actions = FakeActions()
+        val clock = MutableClock(0L)
+        val manager = PlaybackSleepTimerManager(scheduler, actions, clock)
+
+        manager.startMinutes(1)
+        val dequeuedTick = scheduler.takePending()
+        actions.calls.clear()
+        clock.now = 60000L
+        manager.cancel(publish = true)
+        actions.calls.clear()
+        dequeuedTick?.run()
+
+        assertEquals(0L, manager.remainingMs())
+        assertEquals(null, scheduler.pendingRunnable)
+        assertEquals(emptyList<String>(), actions.calls)
+    }
+
+    @Test
     fun releasePreventsAlreadyDequeuedTickAndFutureStarts() {
         val scheduler = FakeScheduler()
         val actions = FakeActions()

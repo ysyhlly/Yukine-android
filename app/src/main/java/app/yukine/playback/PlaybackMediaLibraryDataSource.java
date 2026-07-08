@@ -1,5 +1,7 @@
 package app.yukine.playback;
 
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 
@@ -13,6 +15,7 @@ import app.yukine.model.TrackPlayRecord;
 import app.yukine.playback.manager.PlaybackMediaLibraryCallback;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 
+@OptIn(markerClass = UnstableApi.class)
 final class PlaybackMediaLibraryDataSource implements PlaybackMediaLibraryCallback.DataSource {
     interface LibrarySource {
         List<Track> loadCachedTracks();

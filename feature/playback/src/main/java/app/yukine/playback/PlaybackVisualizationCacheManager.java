@@ -16,8 +16,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+@OptIn(markerClass = UnstableApi.class)
 final class PlaybackVisualizationCacheManager {
-    private static final long VISUALIZATION_CACHE_BYTES = 64L * 1024L * 1024L;
+    private static final long VISUALIZATION_CACHE_BYTES = 8L * 1024L * 1024L;
 
     interface StateProvider {
         Handler mainHandler();
@@ -86,7 +87,7 @@ final class PlaybackVisualizationCacheManager {
     }
 
     void scheduleVisualizationCache(Track track) {
-        if (released || !mediaSourceProvider.isHttpTrack(track)) {
+        if (released || !mediaSourceProvider.isHttpTrack(track) || isStreamingTrack(track)) {
             return;
         }
         int generation = cacheGeneration.get();
@@ -142,6 +143,12 @@ final class PlaybackVisualizationCacheManager {
 
     private boolean isCurrentCacheGeneration(int generation) {
         return !released && cacheGeneration.get() == generation;
+    }
+
+    private boolean isStreamingTrack(Track track) {
+        return track != null
+                && track.dataPath != null
+                && track.dataPath.startsWith("streaming:");
     }
 
     private VisualizationCacheWriter createCacheWriter(Track track, DataSpec dataSpec) {

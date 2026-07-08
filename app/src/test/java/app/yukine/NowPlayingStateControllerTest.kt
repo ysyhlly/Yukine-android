@@ -40,8 +40,70 @@ class NowPlayingStateControllerTest {
         assertEquals(listOf("snapshot", "floating:Song", "queue"), listener.calls)
     }
 
+    @Test
+    fun progressTicksDoNotResyncQueueInputsWhenQueueIdentityIsUnchanged() {
+        val listener = FakeListener(
+            snapshot = snapshot(positionMs = 1_000L, queueSize = 500)
+        )
+        val controller = NowPlayingStateController(NowPlayingViewModel(), listener)
+
+        controller.renderNowBar()
+        listener.snapshot = snapshot(positionMs = 2_000L, queueSize = 500)
+        controller.renderNowBar()
+        listener.snapshot = snapshot(positionMs = 3_000L, queueSize = 500)
+        controller.renderNowBar()
+
+        assertEquals(
+            listOf(
+                "snapshot",
+                "floating:Song",
+                "queue",
+                "snapshot",
+                "floating:Song",
+                "snapshot",
+                "floating:Song"
+            ),
+            listener.calls
+        )
+    }
+
+    @Test
+    fun queueIdentityChangesResyncQueueInputs() {
+        val listener = FakeListener(
+            snapshot = snapshot(positionMs = 1_000L, queueSize = 2)
+        )
+        val controller = NowPlayingStateController(NowPlayingViewModel(), listener)
+
+        controller.renderNowBar()
+        listener.snapshot = snapshot(positionMs = 2_000L, queueSize = 3)
+        controller.renderNowBar()
+        listener.snapshot = snapshot(trackId = 8L, positionMs = 0L, queueSize = 3)
+        controller.renderNowBar()
+
+        assertEquals(3, listener.calls.count { it == "queue" })
+    }
+
+    @Test
+    fun queueIdentityChangesDoNotSyncQueueInputsWhenQueueIsHidden() {
+        val listener = FakeListener(
+            queueVisible = false,
+            snapshot = snapshot(positionMs = 1_000L, queueSize = 500)
+        )
+        val controller = NowPlayingStateController(NowPlayingViewModel(), listener)
+
+        controller.renderNowBar()
+        listener.snapshot = snapshot(trackId = 8L, positionMs = 0L, queueSize = 500)
+        controller.renderNowBar()
+        listener.snapshot = snapshot(trackId = 9L, positionMs = 0L, queueSize = 500)
+        controller.renderNowBar()
+
+        assertEquals(0, listener.calls.count { it == "queue" })
+    }
+
     private class FakeListener(
-        var storesReady: Boolean = true
+        var storesReady: Boolean = true,
+        var snapshot: PlaybackStateSnapshot = snapshot(),
+        var queueVisible: Boolean = true
     ) : NowPlayingStateController.Listener {
         val calls = mutableListOf<String>()
 
@@ -49,7 +111,7 @@ class NowPlayingStateControllerTest {
 
         override fun playbackSnapshot(): PlaybackStateSnapshot {
             calls += "snapshot"
-            return snapshot()
+            return snapshot
         }
 
         override fun favoriteIds(): Set<Long> = setOf(7L)
@@ -57,6 +119,8 @@ class NowPlayingStateControllerTest {
         override fun lyricsState(): LyricsState? = null
 
         override fun languageMode(): String = AppLanguage.MODE_ENGLISH
+
+        override fun queueVisible(): Boolean = queueVisible
 
         override fun publishFloatingLyrics(state: NowPlayingUiState) {
             calls += "floating:${state.trackTitle}"
@@ -68,12 +132,16 @@ class NowPlayingStateControllerTest {
     }
 
     companion object {
-        private fun snapshot(): PlaybackStateSnapshot =
+        private fun snapshot(
+            trackId: Long = 7L,
+            positionMs: Long = 0L,
+            queueSize: Int = 1
+        ): PlaybackStateSnapshot =
             PlaybackStateSnapshot(
-                Track(7L, "Song", "Artist", "Album", 180_000L, Uri.EMPTY, "file:song.mp3"),
+                Track(trackId, "Song", "Artist", "Album", 180_000L, Uri.EMPTY, "file:song.mp3"),
                 0,
-                1,
-                0L,
+                queueSize,
+                positionMs,
                 180_000L,
                 true,
                 false,

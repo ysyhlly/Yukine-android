@@ -1,5 +1,7 @@
 package app.yukine.playback;
 
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.exoplayer.source.MediaSource;
 
@@ -13,6 +15,7 @@ import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
+@OptIn(markerClass = UnstableApi.class)
 final class PlaybackCurrentTrackPreparationQueueOwner
         implements PlaybackCurrentTrackPreparationOwner.QueuePreparationController {
     static final class PreparedQueue {

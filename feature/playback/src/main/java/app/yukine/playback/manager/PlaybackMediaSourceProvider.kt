@@ -27,7 +27,7 @@ internal class PlaybackMediaSourceProvider(
     private val context: Context,
     private val repository: MusicLibraryRepository,
     private val streamingPlaybackHeaderStore: StreamingPlaybackHeaderStore
-) {
+) : PlaybackQueueManager.StreamingRestoreProvider {
     private var audioCache: SimpleCache? = null
 
     fun mediaSourceFactory(track: Track): DefaultMediaSourceFactory {
@@ -131,12 +131,20 @@ internal class PlaybackMediaSourceProvider(
         return streamingPlaybackHeaderStore.restoredTrackFor(track)
     }
 
+    override fun restoredTrackFor(track: Track): Track? {
+        return restoredTrackForPreparation(track)
+    }
+
     fun restoreHeadersForTrack(track: Track?): Boolean {
         return restoreHeadersForDataPath(track?.dataPath)
     }
 
     fun restoreHeadersForDataPath(dataPath: String?): Boolean {
         return streamingPlaybackHeaderStore.restoreForDataPath(dataPath)
+    }
+
+    override fun restoreForDataPath(dataPath: String?) {
+        restoreHeadersForDataPath(dataPath)
     }
 
     private fun restorePlaybackHeadersForMediaSource(track: Track?) {

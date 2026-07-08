@@ -164,6 +164,7 @@ class StreamingRecommendationViewModel @Inject constructor(
         title: String
     ): StreamingRecommendationPresentation {
         val placeholders = tracks.orEmpty()
+            .take(DAILY_RECOMMENDATION_PLAYBACK_LIMIT)
             .map { StreamingPlaybackAdapter.placeholderTrack(it) }
         if (placeholders.isEmpty()) {
             return StreamingRecommendationPresentation(emptyStatus = emptyStatus)
@@ -502,5 +503,9 @@ class StreamingRecommendationViewModel @Inject constructor(
 
     private fun text(languageMode: String, key: String): String {
         return AppLanguage.text(languageMode, key)
+    }
+
+    private companion object {
+        const val DAILY_RECOMMENDATION_PLAYBACK_LIMIT = 30
     }
 }

@@ -121,6 +121,7 @@ class NowPlayingViewModelTest {
         val viewModel = NowPlayingViewModel()
         val track = Track(9L, "Queued", "Artist", "Album", 120_000L, Uri.EMPTY, "file:queued.mp3")
         player.queue = listOf(track)
+        player.playbackSnapshot = snapshotWithTrack()
         viewModel.bindPlaybackGateway(player)
 
         assertTrue(viewModel.hasQueue())
@@ -298,11 +299,11 @@ class NowPlayingViewModelTest {
     ) : NowPlayingPlaybackGateway {
         val calls = ArrayList<String>()
         var queue: List<Track> = emptyList()
-        private var snapshot = PlaybackStateSnapshot.empty()
+        var playbackSnapshot = PlaybackStateSnapshot.empty()
 
         override fun serviceConnected(): Boolean = connected
 
-        override fun snapshot(): PlaybackStateSnapshot? = snapshot
+        override fun snapshot(): PlaybackStateSnapshot? = playbackSnapshot
 
         override fun queueSnapshot(): List<Track> = queue
 

@@ -108,6 +108,49 @@ class PlaybackErrorRecoveryManagerTest {
     }
 
     @Test
+    fun invalidLocalTrackSkipsToNextWhenQueueCanContinue() {
+        val scheduler = FakeScheduler()
+        val actions = FakeActions(
+            track = track(2L, "content://local/missing.mp3"),
+            canSkipFailedTrack = true
+        )
+        val manager = PlaybackErrorRecoveryManager(scheduler, actions, httpTrackPredicate())
+
+        manager.onPlayerError(Exception("missing file"))
+        scheduler.runPending()
+
+        assertEquals(
+            listOf(
+                "warn:Playback failed for 2",
+                "warn:Skipping unplayable track: 2"
+            ),
+            actions.logs
+        )
+        assertEquals(listOf("error:", "skip"), actions.calls)
+        assertEquals(null, scheduler.pending)
+    }
+
+    @Test
+    fun repeatedStreamingErrorBeforeRetryCancelsStaleRetryBeforeSkipping() {
+        val scheduler = FakeScheduler()
+        val actions = FakeActions(
+            track = track(3L, "https://example.com/expired.mp3"),
+            canSkipFailedTrack = true
+        )
+        val manager = PlaybackErrorRecoveryManager(scheduler, actions, httpTrackPredicate())
+        val error = Exception("expired url")
+
+        manager.onPlayerError(error)
+        manager.onPlayerError(error)
+        scheduler.runPending()
+
+        assertEquals(1, scheduler.removedCallbacks)
+        assertEquals(null, scheduler.pending)
+        assertEquals(0, actions.calls.count { it == "prepare" })
+        assertEquals(listOf("error:", "skip"), actions.calls)
+    }
+
+    @Test
     fun singleTrackErrorDoesNotSkipToNext() {
         val scheduler = FakeScheduler()
         val actions = FakeActions(

@@ -43,6 +43,10 @@ sealed interface QueueIntent {
  * SharedFlow, zero direct coupling to the playback service or the Java shell.
  */
 class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
+    private companion object {
+        const val EAGER_QUEUE_ROW_LIMIT = 96
+    }
+
 
     private val _uiState = MutableStateFlow(QueueDestinationState())
     override val uiState: StateFlow<QueueDestinationState> = _uiState.asStateFlow()
@@ -87,15 +91,24 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
         val tracks = queue ?: emptyList()
         boundTracks = tracks
         val currentTrack = playbackState?.currentTrack
-        val rows = tracks.mapIndexed { index, track ->
-            TrackRowStateFactory.queueRow(
-                TrackRowKeyPolicy.occurrenceKey(tracks, index),
-                track,
-                currentTrack,
-                favoriteIds
-            )
+        val keyFactory = QueueRowKeyFactory(tracks)
+        val eagerTracks = tracks.take(EAGER_QUEUE_ROW_LIMIT)
+        val eagerRows = eagerTracks.mapIndexed { index, track ->
+            rowForTrack(keyFactory, index, track, currentTrack, favoriteIds)
         }
-        _uiState.value = QueueDestinationState(rows)
+        _uiState.value = QueueDestinationState(
+            rows = eagerRows,
+            rowCount = tracks.size,
+            rowAt = { index ->
+                tracks.getOrNull(index)?.let { track ->
+                    if (index < eagerRows.size) {
+                        eagerRows[index]
+                    } else {
+                        rowForTrack(keyFactory, index, track, currentTrack, favoriteIds)
+                    }
+                }
+            }
+        )
         _labels.value = QueueScreenLabels(
             title = AppLanguage.text(languageMode, "tab.queue"),
             back = AppLanguage.text(languageMode, "back"),
@@ -146,5 +159,41 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
     private fun emit(intent: QueueIntent) {
         intentListener?.onIntent(intent)
         _intents.tryEmit(intent)
+    }
+
+    private fun rowForTrack(
+        keyFactory: QueueRowKeyFactory,
+        index: Int,
+        track: Track,
+        currentTrack: Track?,
+        favoriteIds: Set<Long>
+    ) = TrackRowStateFactory.queueRow(
+        keyFactory.keyFor(index),
+        track,
+        currentTrack,
+        favoriteIds
+    )
+
+    private class QueueRowKeyFactory(private val tracks: List<Track>) {
+        private val keys = arrayOfNulls<String>(tracks.size)
+        private val occurrences = HashMap<Long, Int>()
+        private var scannedUntil = -1
+
+        fun keyFor(index: Int): String {
+            if (index < 0 || index >= tracks.size) {
+                return "missing:$index"
+            }
+            keys[index]?.let { return it }
+            if (index > scannedUntil) {
+                for (i in (scannedUntil + 1)..index) {
+                    val trackId = tracks[i].id
+                    val occurrence = (occurrences[trackId] ?: 0) + 1
+                    occurrences[trackId] = occurrence
+                    keys[i] = "$trackId:$occurrence"
+                }
+                scannedUntil = index
+            }
+            return keys[index] ?: TrackRowKeyPolicy.occurrenceKey(tracks, index)
+        }
     }
 }

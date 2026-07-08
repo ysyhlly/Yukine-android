@@ -13,6 +13,7 @@ internal class PlaybackStateEventController(
     private val listener: Listener
 ) : PlaybackStateListener {
     private var lastAutoResolveTrackId = -1L
+    private var lastPublishedQueueKey = QueueKey.empty()
 
     interface Listener {
         fun selectedTab(): String
@@ -80,7 +81,7 @@ internal class PlaybackStateEventController(
         if (result.refreshCollections) {
             listener.loadCollections()
         }
-        playbackStore.publish(queueSnapshotSource.queueSnapshot())
+        publishQueueIfChanged(snapshot)
         listener.renderNowBar()
         listener.updateHomeDashboardPlayback(snapshot)
         listener.preResolveNextStreamingTrack(snapshot)
@@ -105,6 +106,35 @@ internal class PlaybackStateEventController(
             if (!StreamingPlaybackAdapter.isUnresolvedStreamingTrack(snapshot.currentTrack)) {
                 lastAutoResolveTrackId = -1L
             }
+        }
+    }
+
+    private fun publishQueueIfChanged(snapshot: PlaybackStateSnapshot) {
+        if (listener.selectedTab() != MainRoutes.TAB_QUEUE) {
+            return
+        }
+        val nextKey = QueueKey.from(snapshot)
+        if (nextKey == lastPublishedQueueKey) {
+            return
+        }
+        lastPublishedQueueKey = nextKey
+        playbackStore.publish(queueSnapshotSource.queueSnapshot())
+    }
+
+    private data class QueueKey(
+        val currentTrackId: Long,
+        val currentIndex: Int,
+        val queueSize: Int
+    ) {
+        companion object {
+            fun empty(): QueueKey = QueueKey(-1L, -1, 0)
+
+            fun from(snapshot: PlaybackStateSnapshot): QueueKey =
+                QueueKey(
+                    snapshot.currentTrack?.id ?: -1L,
+                    snapshot.currentIndex,
+                    snapshot.queueSize
+                )
         }
     }
 }

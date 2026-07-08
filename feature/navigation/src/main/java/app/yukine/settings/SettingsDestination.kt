@@ -1,5 +1,6 @@
 package app.yukine.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,6 +28,12 @@ fun SettingsDestination(
     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
     val settingsState by state.collectAsState()
+    val backAction = settingsState.destinationActions.firstOrNull { action ->
+        isSettingsBackAction(action.label)
+    }
+    BackHandler(enabled = backAction != null) {
+        backAction?.onClick?.run()
+    }
     SettingsScreen(
         title = settingsState.destinationTitle,
         metrics = settingsState.destinationMetrics,
@@ -37,3 +44,6 @@ fun SettingsDestination(
         audioMotion = audioMotion
     )
 }
+
+private fun isSettingsBackAction(label: String): Boolean =
+    label.startsWith("Back", ignoreCase = true) || label.contains("返回")

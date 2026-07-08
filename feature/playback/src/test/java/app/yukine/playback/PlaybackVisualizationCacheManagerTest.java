@@ -37,7 +37,7 @@ public final class PlaybackVisualizationCacheManagerTest {
     @Test
     public void releaseBeforeMainCallbackSkipsSchedulingCacheTask() {
         FakeStateProvider stateProvider = new FakeStateProvider();
-        Track track = track(1L);
+        Track track = localHttpTrack(1L);
         stateProvider.currentTrack = track;
         FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
         PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
@@ -53,7 +53,7 @@ public final class PlaybackVisualizationCacheManagerTest {
     @Test
     public void releaseBeforeScheduledTaskSkipsCacheWriterCreation() {
         FakeStateProvider stateProvider = new FakeStateProvider();
-        Track track = track(2L);
+        Track track = localHttpTrack(2L);
         stateProvider.currentTrack = track;
         FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
         PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
@@ -70,7 +70,7 @@ public final class PlaybackVisualizationCacheManagerTest {
     @Test
     public void releasePreventsFutureVisualizationCacheScheduling() {
         FakeStateProvider stateProvider = new FakeStateProvider();
-        Track track = track(8L);
+        Track track = localHttpTrack(8L);
         stateProvider.currentTrack = track;
         FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
         PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
@@ -86,7 +86,7 @@ public final class PlaybackVisualizationCacheManagerTest {
     @Test
     public void releaseDuringCacheCancelsActiveWriter() throws Exception {
         FakeStateProvider stateProvider = new FakeStateProvider();
-        Track track = track(3L);
+        Track track = localHttpTrack(3L);
         stateProvider.currentTrack = track;
         final PlaybackVisualizationCacheManager[] holder = new PlaybackVisualizationCacheManager[1];
         FakeCacheWriter writer = new FakeCacheWriter(() -> holder[0].release());
@@ -104,7 +104,7 @@ public final class PlaybackVisualizationCacheManagerTest {
     @Test
     public void releaseIsIdempotentAfterQueuedCacheInvalidation() throws Exception {
         FakeStateProvider stateProvider = new FakeStateProvider();
-        Track track = track(9L);
+        Track track = localHttpTrack(9L);
         stateProvider.currentTrack = track;
         FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
         PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
@@ -125,7 +125,7 @@ public final class PlaybackVisualizationCacheManagerTest {
     @Test
     public void currentTrackSchedulesAndCachesVisualizationWindow() {
         FakeStateProvider stateProvider = new FakeStateProvider();
-        Track track = track(4L);
+        Track track = localHttpTrack(4L);
         stateProvider.currentTrack = track;
         FakeCacheWriter writer = new FakeCacheWriter(null);
         FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory(writer);
@@ -139,7 +139,7 @@ public final class PlaybackVisualizationCacheManagerTest {
         assertEquals(1, writerFactory.createCalls);
         assertSame(track, writerFactory.lastTrack);
         assertEquals(0L, writerFactory.lastDataSpec.position);
-        assertEquals(64L * 1024L * 1024L, writerFactory.lastDataSpec.length);
+        assertEquals(8L * 1024L * 1024L, writerFactory.lastDataSpec.length);
         assertEquals(1, writer.cacheCalls);
         assertEquals(0, writer.cancelCalls);
     }
@@ -160,9 +160,24 @@ public final class PlaybackVisualizationCacheManagerTest {
     }
 
     @Test
+    public void streamingTrackDoesNotScheduleVisualizationCache() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        Track track = track(12L);
+        stateProvider.currentTrack = track;
+        FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
+        PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
+
+        manager.scheduleVisualizationCache(track);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(0, stateProvider.scheduledTasks.size());
+        assertEquals(0, writerFactory.createCalls);
+    }
+
+    @Test
     public void scheduleVisualizationCacheActionFromSupplierDelegatesThroughManager() {
         FakeStateProvider stateProvider = new FakeStateProvider();
-        Track track = track(10L);
+        Track track = localHttpTrack(10L);
         stateProvider.currentTrack = track;
         FakeCacheWriterFactory writerFactory = new FakeCacheWriterFactory();
         PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
@@ -237,6 +252,18 @@ public final class PlaybackVisualizationCacheManagerTest {
                 180_000L,
                 Uri.parse(uri),
                 "streaming:test:" + id
+        );
+    }
+
+    private static Track localHttpTrack(long id) {
+        return new Track(
+                id,
+                "Track " + id,
+                "Artist",
+                "Album",
+                180_000L,
+                Uri.parse("https://example.com/audio-" + id + ".mp3"),
+                "webdav:" + id
         );
     }
 

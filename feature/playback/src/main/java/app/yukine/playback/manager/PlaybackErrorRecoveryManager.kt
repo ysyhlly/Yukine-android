@@ -72,6 +72,7 @@ internal class PlaybackErrorRecoveryManager(
             scheduler.postDelayed(retry, retryDelayMs)
             return
         }
+        cancelPendingRetry()
         if (actions.canSkipFailedTrack(failed)) {
             lastErrorTrackId = -1L
             actions.logWarning("Skipping unplayable track: ${actions.debugTrack(failed)}", error)

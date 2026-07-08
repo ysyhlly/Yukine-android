@@ -5,7 +5,9 @@ import app.yukine.ui.QueueTrackUiState
 import kotlinx.coroutines.flow.StateFlow
 
 data class QueueDestinationState(
-    val rows: List<QueueTrackUiState> = emptyList()
+    val rows: List<QueueTrackUiState> = emptyList(),
+    val rowCount: Int = rows.size,
+    val rowAt: (Int) -> QueueTrackUiState? = { index -> rows.getOrNull(index) }
 )
 
 interface QueueDestinationStateProvider {

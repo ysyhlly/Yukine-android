@@ -125,6 +125,18 @@ public class PlaybackQueueMutationOwnerTest {
         assertEquals(0L, positionManager.restoredPositionFor(track));
     }
 
+    @Test
+    public void retainEmptyTrackSetClearsExistingQueueThroughManager() {
+        FakeQueuePlaybackActions actions = new FakeQueuePlaybackActions();
+        PlaybackQueueManager queueManager = queueManager(new FakeQueueStore(), actions, null);
+        PlaybackQueueMutationOwner owner = owner(queueManager);
+        owner.playQueue(Arrays.asList(track(1L), track(2L)), 0, 0L);
+
+        owner.retainTracksById(Collections.emptySet());
+
+        assertEquals(1, actions.stopAndClearCalls);
+    }
+
     private static PlaybackQueueMutationOwner owner(PlaybackQueueManager queueManager) {
         return PlaybackQueueMutationOwner.fromPlaybackQueueManager(() -> queueManager);
     }
@@ -225,6 +237,14 @@ public class PlaybackQueueMutationOwnerTest {
         @Override
         public void stopAndClear() {
             stopAndClearCalls++;
+        }
+
+        @Override
+        public boolean persistQueueAsync(
+                java.util.List<app.yukine.model.Track> tracks,
+                int currentIndex
+        ) {
+            return false;
         }
     }
 

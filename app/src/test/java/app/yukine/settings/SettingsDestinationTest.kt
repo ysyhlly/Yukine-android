@@ -1,8 +1,11 @@
 package app.yukine.settings
 
+import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import app.yukine.SettingsState
 import app.yukine.SettingsUiState
 import app.yukine.ui.EchoTheme
@@ -10,6 +13,7 @@ import app.yukine.ui.SettingsAction
 import app.yukine.ui.SettingsMetric
 import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,7 +25,7 @@ import org.robolectric.annotation.Config
 class SettingsDestinationTest {
 
     @get:Rule
-    val composeRule = createComposeRule()
+    val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
     fun rendersTitleMetricsAndStateActions() {
@@ -51,5 +55,73 @@ class SettingsDestinationTest {
         composeRule.onNodeWithText("Settings").assertIsDisplayed()
         composeRule.onNodeWithText("Appearance").assertIsDisplayed()
         composeRule.onNodeWithText("Playback").assertIsDisplayed()
+    }
+
+    @Test
+    fun systemBackRunsLibrarySettingsBackAction() {
+        var backCount = 0
+        val state = MutableStateFlow(
+            SettingsState(
+                actions = listOf(
+                    SettingsAction("返回", Runnable { backCount++ }),
+                    SettingsAction("扫描曲库", Runnable {})
+                ),
+                ui = SettingsUiState(
+                    title = "曲库",
+                    metrics = listOf(SettingsMetric("歌曲", "128")),
+                    items = emptyList()
+                )
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                SettingsDestination(
+                    state,
+                    audioMotion = YukineOrbAudioMotion.Empty.copy(visualMotionEnabled = false)
+                )
+            }
+        }
+
+        composeRule.runOnIdle {
+            composeRule.activity.onBackPressedDispatcher.onBackPressed()
+        }
+
+        composeRule.runOnIdle {
+            assertEquals(1, backCount)
+        }
+    }
+
+    @Test
+    fun titleBackActionRunsLibrarySettingsBackAction() {
+        var backCount = 0
+        val state = MutableStateFlow(
+            SettingsState(
+                actions = listOf(
+                    SettingsAction("返回", Runnable { backCount++ }),
+                    SettingsAction("扫描曲库", Runnable {})
+                ),
+                ui = SettingsUiState(
+                    title = "曲库",
+                    metrics = listOf(SettingsMetric("歌曲", "128")),
+                    items = emptyList()
+                )
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                SettingsDestination(
+                    state,
+                    audioMotion = YukineOrbAudioMotion.Empty.copy(visualMotionEnabled = false)
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("返回").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(1, backCount)
+        }
     }
 }

@@ -207,7 +207,7 @@ private fun LibraryGroupRow(group: LibraryGroupUiState, actions: LibraryGroupAct
                     modifier = Modifier
                         .size(40.dp)
                         .echoGlassLayer(p, EchoShapes.small)
-                        .semantics { contentDescription = "鎾斁" },
+                        .semantics { contentDescription = "播放" },
                     shape = EchoShapes.small,
                     color = Color.Transparent
                 ) {

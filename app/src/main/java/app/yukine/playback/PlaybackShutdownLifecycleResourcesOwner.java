@@ -1,6 +1,9 @@
 package app.yukine.playback;
 
+import app.yukine.playback.manager.PlaybackQueueManager;
+
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 final class PlaybackShutdownLifecycleResourcesOwner implements PlaybackShutdownCoordinator.LifecycleResources {
     interface PlaybackPositionPersister {
@@ -60,6 +63,34 @@ final class PlaybackShutdownLifecycleResourcesOwner implements PlaybackShutdownC
                 return preparingStateProvider != null && preparingStateProvider.getAsBoolean();
             }
         };
+    }
+
+    static PlaybackQueueLifecycleStore playbackQueueLifecycleStoreFromQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
+    ) {
+        return new PlaybackQueueLifecycleStore() {
+            @Override
+            public void persistQueueState() {
+                PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
+                if (playbackQueueManager != null) {
+                    playbackQueueManager.persistQueueState();
+                }
+            }
+
+            @Override
+            public void savePlaybackResumeRequested(boolean requested) {
+                PlaybackQueueManager playbackQueueManager = playbackQueueManager(playbackQueueManagerSupplier);
+                if (playbackQueueManager != null) {
+                    playbackQueueManager.savePlaybackResumeRequested(requested);
+                }
+            }
+        };
+    }
+
+    private static PlaybackQueueManager playbackQueueManager(
+            Supplier<PlaybackQueueManager> playbackQueueManagerSupplier
+    ) {
+        return playbackQueueManagerSupplier == null ? null : playbackQueueManagerSupplier.get();
     }
 
     @Override

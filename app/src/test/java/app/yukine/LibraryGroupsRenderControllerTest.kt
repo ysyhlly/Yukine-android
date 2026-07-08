@@ -232,14 +232,23 @@ class LibraryGroupsRenderControllerTest {
             LibraryViewModel(),
             listener,
             repository,
-            LibraryGroupsUiDispatcher { pending += it }
+            LibraryGroupsUiDispatcher {
+                synchronized(pending) {
+                    pending += it
+                }
+            }
         )
 
         controller.render(AppLanguage.MODE_CHINESE, listOf(track(1L, "A", "Aimer", "ONE")), LibraryGrouping.ARTISTS, "Aimer", "Aimer", emptyList())
         controller.render(AppLanguage.MODE_CHINESE, listOf(track(2L, "B", "LiSA", "TWO")), LibraryGrouping.ARTISTS, "LiSA", "LiSA", emptyList())
 
-        waitUntil { pending.size >= 2 }
-        pending.toList().forEach { it.run() }
+        waitUntil {
+            val callbacks = synchronized(pending) {
+                pending.toList().also { pending.clear() }
+            }
+            callbacks.forEach { it.run() }
+            listener.trackListRequest?.title == "LiSA" && listener.artistIntro().contains("LiSA online")
+        }
 
         assertEquals("LiSA", listener.trackListRequest?.title)
         assertTrue(listener.artistIntro().contains("LiSA online"))

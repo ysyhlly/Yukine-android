@@ -378,7 +378,7 @@ private fun CollectionPlaylistTrackRow(track: PlaylistTrackUiState, actions: Pla
                     if (track.favorite) labels.removeFavoriteLabel else labels.favoriteLabel,
                     active = track.favorite
                 ) { actions.onFavorite.run() }
-                MiniIconButton(EchoIconKind.Import, "涓嬭浇") { actions.onDownload.run() }
+                MiniIconButton(EchoIconKind.Import, "下载") { actions.onDownload.run() }
                 MiniIconButton(EchoIconKind.ArrowUp, labels.upLabel, enabled = track.canMoveUp) {
                     actions.onMoveUp.run()
                 }

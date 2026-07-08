@@ -106,6 +106,7 @@ data class SettingsAppliedStatusText(
 
 sealed interface SettingsEffect {
     data class ShowStatus(val message: String) : SettingsEffect
+    data class NavigatePage(val page: SettingsPage) : SettingsEffect
     data object OpenNetworkSources : SettingsEffect
     data object OpenDownloads : SettingsEffect
     data object LoadLibrary : SettingsEffect
@@ -260,6 +261,7 @@ class SettingsViewModel @JvmOverloads constructor(
         if (event is SettingsEvent.NavigateSettingsPage) {
             val current = _state.value
             renderCurrentPage(event.page, current.preferences, current.runtime)
+            emitEffect(SettingsEffect.NavigatePage(event.page))
             return
         }
         when (event) {
@@ -338,6 +340,7 @@ class SettingsViewModel @JvmOverloads constructor(
             SettingsPage.Library ->
                 SettingsPageStateBuilder.library(
                     languageMode,
+                    SettingsBackStack.parent(page),
                     runtime.librarySongCount,
                     runtime.libraryAlbumCount,
                     runtime.libraryArtistCount,
@@ -689,16 +692,38 @@ class SettingsViewModel @JvmOverloads constructor(
     }
 
     fun setStatusBarLyricsEnabled(enabled: Boolean) {
+        val currentPreferences = _state.value.preferences
+        val disableFloatingLyrics = enabled && currentPreferences.floatingLyricsEnabled
+        if (disableFloatingLyrics) {
+            applyRuntimeEffect(SettingsRuntimeEffect.ApplyFloatingLyrics(false))
+        }
         applyRuntimeEffect(SettingsRuntimeEffect.SetStatusBarLyrics(enabled))
-        updatePreferences { it.copy(statusBarLyricsEnabled = enabled) }
+        updatePreferences {
+            it.copy(
+                statusBarLyricsEnabled = enabled,
+                floatingLyricsEnabled = if (disableFloatingLyrics) false else it.floatingLyricsEnabled
+            )
+        }
         val statusText = currentAppliedStatusText()
         emitAppliedStatus(if (enabled) statusText.statusBarLyricsEnabled else statusText.statusBarLyricsDisabled)
+        if (disableFloatingLyrics) {
+            savePreference(SettingsPreferenceKey.FloatingLyricsEnabled, false)
+        }
         savePreference(SettingsPreferenceKey.StatusBarLyricsEnabled, enabled)
     }
 
     fun setFloatingLyricsEnabled(enabled: Boolean) {
         val applied = applyRuntimeEffect(SettingsRuntimeEffect.ApplyFloatingLyrics(enabled))
-        updatePreferences { it.copy(floatingLyricsEnabled = enabled) }
+        val disableStatusBarLyrics = enabled && applied && _state.value.preferences.statusBarLyricsEnabled
+        if (disableStatusBarLyrics) {
+            applyRuntimeEffect(SettingsRuntimeEffect.SetStatusBarLyrics(false))
+        }
+        updatePreferences {
+            it.copy(
+                statusBarLyricsEnabled = if (disableStatusBarLyrics) false else it.statusBarLyricsEnabled,
+                floatingLyricsEnabled = enabled
+            )
+        }
         val statusText = currentAppliedStatusText()
         emitAppliedStatus(
             if (!applied && enabled) {
@@ -709,6 +734,9 @@ class SettingsViewModel @JvmOverloads constructor(
                 statusText.floatingLyricsDisabled
             }
         )
+        if (disableStatusBarLyrics) {
+            savePreference(SettingsPreferenceKey.StatusBarLyricsEnabled, false)
+        }
         savePreference(SettingsPreferenceKey.FloatingLyricsEnabled, enabled)
     }
 

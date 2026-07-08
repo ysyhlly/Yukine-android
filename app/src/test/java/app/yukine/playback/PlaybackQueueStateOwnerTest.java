@@ -216,6 +216,14 @@ public class PlaybackQueueStateOwnerTest {
         @Override
         public void stopAndClear() {
         }
+
+        @Override
+        public boolean persistQueueAsync(
+                java.util.List<app.yukine.model.Track> tracks,
+                int currentIndex
+        ) {
+            return false;
+        }
     }
 
     private static final class NoopStreamingRestoreProvider

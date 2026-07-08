@@ -5,6 +5,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.database.sqlite.SQLiteStatement;
 import android.net.Uri;
 
 import java.util.ArrayList;
@@ -740,6 +741,39 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         return values;
     }
 
+    private static String playbackQueueInsertSql() {
+        return "INSERT OR REPLACE INTO " + TABLE_PLAYBACK_QUEUE + " ("
+                + "position, track_id, title, artist, album, duration_ms, content_uri, data_path, "
+                + "album_id, album_art_uri, codec, bitrate_kbps, sample_rate_hz, bits_per_sample, "
+                + "channel_count, replay_gain_track_db, replay_gain_album_db"
+                + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    }
+
+    private static void bindPlaybackQueue(SQLiteStatement statement, Track track, int position) {
+        statement.clearBindings();
+        statement.bindLong(1, position);
+        statement.bindLong(2, track.id);
+        bindString(statement, 3, track.title);
+        bindString(statement, 4, track.artist);
+        bindString(statement, 5, track.album);
+        statement.bindLong(6, track.durationMs);
+        bindString(statement, 7, track.contentUri.toString());
+        bindString(statement, 8, track.dataPath);
+        statement.bindLong(9, track.albumId);
+        bindString(statement, 10, track.albumArtUriString());
+        bindString(statement, 11, track.codec);
+        statement.bindLong(12, track.bitrateKbps);
+        statement.bindLong(13, track.sampleRateHz);
+        statement.bindLong(14, track.bitsPerSample);
+        statement.bindLong(15, track.channelCount);
+        statement.bindDouble(16, track.replayGainTrackDb);
+        statement.bindDouble(17, track.replayGainAlbumDb);
+    }
+
+    private static void bindString(SQLiteStatement statement, int index, String value) {
+        statement.bindString(index, value == null ? "" : value);
+    }
+
     private ContentValues playbackQueueTrackValues(Track track) {
         ContentValues values = new ContentValues();
         values.put("track_id", track.id);
@@ -956,8 +990,11 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         try {
             db.delete(TABLE_PLAYBACK_QUEUE, null, null);
             if (tracks != null) {
-                for (int i = 0; i < tracks.size(); i++) {
-                    db.insertWithOnConflict(TABLE_PLAYBACK_QUEUE, null, playbackQueueValues(tracks.get(i), i), SQLiteDatabase.CONFLICT_REPLACE);
+                try (SQLiteStatement statement = db.compileStatement(playbackQueueInsertSql())) {
+                    for (int i = 0; i < tracks.size(); i++) {
+                        bindPlaybackQueue(statement, tracks.get(i), i);
+                        statement.executeInsert();
+                    }
                 }
             }
             saveSettingWithDatabase(db, SETTING_PLAYBACK_QUEUE_INDEX, String.valueOf(currentIndex));
@@ -1036,13 +1073,23 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         long now = System.currentTimeMillis();
         ContentValues values = remoteSourceValues(source, now);
-        if (source.id > 0L) {
-            int updated = db.update(TABLE_REMOTE_SOURCES, values, "id = ?", new String[]{String.valueOf(source.id)});
-            if (updated > 0) {
-                return source.id;
+        db.beginTransaction();
+        try {
+            long savedId;
+            if (source.id > 0L) {
+                deleteTracksWhere(db, "data_path LIKE ?", new String[]{"webdav:" + source.id + ":%"});
+                int updated = db.update(TABLE_REMOTE_SOURCES, values, "id = ?", new String[]{String.valueOf(source.id)});
+                savedId = updated > 0
+                        ? source.id
+                        : db.insertWithOnConflict(TABLE_REMOTE_SOURCES, null, values, SQLiteDatabase.CONFLICT_REPLACE);
+            } else {
+                savedId = db.insertWithOnConflict(TABLE_REMOTE_SOURCES, null, values, SQLiteDatabase.CONFLICT_REPLACE);
             }
+            db.setTransactionSuccessful();
+            return savedId;
+        } finally {
+            db.endTransaction();
         }
-        return db.insertWithOnConflict(TABLE_REMOTE_SOURCES, null, values, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
     public void updateRemoteSourceStatus(long sourceId, String status) {
@@ -1156,6 +1203,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
             String[] args = new String[]{String.valueOf(trackId)};
             db.delete(TABLE_FAVORITES, "track_id = ?", args);
             db.delete(TABLE_HISTORY, "track_id = ?", args);
+            db.delete(TABLE_PLAY_EVENTS, "track_id = ?", args);
             db.delete(TABLE_PLAYLIST_TRACKS, "track_id = ?", args);
             db.delete(TABLE_PLAYBACK_QUEUE, "track_id = ?", args);
         }
@@ -1226,8 +1274,11 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     private int compactPlaybackQueue(SQLiteDatabase db) {
         ArrayList<Track> orderedTracks = loadPlaybackQueueTrackSnapshots(db);
         db.delete(TABLE_PLAYBACK_QUEUE, null, null);
-        for (int i = 0; i < orderedTracks.size(); i++) {
-            db.insertWithOnConflict(TABLE_PLAYBACK_QUEUE, null, playbackQueueValues(orderedTracks.get(i), i), SQLiteDatabase.CONFLICT_REPLACE);
+        try (SQLiteStatement statement = db.compileStatement(playbackQueueInsertSql())) {
+            for (int i = 0; i < orderedTracks.size(); i++) {
+                bindPlaybackQueue(statement, orderedTracks.get(i), i);
+                statement.executeInsert();
+            }
         }
         return orderedTracks.size();
     }
@@ -1519,7 +1570,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
             ContentValues eventValues = new ContentValues();
             eventValues.put("track_id", trackId);
             eventValues.put("played_at", now);
-            db.insert(TABLE_PLAY_EVENTS, null, eventValues);
+            db.insertOrThrow(TABLE_PLAY_EVENTS, null, eventValues);
             db.setTransactionSuccessful();
         } finally {
             db.endTransaction();
@@ -1694,6 +1745,9 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
+            if (!rowExists(db, TABLE_PLAYLISTS, "id = ?", new String[]{String.valueOf(playlistId)})) {
+                return false;
+            }
             ArrayList<Long> orphanedImportedTrackIds = loadPlaylistOnlyImportedTrackIds(db, playlistId);
             ArrayList<Long> orphanedStreamingTrackIds = loadPlaylistOnlyStreamingTrackIds(db, playlistId);
             ArrayList<Long> queuedTrackIds = loadPlaybackQueueTrackIds(db);
@@ -1711,7 +1765,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                 deleteTracksByIds(db, orphanedImportedTrackIds, queuedTrackIds);
             }
             if (deleted > 0 && !orphanedStreamingTrackIds.isEmpty()) {
-                deleteStreamingTracksByIds(db, orphanedStreamingTrackIds);
+                deleteTracksByIds(db, orphanedStreamingTrackIds, queuedTrackIds);
             }
             db.setTransactionSuccessful();
             return deleted > 0;
@@ -1744,41 +1798,72 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
 
     public boolean addTrackToPlaylist(long playlistId, long trackId) {
         SQLiteDatabase db = getWritableDatabase();
-        long now = System.currentTimeMillis();
-        int position = nextPlaylistPosition(db, playlistId);
-        ContentValues values = new ContentValues();
-        values.put("playlist_id", playlistId);
-        values.put("track_id", trackId);
-        values.put("position", position);
-        values.put("added_at", now);
-        long inserted = db.insertWithOnConflict(TABLE_PLAYLIST_TRACKS, null, values, SQLiteDatabase.CONFLICT_IGNORE);
-        if (inserted != -1L) {
-            touchPlaylist(db, playlistId, now);
-            return true;
+        db.beginTransaction();
+        try {
+            if (!playlistExists(db, playlistId)) {
+                db.setTransactionSuccessful();
+                return false;
+            }
+            long now = System.currentTimeMillis();
+            int position = nextPlaylistPosition(db, playlistId);
+            ContentValues values = new ContentValues();
+            values.put("playlist_id", playlistId);
+            values.put("track_id", trackId);
+            values.put("position", position);
+            values.put("added_at", now);
+            long inserted = db.insertWithOnConflict(TABLE_PLAYLIST_TRACKS, null, values, SQLiteDatabase.CONFLICT_IGNORE);
+            if (inserted != -1L) {
+                touchPlaylist(db, playlistId, now);
+                db.setTransactionSuccessful();
+                return true;
+            }
+            db.setTransactionSuccessful();
+            return false;
+        } finally {
+            db.endTransaction();
         }
-        return false;
     }
 
     public void removeTrackFromPlaylist(long playlistId, long trackId) {
         SQLiteDatabase db = getWritableDatabase();
-        int removed = db.delete(
-                TABLE_PLAYLIST_TRACKS,
-                "playlist_id = ? AND track_id = ?",
-                new String[]{String.valueOf(playlistId), String.valueOf(trackId)}
-        );
-        if (removed > 0) {
-            touchPlaylist(db, playlistId, System.currentTimeMillis());
+        db.beginTransaction();
+        try {
+            if (!playlistExists(db, playlistId)) {
+                db.setTransactionSuccessful();
+                return;
+            }
+            int removed = db.delete(
+                    TABLE_PLAYLIST_TRACKS,
+                    "playlist_id = ? AND track_id = ?",
+                    new String[]{String.valueOf(playlistId), String.valueOf(trackId)}
+            );
+            if (removed > 0) {
+                touchPlaylist(db, playlistId, System.currentTimeMillis());
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
         }
     }
 
     public void clearPlaylistTracks(long playlistId) {
         SQLiteDatabase db = getWritableDatabase();
-        db.delete(
-                TABLE_PLAYLIST_TRACKS,
-                "playlist_id = ?",
-                new String[]{String.valueOf(playlistId)}
-        );
-        touchPlaylist(db, playlistId, System.currentTimeMillis());
+        db.beginTransaction();
+        try {
+            if (!playlistExists(db, playlistId)) {
+                db.setTransactionSuccessful();
+                return;
+            }
+            db.delete(
+                    TABLE_PLAYLIST_TRACKS,
+                    "playlist_id = ?",
+                    new String[]{String.valueOf(playlistId)}
+            );
+            touchPlaylist(db, playlistId, System.currentTimeMillis());
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
     }
 
     public boolean movePlaylistTrack(long playlistId, long trackId, int direction) {
@@ -1788,6 +1873,10 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
+            if (!playlistExists(db, playlistId)) {
+                db.setTransactionSuccessful();
+                return false;
+            }
             int currentPosition = playlistTrackPosition(db, playlistId, trackId);
             if (currentPosition < 0) {
                 return false;
@@ -1829,6 +1918,10 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
+            if (!playlistExists(db, playlistId)) {
+                db.setTransactionSuccessful();
+                return false;
+            }
             ArrayList<Long> trackIds = new ArrayList<>();
             ArrayList<Integer> positions = new ArrayList<>();
             String sql = "SELECT track_id, position FROM " + TABLE_PLAYLIST_TRACKS
@@ -1971,6 +2064,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
             String[] args = new String[]{String.valueOf(trackId)};
             db.delete(TABLE_FAVORITES, "track_id = ?", args);
             db.delete(TABLE_HISTORY, "track_id = ?", args);
+            db.delete(TABLE_PLAY_EVENTS, "track_id = ?", args);
             db.delete(TABLE_PLAYLIST_TRACKS, "track_id = ?", args);
             db.delete(TABLE_PLAYBACK_QUEUE, "track_id = ?", args);
         }
@@ -1990,33 +2084,14 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         return removed;
     }
 
-    private int deleteStreamingTracksByIds(SQLiteDatabase db, List<Long> trackIds) {
-        if (trackIds == null || trackIds.isEmpty()) {
-            return 0;
-        }
-        for (Long trackId : trackIds) {
-            String[] args = new String[]{String.valueOf(trackId)};
-            db.delete(TABLE_FAVORITES, "track_id = ?", args);
-            db.delete(TABLE_HISTORY, "track_id = ?", args);
-            db.delete(TABLE_PLAYLIST_TRACKS, "track_id = ?", args);
-            db.delete(TABLE_PLAYBACK_QUEUE, "track_id = ?", args);
-        }
-        StringBuilder placeholders = new StringBuilder();
-        String[] whereArgs = new String[trackIds.size()];
-        for (int i = 0; i < trackIds.size(); i++) {
-            if (i > 0) {
-                placeholders.append(',');
-            }
-            placeholders.append('?');
-            whereArgs[i] = String.valueOf(trackIds.get(i));
-        }
-        return db.delete(TABLE_TRACKS, "id IN (" + placeholders + ")", whereArgs);
-    }
-
     private void touchPlaylist(SQLiteDatabase db, long playlistId, long updatedAt) {
         ContentValues values = new ContentValues();
         values.put("updated_at", updatedAt);
         db.update(TABLE_PLAYLISTS, values, "id = ?", new String[]{String.valueOf(playlistId)});
+    }
+
+    private boolean playlistExists(SQLiteDatabase db, long playlistId) {
+        return rowExists(db, TABLE_PLAYLISTS, "id = ?", new String[]{String.valueOf(playlistId)});
     }
 
     private String cleanPlaylistName(String name) {

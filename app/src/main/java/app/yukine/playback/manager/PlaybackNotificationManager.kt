@@ -10,9 +10,12 @@ import app.yukine.R
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackNotificationArtworkSource
 import app.yukine.playback.service.PlaybackServiceActions
+import androidx.annotation.OptIn
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.util.UnstableApi
 import java.util.function.Supplier
 
+@OptIn(UnstableApi::class)
 internal class PlaybackNotificationManager(
     private val context: Context,
     private val foregroundController: ForegroundController,
@@ -21,6 +24,8 @@ internal class PlaybackNotificationManager(
     private val artworkProvider: PlaybackNotificationArtworkSource,
     private val actionCallbacks: ActionCallbacks? = null
 ) : NotificationManager {
+    private var lastPublishedNotificationSignature: NotificationSignature? = null
+
     interface ForegroundController {
         fun activityPendingIntent(): android.app.PendingIntent
         fun serviceActionPendingIntent(action: String, requestCode: Int): android.app.PendingIntent
@@ -57,7 +62,15 @@ internal class PlaybackNotificationManager(
         if (track == null && !hasNotificationWorthyState()) {
             return
         }
-        val notification = playbackNotification(track)
+        val playing = stateProvider.isPlaying() || stateProvider.isPreparing()
+        val isFavorite = stateProvider.isFavorite(track)
+        val lyricText = currentNotificationLyric(track)
+        val signature = NotificationSignature.from(track, playing, isFavorite, lyricText)
+        if (!force && signature == lastPublishedNotificationSignature) {
+            return
+        }
+        lastPublishedNotificationSignature = signature
+        val notification = playbackNotification(track, playing, isFavorite, lyricText)
         foregroundController.startPlaybackForeground(notification)
     }
 
@@ -116,10 +129,21 @@ internal class PlaybackNotificationManager(
     }
 
     fun playbackNotification(track: Track?): Notification {
-        val playing = stateProvider.isPlaying() || stateProvider.isPreparing()
+        return playbackNotification(
+            track,
+            stateProvider.isPlaying() || stateProvider.isPreparing(),
+            stateProvider.isFavorite(track),
+            currentNotificationLyric(track)
+        )
+    }
+
+    private fun playbackNotification(
+        track: Track?,
+        playing: Boolean,
+        isFavorite: Boolean,
+        lyricText: String
+    ): Notification {
         val hasTrack = track != null
-        val isFavorite = stateProvider.isFavorite(track)
-        val lyricText = currentNotificationLyric(track)
         val contentText = if (lyricText.isNotEmpty()) lyricText else if (hasTrack) track!!.subtitle() else EMPTY_NOTIFICATION_TEXT
         val titleText = if (hasTrack) track!!.title else EMPTY_NOTIFICATION_TITLE
         val capsuleText = if (lyricText.isNotEmpty()) shortCriticalText(lyricText) else if (hasTrack) shortCriticalText(track!!.title) else "Yukine"
@@ -172,6 +196,36 @@ internal class PlaybackNotificationManager(
             builder.setStyle(Notification.BigTextStyle().bigText(lyricText))
         }
         return builder.build()
+    }
+
+    private data class NotificationSignature(
+        val trackId: Long,
+        val title: String,
+        val artist: String,
+        val album: String,
+        val albumArtUri: String,
+        val playing: Boolean,
+        val favorite: Boolean,
+        val lyricText: String
+    ) {
+        companion object {
+            fun from(
+                track: Track?,
+                playing: Boolean,
+                favorite: Boolean,
+                lyricText: String
+            ): NotificationSignature =
+                NotificationSignature(
+                    track?.id ?: -1L,
+                    track?.title.orEmpty(),
+                    track?.artist.orEmpty(),
+                    track?.album.orEmpty(),
+                    track?.albumArtUri?.toString().orEmpty(),
+                    playing,
+                    favorite,
+                    lyricText
+                )
+        }
     }
 
     fun mediaMetadataForTrack(track: Track): MediaMetadata {

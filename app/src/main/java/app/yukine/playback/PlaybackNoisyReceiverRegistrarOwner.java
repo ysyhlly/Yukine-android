@@ -1,9 +1,12 @@
 package app.yukine.playback;
 
+import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
 import android.os.Build;
+
+import androidx.core.content.ContextCompat;
 
 import app.yukine.playback.manager.PlaybackNoisyReceiverManager;
 
@@ -50,13 +53,14 @@ final class PlaybackNoisyReceiverRegistrarOwner implements PlaybackNoisyReceiver
         }
 
         @Override
+        @SuppressLint("UnspecifiedRegisterReceiverFlag")
         public void registerReceiver(BroadcastReceiver receiver, IntentFilter filter) {
             context.registerReceiver(receiver, filter);
         }
 
         @Override
         public void registerReceiverNotExported(BroadcastReceiver receiver, IntentFilter filter) {
-            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
         }
 
         @Override

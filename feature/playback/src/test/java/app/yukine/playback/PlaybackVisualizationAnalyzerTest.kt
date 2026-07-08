@@ -47,6 +47,18 @@ class PlaybackVisualizationAnalyzerTest {
     }
 
     @Test
+    fun streamingTrackDoesNotScheduleWaveformOrSpectrumDecode() {
+        val scheduler = FakeVisualizationTaskScheduler()
+        val analyzer = analyzer(scheduler, FakeStateProvider())
+        val track = streamingTrack(6L)
+
+        analyzer.waveformSnapshot(track, 180_000L, deferGeneration = false)
+        analyzer.spectrumSnapshot(track, 180_000L, deferGeneration = false)
+
+        assertEquals(0, scheduler.tasks.size)
+    }
+
+    @Test
     fun releaseBeforeScheduledTaskPreventsPublishState() {
         val scheduler = FakeVisualizationTaskScheduler()
         val stateProvider = FakeStateProvider()
@@ -57,6 +69,17 @@ class PlaybackVisualizationAnalyzerTest {
         scheduler.tasks.single().run()
 
         assertEquals(0, stateProvider.publishCalls)
+    }
+
+    @Test
+    fun quickStartSpectrumDoesNotRecursivelyScheduleFullTrackDecode() {
+        val scheduler = FakeVisualizationTaskScheduler()
+        val analyzer = analyzer(scheduler, FakeStateProvider())
+
+        analyzer.spectrumSnapshot(localTrack(5L), 180_000L, deferGeneration = false)
+        scheduler.tasks.single().run()
+
+        assertEquals(1, scheduler.tasks.size)
     }
 
     private fun analyzer(
@@ -93,6 +116,18 @@ class PlaybackVisualizationAnalyzerTest {
             180_000L,
             uri,
             "local-$id"
+        )
+    }
+
+    private fun streamingTrack(id: Long): Track {
+        return Track(
+            id,
+            "Track $id",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://m704.music.126.net/audio-$id.mp3"),
+            "streaming:netease:$id"
         )
     }
 

@@ -86,6 +86,52 @@ class StreamingRecommendationViewModelTest {
     }
 
     @Test
+    fun dailyRecommendationPresentationLimitsInitialPlaybackQueue() {
+        val viewModel = StreamingRecommendationViewModel(FakeRepositorySource(FakeDailyGateway()))
+        val presentation = viewModel.prepareDailyRecommendationPresentation(
+            (1..45).map { streamingTrack("daily-$it") },
+            emptyStatus = "Empty",
+            title = "Daily recommendations"
+        )
+
+        assertEquals(30, presentation.tracks.size)
+        assertEquals("Daily recommendations (30)", presentation.readyStatus)
+        assertEquals("daily-1", presentation.tracks.first().dataPath.substringAfterLast(':'))
+        assertEquals("daily-30", presentation.tracks.last().dataPath.substringAfterLast(':'))
+    }
+
+    @Test
+    fun dailyRecommendationPresentationKeepsSmallQueueCount() {
+        val viewModel = StreamingRecommendationViewModel(FakeRepositorySource(FakeDailyGateway()))
+        val presentation = viewModel.prepareDailyRecommendationPresentation(
+            (1..12).map { streamingTrack("daily-$it") },
+            emptyStatus = "Empty",
+            title = "Daily recommendations"
+        )
+
+        assertEquals(12, presentation.tracks.size)
+        assertEquals("Daily recommendations (12)", presentation.readyStatus)
+    }
+
+    @Test
+    fun heartbeatRecommendationPresentationLimitsInitialPlaybackQueue() {
+        val viewModel = StreamingRecommendationViewModel(FakeRepositorySource(FakeDailyGateway()))
+        val playingStatus = AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.recommend.heartbeat.playing")
+        val emptyStatus = AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.recommend.heartbeat.empty")
+
+        val presentation = viewModel.prepareHeartbeatRecommendationPresentation(
+            (1..45).map { streamingTrack("heart-$it") },
+            emptyStatus,
+            playingStatus
+        )
+
+        assertEquals(30, presentation.tracks.size)
+        assertEquals("$playingStatus (30)", presentation.readyStatus)
+        assertEquals("heart-1", presentation.tracks.first().dataPath.substringAfterLast(':'))
+        assertEquals("heart-30", presentation.tracks.last().dataPath.substringAfterLast(':'))
+    }
+
+    @Test
     fun typedDailyActionRunsThroughRecommendationViewModel() = runTest {
         val gateway = FakeDailyGateway()
         gateway.dailyTracks = listOf(streamingTrack("daily-action"))

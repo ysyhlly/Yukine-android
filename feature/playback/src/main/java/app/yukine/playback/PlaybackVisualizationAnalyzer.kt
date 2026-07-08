@@ -2,9 +2,12 @@ package app.yukine.playback
 
 import android.content.Context
 import androidx.media3.datasource.DataSpec
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackMediaSourceProvider
 
+@OptIn(UnstableApi::class)
 internal class PlaybackVisualizationAnalyzer internal constructor(
     private val context: Context,
     private val taskScheduler: VisualizationTaskScheduler,
@@ -45,7 +48,7 @@ internal class PlaybackVisualizationAnalyzer internal constructor(
     private var released = false
 
     fun waveformSnapshot(track: Track?, durationMs: Long, deferGeneration: Boolean): PlaybackWaveformSnapshot {
-        if (released || track == null || durationMs <= 0L || !mediaSourceProvider.isHttpTrack(track)) {
+        if (released || track == null || durationMs <= 0L || !mediaSourceProvider.isHttpTrack(track) || isStreamingTrack(track)) {
             return PlaybackWaveformSnapshot.empty()
         }
         resetWaveformIfTrackChanged(track)
@@ -63,7 +66,7 @@ internal class PlaybackVisualizationAnalyzer internal constructor(
     }
 
     fun spectrumSnapshot(track: Track?, durationMs: Long, deferGeneration: Boolean): PlaybackSpectrumSnapshot {
-        if (released || track == null || durationMs <= 0L || !PlaybackMediaSourceProvider.hasPlayableMediaUri(track)) {
+        if (released || track == null || durationMs <= 0L || !PlaybackMediaSourceProvider.hasPlayableMediaUri(track) || isStreamingTrack(track)) {
             return PlaybackSpectrumSnapshot.empty()
         }
         resetWaveformIfTrackChanged(track)
@@ -124,12 +127,10 @@ internal class PlaybackVisualizationAnalyzer internal constructor(
         if (released || !PlaybackMediaSourceProvider.hasPlayableMediaUri(track) || cachedProgress <= 0.005f) {
             return
         }
-        var targetProgress = cachedProgress
-        var quickStart = false
+        var targetProgress = minOf(cachedProgress, spectrumDecodeProgressLimit(durationMs))
         if (allowQuickStart && !spectrumSnapshot.hasBands()) {
-            val quickProgress = if (durationMs <= 0L) cachedProgress else minOf(cachedProgress, SPECTRUM_QUICK_START_MS / durationMs.toFloat())
+            val quickProgress = if (durationMs <= 0L) targetProgress else minOf(targetProgress, SPECTRUM_QUICK_START_MS / durationMs.toFloat())
             targetProgress = maxOf(0.006f, minOf(cachedProgress, quickProgress))
-            quickStart = targetProgress + SPECTRUM_PROGRESS_STEP < cachedProgress
         }
         val targetGeneratedFrames = maxOf(
             1,
@@ -152,8 +153,6 @@ internal class PlaybackVisualizationAnalyzer internal constructor(
         val spectrumTrack = track
         val spectrumDurationMs = durationMs
         val spectrumCachedProgress = targetProgress
-        val requestedCachedProgress = cachedProgress
-        val spectrumQuickStart = quickStart
         val spectrumIsHttp = mediaSourceProvider.isHttpTrack(track)
         val spectrumCacheKey = if (spectrumIsHttp) mediaSourceProvider.mediaCacheKeyForTrack(track) else ""
         val spectrumCachedBytes = if (spectrumIsHttp) mediaSourceProvider.continuousCachedBytes(spectrumCacheKey) else 0L
@@ -191,10 +190,7 @@ internal class PlaybackVisualizationAnalyzer internal constructor(
                 spectrumTrack,
                 taskKey,
                 generated,
-                spectrumCachedProgress,
-                requestedCachedProgress,
-                spectrumQuickStart,
-                spectrumDurationMs
+                spectrumCachedProgress
             )
         })
     }
@@ -203,10 +199,7 @@ internal class PlaybackVisualizationAnalyzer internal constructor(
         spectrumTrack: Track,
         taskKey: String,
         generated: PlaybackSpectrumSnapshot?,
-        spectrumCachedProgress: Float,
-        requestedCachedProgress: Float,
-        spectrumQuickStart: Boolean,
-        spectrumDurationMs: Long
+        spectrumCachedProgress: Float
     ) {
         if (released || !waveformKey(spectrumTrack).equals(waveformTrackKey) || taskKey != spectrumGeneratingKey) {
             return
@@ -226,9 +219,6 @@ internal class PlaybackVisualizationAnalyzer internal constructor(
             )
         }
         stateProvider.publishState()
-        if (spectrumQuickStart && requestedCachedProgress > spectrumCachedProgress + SPECTRUM_PROGRESS_STEP) {
-            maybeGenerateSpectrum(spectrumTrack, spectrumDurationMs, requestedCachedProgress, false)
-        }
     }
 
     private fun maybeGenerateStreamingWaveform(track: Track, durationMs: Long, cachedProgress: Float) {
@@ -347,11 +337,30 @@ internal class PlaybackVisualizationAnalyzer internal constructor(
         return track.id.toString() + "|" + (track.contentUri?.toString() ?: "") + "|" + track.dataPath
     }
 
+    private fun isStreamingTrack(track: Track?): Boolean {
+        return track?.dataPath?.startsWith("streaming:") == true
+    }
+
     companion object {
         private const val PLAYBACK_VISUALIZATION_WARMUP_MS = 1200L
         private const val SPECTRUM_QUICK_START_MS = 800L
+        private const val SPECTRUM_MAX_BACKGROUND_DECODE_MS = 45_000L
+        private const val SPECTRUM_MAX_BACKGROUND_PROGRESS = 0.25f
         private const val SPECTRUM_PROGRESS_STEP = 0.08f
         private const val WAVEFORM_PROGRESS_STEP = 0.08f
         private const val WAVEFORM_BAR_COUNT = 48
+    }
+
+    private fun spectrumDecodeProgressLimit(durationMs: Long): Float {
+        if (durationMs <= SPECTRUM_MAX_BACKGROUND_DECODE_MS) {
+            return 1.0f
+        }
+        return maxOf(
+            0.006f,
+            minOf(
+                SPECTRUM_MAX_BACKGROUND_PROGRESS,
+                SPECTRUM_MAX_BACKGROUND_DECODE_MS / durationMs.toFloat()
+            )
+        )
     }
 }

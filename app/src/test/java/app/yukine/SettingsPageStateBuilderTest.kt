@@ -743,6 +743,7 @@ class SettingsPageStateBuilderTest {
 
         val content = SettingsPageStateBuilder.library(
             languageMode = AppLanguage.MODE_ENGLISH,
+            backPage = SettingsPage.LibraryGroup,
             songCount = 12,
             albumCount = 3,
             artistCount = 5,
@@ -768,6 +769,28 @@ class SettingsPageStateBuilderTest {
 
         assertEquals(listOf(SettingsPage.LibraryGroup), navigated)
         assertEquals(listOf("load", "files", "folder"), calls)
+    }
+
+    @Test
+    fun libraryGroupBackCanReturnToSettingsHome() {
+        val navigated = mutableListOf<SettingsPage>()
+
+        val content = SettingsPageStateBuilder.library(
+            languageMode = AppLanguage.MODE_ENGLISH,
+            backPage = SettingsPage.Home,
+            songCount = 12,
+            albumCount = 3,
+            artistCount = 5,
+            audioPermissionGranted = true,
+            onNavigate = { page -> navigated += page },
+            onLoadLibrary = {},
+            onOpenAudioFilePicker = {},
+            onOpenAudioFolderPicker = {}
+        )
+
+        content.actions[0].onClick.run()
+
+        assertEquals(listOf(SettingsPage.Home), navigated)
     }
 
     @Test

@@ -1,5 +1,7 @@
 package app.yukine.playback;
 
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 
@@ -8,6 +10,7 @@ import java.util.List;
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackSessionPlayer;
 
+@OptIn(markerClass = UnstableApi.class)
 final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegate {
     interface SeekController {
         void seekTo(long positionMs);
@@ -23,6 +26,20 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
 
     interface StateProvider {
         Track currentTrack();
+
+        long positionMs();
+
+        long sessionPositionMs();
+
+        long durationMs();
+
+        List<Track> queueSnapshot();
+
+        int currentIndex();
+
+        int queueSize();
+
+        Track trackAt(int index);
     }
 
     interface MetadataProvider {
@@ -93,6 +110,26 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
     }
 
     @Override
+    public List<Track> sessionQueueTracks() {
+        return stateProvider.queueSnapshot();
+    }
+
+    @Override
+    public int sessionQueueSize() {
+        return stateProvider.queueSize();
+    }
+
+    @Override
+    public int sessionQueueCurrentIndex() {
+        return stateProvider.currentIndex();
+    }
+
+    @Override
+    public Track sessionQueueTrackAt(int index) {
+        return stateProvider.trackAt(index);
+    }
+
+    @Override
     public Track currentTrack() {
         return stateProvider.currentTrack();
     }
@@ -100,5 +137,20 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
     @Override
     public MediaMetadata mediaMetadataForTrack(Track track) {
         return metadataProvider.mediaMetadataForTrack(track);
+    }
+
+    @Override
+    public long positionMs() {
+        return stateProvider.positionMs();
+    }
+
+    @Override
+    public long sessionPositionMs() {
+        return stateProvider.sessionPositionMs();
+    }
+
+    @Override
+    public long durationMs() {
+        return stateProvider.durationMs();
     }
 }
