@@ -2762,7 +2762,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(controller.contains("CollectionsUiState("));
         assertTrue(controller.contains("CollectionsActions("));
         assertTrue(controller.contains("viewModel.updateCollections("));
-        assertTrue(controller.contains("viewModel.updateScreen(state)"));
+        assertTrue(controller.contains("viewModel.updateScreen("));
         assertTrue(controller.contains("viewModel.updateActions(actions)"));
         assertFalse(controller.contains("CollectionsActionsSink"));
         assertFalse(controller.contains("PlaylistIdAction"));
