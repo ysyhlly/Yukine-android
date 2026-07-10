@@ -869,32 +869,29 @@ Invariants:
 - Whole-library deduplication and search run off the main thread. Each refresh/search has a current request identity, so an older task may finish but cannot publish over newer results.
 - A list refresh publishes its state once. Parent UI layers observe only the boolean state for their active branch rather than subscribing to the full list.
 - Audio-spec parsing consumes only the already selected batch candidates; it does not walk the entire library for a batch operation.
+- Device-library refresh reports checking, scanning, replacing, and reloading phases. A slow-scan diagnostic must remain retryable, and replacement stays atomic until staged replacement has database-level coverage.
 
 ## Open Findings
 
-### P1 Open - Device scan refresh replaces the whole local table in one transaction
+### P1 Fixed - Device scan refresh exposes phases and retryable diagnostics
 
 Evidence:
 
-- `MusicLibraryRepository.refreshFromDevice()` runs `scanner.scan()`, then `database.replaceTracks(tracks)`, then `database.loadTracks()`.
-- `MediaStoreMusicScanner.scan()` avoids opening each audio file, which is good, but returns the whole scanned list before any database write starts.
-- `EchoDatabaseHelper.replaceTracks(...)` deletes non-document/non-stream rows and inserts every scanned track inside one transaction.
+- `MusicLibraryRepository.refreshFromDevice(...)` now reports checking, scanning, replacing, and reloading phases with elapsed-time diagnostics. The ViewModel forwards those phase keys through the existing library status gateway.
+- A 45-second ViewModel watchdog reports a retryable slow-scan message; onboarding retains its existing hard timeout/cancel/retry path.
+- `MediaStoreMusicScanner` and `EchoDatabaseHelper.replaceTracks(...)` check thread interruption at safe boundaries. An interrupted replacement exits before commit, so the existing transaction preserves the prior local library.
 
-Risk:
+Scope boundary:
 
-- A large local library still has an all-or-nothing scan/replace/load cycle with no progress checkpoint and no cancellation signal.
-- On slow storage or emulators, this can feel like "扫描歌曲直接卡住" even though the work is on `ioDispatcher`, because UI state only updates after the full replace and reload completes.
+- The local-table replacement deliberately remains one transaction. It avoids partial libraries and preserves current generation-token semantics.
+- Exact per-track percentages, a cancellable provider query, chunked writes, or a staged temp-table swap are follow-up work and require dedicated database/instrumentation coverage before adoption.
 
-Low-risk approach:
+Coverage:
 
-- Preserve the current full-refresh semantics, but add progress/timeout instrumentation around scan, replace, and reload phases so logs can identify which phase stalls.
-- Consider chunked replacement or staged temp-table swap later; that is riskier and should only follow database tests.
-- Reuse existing `EchoDatabaseHelper` transaction tests before changing table replacement behavior.
-
-Suggested tests:
-
-- Add a fake `LibraryImportOperations.refreshFromDevice()` that delays indefinitely and verify the ViewModel/onboarding path exposes a retryable in-progress timeout.
-- Add database-level tests for a chunked or staged refresh before changing `replaceTracks(...)`.
+- `LibraryImportUseCasesTest.phaseAwareRefreshForwardsRepositoryProgressWithoutChangingTheLegacyContract`
+- `LibraryViewModelTest.phaseAwareRefreshPublishesLocalizedStatusKeysInOrder`
+- `OnboardingControllerTest.hungScanTimeoutCancelsLoadAndRestoresRetryableState`
+- `EchoDatabaseHelperTest.replaceTracksKeepsExistingLibraryWhenRefreshIsCancelledBeforeReplacement`
 
 ## Reviewed And Not Flagged
 

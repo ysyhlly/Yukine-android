@@ -11,6 +11,7 @@ import android.provider.MediaStore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CancellationException;
 
 import app.yukine.common.EmbeddedArtwork;
 import app.yukine.model.Track;
@@ -23,6 +24,7 @@ public final class MediaStoreMusicScanner {
     }
 
     public List<Track> scan() {
+        throwIfInterrupted();
         ArrayList<Track> tracks = new ArrayList<>();
         ContentResolver resolver = context.getContentResolver();
         Uri collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
@@ -53,6 +55,7 @@ public final class MediaStoreMusicScanner {
             int albumIdColumn = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID);
 
             while (cursor.moveToNext()) {
+                throwIfInterrupted();
                 long id = cursor.getLong(idColumn);
                 long albumId = albumIdColumn >= 0 ? cursor.getLong(albumIdColumn) : 0L;
                 String title = cursor.getString(titleColumn);
@@ -80,6 +83,12 @@ public final class MediaStoreMusicScanner {
             }
         }
         return tracks;
+    }
+
+    private static void throwIfInterrupted() {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new CancellationException("MediaStore scan cancelled");
+        }
     }
 
     /**

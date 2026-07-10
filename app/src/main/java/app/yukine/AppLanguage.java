@@ -259,6 +259,12 @@ public final class AppLanguage {
         put("no.music.description", "Scan the device again or import files/folders to start building your library.", "\u53ef\u91cd\u65b0\u626b\u63cf\u8bbe\u5907\uff0c\u6216\u5bfc\u5165\u6587\u4ef6\u548c\u6587\u4ef6\u5939\u6765\u5efa\u7acb\u66f2\u5e93\u3002");
         put("library.scan.found.prefix", "Found ", "\u5df2\u627e\u5230 ");
         put("library.scan.found.suffix", " tracks", " \u9996\u6b4c\u66f2");
+        put("library.scan.checking", "Checking library changes…", "\u6b63\u5728\u68c0\u67e5\u66f2\u5e93\u53d8\u66f4\u2026");
+        put("library.scan.scanning", "Scanning music files…", "\u6b63\u5728\u626b\u63cf\u97f3\u4e50\u6587\u4ef6\u2026");
+        put("library.scan.replacing", "Updating your library…", "\u6b63\u5728\u66f4\u65b0\u66f2\u5e93\u2026");
+        put("library.scan.reloading", "Loading updated library…", "\u6b63\u5728\u52a0\u8f7d\u66f4\u65b0\u540e\u7684\u66f2\u5e93\u2026");
+        put("library.scan.slow", "Library scan is taking longer than usual. You can scan again to retry.", "\u66f2\u5e93\u626b\u63cf\u65f6\u95f4\u8f83\u957f\uff0c\u53ef\u518d\u6b21\u70b9\u51fb\u201c\u626b\u63cf\u66f2\u5e93\u201d\u91cd\u8bd5\u3002");
+        put("library.scan.failed", "Library scan failed. Please retry.", "\u66f2\u5e93\u626b\u63cf\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");
         put("library.scan.timeout", "Library scan timed out. Please retry.", "\u66f2\u5e93\u626b\u63cf\u8d85\u65f6\uff0c\u8bf7\u91cd\u8bd5\u3002");
         put("playback.service.unavailable", "Playback is not ready", "\u64ad\u653e\u670d\u52a1\u6682\u672a\u5c31\u7eea");
         put("playback.service.unavailable.description", "Return to the library and start a track to initialize playback controls.", "\u8fd4\u56de\u66f2\u5e93\u5e76\u64ad\u653e\u4e00\u9996\u6b4c\uff0c\u5373\u53ef\u542f\u7528\u64ad\u653e\u63a7\u5236\u3002");

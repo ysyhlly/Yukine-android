@@ -1704,8 +1704,10 @@ public abstract class MainActivityBase extends ComponentActivity {
                             }
                     );
                 },
-                status -> {
-                    statusMessageController.setStatus(status);
+                statusKey -> {
+                    statusMessageController.setStatus(
+                            AppLanguage.text(settingsStore.languageMode(), statusKey)
+                    );
                     if (onboardingController != null) {
                         onboardingController.onLibraryScanResult(false);
                     }

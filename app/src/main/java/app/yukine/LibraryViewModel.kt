@@ -20,6 +20,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -108,6 +109,11 @@ interface LibraryImportGateway {
     fun parseMissingAudioSpecs(): LibraryAudioSpecsResultUi
 }
 
+/** Optional phase-aware refresh capability implemented by the real import gateway. */
+internal interface LibraryRefreshProgressGateway {
+    fun refresh(onProgress: (LibraryRefreshProgress) -> Unit): LibraryLoadResultUi
+}
+
 data class LibraryPlaylistImportResultUi(
     val playlistId: Long = -1L,
     val tracks: List<Track> = emptyList(),
@@ -172,7 +178,8 @@ fun interface LibraryTrackAddedToPlaylistCallback {
 }
 
 class LibraryViewModel @JvmOverloads constructor(
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val libraryRefreshDiagnosticTimeoutMs: Long = DEFAULT_LIBRARY_REFRESH_DIAGNOSTIC_TIMEOUT_MS
 ) : ViewModel() {
     private val trackListState = MutableStateFlow(LibraryTrackListDestinationState())
     val trackList: StateFlow<LibraryTrackListDestinationState> = trackListState.asStateFlow()
@@ -191,6 +198,9 @@ class LibraryViewModel @JvmOverloads constructor(
     private var audioSpecParsingRunning = false
     private var favoriteTrackIds: Set<Long> = emptySet()
     private var libraryLoadJob: Job? = null
+    private var libraryLoadWatchdogJob: Job? = null
+    private var nextLibraryLoadId: Long = 0L
+    private var activeLibraryLoadId: Long = 0L
 
     fun bindGateway(nextGateway: LibraryGateway?) {
         gateway = nextGateway
@@ -321,35 +331,77 @@ class LibraryViewModel @JvmOverloads constructor(
         onLoaded: ((LibraryLoadResultUi) -> Unit)? = null,
         onFailed: ((String) -> Unit)? = null
     ) {
-        val gateway = importGateway ?: return
+        val loadGateway = importGateway ?: return
+        val loadId = ++nextLibraryLoadId
+        activeLibraryLoadId = loadId
         libraryLoadJob?.cancel()
+        libraryLoadWatchdogJob?.cancel()
         libraryLoadJob = viewModelScope.launch {
+            val reportProgress: (LibraryRefreshProgress) -> Unit = { progress ->
+                viewModelScope.launch {
+                    if (activeLibraryLoadId == loadId) {
+                        gateway?.showStatusKey(progress.statusKey())
+                    }
+                }
+            }
             try {
                 if (allowCachedFirst) {
-                    val cached = runInterruptible(ioDispatcher) { gateway.loadCached() }
-                    onLoaded?.invoke(cached)
+                    val cached = runInterruptible(ioDispatcher) { loadGateway.loadCached() }
+                    if (activeLibraryLoadId == loadId) {
+                        onLoaded?.invoke(cached)
+                    }
                 }
                 if (!canScan) {
                     return@launch
                 }
-                val fresh = runInterruptible(ioDispatcher) { gateway.refresh() }
-                onLoaded?.invoke(fresh)
+                startLibraryRefreshWatchdog(loadId)
+                val fresh = runInterruptible(ioDispatcher) {
+                    (loadGateway as? LibraryRefreshProgressGateway)
+                        ?.refresh(reportProgress)
+                        ?: loadGateway.refresh()
+                }
+                if (activeLibraryLoadId == loadId) {
+                    onLoaded?.invoke(fresh)
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                if (error is SecurityException) {
-                    onFailed?.invoke("Status")
-                } else {
-                    onFailed?.invoke(error.message ?: "Status")
+                if (activeLibraryLoadId == loadId) {
+                    val statusKey = if (error is SecurityException) {
+                        "audio.permission.required"
+                    } else {
+                        "library.scan.failed"
+                    }
+                    gateway?.showStatusKey(statusKey)
+                    onFailed?.invoke(statusKey)
+                }
+            } finally {
+                if (activeLibraryLoadId == loadId) {
+                    activeLibraryLoadId = 0L
+                    libraryLoadWatchdogJob?.cancel()
+                    libraryLoadWatchdogJob = null
                 }
             }
         }
     }
 
     fun cancelLibraryLoad() {
+        activeLibraryLoadId = 0L
+        libraryLoadWatchdogJob?.cancel()
+        libraryLoadWatchdogJob = null
         val cancelledJob = libraryLoadJob
         libraryLoadJob = null
         cancelledJob?.cancel()
+    }
+
+    private fun startLibraryRefreshWatchdog(loadId: Long) {
+        libraryLoadWatchdogJob?.cancel()
+        libraryLoadWatchdogJob = viewModelScope.launch {
+            delay(libraryRefreshDiagnosticTimeoutMs)
+            if (activeLibraryLoadId == loadId) {
+                gateway?.showStatusKey("library.scan.slow")
+            }
+        }
     }
 
     fun loadLibraryJava(
@@ -754,4 +806,15 @@ class LibraryViewModel @JvmOverloads constructor(
 
     private fun text(languageMode: String, key: String): String =
         AppLanguage.text(languageMode, key)
+
+    private fun LibraryRefreshProgress.statusKey(): String = when (phase) {
+        LibraryRefreshPhase.CHECKING -> "library.scan.checking"
+        LibraryRefreshPhase.SCANNING -> "library.scan.scanning"
+        LibraryRefreshPhase.REPLACING -> "library.scan.replacing"
+        LibraryRefreshPhase.RELOADING -> "library.scan.reloading"
+    }
+
+    private companion object {
+        const val DEFAULT_LIBRARY_REFRESH_DIAGNOSTIC_TIMEOUT_MS = 45_000L
+    }
 }

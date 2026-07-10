@@ -2,6 +2,7 @@ package app.yukine.data;
 
 import android.content.Context;
 import android.net.Uri;
+import android.util.Log;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -23,6 +24,9 @@ import app.yukine.model.Track;
 import app.yukine.model.TrackPlayRecord;
 import app.yukine.model.WebDavSyncResult;
 import app.yukine.PageBackgrounds;
+import app.yukine.LibraryRefreshPhase;
+import app.yukine.LibraryRefreshProgress;
+import app.yukine.LibraryRefreshProgressListener;
 import app.yukine.playback.AudioEffectSettings;
 import app.yukine.streaming.StreamingQualityPreference;
 import app.yukine.TrackShareStyle;
@@ -33,6 +37,7 @@ import javax.inject.Singleton;
 
 @Singleton
 public final class MusicLibraryRepository {
+    private static final String TAG = "MusicLibraryRepository";
     private static final int AUDIO_SPEC_PARSE_BATCH_LIMIT = 24;
 
     private final EchoDatabaseHelper database;
@@ -659,18 +664,74 @@ public final class MusicLibraryRepository {
     }
 
     public List<Track> refreshFromDevice() {
+        return refreshFromDevice(null);
+    }
+
+    /**
+     * Refreshes MediaStore-backed tracks while keeping the existing replacement transaction
+     * atomic. Progress is phase-level on purpose: it makes slow scans diagnosable without
+     * creating high-frequency UI updates for large libraries.
+     */
+    public List<Track> refreshFromDevice(LibraryRefreshProgressListener progressListener) {
+        final long startedAtNanos = System.nanoTime();
+        reportRefreshProgress(progressListener, LibraryRefreshPhase.CHECKING, -1, startedAtNanos);
+        throwIfRefreshInterrupted();
         long generation = scanner.generation();
         if (generation >= 0L && generation == database.loadMediaStoreGeneration()) {
             // The full DB list also contains document, stream, streaming and WebDAV rows, so it
             // remains the single source of truth while avoiding a redundant MediaStore rewrite.
-            return database.loadTracks();
+            reportRefreshProgress(progressListener, LibraryRefreshPhase.RELOADING, -1, startedAtNanos);
+            List<Track> cachedTracks = database.loadTracks();
+            reportRefreshCompleted(cachedTracks.size(), startedAtNanos, true);
+            return cachedTracks;
         }
+        reportRefreshProgress(progressListener, LibraryRefreshPhase.SCANNING, -1, startedAtNanos);
         List<Track> tracks = scanner.scan();
+        throwIfRefreshInterrupted();
+        reportRefreshProgress(progressListener, LibraryRefreshPhase.REPLACING, tracks.size(), startedAtNanos);
         database.replaceTracks(tracks);
+        throwIfRefreshInterrupted();
         // Persist only after the replacement transaction succeeds. If the scan or write fails,
         // the old token forces a safe retry next time.
         database.saveMediaStoreGeneration(generation);
-        return database.loadTracks();
+        reportRefreshProgress(progressListener, LibraryRefreshPhase.RELOADING, tracks.size(), startedAtNanos);
+        List<Track> refreshedTracks = database.loadTracks();
+        reportRefreshCompleted(refreshedTracks.size(), startedAtNanos, false);
+        return refreshedTracks;
+    }
+
+    private static void reportRefreshProgress(
+            LibraryRefreshProgressListener listener,
+            LibraryRefreshPhase phase,
+            int trackCount,
+            long startedAtNanos
+    ) {
+        long elapsedMs = (System.nanoTime() - startedAtNanos) / 1_000_000L;
+        if (listener != null) {
+            listener.onProgress(new LibraryRefreshProgress(phase, trackCount, elapsedMs));
+        }
+        Log.i(
+                TAG,
+                "Device library refresh phase=" + phase
+                        + " tracks=" + trackCount
+                        + " elapsedMs=" + elapsedMs
+        );
+    }
+
+    private static void reportRefreshCompleted(int trackCount, long startedAtNanos, boolean reusedCachedRows) {
+        long elapsedMs = (System.nanoTime() - startedAtNanos) / 1_000_000L;
+        Log.i(
+                TAG,
+                "Device library refresh completed tracks=" + trackCount
+                        + " reusedCachedRows=" + reusedCachedRows
+                        + " elapsedMs=" + elapsedMs
+        );
+    }
+
+    private static void throwIfRefreshInterrupted() {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new java.util.concurrent.CancellationException("Device library refresh cancelled");
+        }
     }
 
     public List<Track> importAudioUris(List<Uri> uris) {

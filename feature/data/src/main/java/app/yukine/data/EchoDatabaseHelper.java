@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 
 import app.yukine.common.EmbeddedArtwork;
 import app.yukine.model.Playlist;
@@ -594,16 +595,22 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     }
 
     public void replaceTracks(List<Track> tracks) {
+        throwIfInterrupted();
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
+            throwIfInterrupted();
             db.delete(TABLE_TRACKS,
                     "data_path NOT LIKE ? AND data_path NOT LIKE ? AND data_path NOT LIKE ? AND data_path NOT LIKE ?",
                     new String[]{"document:%", "stream:%", "streaming:%", "webdav:%"});
             long now = System.currentTimeMillis();
             SQLiteStatement insert = db.compileStatement(trackInsertSql());
             try {
+                int index = 0;
                 for (Track track : tracks) {
+                    if ((index++ & 63) == 0) {
+                        throwIfInterrupted();
+                    }
                     bindTrack(insert, track, now);
                     insert.executeInsert();
                 }
@@ -613,6 +620,12 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
             db.setTransactionSuccessful();
         } finally {
             db.endTransaction();
+        }
+    }
+
+    private static void throwIfInterrupted() {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new CancellationException("Library database replacement cancelled");
         }
     }
 

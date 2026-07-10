@@ -274,7 +274,7 @@ class LibraryViewModelTest {
         )
         advanceUntilIdle()
 
-        assertEquals(listOf("cached", "refresh"), gateway.calls)
+        assertEquals(listOf("cached", "refreshWithProgress"), gateway.calls)
         assertEquals(listOf("cached", "fresh"), loaded.map { it.status })
     }
 
@@ -294,8 +294,38 @@ class LibraryViewModelTest {
         )
         advanceUntilIdle()
 
-        assertEquals(listOf("refresh"), gateway.calls)
-        assertEquals(listOf("Status"), failures)
+        assertEquals(listOf("refreshWithProgress"), gateway.calls)
+        assertEquals(listOf("audio.permission.required"), failures)
+    }
+
+    @Test
+    fun phaseAwareRefreshPublishesLocalizedStatusKeysInOrder() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val viewModel = LibraryViewModel(dispatcher)
+        val importGateway = FakeImportGateway().apply {
+            refreshProgress = listOf(
+                LibraryRefreshProgress(LibraryRefreshPhase.CHECKING),
+                LibraryRefreshProgress(LibraryRefreshPhase.SCANNING),
+                LibraryRefreshProgress(LibraryRefreshPhase.REPLACING, trackCount = 2),
+                LibraryRefreshProgress(LibraryRefreshPhase.RELOADING, trackCount = 2)
+            )
+        }
+        val statusGateway = FakeGateway()
+        viewModel.bindGateway(statusGateway)
+        viewModel.bindImportGateway(importGateway)
+
+        viewModel.loadLibrary(allowCachedFirst = false, canScan = true)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                "status:library.scan.checking",
+                "status:library.scan.scanning",
+                "status:library.scan.replacing",
+                "status:library.scan.reloading"
+            ),
+            statusGateway.calls
+        )
     }
 
     @Test
@@ -501,9 +531,10 @@ class LibraryViewModelTest {
         }
 
     }
-    private class FakeImportGateway : LibraryImportGateway {
+    private class FakeImportGateway : LibraryImportGateway, LibraryRefreshProgressGateway {
         val calls = ArrayList<String>()
         var failRefresh = false
+        var refreshProgress: List<LibraryRefreshProgress> = emptyList()
         var audioSpecsResult = LibraryAudioSpecsResultUi(1, listOf(Track(1L, "Track 1", "Artist", "Album", 1000L, Uri.EMPTY, "file:1")), setOf(1L))
 
         override fun loadCached(): LibraryLoadResultUi {
@@ -513,6 +544,15 @@ class LibraryViewModelTest {
 
         override fun refresh(): LibraryLoadResultUi {
             calls.add("refresh")
+            if (failRefresh) {
+                throw SecurityException("denied")
+            }
+            return LibraryLoadResultUi(status = "fresh")
+        }
+
+        override fun refresh(onProgress: (LibraryRefreshProgress) -> Unit): LibraryLoadResultUi {
+            calls.add("refreshWithProgress")
+            refreshProgress.forEach(onProgress)
             if (failRefresh) {
                 throw SecurityException("denied")
             }

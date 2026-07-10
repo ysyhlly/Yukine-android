@@ -41,14 +41,22 @@ internal interface LibraryImportOperations {
     fun loadPlaylistTracks(playlistId: Long): List<Track>
 }
 
+/** Optional capability so older test doubles and import paths keep their existing contract. */
+internal interface LibraryRefreshProgressOperations {
+    fun refreshFromDevice(onProgress: (LibraryRefreshProgress) -> Unit): List<Track>
+}
+
 internal class MusicLibraryImportOperations(
     private val repository: MusicLibraryRepository
-) : LibraryImportOperations {
+) : LibraryImportOperations, LibraryRefreshProgressOperations {
     override fun loadCachedTracks(): List<Track> = repository.loadCachedTracks()
 
     override fun loadFavoriteIds(): Set<Long> = repository.loadFavoriteIds()
 
     override fun refreshFromDevice(): List<Track> = repository.refreshFromDevice()
+
+    override fun refreshFromDevice(onProgress: (LibraryRefreshProgress) -> Unit): List<Track> =
+        repository.refreshFromDevice(LibraryRefreshProgressListener(onProgress))
 
     override fun importAudioUris(uris: List<Uri>) {
         repository.importAudioUris(uris)
@@ -78,6 +86,13 @@ internal class LoadLibraryUseCase(
 
     fun refresh(): LibraryLoadResult =
         LibraryLoadResult(operations.refreshFromDevice(), operations.loadFavoriteIds())
+
+    fun refresh(onProgress: (LibraryRefreshProgress) -> Unit): LibraryLoadResult {
+        val tracks = (operations as? LibraryRefreshProgressOperations)
+            ?.refreshFromDevice(onProgress)
+            ?: operations.refreshFromDevice()
+        return LibraryLoadResult(tracks, operations.loadFavoriteIds())
+    }
 }
 
 internal class ImportAudioUrisUseCase(
@@ -153,12 +168,15 @@ private fun LibraryImportOperations.cachedSnapshot(): LibraryLoadResult =
 
 internal class MainLibraryImportGateway(
     private val operations: LibraryImportOperations
-) : LibraryImportGateway {
+) : LibraryImportGateway, LibraryRefreshProgressGateway {
     override fun loadCached(): LibraryLoadResultUi =
         LoadLibraryUseCase(operations).cached().toUi()
 
     override fun refresh(): LibraryLoadResultUi =
         LoadLibraryUseCase(operations).refresh().toUi()
+
+    override fun refresh(onProgress: (LibraryRefreshProgress) -> Unit): LibraryLoadResultUi =
+        LoadLibraryUseCase(operations).refresh(onProgress).toUi()
 
     override fun importAudioUris(uris: List<Uri>): LibraryLoadResultUi =
         ImportAudioUrisUseCase(operations).execute(uris).toUi()

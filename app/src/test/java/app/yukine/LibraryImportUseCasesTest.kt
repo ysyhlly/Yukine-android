@@ -28,6 +28,25 @@ class LibraryImportUseCasesTest {
     }
 
     @Test
+    fun phaseAwareRefreshForwardsRepositoryProgressWithoutChangingTheLegacyContract() {
+        val operations = FakeLibraryImportOperations()
+        operations.refreshed = listOf(track(3L))
+        operations.refreshProgress = listOf(
+            LibraryRefreshProgress(LibraryRefreshPhase.CHECKING, elapsedMs = 1L),
+            LibraryRefreshProgress(LibraryRefreshPhase.SCANNING, elapsedMs = 2L),
+            LibraryRefreshProgress(LibraryRefreshPhase.REPLACING, trackCount = 3, elapsedMs = 3L),
+            LibraryRefreshProgress(LibraryRefreshPhase.RELOADING, trackCount = 3, elapsedMs = 4L)
+        )
+        val reported = mutableListOf<LibraryRefreshProgress>()
+
+        val refreshed = LoadLibraryUseCase(operations).refresh { reported += it }
+
+        assertEquals(listOf(3L), refreshed.tracks.map { it.id })
+        assertEquals(operations.refreshProgress, reported)
+        assertEquals(listOf("refreshWithProgress", "favorites"), operations.events)
+    }
+
+    @Test
     fun importAudioUrisDelegatesAndReloadsCachedSnapshot() {
         val operations = FakeLibraryImportOperations()
         operations.cached = listOf(track(7L))
@@ -152,11 +171,12 @@ class LibraryImportUseCasesTest {
         )
     }
 
-    private class FakeLibraryImportOperations : LibraryImportOperations {
+    private class FakeLibraryImportOperations : LibraryImportOperations, LibraryRefreshProgressOperations {
         val events = mutableListOf<String>()
         var cached: List<Track> = emptyList()
         var refreshed: List<Track> = emptyList()
         var favorites: Set<Long> = emptySet()
+        var refreshProgress: List<LibraryRefreshProgress> = emptyList()
         var updatedSpecs: Int = 0
         var streamImportResult: StreamImportResult? = null
         var playlistImportResult: PlaylistImportResult? = null
@@ -174,6 +194,12 @@ class LibraryImportUseCasesTest {
 
         override fun refreshFromDevice(): List<Track> {
             events.add("refresh")
+            return refreshed
+        }
+
+        override fun refreshFromDevice(onProgress: (LibraryRefreshProgress) -> Unit): List<Track> {
+            events.add("refreshWithProgress")
+            refreshProgress.forEach(onProgress)
             return refreshed
         }
 

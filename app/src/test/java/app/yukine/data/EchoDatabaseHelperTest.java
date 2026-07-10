@@ -214,6 +214,28 @@ public final class EchoDatabaseHelperTest {
     }
 
     @Test
+    public void replaceTracksKeepsExistingLibraryWhenRefreshIsCancelledBeforeReplacement() {
+        helper = new EchoDatabaseHelper(ApplicationProvider.getApplicationContext(), TRANSACTION_DATABASE);
+        Track existing = localTrack(1_013L, "ExistingLibraryTrack");
+        helper.upsertTracks(Collections.singletonList(existing));
+
+        Thread.currentThread().interrupt();
+        try {
+            helper.replaceTracks(Collections.singletonList(localTrack(1_014L, "CancelledReplacement")));
+            Assert.fail("Expected interrupted replacement to cancel before deleting existing tracks");
+        } catch (java.util.concurrent.CancellationException expected) {
+            // Cancellation is cooperative and must preserve the previous atomic library snapshot.
+        } finally {
+            Thread.interrupted();
+        }
+
+        List<Track> tracks = helper.loadTracks();
+        Assert.assertEquals(1, tracks.size());
+        Assert.assertTrue(containsTrackId(tracks, existing.id));
+        Assert.assertFalse(containsTrackId(tracks, 1_014L));
+    }
+
+    @Test
     public void loadTracksNeedingAudioSpecsLimitsAndExcludesRemoteTracks() {
         helper = new EchoDatabaseHelper(ApplicationProvider.getApplicationContext(), TRANSACTION_DATABASE);
         Track first = localTrack(1_021L, "NeedsSpecsFirst");
