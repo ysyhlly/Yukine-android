@@ -112,7 +112,21 @@ class QueueActionControllerTest {
         val calls = mutableListOf<String>()
 
         override fun serviceConnected(): Boolean = connected
-        override fun snapshot(): PlaybackStateSnapshot? = PlaybackStateSnapshot.empty()
+        override fun snapshot(): PlaybackStateSnapshot = PlaybackStateSnapshot(
+            queue.firstOrNull(),
+            if (queue.isEmpty()) -1 else 0,
+            queue.size,
+            0L,
+            queue.firstOrNull()?.durationMs ?: 0L,
+            false,
+            false,
+            "",
+            false,
+            0,
+            1.0f,
+            1.0f,
+            0L
+        )
         override fun queueSnapshot(): List<Track> = queue
         override fun skipToPrevious() {}
         override fun skipToNext() {}

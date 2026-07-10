@@ -71,11 +71,11 @@ internal class PlaybackMediaLibraryCallback(
         pageSize: Int,
         params: LibraryParams?
     ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
-        val children = childrenForAutoParent(parentId)
+        val children = childrenForAutoParent(parentId, page, pageSize)
         return if (children == null) {
             Futures.immediateFuture(LibraryResult.ofError(SessionError.ERROR_BAD_VALUE, params))
         } else {
-            Futures.immediateFuture(LibraryResult.ofItemList(pagedItems(children, page, pageSize), params))
+            Futures.immediateFuture(LibraryResult.ofItemList(children, params))
         }
     }
 
@@ -158,24 +158,34 @@ internal class PlaybackMediaLibraryCallback(
     }
 
     private fun childrenForAutoParent(parentId: String?): List<MediaItem>? {
+        return childrenForAutoParent(parentId, -1, -1)
+    }
+
+    private fun childrenForAutoParent(parentId: String?, page: Int, pageSize: Int): List<MediaItem>? {
         if (parentId == null) {
             return null
         }
         return when {
-            AUTO_ROOT == parentId -> arrayListOf(
-                browsableItem(AUTO_ALL, "All songs", MediaMetadata.MEDIA_TYPE_FOLDER_MIXED),
-                browsableItem(AUTO_RECENT, "Recently played", MediaMetadata.MEDIA_TYPE_FOLDER_MIXED),
-                browsableItem(AUTO_PLAYLISTS, "Playlists", MediaMetadata.MEDIA_TYPE_FOLDER_PLAYLISTS),
-                browsableItem(AUTO_ARTISTS, "Artists", MediaMetadata.MEDIA_TYPE_FOLDER_ARTISTS),
-                browsableItem(AUTO_ALBUMS, "Albums", MediaMetadata.MEDIA_TYPE_FOLDER_ALBUMS)
+            AUTO_ROOT == parentId -> pagedItems(
+                arrayListOf(
+                    browsableItem(AUTO_ALL, "All songs", MediaMetadata.MEDIA_TYPE_FOLDER_MIXED),
+                    browsableItem(AUTO_RECENT, "Recently played", MediaMetadata.MEDIA_TYPE_FOLDER_MIXED),
+                    browsableItem(AUTO_PLAYLISTS, "Playlists", MediaMetadata.MEDIA_TYPE_FOLDER_PLAYLISTS),
+                    browsableItem(AUTO_ARTISTS, "Artists", MediaMetadata.MEDIA_TYPE_FOLDER_ARTISTS),
+                    browsableItem(AUTO_ALBUMS, "Albums", MediaMetadata.MEDIA_TYPE_FOLDER_ALBUMS)
+                ),
+                page,
+                pageSize
             )
-            AUTO_ALL == parentId -> autoItemsForTracks(dataSource.loadCachedTracks())
-            AUTO_RECENT == parentId -> autoItemsForTracks(
-                dataSource.loadRecentlyPlayed(100).mapNotNull { it.track }
+            AUTO_ALL == parentId -> pagedAutoItemsForTracks(dataSource.loadCachedTracks(), page, pageSize)
+            AUTO_RECENT == parentId -> pagedAutoItemsForTracks(
+                dataSource.loadRecentlyPlayed(100).mapNotNull { it.track },
+                page,
+                pageSize
             )
             AUTO_PLAYLISTS == parentId -> {
                 val playlists = ArrayList<MediaItem>()
-                for (playlist in dataSource.loadPlaylists()) {
+                for (playlist in pagedItems(dataSource.loadPlaylists(), page, pageSize)) {
                     playlists.add(
                         browsableItem(
                             AUTO_PLAYLIST_PREFIX + playlist.id,
@@ -188,30 +198,52 @@ internal class PlaybackMediaLibraryCallback(
             }
             parentId.startsWith(AUTO_PLAYLIST_PREFIX) -> {
                 val playlistId = parseLong(parentId.substring(AUTO_PLAYLIST_PREFIX.length), -1L)
-                if (playlistId < 0L) null else autoItemsForTracks(dataSource.loadPlaylistTracks(playlistId))
+                if (playlistId < 0L) {
+                    null
+                } else {
+                    pagedAutoItemsForTracks(dataSource.loadPlaylistTracks(playlistId), page, pageSize)
+                }
             }
-            AUTO_ARTISTS == parentId -> groupedAutoItems(AUTO_ARTIST_PREFIX, MediaMetadata.MEDIA_TYPE_ARTIST, true)
+            AUTO_ARTISTS == parentId -> groupedAutoItems(
+                AUTO_ARTIST_PREFIX,
+                MediaMetadata.MEDIA_TYPE_ARTIST,
+                true,
+                page,
+                pageSize
+            )
             parentId.startsWith(AUTO_ARTIST_PREFIX) -> {
                 val artist = parentId.substring(AUTO_ARTIST_PREFIX.length)
-                autoItemsForTracks(dataSource.loadCachedTracks().filter { it.artist == artist })
+                pagedAutoItemsForTracks(dataSource.loadCachedTracks(), page, pageSize) { it.artist == artist }
             }
-            AUTO_ALBUMS == parentId -> groupedAutoItems(AUTO_ALBUM_PREFIX, MediaMetadata.MEDIA_TYPE_ALBUM, false)
+            AUTO_ALBUMS == parentId -> groupedAutoItems(
+                AUTO_ALBUM_PREFIX,
+                MediaMetadata.MEDIA_TYPE_ALBUM,
+                false,
+                page,
+                pageSize
+            )
             parentId.startsWith(AUTO_ALBUM_PREFIX) -> {
                 val album = parentId.substring(AUTO_ALBUM_PREFIX.length)
-                autoItemsForTracks(dataSource.loadCachedTracks().filter { it.album == album })
+                pagedAutoItemsForTracks(dataSource.loadCachedTracks(), page, pageSize) { it.album == album }
             }
             else -> null
         }
     }
 
-    private fun groupedAutoItems(prefix: String, mediaType: Int, groupByArtist: Boolean): List<MediaItem> {
-        val counts = linkedMapOf<String, Int>()
+    private fun groupedAutoItems(
+        prefix: String,
+        mediaType: Int,
+        groupByArtist: Boolean,
+        page: Int,
+        pageSize: Int
+    ): List<MediaItem> {
+        val groups = linkedSetOf<String>()
         for (track in dataSource.loadCachedTracks()) {
             val key = if (groupByArtist) track.artist else track.album
-            counts[key] = (counts[key] ?: 0) + 1
+            groups.add(key)
         }
         val items = ArrayList<MediaItem>()
-        for (key in counts.keys) {
+        for (key in pagedItems(groups.toList(), page, pageSize)) {
             items.add(browsableItem(prefix + key, key, mediaType))
         }
         return items
@@ -226,6 +258,37 @@ internal class PlaybackMediaLibraryCallback(
             if (PlaybackMediaSourceProvider.hasPlayableMediaUri(track)) {
                 items.add(autoMediaItemForTrack(track))
             }
+        }
+        return items
+    }
+
+    private fun pagedAutoItemsForTracks(
+        tracks: List<Track>?,
+        page: Int,
+        pageSize: Int,
+        include: (Track) -> Boolean = { true }
+    ): List<MediaItem> {
+        if (tracks.isNullOrEmpty()) {
+            return emptyList()
+        }
+        if (page < 0 || pageSize <= 0) {
+            return autoItemsForTracks(tracks.filter(include))
+        }
+        val fromIndex = page.toLong() * pageSize.toLong()
+        val toIndexExclusive = fromIndex + pageSize.toLong()
+        val items = ArrayList<MediaItem>(pageSize)
+        var playableIndex = 0L
+        for (track in tracks) {
+            if (!include(track) || !PlaybackMediaSourceProvider.hasPlayableMediaUri(track)) {
+                continue
+            }
+            if (playableIndex >= toIndexExclusive) {
+                break
+            }
+            if (playableIndex >= fromIndex) {
+                items.add(autoMediaItemForTrack(track))
+            }
+            playableIndex++
         }
         return items
     }
@@ -339,19 +402,19 @@ internal class PlaybackMediaLibraryCallback(
             .build()
     }
 
-    private fun pagedItems(items: List<MediaItem>, page: Int, pageSize: Int): List<MediaItem> {
+    private fun <T> pagedItems(items: List<T>, page: Int, pageSize: Int): List<T> {
         if (items.isEmpty()) {
             return emptyList()
         }
         if (page < 0 || pageSize <= 0) {
             return items
         }
-        val fromIndex = page * pageSize
-        if (fromIndex >= items.size) {
+        val fromIndex = page.toLong() * pageSize.toLong()
+        if (fromIndex >= items.size.toLong()) {
             return emptyList()
         }
-        val toIndex = minOf(items.size, fromIndex + pageSize)
-        return items.subList(fromIndex, toIndex)
+        val toIndex = minOf(items.size.toLong(), fromIndex + pageSize.toLong()).toInt()
+        return items.subList(fromIndex.toInt(), toIndex)
     }
 
     private fun mediaItemForTrack(track: Track): MediaItem {

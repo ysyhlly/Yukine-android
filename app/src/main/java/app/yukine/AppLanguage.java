@@ -240,6 +240,7 @@ public final class AppLanguage {
         put("no.music.description", "Scan the device again or import files/folders to start building your library.", "\u53ef\u91cd\u65b0\u626b\u63cf\u8bbe\u5907\uff0c\u6216\u5bfc\u5165\u6587\u4ef6\u548c\u6587\u4ef6\u5939\u6765\u5efa\u7acb\u66f2\u5e93\u3002");
         put("library.scan.found.prefix", "Found ", "\u5df2\u627e\u5230 ");
         put("library.scan.found.suffix", " tracks", " \u9996\u6b4c\u66f2");
+        put("library.scan.timeout", "Library scan timed out. Please retry.", "\u66f2\u5e93\u626b\u63cf\u8d85\u65f6\uff0c\u8bf7\u91cd\u8bd5\u3002");
         put("playback.service.unavailable", "Playback is not ready", "\u64ad\u653e\u670d\u52a1\u6682\u672a\u5c31\u7eea");
         put("playback.service.unavailable.description", "Return to the library and start a track to initialize playback controls.", "\u8fd4\u56de\u66f2\u5e93\u5e76\u64ad\u653e\u4e00\u9996\u6b4c\uff0c\u5373\u53ef\u542f\u7528\u64ad\u653e\u63a7\u5236\u3002");
 

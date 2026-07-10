@@ -1,8 +1,16 @@
 package app.yukine
 
-internal class OnboardingController(
-    private val listener: Listener
+internal class OnboardingController @JvmOverloads constructor(
+    private val listener: Listener,
+    private val scheduler: Scheduler = NoOpScheduler,
+    private val libraryScanTimeoutMs: Long = DEFAULT_LIBRARY_SCAN_TIMEOUT_MS
 ) {
+    interface Scheduler {
+        fun postDelayed(runnable: Runnable, delayMs: Long)
+
+        fun removeCallbacks(runnable: Runnable)
+    }
+
     interface Listener {
         fun hasAudioPermission(): Boolean
 
@@ -13,6 +21,10 @@ internal class OnboardingController(
         fun mountNavHostShell()
 
         fun loadLibrary(allowCachedFirst: Boolean)
+
+        fun cancelLibraryLoad()
+
+        fun onLibraryScanTimedOut()
 
         fun navigateToNetworkTabPage(page: String)
 
@@ -26,6 +38,16 @@ internal class OnboardingController(
     private var visible: Boolean = true
     private var libraryScanCompleted: Boolean = false
     private var libraryScanInProgress: Boolean = false
+    private val libraryScanTimeout = Runnable {
+        if (!visible || !libraryScanInProgress) {
+            return@Runnable
+        }
+        libraryScanInProgress = false
+        libraryScanCompleted = false
+        listener.cancelLibraryLoad()
+        listener.onLibraryScanTimedOut()
+        listener.mountNavHostShell()
+    }
 
     fun initialize(shouldShow: Boolean) {
         visible = shouldShow
@@ -51,8 +73,14 @@ internal class OnboardingController(
             listener.mountNavHostShell()
             return
         }
+        if (libraryScanInProgress) {
+            return
+        }
         libraryScanInProgress = true
+        libraryScanCompleted = false
         listener.mountNavHostShell()
+        scheduler.removeCallbacks(libraryScanTimeout)
+        scheduler.postDelayed(libraryScanTimeout, libraryScanTimeoutMs)
         listener.loadLibrary(false)
     }
 
@@ -65,10 +93,19 @@ internal class OnboardingController(
     }
 
     fun onLibraryScanResult(canScan: Boolean) {
+        scheduler.removeCallbacks(libraryScanTimeout)
         if (visible && libraryScanInProgress) {
             libraryScanInProgress = false
             libraryScanCompleted = canScan
         }
+    }
+
+    fun release() {
+        scheduler.removeCallbacks(libraryScanTimeout)
+        if (libraryScanInProgress) {
+            listener.cancelLibraryLoad()
+        }
+        libraryScanInProgress = false
     }
 
     fun canFinishOnboarding(): Boolean {
@@ -93,8 +130,19 @@ internal class OnboardingController(
             return
         }
         visible = false
+        scheduler.removeCallbacks(libraryScanTimeout)
         listener.onboardingCompleted()
         listener.mountNavHostShell()
         afterComplete?.run()
+    }
+
+    private companion object {
+        const val DEFAULT_LIBRARY_SCAN_TIMEOUT_MS = 45_000L
+
+        val NoOpScheduler = object : Scheduler {
+            override fun postDelayed(runnable: Runnable, delayMs: Long) = Unit
+
+            override fun removeCallbacks(runnable: Runnable) = Unit
+        }
     }
 }

@@ -1606,7 +1606,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainQueueActionListener.contains("emptyStatusProvider.queueEmptyStatus()"));
         assertTrue(mainQueueActionListener.contains("statusSink.setStatus(status)"));
         assertTrue(playbackUiModule.contains("fun provideMainQueueActionListenerFactory(): MainQueueActionListenerFactory"));
-        assertTrue(mainActivity.contains("queueActionController.removeQueueTrack(track)"));
+        assertTrue(mainActivity.contains("queueActionController.removeQueueTrack(remove.getTrack())"));
         assertTrue(mainActivity.contains("queueActionController.confirmClearQueue()"));
         assertTrue(mainActivity.contains("queueActionController.clearQueue();"));
         assertTrue(mainActivity.contains("queueActionController.moveQueueTrack(move.getFromIndex(), move.getToIndex())"));
@@ -2479,7 +2479,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(controller.contains("fun render("));
         assertTrue(controller.contains("private val viewModel: LibraryViewModel"));
         assertTrue(controller.contains("TrackRowStateFactory.trackRow("));
-        assertTrue(controller.contains("viewModel.updateTrackList(title, rows)"));
+        assertTrue(controller.contains("viewModel.updateTrackListContentAndChrome("));
+        assertFalse(controller.contains("viewModel.updateTrackList(title, rows)"));
         assertTrue(controller.contains("listener.publishTrackListChrome("));
         assertFalse(controller.contains("publishTrackList(title, rows)"));
         assertTrue(controller.contains("internal data class TrackListChromeState("));
@@ -2502,7 +2503,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("navHostState.setTrackListActions(new ArrayList<>(state.getActions()));"));
         assertFalse(mainActivity.contains("navHostState.setLibraryGroupModeActions(new ArrayList<>(state.getModeActions()));"));
         assertTrue(mainActivity.contains("actions -> homeDashboardViewModel.updateHomeDashboardActions(actions)"));
-        assertTrue(collectionsRenderController.contains("viewModel.updateActions(actions)"));
+        assertTrue(collectionsRenderController.contains("viewModel.updateScreenWithActions(state, actions)"));
+        assertFalse(collectionsRenderController.contains("viewModel.updateActions(actions)"));
         assertTrue(mainActivity.contains("searchViewModel.updateActions(searchActions);"));
         assertTrue(mainActivity.contains("streamingSearchActionHandler.loadNextPage();"));
         assertFalse(mainActivity.contains("private void loadMoreUnifiedStreamingResults()"));
@@ -2762,8 +2764,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(controller.contains("CollectionsUiState("));
         assertTrue(controller.contains("CollectionsActions("));
         assertTrue(controller.contains("viewModel.updateCollections("));
-        assertTrue(controller.contains("viewModel.updateScreen(state)"));
-        assertTrue(controller.contains("viewModel.updateActions(actions)"));
+        assertTrue(controller.contains("viewModel.updateScreenWithActions(state, actions)"));
+        assertFalse(controller.contains("viewModel.updateScreen(state)"));
+        assertFalse(controller.contains("viewModel.updateActions(actions)"));
         assertFalse(controller.contains("CollectionsActionsSink"));
         assertFalse(controller.contains("PlaylistIdAction"));
         assertFalse(controller.contains("SelectedPlaylistExportOpener"));
@@ -2800,7 +2803,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(collectionsDestination.contains("CollectionsViewModel"));
         assertTrue(controller.contains("TrackRowStateFactory.trackRow("));
         assertTrue(controller.contains("CollectionRowStateFactory.playlistRow("));
-        assertTrue(controller.contains("TrackRowKeyPolicy.occurrenceKey("));
+        assertTrue(controller.contains("TrackRowKeyPolicy.occurrenceKeys("));
+        assertFalse(controller.contains("TrackRowKeyPolicy.occurrenceKey(tracks, index)"));
         assertTrue(controller.contains("private fun buildSelectedPlaylistRows("));
         assertTrue(controller.contains("private fun recordDetails("));
         assertTrue(documentPickerController.contains("internal class DocumentPickerController"));
@@ -6073,7 +6077,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("queue.clear();"));
         assertFalse(service.contains("queueStore().save(new ArrayList<>(queue), currentIndex());"));
         assertFalse(owner.contains("\n    fun isQueueEmpty(): Boolean"));
-        assertFalse(owner.contains("\n    fun queueSize(): Int"));
+        assertTrue(owner.contains("\n    fun queueSize(): Int"));
+        assertTrue(owner.contains("\n    fun trackAt(index: Int): Track?"));
         assertFalse(owner.contains("\n    fun hasMultipleTracks(): Boolean"));
         assertTrue(owner.contains("fun savePlaybackResumeRequested(requested: Boolean)"));
         assertFalse(owner.contains("private fun savePlaybackResumeRequested(requested: Boolean)"));
@@ -6224,9 +6229,11 @@ public final class MainActivityArchitectureContractTest {
         java.util.Set<String> queueDerivedReadApi = new java.util.TreeSet<>(java.util.Arrays.asList(
                 "playbackCompletionAction",
                 "queuePreparationForNewPlayer",
+                "queueSize",
                 "queueSnapshot",
                 "queueStateSnapshot",
                 "restoredPositionFor",
+                "trackAt",
                 "upcomingTracksForPrecache"
         ));
         java.util.Set<String> expectedPublicApi = new java.util.TreeSet<>();
@@ -6239,9 +6246,11 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "playbackCompletionAction",
                 "queuePreparationForNewPlayer",
+                "queueSize",
                 "queueSnapshot",
                 "queueStateSnapshot",
                 "restoredPositionFor",
+                "trackAt",
                 "upcomingTracksForPrecache"
         )), queueDerivedReadApi);
         assertFalse(owner.contains("interface QueueProvider"));
@@ -6267,7 +6276,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(owner.contains("\n    fun setCurrentIndex(index: Int)"));
         assertFalse(owner.contains("\n    fun currentTrack(): Track?"));
         assertFalse(owner.contains("\n    fun isQueueEmpty(): Boolean"));
-        assertFalse(owner.contains("\n    fun queueSize(): Int"));
+        assertTrue(owner.contains("\n    fun queueSize(): Int"));
+        assertTrue(owner.contains("\n    fun trackAt(index: Int): Track?"));
         assertFalse(owner.contains("\n    fun hasMultipleTracks(): Boolean"));
         assertFalse(owner.contains("\n    fun canSkipFailedTrack("));
         assertFalse(owner.contains("\n    fun canCrossfadeAdvance("));
@@ -7188,7 +7198,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(visualizationCacheManager.contains("private volatile boolean released;"));
         assertTrue(visualizationCacheManager.contains("released = true;"));
         assertTrue(normalizedVisualizationCacheManager.contains("void release() {\n        if (released) {\n            return;\n        }\n        released = true;\n        cacheGeneration.incrementAndGet();"));
-        assertTrue(visualizationCacheManager.contains("if (released || !mediaSourceProvider.isHttpTrack(track))"));
+        assertTrue(visualizationCacheManager.contains(
+                "if (released || !mediaSourceProvider.isHttpTrack(track) || isStreamingTrack(track))"
+        ));
         assertTrue(visualizationCacheManager.contains("return !released && cacheGeneration.get() == generation;"));
         assertTrue(notificationArtworkManager.contains("private volatile boolean released;"));
         assertTrue(notificationArtworkManager.contains("released = true;"));
@@ -7215,7 +7227,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(taskScheduler.contains("beforeTaskRun.run();"));
         assertTrue(normalizedTaskScheduler.contains("if (!running) {\n                    return;\n                }"));
         assertTrue(taskScheduler.contains("catch (RuntimeException ignored)"));
-        assertTrue(taskScheduler.contains("Keep later playback tasks alive"));
+        assertTrue(taskScheduler.contains("errorSink.onTaskFailure(task.priority, exception)"));
+        assertTrue(taskScheduler.contains("Log.w(TAG, \"Playback task failed: \" + priority, exception)"));
         assertTrue(normalizedService.contains("public void onDestroy() {\n        if (playbackShutdownCoordinator != null) {\n            playbackShutdownCoordinator.handleServiceDestroyed();"));
         assertTrue(normalizedService.contains("        super.onDestroy();\n    }"));
         assertFalse(normalizedService.contains("public void onDestroy() {\n        persistPlaybackPositionThrottled(true);\n        mainHandler.removeCallbacksAndMessages(null);"));

@@ -1126,6 +1126,20 @@ public abstract class MainActivityBase extends ComponentActivity {
             }
 
             @Override
+            public void cancelLibraryLoad() {
+                if (libraryViewModel != null) {
+                    libraryViewModel.cancelLibraryLoad();
+                }
+            }
+
+            @Override
+            public void onLibraryScanTimedOut() {
+                statusMessageController.setStatus(
+                        AppLanguage.text(settingsStore.languageMode(), "library.scan.timeout")
+                );
+            }
+
+            @Override
             public void navigateToNetworkTabPage(String page) {
                 MainActivityBase.this.navigateToNetworkTabPage(page);
             }
@@ -1145,6 +1159,16 @@ public abstract class MainActivityBase extends ComponentActivity {
                 if (repository != null) {
                     repository.saveOnboardingCompleted(true);
                 }
+            }
+        }, new OnboardingController.Scheduler() {
+            @Override
+            public void postDelayed(Runnable runnable, long delayMs) {
+                mainHandler.postDelayed(runnable, delayMs);
+            }
+
+            @Override
+            public void removeCallbacks(Runnable runnable) {
+                mainHandler.removeCallbacks(runnable);
             }
         });
         onboardingController.initialize(repository == null || !repository.loadOnboardingCompleted());
@@ -1187,6 +1211,9 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     @Override
     protected void onDestroy() {
+        if (onboardingController != null) {
+            onboardingController.release();
+        }
         if (playbackServiceConnectionController != null) {
             playbackServiceConnectionController.release();
         }

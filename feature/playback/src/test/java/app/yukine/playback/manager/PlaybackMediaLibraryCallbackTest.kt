@@ -66,6 +66,23 @@ class PlaybackMediaLibraryCallbackTest {
     }
 
     @Test
+    fun allSongsPagingConvertsOnlyRequestedPlayableTracks() {
+        val dataSource = FakeDataSource(
+            (1L..100L).map { id ->
+                track(id, if (id % 10L == 0L) Uri.EMPTY else Uri.parse("file:///music/$id.flac"))
+            }
+        )
+        val callback = PlaybackMediaLibraryCallback(dataSource)
+
+        val items = childrenForAutoParent(callback, "echo:auto:all", page = 2, pageSize = 20)
+
+        assertEquals(20, items?.size)
+        assertEquals("echo:auto:track:45", items?.first()?.mediaId)
+        assertEquals("echo:auto:track:66", items?.last()?.mediaId)
+        assertEquals(20, dataSource.mediaItemConversions)
+    }
+
+    @Test
     fun controllerQueueForMediaItemsResolvesPlainAndAutoTrackIds() {
         val callback = PlaybackMediaLibraryCallback(
             FakeDataSource(
@@ -181,6 +198,23 @@ class PlaybackMediaLibraryCallbackTest {
     }
 
     @Suppress("UNCHECKED_CAST")
+    private fun childrenForAutoParent(
+        callback: PlaybackMediaLibraryCallback,
+        parentId: String,
+        page: Int,
+        pageSize: Int
+    ): List<MediaItem>? {
+        val method = PlaybackMediaLibraryCallback::class.java.getDeclaredMethod(
+            "childrenForAutoParent",
+            String::class.java,
+            Int::class.javaPrimitiveType,
+            Int::class.javaPrimitiveType
+        )
+        method.isAccessible = true
+        return method.invoke(callback, parentId, page, pageSize) as List<MediaItem>?
+    }
+
+    @Suppress("UNCHECKED_CAST")
     private fun autoItemsForTracks(
         callback: PlaybackMediaLibraryCallback,
         tracks: List<Track>
@@ -206,6 +240,8 @@ class PlaybackMediaLibraryCallbackTest {
     private class FakeDataSource(
         private val cachedTracks: List<Track> = emptyList()
     ) : PlaybackMediaLibraryCallback.DataSource {
+        var mediaItemConversions: Int = 0
+
         override fun appName(): String = "Yukine"
 
         override fun loadCachedTracks(): List<Track> = cachedTracks
@@ -217,6 +253,7 @@ class PlaybackMediaLibraryCallbackTest {
         override fun loadPlaylistTracks(playlistId: Long): List<Track> = emptyList()
 
         override fun mediaItemForTrack(track: Track): MediaItem {
+            mediaItemConversions++
             val metadata = MediaMetadata.Builder()
                 .setTitle(track.title)
                 .build()

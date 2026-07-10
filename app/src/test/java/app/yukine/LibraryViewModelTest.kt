@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
@@ -323,6 +324,29 @@ class LibraryViewModelTest {
 
         assertEquals(listOf("refresh"), gateway.calls)
         assertEquals(listOf("Status"), failures)
+    }
+
+    @Test
+    fun cancelLibraryLoadSuppressesQueuedRefreshAndStaleCallbacks() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val viewModel = LibraryViewModel(dispatcher)
+        val gateway = FakeImportGateway()
+        val loaded = mutableListOf<LibraryLoadResultUi>()
+        val failures = mutableListOf<String>()
+        viewModel.bindImportGateway(gateway)
+
+        viewModel.loadLibrary(
+            allowCachedFirst = false,
+            canScan = true,
+            onLoaded = { result -> loaded += result },
+            onFailed = { status -> failures += status }
+        )
+        viewModel.cancelLibraryLoad()
+        advanceUntilIdle()
+
+        assertTrue(gateway.calls.isEmpty())
+        assertTrue(loaded.isEmpty())
+        assertTrue(failures.isEmpty())
     }
 
     @Test

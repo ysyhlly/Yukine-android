@@ -17,11 +17,14 @@ import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.TrackRowUiState
 import app.yukine.ui.TrackRowActions
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 
 sealed interface LibraryEvent {
@@ -187,6 +190,7 @@ class LibraryViewModel @JvmOverloads constructor(
     private var playlistActionGateway: LibraryPlaylistActionGateway? = null
     private var audioSpecParsingRunning = false
     private var favoriteTrackIds: Set<Long> = emptySet()
+    private var libraryLoadJob: Job? = null
 
     fun bindGateway(nextGateway: LibraryGateway?) {
         gateway = nextGateway
@@ -318,19 +322,21 @@ class LibraryViewModel @JvmOverloads constructor(
         onFailed: ((String) -> Unit)? = null
     ) {
         val gateway = importGateway ?: return
-        viewModelScope.launch {
-            if (allowCachedFirst) {
-                val cached = withContext(ioDispatcher) { gateway.loadCached() }
-                onLoaded?.invoke(cached)
-            }
-            if (!canScan) {
-                return@launch
-            }
-            runCatching {
-                withContext(ioDispatcher) { gateway.refresh() }
-            }.onSuccess { fresh ->
+        libraryLoadJob?.cancel()
+        libraryLoadJob = viewModelScope.launch {
+            try {
+                if (allowCachedFirst) {
+                    val cached = runInterruptible(ioDispatcher) { gateway.loadCached() }
+                    onLoaded?.invoke(cached)
+                }
+                if (!canScan) {
+                    return@launch
+                }
+                val fresh = runInterruptible(ioDispatcher) { gateway.refresh() }
                 onLoaded?.invoke(fresh)
-            }.onFailure { error ->
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
                 if (error is SecurityException) {
                     onFailed?.invoke("Status")
                 } else {
@@ -338,6 +344,12 @@ class LibraryViewModel @JvmOverloads constructor(
                 }
             }
         }
+    }
+
+    fun cancelLibraryLoad() {
+        val cancelledJob = libraryLoadJob
+        libraryLoadJob = null
+        cancelledJob?.cancel()
     }
 
     fun loadLibraryJava(

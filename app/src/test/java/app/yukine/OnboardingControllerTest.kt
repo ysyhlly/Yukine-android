@@ -48,6 +48,25 @@ class OnboardingControllerTest {
         assertEquals(1, listener.mountCalls)
     }
 
+    @Test
+    fun hungScanTimeoutCancelsLoadAndRestoresRetryableState() {
+        val listener = FakeListener(audioPermission = true)
+        val scheduler = FakeScheduler()
+        val controller = OnboardingController(listener, scheduler, 1_000L)
+
+        controller.scanLibraryFromOnboarding()
+        controller.scanLibraryFromOnboarding()
+        scheduler.runPending()
+
+        assertEquals(1, listener.loadLibraryCalls)
+        assertEquals(1, listener.cancelLibraryLoadCalls)
+        assertEquals(1, listener.scanTimedOutCalls)
+        assertFalse(controller.libraryScanInProgress())
+        assertFalse(controller.libraryScanCompleted())
+        assertTrue(controller.onboardingMissingSetupMessage().contains("扫描本地曲库"))
+        assertEquals(2, listener.mountCalls)
+    }
+
     private class FakeListener(
         var audioPermission: Boolean = false,
         var notificationPermission: Boolean = true
@@ -55,6 +74,8 @@ class OnboardingControllerTest {
         var permissionRequests = 0
         var mountCalls = 0
         var loadLibraryCalls = 0
+        var cancelLibraryLoadCalls = 0
+        var scanTimedOutCalls = 0
         var completedCalls = 0
 
         override fun hasAudioPermission(): Boolean = audioPermission
@@ -73,6 +94,14 @@ class OnboardingControllerTest {
             loadLibraryCalls++
         }
 
+        override fun cancelLibraryLoad() {
+            cancelLibraryLoadCalls++
+        }
+
+        override fun onLibraryScanTimedOut() {
+            scanTimedOutCalls++
+        }
+
         override fun navigateToNetworkTabPage(page: String) {
         }
 
@@ -84,6 +113,26 @@ class OnboardingControllerTest {
 
         override fun onboardingCompleted() {
             completedCalls++
+        }
+    }
+
+    private class FakeScheduler : OnboardingController.Scheduler {
+        private var pending: Runnable? = null
+
+        override fun postDelayed(runnable: Runnable, delayMs: Long) {
+            pending = runnable
+        }
+
+        override fun removeCallbacks(runnable: Runnable) {
+            if (pending === runnable) {
+                pending = null
+            }
+        }
+
+        fun runPending() {
+            val runnable = pending
+            pending = null
+            runnable?.run()
         }
     }
 }

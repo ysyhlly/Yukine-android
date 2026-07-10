@@ -591,9 +591,9 @@ Guardrail:
 
 - `HeartbeatRecommendationSeedResolverTest.largeSeedQueuesAreBoundedAroundCurrentTrackBeforeMatching`
 
-## Open Findings
+## Recently Closed Findings
 
-### P1 Open - MediaSession timeline cache can miss middle-queue replacements
+### P1 Fixed - MediaSession timeline cache detects middle-queue replacements
 
 Evidence:
 
@@ -607,22 +607,22 @@ Risk:
 - Android system media UI may keep a stale timeline for middle queue entries after background streaming pre-resolve or queue replacement.
 - This is a plausible contributor to "songs still do not appear correctly in Android's media playback list" when the app queue is present but the system-facing timeline does not refresh.
 
-Low-risk approach:
+Change:
 
-- Add a lightweight queue version or content revision from the queue owner and include it in `SessionQueueKey`.
-- If a version is not available, include a small deterministic fingerprint over sampled queue ids around the current item and the requested visible window.
-- Keep `getMediaItemCount()` and `getMediaItemAt(index)` narrow; avoid going back to full queue snapshots for common system reads.
+- `SessionQueueKey` now includes a deterministic sampled queue fingerprint.
+- Small queues fingerprint every track id; large queues sample the ends, current-track neighborhood, and stable intervals.
+- `getMediaItemCount()` and `getMediaItemAt(index)` keep using narrow queue reads, while repeated unchanged timeline reads still reuse the cached timeline.
 
-Suggested tests:
+Guardrail:
 
-- Extend `PlaybackSessionPlayerTest` with a queue of at least five items, build a timeline, replace a middle non-current item while size/current/first/last stay the same, then assert `getCurrentTimeline()` exposes the replacement after the key changes.
-- Add a negative check that repeated reads without queue changes still reuse the cached timeline.
+- `PlaybackSessionPlayerTest.sessionQueueTimelineRefreshesWhenMiddleQueueEntryChanges`
+- `PlaybackSessionPlayerTest.repeatedSessionQueueReadsReuseTimelineAndPreferNarrowAccess`
 
 Device check:
 
 - With a large NetEase queue, start playback, wait for several background URL resolves, then inspect Android media output / media session dump to confirm the visible queue titles match the app queue.
 
-### P2 Open - MediaLibrary child paging materializes full lists before slicing
+### P2 Fixed - MediaLibrary child paging converts only the requested page
 
 Evidence:
 
@@ -635,18 +635,25 @@ Risk:
 - Android Auto or a system browser requesting a small page from a large local library still pays the cost of loading and converting the full matching list.
 - This is outside the immediate playback-start path, but can add background allocation pressure while the Android media browser is open.
 
-Low-risk approach:
+Change:
 
-- Push paging into each child branch before converting tracks to `MediaItem`.
-- Preserve the existing root/folder structure and `onSetMediaItems(...)` behavior.
-- Keep grouped artist/album folders deterministic; only page final child lists.
+- Paging now happens inside each child branch before tracks, playlists, artists, or albums are converted to `MediaItem`.
+- Track paging counts only playable matches, so unplayable rows do not create short or shifted pages.
+- The existing root/folder ordering and `onSetMediaItems(...)` behavior remain unchanged.
+- Page offset arithmetic uses `Long`, avoiding overflow for malformed large page inputs.
 
-Suggested tests:
+Impact:
 
-- Extend `PlaybackMediaLibraryCallbackTest` with a fake data source that counts converted tracks for a small page request from a large library.
-- Assert `onGetChildren(AUTO_ALL, page = 0, pageSize = 20)` does not convert every cached track.
+- Android Auto or a system browser requesting 20 songs now builds at most 20 track `MediaItem`s instead of converting the full library first.
+- Group discovery may still scan cached tracks to preserve deterministic grouping, but final folder item conversion is page-bounded.
 
-### P1 Open - Onboarding library scan has no timeout or cancellation recovery
+Guardrail:
+
+- `PlaybackMediaLibraryCallbackTest.allSongsPagingConvertsOnlyRequestedPlayableTracks`
+
+## Recently Closed Startup Finding
+
+### P1 Fixed - Onboarding library scan has cancellable timeout recovery
 
 Evidence:
 
@@ -660,16 +667,20 @@ Risk:
 - If MediaStore, database replacement, or repository refresh stalls, the initial page can remain on the second step with "等待曲库扫描完成" and no way to finish onboarding.
 - This matches the reported "初始页点击第二步就不动了就进不去程序" failure mode.
 
-Low-risk approach:
+Change:
 
-- Add an onboarding-level scan timeout that clears `libraryScanInProgress`, shows a retryable status, and lets the user continue to streaming/manual import only if product requirements allow skipping local scan.
-- Keep the actual library refresh on the existing IO path; do not move scan work to the UI thread.
-- Consider exposing a cancel/retry command rather than auto-retrying, because repeated MediaStore stalls can otherwise loop.
+- `OnboardingController` owns one 45-second scan timeout, ignores repeated scan taps while a scan is active, and removes its callback on success, failure, completion, or Activity destruction.
+- `LibraryViewModel` owns one active library-load `Job`; a replacement load or onboarding timeout cancels it.
+- Blocking cache/refresh calls use `runInterruptible(ioDispatcher)`, so cancellation interrupts cooperative MediaStore/database work and suppresses stale success/failure callbacks.
+- Timeout returns onboarding to a retryable state and shows localized Chinese/English status through `AppLanguage`.
 
-Suggested tests:
+Guardrail:
 
-- Add an `OnboardingControllerTest` case where scan starts but no callback arrives; drive a timeout hook and assert `libraryScanInProgress()` becomes false and the missing setup message returns to "扫描本地曲库".
-- Add an Activity-level contract that `loadLibrary(false)` failure and timeout both remount onboarding instead of leaving a permanent in-progress state.
+- `OnboardingControllerTest.hungScanTimeoutCancelsLoadAndRestoresRetryableState`
+- `LibraryViewModelTest.cancelLibraryLoadSuppressesQueuedRefreshAndStaleCallbacks`
+- `MainActivityArchitectureContractTest`
+
+## Open Findings
 
 ### P1 Open - Device scan refresh replaces the whole local table in one transaction
 
@@ -738,6 +749,7 @@ Passed during this review batch:
 .\gradlew.bat --no-build-cache :app:testDebugUnitTest --tests app.yukine.SettingsViewModelTest.librarySettingsBackActionsNavigateThroughExpectedParents --tests app.yukine.settings.SettingsDestinationTest --console=plain
 .\gradlew.bat --no-build-cache :feature:ui-common:testDebugUnitTest --tests app.yukine.ui.NowBarWaveformRangeTest :app:testDebugUnitTest --tests app.yukine.MainActivityArchitectureContractTest.swipeAndWaveformRegressionsStayFixed :feature:ui-common:compileDebugKotlin --console=plain
 .\gradlew.bat --no-build-cache :app:testDebugUnitTest --tests app.yukine.HeartbeatRecommendationSeedResolverTest --console=plain
+.\gradlew.bat :feature:playback:testDebugUnitTest :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 python C:\Users\31283\.codex\skills\chinese-utf8-development\scripts\scan_mojibake.py app/src/main/java app/src/test/java feature core
 ```
 
@@ -757,6 +769,6 @@ Result:
 
 ## Next Safe Slices
 
-1. Device-smoke the bounded streaming pre-resolve, hidden Now Bar queue sync gating, and direct QueueViewModel entry path with 500 streaming tracks.
-2. Audit remaining explicit full `queueSnapshot()` consumers and add narrower reads only where the caller does not need queue contents.
-3. Continue targeted UI regression guards around previously reported issues, especially Now Playing waveform visibility and playback-page jank.
+1. Device-smoke Android Auto/media browser paging against a large local library and confirm page ordering remains stable.
+2. Add scan/replace/reload phase timing to large local-library refreshes so slow devices identify the stalled phase without changing full-refresh semantics.
+3. Device-smoke onboarding timeout/cancel/retry with a deliberately stalled or very large MediaStore scan.
