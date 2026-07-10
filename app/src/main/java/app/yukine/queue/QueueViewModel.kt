@@ -45,7 +45,7 @@ sealed interface QueueIntent {
  */
 class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
     private companion object {
-        const val EAGER_QUEUE_ROW_LIMIT = 96
+        const val EAGER_QUEUE_ROW_LIMIT = 24
     }
 
 

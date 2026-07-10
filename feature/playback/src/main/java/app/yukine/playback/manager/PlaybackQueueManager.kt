@@ -39,6 +39,7 @@ internal class PlaybackQueueManager(
         fun publishState()
         fun stopAndClear()
         fun persistQueueAsync(tracks: List<Track>, currentIndex: Int): Boolean
+        fun persistQueueNow(tracks: List<Track>, currentIndex: Int): Boolean = false
     }
 
     interface StreamingRestoreProvider {
@@ -445,9 +446,9 @@ internal class PlaybackQueueManager(
         } else {
             setCurrentIndex(maxOf(0, minOf(currentIndex(), queue.size - 1)))
         }
-        persistQueue()
-        persistPlaybackPosition()
         queuePlaybackActions.publishState()
+        persistQueue(preferAsync = true)
+        persistPlaybackPosition()
     }
 
     fun removeTracksById(trackIds: Set<Long>) {
@@ -887,7 +888,7 @@ internal class PlaybackQueueManager(
     }
 
     fun persistQueueState() {
-        persistQueue()
+        persistQueue(forceSync = true)
     }
 
     fun restorePlaybackQueue(): QueueStateSnapshot {
@@ -1017,12 +1018,16 @@ internal class PlaybackQueueManager(
         )
     }
 
-    private fun persistQueue() {
+    private fun persistQueue(preferAsync: Boolean = false, forceSync: Boolean = false) {
         val tracks: List<Track> = queue
         val index = currentIndex()
-        if (tracks.size > MAX_SYNC_PERSISTED_QUEUE_TRACKS &&
+        if (!forceSync &&
+            (preferAsync || tracks.size > MAX_SYNC_PERSISTED_QUEUE_TRACKS) &&
             queuePlaybackActions.persistQueueAsync(tracks, index)
         ) {
+            return
+        }
+        if (queuePlaybackActions.persistQueueNow(tracks, index)) {
             return
         }
         queueStore.save(tracks.toList(), index)

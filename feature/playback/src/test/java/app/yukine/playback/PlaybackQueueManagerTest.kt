@@ -1349,6 +1349,47 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun moveQueueTrackPublishesBeforePersistingSmallQueueAsynchronously() {
+        val events = mutableListOf<String>()
+        val store = FakeQueueStore(events)
+        val provider = FakeQueueState()
+        provider.queuePlaybackActions.deferQueuePersistence = true
+        provider.queuePlaybackActions.eventSink = events
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(track(1L), track(2L), track(3L)), 1)
+        events.clear()
+
+        manager.moveQueueTrack(0, 2)
+
+        assertEquals(listOf("publish", "persist"), events)
+        assertTrue(store.savedTracks.isEmpty())
+        assertEquals(listOf(2L, 3L, 1L), provider.queuePlaybackActions.deferredQueueTracks.map { it.id })
+        assertEquals(0, provider.queuePlaybackActions.deferredQueueIndex)
+
+        provider.queuePlaybackActions.flushDeferredQueue(store)
+
+        assertEquals(listOf(2L, 3L, 1L), store.savedTracks.map { it.id })
+        assertEquals(0, store.savedIndex)
+    }
+
+    @Test
+    fun moveQueueTrackFallsBackToSynchronousPersistenceWhenAsyncIsRejected() {
+        val events = mutableListOf<String>()
+        val store = FakeQueueStore(events)
+        val provider = FakeQueueState()
+        provider.queuePlaybackActions.eventSink = events
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(track(1L), track(2L)), 0)
+        events.clear()
+
+        manager.moveQueueTrack(0, 1)
+
+        assertEquals(listOf("publish", "save"), events)
+        assertEquals(listOf(2L, 1L), store.savedTracks.map { it.id })
+        assertEquals(1, store.savedIndex)
+    }
+
+    @Test
     fun playLargeQueueDefersFullQueuePersistenceUntilAfterPlaybackStart() {
         val events = mutableListOf<String>()
         val store = FakeQueueStore(events)
@@ -1616,6 +1657,23 @@ class PlaybackQueueManagerTest {
 
         assertEquals(listOf(1L, 2L), store.savedTracks.map { it.id })
         assertEquals(1, store.savedIndex)
+    }
+
+    @Test
+    fun persistQueueStateUsesAnImmediateCheckpointInsteadOfDeferredPersistence() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        provider.queuePlaybackActions.deferQueuePersistence = true
+        val manager = queueManager(store, provider)
+        val tracks = (1L..65L).map { id -> track(id) }
+        restoreQueue(manager, store, tracks, 32)
+        provider.queuePlaybackActions.deferredQueueTracks = emptyList()
+
+        manager.persistQueueState()
+
+        assertEquals((1L..65L).toList(), store.savedTracks.map { it.id })
+        assertEquals(32, store.savedIndex)
+        assertTrue(provider.queuePlaybackActions.deferredQueueTracks.isEmpty())
     }
 
     @Test
@@ -1915,6 +1973,7 @@ class PlaybackQueueManagerTest {
         override fun publishState() {
             published = true
             publishCount += 1
+            eventSink?.add("publish")
         }
         override fun stopAndClear() {
             stoppedAndCleared = true

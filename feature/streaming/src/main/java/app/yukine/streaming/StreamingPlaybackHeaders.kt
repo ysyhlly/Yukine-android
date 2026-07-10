@@ -3,6 +3,7 @@ package app.yukine.streaming
 import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.streaming.cache.StreamingCacheRepository
+import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 
 interface StreamingPlaybackHeaderStore {
@@ -50,7 +51,11 @@ class PersistentStreamingPlaybackHeaders(
         val provider = StreamingPlaybackAdapter.streamingProviderName(dataPath) ?: return false
         val providerTrackId = StreamingPlaybackAdapter.providerTrackId(dataPath).takeIf { it.isNotBlank() } ?: return false
         val cached = cacheRepository.cachedPlaybackBlocking(provider, providerTrackId) ?: return false
-        val headers = StreamingGatewayJson.playbackSource(cached).headers
+        val source = runCatching { StreamingGatewayJson.playbackSource(cached) }.getOrNull() ?: return false
+        if (!isSupportedPlaybackSourceUrl(source.url)) {
+            return false
+        }
+        val headers = source.headers
         if (headers.isEmpty()) {
             return false
         }
@@ -66,8 +71,8 @@ class PersistentStreamingPlaybackHeaders(
         val provider = StreamingPlaybackAdapter.streamingProviderName(dataPath) ?: return null
         val providerTrackId = StreamingPlaybackAdapter.providerTrackId(dataPath).takeIf { it.isNotBlank() } ?: return null
         val cached = cacheRepository.cachedPlaybackBlocking(provider, providerTrackId) ?: return null
-        val source = StreamingGatewayJson.playbackSource(cached)
-        if (source.url.isBlank()) {
+        val source = runCatching { StreamingGatewayJson.playbackSource(cached) }.getOrNull() ?: return null
+        if (!isSupportedPlaybackSourceUrl(source.url)) {
             return null
         }
         register(dataPath, source.headers)
@@ -82,6 +87,20 @@ class PersistentStreamingPlaybackHeaders(
             track.albumId,
             track.albumArtUri
         )
+    }
+}
+
+/** Shared cache/restore guard: a stored URL must be safe to hand to Media3. */
+internal fun isSupportedPlaybackSourceUrl(value: String?): Boolean {
+    val clean = value?.trim().orEmpty()
+    if (clean.isBlank() || clean.contains(";invalid;", ignoreCase = true)) {
+        return false
+    }
+    val uri = runCatching { URI(clean) }.getOrNull() ?: return false
+    return when (uri.scheme?.lowercase()) {
+        "http", "https" -> !uri.host.isNullOrBlank()
+        "content", "file", "android.resource" -> true
+        else -> false
     }
 }
 

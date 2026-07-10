@@ -54,7 +54,7 @@ class QueueActionControllerTest {
     }
 
     @Test
-    fun moveQueueTrackRefreshesOnlyWhenPlaybackServiceExists() {
+    fun moveQueueTrackDelegatesOnlyWhenPlaybackServiceExists() {
         val viewModel = NowPlayingViewModel()
         val listener = FakeQueueActionListener(hasPlaybackService = false)
         val controller = QueueActionController(viewModel, listener)
@@ -65,7 +65,7 @@ class QueueActionControllerTest {
         listener.hasPlaybackService = true
         controller.moveQueueTrack(0, 1)
 
-        assertEquals(listOf("move:0:1", "nowBar", "tab"), listener.calls)
+        assertEquals(listOf("move:0:1"), listener.calls)
     }
 
     private class FakeQueueActionListener(
@@ -84,14 +84,6 @@ class QueueActionControllerTest {
 
         override fun moveQueueTrack(fromIndex: Int, toIndex: Int) {
             calls += "move:$fromIndex:$toIndex"
-        }
-
-        override fun renderNowBar() {
-            calls += "nowBar"
-        }
-
-        override fun renderSelectedTab() {
-            calls += "tab"
         }
 
         override fun confirmClearQueue() {

@@ -5,6 +5,7 @@ import java.io.IOException
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -16,6 +17,9 @@ interface QqMusicHttpClient {
     fun getJson(url: String, headers: Map<String, String> = emptyMap()): JSONObject
     fun postJson(url: String, body: JSONObject, headers: Map<String, String> = emptyMap()): JSONObject
 }
+
+/** Private control-flow marker; its text is never exposed to playback UI. */
+private class QqIpValidationRejected : RuntimeException()
 
 internal fun hasQqPlaybackCredential(cookie: String?): Boolean {
     return qqCookieValue(cookie, "qqmusic_key", "qm_keyst", "psrf_qqaccess_token") != null
@@ -296,18 +300,17 @@ class LocalQqMusicStreamingClient(
         }
         val parts = id.split('|')
         val songMid = parts.firstOrNull().orEmpty().ifBlank { id }
-        val mediaMid = parts.getOrNull(1)?.takeIf { it.isNotBlank() } ?: songMid
+        val explicitMediaMid = parts.getOrNull(1)?.takeIf { it.isNotBlank() }
+        val mediaMid = explicitMediaMid ?: songMid
         var lastError: StreamingGatewayException? = null
         for (quality in qqQualityFallbacks(request.quality)) {
-            for (fileName in qqFileNameCandidates(songMid, mediaMid, quality)) {
+            for (fileName in qqUrlGetVkeyFileNameCandidates(songMid, mediaMid, explicitMediaMid != null, quality)) {
                 try {
-                    return resolvePlaybackWithFileName(id, songMid, quality, fileName, cookie)
+                    return resolvePlaybackWithUrlGetVkey(id, songMid, quality, fileName, cookie)
                 } catch (error: StreamingGatewayException) {
-                    // An explicit login rejection cannot be repaired by trying another quality
-                    // or filename, and should reach the UI unchanged.
-                    if (error.code == StreamingErrorCode.AUTH_REQUIRED ||
-                        error.code == StreamingErrorCode.REGION_BLOCKED
-                    ) {
+                    // A session/IP rejection cannot be repaired by varying the filename or
+                    // quality. Stop immediately instead of issuing more vkey requests.
+                    if (isTerminalQqPlaybackFailure(error)) {
                         throw error
                     }
                     lastError = error
@@ -325,7 +328,7 @@ class LocalQqMusicStreamingClient(
         )
     }
 
-    private fun resolvePlaybackWithFileName(
+    private fun resolvePlaybackWithUrlGetVkey(
         providerTrackId: String,
         songMid: String,
         quality: StreamingAudioQuality,
@@ -333,50 +336,68 @@ class LocalQqMusicStreamingClient(
         cookie: String
     ): StreamingPlaybackSource {
         val uin = uinFromCookie(cookie)
-        val authst = qqPlaybackAuthst(cookie)
-        val params = JSONObject()
-            .put("guid", qqGuid())
-            .put("songmid", JSONArray().put(songMid))
-            .put("filename", JSONArray().put(fileName))
-            .put("songtype", JSONArray().put(0))
-            .put("uin", uin)
-            .put("loginflag", 1)
-            .put("platform", "20")
-        authst?.let { params.put("authst", it) }
+        val guid = qqGuid()
         val body = JSONObject()
             .put("loginUin", uin)
+            .put("comm", qqVkeyComm(uin, qqPlaybackAuthst(cookie)))
             .put(
-                "comm",
+                "req",
                 JSONObject()
-                    .put("format", "json")
-                    .put("ct", 24)
-                    .put("cv", 0)
-                    .put("uin", uin)
+                    .put("module", "music.audioCdnDispatch.cdnDispatch")
+                    .put("method", "GetCdnDispatch")
+                    .put(
+                        "param",
+                        JSONObject()
+                            .put("guid", guid)
+                            .put("uid", "0")
+                            .put("use_new_domain", 1)
+                            .put("use_ipv6", 1)
+                    )
             )
             .put(
                 "req_0",
                 JSONObject()
-                    .put("module", "vkey.GetVkeyServer")
-                    .put("method", "CgiGetVkey")
-                    .put("param", params)
+                    .put("module", "music.vkey.GetVkey")
+                    .put("method", "UrlGetVkey")
+                    .put(
+                        "param",
+                        JSONObject()
+                            .put("uin", uin)
+                            .put("filename", JSONArray().put(fileName))
+                            .put("guid", guid)
+                            .put("songmid", JSONArray().put(songMid))
+                            .put("songtype", JSONArray().put(0))
+                            .put("ctx", 0)
+                    )
             )
         val result = httpClient.postJson("https://u.y.qq.com/cgi-bin/musicu.fcg", body, defaultHeaders(cookie))
+        return playbackSourceFromVkeyResult(providerTrackId, quality, fileName, result)
+    }
+
+    private fun qqVkeyComm(uin: String, authst: String?): JSONObject {
+        val comm = JSONObject()
+            .put("format", "json")
+            .put("ct", 24)
+            .put("cv", 0)
+            .put("uin", uin)
+        // QQ accepts the signed-in token in `comm`, not in the vkey parameters.
+        authst?.let { comm.put("authst", it) }
+        return comm
+    }
+
+    private fun playbackSourceFromVkeyResult(
+        providerTrackId: String,
+        quality: StreamingAudioQuality,
+        fileName: String,
+        result: JSONObject
+    ): StreamingPlaybackSource {
         val data = qqVkeyData(result)
         val midUrlInfo = qqMidUrlInfo(data)
-        val purl = midUrlInfo.optionalStringLocal("purl")
-        if (purl.isNullOrBlank()) {
-            val serverMessage = midUrlInfo.optionalStringLocal("msg")
-                ?: data.optionalStringLocal("msg")
-            val message = serverMessage ?: "QQ 音乐未返回可播放链接，可能需要会员或地区不可用"
-            throw StreamingGatewayException(
-                message,
-                code = serverMessage?.let(::qqVkeyErrorCode) ?: StreamingErrorCode.SOURCE_UNAVAILABLE
-            )
+        val purl = midUrlInfo.optionalStringLocal("purl").orEmpty().trim()
+        if (!isQqPlayablePurl(purl)) {
+            throw qqVkeyFailure(result, data, midUrlInfo)
         }
-        val sip = data.optJSONArray("sip")?.let { array ->
-            (0 until array.length()).mapNotNull { array.optString(it).takeIf { value -> value.isNotBlank() } }
-        }.orEmpty()
-        val url = qqPlaybackUrl(purl, sip)
+        val url = qqPlaybackUrl(purl, qqSipCandidates(result, data))
         val resolvedFileName = purl.substringBefore('?').substringAfterLast('/').takeIf { it.isNotBlank() } ?: fileName
         return StreamingPlaybackSource(
             provider = StreamingProviderName.QQ_MUSIC,
@@ -434,21 +455,34 @@ class LocalQqMusicStreamingClient(
             .mapNotNull { songs.optJSONObject(it) }
             .map { item ->
                 val songMid = item.optionalStringLocal("mid") ?: item.optionalStringLocal("id") ?: ""
+                val file = item.optJSONObject("file")
+                val mediaMid = file?.optionalStringLocal("media_mid")
+                    ?: file?.optionalStringLocal("mediaMid")
+                    ?: item.optionalStringLocal("media_mid")
+                    ?: item.optionalStringLocal("mediaMid")
+                    ?: item.optionalStringLocal("strMediaMid")
+                    ?: item.optionalStringLocal("str_media_mid")
+                    ?: songMid
+                val providerTrackId = if (mediaMid.isNotBlank() && mediaMid != songMid) {
+                    "$songMid|$mediaMid"
+                } else {
+                    songMid
+                }
                 val albumMid = item.optionalStringLocal("albummid")
                     ?: item.optionalStringLocal("album_mid")
                     ?: item.optionalStringLocal("albumMid")
                 val cover = qqCoverUrl(albumMid)
                 StreamingTrack(
                     provider = StreamingProviderName.QQ_MUSIC,
-                    providerTrackId = songMid,
+                    providerTrackId = providerTrackId,
                     title = cleanDisplayText(item.optionalStringLocal("name")).orEmpty(),
                     artist = cleanDisplayText(item.optionalStringLocal("singer")).orEmpty(),
                     album = cleanDisplayText(item.optionalStringLocal("album")),
                     coverUrl = cover,
                     coverThumbUrl = cover,
                     qualities = setOf(StreamingAudioQuality.STANDARD, StreamingAudioQuality.HIGH),
-                    playable = songMid.isNotBlank(),
-                    playbackCandidates = qqCandidates(songMid)
+                    playable = providerTrackId.isNotBlank(),
+                    playbackCandidates = qqCandidates(providerTrackId)
                 )
             }
     }
@@ -607,24 +641,24 @@ class LocalQqMusicStreamingClient(
         return qualities.ifEmpty { setOf(StreamingAudioQuality.STANDARD, StreamingAudioQuality.HIGH) }
     }
 
-    private fun qqFileNameCandidates(
+    private fun qqUrlGetVkeyFileNameCandidates(
         songMid: String,
         mediaMid: String,
+        hasExplicitMediaMid: Boolean,
         quality: StreamingAudioQuality
     ): List<String> {
-        val variants = when (quality) {
-            StreamingAudioQuality.HIRES,
-            StreamingAudioQuality.LOSSLESS -> listOf("F000" to ".flac")
-            StreamingAudioQuality.HIGH -> listOf("M800" to ".mp3", "C600" to ".m4a")
-            StreamingAudioQuality.STANDARD -> listOf("M500" to ".mp3", "C400" to ".m4a")
-        }
-        // QQ vkey accepts the media MID as its canonical filename identifier.  A previous
-        // change concatenated songMid and mediaMid first, which makes affected tracks look
-        // like an authentication failure when QQ simply returns an empty purl.  Retain that
-        // legacy spelling only as a last-resort compatibility fallback.
-        val canonical = variants.map { (prefix, extension) -> "$prefix$mediaMid$extension" }
-        val legacy = variants.map { (prefix, extension) -> "$prefix$songMid$mediaMid$extension" }
-        return (canonical + legacy).distinct()
+        // UrlGetVkey uses mediaMid when one was supplied with the track. For the older search
+        // shapes that lack it, QQ's maintained Web client convention is songMid + songMid.
+        return qqFileNameVariants(quality).map { (prefix, extension) ->
+            if (hasExplicitMediaMid) "$prefix$mediaMid$extension" else "$prefix$songMid$songMid$extension"
+        }.distinct()
+    }
+
+    private fun qqFileNameVariants(quality: StreamingAudioQuality): List<Pair<String, String>> = when (quality) {
+        StreamingAudioQuality.HIRES,
+        StreamingAudioQuality.LOSSLESS -> listOf("F000" to ".flac")
+        StreamingAudioQuality.HIGH -> listOf("M800" to ".mp3", "C600" to ".m4a")
+        StreamingAudioQuality.STANDARD -> listOf("M500" to ".mp3", "C400" to ".m4a")
     }
 
     private fun qqQualityFallbacks(quality: StreamingAudioQuality): List<StreamingAudioQuality> {
@@ -689,6 +723,51 @@ class LocalQqMusicStreamingClient(
         }
     }
 
+    private fun qqVkeyFailure(
+        result: JSONObject,
+        data: JSONObject,
+        midUrlInfo: JSONObject
+    ): StreamingGatewayException {
+        val requestCode = result.optJSONObject("req_0")?.optionalIntLocal("code")
+        val retCode = data.optionalIntLocal("retcode")
+        val serverMessage = listOfNotNull(
+            midUrlInfo.optionalStringLocal("msg"),
+            data.optionalStringLocal("msg"),
+            result.optJSONObject("req_0")?.optionalStringLocal("msg")
+        ).firstOrNull { it.isNotBlank() }
+        // QQ currently returns e.g. "163.125.230.232;invalid;" for a rejected playback
+        // session/network. This is an internal diagnostic token, not a playable address or a
+        // meaningful user-facing error. Do not leak it into the player status.
+        if (requestCode == QQ_VKEY_IP_INVALID_CODE || retCode == QQ_VKEY_IP_INVALID_CODE ||
+            isQqIpInvalidMessage(serverMessage)
+        ) {
+            return StreamingGatewayException(
+                "QQ 音乐拒绝了当前网络或登录会话（IP 校验失败），请在本机 QQ 音乐重新登录或切换网络后重试",
+                cause = QqIpValidationRejected(),
+                code = StreamingErrorCode.SOURCE_UNAVAILABLE
+            )
+        }
+        val errorCode = serverMessage?.let(::qqVkeyErrorCode) ?: StreamingErrorCode.SOURCE_UNAVAILABLE
+        val message = when (errorCode) {
+            StreamingErrorCode.AUTH_REQUIRED,
+            StreamingErrorCode.REGION_BLOCKED -> serverMessage.orEmpty()
+            else -> "QQ 音乐未返回有效播放地址，可能需要会员、歌曲暂不可用或当前网络受限"
+        }
+        return StreamingGatewayException(message, code = errorCode)
+    }
+
+    private fun isQqIpInvalidMessage(message: String?): Boolean {
+        val value = message?.trim().orEmpty()
+        return value.contains(";invalid;", ignoreCase = true) ||
+            Regex("^\\d{1,3}(?:\\.\\d{1,3}){3};", RegexOption.IGNORE_CASE).containsMatchIn(value)
+    }
+
+    private fun isTerminalQqPlaybackFailure(error: StreamingGatewayException): Boolean {
+        return error.code == StreamingErrorCode.AUTH_REQUIRED ||
+            error.code == StreamingErrorCode.REGION_BLOCKED ||
+            error.cause is QqIpValidationRejected
+    }
+
     private fun throwIfQqAuthRejected(body: JSONObject) {
         val messages = listOfNotNull(
             body.optionalStringLocal("msg"),
@@ -730,6 +809,20 @@ class LocalQqMusicStreamingClient(
         return data.optJSONObject("midurlinfo") ?: JSONObject()
     }
 
+    private fun qqSipCandidates(result: JSONObject, vkeyData: JSONObject): List<String> {
+        val dispatchData = result.optJSONObject("req")?.optJSONObject("data")
+            ?: result.optJSONObject("req")?.optJSONObject("result")
+        return listOfNotNull(dispatchData, vkeyData)
+            .flatMap { body ->
+                body.optJSONArray("sip")?.let { array ->
+                    (0 until array.length()).mapNotNull { index ->
+                        array.optString(index).trim().takeIf { it.isNotBlank() }
+                    }
+                }.orEmpty()
+            }
+            .distinct()
+    }
+
     private fun qqSearchSongArrays(result: JSONObject): List<JSONArray> {
         val data = result.optJSONObject("req_1")?.optJSONObject("data")
             ?: result.optJSONObject("data")
@@ -769,25 +862,63 @@ class LocalQqMusicStreamingClient(
      * weakening the app-wide network security policy.
      */
     private fun qqPlaybackUrl(purl: String, sip: List<String>): String {
-        val rawUrl = if (purl.startsWith("http://", ignoreCase = true) || purl.startsWith("https://", ignoreCase = true)) {
-            purl
-        } else {
-            val playableSip = sip.filterNot(::isQqWebSocketSip)
-            val base = playableSip.firstOrNull { it.startsWith("https://", ignoreCase = true) }
-                ?: playableSip.firstOrNull()
-                ?: "https://isure.stream.qqmusic.qq.com/"
-            base.trimEnd('/') + "/" + purl.trimStart('/')
+        if (isQqHttpUrl(purl)) {
+            return promoteQqHttpUrl(purl)
         }
-        return if (rawUrl.startsWith("http://", ignoreCase = true)) {
-            "https://${rawUrl.substring("http://".length)}"
-        } else {
-            rawUrl
+        if (!isQqRelativePurl(purl)) {
+            throw StreamingGatewayException(
+                "QQ 音乐返回了无效播放地址",
+                code = StreamingErrorCode.SOURCE_UNAVAILABLE
+            )
         }
+        val base = sip.asSequence()
+            .filterNot(::isQqWebSocketSip)
+            .mapNotNull(::normalizedQqSip)
+            .firstOrNull()
+            ?: DEFAULT_QQ_CDN
+        return base.trimEnd('/') + "/" + purl.trimStart('/')
     }
+
+    private fun isQqPlayablePurl(value: String): Boolean =
+        isQqHttpUrl(value) || isQqRelativePurl(value)
+
+    private fun isQqHttpUrl(value: String): Boolean {
+        if (value.contains(";invalid;", ignoreCase = true)) return false
+        val uri = runCatching { URI(value) }.getOrNull() ?: return false
+        return (uri.scheme.equals("http", ignoreCase = true) ||
+            uri.scheme.equals("https", ignoreCase = true)) && !uri.host.isNullOrBlank()
+    }
+
+    private fun isQqRelativePurl(value: String): Boolean {
+        val path = value.substringBefore('?').trim().trimStart('/')
+        return path.isNotBlank() &&
+            !value.contains(';') &&
+            !path.contains("..") &&
+            path.matches(Regex("[A-Za-z0-9_./-]+\\.[A-Za-z0-9]{2,5}"))
+    }
+
+    private fun normalizedQqSip(value: String): String? {
+        if (value.contains(";invalid;", ignoreCase = true)) return null
+        val uri = runCatching { URI(value.trim()) }.getOrNull() ?: return null
+        if ((uri.scheme != "http" && uri.scheme != "https") || uri.host.isNullOrBlank()) return null
+        return "https://${uri.rawAuthority}${uri.rawPath.orEmpty()}".trimEnd('/')
+    }
+
+    private fun promoteQqHttpUrl(value: String): String =
+        if (value.startsWith("http://", ignoreCase = true)) {
+            "https://${value.substring("http://".length)}"
+        } else {
+            value
+        }
 
     private fun isQqWebSocketSip(value: String): Boolean {
         return value.startsWith("http://ws", ignoreCase = true) ||
             value.startsWith("https://ws", ignoreCase = true)
+    }
+
+    private companion object {
+        const val DEFAULT_QQ_CDN = "https://isure.stream.qqmusic.qq.com/"
+        const val QQ_VKEY_IP_INVALID_CODE = 104009
     }
 
     private fun bitrate(fileName: String, quality: StreamingAudioQuality): Int = when {

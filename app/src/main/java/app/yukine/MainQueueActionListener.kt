@@ -8,14 +8,6 @@ internal fun interface QueueTrackMoveSink {
     fun move(fromIndex: Int, toIndex: Int)
 }
 
-internal fun interface QueueNowBarRenderer {
-    fun renderNowBar()
-}
-
-internal fun interface QueueSelectedTabRenderer {
-    fun renderSelectedTab()
-}
-
 internal fun interface QueueClearQueueConfirmer {
     fun confirmClearQueue()
 }
@@ -33,8 +25,6 @@ internal fun interface MainQueueActionListenerFactory {
         resultApplier: QueuePlaybackActionResultApplier,
         serviceAvailability: QueuePlaybackServiceAvailability,
         trackMoveSink: QueueTrackMoveSink,
-        nowBarRenderer: QueueNowBarRenderer,
-        selectedTabRenderer: QueueSelectedTabRenderer,
         clearQueueConfirmer: QueueClearQueueConfirmer,
         emptyStatusProvider: QueueEmptyStatusProvider,
         statusSink: QueueStatusSink
@@ -45,8 +35,6 @@ internal class MainQueueActionListener(
     private val resultApplier: QueuePlaybackActionResultApplier,
     private val serviceAvailability: QueuePlaybackServiceAvailability,
     private val trackMoveSink: QueueTrackMoveSink,
-    private val nowBarRenderer: QueueNowBarRenderer,
-    private val selectedTabRenderer: QueueSelectedTabRenderer,
     private val clearQueueConfirmer: QueueClearQueueConfirmer,
     private val emptyStatusProvider: QueueEmptyStatusProvider,
     private val statusSink: QueueStatusSink
@@ -60,14 +48,6 @@ internal class MainQueueActionListener(
 
     override fun moveQueueTrack(fromIndex: Int, toIndex: Int) {
         trackMoveSink.move(fromIndex, toIndex)
-    }
-
-    override fun renderNowBar() {
-        nowBarRenderer.renderNowBar()
-    }
-
-    override fun renderSelectedTab() {
-        selectedTabRenderer.renderSelectedTab()
     }
 
     override fun confirmClearQueue() {

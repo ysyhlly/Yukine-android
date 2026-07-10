@@ -95,7 +95,7 @@ class PlaybackStateEventControllerTest {
     }
 
     @Test
-    fun publishedQueueIsReusedOnlyForTheMatchingQueueRevision() {
+    fun publishedQueueIsNotReusedAfterANewerSnapshotReplacesState() {
         val playbackViewModel = PlaybackViewModel()
         val playbackStore = MainPlaybackStore(playbackViewModel)
         val current = track(1L)
@@ -104,12 +104,11 @@ class PlaybackStateEventControllerTest {
         playbackStore.publish(listOf(current, track(2L)))
 
         assertEquals(listOf(1L, 2L), playbackStore.publishedQueueFor(first)?.map { it.id })
-        assertEquals(
-            null,
-            playbackStore.publishedQueueFor(
-                snapshot(current, positionMs = 2_000L, queueSize = 2, queueRevision = 10L)
-            )
+        playbackStore.replaceSnapshot(
+            snapshot(current, positionMs = 2_000L, queueSize = 2, queueRevision = 10L)
         )
+
+        assertEquals(null, playbackStore.publishedQueueFor(playbackStore.snapshot()))
     }
 
     @Test
@@ -160,6 +159,34 @@ class PlaybackStateEventControllerTest {
 
         assertEquals(1, queueSource.calls)
         assertEquals(500, playbackViewModel.playback.value.queue.size)
+    }
+
+    @Test
+    fun hiddenQueueRevisionInvalidatesThePreviouslyPublishedQueue() {
+        val playbackViewModel = PlaybackViewModel()
+        val playbackStore = MainPlaybackStore(playbackViewModel)
+        val queueSource = CountingQueueSource(listOf(track(1L), track(2L)))
+        val listener = RecordingListener(selectedTab = MainRoutes.TAB_QUEUE)
+        val controller = PlaybackStateEventController(
+            Handler(Looper.getMainLooper()),
+            playbackStore,
+            queueSource,
+            listener
+        )
+
+        controller.onPlaybackStateChanged(
+            snapshot(track = track(1L), positionMs = 1_000L, queueSize = 2, queueRevision = 4L)
+        )
+        idleMain()
+        listener.selectedTab = MainRoutes.TAB_HOME
+        queueSource.queue = listOf(track(1L), track(22L))
+        controller.onPlaybackStateChanged(
+            snapshot(track = track(1L), positionMs = 2_000L, queueSize = 2, queueRevision = 5L)
+        )
+        idleMain()
+
+        assertEquals(1, queueSource.calls)
+        assertEquals(null, playbackStore.publishedQueueFor(playbackStore.snapshot()))
     }
 
     @Test

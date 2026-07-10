@@ -76,7 +76,7 @@ class QueueViewModelTest {
 
         val state = vm.uiState.value
         assertEquals(160, state.rowCount)
-        assertEquals(96, state.rows.size)
+        assertEquals(24, state.rows.size)
         val lateRow = state.rowAt(120)
         assertEquals("Track 120", lateRow?.title)
         assertTrue(lateRow?.current == true)

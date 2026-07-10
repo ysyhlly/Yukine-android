@@ -53,6 +53,11 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
         return queuePersistence != null && queuePersistence.persist(tracks, currentIndex);
     }
 
+    @Override
+    public boolean persistQueueNow(List<Track> tracks, int currentIndex) {
+        return queuePersistence != null && queuePersistence.persistNow(tracks, currentIndex);
+    }
+
     static QueuePersistence conflatingQueuePersistence(
             QueuePersistenceScheduler scheduler,
             QueueSaver queueSaver
@@ -65,6 +70,10 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
 
     interface QueuePersistence {
         boolean persist(List<Track> tracks, int currentIndex);
+
+        default boolean persistNow(List<Track> tracks, int currentIndex) {
+            return false;
+        }
     }
 
     interface QueuePersistenceScheduler {
@@ -113,29 +122,36 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
             }
         }
 
-        private void drainLatest() {
-            PendingQueueSave next;
+        @Override
+        public boolean persistNow(List<Track> tracks, int currentIndex) {
+            if (tracks == null) {
+                return false;
+            }
             synchronized (lock) {
-                next = pendingSave;
+                pendingSave = null;
+                queueSaver.save(new ArrayList<>(tracks), currentIndex);
+                return true;
+            }
+        }
+
+        private void drainLatest() {
+            synchronized (lock) {
+                PendingQueueSave next = pendingSave;
                 pendingSave = null;
                 if (next == null) {
                     drainScheduled = false;
                     return;
                 }
-            }
-            try {
-                queueSaver.save(next.tracks, next.currentIndex);
-            } catch (RuntimeException error) {
-                synchronized (lock) {
+                try {
+                    queueSaver.save(next.tracks, next.currentIndex);
+                } catch (RuntimeException error) {
                     if (pendingSave == null) {
                         drainScheduled = false;
                     } else {
                         scheduleDrainLocked();
                     }
+                    throw error;
                 }
-                throw error;
-            }
-            synchronized (lock) {
                 if (pendingSave == null) {
                     drainScheduled = false;
                     return;

@@ -176,8 +176,12 @@ class StreamingRepository(
     ): StreamingPlaybackSource {
         return withContext(Dispatchers.IO) {
             cache?.cachedPlayback(provider, providerTrackId, quality)?.let { cached ->
-                recordCacheHit("playback", provider)
-                return@withContext StreamingGatewayJson.playbackSource(cached)
+                val source = runCatching { StreamingGatewayJson.playbackSource(cached) }.getOrNull()
+                if (source != null && isSupportedPlaybackSourceUrl(source.url)) {
+                    recordCacheHit("playback", provider)
+                    return@withContext source
+                }
+                logWarning("Ignoring invalid cached playback source for ${provider.wireName}:$providerTrackId")
             }
             val request = StreamingPlaybackRequest(
                 provider = provider,
@@ -186,6 +190,7 @@ class StreamingRepository(
             )
             recordGatewayCall("playback", provider) {
                 gateway.resolvePlayback(request).also { source ->
+                    validatePlaybackSource(source)
                     val ttlMs = cachePolicy.ttlForPlayback(source, clockMs())
                     cache?.savePlayback(
                         provider,

@@ -33,7 +33,7 @@ class PlaybackShutdownCoordinatorTest {
         coordinator.handleServiceDestroyed()
 
         assertEquals(
-            listOf("position", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "schedulers", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "state", "wifi", "player"),
+            listOf("position", "queue", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "schedulers", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "state", "wifi", "player"),
             calls
         )
     }
@@ -76,7 +76,7 @@ class PlaybackShutdownCoordinatorTest {
         coordinator.handleServiceDestroyed()
 
         assertEquals(
-            listOf("position", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "schedulers", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "state", "wifi", "player"),
+            listOf("position", "queue", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "schedulers", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "state", "wifi", "player"),
             calls
         )
     }
@@ -90,7 +90,7 @@ class PlaybackShutdownCoordinatorTest {
         coordinator.handleServiceDestroyed()
 
         assertEquals(
-            listOf("position", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "schedulers", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "state", "wifi", "player"),
+            listOf("position", "queue", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "schedulers", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "state", "wifi", "player"),
             calls
         )
     }

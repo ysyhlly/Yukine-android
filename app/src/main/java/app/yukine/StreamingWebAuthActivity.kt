@@ -1,12 +1,15 @@
 package app.yukine
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.Gravity
 import android.view.ViewGroup
@@ -22,8 +25,11 @@ import android.webkit.WebViewClient
 import app.yukine.streaming.StreamingProviderName
 
 class StreamingWebAuthActivity : Activity() {
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var webView: WebView? = null
     private var lastProviderUrl: String? = null
+    private var qqRiskCountdown: Runnable? = null
+    private var loginPageStarted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         applyWebViewDataDirectorySuffix()
@@ -33,6 +39,25 @@ class StreamingWebAuthActivity : Activity() {
             finish()
             return
         }
+        if (providerName() == StreamingProviderName.QQ_MUSIC) {
+            showQqLoginRiskConfirmation { startLoginPage(url) }
+        } else {
+            startLoginPage(url)
+        }
+    }
+
+    override fun onDestroy() {
+        cancelQqRiskCountdown()
+        webView?.destroy()
+        webView = null
+        super.onDestroy()
+    }
+
+    private fun startLoginPage(url: String) {
+        if (loginPageStarted || isFinishing) {
+            return
+        }
+        loginPageStarted = true
         val webView = WebView(this).also { view ->
             view.setBackgroundColor(Color.TRANSPARENT)
             configureWebView(view)
@@ -43,10 +68,56 @@ class StreamingWebAuthActivity : Activity() {
         lastProviderUrl = url
     }
 
-    override fun onDestroy() {
-        webView?.destroy()
-        webView = null
-        super.onDestroy()
+    private fun showQqLoginRiskConfirmation(onConfirmed: () -> Unit) {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(text("streaming.web.auth.qq.risk.title"))
+            .setMessage(text("streaming.web.auth.qq.risk.message"))
+            .setNegativeButton(text("cancel")) { _, _ ->
+                cancelQqRiskCountdown()
+                finish()
+            }
+            .setPositiveButton(qqRiskCountdownLabel(QQ_LOGIN_RISK_CONFIRM_SECONDS), null)
+            .create()
+        dialog.setCancelable(false)
+        dialog.setCanceledOnTouchOutside(false)
+        dialog.setOnShowListener {
+            val confirmButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            confirmButton.isEnabled = false
+            confirmButton.setOnClickListener {
+                cancelQqRiskCountdown()
+                dialog.dismiss()
+                onConfirmed()
+            }
+            var secondsRemaining = QQ_LOGIN_RISK_CONFIRM_SECONDS
+            val countdown = object : Runnable {
+                override fun run() {
+                    if (isFinishing || !dialog.isShowing) {
+                        return
+                    }
+                    secondsRemaining -= 1
+                    if (secondsRemaining <= 0) {
+                        confirmButton.text = text("streaming.web.auth.qq.risk.continue")
+                        confirmButton.isEnabled = true
+                        qqRiskCountdown = null
+                    } else {
+                        confirmButton.text = qqRiskCountdownLabel(secondsRemaining)
+                        mainHandler.postDelayed(this, ONE_SECOND_MS)
+                    }
+                }
+            }
+            qqRiskCountdown = countdown
+            mainHandler.postDelayed(countdown, ONE_SECOND_MS)
+        }
+        dialog.show()
+    }
+
+    private fun qqRiskCountdownLabel(seconds: Int): String {
+        return text("streaming.web.auth.qq.risk.countdown").replace("%d", seconds.toString())
+    }
+
+    private fun cancelQqRiskCountdown() {
+        qqRiskCountdown?.let(mainHandler::removeCallbacks)
+        qqRiskCountdown = null
     }
 
     private fun configureWebView(webView: WebView) {
@@ -187,6 +258,10 @@ class StreamingWebAuthActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        if (!loginPageStarted) {
+            finish()
+            return
+        }
         finishWithAuthCallback(fallbackCallbackUri())
     }
 
@@ -270,6 +345,8 @@ class StreamingWebAuthActivity : Activity() {
 
     companion object {
         private const val TAG = "StreamingWebAuth"
+        private const val QQ_LOGIN_RISK_CONFIRM_SECONDS = 5
+        private const val ONE_SECOND_MS = 1_000L
         const val EXTRA_PROVIDER: String = "app.yukine.extra.PROVIDER"
         const val EXTRA_URL: String = "app.yukine.extra.URL"
         const val EXTRA_COOKIE_HEADER: String = "app.yukine.extra.COOKIE_HEADER"

@@ -641,8 +641,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                         this::applyPlaybackActionResult,
                         () -> playbackService != null,
                         (fromIndex, toIndex) -> playbackService.moveQueueTrack(fromIndex, toIndex),
-                        () -> nowPlayingStateController.renderNowBar(),
-                        this::renderSelectedTab,
                         () -> confirmationDialogController.confirmClearQueue(),
                         () -> AppLanguage.text(settingsStore.languageMode(), "queue.empty"),
                         status -> statusMessageController.setStatus(status)
@@ -1532,10 +1530,17 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void bindQueueViewModelInputs() {
+        bindQueueViewModelInputs(false);
+    }
+
+    private void bindQueueViewModelInputs(boolean verifyPlaybackServiceSnapshot) {
         if (queueViewModel == null) {
             return;
         }
         PlaybackStateSnapshot snapshot = playbackStore == null ? null : playbackStore.snapshot();
+        if (verifyPlaybackServiceSnapshot && playbackService != null) {
+            snapshot = playbackService.snapshot();
+        }
         java.util.List<Track> queue = playbackStore == null
                 ? null
                 : playbackStore.publishedQueueFor(snapshot);
@@ -2076,6 +2081,9 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
         if (routeController != null) {
             routeController.persist();
+        }
+        if (TAB_QUEUE.equals(tabKey)) {
+            bindQueueViewModelInputs(true);
         }
         if (renderImmediately || sameTab) {
             renderSelectedTab();

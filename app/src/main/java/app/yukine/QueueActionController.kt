@@ -13,10 +13,6 @@ internal class QueueActionController(
 
         fun moveQueueTrack(fromIndex: Int, toIndex: Int)
 
-        fun renderNowBar()
-
-        fun renderSelectedTab()
-
         fun confirmClearQueue()
 
         fun queueEmptyStatus(): String
@@ -45,7 +41,5 @@ internal class QueueActionController(
             return
         }
         listener.moveQueueTrack(fromIndex, toIndex)
-        listener.renderNowBar()
-        listener.renderSelectedTab()
     }
 }

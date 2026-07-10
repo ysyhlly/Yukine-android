@@ -5222,6 +5222,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(activity.contains("EXTRA_COOKIE_HEADER"));
         assertTrue(activity.contains("echo_auth_callback"));
         assertTrue(activity.contains("withProviderFallback(uri)"));
+        assertTrue(activity.contains("showQqLoginRiskConfirmation"));
+        assertTrue(activity.contains("QQ_LOGIN_RISK_CONFIRM_SECONDS = 5"));
+        assertTrue(activity.contains("if (!loginPageStarted)"));
         assertTrue(activity.contains("Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP"));
         assertTrue(manifest.contains("android:name=\".StreamingWebAuthActivity\""));
         assertTrue(manifest.contains("android:exported=\"false\""));

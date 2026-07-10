@@ -76,8 +76,6 @@ internal object PlaybackUiModule {
                 resultApplier,
                 serviceAvailability,
                 trackMoveSink,
-                nowBarRenderer,
-                selectedTabRenderer,
                 clearQueueConfirmer,
                 emptyStatusProvider,
                 statusSink ->
@@ -85,8 +83,6 @@ internal object PlaybackUiModule {
                 resultApplier,
                 serviceAvailability,
                 trackMoveSink,
-                nowBarRenderer,
-                selectedTabRenderer,
                 clearQueueConfirmer,
                 emptyStatusProvider,
                 statusSink

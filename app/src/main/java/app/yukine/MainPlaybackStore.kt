@@ -35,19 +35,15 @@ internal class MainPlaybackStore(
     }
 
     /**
-     * Returns the queue already copied for the current playback snapshot when it is still valid.
-     * This lets the Queue screen reuse the event-controller snapshot instead of asking the
-     * service to copy a large queue a second time during the same UI update.
+     * Returns the queue already copied for its published queue revision when it is still valid.
+     * The latest playback snapshot can advance while the Queue tab is hidden, so its revision
+     * alone is not proof that the retained full queue was published for that revision.
      */
     fun publishedQueueFor(snapshot: PlaybackStateSnapshot?): List<Track>? {
         val requestedSnapshot = snapshot ?: return null
         val published = viewModel.playback.value
-        val publishedSnapshot = published.snapshot
         if (
-            publishedSnapshot.queueRevision != requestedSnapshot.queueRevision ||
-            publishedSnapshot.queueSize != requestedSnapshot.queueSize ||
-            publishedSnapshot.currentIndex != requestedSnapshot.currentIndex ||
-            publishedSnapshot.currentTrack?.id != requestedSnapshot.currentTrack?.id ||
+            published.publishedQueueRevision != requestedSnapshot.queueRevision ||
             published.queue.size != requestedSnapshot.queueSize
         ) {
             return null

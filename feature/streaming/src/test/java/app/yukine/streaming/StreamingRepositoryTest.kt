@@ -144,7 +144,7 @@ class StreamingRepositoryTest {
         val dao = FakeStreamingCacheDao()
         val cache = StreamingCacheRepository(dao) { 3_000L }
         val gateway = FakeStreamingGateway(
-            playbackSource = playbackSource("remote-url")
+            playbackSource = playbackSource("https://stream.example.test/remote-url.mp3")
         )
         val repository = StreamingRepository(
             gateway = gateway,
@@ -164,13 +164,42 @@ class StreamingRepositoryTest {
             quality = StreamingAudioQuality.LOSSLESS
         )
 
-        assertEquals("remote-url", first.url)
-        assertEquals("remote-url", second.url)
+        assertEquals("https://stream.example.test/remote-url.mp3", first.url)
+        assertEquals("https://stream.example.test/remote-url.mp3", second.url)
         assertEquals(1, gateway.playbackRequests.size)
         assertEquals(
             3_088L,
             dao.playbacks[Triple("netease", "track-1", "lossless")]?.expiresAtMs
         )
+    }
+
+    @Test
+    fun resolvePlaybackIgnoresInvalidCachedSourceAndResolvesAgain() = runTest {
+        val dao = FakeStreamingCacheDao()
+        val cache = StreamingCacheRepository(dao) { 3_000L }
+        cache.savePlayback(
+            StreamingProviderName.QQ_MUSIC,
+            "track-1",
+            StreamingAudioQuality.STANDARD,
+            StreamingGatewayJson.playbackSourceJson(
+                playbackSource("163.125.230.232;invalid;")
+                    .copy(provider = StreamingProviderName.QQ_MUSIC, providerTrackId = "track-1")
+            ),
+            ttlMs = 60_000L
+        )
+        val gateway = FakeStreamingGateway(
+            playbackSource = playbackSource("https://stream.example.test/refreshed.mp3")
+        )
+        val repository = StreamingRepository(gateway = gateway, cache = cache)
+
+        val source = repository.resolvePlayback(
+            provider = StreamingProviderName.QQ_MUSIC,
+            providerTrackId = "track-1",
+            quality = StreamingAudioQuality.STANDARD
+        )
+
+        assertEquals("https://stream.example.test/refreshed.mp3", source.url)
+        assertEquals(1, gateway.playbackRequests.size)
     }
 
     @Test
@@ -207,7 +236,7 @@ class StreamingRepositoryTest {
         val dao = FakeStreamingCacheDao()
         val cache = StreamingCacheRepository(dao) { 10_000L }
         val gateway = FakeStreamingGateway(
-            playbackSource = playbackSource("expiring-url", expiresAtEpochMs = 15_000L)
+            playbackSource = playbackSource("https://stream.example.test/expiring.mp3", expiresAtEpochMs = 15_000L)
         )
         val repository = StreamingRepository(
             gateway = gateway,

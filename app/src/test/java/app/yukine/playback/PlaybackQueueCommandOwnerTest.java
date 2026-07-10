@@ -66,6 +66,25 @@ public class PlaybackQueueCommandOwnerTest {
     }
 
     @Test
+    public void conflatingQueuePersistenceForceCheckpointInvalidatesPendingSnapshot() {
+        java.util.ArrayDeque<Runnable> scheduled = new java.util.ArrayDeque<>();
+        List<String> saves = new ArrayList<>();
+        PlaybackQueueCommandOwner.QueuePersistence persistence =
+                PlaybackQueueCommandOwner.conflatingQueuePersistence(
+                        scheduled::offerLast,
+                        (tracks, currentIndex) ->
+                                saves.add(tracks.get(0).id + ":" + currentIndex)
+                );
+
+        assertTrue(persistence.persist(java.util.Collections.singletonList(track(1L)), 0));
+        assertTrue(persistence.persistNow(java.util.Collections.singletonList(track(2L)), 1));
+        scheduled.removeFirst().run();
+
+        assertEquals(java.util.Collections.singletonList("2:1"), saves);
+        assertTrue(scheduled.isEmpty());
+    }
+
+    @Test
     public void conflatingQueuePersistenceYieldsBeforeSavingUpdatesArrivingDuringWrite() {
         java.util.ArrayDeque<Runnable> scheduled = new java.util.ArrayDeque<>();
         List<String> saves = new ArrayList<>();

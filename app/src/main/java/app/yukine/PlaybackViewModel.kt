@@ -14,7 +14,9 @@ import kotlinx.coroutines.flow.SharingStarted
 
 data class PlaybackViewState(
     val snapshot: PlaybackStateSnapshot = PlaybackStateSnapshot.empty(),
-    val queue: List<Track> = emptyList()
+    val queue: List<Track> = emptyList(),
+    /** Revision of the snapshot that supplied [queue], or null before a full queue is published. */
+    val publishedQueueRevision: Long? = null
 )
 
 class PlaybackViewModel : ViewModel(), PlaybackSnapshotProvider {
@@ -41,9 +43,11 @@ class PlaybackViewModel : ViewModel(), PlaybackSnapshotProvider {
     }
 
     fun updatePlayback(snapshot: PlaybackStateSnapshot?, queue: List<Track>) {
+        val publishedSnapshot = snapshot ?: PlaybackStateSnapshot.empty()
         playbackState.value = PlaybackViewState(
-            snapshot = snapshot ?: PlaybackStateSnapshot.empty(),
-            queue = queue.toList()
+            snapshot = publishedSnapshot,
+            queue = queue.toList(),
+            publishedQueueRevision = publishedSnapshot.queueRevision
         )
     }
 

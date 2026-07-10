@@ -81,6 +81,7 @@ internal class PlaybackShutdownCoordinator(
         }
         serviceResourcesReleased = true
         lifecycleResources.persistPlaybackPosition()
+        lifecycleResources.persistPlaybackQueue()
         releaseServiceResources()
     }
 

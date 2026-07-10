@@ -1,6 +1,8 @@
 package app.yukine.streaming
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StreamingPlaybackHeadersTest {
@@ -52,6 +54,13 @@ class StreamingPlaybackHeadersTest {
         )
 
         assertEquals(null, runtimeHeaders["Cookie"])
+    }
+
+    @Test
+    fun playbackUrlGuardRejectsQqInvalidIpDiagnostic() {
+        assertFalse(isSupportedPlaybackSourceUrl("163.125.230.232;invalid;"))
+        assertFalse(isSupportedPlaybackSourceUrl("https://163.125.230.232;invalid;/audio.mp3"))
+        assertTrue(isSupportedPlaybackSourceUrl("https://isure.stream.qqmusic.qq.com/C400test.m4a?vkey=test"))
     }
 
     private class FakeAuthStore(

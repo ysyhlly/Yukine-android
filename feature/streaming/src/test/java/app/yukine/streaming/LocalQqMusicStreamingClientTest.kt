@@ -76,6 +76,37 @@ class LocalQqMusicStreamingClientTest {
     }
 
     @Test
+    fun smartboxSearchPreservesMediaMidForPlayback() {
+        val client = LocalQqMusicStreamingClient(
+            FakeAuthStore("uin=o12345; qqmusic_key=local-key"),
+            FakeQqMusicHttpClient(
+                postResponse = JSONObject(),
+                getResponse = JSONObject().put(
+                    "data",
+                    JSONObject().put(
+                        "song",
+                        JSONObject().put(
+                            "itemlist",
+                            JSONArray().put(
+                                JSONObject()
+                                    .put("mid", "song-mid-1")
+                                    .put("strMediaMid", "media-mid-1")
+                                    .put("name", "QQ Song")
+                                    .put("singer", "QQ Artist")
+                            )
+                        )
+                    )
+                )
+            )
+        )
+
+        val track = client.search(StreamingSearchRequest(StreamingProviderName.QQ_MUSIC, "echo")).tracks.single()
+
+        assertEquals("song-mid-1|media-mid-1", track.providerTrackId)
+        assertTrue(track.playbackCandidates.all { it.providerTrackId == "song-mid-1|media-mid-1" })
+    }
+
+    @Test
     fun playlistParsesLegacyTopLevelAlbumAndMediaMidFields() {
         val client = LocalQqMusicStreamingClient(
             FakeAuthStore("uin=o12345; qqmusic_key=local-key"),
@@ -164,8 +195,11 @@ class LocalQqMusicStreamingClientTest {
         assertEquals("json", request.getJSONObject("comm").getString("format"))
         assertEquals(24, request.getJSONObject("comm").getInt("ct"))
         assertEquals(0, request.getJSONObject("comm").getInt("cv"))
+        assertEquals("local-key", request.getJSONObject("comm").getString("authst"))
+        assertEquals("music.audioCdnDispatch.cdnDispatch", request.getJSONObject("req").getString("module"))
         val params = request.getJSONObject("req_0").getJSONObject("param")
-        assertEquals("local-key", params.getString("authst"))
+        assertEquals("music.vkey.GetVkey", request.getJSONObject("req_0").getString("module"))
+        assertEquals("UrlGetVkey", request.getJSONObject("req_0").getString("method"))
         assertEquals(
             "M800media-mid-1.mp3",
             params.getJSONArray("filename").getString(0)
@@ -208,12 +242,12 @@ class LocalQqMusicStreamingClientTest {
     }
 
     @Test
-    fun resolvePlaybackFallsBackToLegacyCombinedFilenameAfterCanonicalCandidates() {
+    fun resolvePlaybackFallsBackToStandardUrlGetVkeyQuality() {
         val httpClient = FakeQqMusicHttpClient(
             postResponses = listOf(
                 vkeyResponse(purl = ""),
                 vkeyResponse(purl = ""),
-                vkeyResponse(purl = "M800media-mid-1.mp3?vkey=test")
+                vkeyResponse(purl = "M500media-mid-1.mp3?vkey=test")
             )
         )
         val client = LocalQqMusicStreamingClient(
@@ -229,12 +263,12 @@ class LocalQqMusicStreamingClientTest {
             )
         )
 
-        assertEquals("https://stream.qq.example/M800media-mid-1.mp3?vkey=test", source.url)
+        assertEquals("https://stream.qq.example/M500media-mid-1.mp3?vkey=test", source.url)
         assertEquals(
             listOf(
                 "M800media-mid-1.mp3",
                 "C600media-mid-1.m4a",
-                "M800song-mid-1media-mid-1.mp3"
+                "M500media-mid-1.mp3"
             ),
             httpClient.postBodies.map { body ->
                 body.getJSONObject("req_0")
@@ -319,6 +353,150 @@ class LocalQqMusicStreamingClientTest {
     }
 
     @Test
+    fun resolvePlaybackUsesValidDispatchSipWhenVkeySipIsInvalid() {
+        val response = vkeyResponse(
+            purl = "M800media-mid-1.mp3?vkey=test",
+            sip = listOf("163.125.230.232;invalid;")
+        ).put(
+            "req",
+            JSONObject().put(
+                "data",
+                JSONObject().put("sip", JSONArray().put("https://dispatch.qq.example/"))
+            )
+        )
+        val httpClient = FakeQqMusicHttpClient(postResponse = response)
+        val client = LocalQqMusicStreamingClient(
+            FakeAuthStore("uin=o12345; qqmusic_key=local-key"),
+            httpClient
+        )
+
+        val source = client.resolvePlayback(
+            StreamingPlaybackRequest(
+                provider = StreamingProviderName.QQ_MUSIC,
+                providerTrackId = "song-mid-1|media-mid-1",
+                quality = StreamingAudioQuality.HIGH
+            )
+        )
+
+        assertEquals("https://dispatch.qq.example/M800media-mid-1.mp3?vkey=test", source.url)
+    }
+
+    @Test
+    fun resolvePlaybackUsesDefaultHttpsCdnWhenAllSipsAreInvalid() {
+        val client = LocalQqMusicStreamingClient(
+            FakeAuthStore("uin=o12345; qqmusic_key=local-key"),
+            FakeQqMusicHttpClient(
+                postResponse = vkeyResponse(
+                    purl = "M800media-mid-1.mp3?vkey=test",
+                    sip = listOf("163.125.230.232;invalid;")
+                )
+            )
+        )
+
+        val source = client.resolvePlayback(
+            StreamingPlaybackRequest(
+                provider = StreamingProviderName.QQ_MUSIC,
+                providerTrackId = "song-mid-1|media-mid-1",
+                quality = StreamingAudioQuality.HIGH
+            )
+        )
+
+        assertEquals(
+            "https://isure.stream.qqmusic.qq.com/M800media-mid-1.mp3?vkey=test",
+            source.url
+        )
+    }
+
+    @Test
+    fun resolvePlaybackHidesQqIpInvalidDiagnostic() {
+        val response = JSONObject().put(
+            "req_0",
+            JSONObject()
+                .put("code", 104009)
+                .put(
+                    "data",
+                    JSONObject()
+                        .put("retcode", 104009)
+                        .put("msg", "163.125.230.232;invalid;")
+                        .put("midurlinfo", JSONArray().put(JSONObject().put("purl", "")))
+                )
+        )
+        val httpClient = FakeQqMusicHttpClient(postResponse = response)
+        val client = LocalQqMusicStreamingClient(
+            FakeAuthStore("uin=o12345; qqmusic_key=local-key"),
+            httpClient
+        )
+
+        val error = runCatching {
+            client.resolvePlayback(
+                StreamingPlaybackRequest(
+                    provider = StreamingProviderName.QQ_MUSIC,
+                    providerTrackId = "song-mid-1|media-mid-1",
+                    quality = StreamingAudioQuality.HIGH
+                )
+            )
+        }.exceptionOrNull()
+
+        assertTrue(error is StreamingGatewayException)
+        assertEquals(StreamingErrorCode.SOURCE_UNAVAILABLE, (error as StreamingGatewayException).code)
+        assertTrue(error.message.orEmpty().contains("IP 校验失败"))
+        assertFalse(error.message.orEmpty().contains("163.125.230.232"))
+        assertEquals(1, httpClient.postBodies.size)
+    }
+
+    @Test
+    fun resolvePlaybackUsesOnlyUrlGetVkeyAndNewCdnDispatch() {
+        val httpClient = FakeQqMusicHttpClient(
+            postResponse = vkeyResponse(purl = "M500media-mid-1.mp3?vkey=test")
+        )
+        val client = LocalQqMusicStreamingClient(
+            FakeAuthStore("uin=o12345; qqmusic_key=local-key"),
+            httpClient
+        )
+
+        val source = client.resolvePlayback(
+            StreamingPlaybackRequest(
+                provider = StreamingProviderName.QQ_MUSIC,
+                providerTrackId = "song-mid-1|media-mid-1",
+                quality = StreamingAudioQuality.STANDARD
+            )
+        )
+
+        assertEquals("https://stream.qq.example/M500media-mid-1.mp3?vkey=test", source.url)
+        val request = httpClient.postBodies.last()
+        assertEquals("music.vkey.GetVkey", request.getJSONObject("req_0").getString("module"))
+        assertEquals("UrlGetVkey", request.getJSONObject("req_0").getString("method"))
+        assertEquals("M500media-mid-1.mp3", request.getJSONObject("req_0").getJSONObject("param")
+            .getJSONArray("filename").getString(0))
+        assertEquals("music.audioCdnDispatch.cdnDispatch", request.getJSONObject("req").getString("module"))
+        assertEquals(1, httpClient.postBodies.size)
+    }
+
+    @Test
+    fun resolvePlaybackUrlGetVkeyUsesDoubleSongMidWhenMediaMidIsMissing() {
+        val httpClient = FakeQqMusicHttpClient(
+            postResponse = vkeyResponse(purl = "M500song-mid-1song-mid-1.mp3?vkey=test")
+        )
+        val client = LocalQqMusicStreamingClient(
+            FakeAuthStore("uin=o12345; qqmusic_key=local-key"),
+            httpClient
+        )
+
+        client.resolvePlayback(
+            StreamingPlaybackRequest(
+                provider = StreamingProviderName.QQ_MUSIC,
+                providerTrackId = "song-mid-1",
+                quality = StreamingAudioQuality.STANDARD
+            )
+        )
+
+        val fileName = httpClient.postBodies.last().getJSONObject("req_0").getJSONObject("param")
+            .getJSONArray("filename").getString(0)
+        assertEquals("M500song-mid-1song-mid-1.mp3", fileName)
+        assertEquals(1, httpClient.postBodies.size)
+    }
+
+    @Test
     fun resolvePlaybackRejectsNameOnlyCredentialCookie() {
         // QQ Music can set a name-only placeholder (e.g. `qm_keyst=`) before issuing the real
         // credential. Login must not treat that as success and playback must reject it, otherwise
@@ -370,8 +548,8 @@ class LocalQqMusicStreamingClientTest {
         )
 
         assertEquals("https://stream.qq.example/C400media-mid-1.m4a?vkey=test", source.url)
-        val params = httpClient.postBodies.single().getJSONObject("req_0").getJSONObject("param")
-        assertEquals("real-keyst-value", params.getString("authst"))
+        val comm = httpClient.postBodies.single().getJSONObject("comm")
+        assertEquals("real-keyst-value", comm.getString("authst"))
     }
 
     @Test
@@ -394,6 +572,7 @@ class LocalQqMusicStreamingClientTest {
 
         val params = httpClient.postBodies.single().getJSONObject("req_0").getJSONObject("param")
         assertFalse(params.has("authst"))
+        assertFalse(httpClient.postBodies.single().getJSONObject("comm").has("authst"))
         assertEquals("uin=o12345; psrf_qqaccess_token=access-token", httpClient.postHeaders.single()["Cookie"])
     }
 
