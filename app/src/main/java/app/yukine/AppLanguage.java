@@ -90,10 +90,18 @@ public final class AppLanguage {
         put("settings.group.lyrics.description", "Online lyrics, reload, and timing offset.", "\u5728\u7ebf\u6b4c\u8bcd\u3001\u91cd\u8f7d\u548c\u65f6\u95f4\u504f\u79fb\u3002");
         put("settings.group.sources.description", "Streaming accounts, remote sources, quality, and gateway.", "\u6d41\u5a92\u4f53\u8d26\u53f7\u3001\u8fdc\u7a0b\u6765\u6e90\u3001\u97f3\u8d28\u548c\u7f51\u5173\u3002");
         put("settings.group.about.description", "App status and version.", "\u5e94\u7528\u72b6\u6001\u548c\u7248\u672c\u4fe1\u606f\u3002");
+        put("settings.start", "Getting started", "\u5f00\u59cb\u8bbe\u7f6e");
+        put("settings.start.hint", "Add your music first; you can change the rest later.", "\u5148\u6dfb\u52a0\u97f3\u4e50\uff0c\u5176\u4ed6\u9009\u9879\u53ef\u968f\u65f6\u518d\u8c03\u6574\u3002");
+        put("settings.section.start", "Start here", "\u4ece\u8fd9\u91cc\u5f00\u59cb");
+        put("settings.section.more", "More & maintenance", "\u66f4\u591a\u4e0e\u7ef4\u62a4");
+        put("settings.choose.hint", "Tap to choose", "\u70b9\u51fb\u9009\u62e9");
+        put("settings.grant.music.access", "Grant music access", "\u6388\u6743\u8bbf\u95ee\u97f3\u4e50");
+        put("settings.grant.music.access.hint", "Allow Yukine to scan and play music stored on this device.", "\u5141\u8bb8 Yukine \u626b\u63cf\u5e76\u64ad\u653e\u6b64\u8bbe\u5907\u4e0a\u7684\u97f3\u4e50\u3002");
         put("advanced", "Advanced", "\u9ad8\u7ea7");
         put("version", "Version", "\u7248\u672c");
         put("backup.export", "Export backup", "\u5bfc\u51fa\u5907\u4efd");
         put("backup.import", "Import backup", "\u5bfc\u5165\u5907\u4efd");
+        put("backup.import.description", "Replaces the current library, history, and settings.", "\u5c06\u8986\u76d6\u5f53\u524d\u66f2\u5e93\u3001\u64ad\u653e\u8bb0\u5f55\u548c\u8bbe\u7f6e\u3002");
         put("backup.export.success", "Backup exported", "\u5907\u4efd\u5df2\u5bfc\u51fa");
         put("backup.export.failed", "Export failed", "\u5bfc\u51fa\u5931\u8d25");
         put("backup.import.success", "Backup imported, restart to apply", "\u5907\u4efd\u5df2\u5bfc\u5165\uff0c\u8bf7\u91cd\u542f\u5e94\u7528");

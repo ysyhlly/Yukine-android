@@ -43,32 +43,86 @@ internal object SettingsPageStateBuilder {
     }
 
     fun home(
-        themeMode: String,
-        accentMode: String,
         languageMode: String,
         audioPermissionGranted: Boolean,
         notificationPermissionGranted: Boolean,
         playbackServiceConnected: Boolean,
         onNavigate: (SettingsPage) -> Unit,
+        onRequestNeededPermissions: () -> Unit,
         onOpenDownloads: () -> Unit
     ): SettingsPageStateContent {
         val metrics = listOf(
-            SettingsMetric(text(languageMode, "theme"), AppLanguage.themeLabel(themeMode, languageMode)),
-            SettingsMetric(text(languageMode, "accent"), AppLanguage.accentLabel(accentMode, languageMode)),
-            SettingsMetric(text(languageMode, "language"), AppLanguage.labelFor(languageMode)),
+            SettingsMetric(
+                text(languageMode, "settings.start"),
+                text(languageMode, "settings.start.hint"),
+                compact = true
+            ),
             SettingsMetric(text(languageMode, "audio.permission"), permissionLabel(audioPermissionGranted, languageMode)),
             SettingsMetric(text(languageMode, "notification.permission"), permissionLabel(notificationPermissionGranted, languageMode)),
             SettingsMetric(text(languageMode, "playback.service"), if (playbackServiceConnected) text(languageMode, "connected") else text(languageMode, "disconnected"))
         )
-        val actions = listOf(
-            groupNavigationAction(languageMode, "appearance", SettingsPage.AppearanceGroup, onNavigate),
-            groupNavigationAction(languageMode, "playback", SettingsPage.PlaybackGroup, onNavigate),
-            groupNavigationAction(languageMode, "library", SettingsPage.LibraryGroup, onNavigate),
-            groupNavigationAction(languageMode, "lyrics", SettingsPage.LyricsGroup, onNavigate),
-            groupNavigationAction(languageMode, "sources", SettingsPage.SourcesGroup, onNavigate),
-            SettingsAction(text(languageMode, "download.manager"), Runnable { onOpenDownloads() }, text(languageMode, "download.manager.hint")),
-            groupNavigationAction(languageMode, "about", SettingsPage.AboutGroup, onNavigate)
-        )
+        val actions = buildList {
+            if (!audioPermissionGranted) {
+                add(
+                    SettingsAction(
+                        label = text(languageMode, "settings.grant.music.access"),
+                        onClick = Runnable { onRequestNeededPermissions() },
+                        description = text(languageMode, "settings.grant.music.access.hint"),
+                        style = SettingsActionStyle.Navigation,
+                        section = text(languageMode, "settings.section.start")
+                    )
+                )
+            }
+            add(groupNavigationAction(
+                languageMode,
+                "library",
+                SettingsPage.LibraryGroup,
+                onNavigate,
+                text(languageMode, "settings.section.start")
+            ))
+            add(groupNavigationAction(
+                languageMode,
+                "playback",
+                SettingsPage.PlaybackGroup,
+                onNavigate,
+                text(languageMode, "settings.section.start")
+            ))
+            add(groupNavigationAction(
+                languageMode,
+                "lyrics",
+                SettingsPage.LyricsGroup,
+                onNavigate,
+                text(languageMode, "settings.section.start")
+            ))
+            add(groupNavigationAction(
+                languageMode,
+                "appearance",
+                SettingsPage.AppearanceGroup,
+                onNavigate,
+                text(languageMode, "settings.section.start")
+            ))
+            add(groupNavigationAction(
+                languageMode,
+                "sources",
+                SettingsPage.SourcesGroup,
+                onNavigate,
+                text(languageMode, "settings.section.more")
+            ))
+            add(SettingsAction(
+                label = text(languageMode, "download.manager"),
+                onClick = Runnable { onOpenDownloads() },
+                description = text(languageMode, "download.manager.hint"),
+                style = SettingsActionStyle.Navigation,
+                section = text(languageMode, "settings.section.more")
+            ))
+            add(groupNavigationAction(
+                languageMode,
+                "about",
+                SettingsPage.AboutGroup,
+                onNavigate,
+                text(languageMode, "settings.section.more")
+            ))
+        }
         return buildContent(text(languageMode, "tab.settings"), metrics, actions)
     }
 
@@ -90,7 +144,12 @@ internal object SettingsPageStateBuilder {
         val actions = listOf(
             navigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
             SettingsAction(text(languageMode, "backup.export"), Runnable { onExportBackup() }),
-            SettingsAction(text(languageMode, "backup.import"), Runnable { onImportBackup() })
+            SettingsAction(
+                label = text(languageMode, "backup.import"),
+                onClick = Runnable { onImportBackup() },
+                description = text(languageMode, "backup.import.description"),
+                style = SettingsActionStyle.Destructive
+            )
         )
         return buildContent(groupTitle(languageMode, "about"), metrics, actions)
     }
@@ -111,14 +170,33 @@ internal object SettingsPageStateBuilder {
         )
         val actions = listOf(
             navigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
-            navigationAction(text(languageMode, "appearance"), SettingsPage.Appearance, onNavigate),
-            navigationAction(text(languageMode, "accent"), SettingsPage.Accent, onNavigate),
-            navigationAction(text(languageMode, "language"), SettingsPage.Language, onNavigate),
+            navigationAction(
+                text(languageMode, "appearance"),
+                SettingsPage.Appearance,
+                onNavigate,
+                text(languageMode, "settings.choose.hint"),
+                AppLanguage.themeLabel(themeMode, languageMode)
+            ),
+            navigationAction(
+                text(languageMode, "accent"),
+                SettingsPage.Accent,
+                onNavigate,
+                text(languageMode, "settings.choose.hint"),
+                AppLanguage.accentLabel(accentMode, languageMode)
+            ),
+            navigationAction(
+                text(languageMode, "language"),
+                SettingsPage.Language,
+                onNavigate,
+                text(languageMode, "settings.choose.hint"),
+                AppLanguage.labelFor(languageMode)
+            ),
             navigationAction(
                 text(languageMode, "page.background"),
                 SettingsPage.PageBackground,
                 onNavigate,
-                text(languageMode, "page.background.hint")
+                text(languageMode, "page.background.hint"),
+                pageBackgroundSummary(pageBackgrounds, languageMode)
             )
         )
         return buildContent(groupTitle(languageMode, "appearance"), metrics, actions)
@@ -141,14 +219,32 @@ internal object SettingsPageStateBuilder {
         )
         val actions = listOf(
             navigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
-            SettingsAction(text(languageMode, "remote.music.sources"), Runnable { onOpenNetworkSources() }, text(languageMode, "remote.music.sources.hint")),
-            navigationAction(text(languageMode, "streaming.audio.quality"), SettingsPage.StreamingAudioQuality, onNavigate, text(languageMode, "streaming.audio.quality.hint")),
-            navigationAction(text(languageMode, "share.style"), SettingsPage.ShareStyle, onNavigate, text(languageMode, "share.style.hint")),
+            SettingsAction(
+                label = text(languageMode, "remote.music.sources"),
+                onClick = Runnable { onOpenNetworkSources() },
+                description = text(languageMode, "remote.music.sources.hint"),
+                style = SettingsActionStyle.Navigation
+            ),
+            navigationAction(
+                text(languageMode, "streaming.audio.quality"),
+                SettingsPage.StreamingAudioQuality,
+                onNavigate,
+                text(languageMode, "streaming.audio.quality.hint"),
+                streamingQualityLabel(normalizedQuality, languageMode)
+            ),
+            navigationAction(
+                text(languageMode, "share.style"),
+                SettingsPage.ShareStyle,
+                onNavigate,
+                text(languageMode, "share.style.hint"),
+                shareStyleLabel(shareStyle, languageMode)
+            ),
             navigationAction(
                 text(languageMode, "advanced") + " · " + text(languageMode, "streaming.gateway"),
                 SettingsPage.StreamingGateway,
                 onNavigate,
-                text(languageMode, "streaming.gateway.hint")
+                text(languageMode, "streaming.gateway.hint"),
+                if (gatewayConfigured) text(languageMode, "connected") else text(languageMode, "missing")
             )
         )
         return buildContent(groupTitle(languageMode, "sources"), metrics, actions)
@@ -164,7 +260,11 @@ internal object SettingsPageStateBuilder {
         playbackRestoreEnabled: Boolean,
         replayGainEnabled: Boolean,
         remainingMs: Long,
-        onNavigate: (SettingsPage) -> Unit
+        onNavigate: (SettingsPage) -> Unit,
+        onReplayGainEnabledChange: (Boolean) -> Unit = {},
+        onNowPlayingGesturesEnabledChange: (Boolean) -> Unit = {},
+        onPlaybackRestoreEnabledChange: (Boolean) -> Unit = {},
+        onAudioExclusiveEnabledChange: (Boolean) -> Unit = {}
     ): SettingsPageStateContent {
         val metrics = listOf(
             SettingsMetric(text(languageMode, "playback.speed"), playbackSpeedLabel(playbackSpeed)),
@@ -178,14 +278,62 @@ internal object SettingsPageStateBuilder {
         )
         val actions = listOf(
             navigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
-            navigationAction(text(languageMode, "playback.speed"), SettingsPage.PlaybackSpeed, onNavigate),
-            navigationAction(text(languageMode, "app.volume"), SettingsPage.AppVolume, onNavigate),
-            navigationAction(text(languageMode, "audio.effects"), SettingsPage.AudioEffects, onNavigate, text(languageMode, "audio.effects.hint")),
-            navigationAction(text(languageMode, "replay.gain"), SettingsPage.ReplayGain, onNavigate, text(languageMode, "replay.gain.hint")),
-            navigationAction(text(languageMode, "now.playing.gestures"), SettingsPage.NowPlayingGestures, onNavigate, text(languageMode, "now.playing.gestures.hint")),
-            navigationAction(text(languageMode, "playback.restore"), SettingsPage.PlaybackRestore, onNavigate, text(languageMode, "playback.restore.hint")),
-            navigationAction(text(languageMode, "audio.exclusive"), SettingsPage.ConcurrentPlayback, onNavigate, text(languageMode, "audio.exclusive.hint")),
-            navigationAction(text(languageMode, "sleep.timer"), SettingsPage.SleepTimer, onNavigate)
+            navigationAction(
+                text(languageMode, "playback.speed"),
+                SettingsPage.PlaybackSpeed,
+                onNavigate,
+                text(languageMode, "speed.description"),
+                playbackSpeedLabel(playbackSpeed)
+            ),
+            navigationAction(
+                text(languageMode, "app.volume"),
+                SettingsPage.AppVolume,
+                onNavigate,
+                text(languageMode, "volume.description"),
+                appVolumeLabel(appVolume)
+            ),
+            navigationAction(
+                text(languageMode, "audio.effects"),
+                SettingsPage.AudioEffects,
+                onNavigate,
+                text(languageMode, "audio.effects.hint"),
+                audioEffectsLabel(audioEffects, languageMode)
+            ),
+            SettingsAction(
+                label = text(languageMode, "replay.gain"),
+                onClick = Runnable { onReplayGainEnabledChange(!replayGainEnabled) },
+                description = text(languageMode, "replay.gain.hint"),
+                style = SettingsActionStyle.Toggle,
+                checked = replayGainEnabled
+            ),
+            SettingsAction(
+                label = text(languageMode, "now.playing.gestures"),
+                onClick = Runnable { onNowPlayingGesturesEnabledChange(!nowPlayingGesturesEnabled) },
+                description = text(languageMode, "now.playing.gestures.hint"),
+                style = SettingsActionStyle.Toggle,
+                checked = nowPlayingGesturesEnabled
+            ),
+            SettingsAction(
+                label = text(languageMode, "playback.restore"),
+                onClick = Runnable { onPlaybackRestoreEnabledChange(!playbackRestoreEnabled) },
+                description = text(languageMode, "playback.restore.hint"),
+                style = SettingsActionStyle.Toggle,
+                checked = playbackRestoreEnabled
+            ),
+            SettingsAction(
+                label = text(languageMode, "audio.exclusive"),
+                onClick = Runnable { onAudioExclusiveEnabledChange(concurrentPlaybackEnabled) },
+                description = text(languageMode, "audio.exclusive.hint"),
+                style = SettingsActionStyle.Toggle,
+                checked = !concurrentPlaybackEnabled
+            ),
+            navigationAction(
+                text(languageMode, "sleep.timer"),
+                SettingsPage.SleepTimer,
+                onNavigate,
+                text(languageMode, "sleep.timer.description"),
+                sleepTimerLabel(remainingMs, languageMode)
+            )
         )
         return buildContent(groupTitle(languageMode, "playback"), metrics, actions)
     }
@@ -414,8 +562,11 @@ internal object SettingsPageStateBuilder {
             add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.AudioEffects), onNavigate))
             add(
                 SettingsAction(
-                    if (effects.enabled) text(languageMode, "disable.audio.effects") else text(languageMode, "enable.audio.effects"),
-                    Runnable { onApplyAudioEffects(effects.withEnabled(!effects.enabled)) }
+                    label = text(languageMode, "audio.effects"),
+                    onClick = Runnable { onApplyAudioEffects(effects.withEnabled(!effects.enabled)) },
+                    description = text(languageMode, "audio.effects.description"),
+                    style = SettingsActionStyle.Toggle,
+                    checked = effects.enabled
                 )
             )
             listOf(AudioEffectSettings.PRESET_CUSTOM, 0, 1, 2).forEach { preset ->
@@ -467,12 +618,22 @@ internal object SettingsPageStateBuilder {
         val actions = buildList {
             add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.FloatingLyrics), onNavigate))
             if (!overlayPermissionGranted) {
-                add(SettingsAction(text(languageMode, "grant.overlay.permission"), Runnable { onOpenPermission() }))
+                add(
+                    SettingsAction(
+                        label = text(languageMode, "grant.overlay.permission"),
+                        onClick = Runnable { onOpenPermission() },
+                        description = text(languageMode, "floating.lyrics.description"),
+                        style = SettingsActionStyle.Navigation
+                    )
+                )
             }
             add(
                 SettingsAction(
-                    if (enabled) text(languageMode, "disable.floating.lyrics") else text(languageMode, "enable.floating.lyrics"),
-                    Runnable { onToggle(!enabled) }
+                    label = text(languageMode, "floating.lyrics"),
+                    onClick = Runnable { onToggle(!enabled) },
+                    description = text(languageMode, "floating.lyrics.description"),
+                    style = SettingsActionStyle.Toggle,
+                    checked = enabled
                 )
             )
         }
@@ -493,9 +654,24 @@ internal object SettingsPageStateBuilder {
         val actions = buildList {
             add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.SleepTimer), onNavigate))
             listOf(15, 30, 45, 60, 90).forEach { minutes ->
-                add(SettingsAction(minutes.toString() + text(languageMode, "min"), Runnable { onStartTimer(minutes) }))
+                add(
+                    SettingsAction(
+                        label = minutes.toString() + text(languageMode, "min"),
+                        onClick = Runnable { onStartTimer(minutes) },
+                        style = SettingsActionStyle.Choice,
+                        checked = remainingMs > 0L && abs(remainingMs - minutes * 60_000L) < 60_000L
+                    )
+                )
             }
-            add(SettingsAction(text(languageMode, "cancel.sleep.timer"), Runnable { onCancelTimer() }))
+            if (remainingMs > 0L) {
+                add(
+                    SettingsAction(
+                        label = text(languageMode, "cancel.sleep.timer"),
+                        onClick = Runnable { onCancelTimer() },
+                        style = SettingsActionStyle.Destructive
+                    )
+                )
+            }
         }
         return buildContent(text(languageMode, "sleep.timer"), metrics, actions)
     }
@@ -513,7 +689,14 @@ internal object SettingsPageStateBuilder {
         val actions = buildList {
             add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.PlaybackSpeed), onNavigate))
             listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { speed ->
-                add(SettingsAction(selectedFloatLabel(playbackSpeedLabel(speed), normalizePlaybackSpeed(playbackSpeed), normalizePlaybackSpeed(speed), languageMode), Runnable { onApplySpeed(speed) }))
+                add(
+                    SettingsAction(
+                        label = playbackSpeedLabel(speed),
+                        onClick = Runnable { onApplySpeed(speed) },
+                        style = SettingsActionStyle.Choice,
+                        checked = abs(normalizePlaybackSpeed(playbackSpeed) - normalizePlaybackSpeed(speed)) < 0.01f
+                    )
+                )
             }
         }
         return buildContent(text(languageMode, "playback.speed"), metrics, actions)
@@ -532,7 +715,14 @@ internal object SettingsPageStateBuilder {
         val actions = buildList {
             add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.AppVolume), onNavigate))
             listOf(0.5f, 0.7f, 0.85f, 1.0f).forEach { volume ->
-                add(SettingsAction(selectedFloatLabel(appVolumeLabel(volume), normalizeAppVolume(appVolume), normalizeAppVolume(volume), languageMode), Runnable { onApplyVolume(volume) }))
+                add(
+                    SettingsAction(
+                        label = appVolumeLabel(volume),
+                        onClick = Runnable { onApplyVolume(volume) },
+                        style = SettingsActionStyle.Choice,
+                        checked = abs(normalizeAppVolume(appVolume) - normalizeAppVolume(volume)) < 0.01f
+                    )
+                )
             }
         }
         return buildContent(text(languageMode, "app.volume"), metrics, actions)
@@ -557,9 +747,12 @@ internal object SettingsPageStateBuilder {
                 val audioQuality = StreamingAudioQuality.fromWireName(normalizedOption)
                 add(
                     SettingsAction(
-                        selectedStringLabel(streamingQualityLabel(normalizedOption, languageMode), normalizedQuality, normalizedOption, languageMode),
-                        Runnable { onApplyQuality(normalizedOption) },
-                        audioQuality?.let { StreamingQualityPlatformMapping.explanation(it, languageMode) }.orEmpty()
+                        label = streamingQualityLabel(normalizedOption, languageMode),
+                        onClick = Runnable { onApplyQuality(normalizedOption) },
+                        description = audioQuality?.let { StreamingQualityPlatformMapping.explanation(it, languageMode) }.orEmpty(),
+                        style = SettingsActionStyle.Choice,
+                        checked = StreamingQualityPreference.normalize(normalizedQuality) ==
+                            StreamingQualityPreference.normalize(normalizedOption)
                     )
                 )
             }
@@ -584,8 +777,10 @@ internal object SettingsPageStateBuilder {
                 val normalizedOption = TrackShareStyle.normalize(option)
                 add(
                     SettingsAction(
-                        selectedStyleLabel(shareStyleLabel(normalizedOption, languageMode), normalizedStyle, normalizedOption, languageMode),
-                        Runnable { onApplyStyle(normalizedOption) }
+                        label = shareStyleLabel(normalizedOption, languageMode),
+                        onClick = Runnable { onApplyStyle(normalizedOption) },
+                        style = SettingsActionStyle.Choice,
+                        checked = TrackShareStyle.normalize(normalizedStyle) == TrackShareStyle.normalize(normalizedOption)
                     )
                 )
             }
@@ -652,6 +847,7 @@ internal object SettingsPageStateBuilder {
         onNavigate: (SettingsPage) -> Unit,
         onOnlineLyricsEnabledChange: (Boolean) -> Unit,
         onSystemMediaLyricsTitleEnabledChange: (Boolean) -> Unit,
+        onStatusBarLyricsEnabledChange: (Boolean) -> Unit = {},
         onReloadLyrics: () -> Unit,
         onApplyLyricsOffset: (Long) -> Unit
     ): SettingsPageStateContent = lyricsContent(
@@ -667,6 +863,7 @@ internal object SettingsPageStateBuilder {
         onNavigate = onNavigate,
         onOnlineLyricsEnabledChange = onOnlineLyricsEnabledChange,
         onSystemMediaLyricsTitleEnabledChange = onSystemMediaLyricsTitleEnabledChange,
+        onStatusBarLyricsEnabledChange = onStatusBarLyricsEnabledChange,
         onReloadLyrics = onReloadLyrics,
         onApplyLyricsOffset = onApplyLyricsOffset
     )
@@ -682,6 +879,7 @@ internal object SettingsPageStateBuilder {
         onNavigate: (SettingsPage) -> Unit,
         onOnlineLyricsEnabledChange: (Boolean) -> Unit,
         onSystemMediaLyricsTitleEnabledChange: (Boolean) -> Unit,
+        onStatusBarLyricsEnabledChange: (Boolean) -> Unit = {},
         onReloadLyrics: () -> Unit,
         onApplyLyricsOffset: (Long) -> Unit
     ): SettingsPageStateContent = lyricsContent(
@@ -697,6 +895,7 @@ internal object SettingsPageStateBuilder {
         onNavigate = onNavigate,
         onOnlineLyricsEnabledChange = onOnlineLyricsEnabledChange,
         onSystemMediaLyricsTitleEnabledChange = onSystemMediaLyricsTitleEnabledChange,
+        onStatusBarLyricsEnabledChange = onStatusBarLyricsEnabledChange,
         onReloadLyrics = onReloadLyrics,
         onApplyLyricsOffset = onApplyLyricsOffset
     )
@@ -714,6 +913,7 @@ internal object SettingsPageStateBuilder {
         onNavigate: (SettingsPage) -> Unit,
         onOnlineLyricsEnabledChange: (Boolean) -> Unit,
         onSystemMediaLyricsTitleEnabledChange: (Boolean) -> Unit,
+        onStatusBarLyricsEnabledChange: (Boolean) -> Unit,
         onReloadLyrics: () -> Unit,
         onApplyLyricsOffset: (Long) -> Unit
     ): SettingsPageStateContent {
@@ -731,24 +931,40 @@ internal object SettingsPageStateBuilder {
             add(navigationAction(text(languageMode, "back"), backPage, onNavigate))
             add(
                 SettingsAction(
-                    if (onlineLyricsEnabled) text(languageMode, "disable.online.lyrics") else text(languageMode, "enable.online.lyrics"),
-                    Runnable { onOnlineLyricsEnabledChange(!onlineLyricsEnabled) }
+                    label = text(languageMode, "online.lyrics"),
+                    onClick = Runnable { onOnlineLyricsEnabledChange(!onlineLyricsEnabled) },
+                    style = SettingsActionStyle.Toggle,
+                    checked = onlineLyricsEnabled
                 )
             )
             add(SettingsAction(text(languageMode, "reload.lyrics"), Runnable { onReloadLyrics() }))
-            add(navigationAction(text(languageMode, "status.bar.lyrics"), SettingsPage.StatusBarLyrics, onNavigate))
             add(
                 SettingsAction(
-                    if (systemMediaLyricsTitleEnabled) {
-                        text(languageMode, "disable.system.media.lyrics.title")
-                    } else {
-                        text(languageMode, "enable.system.media.lyrics.title")
-                    },
-                    Runnable { onSystemMediaLyricsTitleEnabledChange(!systemMediaLyricsTitleEnabled) },
-                    text(languageMode, "system.media.lyrics.title.description")
+                    label = text(languageMode, "status.bar.lyrics"),
+                    onClick = Runnable { onStatusBarLyricsEnabledChange(!statusBarLyricsEnabled) },
+                    description = text(languageMode, "status.bar.lyrics.description"),
+                    style = SettingsActionStyle.Toggle,
+                    checked = statusBarLyricsEnabled
                 )
             )
-            add(navigationAction(text(languageMode, "floating.lyrics"), SettingsPage.FloatingLyrics, onNavigate))
+            add(
+                SettingsAction(
+                    label = text(languageMode, "system.media.lyrics.title"),
+                    onClick = Runnable { onSystemMediaLyricsTitleEnabledChange(!systemMediaLyricsTitleEnabled) },
+                    description = text(languageMode, "system.media.lyrics.title.description"),
+                    style = SettingsActionStyle.Toggle,
+                    checked = systemMediaLyricsTitleEnabled
+                )
+            )
+            add(
+                navigationAction(
+                    text(languageMode, "floating.lyrics"),
+                    SettingsPage.FloatingLyrics,
+                    onNavigate,
+                    text(languageMode, "floating.lyrics.description"),
+                    enabledLabel(floatingLyricsEnabled, languageMode)
+                )
+            )
             listOf(-1000L, -500L, 0L, 500L, 1000L).forEach { offset ->
                 add(lyricsOffsetAction(languageMode, offsetMs, offset, onApplyLyricsOffset))
             }
@@ -760,25 +976,44 @@ internal object SettingsPageStateBuilder {
         languageMode: String,
         key: String,
         page: SettingsPage,
-        onNavigate: (SettingsPage) -> Unit
+        onNavigate: (SettingsPage) -> Unit,
+        section: String = ""
     ): SettingsAction = SettingsAction(
-        groupTitle(languageMode, key),
-        Runnable { onNavigate(page) },
-        groupDescription(languageMode, key)
+        label = groupTitle(languageMode, key),
+        onClick = Runnable { onNavigate(page) },
+        description = groupDescription(languageMode, key),
+        style = SettingsActionStyle.Navigation,
+        section = section
     )
 
     private fun navigationAction(
         label: String,
         page: SettingsPage,
         onNavigate: (SettingsPage) -> Unit
-    ): SettingsAction = SettingsAction(label, Runnable { onNavigate(page) })
+    ): SettingsAction = SettingsAction(
+        label = label,
+        onClick = Runnable { onNavigate(page) },
+        style = SettingsActionStyle.Navigation,
+        isBack = isBackLabel(label)
+    )
 
     private fun navigationAction(
         label: String,
         page: SettingsPage,
         onNavigate: (SettingsPage) -> Unit,
-        description: String
-    ): SettingsAction = SettingsAction(label, Runnable { onNavigate(page) }, description)
+        description: String,
+        value: String = ""
+    ): SettingsAction = SettingsAction(
+        label = label,
+        onClick = Runnable { onNavigate(page) },
+        description = description,
+        value = value,
+        style = SettingsActionStyle.Navigation,
+        isBack = isBackLabel(label)
+    )
+
+    private fun isBackLabel(label: String): Boolean =
+        label.startsWith("Back", ignoreCase = true) || label.contains("返回")
 
     private fun permissionLabel(granted: Boolean, languageMode: String): String =
         if (granted) text(languageMode, "granted") else text(languageMode, "missing")
@@ -801,8 +1036,11 @@ internal object SettingsPageStateBuilder {
         val actions = listOf(
             navigationAction(text(languageMode, "back"), SettingsBackStack.parent(currentPage), onNavigate),
             SettingsAction(
-                if (enabled) text(languageMode, disableKey) else text(languageMode, enableKey),
-                Runnable { onToggle(!enabled) }
+                label = text(languageMode, titleKey),
+                onClick = Runnable { onToggle(!enabled) },
+                description = text(languageMode, descriptionKey),
+                style = SettingsActionStyle.Toggle,
+                checked = enabled
             )
         )
         return buildContent(text(languageMode, titleKey), metrics, actions)
@@ -817,30 +1055,6 @@ internal object SettingsPageStateBuilder {
         }
         val minutes = maxOf(1L, (remainingMs + 59999L) / 60000L)
         return minutes.toString() + text(languageMode, "min.left")
-    }
-
-    private fun selectedFloatLabel(label: String, currentValue: Float, optionValue: Float, languageMode: String): String {
-        return if (abs(currentValue - optionValue) < 0.01f) {
-            label + text(languageMode, "selected")
-        } else {
-            label
-        }
-    }
-
-    private fun selectedStringLabel(label: String, currentValue: String, optionValue: String, languageMode: String): String {
-        return if (StreamingQualityPreference.normalize(currentValue) == StreamingQualityPreference.normalize(optionValue)) {
-            label + text(languageMode, "selected")
-        } else {
-            label
-        }
-    }
-
-    private fun selectedStyleLabel(label: String, currentValue: String, optionValue: String, languageMode: String): String {
-        return if (TrackShareStyle.normalize(currentValue) == TrackShareStyle.normalize(optionValue)) {
-            label + text(languageMode, "selected")
-        } else {
-            label
-        }
     }
 
     private fun selectedEndpointLabel(label: String, currentEndpoint: String, optionEndpoint: String, languageMode: String): String {
@@ -858,8 +1072,11 @@ internal object SettingsPageStateBuilder {
         labelKey: String,
         onApplyEndpoint: (String) -> Unit
     ): SettingsAction = SettingsAction(
-        selectedEndpointLabel(text(languageMode, labelKey), currentEndpoint, endpoint, languageMode),
-        Runnable { onApplyEndpoint(endpoint) }
+        label = selectedEndpointLabel(text(languageMode, labelKey), currentEndpoint, endpoint, languageMode),
+        onClick = Runnable { onApplyEndpoint(endpoint) },
+        style = SettingsActionStyle.Choice,
+        checked = StreamingGatewaySettingsStore.normalize(currentEndpoint) ==
+            StreamingGatewaySettingsStore.normalize(endpoint)
     )
 
     private fun themeOption(
@@ -873,7 +1090,12 @@ internal object SettingsPageStateBuilder {
         } else {
             AppLanguage.themeLabel(mode, languageMode)
         }
-        return SettingsAction(label, Runnable { onApplyTheme(mode) })
+        return SettingsAction(
+            label = label,
+            onClick = Runnable { onApplyTheme(mode) },
+            style = SettingsActionStyle.Choice,
+            checked = EchoTheme.normalizeMode(currentMode) == EchoTheme.normalizeMode(mode)
+        )
     }
 
     private fun accentOption(
@@ -887,7 +1109,12 @@ internal object SettingsPageStateBuilder {
         } else {
             AppLanguage.accentLabel(accent, languageMode)
         }
-        return SettingsAction(label, Runnable { onApplyAccent(accent) })
+        return SettingsAction(
+            label = label,
+            onClick = Runnable { onApplyAccent(accent) },
+            style = SettingsActionStyle.Choice,
+            checked = EchoTheme.normalizeAccent(currentAccent) == EchoTheme.normalizeAccent(accent)
+        )
     }
 
     private fun languageOption(
@@ -900,7 +1127,12 @@ internal object SettingsPageStateBuilder {
         } else {
             languageOptionLabel(languageMode, optionMode)
         }
-        return SettingsAction(label, Runnable { onApplyLanguage(optionMode) })
+        return SettingsAction(
+            label = label,
+            onClick = Runnable { onApplyLanguage(optionMode) },
+            style = SettingsActionStyle.Choice,
+            checked = AppLanguage.normalizeMode(languageMode) == AppLanguage.normalizeMode(optionMode)
+        )
     }
 
     private fun languageOptionLabel(languageMode: String, optionMode: String): String {
@@ -921,16 +1153,19 @@ internal object SettingsPageStateBuilder {
         val pageLabel = pageBackgroundPageLabel(page, languageMode)
         add(
             SettingsAction(
-                text(languageMode, "choose.page.background") + " 路 " + pageLabel,
-                Runnable { onChoosePageBackground(page) },
-                backgroundActionDescription(page, languageMode)
+                label = text(languageMode, "choose.page.background") + " 路 " + pageLabel,
+                onClick = Runnable { onChoosePageBackground(page) },
+                description = backgroundActionDescription(page, languageMode),
+                style = SettingsActionStyle.Navigation,
+                value = backgroundStateLabel(uri, languageMode)
             )
         )
         if (uri.isNotBlank()) {
             add(
                 SettingsAction(
-                    text(languageMode, "clear.page.background") + " 路 " + pageLabel,
-                    Runnable { onClearPageBackground(page) }
+                    label = text(languageMode, "clear.page.background") + " 路 " + pageLabel,
+                    onClick = Runnable { onClearPageBackground(page) },
+                    style = SettingsActionStyle.Destructive
                 )
             )
         }
@@ -968,7 +1203,12 @@ internal object SettingsPageStateBuilder {
         } else {
             equalizerPresetLabel(preset, languageMode)
         }
-        return SettingsAction(label, Runnable { onApplyAudioEffects(settings.withEnabled(true).withPreset(preset)) })
+        return SettingsAction(
+            label = label,
+            onClick = Runnable { onApplyAudioEffects(settings.withEnabled(true).withPreset(preset)) },
+            style = SettingsActionStyle.Choice,
+            checked = settings.preset == preset
+        )
     }
 
     private fun strengthOption(
@@ -989,14 +1229,19 @@ internal object SettingsPageStateBuilder {
         } else {
             text(languageMode, labelKey) + " " + strengthLabel(strength.toShort())
         }
-        return SettingsAction(label, Runnable {
-            val next = if (target == "bass") {
-                settings.withEnabled(true).withBassBoostStrength(strength.toShort())
-            } else {
-                settings.withEnabled(true).withVirtualizerStrength(strength.toShort())
-            }
-            onApplyAudioEffects(next)
-        })
+        return SettingsAction(
+            label = label,
+            onClick = Runnable {
+                val next = if (target == "bass") {
+                    settings.withEnabled(true).withBassBoostStrength(strength.toShort())
+                } else {
+                    settings.withEnabled(true).withVirtualizerStrength(strength.toShort())
+                }
+                onApplyAudioEffects(next)
+            },
+            style = SettingsActionStyle.Choice,
+            checked = selected
+        )
     }
 
     private fun loudnessOption(
@@ -1010,7 +1255,12 @@ internal object SettingsPageStateBuilder {
         } else {
             text(languageMode, "loudness") + " " + loudnessLabel(gainMb)
         }
-        return SettingsAction(label, Runnable { onApplyAudioEffects(settings.withEnabled(true).withLoudnessGainMb(gainMb)) })
+        return SettingsAction(
+            label = label,
+            onClick = Runnable { onApplyAudioEffects(settings.withEnabled(true).withLoudnessGainMb(gainMb)) },
+            style = SettingsActionStyle.Choice,
+            checked = settings.loudnessGainMb == gainMb
+        )
     }
 
     private fun lyricsOffsetAction(
@@ -1024,7 +1274,12 @@ internal object SettingsPageStateBuilder {
         } else {
             lyricsOffsetLabel(offsetMs)
         }
-        return SettingsAction(label, Runnable { onApplyLyricsOffset(offsetMs) })
+        return SettingsAction(
+            label = label,
+            onClick = Runnable { onApplyLyricsOffset(offsetMs) },
+            style = SettingsActionStyle.Choice,
+            checked = normalizeLyricsOffsetMs(currentOffsetMs) == normalizeLyricsOffsetMs(offsetMs)
+        )
     }
 
     private fun playbackSpeedLabel(speed: Float): String {

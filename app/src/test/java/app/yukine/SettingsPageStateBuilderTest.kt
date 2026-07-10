@@ -4,6 +4,7 @@ import app.yukine.playback.AudioEffectSettings
 import app.yukine.streaming.StreamingQualityPreference
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.SettingsAction
+import app.yukine.ui.SettingsActionStyle
 import app.yukine.ui.SettingsMetric
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -34,25 +35,51 @@ class SettingsPageStateBuilderTest {
         var downloadsOpened = false
 
         val content = SettingsPageStateBuilder.home(
-            themeMode = "dark",
-            accentMode = "blue",
             languageMode = AppLanguage.MODE_ENGLISH,
             audioPermissionGranted = true,
             notificationPermissionGranted = false,
             playbackServiceConnected = true,
             onNavigate = { page -> navigated += page },
+            onRequestNeededPermissions = {},
             onOpenDownloads = { downloadsOpened = true }
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "tab.settings"), content.uiState.title)
-        assertEquals(6, content.uiState.metrics.size)
+        assertEquals(4, content.uiState.metrics.size)
         assertEquals(7, content.actions.size)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.start"), content.uiState.metrics[0].label)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.section.start"), content.actions[0].section)
+        assertEquals(SettingsActionStyle.Navigation, content.actions[0].style)
 
         content.actions[0].onClick.run()
         content.actions[5].onClick.run()
 
-        assertEquals(listOf(SettingsPage.AppearanceGroup), navigated)
+        assertEquals(listOf(SettingsPage.LibraryGroup), navigated)
         assertEquals(true, downloadsOpened)
+    }
+
+    @Test
+    fun homePrioritizesMusicPermissionWhenItIsMissing() {
+        var permissionRequested = false
+
+        val content = SettingsPageStateBuilder.home(
+            languageMode = AppLanguage.MODE_ENGLISH,
+            audioPermissionGranted = false,
+            notificationPermissionGranted = false,
+            playbackServiceConnected = false,
+            onNavigate = {},
+            onRequestNeededPermissions = { permissionRequested = true },
+            onOpenDownloads = {}
+        )
+
+        assertEquals(8, content.actions.size)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.grant.music.access"), content.actions[0].label)
+        assertEquals(SettingsActionStyle.Navigation, content.actions[0].style)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.section.start"), content.actions[0].section)
+
+        content.actions[0].onClick.run()
+
+        assertEquals(true, permissionRequested)
     }
 
     @Test
@@ -74,6 +101,9 @@ class SettingsPageStateBuilderTest {
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.about"), content.uiState.title)
         assertEquals(4, content.uiState.metrics.size)
         assertEquals(3, content.actions.size)
+        assertTrue(content.actions[0].isBack)
+        assertEquals(SettingsActionStyle.Destructive, content.actions[2].style)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "backup.import.description"), content.actions[2].description)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
@@ -285,8 +315,9 @@ class SettingsPageStateBuilderTest {
     }
 
     @Test
-    fun playbackGroupBuildsPlaybackNavigationActions() {
+    fun playbackGroupKeepsAdjustmentsAsNavigationAndExposesCommonTogglesInline() {
         val navigated = mutableListOf<SettingsPage>()
+        val toggled = mutableListOf<String>()
         val audioEffects = AudioEffectSettings.DEFAULT
             .withEnabled(true)
             .withPreset(1)
@@ -301,7 +332,11 @@ class SettingsPageStateBuilderTest {
             playbackRestoreEnabled = true,
             replayGainEnabled = false,
             remainingMs = 61000L,
-            onNavigate = { page -> navigated += page }
+            onNavigate = { page -> navigated += page },
+            onReplayGainEnabledChange = { enabled -> toggled += "replay:$enabled" },
+            onNowPlayingGesturesEnabledChange = { enabled -> toggled += "gestures:$enabled" },
+            onPlaybackRestoreEnabledChange = { enabled -> toggled += "restore:$enabled" },
+            onAudioExclusiveEnabledChange = { enabled -> toggled += "exclusive:$enabled" }
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.playback"), content.uiState.title)
@@ -317,6 +352,11 @@ class SettingsPageStateBuilderTest {
         assertEquals("2" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "min.left"), content.uiState.metrics[7].value)
         assertEquals(9, content.actions.size)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "audio.effects.hint"), content.actions[3].description)
+        assertEquals("1.25x", content.actions[1].value)
+        assertEquals(SettingsActionStyle.Toggle, content.actions[4].style)
+        assertEquals(false, content.actions[4].checked)
+        assertEquals(SettingsActionStyle.Toggle, content.actions[7].style)
+        assertEquals(true, content.actions[7].checked)
 
         content.actions.forEach { action -> action.onClick.run() }
 
@@ -326,13 +366,13 @@ class SettingsPageStateBuilderTest {
                 SettingsPage.PlaybackSpeed,
                 SettingsPage.AppVolume,
                 SettingsPage.AudioEffects,
-                SettingsPage.ReplayGain,
-                SettingsPage.NowPlayingGestures,
-                SettingsPage.PlaybackRestore,
-                SettingsPage.ConcurrentPlayback,
                 SettingsPage.SleepTimer
             ),
             navigated
+        )
+        assertEquals(
+            listOf("replay:true", "gestures:true", "restore:false", "exclusive:false"),
+            toggled
         )
     }
 
@@ -398,8 +438,7 @@ class SettingsPageStateBuilderTest {
         assertBooleanLeafPage(
             content = content,
             titleKey = "audio.exclusive",
-            enabled = true,
-            toggleKey = "disable.audio.exclusive"
+            enabled = true
         )
 
         content.actions[0].onClick.run()
@@ -433,9 +472,9 @@ class SettingsPageStateBuilderTest {
             onToggle = { enabled -> toggles += "replay:$enabled" }
         )
 
-        assertBooleanLeafPage(nowPlaying, "now.playing.gestures", false, "enable.now.playing.gestures")
-        assertBooleanLeafPage(restore, "playback.restore", false, "enable.playback.restore")
-        assertBooleanLeafPage(replayGain, "replay.gain", true, "disable.replay.gain")
+        assertBooleanLeafPage(nowPlaying, "now.playing.gestures", false)
+        assertBooleanLeafPage(restore, "playback.restore", false)
+        assertBooleanLeafPage(replayGain, "replay.gain", true)
 
         nowPlaying.actions[0].onClick.run()
         restore.actions[0].onClick.run()
@@ -460,7 +499,7 @@ class SettingsPageStateBuilderTest {
             onToggle = { enabled -> toggles += enabled }
         )
 
-        assertBooleanLeafPage(content, "status.bar.lyrics", false, "enable.status.bar.lyrics")
+        assertBooleanLeafPage(content, "status.bar.lyrics", false)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
@@ -489,7 +528,10 @@ class SettingsPageStateBuilderTest {
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "missing"), content.uiState.metrics[1].value)
         assertEquals(3, content.actions.size)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "grant.overlay.permission"), content.actions[1].label)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "enable.floating.lyrics"), content.actions[2].label)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "floating.lyrics"), content.actions[2].label)
+        assertEquals(SettingsActionStyle.Navigation, content.actions[1].style)
+        assertEquals(SettingsActionStyle.Toggle, content.actions[2].style)
+        assertEquals(false, content.actions[2].checked)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
@@ -518,7 +560,9 @@ class SettingsPageStateBuilderTest {
         assertEquals(3, content.uiState.metrics.size)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "granted"), content.uiState.metrics[1].value)
         assertEquals(2, content.actions.size)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "disable.floating.lyrics"), content.actions[1].label)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "floating.lyrics"), content.actions[1].label)
+        assertEquals(SettingsActionStyle.Toggle, content.actions[1].style)
+        assertEquals(true, content.actions[1].checked)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
@@ -549,6 +593,8 @@ class SettingsPageStateBuilderTest {
         assertEquals("15" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "min"), content.actions[1].label)
         assertEquals("90" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "min"), content.actions[5].label)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "cancel.sleep.timer"), content.actions[6].label)
+        assertEquals(SettingsActionStyle.Choice, content.actions[1].style)
+        assertEquals(SettingsActionStyle.Destructive, content.actions[6].style)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
@@ -571,6 +617,7 @@ class SettingsPageStateBuilderTest {
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "off"), content.uiState.metrics[0].value)
+        assertEquals(6, content.actions.size)
     }
 
     @Test
@@ -588,7 +635,9 @@ class SettingsPageStateBuilderTest {
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "playback.speed"), content.uiState.title)
         assertEquals("1.25x", content.uiState.metrics[0].value)
         assertEquals(7, content.actions.size)
-        assertEquals("1.25x" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "selected"), content.actions[4].label)
+        assertEquals("1.25x", content.actions[4].label)
+        assertEquals(SettingsActionStyle.Choice, content.actions[4].style)
+        assertEquals(true, content.actions[4].checked)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
@@ -614,7 +663,9 @@ class SettingsPageStateBuilderTest {
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "app.volume"), content.uiState.title)
         assertEquals("85%", content.uiState.metrics[0].value)
         assertEquals(5, content.actions.size)
-        assertEquals("85%" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "selected"), content.actions[3].label)
+        assertEquals("85%", content.actions[3].label)
+        assertEquals(SettingsActionStyle.Choice, content.actions[3].style)
+        assertEquals(true, content.actions[3].checked)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
@@ -644,11 +695,13 @@ class SettingsPageStateBuilderTest {
         assertTrue(content.uiState.metrics[1].compact)
         assertTrue(content.uiState.metrics[2].compact)
         assertEquals(6, content.actions.size)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "quality.lossless") + AppLanguage.text(AppLanguage.MODE_ENGLISH, "selected"), content.actions[4].label)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "quality.lossless"), content.actions[4].label)
         assertEquals(
             StreamingQualityPlatformMapping.explanation(app.yukine.streaming.StreamingAudioQuality.LOSSLESS, AppLanguage.MODE_ENGLISH),
             content.actions[4].description
         )
+        assertEquals(SettingsActionStyle.Choice, content.actions[4].style)
+        assertEquals(true, content.actions[4].checked)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
@@ -682,9 +735,11 @@ class SettingsPageStateBuilderTest {
         assertEquals(2, content.uiState.metrics.size)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "share.style.platform.card"), content.uiState.metrics[0].value)
         assertEquals(4, content.actions.size)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "share.style.platform.card") + AppLanguage.text(AppLanguage.MODE_ENGLISH, "selected"), content.actions[1].label)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "share.style.platform.card"), content.actions[1].label)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "share.style.text"), content.actions[2].label)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "share.style.card"), content.actions[3].label)
+        assertEquals(SettingsActionStyle.Choice, content.actions[1].style)
+        assertEquals(true, content.actions[1].checked)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
@@ -800,6 +855,7 @@ class SettingsPageStateBuilderTest {
         val navigated = mutableListOf<SettingsPage>()
         val onlineChanges = mutableListOf<Boolean>()
         val systemMediaTitleChanges = mutableListOf<Boolean>()
+        val statusBarChanges = mutableListOf<Boolean>()
         var reloadCount = 0
         val offsets = mutableListOf<Long>()
 
@@ -814,6 +870,7 @@ class SettingsPageStateBuilderTest {
             onNavigate = { page -> navigated += page },
             onOnlineLyricsEnabledChange = { enabled -> onlineChanges += enabled },
             onSystemMediaLyricsTitleEnabledChange = { enabled -> systemMediaTitleChanges += enabled },
+            onStatusBarLyricsEnabledChange = { enabled -> statusBarChanges += enabled },
             onReloadLyrics = { reloadCount += 1 },
             onApplyLyricsOffset = { offset -> offsets += offset }
         )
@@ -829,6 +886,8 @@ class SettingsPageStateBuilderTest {
         assertEquals("LRCLIB", content.uiState.metrics[6].value)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "same.name.lrc"), content.uiState.metrics[7].value)
         assertEquals(11, content.actions.size)
+        assertEquals(SettingsActionStyle.Toggle, content.actions[3].style)
+        assertEquals(false, content.actions[3].checked)
         assertEquals("+0.5 s" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "selected"), content.actions[9].label)
 
         content.actions[0].onClick.run()
@@ -843,9 +902,10 @@ class SettingsPageStateBuilderTest {
         content.actions[9].onClick.run()
         content.actions[10].onClick.run()
 
-        assertEquals(listOf(SettingsPage.LyricsGroup, SettingsPage.StatusBarLyrics, SettingsPage.FloatingLyrics), navigated)
+        assertEquals(listOf(SettingsPage.LyricsGroup, SettingsPage.FloatingLyrics), navigated)
         assertEquals(listOf(false), onlineChanges)
         assertEquals(listOf(true), systemMediaTitleChanges)
+        assertEquals(listOf(true), statusBarChanges)
         assertEquals(1, reloadCount)
         assertEquals(listOf(-1000L, -500L, 0L, 500L, 1000L), offsets)
     }
@@ -882,18 +942,19 @@ class SettingsPageStateBuilderTest {
     private fun assertBooleanLeafPage(
         content: SettingsPageStateContent,
         titleKey: String,
-        enabled: Boolean,
-        toggleKey: String
+        enabled: Boolean
     ) {
         val languageMode = AppLanguage.MODE_ENGLISH
         assertEquals(AppLanguage.text(languageMode, titleKey), content.uiState.title)
         assertEquals(2, content.uiState.metrics.size)
         assertEquals(AppLanguage.text(languageMode, if (enabled) "enabled" else "disabled"), content.uiState.metrics[0].value)
         assertEquals(2, content.actions.size)
-        assertEquals(AppLanguage.text(languageMode, toggleKey), content.actions[1].label)
+        assertEquals(AppLanguage.text(languageMode, titleKey), content.actions[1].label)
+        assertEquals(SettingsActionStyle.Toggle, content.actions[1].style)
+        assertEquals(enabled, content.actions[1].checked)
         assertEquals(4, content.uiState.items.size)
         assertTrue(content.uiState.items[0] is SettingsItem.Action)
-        assertTrue(content.uiState.items[1] is SettingsItem.Action)
+        assertTrue(content.uiState.items[1] is SettingsItem.Navigation)
         assertEquals(
             SettingsItem.Metric(content.uiState.metrics[0].label, content.uiState.metrics[0].value),
             content.uiState.items[2]

@@ -81,6 +81,7 @@ flowchart TD
 - QQ 音乐播放解析兼容：vkey 请求会按 `songMid + mediaMid` 生成文件名，并在存在 `qqmusic_key` 时携带鉴权；QQ CDN 返回的 HTTP SIP 会在本机转换为 HTTPS，避免 Android 的明文网络策略拦截播放。
 - QQ 音乐歌单元数据兼容：兼容歌单歌曲顶层的 `albumname`、`albumid`、`albummid`、`strMediaMid` 字段；搜索和歌单条目会显示接口返回的专辑名与封面。
 - 设置迁移继续推进：设置页面状态由 `SettingsViewModel` 直接构建，`SettingsRenderCoordinator`、`SettingsPageEventController`、`SettingsPageChromeBindings`、`SettingsScrollStateSink` 已移除，页面背景和备份选择通过平台 owner/effect 处理。
+- 设置体验改造：首页按“授权/曲库 → 播放 → 歌词 → 外观”排序并展示当前状态；常用开关可直接操作，单选项会显示选中状态，缺少音乐权限时可从首页直接授权。
 - 搜索页升级为本地 + 多音源聚合搜索：一次搜索会并发查询所有已启用且支持搜索的在线音源；同歌手、同曲名且时长接近的结果合并为一条，并以 `+N` 标记备用音源。所有合并音源仍保留，可在主音源解析失败时自动回退，并在播放页手动切换。
 - 下载管理增强：应用内下载支持断点续传、暂停后保留缓存、继续下载不再清零进度；支持 HTTP Range 的音源会使用有限分片并发下载，不支持时自动回退单连接下载。
 - 歌曲和封面下载：单曲下载会尽量同步保存封面；封面保存失败不应反向标记音频下载失败。
@@ -289,6 +290,7 @@ flowchart TD
 - QQ Music playback compatibility: vkey requests now use `songMid + mediaMid` filenames and include `qqmusic_key` auth when available. HTTP QQ CDN SIP URLs are normalized to HTTPS locally so Android's cleartext policy does not block playback.
 - QQ Music playlist metadata compatibility: top-level `albumname`, `albumid`, `albummid`, and `strMediaMid` fields are now handled; streaming search and playlist rows show the returned album title and artwork.
 - Settings migration: settings page state is now built by `SettingsViewModel`; `SettingsRenderCoordinator`, `SettingsPageEventController`, `SettingsPageChromeBindings`, and `SettingsScrollStateSink` have been removed, while page-background and backup pickers route through platform owners/effects.
+- Settings experience refresh: the home page now leads with permission/library setup, then playback, lyrics, and appearance; common switches work inline, choices show their selection, and missing music access can be granted directly from Settings.
 - Search now combines local results with multi-source online aggregation. Results with the same artist, title, and a close duration are collapsed into one row with a `+N` source indicator. Every merged source remains available for automatic playback fallback and manual switching on the Now Playing screen.
 - Download management now supports resumable in-app downloads. Paused tasks keep cache files and continue without resetting progress; sources with HTTP Range support use limited segmented parallel downloads, while unsupported sources fall back to a single connection.
 - Track and artwork downloads are linked: track downloads try to save cover art as best effort, and artwork failures should not mark a completed audio download as failed.

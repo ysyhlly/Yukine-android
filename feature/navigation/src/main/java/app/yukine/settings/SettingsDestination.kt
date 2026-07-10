@@ -29,7 +29,7 @@ fun SettingsDestination(
 ) {
     val settingsState by state.collectAsState()
     val backAction = settingsState.destinationActions.firstOrNull { action ->
-        isSettingsBackAction(action.label)
+        action.isBack || isSettingsBackAction(action.label)
     }
     BackHandler(enabled = backAction != null) {
         backAction?.onClick?.run()

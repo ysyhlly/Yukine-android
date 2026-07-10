@@ -110,6 +110,7 @@ sealed interface SettingsEffect {
     data class NavigatePage(val page: SettingsPage) : SettingsEffect
     data object OpenNetworkSources : SettingsEffect
     data object OpenDownloads : SettingsEffect
+    data object RequestNeededPermissions : SettingsEffect
     data object LoadLibrary : SettingsEffect
     data object OpenAudioFilePicker : SettingsEffect
     data object OpenAudioFolderPicker : SettingsEffect
@@ -127,6 +128,7 @@ sealed interface SettingsEvent {
     data class NavigateSettingsPage(val page: SettingsPage) : SettingsEvent
     data object OpenNetworkSources : SettingsEvent
     data object OpenDownloads : SettingsEvent
+    data object RequestNeededPermissions : SettingsEvent
     data object LoadLibrary : SettingsEvent
     data object OpenAudioFilePicker : SettingsEvent
     data object OpenAudioFolderPicker : SettingsEvent
@@ -271,6 +273,7 @@ class SettingsViewModel @JvmOverloads constructor(
             is SettingsEvent.NavigateSettingsPage -> Unit
             SettingsEvent.OpenNetworkSources -> emitEffect(SettingsEffect.OpenNetworkSources)
             SettingsEvent.OpenDownloads -> emitEffect(SettingsEffect.OpenDownloads)
+            SettingsEvent.RequestNeededPermissions -> emitEffect(SettingsEffect.RequestNeededPermissions)
             SettingsEvent.LoadLibrary -> emitEffect(SettingsEffect.LoadLibrary)
             SettingsEvent.OpenAudioFilePicker -> emitEffect(SettingsEffect.OpenAudioFilePicker)
             SettingsEvent.OpenAudioFolderPicker -> emitEffect(SettingsEffect.OpenAudioFolderPicker)
@@ -339,7 +342,19 @@ class SettingsViewModel @JvmOverloads constructor(
                     preferences.playbackRestoreEnabled,
                     preferences.replayGainEnabled,
                     runtime.sleepTimerRemainingMs,
-                    onNavigate = ::navigateSettingsPage
+                    onNavigate = ::navigateSettingsPage,
+                    onReplayGainEnabledChange = { enabled ->
+                        onEvent(SettingsEvent.SetReplayGainEnabled(enabled))
+                    },
+                    onNowPlayingGesturesEnabledChange = { enabled ->
+                        onEvent(SettingsEvent.SetNowPlayingGesturesEnabled(enabled))
+                    },
+                    onPlaybackRestoreEnabledChange = { enabled ->
+                        onEvent(SettingsEvent.SetPlaybackRestoreEnabled(enabled))
+                    },
+                    onAudioExclusiveEnabledChange = { enabled ->
+                        onEvent(SettingsEvent.SetAudioExclusiveEnabled(enabled))
+                    }
                 )
             SettingsPage.LibraryGroup,
             SettingsPage.Library ->
@@ -368,6 +383,9 @@ class SettingsViewModel @JvmOverloads constructor(
                     onOnlineLyricsEnabledChange = { enabled -> onEvent(SettingsEvent.SetOnlineLyricsEnabled(enabled)) },
                     onSystemMediaLyricsTitleEnabledChange = { enabled ->
                         onEvent(SettingsEvent.SetSystemMediaLyricsTitleEnabled(enabled))
+                    },
+                    onStatusBarLyricsEnabledChange = { enabled ->
+                        onEvent(SettingsEvent.SetStatusBarLyricsEnabled(enabled))
                     },
                     onReloadLyrics = { onEvent(SettingsEvent.ReloadCurrentLyrics) },
                     onApplyLyricsOffset = { offset -> onEvent(SettingsEvent.ApplyLyricsOffset(offset)) }
@@ -511,6 +529,9 @@ class SettingsViewModel @JvmOverloads constructor(
                     onSystemMediaLyricsTitleEnabledChange = { enabled ->
                         onEvent(SettingsEvent.SetSystemMediaLyricsTitleEnabled(enabled))
                     },
+                    onStatusBarLyricsEnabledChange = { enabled ->
+                        onEvent(SettingsEvent.SetStatusBarLyricsEnabled(enabled))
+                    },
                     onReloadLyrics = { onEvent(SettingsEvent.ReloadCurrentLyrics) },
                     onApplyLyricsOffset = { offset -> onEvent(SettingsEvent.ApplyLyricsOffset(offset)) }
                 )
@@ -541,13 +562,12 @@ class SettingsViewModel @JvmOverloads constructor(
             SettingsPage.Home,
             SettingsPage.Downloads ->
                 SettingsPageStateBuilder.home(
-                    preferences.themeMode,
-                    preferences.accentMode,
                     languageMode,
                     runtime.audioPermissionGranted,
                     runtime.notificationPermissionGranted,
                     runtime.playbackServiceConnected,
                     onNavigate = ::navigateSettingsPage,
+                    onRequestNeededPermissions = { onEvent(SettingsEvent.RequestNeededPermissions) },
                     onOpenDownloads = { onEvent(SettingsEvent.OpenDownloads) }
                 )
         }

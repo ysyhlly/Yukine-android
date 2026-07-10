@@ -17,6 +17,8 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -51,7 +53,8 @@ data class SettingsAction(
     val value: String = "",
     val style: SettingsActionStyle = SettingsActionStyle.Default,
     val checked: Boolean = false,
-    val section: String = ""
+    val section: String = "",
+    val isBack: Boolean = false
 )
 
 class SettingsListScrollState(
@@ -86,7 +89,7 @@ fun SettingsScreen(
     playbackQuality: String = "",
     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
-    val titleBackAction = actions.firstOrNull { isBackAction(it.label) }
+    val titleBackAction = actions.firstOrNull { it.isBack || isBackAction(it.label) }
     val visibleActions = if (titleBackAction != null) actions.drop(1) else actions
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = scrollState.firstVisibleItemIndex.coerceAtLeast(0),
@@ -123,25 +126,30 @@ fun SettingsScreen(
                 )
             }
         }
+        if (metrics.isNotEmpty()) {
+            item(key = "overview") {
+                SettingsOverviewCard(metrics)
+            }
+        }
         itemsIndexed(
             items = visibleActions,
             key = { index, action -> "action:${action.label}:$index" }
         ) { index, action ->
-            SettingsActionButton(action, Modifier.echoEnter(index.coerceAtMost(8))) {
-                scrollState.save(listState)
-                action.onClick.run()
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val previousSection = visibleActions.getOrNull(index - 1)?.section.orEmpty()
+                if (action.section.isNotBlank() && action.section != previousSection) {
+                    Text(
+                        text = action.section,
+                        style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+                        color = EchoTheme.colors().muted,
+                        modifier = Modifier.padding(start = 4.dp, top = if (index == 0) 2.dp else 8.dp)
+                    )
+                }
+                SettingsActionButton(action, Modifier.echoEnter(index.coerceAtMost(8))) {
+                    scrollState.save(listState)
+                    action.onClick.run()
+                }
             }
-        }
-        if (visibleActions.isNotEmpty() && metrics.isNotEmpty()) {
-            item(key = "metrics-spacer") {
-                Spacer(Modifier.height(6.dp))
-            }
-        }
-        itemsIndexed(
-            items = metrics,
-            key = { index, metric -> "metric:${metric.label}:$index" }
-        ) { _, metric ->
-            SettingsMetricRow(metric)
         }
     }
 }
@@ -150,55 +158,114 @@ fun SettingsScreen(
 private fun SettingsActionButton(action: SettingsAction, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val p = EchoTheme.colors()
     val interaction = remember { MutableInteractionSource() }
-    Surface(
-        onClick = onClick,
-        interactionSource = interaction,
-        modifier = modifier
-            .fillMaxWidth()
-            .echoPressScale(interaction)
-            .echoGlassLayer(p, EchoShapes.medium)
-            .semantics { contentDescription = action.label },
-        shape = EchoShapes.medium,
-        color = Color.Transparent
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
+    val cardModifier = modifier
+        .fillMaxWidth()
+        .echoGlassLayer(p, EchoShapes.medium)
+
+    if (action.style == SettingsActionStyle.Toggle) {
+        Surface(
+            modifier = cardModifier,
+            shape = EchoShapes.medium,
+            color = Color.Transparent
         ) {
-            EchoIcon(
-                kind = iconForAction(action.label),
-                modifier = Modifier.size(22.dp),
-                color = p.accent
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                Text(
-                    action.label,
-                    style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = p.text,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (action.description.isNotBlank()) {
-                    Text(
-                        action.description,
-                        style = EchoTypography.caption,
-                        color = p.muted,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-            EchoIcon(EchoIconKind.ChevronRight, Modifier.size(16.dp), p.muted)
+            SettingsActionRow(action, onClick)
+        }
+    } else {
+        Surface(
+            onClick = onClick,
+            interactionSource = interaction,
+            modifier = cardModifier
+                .echoPressScale(interaction)
+                .semantics { contentDescription = action.label },
+            shape = EchoShapes.medium,
+            color = Color.Transparent
+        ) {
+            SettingsActionRow(action, onClick)
         }
     }
 }
 
 @Composable
-private fun SettingsMetricRow(metric: SettingsMetric) {
+private fun SettingsActionRow(action: SettingsAction, onClick: () -> Unit) {
+    val p = EchoTheme.colors()
+    Row(
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        EchoIcon(
+            kind = iconForAction(action.label),
+            modifier = Modifier.size(22.dp),
+            color = if (action.style == SettingsActionStyle.Destructive) p.muted else p.accent
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(
+                action.label,
+                style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = p.text,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (action.description.isNotBlank()) {
+                Text(
+                    action.description,
+                    style = EchoTypography.caption,
+                    color = p.muted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        SettingsActionTrailing(action, onClick)
+    }
+}
+
+@Composable
+private fun SettingsActionTrailing(action: SettingsAction, onClick: () -> Unit) {
+    val p = EchoTheme.colors()
+    when (action.style) {
+        SettingsActionStyle.Toggle -> Switch(
+            checked = action.checked,
+            onCheckedChange = { onClick() },
+            modifier = Modifier.semantics { contentDescription = action.label },
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = p.onAccent,
+                checkedTrackColor = p.accent,
+                uncheckedThumbColor = p.surface,
+                uncheckedTrackColor = p.border
+            )
+        )
+        SettingsActionStyle.Choice -> {
+            if (action.checked) {
+                EchoIcon(EchoIconKind.Check, Modifier.size(18.dp), p.accent)
+            } else {
+                Spacer(Modifier.width(18.dp))
+            }
+        }
+        SettingsActionStyle.Navigation,
+        SettingsActionStyle.Default -> {
+            if (action.value.isNotBlank()) {
+                Text(
+                    text = action.value,
+                    style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+                    color = p.muted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+            Spacer(Modifier.width(6.dp))
+            EchoIcon(EchoIconKind.ChevronRight, Modifier.size(16.dp), p.muted)
+        }
+        SettingsActionStyle.Destructive -> Unit
+    }
+}
+
+@Composable
+private fun SettingsOverviewCard(metrics: List<SettingsMetric>) {
     val p = EchoTheme.colors()
     Surface(
         modifier = Modifier
@@ -207,31 +274,40 @@ private fun SettingsMetricRow(metric: SettingsMetric) {
         shape = EchoShapes.medium,
         color = Color.Transparent
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                metric.label,
-                style = EchoTypography.bodyMedium,
-                color = p.muted,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                metric.value,
-                style = if (metric.compact) {
-                    EchoTypography.caption
-                } else {
-                    EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                },
-                color = p.text,
-                maxLines = if (metric.compact) 3 else 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 12.dp)
-            )
+            metrics.forEach { metric ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = if (metric.compact) Alignment.Top else Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        metric.label,
+                        style = if (metric.compact) EchoTypography.caption else EchoTypography.bodyMedium,
+                        color = p.muted,
+                        modifier = Modifier.weight(1f),
+                        maxLines = if (metric.compact) 2 else 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        metric.value,
+                        style = if (metric.compact) {
+                            EchoTypography.caption
+                        } else {
+                            EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                        },
+                        color = p.text,
+                        maxLines = if (metric.compact) 4 else 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(if (metric.compact) 1.4f else 1f)
+                            .padding(start = 12.dp)
+                    )
+                }
+            }
         }
     }
 }

@@ -666,6 +666,10 @@ public abstract class MainActivityBase extends ComponentActivity {
                 navigateToNetworkTabPage(NETWORK_HOME);
             } else if (effect == SettingsEffect.OpenDownloads.INSTANCE) {
                 navigateToTab(TAB_DOWNLOADS, true, true);
+            } else if (effect == SettingsEffect.RequestNeededPermissions.INSTANCE) {
+                if (permissionController != null) {
+                    permissionController.requestNeededPermissions();
+                }
             } else if (effect == SettingsEffect.LoadLibrary.INSTANCE) {
                 loadLibrary(false);
             } else if (effect == SettingsEffect.OpenAudioFilePicker.INSTANCE) {

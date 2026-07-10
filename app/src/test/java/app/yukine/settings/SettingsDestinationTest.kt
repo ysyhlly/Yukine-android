@@ -10,6 +10,7 @@ import app.yukine.SettingsState
 import app.yukine.SettingsUiState
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.SettingsAction
+import app.yukine.ui.SettingsActionStyle
 import app.yukine.ui.SettingsMetric
 import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,6 +56,43 @@ class SettingsDestinationTest {
         composeRule.onNodeWithText("Settings").assertIsDisplayed()
         composeRule.onNodeWithText("Appearance").assertIsDisplayed()
         composeRule.onNodeWithText("Playback").assertIsDisplayed()
+    }
+
+    @Test
+    fun toggleActionUsesTheSwitchAsTheSingleClickOwner() {
+        var toggleCount = 0
+        val state = MutableStateFlow(
+            SettingsState(
+                actions = listOf(
+                    SettingsAction(
+                        label = "Restore last queue",
+                        onClick = Runnable { toggleCount++ },
+                        style = SettingsActionStyle.Toggle,
+                        checked = true
+                    )
+                ),
+                ui = SettingsUiState(
+                    title = "Playback",
+                    metrics = emptyList(),
+                    items = emptyList()
+                )
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                SettingsDestination(
+                    state,
+                    audioMotion = YukineOrbAudioMotion.Empty.copy(visualMotionEnabled = false)
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Restore last queue").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(1, toggleCount)
+        }
     }
 
     @Test

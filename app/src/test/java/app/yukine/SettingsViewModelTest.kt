@@ -39,6 +39,7 @@ class SettingsViewModelTest {
         val viewModel = SettingsViewModel()
 
         viewModel.onEvent(SettingsEvent.OpenNetworkSources)
+        viewModel.onEvent(SettingsEvent.RequestNeededPermissions)
         viewModel.onEvent(SettingsEvent.LoadLibrary)
         viewModel.onEvent(SettingsEvent.OpenAudioFilePicker)
         viewModel.onEvent(SettingsEvent.OpenAudioFolderPicker)
@@ -61,6 +62,7 @@ class SettingsViewModelTest {
         assertEquals(
             listOf(
                 SettingsEffect.OpenNetworkSources,
+                SettingsEffect.RequestNeededPermissions,
                 SettingsEffect.LoadLibrary,
                 SettingsEffect.OpenAudioFilePicker,
                 SettingsEffect.OpenAudioFolderPicker,
@@ -110,6 +112,7 @@ class SettingsViewModelTest {
 
         viewModel.onEvent(SettingsEvent.OpenNetworkSources)
         viewModel.onEvent(SettingsEvent.OpenDownloads)
+        viewModel.onEvent(SettingsEvent.RequestNeededPermissions)
         viewModel.onEvent(SettingsEvent.LoadLibrary)
         viewModel.onEvent(SettingsEvent.OpenAudioFilePicker)
         viewModel.onEvent(SettingsEvent.OpenAudioFolderPicker)
@@ -125,6 +128,7 @@ class SettingsViewModelTest {
         val expected = listOf(
             SettingsEffect.OpenNetworkSources,
             SettingsEffect.OpenDownloads,
+            SettingsEffect.RequestNeededPermissions,
             SettingsEffect.LoadLibrary,
             SettingsEffect.OpenAudioFilePicker,
             SettingsEffect.OpenAudioFolderPicker,
