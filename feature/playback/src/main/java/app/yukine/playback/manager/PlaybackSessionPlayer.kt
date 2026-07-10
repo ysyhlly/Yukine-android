@@ -1,5 +1,7 @@
 package app.yukine.playback.manager
 
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
@@ -8,6 +10,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import app.yukine.model.Track
+import java.util.concurrent.CopyOnWriteArraySet
 import java.util.function.LongSupplier
 
 @UnstableApi
@@ -55,6 +58,48 @@ internal class PlaybackSessionPlayer @JvmOverloads constructor(
 
     private var lastSessionPositionMs = Long.MIN_VALUE
     private var lastSessionPositionReadAtMs = Long.MIN_VALUE
+    private val mediaMetadataListeners = CopyOnWriteArraySet<Player.Listener>()
+    private val applicationLooper = player.applicationLooper
+    private val metadataRefreshHandler = Handler(applicationLooper)
+
+    override fun addListener(listener: Player.Listener) {
+        super.addListener(listener)
+        mediaMetadataListeners.add(listener)
+    }
+
+    override fun removeListener(listener: Player.Listener) {
+        mediaMetadataListeners.remove(listener)
+        super.removeListener(listener)
+    }
+
+    /**
+     * Emits a metadata event for the dynamic metadata exposed by this session-only player.
+     *
+     * Media3 does not observe changes made only by [getMediaMetadata]. In particular, the
+     * system-media lyric-title compatibility mode changes that getter without replacing the
+     * underlying ExoPlayer media item. Dispatching the standard listener callback keeps system
+     * surfaces current without restarting or otherwise disturbing audio playback.
+     */
+    fun refreshMediaMetadata() {
+        if (mediaMetadataListeners.isEmpty()) {
+            return
+        }
+        if (Looper.myLooper() == applicationLooper) {
+            dispatchMediaMetadataChanged()
+        } else {
+            metadataRefreshHandler.post(::dispatchMediaMetadataChanged)
+        }
+    }
+
+    private fun dispatchMediaMetadataChanged() {
+        if (mediaMetadataListeners.isEmpty()) {
+            return
+        }
+        val metadata = mediaMetadata
+        mediaMetadataListeners.forEach { listener ->
+            listener.onMediaMetadataChanged(metadata)
+        }
+    }
 
     override fun play() = delegate.play()
     override fun pause() = delegate.pause()

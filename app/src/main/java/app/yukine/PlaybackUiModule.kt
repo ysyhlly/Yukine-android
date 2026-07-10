@@ -136,6 +136,7 @@ internal object PlaybackUiModule {
     fun provideMainPlaybackStateEventListenerFactory(): MainPlaybackStateEventListenerFactory =
         MainPlaybackStateEventListenerFactory {
                 selectedTabSource,
+                queueVisibilitySource,
                 currentLyricsTrackIdSource,
                 playbackSettingsSaver,
                 lyricsLoader,
@@ -150,6 +151,7 @@ internal object PlaybackUiModule {
                 statusSink ->
             MainPlaybackStateEventListener(
                 selectedTabSource,
+                queueVisibilitySource,
                 currentLyricsTrackIdSource,
                 playbackSettingsSaver,
                 lyricsLoader,

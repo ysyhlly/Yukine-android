@@ -35,6 +35,14 @@ internal class PlaybackSessionManager(
 
     fun refreshPlayer() {
         val currentSession = mediaSession ?: return
+        val currentPlayer = sessionPlayer
+        if (currentPlayer is PlaybackSessionPlayer) {
+            currentPlayer.refreshMediaMetadata()
+            return
+        }
+
+        // Keep the existing fallback for a non-Yukine session player. The normal player exposes
+        // an explicit metadata event so lyric and artwork refreshes do not rebind the session.
         val nextPlayer = playerFactory()
         sessionPlayer = nextPlayer
         currentSession.setPlayer(nextPlayer)

@@ -277,6 +277,31 @@ class PlaybackLyricsManagerTest {
     }
 
     @Test
+    fun systemMediaLyricTitleRefreshesTheSessionForEveryChangedLine() {
+        FloatingLyricsPublisher.clear()
+        val bridge = FakeNotificationBridge()
+        val manager = PlaybackLyricsManager(
+            ApplicationProvider.getApplicationContext<Context>(),
+            FakeStateProvider(),
+            bridge
+        )
+
+        manager.setSystemMediaLyricsTitleEnabled(true)
+        bridge.notificationWorthy = true
+        manager.bind()
+        FloatingLyricsPublisher.update("Track 1", "Artist", null, true, "first line")
+        FloatingLyricsPublisher.update("Track 1", "Artist", null, true, "second line")
+        FloatingLyricsPublisher.update("Track 1", "Artist", null, true, "latest line")
+
+        assertEquals(3, bridge.refreshPlaybackSessionCalls)
+        assertEquals(listOf(false, false, false), bridge.notificationForces)
+        assertEquals("latest line", manager.systemMediaTitleLyricText(track()))
+
+        manager.release()
+        FloatingLyricsPublisher.clear()
+    }
+
+    @Test
     fun serviceProgressAdvancesPublishedLyricsTimelineAfterActivityStopsPublishing() {
         FloatingLyricsPublisher.clear()
         val manager = PlaybackLyricsManager(

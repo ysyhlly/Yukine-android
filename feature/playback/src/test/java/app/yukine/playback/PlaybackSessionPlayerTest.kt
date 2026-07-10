@@ -1,5 +1,6 @@
 package app.yukine.playback
 
+import android.os.Looper
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -14,6 +15,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import java.lang.reflect.Proxy
 import java.util.function.LongSupplier
@@ -203,6 +205,42 @@ class PlaybackSessionPlayerTest {
         assertEquals(1, delegate.metadataReads)
     }
 
+    @Test
+    fun refreshMediaMetadataPublishesEveryDynamicMetadataChangeToRegisteredListeners() {
+        val track = Track(
+            4_002L,
+            "Track 4002",
+            "Artist",
+            "Album",
+            60_000L,
+            android.net.Uri.EMPTY,
+            "file:4002"
+        )
+        val delegate = RecordingDelegate().apply {
+            currentTrackValue = track
+            metadataTitle = "first lyric"
+        }
+        val player = PlaybackSessionPlayer(fakePlayer(), delegate)
+        val listener = RecordingMetadataListener()
+        player.addListener(listener)
+
+        player.refreshMediaMetadata()
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+
+        delegate.metadataTitle = "second lyric"
+        player.refreshMediaMetadata()
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(listOf("first lyric", "second lyric"), listener.titles)
+
+        player.removeListener(listener)
+        delegate.metadataTitle = "third lyric"
+        player.refreshMediaMetadata()
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(listOf("first lyric", "second lyric"), listener.titles)
+    }
+
     private class RecordingDelegate : PlaybackSessionPlayer.Delegate {
         val events = mutableListOf<String>()
         var reportedPositionMs: Long = 0L
@@ -210,6 +248,7 @@ class PlaybackSessionPlayerTest {
         var reportedDurationMs: Long = 0L
         var currentTrackValue: Track? = null
         var metadataReads: Int = 0
+        var metadataTitle: String? = null
 
         override fun play() {
             events += "play"
@@ -253,7 +292,7 @@ class PlaybackSessionPlayerTest {
         override fun mediaMetadataForTrack(track: Track): MediaMetadata? {
             metadataReads++
             return MediaMetadata.Builder()
-                .setTitle(track.title)
+                .setTitle(metadataTitle ?: track.title)
                 .setArtist(track.artist)
                 .setAlbumTitle(track.album)
                 .build()
@@ -275,6 +314,14 @@ class PlaybackSessionPlayerTest {
         val mediaItem: MediaItem
     )
 
+    private class RecordingMetadataListener : Player.Listener {
+        val titles = mutableListOf<String>()
+
+        override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+            titles += mediaMetadata.title?.toString().orEmpty()
+        }
+    }
+
     companion object {
         private fun fakePlayer(queueState: FakeQueueState? = null): Player {
             return Proxy.newProxyInstance(
@@ -283,6 +330,7 @@ class PlaybackSessionPlayerTest {
             ) { _, method, _ ->
                 when (method.name) {
                     "getAvailableCommands" -> Player.Commands.Builder().add(Player.COMMAND_PLAY_PAUSE).build()
+                    "getApplicationLooper" -> Looper.getMainLooper()
                     "isCommandAvailable" -> false
                     "getMediaMetadata" -> MediaMetadata.Builder().build()
                     "getCurrentTimeline" -> queueState?.timeline ?: Timeline.EMPTY

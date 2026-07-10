@@ -813,7 +813,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackStateEventController.contains("interface QueueSnapshotSource"));
         assertTrue(playbackStateEventController.contains("publishQueueIfChanged(snapshot)"));
         assertTrue(playbackStateEventController.contains("private data class QueueKey"));
-        assertTrue(playbackStateEventController.contains("listener.selectedTab() != MainRoutes.TAB_QUEUE"));
+        assertTrue(playbackStateEventController.contains("listener.queueVisible()"));
         assertTrue(playbackStateEventController.contains("playbackStore.publish(queueSnapshotSource.queueSnapshot())"));
         assertFalse(playbackStateEventController.contains("playbackStore.publish(queueSnapshotSource.queueSnapshot())\n        listener.renderNowBar()"));
         assertFalse(playbackStateEventController.contains("EchoPlaybackService"));
@@ -829,9 +829,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("this::playbackQueueSnapshot"));
         assertTrue(mainActivity.contains("playbackStateEventListenerFactory.create("));
         assertTrue(mainActivity.contains("this::selectedTab"));
+        assertTrue(mainActivity.contains("this::isQueueVisible"));
         assertTrue(mainActivity.contains("this::resolveCurrentStreamingQueueTrackIfNeeded"));
         assertTrue(mainPlaybackStateEventListener.contains("internal class MainPlaybackStateEventListener("));
         assertTrue(mainPlaybackStateEventListener.contains(": PlaybackStateEventController.Listener"));
+        assertTrue(mainPlaybackStateEventListener.contains("queueVisibilitySource.queueVisible()"));
         assertTrue(mainPlaybackStateEventListener.contains("playbackSettingsSaver.savePlaybackSettings(playbackSpeed, appVolume)"));
         assertTrue(mainPlaybackStateEventListener.contains("currentStreamingTrackResolver.resolveCurrentStreamingTrackIfNeeded()"));
         assertTrue(playbackUiModule.contains("fun provideMainPlaybackStateEventListenerFactory(): MainPlaybackStateEventListenerFactory"));
@@ -1145,7 +1147,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("private static String activeLyricLine("));
         assertTrue(mainActivity.contains("@Inject MainNowPlayingStateListenerFactory nowPlayingStateListenerFactory;"));
         assertTrue(mainActivity.contains("new NowPlayingStateController(nowPlayingViewModel, nowPlayingStateListenerFactory.create("));
-        assertTrue(mainActivity.contains("() -> TAB_QUEUE.equals(selectedTab())"));
+        assertTrue(mainActivity.contains("private boolean isQueueVisible()"));
+        assertTrue(mainActivity.contains("navHostState.getQueueSheetVisible()"));
         assertTrue(mainActivity.contains("this::bindQueueViewModelInputs"));
         assertTrue(mainActivity.contains("FloatingLyricsPublisher.update("));
         assertTrue(mainActivity.contains("(trackId, trackTitle, artist, coverUri, playing, activeLine, lyrics, lyricsOffsetMs)"));

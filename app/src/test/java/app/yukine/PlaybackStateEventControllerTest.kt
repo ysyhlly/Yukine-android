@@ -95,6 +95,35 @@ class PlaybackStateEventControllerTest {
     }
 
     @Test
+    fun visibleQueueSheetRepublishesQueueWhenSelectedTabIsNotQueue() {
+        val playbackViewModel = PlaybackViewModel()
+        val playbackStore = MainPlaybackStore(playbackViewModel)
+        val queueSource = CountingQueueSource(listOf(track(1L), track(2L)))
+        val controller = PlaybackStateEventController(
+            Handler(Looper.getMainLooper()),
+            playbackStore,
+            queueSource,
+            RecordingListener(
+                selectedTab = MainRoutes.TAB_HOME,
+                queueVisibleOverride = true
+            )
+        )
+
+        controller.onPlaybackStateChanged(
+            snapshot(track = track(1L), positionMs = 1_000L, queueSize = 2, queueRevision = 4L)
+        )
+        idleMain()
+        queueSource.queue = listOf(track(1L), track(22L))
+        controller.onPlaybackStateChanged(
+            snapshot(track = track(1L), positionMs = 2_000L, queueSize = 2, queueRevision = 5L)
+        )
+        idleMain()
+
+        assertEquals(2, queueSource.calls)
+        assertEquals(22L, playbackViewModel.playback.value.queue.last().id)
+    }
+
+    @Test
     fun publishedQueueIsNotReusedAfterANewerSnapshotReplacesState() {
         val playbackViewModel = PlaybackViewModel()
         val playbackStore = MainPlaybackStore(playbackViewModel)
@@ -247,7 +276,8 @@ class PlaybackStateEventControllerTest {
     }
 
     private class RecordingListener(
-        var selectedTab: String = MainRoutes.TAB_QUEUE
+        var selectedTab: String = MainRoutes.TAB_QUEUE,
+        var queueVisibleOverride: Boolean? = null
     ) : PlaybackStateEventController.Listener {
         var nowBarUpdates = 0
         val homePlaybackPositions = mutableListOf<Long>()
@@ -257,6 +287,9 @@ class PlaybackStateEventControllerTest {
         val preResolvedTrackIds = mutableListOf<Long>()
 
         override fun selectedTab(): String = selectedTab
+
+        override fun queueVisible(): Boolean =
+            queueVisibleOverride ?: (selectedTab == MainRoutes.TAB_QUEUE)
 
         override fun currentLyricsTrackId(): Long = -1L
 

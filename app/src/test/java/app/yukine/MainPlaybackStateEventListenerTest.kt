@@ -30,6 +30,7 @@ class MainPlaybackStateEventListenerTest {
         )
 
         assertEquals("queue", listener.selectedTab())
+        assertEquals(true, listener.queueVisible())
         assertEquals(42L, listener.currentLyricsTrackId())
         listener.savePlaybackSettings(1.25f, 0.5f)
         listener.loadLyrics(null)
@@ -69,6 +70,7 @@ class MainPlaybackStateEventListenerTest {
         val calls = mutableListOf<String>()
         val listener = PlaybackUiModule.provideMainPlaybackStateEventListenerFactory().create(
             MainPlaybackStateEventListener.SelectedTabSource { "library" },
+            MainPlaybackStateEventListener.QueueVisibilitySource { true },
             MainPlaybackStateEventListener.CurrentLyricsTrackIdSource { -1L },
             MainPlaybackStateEventListener.PlaybackSettingsSaver { speed, volume ->
                 calls += "save:$speed:$volume"
@@ -89,6 +91,7 @@ class MainPlaybackStateEventListenerTest {
         )
 
         assertEquals("library", listener.selectedTab())
+        assertEquals(true, listener.queueVisible())
         listener.savePlaybackSettings(1.0f, 1.0f)
         listener.setStatus("ready")
 
@@ -103,6 +106,7 @@ class MainPlaybackStateEventListenerTest {
     ): MainPlaybackStateEventListener =
         MainPlaybackStateEventListener(
             selectedTabSource = MainPlaybackStateEventListener.SelectedTabSource { "queue" },
+            queueVisibilitySource = MainPlaybackStateEventListener.QueueVisibilitySource { true },
             currentLyricsTrackIdSource = MainPlaybackStateEventListener.CurrentLyricsTrackIdSource { 42L },
             playbackSettingsSaver = MainPlaybackStateEventListener.PlaybackSettingsSaver { speed, volume ->
                 calls += "save:$speed:$volume"

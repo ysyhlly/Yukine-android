@@ -6,6 +6,7 @@ import app.yukine.playback.PlaybackStateSnapshot
 internal fun interface MainPlaybackStateEventListenerFactory {
     fun create(
         selectedTabSource: MainPlaybackStateEventListener.SelectedTabSource,
+        queueVisibilitySource: MainPlaybackStateEventListener.QueueVisibilitySource,
         currentLyricsTrackIdSource: MainPlaybackStateEventListener.CurrentLyricsTrackIdSource,
         playbackSettingsSaver: MainPlaybackStateEventListener.PlaybackSettingsSaver,
         lyricsLoader: MainPlaybackStateEventListener.LyricsLoader,
@@ -23,6 +24,7 @@ internal fun interface MainPlaybackStateEventListenerFactory {
 
 internal class MainPlaybackStateEventListener(
     private val selectedTabSource: SelectedTabSource,
+    private val queueVisibilitySource: QueueVisibilitySource,
     private val currentLyricsTrackIdSource: CurrentLyricsTrackIdSource,
     private val playbackSettingsSaver: PlaybackSettingsSaver,
     private val lyricsLoader: LyricsLoader,
@@ -38,6 +40,10 @@ internal class MainPlaybackStateEventListener(
 ) : PlaybackStateEventController.Listener {
     fun interface SelectedTabSource {
         fun selectedTab(): String
+    }
+
+    fun interface QueueVisibilitySource {
+        fun queueVisible(): Boolean
     }
 
     fun interface CurrentLyricsTrackIdSource {
@@ -89,6 +95,8 @@ internal class MainPlaybackStateEventListener(
     }
 
     override fun selectedTab(): String = selectedTabSource.selectedTab()
+
+    override fun queueVisible(): Boolean = queueVisibilitySource.queueVisible()
 
     override fun currentLyricsTrackId(): Long = currentLyricsTrackIdSource.currentLyricsTrackId()
 

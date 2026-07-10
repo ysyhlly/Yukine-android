@@ -440,6 +440,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 this::playbackQueueSnapshot,
                 playbackStateEventListenerFactory.create(
                         this::selectedTab,
+                        this::isQueueVisible,
                         () -> lyricsViewModel == null ? -1L : lyricsViewModel.trackId(),
                         (playbackSpeed, appVolume) -> {
                             settingsStore.setPlaybackSpeed(playbackSpeed);
@@ -622,7 +623,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> libraryStore.favoriteIds(),
                 () -> lyricsViewModel == null ? new LyricsState() : lyricsViewModel.stateSnapshot(),
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
-                () -> TAB_QUEUE.equals(selectedTab()),
+                this::isQueueVisible,
                 (trackId, trackTitle, artist, coverUri, playing, activeLine, lyrics, lyricsOffsetMs) -> FloatingLyricsPublisher.update(
                         trackId,
                         trackTitle,
@@ -1245,6 +1246,11 @@ public abstract class MainActivityBase extends ComponentActivity {
         return routeController == null ? TAB_HOME : routeController.selectedTab();
     }
 
+    private boolean isQueueVisible() {
+        return TAB_QUEUE.equals(selectedTab())
+                || (navHostState != null && navHostState.getQueueSheetVisible());
+    }
+
     private String libraryMode() {
         return routeController == null ? LIBRARY_SONGS : routeController.libraryMode();
     }
@@ -1466,7 +1472,12 @@ public abstract class MainActivityBase extends ComponentActivity {
                     trackDownloadManager,
                     () -> playbackService == null ? 0f : playbackService.realtimeBeat(),
                     () -> playbackService == null ? EMPTY_REALTIME_BANDS : playbackService.realtimeBands(),
-                    true
+                    true,
+                    visible -> {
+                        if (visible) {
+                            bindQueueViewModelInputs(true);
+                        }
+                    }
             );
             return;
         }

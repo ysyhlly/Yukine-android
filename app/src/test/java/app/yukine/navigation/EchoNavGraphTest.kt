@@ -66,7 +66,8 @@ class EchoNavGraphTest {
         realtimeBeatProvider: () -> Float = { 0f },
         realtimeBandsProvider: () -> FloatArray = { emptyRealtimeBands },
         nowPlayingStateProvider: NowPlayingViewModel = NowPlayingViewModel(),
-        playbackSnapshotProvider: PlaybackSnapshotProvider = app.yukine.PlaybackViewModel()
+        playbackSnapshotProvider: PlaybackSnapshotProvider = app.yukine.PlaybackViewModel(),
+        queueSheetVisibilityListener: QueueSheetVisibilityListener = QueueSheetVisibilityListener { }
     ): EchoNavHostState {
         val homeDashboard = HomeDashboardViewModel(null).also {
             it.updateHomeDashboard(
@@ -121,7 +122,8 @@ class EchoNavGraphTest {
             playbackSnapshotProvider = playbackSnapshotProvider,
             realtimeBeatProvider = realtimeBeatProvider,
             realtimeBandsProvider = realtimeBandsProvider,
-            visualMotionEnabled = visualMotionEnabled
+            visualMotionEnabled = visualMotionEnabled,
+            queueSheetVisibilityListener = queueSheetVisibilityListener
         )
     }
 
@@ -249,6 +251,37 @@ class EchoNavGraphTest {
 
         assertEquals(QueueTab.route, state.selectedTabRoute)
         composeRule.onAllNodesWithText("Elapsed").assertCountEquals(0)
+    }
+
+    @Test
+    fun clickingNowBarQueueMakesQueueSheetVisibleToHost() {
+        val visibilityChanges = mutableListOf<Boolean>()
+        val nowPlayingViewModel = NowPlayingViewModel()
+        val state = hostState(
+            nowPlayingStateProvider = nowPlayingViewModel,
+            queueSheetVisibilityListener = QueueSheetVisibilityListener { visible ->
+                visibilityChanges += visible
+            }
+        )
+        nowPlayingViewModel.updateState(
+            nowPlayingSnapshot(),
+            emptySet(),
+            null
+        )
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                EchoNavGraph(
+                    tabs = tabs,
+                    hostState = state
+                )
+            }
+        }
+
+        composeRule.onNode(hasContentDescription("Queue") and hasClickAction()).performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(listOf(true), visibilityChanges)
+        assertTrue(state.queueSheetVisible)
     }
 
     @Test

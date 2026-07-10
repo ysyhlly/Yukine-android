@@ -140,7 +140,6 @@ fun EchoNavGraph(
 
     val pagerState = rememberPagerState(initialPage = selectedIndex) { pagerTabs.size }
 
-    var showQueueSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(selectedInPager, selectedIndex) {
@@ -179,7 +178,7 @@ fun EchoNavGraph(
                 hostState.selectedTabRoute = QueueTab.route
                 onTabChanged(QueueTab)
             },
-            onOpenQueue = { showQueueSheet = true },
+            onOpenQueue = { hostState.setQueueSheetVisibility(true) },
             onSeek = { positionMs -> nowPlayingEventHandler(NowPlayingEvent.SeekTo(positionMs)) }
         )
     }
@@ -318,10 +317,10 @@ fun EchoNavGraph(
         }
     }
 
-    if (showQueueSheet) {
+    if (hostState.queueSheetVisible) {
         val p = EchoTheme.colors()
         ModalBottomSheet(
-            onDismissRequest = { showQueueSheet = false },
+            onDismissRequest = { hostState.setQueueSheetVisibility(false) },
             sheetState = sheetState,
             containerColor = p.surface
         ) {

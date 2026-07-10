@@ -102,7 +102,7 @@ flowchart TD
 - 桌面小部件：封面、标题、艺人、上一首、播放/暂停、下一首。
 - NowBar：歌词条、进度、波形、收藏、随机、循环、队列入口。
 - 歌词：本地/在线歌词加载、偏移、当前行高亮、沉浸歌词、复制和状态同步。
-- 状态栏/悬浮歌词：播放通知歌词、锁屏/状态栏歌词、悬浮窗歌词，歌词行变化、前后台切换和界面被系统回收但播放仍继续时，都会由播放服务同步刷新通知与媒体会话；支持 OPPO 流体云依赖通知展示。歌词设置还提供默认关闭的「系统媒体歌词标题兼容模式」，供只显示标题的车机或媒体面板把当前歌词作为标题，同时保留歌曲名和歌手元数据。
+- 状态栏/悬浮歌词：播放通知歌词、锁屏/状态栏歌词、悬浮窗歌词，歌词行变化、前后台切换和界面被系统回收但播放仍继续时，都会由播放服务同步刷新通知与媒体会话；支持 OPPO 流体云依赖通知展示。歌词设置还提供默认关闭的「系统媒体歌词标题兼容模式」，供只显示标题的车机或媒体面板把当前歌词作为标题，同时保留歌曲名和歌手元数据；兼容模式会随每句歌词发送 MediaSession 元数据更新，避免系统媒体标题停在第一句。
 - 音效：系统 Equalizer、BassBoost、Virtualizer、LoudnessEnhancer 设置入口。
 - ReplayGain：读取本地音频 ReplayGain 标签并在播放时应用。
 - 流媒体：网易云登录、账号歌单加载、登录后弹窗选择导入歌单、在线搜索和播放源解析；QQ Cookie 导入和 LX 自定义源导入入口已接入。
@@ -311,7 +311,7 @@ flowchart TD
 - Home screen widget with artwork, title, artist, previous, play/pause, and next actions.
 - NowBar with lyric strip, progress, waveform, favorite, shuffle, repeat, and queue controls.
 - Lyrics loading, offset control, active-line highlight, immersive lyrics, copy support, and state publishing.
-- Live lyric notification and floating lyrics. Lyric-line updates, foreground/background transitions, and Activity destruction while playback continues are synchronized by the playback service to both the notification and MediaSession; supported OPPO fluid cloud panels can display lyric content from the notification. Lyrics settings also include a default-off system-media lyric-title compatibility mode for car head units or media panels that only show a title; it keeps the real track title and artist in metadata.
+- Live lyric notification and floating lyrics. Lyric-line updates, foreground/background transitions, and Activity destruction while playback continues are synchronized by the playback service to both the notification and MediaSession; supported OPPO fluid cloud panels can display lyric content from the notification. Lyrics settings also include a default-off system-media lyric-title compatibility mode for car head units or media panels that only show a title; it keeps the real track title and artist in metadata and emits a MediaSession metadata update for every lyric line so title-only surfaces do not stay on the first line.
 - Android system audio effects: Equalizer, BassBoost, Virtualizer, and LoudnessEnhancer.
 - ReplayGain parsing and playback gain application for local tracks.
 - NetEase login, account playlist loading, post-login playlist picker, online search, and playback URL resolution; QQ cookie import and LX custom source import entries are available.

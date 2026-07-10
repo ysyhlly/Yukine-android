@@ -32,6 +32,8 @@ internal class PlaybackStateEventController(
     interface Listener {
         fun selectedTab(): String
 
+        fun queueVisible(): Boolean
+
         fun currentLyricsTrackId(): Long
 
         fun savePlaybackSettings(playbackSpeed: Float, appVolume: Float)
@@ -136,7 +138,7 @@ internal class PlaybackStateEventController(
     }
 
     private fun publishQueueIfChanged(snapshot: PlaybackStateSnapshot) {
-        if (listener.selectedTab() != MainRoutes.TAB_QUEUE) {
+        if (!listener.queueVisible()) {
             return
         }
         val nextKey = QueueKey.from(snapshot)

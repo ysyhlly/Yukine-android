@@ -29,6 +29,10 @@ import kotlinx.coroutines.flow.emptyFlow
 
 private val EmptyRealtimeBands = FloatArray(0)
 
+fun interface QueueSheetVisibilityListener {
+    fun onQueueSheetVisibilityChanged(visible: Boolean)
+}
+
 class EchoNavHostState @JvmOverloads constructor(
     val routeState: StateFlow<NavigationRouteState>,
     val homeDashboardState: StateFlow<HomeDashboardDestinationState>,
@@ -52,12 +56,24 @@ class EchoNavHostState @JvmOverloads constructor(
     val trackDownloadController: TrackDownloadController? = null,
     val realtimeBeatProvider: () -> Float = { 0f },
     val realtimeBandsProvider: () -> FloatArray = { EmptyRealtimeBands },
-    val visualMotionEnabled: Boolean = true
+    val visualMotionEnabled: Boolean = true,
+    private val queueSheetVisibilityListener: QueueSheetVisibilityListener =
+        QueueSheetVisibilityListener { }
 ) {
     val nowBarStateProvider: NowPlayingScreenStateProvider = nowPlayingStateProvider
     val nowPlayingUiState: StateFlow<app.yukine.NowPlayingUiState> = nowPlayingStateProvider.uiState
 
     var selectedTabRoute by mutableStateOf(selectedTabRoute)
+    var queueSheetVisible by mutableStateOf(false)
+        private set
+
+    fun setQueueSheetVisibility(visible: Boolean) {
+        if (queueSheetVisible == visible) {
+            return
+        }
+        queueSheetVisible = visible
+        queueSheetVisibilityListener.onQueueSheetVisibilityChanged(visible)
+    }
 }
 
 private object EmptyQueueDestinationStateProvider : QueueDestinationStateProvider {
