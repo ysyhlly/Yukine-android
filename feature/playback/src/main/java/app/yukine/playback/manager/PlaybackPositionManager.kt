@@ -3,13 +3,12 @@ package app.yukine.playback.manager
 import app.yukine.model.Track
 import java.util.function.LongSupplier
 import java.util.function.Supplier
-import kotlin.math.abs
 
 internal class PlaybackPositionManager @JvmOverloads constructor(
     private val queueStore: PlaybackQueueStore,
     private val stateProvider: StateProvider,
-    private val nowMs: LongSupplier = LongSupplier { System.currentTimeMillis() },
-    private val saveIntervalMs: Long = DEFAULT_SAVE_INTERVAL_MS
+    @Suppress("UNUSED_PARAMETER") nowMs: LongSupplier = LongSupplier { System.currentTimeMillis() },
+    @Suppress("UNUSED_PARAMETER") saveIntervalMs: Long = DEFAULT_SAVE_INTERVAL_MS
 ) {
     interface StateProvider {
         fun currentTrack(): Track?
@@ -19,9 +18,6 @@ internal class PlaybackPositionManager @JvmOverloads constructor(
     private var restoredPositionTrackId = -1L
     private var restoredPositionMs = 0L
     private var restoredPositionExplicit = false
-    private var lastSavedPositionTrackId = -1L
-    private var lastSavedPositionMs = 0L
-    private var lastPositionSaveAtMs = 0L
 
     fun setRestoredPosition(trackId: Long, positionMs: Long, explicit: Boolean) {
         restoredPositionTrackId = trackId
@@ -57,45 +53,32 @@ internal class PlaybackPositionManager @JvmOverloads constructor(
     fun clearPlaybackPosition() {
         clearRestoredPosition()
         queueStore.savePlaybackPosition(-1L, 0L)
-        lastSavedPositionTrackId = -1L
-        lastSavedPositionMs = 0L
-        lastPositionSaveAtMs = 0L
     }
 
     fun positionMs(): Long {
         return stateProvider.positionMs()
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun persistCurrentPosition(force: Boolean) {
+        // Periodic progress, seek while playing, and shutdown callbacks must not create a
+        // resume checkpoint. A user pause is the only action that persists a position.
+    }
+
+    fun persistCurrentPositionForPause() {
         val track = stateProvider.currentTrack() ?: return
-        val position = stateProvider.positionMs()
-        val now = nowMs.asLong
-        if (!force &&
-            track.id == lastSavedPositionTrackId &&
-            abs(position - lastSavedPositionMs) < saveIntervalMs &&
-            now - lastPositionSaveAtMs < saveIntervalMs
-        ) {
-            return
-        }
-        queueStore.savePlaybackPosition(track.id, clampPlaybackPosition(track, position))
-        lastSavedPositionTrackId = track.id
-        lastSavedPositionMs = position
-        lastPositionSaveAtMs = now
+        queueStore.savePlaybackPosition(track.id, clampPlaybackPosition(track, stateProvider.positionMs()))
     }
 
     fun resetCurrentPlaybackPosition() {
-        val track = stateProvider.currentTrack() ?: return
-        queueStore.savePlaybackPosition(track.id, 0L)
-        lastSavedPositionTrackId = track.id
-        lastSavedPositionMs = 0L
-        lastPositionSaveAtMs = nowMs.asLong
+        clearPlaybackPosition()
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun saveTrackPosition(track: Track?, positionMs: Long) {
-        if (track == null) {
-            return
-        }
-        queueStore.savePlaybackPosition(track.id, clampPlaybackPosition(track, positionMs))
+        // Completion and queue-transition callbacks must not change a pause checkpoint.
+        // Explicit user pauses use persistCurrentPositionForPause; in-memory source recovery
+        // uses setExplicitRestoredPosition instead.
     }
 
     fun clampPlaybackPosition(track: Track?, positionMs: Long): Long {

@@ -13,6 +13,7 @@ import app.yukine.model.Track;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
@@ -164,6 +165,96 @@ public final class PlaybackNotificationArtworkManagerTest {
         assertArrayEquals(artworkData, manager.notificationArtworkDataFor(track));
         assertEquals(1, notificationBridge.refreshCalls);
         assertEquals(1, notificationBridge.updateCalls);
+    }
+
+    @Test
+    public void artworkDecodeRunsBeforeMainThreadCachePublication() {
+        List<Runnable> background = new ArrayList<>();
+        List<Runnable> main = new ArrayList<>();
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeNotificationBridge notificationBridge = new FakeNotificationBridge();
+        Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+        byte[] artworkData = new byte[] {13, 14, 15};
+        Track track = track(6L);
+        stateProvider.currentTrack = track;
+        PlaybackNotificationArtworkManager manager = new PlaybackNotificationArtworkManager(
+                RuntimeEnvironment.getApplication(),
+                stateProvider,
+                notificationBridge,
+                background::add,
+                main::add,
+                ignored -> bitmap,
+                ignored -> artworkData
+        );
+
+        assertNull(manager.notificationArtworkFor(track));
+        background.get(0).run();
+
+        assertNull(manager.notificationArtworkFor(track));
+        assertNull(manager.notificationArtworkDataFor(track));
+        assertEquals(0, notificationBridge.refreshCalls);
+        assertEquals(0, notificationBridge.updateCalls);
+
+        main.get(0).run();
+
+        assertSame(bitmap, manager.notificationArtworkFor(track));
+        assertArrayEquals(artworkData, manager.notificationArtworkDataFor(track));
+        assertEquals(1, notificationBridge.refreshCalls);
+        assertEquals(1, notificationBridge.updateCalls);
+    }
+
+    @Test
+    public void releaseAfterBackgroundDecodePreventsQueuedMainThreadPublication() {
+        List<Runnable> background = new ArrayList<>();
+        List<Runnable> main = new ArrayList<>();
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeNotificationBridge notificationBridge = new FakeNotificationBridge();
+        Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+        Track track = track(7L);
+        stateProvider.currentTrack = track;
+        PlaybackNotificationArtworkManager manager = new PlaybackNotificationArtworkManager(
+                RuntimeEnvironment.getApplication(),
+                stateProvider,
+                notificationBridge,
+                background::add,
+                main::add,
+                ignored -> bitmap,
+                ignored -> new byte[] {16, 17, 18}
+        );
+
+        assertNull(manager.notificationArtworkFor(track));
+        background.get(0).run();
+        manager.release();
+        main.get(0).run();
+
+        assertNull(manager.notificationArtworkDataFor(track));
+        assertEquals(0, notificationBridge.refreshCalls);
+        assertEquals(0, notificationBridge.updateCalls);
+    }
+
+    @Test
+    public void rejectedArtworkWorkCanBeRequestedAgain() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeNotificationBridge notificationBridge = new FakeNotificationBridge();
+        Track track = track(8L);
+        stateProvider.currentTrack = track;
+        AtomicInteger attempts = new AtomicInteger();
+        PlaybackNotificationArtworkManager manager = new PlaybackNotificationArtworkManager(
+                RuntimeEnvironment.getApplication(),
+                stateProvider,
+                notificationBridge,
+                command -> {
+                    attempts.incrementAndGet();
+                    throw new RejectedExecutionException();
+                },
+                ignored -> null,
+                ignored -> null
+        );
+
+        assertNull(manager.notificationArtworkFor(track));
+        assertNull(manager.notificationArtworkFor(track));
+
+        assertEquals(2, attempts.get());
     }
 
     private static PlaybackNotificationArtworkManager manager(

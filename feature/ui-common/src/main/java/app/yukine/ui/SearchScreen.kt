@@ -294,7 +294,10 @@ private fun StreamingTrackResultRow(
             .filter { it.isNotBlank() }
             .joinToString(" / "),
         coverUri = (track.coverThumbUrl ?: track.coverUrl)?.let(Uri::parse),
-        sourceLabel = sourceLabel,
+        sourceLabel = sourceLabel + (track.playbackSourceCount - 1)
+            .takeIf { it > 0 }
+            ?.let { " +$it" }
+            .orEmpty(),
         onClick = onClick
     )
 }

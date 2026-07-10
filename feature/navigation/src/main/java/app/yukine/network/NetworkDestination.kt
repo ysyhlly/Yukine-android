@@ -5,7 +5,9 @@ import app.yukine.LibraryTrackListDestinationState
 import app.yukine.MainRoutes
 import app.yukine.NetworkMenuUiState
 import app.yukine.NetworkSourcesUiState
+import app.yukine.TrackDownloadItem
 import app.yukine.library.LibraryTrackListDestination
+import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.StateFlow
 
 @Composable
@@ -14,7 +16,10 @@ fun NetworkDestination(
     menuState: NetworkMenuUiState,
     sourcesState: StateFlow<NetworkSourcesUiState>,
     trackListState: StateFlow<LibraryTrackListDestinationState>,
-    streamingContent: @Composable () -> Unit
+    streamingContent: @Composable () -> Unit,
+    activeDownload: TrackDownloadItem? = null,
+    playbackQuality: String = "",
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
     when (networkPage) {
         MainRoutes.NETWORK_SOURCES -> NetworkSourcesDestination(state = sourcesState)
@@ -25,12 +30,25 @@ fun NetworkDestination(
         MainRoutes.NETWORK_STREAM_LIST,
         MainRoutes.NETWORK_WEBDAV_TRACKS,
         MainRoutes.NETWORK_WEBDAV_SOURCE_TRACKS -> LibraryTrackListDestination(
-            state = trackListState
+            state = trackListState,
+            activeDownload = activeDownload,
+            playbackQuality = playbackQuality,
+            audioMotion = audioMotion
         )
 
         MainRoutes.NETWORK_HOME,
-        MainRoutes.NETWORK_WEBDAV -> NetworkMenuDestination(state = menuState)
+        MainRoutes.NETWORK_WEBDAV -> NetworkMenuDestination(
+            state = menuState,
+            activeDownload = activeDownload,
+            playbackQuality = playbackQuality,
+            audioMotion = audioMotion
+        )
 
-        else -> NetworkMenuDestination(state = menuState)
+        else -> NetworkMenuDestination(
+            state = menuState,
+            activeDownload = activeDownload,
+            playbackQuality = playbackQuality,
+            audioMotion = audioMotion
+        )
     }
 }

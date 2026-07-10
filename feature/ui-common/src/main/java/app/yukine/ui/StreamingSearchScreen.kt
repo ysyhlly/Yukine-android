@@ -1,5 +1,6 @@
 package app.yukine.ui
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -24,6 +25,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.yukine.StreamingSearchState
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingAlbum
@@ -744,11 +746,27 @@ private fun StreamingTrackRow(track: StreamingTrack, playable: Boolean, onPlay: 
 @Composable
 private fun StreamingTrackRowContent(track: StreamingTrack, playable: Boolean) {
     val p = EchoTheme.colors()
+    val additionalSources = (track.playbackSourceCount - 1).coerceAtLeast(0)
+    val sourceSummary = track.provider.wireName + if (additionalSources > 0) " +$additionalSources" else ""
+    val trackDetail = listOf(track.artist, track.album.orEmpty(), sourceSummary)
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+    val subtitle = track.unavailableReason?.takeIf { !playable && it.isNotBlank() } ?: trackDetail
+    val coverUri = (track.coverThumbUrl ?: track.coverUrl)?.let(Uri::parse)
     Row(
         modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        EchoIcon(EchoIconKind.Play, Modifier.size(22.dp), if (playable) p.accent else p.muted)
+        AsyncArtwork(
+            uri = coverUri,
+            title = track.title,
+            subtitle = subtitle,
+            modifier = Modifier.size(46.dp),
+            cornerRadius = 8.dp,
+            fallbackTextSize = 12.sp,
+            targetSize = 46.dp,
+            backgroundColor = p.surfaceVariant
+        )
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -759,8 +777,7 @@ private fun StreamingTrackRowContent(track: StreamingTrack, playable: Boolean) {
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                track.unavailableReason?.takeIf { !playable && it.isNotBlank() }
-                    ?: "${track.artist} - ${track.provider.wireName}",
+                subtitle,
                 style = EchoTypography.caption,
                 color = p.muted,
                 maxLines = 1,

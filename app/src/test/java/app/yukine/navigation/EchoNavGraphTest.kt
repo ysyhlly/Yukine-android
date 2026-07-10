@@ -1,12 +1,17 @@
 package app.yukine.navigation
 
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.SavedStateHandle
@@ -30,7 +35,11 @@ import app.yukine.ui.EchoTheme
 import app.yukine.ui.HomeDashboardUiState
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.SettingsMetric
+import app.yukine.ui.SeekAction
+import app.yukine.ui.nowBarEmptyState
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -56,7 +65,8 @@ class EchoNavGraphTest {
         visualMotionEnabled: Boolean = false,
         realtimeBeatProvider: () -> Float = { 0f },
         realtimeBandsProvider: () -> FloatArray = { emptyRealtimeBands },
-        nowPlayingStateProvider: NowPlayingViewModel = NowPlayingViewModel()
+        nowPlayingStateProvider: NowPlayingViewModel = NowPlayingViewModel(),
+        playbackSnapshotProvider: PlaybackSnapshotProvider = app.yukine.PlaybackViewModel()
     ): EchoNavHostState {
         val homeDashboard = HomeDashboardViewModel(null).also {
             it.updateHomeDashboard(
@@ -108,7 +118,7 @@ class EchoNavGraphTest {
             networkMenuState = networkMenu.uiState,
             networkSourcesState = networkSources.uiState,
             streamingState = streaming.streaming,
-            playbackSnapshotProvider = app.yukine.PlaybackViewModel(),
+            playbackSnapshotProvider = playbackSnapshotProvider,
             realtimeBeatProvider = realtimeBeatProvider,
             realtimeBandsProvider = realtimeBandsProvider,
             visualMotionEnabled = visualMotionEnabled
@@ -165,6 +175,44 @@ class EchoNavGraphTest {
     }
 
     @Test
+    fun playingHomeTabPollsRealtimeVisualProvidersForTheVisibleOrb() {
+        composeRule.mainClock.autoAdvance = false
+        try {
+            var beatPolls = 0
+            var bandPolls = 0
+            val state = hostState(
+                visualMotionEnabled = true,
+                realtimeBeatProvider = {
+                    beatPolls += 1
+                    0.5f
+                },
+                realtimeBandsProvider = {
+                    bandPolls += 1
+                    floatArrayOf(0.2f)
+                },
+                playbackSnapshotProvider = object : PlaybackSnapshotProvider {
+                    override val playbackSnapshot = MutableStateFlow(nowPlayingSnapshot())
+                }
+            )
+            composeRule.setContent {
+                EchoTheme.EchoTheme {
+                    EchoNavGraph(
+                        tabs = tabs,
+                        hostState = state
+                    )
+                }
+            }
+
+            composeRule.mainClock.advanceTimeBy(50)
+
+            assertTrue(beatPolls > 0)
+            assertTrue(bandPolls > 0)
+        } finally {
+            composeRule.mainClock.autoAdvance = true
+        }
+    }
+
+    @Test
     fun selectingPlayingTab_updatesHostStateRoute() {
         val state = hostState()
         composeRule.setContent {
@@ -201,6 +249,36 @@ class EchoNavGraphTest {
 
         assertEquals(QueueTab.route, state.selectedTabRoute)
         composeRule.onAllNodesWithText("Elapsed").assertCountEquals(0)
+    }
+
+    @Test
+    fun clickingNowBarProgress_expandsWaveform_andTrackChangeCollapsesIt() {
+        var nowBarState by mutableStateOf(waveformNowBarState(1L))
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                EchoNowBar(
+                    state = nowBarState,
+                    onOpenNowPlaying = { },
+                    onOpenQueue = { },
+                    onPrevious = Runnable { },
+                    onPlayPause = Runnable { },
+                    onNext = Runnable { },
+                    onFavorite = Runnable { },
+                    onShuffle = Runnable { },
+                    onRepeat = Runnable { },
+                    onSeek = SeekAction { _ -> }
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("expand-waveform").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithContentDescription("waveform-progress").assertIsDisplayed()
+
+        nowBarState = waveformNowBarState(2L)
+        composeRule.waitForIdle()
+
+        composeRule.onAllNodesWithContentDescription("waveform-progress").assertCountEquals(0)
     }
 
     @Test
@@ -274,4 +352,15 @@ class EchoNavGraphTest {
             1.0f,
             0L
         )
+
+    private fun waveformNowBarState(trackId: Long) = nowBarEmptyState().copy(
+        title = "Song",
+        canExpand = true,
+        duration = "3:00",
+        durationMs = 180_000L,
+        trackId = trackId,
+        dataPath = "file:waveform-$trackId.mp3",
+        playbackProgressLabel = "waveform-progress",
+        expandWaveformLabel = "expand-waveform"
+    )
 }

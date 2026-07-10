@@ -30,7 +30,7 @@ class PlaybackStateUpdateControllerTest {
     }
 
     @Test
-    fun resolveDoesNotRefreshCollectionsForSameHistoryTrack() {
+    fun resolveRendersLibraryWhenPlaybackSnapshotIntroducesTrackWithoutRefreshingCollections() {
         val next = snapshot(track = track(42L), playing = true)
 
         val result = PlaybackStateUpdateController.resolve(
@@ -43,9 +43,41 @@ class PlaybackStateUpdateControllerTest {
 
         assertFalse(result.loadLyrics)
         assertFalse(result.refreshCollections)
-        assertFalse(result.renderSelectedTab)
+        assertTrue(result.renderSelectedTab)
         assertFalse(result.updateNowPlaying)
         assertEquals(42L, result.lastHistoryRefreshTrackId)
+    }
+
+    @Test
+    fun resolveRendersLibraryWhenCurrentTrackChanges() {
+        val previous = snapshot(track = track(41L), playing = true)
+        val next = snapshot(track = track(42L), playing = true)
+
+        val result = PlaybackStateUpdateController.resolve(
+            MainRoutes.TAB_LIBRARY,
+            previous,
+            next,
+            currentLyricsTrackId = 42L,
+            lastHistoryRefreshTrackId = 42L
+        )
+
+        assertTrue(result.renderSelectedTab)
+    }
+
+    @Test
+    fun resolveDoesNotRenderLibraryForProgressOnlyChange() {
+        val previous = snapshot(track = track(42L), playing = true, positionMs = 100L)
+        val next = snapshot(track = track(42L), playing = true, positionMs = 200L)
+
+        val result = PlaybackStateUpdateController.resolve(
+            MainRoutes.TAB_LIBRARY,
+            previous,
+            next,
+            currentLyricsTrackId = 42L,
+            lastHistoryRefreshTrackId = 42L
+        )
+
+        assertFalse(result.renderSelectedTab)
     }
 
     @Test
@@ -85,13 +117,14 @@ class PlaybackStateUpdateControllerTest {
     private fun snapshot(
         track: Track? = null,
         playing: Boolean = false,
+        positionMs: Long = 0L,
         errorMessage: String = ""
     ): PlaybackStateSnapshot {
         return PlaybackStateSnapshot(
             track,
             if (track == null) -1 else 0,
             if (track == null) 0 else 1,
-            0L,
+            positionMs,
             track?.durationMs ?: 0L,
             playing,
             false,

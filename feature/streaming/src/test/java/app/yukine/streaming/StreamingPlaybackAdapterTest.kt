@@ -54,6 +54,26 @@ class StreamingPlaybackAdapterTest {
     }
 
     @Test
+    fun resolvedTrackRetainsStreamingAlbumMetadata() {
+        val resolved = StreamingPlaybackAdapter.toTrack(
+            source = StreamingPlaybackSource(
+                provider = StreamingProviderName.QQ_MUSIC,
+                providerTrackId = "song-mid-1|media-mid-1",
+                url = "https://stream.qq.example/song.mp3"
+            ),
+            metadata = StreamingTrack(
+                provider = StreamingProviderName.QQ_MUSIC,
+                providerTrackId = "song-mid-1|media-mid-1",
+                title = "Song",
+                artist = "Artist",
+                album = "Album"
+            )
+        )
+
+        assertEquals("Album", resolved.album)
+    }
+
+    @Test
     fun luoxueProviderTrackIdPreservesSourcePrefixColon() {
         // 洛雪音源的 providerTrackId 形如 "kw:12345"，冒号是 ID 的一部分，不能被截断。
         val track = StreamingTrack(

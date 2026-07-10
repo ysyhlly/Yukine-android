@@ -118,6 +118,52 @@ class PlaybackStateEventControllerTest {
         assertEquals(500, playbackViewModel.playback.value.queue.size)
     }
 
+    @Test
+    fun busyMainHandlerKeepsOnlyTheLatestPlaybackSnapshot() {
+        val playbackViewModel = PlaybackViewModel()
+        val playbackStore = MainPlaybackStore(playbackViewModel)
+        val listener = RecordingListener()
+        val controller = PlaybackStateEventController(
+            Handler(Looper.getMainLooper()),
+            playbackStore,
+            CountingQueueSource(emptyList()),
+            listener
+        )
+        val current = track(7L)
+
+        controller.onPlaybackStateChanged(snapshot(track = current, positionMs = 1_000L, queueSize = 1))
+        controller.onPlaybackStateChanged(snapshot(track = current, positionMs = 2_000L, queueSize = 1))
+        controller.onPlaybackStateChanged(snapshot(track = current, positionMs = 3_000L, queueSize = 1))
+        idleMain()
+
+        assertEquals(3_000L, playbackStore.snapshot()?.positionMs)
+        assertEquals(1, listener.nowBarUpdates)
+        assertEquals(listOf(3_000L), listener.homePlaybackPositions)
+        assertEquals(listOf(3_000L), listener.preResolvedPositions)
+    }
+
+    @Test
+    fun coalescedTrackTransitionStillUsesTheLatestTrackForUiEffects() {
+        val playbackViewModel = PlaybackViewModel()
+        val playbackStore = MainPlaybackStore(playbackViewModel)
+        val listener = RecordingListener()
+        val controller = PlaybackStateEventController(
+            Handler(Looper.getMainLooper()),
+            playbackStore,
+            CountingQueueSource(listOf(track(1L), track(2L))),
+            listener
+        )
+
+        controller.onPlaybackStateChanged(snapshot(track = track(1L), positionMs = 1_000L, queueSize = 2))
+        controller.onPlaybackStateChanged(snapshot(track = track(2L), positionMs = 0L, queueSize = 2))
+        idleMain()
+
+        assertEquals(2L, playbackStore.snapshot()?.currentTrack?.id)
+        assertEquals(listOf(2L), listener.loadedLyricsTrackIds)
+        assertEquals(listOf(2L), listener.homeTrackIds)
+        assertEquals(listOf(2L), listener.preResolvedTrackIds)
+    }
+
     private class CountingQueueSource(
         var queue: List<Track>
     ) : PlaybackStateEventController.QueueSnapshotSource {
@@ -132,25 +178,42 @@ class PlaybackStateEventControllerTest {
     private class RecordingListener(
         var selectedTab: String = MainRoutes.TAB_QUEUE
     ) : PlaybackStateEventController.Listener {
+        var nowBarUpdates = 0
+        val homePlaybackPositions = mutableListOf<Long>()
+        val preResolvedPositions = mutableListOf<Long>()
+        val loadedLyricsTrackIds = mutableListOf<Long>()
+        val homeTrackIds = mutableListOf<Long>()
+        val preResolvedTrackIds = mutableListOf<Long>()
+
         override fun selectedTab(): String = selectedTab
 
         override fun currentLyricsTrackId(): Long = -1L
 
         override fun savePlaybackSettings(playbackSpeed: Float, appVolume: Float) = Unit
 
-        override fun loadLyrics(track: Track?) = Unit
+        override fun loadLyrics(track: Track?) {
+            track?.let { loadedLyricsTrackIds += it.id }
+        }
 
         override fun loadCollections() = Unit
 
-        override fun renderNowBar() = Unit
+        override fun renderNowBar() {
+            nowBarUpdates += 1
+        }
 
-        override fun updateHomeDashboardPlayback(snapshot: PlaybackStateSnapshot) = Unit
+        override fun updateHomeDashboardPlayback(snapshot: PlaybackStateSnapshot) {
+            homePlaybackPositions += snapshot.positionMs
+            snapshot.currentTrack?.let { homeTrackIds += it.id }
+        }
 
         override fun renderSelectedTab() = Unit
 
         override fun updateNowPlayingContent() = Unit
 
-        override fun preResolveNextStreamingTrack(snapshot: PlaybackStateSnapshot) = Unit
+        override fun preResolveNextStreamingTrack(snapshot: PlaybackStateSnapshot) {
+            preResolvedPositions += snapshot.positionMs
+            snapshot.currentTrack?.let { preResolvedTrackIds += it.id }
+        }
 
         override fun recoverStreamingBuffering(snapshot: PlaybackStateSnapshot) = Unit
 

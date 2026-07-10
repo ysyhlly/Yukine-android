@@ -255,6 +255,23 @@ internal class PlaybackQueueManager(
         }
     }
 
+    /**
+     * Prepares an explicit user play request. An active service recovery starts from the
+     * beginning, while a user-paused checkpoint remains available for resuming.
+     */
+    fun prepareCurrentForExplicitPlay(): Boolean {
+        if (currentTrack() == null) {
+            return false
+        }
+        if (queueStore.loadResumeRequested()) {
+            clearRestoredPosition()
+            resetCurrentPlaybackPosition()
+        }
+        savePlaybackResumeRequested(true)
+        queuePlaybackActions.prepareCurrent(true)
+        return true
+    }
+
     private fun advanceQueueIndexToNext(): Boolean {
         val queue = this.queue
         if (queue.isEmpty()) {
@@ -327,7 +344,7 @@ internal class PlaybackQueueManager(
     }
 
     fun prepareStopAtEndOfQueue() {
-        clearRestoredPosition()
+        clearPlaybackPosition()
         playbackRuntimeStateManager?.setPreparing(false)
         clearErrorMessage()
         clearLastMarkedTrack()
@@ -373,12 +390,16 @@ internal class PlaybackQueueManager(
     }
 
     fun persistCurrentPlaybackPosition(force: Boolean) {
-        if (playbackPositionManager != null) {
-            playbackPositionManager.persistCurrentPosition(force)
-            return
-        }
-        val track = currentTrack() ?: return
-        queueStore.savePlaybackPosition(track.id, 0L)
+        playbackPositionManager?.persistCurrentPosition(force)
+    }
+
+    fun persistPausedPlaybackPosition() {
+        playbackPositionManager?.persistCurrentPositionForPause()
+    }
+
+    /** Drops the checkpoint that is valid only until paused playback actually resumes. */
+    fun clearPausedPlaybackPosition() {
+        clearPlaybackPosition()
     }
 
     fun skipToPrevious(): Boolean {
@@ -565,10 +586,16 @@ internal class PlaybackQueueManager(
             return null
         }
         val current = currentTrack()
+        // This path refreshes the source for the current logical song. A delayed streaming
+        // recovery can arrive after the user has selected another song, so it must never
+        // replace that song or transfer the old playback position across track IDs.
+        if (current == null || current.id != replacement.id) {
+            return null
+        }
         val resumePositionMs = maxOf(maxOf(0L, positionMs), playbackPositionMs())
         queue[currentIndex()] = replacement
         clearErrorMessage()
-        if (current != null && current.contentUri == replacement.contentUri && current.dataPath == replacement.dataPath) {
+        if (current.contentUri == replacement.contentUri && current.dataPath == replacement.dataPath) {
             persistQueue()
             persistPlaybackPosition()
             queuePlaybackActions.publishState()
@@ -756,10 +783,14 @@ internal class PlaybackQueueManager(
 
     fun restorePlaybackQueue(): QueueStateSnapshot {
         if (!playbackRestoreEnabled) {
+            clearPlaybackPosition()
             return queueStateSnapshot()
         }
+        val resumeRequested = queueStore.loadResumeRequested()
         val restored = queueStore.load()
         if (restored.isEmpty()) {
+            clearPlaybackPosition()
+            savePlaybackResumeRequested(false)
             return queueStateSnapshot()
         }
         val queue = this.queue
@@ -771,18 +802,17 @@ internal class PlaybackQueueManager(
             if (!PlaybackMediaSourceProvider.isRestorableQueueTrack(track)) {
                 continue
             }
-            val queueTrack = streamingRestoreProvider.restoredTrackFor(track) ?: track
-            queue.add(queueTrack)
+            queue.add(track)
             val restoredQueueIndex = queue.lastIndex
             when {
                 storedIndex == restored.currentIndex -> restoredCurrentIndex = restoredQueueIndex
                 storedIndex < restored.currentIndex -> fallbackBeforeRestoredIndex = restoredQueueIndex
                 fallbackAfterRestoredIndex < 0 -> fallbackAfterRestoredIndex = restoredQueueIndex
             }
-            streamingRestoreProvider.restoreForDataPath(queueTrack.dataPath)
         }
         if (queue.isEmpty()) {
             setCurrentIndex(-1)
+            clearPlaybackPosition()
             persistQueue()
             savePlaybackResumeRequested(false)
             return queueStateSnapshot()
@@ -794,15 +824,52 @@ internal class PlaybackQueueManager(
             fallbackBeforeRestoredIndex >= 0 -> setCurrentIndex(fallbackBeforeRestoredIndex)
             else -> setClampedCurrentIndex(restored.currentIndex)
         }
-        setRestoredPosition(
-            queueStore.loadPlaybackPositionTrackId(),
-            queueStore.loadPlaybackPositionMs(),
-            false
-        )
+        restoreStreamingQueueTracksAfterSelection()
+        val checkpointTrackId = queueStore.loadPlaybackPositionTrackId()
+        val checkpointPositionMs = queueStore.loadPlaybackPositionMs()
+        val checkpointTrack = currentTrack()
+        if (!resumeRequested &&
+            checkpointTrack != null &&
+            checkpointTrack.id == checkpointTrackId &&
+            checkpointPositionMs > 0L
+        ) {
+            // A user pause is the only persisted checkpoint. It is explicit so streaming
+            // tracks can use the same restored position after a cold service recreation.
+            setRestoredPosition(
+                checkpointTrackId,
+                checkpointPositionMs,
+                explicit = true
+            )
+        } else {
+            // Active shutdowns, invalid tracks, and zero/legacy records always restart at 0.
+            clearPlaybackPosition()
+        }
         clearErrorMessage()
         clearLastMarkedTrack()
         persistQueue()
         return queueStateSnapshot()
+    }
+
+    private fun restoreStreamingQueueTracksAfterSelection() {
+        if (queue.size <= MAX_MIRRORED_QUEUE_TRACKS) {
+            for (index in queue.indices) {
+                restoreStreamingQueueTrackAt(index)
+            }
+            return
+        }
+        val index = currentIndex()
+        if (index in queue.indices) {
+            restoreStreamingQueueTrackAt(index)
+        }
+    }
+
+    private fun restoreStreamingQueueTrackAt(index: Int) {
+        val track = queue.getOrNull(index) ?: return
+        val restoredTrack = streamingRestoreProvider.restoredTrackFor(track) ?: track
+        if (restoredTrack !== track) {
+            queue[index] = restoredTrack
+        }
+        streamingRestoreProvider.restoreForDataPath(restoredTrack.dataPath)
     }
 
     fun restoreLastPlayback(playWhenRestored: Boolean): RestorePlaybackResult {
@@ -817,10 +884,14 @@ internal class PlaybackQueueManager(
                 playWhenReady = false
             )
         }
+        val playWhenReady = playWhenRestored || queueStore.loadResumeRequested()
+        if (playWhenReady) {
+            savePlaybackResumeRequested(true)
+        }
         return RestorePlaybackResult(
             shouldCreatePlayer = true,
             shouldPrepare = true,
-            playWhenReady = playWhenRestored || queueStore.loadResumeRequested()
+            playWhenReady = playWhenReady
         )
     }
 
@@ -866,7 +937,11 @@ internal class PlaybackQueueManager(
     }
 
     private fun clearPlaybackPosition() {
-        playbackPositionManager?.clearPlaybackPosition()
+        if (playbackPositionManager != null) {
+            playbackPositionManager.clearPlaybackPosition()
+            return
+        }
+        queueStore.savePlaybackPosition(-1L, 0L)
     }
 
     private fun resetCurrentPlaybackPosition() {

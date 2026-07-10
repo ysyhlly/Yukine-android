@@ -372,7 +372,8 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackSleepTimerCommandOwner = new PlaybackSleepTimerCommandOwner(
                 EchoPlaybackService.this,
                 EchoPlaybackService.this::publishState,
-                () -> playbackSleepTimerManager
+                () -> playbackSleepTimerManager,
+                EchoPlaybackService.this::pauseForSystemInterruption
         );
         playbackSleepTimerManager = new PlaybackSleepTimerManager(
                 playbackMainHandlerSchedulerOwner,
@@ -752,7 +753,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 new PlaybackNoisyReceiverRegistrarOwner(EchoPlaybackService.this),
                 PlaybackNoisyReceiverManager.actionsFromPlaybackState(
                         playbackPlayerStateOwner::isPlaying,
-                        EchoPlaybackService.this::pause
+                        EchoPlaybackService.this::pauseForSystemInterruption
                 )
         );
         playbackNoisyReceiverManager.register();
@@ -904,8 +905,9 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     public void play() {
         if (player == null) {
-            if (playbackQueueStateOwner.currentTrack() != null) {
-                prepareCurrent(true);
+            if (playbackQueueManager != null
+                    && playbackQueueManager.prepareCurrentForExplicitPlay()) {
+                playbackQueueManager.clearPausedPlaybackPosition();
             } else {
                 playFirstQueuedTrack();
             }
@@ -920,14 +922,23 @@ public final class EchoPlaybackService extends MediaLibraryService
             return;
         }
         if (player.getMediaItemCount() == 0) {
-            prepareCurrent(true);
+            if (playbackQueueManager != null
+                    && playbackQueueManager.prepareCurrentForExplicitPlay()) {
+                playbackQueueManager.clearPausedPlaybackPosition();
+            } else {
+                playFirstQueuedTrack();
+            }
             return;
         }
         if (player.getPlaybackState() == Player.STATE_ENDED) {
             player.seekTo(0L);
             playbackPlayerStateOwner.setPositionEstimate(0L);
         }
+        boolean wasPlaying = playbackPlayerStateOwner.isPlaying();
         player.play();
+        if (!wasPlaying && playbackQueueManager != null) {
+            playbackQueueManager.clearPausedPlaybackPosition();
+        }
         savePlaybackResumeRequested(true);
         acquireWifiLockIfStreamingAction.run();
         publishState();
@@ -939,13 +950,28 @@ public final class EchoPlaybackService extends MediaLibraryService
     }
 
     public void pause() {
+        pause(true);
+    }
+
+    private void pauseForSystemInterruption() {
+        pause(false);
+    }
+
+    private void pause(boolean persistForUser) {
         playbackCrossfadeCommandOwner.cancelCrossfadeAdvance();
-        if (player != null && playbackPlayerStateOwner.isPlaying()) {
+        boolean wasPlaying = player != null && playbackPlayerStateOwner.isPlaying();
+        if (wasPlaying) {
             player.pause();
         }
         savePlaybackResumeRequested(false);
         releaseWifiLockAction.run();
-        persistPlaybackPositionThrottled(true);
+        if (playbackQueueManager != null) {
+            if (persistForUser) {
+                playbackQueueManager.persistPausedPlaybackPosition();
+            } else if (wasPlaying) {
+                playbackQueueManager.clearPausedPlaybackPosition();
+            }
+        }
         publishState();
     }
 
@@ -957,7 +983,6 @@ public final class EchoPlaybackService extends MediaLibraryService
             long targetPositionMs = Math.max(0L, positionMs);
             player.seekTo(targetPositionMs);
             playbackPlayerStateOwner.setPositionEstimate(targetPositionMs);
-            persistPlaybackPositionThrottled(true);
             publishState();
         } catch (IllegalStateException ignored) {
             playbackErrorRecoveryCommandOwner.setErrorMessage("Playback is not ready.");
@@ -1062,6 +1087,9 @@ public final class EchoPlaybackService extends MediaLibraryService
             return;
         }
         prepareCurrent(restoreResult.getPlayWhenReady());
+        if (playWhenRestored && playbackQueueManager != null) {
+            playbackQueueManager.clearPausedPlaybackPosition();
+        }
     }
 
     public void replaceQueuedTrack(Track replacement) {
@@ -1228,6 +1256,9 @@ public final class EchoPlaybackService extends MediaLibraryService
         resetWaveformIfTrackChanged(track);
         postponePlaybackVisualizationWarmup();
         applyPlaybackParametersToPlayer();
+        // A rebuilt queue starts a different media item. Do not let the previous item's
+        // interpolation be treated as a real seek position while the new source buffers.
+        playbackPlayerStateOwner.resetPositionEstimate();
         player.clearMediaItems();
         player.setMediaSources(mediaSources, queuePreparation.startIndex(), Math.max(0L, startPositionMs));
         playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(true);
@@ -1236,6 +1267,9 @@ public final class EchoPlaybackService extends MediaLibraryService
             player.prepare();
             if (playbackWarmupCoordinator != null) {
                 playbackWarmupCoordinator.warmup(track);
+            }
+            if (startPositionMs > 0L) {
+                playbackPlayerStateOwner.setPositionEstimate(startPositionMs);
             }
             playbackCurrentTrackPreparationQueueOwner.consumeRestoredPositionAfterPrepare(startPositionMs);
             publishState();
@@ -1261,6 +1295,9 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackTransitionStateManager.setLastMarkedTrack(null);
         resetWaveformIfTrackChanged(track);
         postponePlaybackVisualizationWarmup();
+        // player.stop()/setMediaSource() replaces the logical song. Resetting here prevents
+        // an old paused/interpolated position from being handed to streaming source recovery.
+        playbackPlayerStateOwner.resetPositionEstimate();
         player.stop();
         player.clearMediaItems();
         playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false);
@@ -1336,7 +1373,7 @@ public final class EchoPlaybackService extends MediaLibraryService
     private void stopAtEndOfQueue() {
         if (!playbackQueueCompletionOwner.prepareStopAtEndOfQueue()) {
             if (playbackPositionManager != null) {
-                playbackPositionManager.clearRestoredPosition();
+                playbackPositionManager.clearPlaybackPosition();
             }
             playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false);
             playbackErrorRecoveryCommandOwner.setErrorMessage("");

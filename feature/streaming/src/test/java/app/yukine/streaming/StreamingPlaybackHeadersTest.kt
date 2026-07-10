@@ -26,4 +26,54 @@ class StreamingPlaybackHeadersTest {
         assertEquals(emptyMap<String, String>(), StreamingPlaybackHeaders.forDataPath(""))
         assertEquals(emptyMap<String, String>(), StreamingPlaybackHeaders.forDataPath(null))
     }
+
+    @Test
+    fun qqPlaybackHeadersAddCurrentCredentialAtRuntime() {
+        val sourceHeaders = mapOf("Referer" to "https://y.qq.com/")
+        val cookie = "uin=o12345; qqmusic_key=local-key"
+
+        val runtimeHeaders = headersWithStreamingAuth(
+            dataPath = "streaming:qqmusic:song-mid-1|media-mid-1",
+            headers = sourceHeaders,
+            localAuthStore = FakeAuthStore(cookie)
+        )
+
+        assertEquals("https://y.qq.com/", runtimeHeaders["Referer"])
+        assertEquals(cookie, runtimeHeaders["Cookie"])
+        assertEquals(null, sourceHeaders["Cookie"])
+    }
+
+    @Test
+    fun qqPlaybackHeadersRejectNameOnlyCredential() {
+        val runtimeHeaders = headersWithStreamingAuth(
+            dataPath = "streaming:qqmusic:song-mid-1|media-mid-1",
+            headers = mapOf("Referer" to "https://y.qq.com/"),
+            localAuthStore = FakeAuthStore("uin=o12345; qqmusic_key=; qm_keyst=")
+        )
+
+        assertEquals(null, runtimeHeaders["Cookie"])
+    }
+
+    private class FakeAuthStore(
+        private val cookie: String?
+    ) : StreamingLocalAuthStore {
+        override fun authState(provider: StreamingProviderName): StreamingAuthState =
+            StreamingAuthState(
+                kind = LocalStreamingAuthStore.providerAuthKind(provider),
+                connected = !cookie.isNullOrBlank()
+            )
+
+        override fun saveLogin(
+            provider: StreamingProviderName,
+            cookieHeader: String?,
+            displayName: String?
+        ): StreamingAuthState = authState(provider)
+
+        override fun signOut(provider: StreamingProviderName): StreamingAuthState =
+            authState(provider).copy(connected = false)
+
+        override fun cookieHeader(provider: StreamingProviderName): String? = cookie
+
+        override fun connected(provider: StreamingProviderName): Boolean = !cookie.isNullOrBlank()
+    }
 }

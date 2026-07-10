@@ -12,6 +12,7 @@ import app.yukine.streaming.StreamingArtist
 import app.yukine.streaming.StreamingMediaType
 import app.yukine.streaming.StreamingMvItem
 import app.yukine.streaming.StreamingPlaybackAdapter
+import app.yukine.streaming.StreamingPlaybackCandidate
 import app.yukine.streaming.StreamingHeartbeatRequest
 import app.yukine.streaming.StreamingPlaylist
 import app.yukine.streaming.StreamingPlaylistDetail
@@ -243,7 +244,15 @@ class StreamingViewModelTest {
                         provider = StreamingProviderName.QQ_MUSIC,
                         title = "Echo",
                         artist = "Artist",
-                        durationMs = 211_000L
+                        durationMs = 211_000L,
+                        playbackCandidates = listOf(
+                            StreamingPlaybackCandidate(
+                                provider = StreamingProviderName.QQ_MUSIC,
+                                quality = StreamingAudioQuality.HIGH,
+                                label = "QQ 高音质",
+                                providerTrackId = "qq-echo"
+                            )
+                        )
                     )
                 )
             )
@@ -271,10 +280,112 @@ class StreamingViewModelTest {
         // 备用音源被折叠进代表项的候选列表，供失败回退与手动切换。
         val candidateProviders = tracks.first().playbackCandidates.map { it.provider }
         assertTrue(candidateProviders.contains(StreamingProviderName.QQ_MUSIC))
+        assertTrue(
+            tracks.first().playbackCandidates.any { candidate ->
+                candidate.provider == StreamingProviderName.QQ_MUSIC &&
+                    candidate.quality == StreamingAudioQuality.HIGH
+            }
+        )
+        assertEquals(2, tracks.first().playbackSourceCount)
     }
 
     @Test
-    fun searchAllProvidersKeepsSameTitleDifferentDurationSeparate() = runTest {
+    fun searchAllProvidersUsesPlaybackCapableSourceAsMergedRepresentative() = runTest {
+        val searchOnlyDescriptor = descriptor(StreamingProviderName.NETEASE, "NetEase").let { value ->
+            value.copy(capabilities = value.capabilities.copy(supportsPlayback = false))
+        }
+        val neteaseProvider = FakeProvider(
+            descriptor = searchOnlyDescriptor,
+            searchResult = searchResult(
+                StreamingProviderName.NETEASE,
+                "Echo",
+                1,
+                listOf(
+                    streamingTrack("netease-echo").copy(
+                        title = "Echo",
+                        artist = "Artist feat Guest",
+                        durationMs = 210_000L
+                    )
+                )
+            )
+        )
+        val qqProvider = FakeProvider(
+            descriptor = descriptor(StreamingProviderName.QQ_MUSIC, "QQ Music"),
+            searchResult = searchResult(
+                StreamingProviderName.QQ_MUSIC,
+                "Echo",
+                1,
+                listOf(
+                    streamingTrack("qq-echo").copy(
+                        provider = StreamingProviderName.QQ_MUSIC,
+                        title = "Echo",
+                        artist = "Guest / Artist",
+                        durationMs = 211_000L
+                    )
+                )
+            )
+        )
+        val viewModel = StreamingViewModel()
+        viewModel.bindStreamingRepository(
+            StreamingRepository(
+                RegistryStreamingGateway(StreamingProviderRegistry(listOf(neteaseProvider, qqProvider)))
+            )
+        )
+        viewModel.updateStreamingProviders(
+            providers = listOf(searchOnlyDescriptor, descriptor(StreamingProviderName.QQ_MUSIC, "QQ Music")),
+            capabilities = listOf(
+                capability(StreamingProviderName.NETEASE).copy(supportsPlayback = false),
+                capability(StreamingProviderName.QQ_MUSIC)
+            ),
+            health = emptyList()
+        )
+
+        viewModel.searchAllStreaming("Echo", setOf(StreamingMediaType.TRACK), pageSize = 20)
+        waitUntil { !viewModel.streaming.value.loading }
+
+        val merged = viewModel.streaming.value.searchResult?.tracks?.single()
+        assertEquals(StreamingProviderName.QQ_MUSIC, merged?.provider)
+        assertEquals(2, merged?.playbackSourceCount)
+    }
+
+    @Test
+    fun searchAllProvidersDoesNotMergeDuplicateEntriesFromTheSameSourceFamily() = runTest {
+        val provider = FakeProvider(
+            descriptor = descriptor(StreamingProviderName.NETEASE, "NetEase"),
+            searchResult = searchResult(
+                StreamingProviderName.NETEASE,
+                "Echo",
+                1,
+                listOf(
+                    streamingTrack("netease-album").copy(
+                        title = "Echo",
+                        artist = "Artist",
+                        durationMs = 210_000L
+                    ),
+                    streamingTrack("netease-single").copy(
+                        title = "Echo",
+                        artist = "Artist",
+                        durationMs = 211_000L
+                    )
+                )
+            )
+        )
+        val viewModel = StreamingViewModel()
+        viewModel.bindStreamingRepository(repository(provider))
+        viewModel.updateStreamingProviders(
+            providers = listOf(provider.descriptor),
+            capabilities = listOf(capability(StreamingProviderName.NETEASE)),
+            health = emptyList()
+        )
+
+        viewModel.searchAllStreaming("Echo", setOf(StreamingMediaType.TRACK), pageSize = 20)
+        waitUntil { !viewModel.streaming.value.loading }
+
+        assertEquals(2, viewModel.streaming.value.searchResult?.tracks?.size)
+    }
+
+    @Test
+    fun searchAllProvidersKeepsDifferentVersionSeparateAndMergesItsMatchingSources() = runTest {
         val neteaseProvider = FakeProvider(
             descriptor = descriptor(StreamingProviderName.NETEASE, "NetEase"),
             searchResult = searchResult(
@@ -306,26 +417,51 @@ class StreamingViewModelTest {
                 )
             )
         )
+        val kugouProvider = FakeProvider(
+            descriptor = descriptor(StreamingProviderName.KUGOU, "KuGou"),
+            searchResult = searchResult(
+                StreamingProviderName.KUGOU,
+                "Echo",
+                1,
+                listOf(
+                    streamingTrack("kugou-echo").copy(
+                        provider = StreamingProviderName.KUGOU,
+                        title = "Echo",
+                        artist = "Artist",
+                        durationMs = 301_000L
+                    )
+                )
+            )
+        )
         val viewModel = StreamingViewModel()
         viewModel.bindStreamingRepository(
             StreamingRepository(
-                RegistryStreamingGateway(StreamingProviderRegistry(listOf(neteaseProvider, qqProvider)))
+                RegistryStreamingGateway(
+                    StreamingProviderRegistry(listOf(neteaseProvider, qqProvider, kugouProvider))
+                )
             )
         )
         viewModel.updateStreamingProviders(
             providers = listOf(
                 descriptor(StreamingProviderName.NETEASE, "NetEase"),
-                descriptor(StreamingProviderName.QQ_MUSIC, "QQ Music")
+                descriptor(StreamingProviderName.QQ_MUSIC, "QQ Music"),
+                descriptor(StreamingProviderName.KUGOU, "KuGou")
             ),
-            capabilities = listOf(capability(StreamingProviderName.NETEASE), capability(StreamingProviderName.QQ_MUSIC)),
+            capabilities = listOf(
+                capability(StreamingProviderName.NETEASE),
+                capability(StreamingProviderName.QQ_MUSIC),
+                capability(StreamingProviderName.KUGOU)
+            ),
             health = emptyList()
         )
 
         viewModel.searchAllStreaming("Echo", setOf(StreamingMediaType.TRACK), pageSize = 20)
         waitUntil { !viewModel.streaming.value.loading }
 
-        // 时长差 3 分钟，疑似同名不同曲，不应合并。
-        assertEquals(2, viewModel.streaming.value.searchResult?.tracks?.size)
+        val tracks = viewModel.streaming.value.searchResult?.tracks.orEmpty()
+        // 120 秒版本保持独立；300/301 秒的两个音源合并成另一条。
+        assertEquals(2, tracks.size)
+        assertEquals(listOf(1, 2), tracks.map { it.playbackSourceCount }.sorted())
     }
 
     @Test

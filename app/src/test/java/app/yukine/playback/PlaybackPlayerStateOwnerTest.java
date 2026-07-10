@@ -84,6 +84,23 @@ public class PlaybackPlayerStateOwnerTest {
     }
 
     @Test
+    public void resetPositionEstimateDropsOldPausedPositionBeforeReplacingTheSource() {
+        MutableClock clock = new MutableClock(1_000L);
+        MutablePlayerState state = new MutablePlayerState(false, 0L, 9_000L);
+        PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
+                () -> fakePlayer(state),
+                clock
+        );
+
+        owner.setPositionEstimate(4_200L);
+        assertEquals(4_200L, owner.positionMs());
+
+        owner.resetPositionEstimate();
+
+        assertEquals(0L, owner.positionMs());
+    }
+
+    @Test
     public void keepsEstimatedPositionWhenPausedPlayerReportsZero() {
         MutableClock clock = new MutableClock(1_000L);
         MutablePlayerState state = new MutablePlayerState(true, 0L, 9_000L);

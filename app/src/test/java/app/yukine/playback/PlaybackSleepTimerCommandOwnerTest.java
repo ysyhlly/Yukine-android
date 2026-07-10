@@ -31,6 +31,21 @@ public class PlaybackSleepTimerCommandOwnerTest {
     }
 
     @Test
+    public void usesDedicatedPauseActionWhenProvided() {
+        List<String> events = new ArrayList<>();
+        PlaybackSleepTimerCommandOwner owner = new PlaybackSleepTimerCommandOwner(
+                new FakePlaybackCommands(events),
+                () -> events.add("publish"),
+                null,
+                () -> events.add("systemPause")
+        );
+
+        owner.pausePlayback();
+
+        assertEquals(java.util.Collections.singletonList("systemPause"), events);
+    }
+
+    @Test
     public void delegatesSleepTimerCancelToManager() {
         List<String> events = new ArrayList<>();
         FakeSleepScheduler scheduler = new FakeSleepScheduler(events);

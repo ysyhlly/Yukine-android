@@ -44,6 +44,7 @@ import javax.inject.Inject
 
 private const val STREAMING_QUEUE_PRE_RESOLVE_LIMIT = 3
 private const val CROSS_SOURCE_DURATION_TOLERANCE_MS = 3_000L
+private val CROSS_SOURCE_ARTIST_JOINERS = setOf("and", "feat", "featuring", "ft", "with", "和", "与")
 internal const val STREAMING_PLAYLIST_PAGE_SIZE = 2_000
 internal const val STREAMING_PLAYLIST_MAX_PAGES = 50
 private const val STREAMING_PLAYLIST_MAX_TRACKS =
@@ -476,20 +477,21 @@ class StreamingViewModel @Inject constructor(
         val itemsByKey = unifiedItems
             .filter { it.type == StreamingMediaType.TRACK && it.track != null }
             .associateBy { "${it.provider.wireName}:${it.id}" }
-        // 保持原有排序：按首次出现的代表项顺序聚类。
-        val clusters = LinkedHashMap<String, MutableList<StreamingTrack>>()
+        // 保持首次出现顺序，并允许同名歌曲按时长形成多个独立版本簇。
+        val clusters = mutableListOf<MutableList<StreamingTrack>>()
         tracks.forEach { track ->
-            val key = track.crossSourceMergeKey()
-            val bucket = clusters.getOrPut(key) { mutableListOf() }
-            val sibling = bucket.firstOrNull { it.isSameSongAcrossSource(track) }
-            if (sibling != null || bucket.isEmpty()) {
-                bucket.add(track)
+            val sourceFamily = track.crossSourceFamilyKey()
+            val cluster = clusters.firstOrNull { group ->
+                group.first().isSameSongAcrossSource(track) &&
+                    group.none { existing -> existing.crossSourceFamilyKey() == sourceFamily }
+            }
+            if (cluster != null) {
+                cluster += track
             } else {
-                // 同作者+同曲名但时长差异过大（疑似同名不同曲），归入带序号的独立簇避免误合并。
-                clusters.getOrPut("$key#${clusters.size}") { mutableListOf() }.add(track)
+                clusters += mutableListOf(track)
             }
         }
-        val mergedTracks = clusters.values
+        val mergedTracks = clusters
             .filter { it.isNotEmpty() }
             .map { group -> group.mergeSourcesIntoRepresentative() }
         if (mergedTracks.size == tracks.size) {
@@ -510,12 +512,27 @@ class StreamingViewModel @Inject constructor(
     /** 归一化「作者 + 曲名」作为合并主键；作者多人时排序 token 以兼容不同音源的拼接顺序。 */
     private fun StreamingTrack.crossSourceMergeKey(): String {
         val normalizedTitle = title.rankText()
-        val normalizedArtist = artist.rankText()
-            .split(' ')
+        val artistValues = artists
+            .map { it.name }
             .filter { it.isNotBlank() }
+            .ifEmpty { listOf(artist) }
+        val normalizedArtist = artistValues
+            .flatMap { value -> value.rankText().split(' ') }
+            .filter { it.isNotBlank() }
+            .filterNot { it in CROSS_SOURCE_ARTIST_JOINERS }
+            .distinct()
             .sorted()
             .joinToString(" ")
-        return "$normalizedArtist$normalizedTitle"
+        return "$normalizedArtist\u0001$normalizedTitle"
+    }
+
+    /** 普通 provider 本身就是音源族；LX/插件型 provider 再按曲目 ID 前缀区分子音源。 */
+    private fun StreamingTrack.crossSourceFamilyKey(): String {
+        if (provider != StreamingProviderName.LUOXUE && provider != StreamingProviderName.PLUGIN) {
+            return provider.wireName
+        }
+        val sourcePrefix = providerTrackId.substringBefore(':', "").trim().lowercase()
+        return if (sourcePrefix.isBlank()) provider.wireName else "${provider.wireName}:$sourcePrefix"
     }
 
     /** 作者名与曲名归一化相同，且时长缺失或落在 ±3 秒容差内时，判定为同一首歌。 */
@@ -531,28 +548,63 @@ class StreamingViewModel @Inject constructor(
         return kotlin.math.abs(left - right) <= CROSS_SOURCE_DURATION_TOLERANCE_MS
     }
 
-    /** 选可播放的首项作代表，其余音源折叠为备用候选；代表项已有候选保留在前。 */
+    /** 优先选真正支持播放的代表项，并完整保留每个合并项已有的音质/子音源候选。 */
     private fun List<StreamingTrack>.mergeSourcesIntoRepresentative(): StreamingTrack {
         if (size == 1) {
             return first()
         }
-        val representative = firstOrNull { it.playable } ?: first()
-        val seen = linkedSetOf("${representative.provider.wireName}:${representative.providerTrackId}")
-        val candidates = representative.playbackCandidates.toMutableList()
-        forEach { track ->
-            val identity = "${track.provider.wireName}:${track.providerTrackId}"
-            if (!seen.add(identity)) {
-                return@forEach
-            }
-            candidates += StreamingPlaybackCandidate(
-                provider = track.provider,
-                quality = null,
-                label = track.provider.wireName,
-                providerTrackId = track.providerTrackId,
-                available = track.playable
+        val representative = firstOrNull { track ->
+            track.playable && providerSupportsPlayback(track.provider)
+        } ?: firstOrNull { it.playable } ?: first()
+        val candidates = mutableListOf<StreamingPlaybackCandidate>()
+        val seenCandidates = linkedSetOf<String>()
+
+        fun addCandidate(candidate: StreamingPlaybackCandidate, sourceTrack: StreamingTrack) {
+            val providerTrackId = candidate.providerTrackId?.trim()?.takeIf { it.isNotBlank() }
+                ?: sourceTrack.providerTrackId.takeIf { candidate.provider == sourceTrack.provider }
+                ?: return
+            val normalized = candidate.copy(
+                providerTrackId = providerTrackId,
+                available = candidate.available && providerSupportsPlayback(candidate.provider)
             )
+            val identity = "${normalized.provider.wireName}:$providerTrackId:${normalized.quality?.wireName.orEmpty()}"
+            if (seenCandidates.add(identity)) {
+                candidates += normalized
+            }
         }
-        return representative.copy(playbackCandidates = candidates)
+
+        val orderedTracks = listOf(representative) + filterNot { it === representative }
+        orderedTracks.forEach { track ->
+            if (track !== representative) {
+                addCandidate(
+                    StreamingPlaybackCandidate(
+                        provider = track.provider,
+                        quality = null,
+                        label = track.provider.wireName,
+                        providerTrackId = track.providerTrackId,
+                        available = track.playable
+                    ),
+                    track
+                )
+            }
+            track.playbackCandidates.forEach { candidate -> addCandidate(candidate, track) }
+        }
+        return representative.copy(
+            qualities = flatMap { it.qualities }.toSet(),
+            lyricSources = flatMap { it.lyricSources }.distinctBy { source ->
+                "${source.provider.wireName}:${source.providerTrackId.orEmpty()}:${source.name}"
+            },
+            playbackCandidates = candidates
+        )
+    }
+
+    private fun providerSupportsPlayback(provider: StreamingProviderName): Boolean {
+        val state = streamingState.value
+        state.providerCapabilities.firstOrNull { it.provider == provider }?.let { capability ->
+            return capability.supportsPlayback
+        }
+        val descriptor = state.providers.firstOrNull { it.name == provider }
+        return descriptor?.let(app.yukine.streaming.StreamingCapabilityResolver::canPlayback) ?: true
     }
 
     private fun StreamingSearchResult.trackOnlySearchResult(): StreamingSearchResult {

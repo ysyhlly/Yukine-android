@@ -845,6 +845,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(exists("app/src/main/java/app/yukine/PlaybackRenderPolicy.java"));
         assertTrue(playbackRenderPolicy.contains("internal object PlaybackRenderPolicy"));
         assertTrue(playbackRenderPolicy.contains("fun shouldRenderForPlaybackChange("));
+        assertTrue(playbackRenderPolicy.contains("MainRoutes.TAB_LIBRARY"));
         assertTrue(playbackRenderPolicy.contains("MainRoutes.TAB_COLLECTIONS"));
         assertTrue(playbackRenderPolicy.contains("previous.errorMessage != next.errorMessage"));
         assertFalse(exists("app/src/main/java/app/yukine/PlaybackServiceConnectionController.java"));
@@ -1672,12 +1673,15 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(navGraph.contains("playbackState.playing &&"));
         assertTrue(navGraph.contains("if (!realtimeVisualsActive)"));
         assertTrue(navGraph.contains("return@LaunchedEffect"));
-        assertTrue(navGraph.contains("if (shouldUpdateRealtimeBands(realtimeBands, nextBands))"));
+        assertTrue(navGraph.contains("if (realtimeBeat != nextBeat)"));
+        assertTrue(navGraph.contains("if (!realtimeBands.contentEquals(nextBands))"));
         assertTrue(navGraph.contains("realtimeBands = if (nextBands.isEmpty()) EmptyRealtimeBands else nextBands"));
-        assertTrue(navGraph.contains("realtimeVisualsVisible(selectedTab)"));
-        assertTrue(navGraph.contains("private const val RealtimeVisualPollMs = 500L"));
-        assertTrue(navGraph.contains("private const val RealtimeBeatUpdateDelta = 0.06f"));
-        assertTrue(navGraph.contains("private const val RealtimeBandUpdateDelta = 0.08f"));
+        assertTrue(navGraph.contains("realtimeVisualsVisible(selectedTab, route.networkPage)"));
+        assertTrue(navGraph.contains("HomeTab, LibraryTab, QueueTab, SettingsTab, SearchTab, NowTab -> true"));
+        assertTrue(navGraph.contains("NetworkTab -> networkPage == MainRoutes.NETWORK_HOME"));
+        assertTrue(navGraph.contains("private const val RealtimeVisualPollMs = 33L"));
+        assertFalse(navGraph.contains("RealtimeBeatUpdateDelta"));
+        assertFalse(navGraph.contains("RealtimeBandUpdateDelta"));
         assertFalse(navGraph.contains("withFrameNanos"));
         assertTrue(navGraph.contains("delay(RealtimeVisualPollMs)"));
     }
@@ -3048,7 +3052,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(menuViewModel.contains("val uiState: StateFlow<NetworkMenuUiState>"));
         assertTrue(menuDestination.contains("fun NetworkMenuDestination("));
         assertTrue(menuDestination.contains("SettingsScreen("));
-        assertTrue(networkDestination.contains("NetworkMenuDestination(state = menuState)"));
+        assertTrue(networkDestination.contains("activeDownload: TrackDownloadItem? = null"));
+        assertTrue(networkDestination.contains("audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty"));
+        assertTrue(networkDestination.contains("activeDownload = activeDownload"));
+        assertTrue(networkDestination.contains("audioMotion = audioMotion"));
         assertFalse(networkDestination.contains("SettingsScreen("));
         assertTrue(menuEvents.contains("internal class NetworkMenuEventController"));
         assertFalse(menuEvents.contains("NetworkMenuContentSink"));
@@ -5459,6 +5466,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queueManagerOwner.contains("data class RestorePlaybackResult"));
         assertTrue(queueManagerOwner.contains("fun restoreLastPlayback(playWhenRestored: Boolean): RestorePlaybackResult"));
         assertTrue(queueManagerOwner.contains("playWhenReady = playWhenRestored || queueStore.loadResumeRequested()"));
+        assertTrue(queueManagerOwner.contains("queueStore.loadPlaybackPositionTrackId()"));
+        assertTrue(queueManagerOwner.contains("queueStore.loadPlaybackPositionMs()"));
         assertFalse(service.contains("queueStore().save("));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackQueuePositionPersistenceOwner.java")));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackShutdownQueueLifecycleStoreOwner.java")));
@@ -5480,6 +5489,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("PlaybackQueuePersistenceOwner"));
         assertFalse(service.contains("playbackQueuePersistenceOwner"));
         assertTrue(service.contains("playbackQueueManager.persistCurrentPlaybackPosition(force);"));
+        assertTrue(service.contains("playbackQueueManager.persistPausedPlaybackPosition();"));
+        assertTrue(service.contains("private void pauseForSystemInterruption()"));
+        assertFalse(service.contains("if (!playbackPlayerStateOwner.isPlaying())"));
+        assertTrue(service.contains("if (player.getPlaybackState() == Player.STATE_ENDED)"));
+        assertTrue(service.contains("player.seekTo(0L);"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackPositionStateOwner.java")));
         assertFalse(service.contains("PlaybackPositionStateOwner"));
         assertTrue(service.contains("PlaybackPositionManager.stateProviderFromPlaybackState("));
@@ -5511,6 +5525,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(positionOwner.contains("fun restoredPositionFor(track: Track?)"));
         assertTrue(positionOwner.contains("fun clearRestoredPosition()"));
         assertTrue(positionOwner.contains("fun persistCurrentPosition(force: Boolean)"));
+        assertTrue(positionOwner.contains("A user pause is the only action that persists a position."));
+        assertTrue(positionOwner.contains("fun persistCurrentPositionForPause()"));
+        assertTrue(positionOwner.contains("queueStore.savePlaybackPosition(track.id"));
         assertTrue(positionOwner.contains("fun setExplicitRestoredPosition(track: Track?, positionMs: Long)"));
         assertTrue(positionOwner.contains("fun stateProviderFromPlaybackState("));
         assertTrue(positionOwner.contains("currentTrackSupplier: Supplier<Track?>?"));
@@ -5591,6 +5608,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackQueueMutationOwner.playQueue(tracks, startIndex, C.TIME_UNSET);"));
         assertFalse(queueMutationOwner.contains("void playQueue(List<Track> tracks, int startIndex)"));
         assertFalse(service.contains("playbackQueueManager.playQueue(tracks, startIndex, startPositionMs)"));
+        assertTrue(owner.contains("fun prepareCurrentForExplicitPlay(): Boolean"));
+        assertTrue(service.contains("&& playbackQueueManager.prepareCurrentForExplicitPlay()"));
+        assertTrue(service.contains("playbackQueueManager.clearPausedPlaybackPosition();"));
         assertFalse(service.contains("playbackQueueManager.advanceQueueIndexToNext()"));
         assertFalse(service.contains("private void advanceQueueIndexToNext()"));
         assertTrue(owner.contains("private fun advanceQueueIndexToNext()"));
@@ -6210,11 +6230,14 @@ public final class MainActivityArchitectureContractTest {
                 "savePlaybackResumeRequested"
         ));
         java.util.Set<String> queueRestoreAndPersistenceApi = new java.util.TreeSet<>(java.util.Arrays.asList(
+                "clearPausedPlaybackPosition",
                 "consumeRestoredPositionAfterPrepare",
                 "persistCurrentPlaybackPosition",
+                "persistPausedPlaybackPosition",
                 "persistQueueState",
                 "prepareMirroredTransitionPlaybackState",
                 "preparePlaybackCompletion",
+                "prepareCurrentForExplicitPlay",
                 "prepareStopAfterAutomaticAdvance",
                 "prepareStopAndClearPlaybackState",
                 "prepareStopAtEndOfQueue",
@@ -7430,9 +7453,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackSleepTimerCommandOwner.startSleepTimerMinutes(minutes);"));
         assertTrue(service.contains("playbackSleepTimerCommandOwner.cancelSleepTimer(true);"));
         assertTrue(service.contains("playbackSleepTimerCommandOwner.cancelSleepTimer(false);"));
+        assertTrue(service.contains("EchoPlaybackService.this::pauseForSystemInterruption"));
         assertTrue(commandOwner.contains("final class PlaybackSleepTimerCommandOwner implements PlaybackSleepTimerManager.Actions"));
         assertTrue(commandOwner.contains("interface StatePublisher"));
         assertTrue(commandOwner.contains("interface SleepTimerManagerProvider"));
+        assertTrue(commandOwner.contains("private final Runnable pausePlaybackAction;"));
+        assertTrue(commandOwner.contains("pausePlaybackAction.run();"));
         assertTrue(commandOwner.contains("playbackCommands.pause();"));
         assertTrue(commandOwner.contains("statePublisher.publishState();"));
         assertTrue(commandOwner.contains("void startSleepTimerMinutes(int minutes)"));

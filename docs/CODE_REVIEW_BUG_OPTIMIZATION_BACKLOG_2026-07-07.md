@@ -52,6 +52,37 @@ Follow-up:
 
 - If restore-after-immediate-process-kill becomes a concern, add a tiny synchronous "current track + queue size + version" checkpoint before the async full save.
 
+### P1 - Persisted Playback Progress Reopened Songs Mid-Track
+
+Status: Fixed per current product behavior: only an explicit user pause creates a recoverable playback checkpoint.
+
+Evidence:
+
+- Periodic progress updates, seek, task removal, and service destruction must not turn playback into a future resume point.
+- A user pause still needs to survive service recreation and resume from the exact paused position, including streaming tracks.
+
+Fix:
+
+- The progress callback boundary, seek, task removal, shutdown, queue changes, and completion paths do not create a checkpoint; only `pause()` writes one.
+- Restoration accepts a checkpoint only when it belongs to the restored current track, has a positive position, and the previous session was paused. The restored position is explicit so streaming tracks can resume too.
+- Starting playback consumes the checkpoint. Manual song selection, replay, skip, natural completion, and active-service recovery all begin at `0 ms`.
+- A streaming source refresh may retain position only when its stable track ID still matches the current queue item; a late recovery for another song is ignored instead of replacing the current item or transferring its position.
+- Headset-noisy and sleep-timer pauses use a non-persisting pause path, so only a user-initiated pause is recoverable.
+- Temporary in-memory position handoff for streaming URL/source replacement remains intact so an in-flight recovery does not restart a song unexpectedly.
+- Before replacing a single source or rebuilding a mirrored queue, the player-state owner drops the prior item's in-memory estimate. This prevents a newly buffering streaming song from inheriting the previous song's estimate.
+
+Guardrail:
+
+- `PlaybackPositionManagerTest.progressUpdatesDoNotPersistPlaybackPosition`
+- `PlaybackPositionManagerTest.userPausePersistsTheCurrentPosition`
+- `PlaybackQueueManagerTest.explicitPlayAfterPausedColdRestoreKeepsSavedPosition`
+- `PlaybackQueueManagerTest.restorePlaybackQueueRestoresPausedStreamingProgress`
+- `PlaybackQueueManagerTest.restorePlaybackQueueClearsCheckpointAfterAnActiveShutdown`
+- `PlaybackQueueManagerTest.replaceCurrentTrackAndResumeIgnoresAStaleDifferentTrackRecovery`
+- `PlaybackQueueManagerTest.replaceCurrentTrackAndResumeKeepsPositionForTheSameTrackWithARefreshedUri`
+- `PlaybackQueueManagerTest.automaticMirroredTransitionClearsAUserPauseCheckpointBeforeTheNextTrackStarts`
+- `PlaybackPlayerStateOwnerTest.resetPositionEstimateDropsOldPausedPositionBeforeReplacingTheSource`
+
 ### P0 - Mirrored Player Preparation Scales Poorly With Large Streaming Queues
 
 Status: Fixed, keep regression coverage.
@@ -70,19 +101,83 @@ Guardrail:
 
 - `PlaybackQueueManagerTest.queuePreparationForLargeQueueAvoidsMirroringAndStreamingRestore`
 
-### P1 - Realtime Visual Polling Recomputed Top-Level Navigation Too Often
+### P0 - Notification Artwork Decode Was Scheduled On The Main Thread
 
 Status: Fixed, keep regression coverage.
 
 Evidence:
 
-- `EchoNavGraph` polled realtime beat/bands every 120 ms whenever playback was active.
-- The realtime values are passed through top-level `audioMotion`, so every update can recompose broad navigation chrome.
+- `PlaybackNotificationArtworkManager` used the Android main executor for a task that can perform HTTP I/O, bitmap decode, and JPEG encoding.
+- A first-seen album artwork request could therefore compete directly with frame rendering and playback-state dispatch during startup or a track transition.
 
 Fix:
 
-- Poll interval increased to 500 ms.
-- Realtime polling is only active when Now Playing / Queue playback UI is visible.
+- The artwork manager now owns a bounded single-worker background executor at background priority; it is released through the existing service resource shutdown path.
+- The worker is limited to HTTP/file reads, decode, and encode. Cache writes, current-track reads, MediaSession refresh, and notification refresh are posted back to the main executor.
+- Rejected work removes its miss marker so a later state update can retry instead of permanently losing that artwork request.
+
+Guardrail:
+
+- `PlaybackNotificationArtworkManagerTest.artworkDecodeRunsBeforeMainThreadCachePublication`
+- `PlaybackNotificationArtworkManagerTest.releaseAfterBackgroundDecodePreventsQueuedMainThreadPublication`
+- `PlaybackNotificationArtworkManagerTest.rejectedArtworkWorkCanBeRequestedAgain`
+
+### P1 - Playback State Fan-Out Could Accumulate Stale Main-Thread Updates
+
+Status: Fixed, keep regression coverage.
+
+Evidence:
+
+- Every playback snapshot posted a separate main-thread callback even when a newer snapshot had already arrived.
+- The service publishes playback state on the progress cadence, and widget updates rebuilt `RemoteViews` and crossed Binder even when only `positionMs` changed.
+
+Fix:
+
+- `PlaybackStateEventController` now retains at most one pending snapshot and dispatches the latest snapshot when the main thread catches up.
+- Buffering callbacks intentionally remain uncoalesced because they drive streaming recovery.
+- `PlaybackStatePublisher` updates widgets only when a field rendered by the widget (track text, artwork, or playing state) changes; normal listener, notification, and lyric state publication is unchanged.
+- Library joins the existing meaningful playback-change render policy, so the current-row highlight updates immediately after a track switch without rebuilding the library for progress-only snapshots.
+
+Guardrail:
+
+- `PlaybackStateEventControllerTest.busyMainHandlerKeepsOnlyTheLatestPlaybackSnapshot`
+- `PlaybackStateEventControllerTest.coalescedTrackTransitionStillUsesTheLatestTrackForUiEffects`
+- `PlaybackStateUpdateControllerTest.resolveRendersLibraryWhenCurrentTrackChanges`
+- `PlaybackStateUpdateControllerTest.resolveDoesNotRenderLibraryForProgressOnlyChange`
+- `PlaybackStatePublisherTest.widgetSkipsProgressOnlySnapshotsButRefreshesForPlaybackOrArtworkChanges`
+
+### P1 - Large Streaming Queue Restore Performed Per-Track Blocking Cache Reads
+
+Status: Fixed for large queues; current-track cache recovery remains synchronous by design.
+
+Evidence:
+
+- `restorePlaybackQueue()` previously called streaming URL/header restoration for every persisted track.
+- The persistent streaming header adapter bridges its Room cache read with `runBlocking`, so a large unresolved streaming queue made the service wait once per row during restore.
+
+Fix:
+
+- Queue restore first filters rows and resolves the final current index.
+- Queues at or below the existing 64-track mirror threshold keep full restoration behavior.
+- Larger queues restore only the selected current track; later tracks continue through the existing on-demand playback resolution path.
+
+Guardrail:
+
+- `PlaybackQueueManagerTest.restoreLargeQueueOnlyHydratesTheSelectedCurrentStreamingTrack`
+- `PlaybackQueueManagerTest.restoreLargeQueueReplacesAndHydratesTheSelectedCurrentStreamingTrack`
+
+### P1 - Realtime Visual Polling Recomputed Top-Level Navigation Too Often
+
+Status: Tuned after device visual feedback, keep regression coverage.
+
+Evidence:
+
+- The 500 ms polling interval and visual-change thresholds made the spectrum ring visibly lag behind playback.
+
+Fix:
+
+- Restore a 33 ms realtime visual poll and publish each changed beat/band value.
+- Keep polling limited to active playback and the routes that actually render the spectrum ring, including Home, Library, Queue, Settings, Search, Now Playing, and relevant Network pages. Stopped, disconnected, and non-ring pages still do not churn.
 
 Guardrail:
 

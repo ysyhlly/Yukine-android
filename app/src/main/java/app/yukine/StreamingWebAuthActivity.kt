@@ -258,7 +258,7 @@ class StreamingWebAuthActivity : Activity() {
             candidates.addAll(app.yukine.streaming.LocalStreamingLoginEndpoints.cookieDomainHints(provider))
         }
 
-        // name -> value, later domains do not overwrite an already-captured name.
+        // name -> value. A later non-empty value may replace an early domain's empty placeholder.
         val merged = LinkedHashMap<String, String>()
         for (candidate in candidates) {
             val raw = cookieManager.getCookie(candidate)?.takeIf { it.isNotBlank() } ?: continue
@@ -269,7 +269,10 @@ class StreamingWebAuthActivity : Activity() {
                 if (eq <= 0) continue
                 val name = trimmed.substring(0, eq).trim()
                 val value = trimmed.substring(eq + 1).trim()
-                if (name.isNotEmpty() && !merged.containsKey(name)) {
+                if (
+                    name.isNotEmpty() &&
+                    (!merged.containsKey(name) || (merged[name].isNullOrBlank() && value.isNotBlank()))
+                ) {
                     merged[name] = value
                 }
             }

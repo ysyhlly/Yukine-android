@@ -181,7 +181,7 @@ fun YukineDownloadOrb(
         Canvas(modifier = Modifier.matchParentSize().padding(7.dp)) {
             val centerRadius = size.minDimension * 0.26f
             val baseRadius = size.minDimension * 0.35f
-            val maxBar = size.minDimension * 0.125f
+            val maxBar = size.minDimension * 0.16f
             val strokeWidth = 1.65.dp.toPx()
             bars.forEachIndexed { index, value ->
                 val angle = ((index.toFloat() / bars.size) * 2f * PI - PI / 2f).toFloat()
@@ -300,14 +300,25 @@ private fun YukineOrbSpectrumState.blendWithRealtime(
     val values = List(YukineOrbSpectrumBarCount) { index ->
         val base = bars.getOrElse(index) { 0f }
         val live = realtime.bars.getOrElse(index) { 0f }
-        max(base * 0.58f, live * 0.78f).coerceIn(0f, 1f)
+        blendYukineOrbSpectrumBand(base, live)
     }
     return YukineOrbSpectrumState(
         bars = values,
-        bass = max(bass * 0.72f, realtime.bass * 0.78f),
+        bass = blendYukineOrbSpectrumBand(bass, realtime.bass),
         hasSignal = true,
         visualMotionEnabled = visualMotionEnabled && realtime.visualMotionEnabled
     )
+}
+
+/**
+ * Keep generated spectrum art as a light baseline, but let the audio callback determine the
+ * visible height while a track is playing. Taking a maximum here caused static bands to mask
+ * quieter live bands, which made the ring look frozen even though fresh samples arrived.
+ */
+internal fun blendYukineOrbSpectrumBand(base: Float, realtime: Float): Float {
+    val baseline = base.coerceIn(0f, 1f) * 0.18f
+    val live = realtime.coerceIn(0f, 1f) * 0.96f
+    return (baseline + live).coerceIn(0f, 1f)
 }
 
 private fun enhancedSpectrumValue(value: Float): Float {

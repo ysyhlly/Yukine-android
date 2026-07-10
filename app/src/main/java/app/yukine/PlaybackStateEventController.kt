@@ -14,6 +14,20 @@ internal class PlaybackStateEventController(
 ) : PlaybackStateListener {
     private var lastAutoResolveTrackId = -1L
     private var lastPublishedQueueKey = QueueKey.empty()
+    private val stateDispatchLock = Any()
+    private var pendingStateSnapshot: PlaybackStateSnapshot? = null
+    private var stateDispatchPosted = false
+    private val stateDispatch = Runnable {
+        val snapshot = synchronized(stateDispatchLock) {
+            pendingStateSnapshot.also {
+                pendingStateSnapshot = null
+                stateDispatchPosted = false
+            }
+        }
+        if (snapshot != null) {
+            handlePlaybackState(snapshot)
+        }
+    }
 
     interface Listener {
         fun selectedTab(): String
@@ -53,8 +67,20 @@ internal class PlaybackStateEventController(
     }
 
     override fun onPlaybackStateChanged(snapshot: PlaybackStateSnapshot) {
-        mainHandler.post {
-            handlePlaybackState(snapshot)
+        val shouldPost = synchronized(stateDispatchLock) {
+            pendingStateSnapshot = snapshot
+            if (stateDispatchPosted) {
+                false
+            } else {
+                stateDispatchPosted = true
+                true
+            }
+        }
+        if (shouldPost && !mainHandler.post(stateDispatch)) {
+            synchronized(stateDispatchLock) {
+                pendingStateSnapshot = null
+                stateDispatchPosted = false
+            }
         }
     }
 

@@ -16,7 +16,8 @@ interface StreamingPlaybackHeaderStore {
 }
 
 class PersistentStreamingPlaybackHeaders(
-    private val cacheRepository: StreamingCacheRepository
+    private val cacheRepository: StreamingCacheRepository,
+    private val localAuthStore: StreamingLocalAuthStore? = null
 ) : StreamingPlaybackHeaderStore {
     private val headersByDataPath = ConcurrentHashMap<String, Map<String, String>>()
 
@@ -25,11 +26,12 @@ class PersistentStreamingPlaybackHeaders(
         if (dataPath.isBlank()) {
             return
         }
-        if (headers.isEmpty()) {
+        val runtimeHeaders = headersWithStreamingAuth(dataPath, headers, localAuthStore)
+        if (runtimeHeaders.isEmpty()) {
             headersByDataPath.remove(dataPath)
             return
         }
-        headersByDataPath[dataPath] = headers.toMap()
+        headersByDataPath[dataPath] = runtimeHeaders
     }
 
     override
@@ -81,6 +83,23 @@ class PersistentStreamingPlaybackHeaders(
             track.albumArtUri
         )
     }
+}
+
+internal fun headersWithStreamingAuth(
+    dataPath: String,
+    headers: Map<String, String>,
+    localAuthStore: StreamingLocalAuthStore?
+): Map<String, String> {
+    val runtimeHeaders = headers.toMutableMap()
+    if (
+        StreamingPlaybackAdapter.streamingProviderName(dataPath) == StreamingProviderName.QQ_MUSIC &&
+        runtimeHeaders["Cookie"].isNullOrBlank()
+    ) {
+        localAuthStore?.cookieHeader(StreamingProviderName.QQ_MUSIC)
+            ?.takeIf(::hasQqPlaybackCredential)
+            ?.let { cookie -> runtimeHeaders["Cookie"] = cookie }
+    }
+    return runtimeHeaders.toMap()
 }
 
 object StreamingPlaybackHeaders : StreamingPlaybackHeaderStore {

@@ -60,6 +60,20 @@ data class StreamingTrack(
     val playbackCandidates: List<StreamingPlaybackCandidate> = emptyList()
 ) {
     val stableKey: String = "streaming:${provider.wireName}:$providerTrackId"
+
+    val playbackSourceCount: Int
+        get() {
+            val identities = linkedSetOf(stableKey)
+            playbackCandidates.forEach { candidate ->
+                val candidateTrackId = candidate.providerTrackId?.trim().orEmpty()
+                when {
+                    candidateTrackId.isNotBlank() -> identities +=
+                        "streaming:${candidate.provider.wireName}:$candidateTrackId"
+                    candidate.provider == provider -> identities += stableKey
+                }
+            }
+            return identities.size
+        }
 }
 
 data class StreamingAlbum(

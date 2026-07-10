@@ -10,6 +10,7 @@ internal object PlaybackRenderPolicy {
     ): Boolean {
         if (
             MainRoutes.TAB_QUEUE != selectedTab &&
+            MainRoutes.TAB_LIBRARY != selectedTab &&
             MainRoutes.TAB_NOW != selectedTab &&
             MainRoutes.TAB_COLLECTIONS != selectedTab
         ) {

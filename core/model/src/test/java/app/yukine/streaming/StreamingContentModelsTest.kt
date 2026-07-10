@@ -17,6 +17,35 @@ class StreamingContentModelsTest {
     }
 
     @Test
+    fun playbackSourceCountDeduplicatesQualityVariantsOfTheSameSource() {
+        val track = StreamingTrack(
+            provider = StreamingProviderName.NETEASE,
+            providerTrackId = "netease-1",
+            title = "Echo",
+            artist = "Yukine",
+            playbackCandidates = listOf(
+                StreamingPlaybackCandidate(
+                    provider = StreamingProviderName.NETEASE,
+                    quality = StreamingAudioQuality.HIGH,
+                    providerTrackId = "netease-1"
+                ),
+                StreamingPlaybackCandidate(
+                    provider = StreamingProviderName.QQ_MUSIC,
+                    quality = StreamingAudioQuality.STANDARD,
+                    providerTrackId = "qq-1"
+                ),
+                StreamingPlaybackCandidate(
+                    provider = StreamingProviderName.QQ_MUSIC,
+                    quality = StreamingAudioQuality.LOSSLESS,
+                    providerTrackId = "qq-1"
+                )
+            )
+        )
+
+        assertEquals(2, track.playbackSourceCount)
+    }
+
+    @Test
     fun searchResultBuildsUnifiedItemsWhenExplicitItemsAreEmpty() {
         val track = StreamingTrack(
             provider = StreamingProviderName.NETEASE,

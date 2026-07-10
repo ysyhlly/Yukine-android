@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.os.Process;
 import android.util.LruCache;
 
 import androidx.core.content.ContextCompat;
@@ -16,7 +17,12 @@ import java.net.URL;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import app.yukine.common.EmbeddedArtwork;
@@ -47,6 +53,8 @@ final class PlaybackNotificationArtworkManager implements PlaybackNotificationAr
     private final StateProvider stateProvider;
     private final NotificationBridge notificationBridge;
     private final Executor artworkExecutor;
+    private final Executor mainExecutor;
+    private final ExecutorService ownedArtworkExecutor;
     private final ArtworkLoader artworkLoader;
     private final ArtworkEncoder artworkEncoder;
     private final LruCache<String, Bitmap> artworkCache = new LruCache<>(NOTIFICATION_ARTWORK_CACHE_ENTRIES);
@@ -64,9 +72,11 @@ final class PlaybackNotificationArtworkManager implements PlaybackNotificationAr
                 context,
                 stateProvider,
                 notificationBridge,
-                command -> ContextCompat.getMainExecutor(context).execute(command),
+                newArtworkExecutor(),
+                ContextCompat.getMainExecutor(context),
                 null,
-                null
+                null,
+                true
         );
     }
 
@@ -78,10 +88,57 @@ final class PlaybackNotificationArtworkManager implements PlaybackNotificationAr
             ArtworkLoader artworkLoader,
             ArtworkEncoder artworkEncoder
     ) {
-        this.context = context;
+        this(
+                context,
+                stateProvider,
+                notificationBridge,
+                artworkExecutor,
+                Runnable::run,
+                artworkLoader,
+                artworkEncoder,
+                false
+        );
+    }
+
+    PlaybackNotificationArtworkManager(
+            Context context,
+            StateProvider stateProvider,
+            NotificationBridge notificationBridge,
+            Executor artworkExecutor,
+            Executor mainExecutor,
+            ArtworkLoader artworkLoader,
+            ArtworkEncoder artworkEncoder
+    ) {
+        this(
+                context,
+                stateProvider,
+                notificationBridge,
+                artworkExecutor,
+                mainExecutor,
+                artworkLoader,
+                artworkEncoder,
+                false
+        );
+    }
+
+    private PlaybackNotificationArtworkManager(
+            Context context,
+            StateProvider stateProvider,
+            NotificationBridge notificationBridge,
+            Executor artworkExecutor,
+            Executor mainExecutor,
+            ArtworkLoader artworkLoader,
+            ArtworkEncoder artworkEncoder,
+            boolean ownsArtworkExecutor
+    ) {
+        this.context = context.getApplicationContext();
         this.stateProvider = stateProvider;
         this.notificationBridge = notificationBridge;
         this.artworkExecutor = artworkExecutor;
+        this.mainExecutor = mainExecutor;
+        this.ownedArtworkExecutor = ownsArtworkExecutor && artworkExecutor instanceof ExecutorService
+                ? (ExecutorService) artworkExecutor
+                : null;
         this.artworkLoader = artworkLoader == null ? this::decodeNotificationArtwork : artworkLoader;
         this.artworkEncoder = artworkEncoder == null ? this::encodeMetadataArtwork : artworkEncoder;
     }
@@ -95,6 +152,9 @@ final class PlaybackNotificationArtworkManager implements PlaybackNotificationAr
         artworkCache.evictAll();
         artworkDataCache.evictAll();
         artworkMisses.clear();
+        if (ownedArtworkExecutor != null) {
+            ownedArtworkExecutor.shutdownNow();
+        }
     }
 
     @Override
@@ -107,8 +167,7 @@ final class PlaybackNotificationArtworkManager implements PlaybackNotificationAr
         if (cached != null) {
             return cached;
         }
-        if (!artworkMisses.contains(key)) {
-            artworkMisses.add(key);
+        if (artworkMisses.add(key)) {
             loadNotificationArtworkAsync(track, key);
         }
         return null;
@@ -124,33 +183,62 @@ final class PlaybackNotificationArtworkManager implements PlaybackNotificationAr
 
     private void loadNotificationArtworkAsync(Track track, String key) {
         int generation = artworkGeneration.get();
-        artworkExecutor.execute(() -> {
-            if (!isCurrentArtworkGeneration(generation)) {
-                return;
-            }
-            Bitmap bitmap = artworkLoader.decode(track.albumArtUri);
-            if (bitmap == null || !isCurrentArtworkGeneration(generation)) {
-                return;
-            }
-            artworkCache.put(key, bitmap);
-            byte[] artworkData = artworkEncoder.encode(bitmap);
-            if (artworkData != null) {
-                artworkDataCache.put(key, artworkData);
-            }
-            if (!isCurrentArtworkGeneration(generation)) {
-                return;
-            }
-            Track current = stateProvider.currentTrack();
-            if (current == null || !key.equals(notificationArtworkKey(current))) {
-                return;
-            }
-            notificationBridge.refreshPlaybackSession();
-            notificationBridge.updateMediaNotification();
-        });
+        try {
+            artworkExecutor.execute(() -> {
+                if (!isCurrentArtworkGeneration(generation)) {
+                    return;
+                }
+                Bitmap bitmap = artworkLoader.decode(track.albumArtUri);
+                if (bitmap == null || !isCurrentArtworkGeneration(generation)) {
+                    return;
+                }
+                byte[] artworkData = artworkEncoder.encode(bitmap);
+                publishArtworkResult(generation, key, bitmap, artworkData);
+            });
+        } catch (RejectedExecutionException ignored) {
+            artworkMisses.remove(key);
+        }
+    }
+
+    private void publishArtworkResult(int generation, String key, Bitmap bitmap, byte[] artworkData) {
+        try {
+            mainExecutor.execute(() -> {
+                if (!isCurrentArtworkGeneration(generation)) {
+                    return;
+                }
+                artworkCache.put(key, bitmap);
+                if (artworkData != null) {
+                    artworkDataCache.put(key, artworkData);
+                }
+                Track current = stateProvider.currentTrack();
+                if (current == null || !key.equals(notificationArtworkKey(current))) {
+                    return;
+                }
+                notificationBridge.refreshPlaybackSession();
+                notificationBridge.updateMediaNotification();
+            });
+        } catch (RejectedExecutionException ignored) {
+            artworkMisses.remove(key);
+        }
     }
 
     private boolean isCurrentArtworkGeneration(int generation) {
         return !released && artworkGeneration.get() == generation;
+    }
+
+    private static ExecutorService newArtworkExecutor() {
+        return new ThreadPoolExecutor(
+                1,
+                1,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(1),
+                runnable -> new Thread(() -> {
+                    Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+                    runnable.run();
+                }, "YukineNotificationArtwork"),
+                new ThreadPoolExecutor.AbortPolicy()
+        );
     }
 
     private String notificationArtworkKey(Track track) {

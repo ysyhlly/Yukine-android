@@ -23,6 +23,17 @@ class PlaybackPositionManagerTest {
     }
 
     @Test
+    fun restoredPositionIsNotSharedWithAnotherTrack() {
+        val manager = manager()
+        val pausedTrack = track(id = 7L, durationMs = 10000L)
+        val otherTrack = track(id = 8L, durationMs = 10000L)
+
+        manager.setRestoredPosition(pausedTrack.id, 5000L, explicit = true)
+
+        assertEquals(0L, manager.restoredPositionFor(otherTrack))
+    }
+
+    @Test
     fun implicitStreamingPositionIsIgnoredButExplicitPositionIsAllowed() {
         val manager = manager()
         val track = track(id = 8L, dataPath = "streaming:qq:8", durationMs = 10000L)
@@ -35,7 +46,7 @@ class PlaybackPositionManagerTest {
     }
 
     @Test
-    fun throttledPersistSkipsSmallRepeatWrites() {
+    fun progressUpdatesDoNotPersistPlaybackPosition() {
         val store = FakeQueueStore()
         val state = FakeStateProvider(track = track(9L), positionMs = 1000L)
         val clock = MutableClock(10000L)
@@ -46,11 +57,11 @@ class PlaybackPositionManagerTest {
         clock.now = 11000L
         manager.persistCurrentPosition(force = false)
 
-        assertEquals(listOf(9L to 1000L), store.savedPositions)
+        assertEquals(emptyList<Pair<Long, Long>>(), store.savedPositions)
     }
 
     @Test
-    fun forcedPersistWritesCurrentPosition() {
+    fun forcedProgressUpdatesDoNotPersistPlaybackPosition() {
         val store = FakeQueueStore()
         val state = FakeStateProvider(track = track(10L), positionMs = 1000L)
         val clock = MutableClock(10000L)
@@ -61,7 +72,31 @@ class PlaybackPositionManagerTest {
         clock.now = 11000L
         manager.persistCurrentPosition(force = true)
 
-        assertEquals(listOf(10L to 1000L, 10L to 1200L), store.savedPositions)
+        assertEquals(emptyList<Pair<Long, Long>>(), store.savedPositions)
+    }
+
+    @Test
+    fun resetForExplicitPlayClearsTheSavedPauseCheckpoint() {
+        val store = FakeQueueStore()
+        val track = track(10L)
+        val manager = PlaybackPositionManager(store, FakeStateProvider(track, 4200L), MutableClock())
+        manager.setRestoredPosition(track.id, 4200L, explicit = true)
+
+        manager.resetCurrentPlaybackPosition()
+
+        assertEquals(0L, manager.restoredPositionFor(track))
+        assertEquals(listOf(-1L to 0L), store.savedPositions)
+    }
+
+    @Test
+    fun userPausePersistsTheCurrentPosition() {
+        val store = FakeQueueStore()
+        val track = track(11L, durationMs = 10_000L)
+        val manager = PlaybackPositionManager(store, FakeStateProvider(track, 9_500L), MutableClock())
+
+        manager.persistCurrentPositionForPause()
+
+        assertEquals(listOf(track.id to 8_000L), store.savedPositions)
     }
 
     @Test

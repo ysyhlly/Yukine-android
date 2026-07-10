@@ -424,7 +424,7 @@ private fun BottomWaveformProgress(
             onSeek = onSeek,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(18.dp)
+                .height(36.dp)
         )
     }
 }

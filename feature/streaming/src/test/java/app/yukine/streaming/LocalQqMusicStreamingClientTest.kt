@@ -3,6 +3,7 @@ package app.yukine.streaming
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -69,29 +70,79 @@ class LocalQqMusicStreamingClientTest {
         assertEquals("QQ Song", track.title)
         assertEquals("QQ Artist", track.artist)
         assertEquals("QQ Album", track.album)
+        assertEquals("https://y.gtimg.cn/music/photo_new/T002R500x500M000album-mid.jpg", track.coverUrl)
         assertTrue(track.qualities.contains(StreamingAudioQuality.HIGH))
     }
 
     @Test
-    fun resolvePlaybackParsesTopLevelDataVkeyShape() {
+    fun playlistParsesLegacyTopLevelAlbumAndMediaMidFields() {
         val client = LocalQqMusicStreamingClient(
             FakeAuthStore("uin=o12345; qqmusic_key=local-key"),
             FakeQqMusicHttpClient(
-                postResponse = JSONObject()
+                getResponse = JSONObject()
                     .put(
-                        "data",
-                        JSONObject()
-                            .put("sip", JSONArray().put("https://stream.qq.example/"))
-                            .put(
-                                "midurlinfo",
-                                JSONArray()
-                                    .put(
+                        "cdlist",
+                        JSONArray().put(
+                            JSONObject()
+                                .put("dissname", "QQ Playlist")
+                                .put(
+                                    "songlist",
+                                    JSONArray().put(
                                         JSONObject()
-                                            .put("purl", "C400media-mid-1.m4a?vkey=test")
+                                            .put("mid", "song-mid-1")
+                                            .put("name", "QQ Song")
+                                            .put("albumname", "QQ Album")
+                                            .put("albumid", 42)
+                                            .put("albummid", "album-mid-1")
+                                            .put("strMediaMid", "media-mid-1")
+                                            .put(
+                                                "singer",
+                                                JSONArray().put(
+                                                    JSONObject().put("mid", "artist-mid").put("name", "QQ Artist")
+                                                )
+                                            )
                                     )
-                            )
+                                )
+                        )
                     )
             )
+        )
+
+        val detail = client.playlist(
+            StreamingPlaylistRequest(
+                provider = StreamingProviderName.QQ_MUSIC,
+                providerPlaylistId = "playlist-1"
+            )
+        )
+
+        val track = detail.tracks.single()
+        assertEquals("song-mid-1|media-mid-1", track.providerTrackId)
+        assertEquals("QQ Album", track.album)
+        assertEquals("42", track.albumId)
+        assertEquals("https://y.gtimg.cn/music/photo_new/T002R500x500M000album-mid-1.jpg", track.coverUrl)
+    }
+
+    @Test
+    fun resolvePlaybackParsesTopLevelDataVkeyShape() {
+        val httpClient = FakeQqMusicHttpClient(
+            postResponse = JSONObject()
+                .put(
+                    "data",
+                    JSONObject()
+                        .put("sip", JSONArray().put("https://stream.qq.example/"))
+                        .put(
+                            "midurlinfo",
+                            JSONArray()
+                                .put(
+                                    JSONObject()
+                                        .put("purl", "C400media-mid-1.m4a?vkey=test")
+                                )
+                        )
+                )
+        )
+        val client = LocalQqMusicStreamingClient(
+            FakeAuthStore("uin=o12345; qqmusic_key=local-key"),
+            httpClient
         )
 
         val source = client.resolvePlayback(
@@ -104,7 +155,78 @@ class LocalQqMusicStreamingClientTest {
 
         assertEquals("https://stream.qq.example/C400media-mid-1.m4a?vkey=test", source.url)
         assertEquals("song-mid-1|media-mid-1", source.providerTrackId)
-        assertEquals("mp3", source.codec)
+        assertEquals("m4a", source.codec)
+        assertEquals("audio/mp4", source.mimeType)
+        assertNull(source.headers["Cookie"])
+        val request = httpClient.postBodies.single()
+        assertEquals("12345", request.getString("loginUin"))
+        assertEquals("json", request.getJSONObject("comm").getString("format"))
+        assertEquals(24, request.getJSONObject("comm").getInt("ct"))
+        assertEquals(0, request.getJSONObject("comm").getInt("cv"))
+        val params = request.getJSONObject("req_0").getJSONObject("param")
+        assertEquals("local-key", params.getString("authst"))
+        assertEquals(
+            "M800song-mid-1media-mid-1.mp3",
+            params.getJSONArray("filename").getString(0)
+        )
+    }
+
+    @Test
+    fun resolvePlaybackFallsBackToAacWhenMp3VariantHasNoPurl() {
+        val httpClient = FakeQqMusicHttpClient(
+            postResponses = listOf(
+                vkeyResponse(purl = ""),
+                vkeyResponse(purl = "C400media-mid-1.m4a?vkey=test")
+            )
+        )
+        val client = LocalQqMusicStreamingClient(
+            FakeAuthStore("uin=o12345; qqmusic_key=local-key"),
+            httpClient
+        )
+
+        val source = client.resolvePlayback(
+            StreamingPlaybackRequest(
+                provider = StreamingProviderName.QQ_MUSIC,
+                providerTrackId = "song-mid-1|media-mid-1",
+                quality = StreamingAudioQuality.STANDARD
+            )
+        )
+
+        assertEquals("https://stream.qq.example/C400media-mid-1.m4a?vkey=test", source.url)
+        assertEquals("m4a", source.codec)
+        assertEquals("audio/mp4", source.mimeType)
+        assertEquals(
+            listOf("M500song-mid-1media-mid-1.mp3", "C400song-mid-1media-mid-1.m4a"),
+            httpClient.postBodies.map { body ->
+                body.getJSONObject("req_0")
+                    .getJSONObject("param")
+                    .getJSONArray("filename")
+                    .getString(0)
+            }
+        )
+    }
+
+    @Test
+    fun resolvePlaybackPromotesCleartextQqSipToHttps() {
+        val client = LocalQqMusicStreamingClient(
+            FakeAuthStore("uin=o12345; qqmusic_key=local-key"),
+            FakeQqMusicHttpClient(
+                postResponse = vkeyResponse(
+                    purl = "M800media-mid-1.mp3?vkey=test",
+                    sip = listOf("http://ws.qq.example/", "http://stream.qq.example/")
+                )
+            )
+        )
+
+        val source = client.resolvePlayback(
+            StreamingPlaybackRequest(
+                provider = StreamingProviderName.QQ_MUSIC,
+                providerTrackId = "song-mid-1|media-mid-1",
+                quality = StreamingAudioQuality.HIGH
+            )
+        )
+
+        assertEquals("https://stream.qq.example/M800media-mid-1.mp3?vkey=test", source.url)
     }
 
     @Test
@@ -185,11 +307,29 @@ class LocalQqMusicStreamingClientTest {
 
     private class FakeQqMusicHttpClient(
         private val getResponse: JSONObject = JSONObject(),
-        private val postResponse: JSONObject = JSONObject()
+        private val postResponse: JSONObject = JSONObject(),
+        private val postResponses: List<JSONObject> = emptyList()
     ) : QqMusicHttpClient {
+        val postBodies = mutableListOf<JSONObject>()
+        private var postCallCount = 0
+
         override fun getJson(url: String, headers: Map<String, String>): JSONObject = getResponse
 
-        override fun postJson(url: String, body: JSONObject, headers: Map<String, String>): JSONObject =
-            postResponse
+        override fun postJson(url: String, body: JSONObject, headers: Map<String, String>): JSONObject {
+            postBodies += body
+            val responseIndex = postCallCount++
+            return postResponses.getOrElse(responseIndex) { postResponse }
+        }
     }
+
+    private fun vkeyResponse(
+        purl: String,
+        sip: List<String> = listOf("https://stream.qq.example/")
+    ): JSONObject = JSONObject()
+        .put(
+            "data",
+            JSONObject()
+                .put("sip", JSONArray().apply { sip.forEach { value -> put(value) } })
+                .put("midurlinfo", JSONArray().put(JSONObject().put("purl", purl)))
+        )
 }

@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import app.yukine.TrackDownloadStatus
 import app.yukine.TrackDownloadItem
 import app.yukine.NowPlayingEvent
+import app.yukine.MainRoutes
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -40,13 +41,10 @@ import app.yukine.ui.UnifiedSearchStreamingState
 import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
-import kotlin.math.abs
 import kotlin.math.max
 
 private val EmptyRealtimeBands = FloatArray(0)
-private const val RealtimeVisualPollMs = 500L
-private const val RealtimeBeatUpdateDelta = 0.06f
-private const val RealtimeBandUpdateDelta = 0.08f
+private const val RealtimeVisualPollMs = 33L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +58,7 @@ fun EchoNavGraph(
     topBar: @Composable () -> Unit = {}
 ) {
     val playbackState by hostState.playbackSnapshotProvider.playbackSnapshot.collectAsState()
+    val route by hostState.routeState.collectAsState()
     val playbackQuality = StreamingDataPathMetadata.quality(playbackState.currentTrack?.dataPath)
     val pagerTabs = tabs.map { it.tab }
     val selectedTab = TabRoute.fromKey(hostState.selectedTabRoute) ?: HomeTab
@@ -74,7 +73,7 @@ fun EchoNavGraph(
     }
     val realtimeVisualsActive = hostState.visualMotionEnabled &&
         playbackState.playing &&
-        realtimeVisualsVisible(selectedTab)
+        realtimeVisualsVisible(selectedTab, route.networkPage)
     LaunchedEffect(hostState, realtimeVisualsActive) {
         if (!realtimeVisualsActive) {
             if (realtimeBeat != 0f) {
@@ -86,15 +85,15 @@ fun EchoNavGraph(
             return@LaunchedEffect
         }
         while (true) {
-            delay(RealtimeVisualPollMs)
             val nextBeat = hostState.realtimeBeatProvider().coerceIn(0f, 1f)
             val nextBands = hostState.realtimeBandsProvider()
-            if (shouldUpdateRealtimeBeat(realtimeBeat, nextBeat)) {
+            if (realtimeBeat != nextBeat) {
                 realtimeBeat = nextBeat
             }
-            if (shouldUpdateRealtimeBands(realtimeBands, nextBands)) {
+            if (!realtimeBands.contentEquals(nextBands)) {
                 realtimeBands = if (nextBands.isEmpty()) EmptyRealtimeBands else nextBands
             }
+            delay(RealtimeVisualPollMs)
         }
     }
     val audioMotion = YukineOrbAudioMotion(
@@ -197,13 +196,15 @@ fun EchoNavGraph(
                 when (selectedTab) {
                     CollectionsTab -> CollectionsDestination(hostState.collectionsStateProvider)
                     NetworkTab -> {
-                        val route by hostState.routeState.collectAsState()
                         val networkMenuState by hostState.networkMenuState.collectAsState()
                         NetworkDestination(
                             networkPage = route.networkPage,
                             menuState = networkMenuState,
                             sourcesState = hostState.networkSourcesState,
                             trackListState = hostState.libraryTrackListState,
+                            activeDownload = activeDownload,
+                            playbackQuality = playbackQuality,
+                            audioMotion = audioMotion,
                             streamingContent = {
                                 val streamingState by hostState.streamingState.collectAsState()
                                 StreamingSearchScreen(
@@ -346,33 +347,15 @@ private fun backgroundPageForTab(tab: TabRoute): String = when (tab) {
     else -> ""
 }
 
-private fun shouldUpdateRealtimeBeat(current: Float, next: Float): Boolean {
-    if (current == next) {
-        return false
-    }
-    if (next == 0f || current == 0f) {
-        return true
-    }
-    return abs(current - next) >= RealtimeBeatUpdateDelta
+private fun realtimeVisualsVisible(selectedTab: TabRoute, networkPage: String): Boolean = when (selectedTab) {
+    HomeTab, LibraryTab, QueueTab, SettingsTab, SearchTab, NowTab -> true
+    NetworkTab -> networkPage == MainRoutes.NETWORK_HOME ||
+        networkPage == MainRoutes.NETWORK_WEBDAV ||
+        networkPage == MainRoutes.NETWORK_STREAM_LIST ||
+        networkPage == MainRoutes.NETWORK_WEBDAV_TRACKS ||
+        networkPage == MainRoutes.NETWORK_WEBDAV_SOURCE_TRACKS
+    else -> false
 }
-
-private fun shouldUpdateRealtimeBands(current: FloatArray, next: FloatArray): Boolean {
-    if (current.isEmpty() || next.isEmpty()) {
-        return current.isNotEmpty() || next.isNotEmpty()
-    }
-    if (current.size != next.size) {
-        return true
-    }
-    for (index in current.indices) {
-        if (abs(current[index] - next[index]) >= RealtimeBandUpdateDelta) {
-            return true
-        }
-    }
-    return false
-}
-
-private fun realtimeVisualsVisible(selectedTab: TabRoute): Boolean =
-    selectedTab == QueueTab || selectedTab == NowTab
 
 private fun StreamingSearchState.toUnifiedSearchStreamingState(): UnifiedSearchStreamingState =
     UnifiedSearchStreamingState(

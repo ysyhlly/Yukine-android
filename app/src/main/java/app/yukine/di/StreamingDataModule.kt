@@ -89,9 +89,10 @@ object StreamingDataModule {
     @Provides
     @Singleton
     fun provideStreamingPlaybackHeaderStore(
-        cacheRepository: StreamingCacheRepository
+        cacheRepository: StreamingCacheRepository,
+        localAuthStore: LocalStreamingAuthStore
     ): StreamingPlaybackHeaderStore {
-        return PersistentStreamingPlaybackHeaders(cacheRepository)
+        return PersistentStreamingPlaybackHeaders(cacheRepository, localAuthStore)
     }
 
     @Provides

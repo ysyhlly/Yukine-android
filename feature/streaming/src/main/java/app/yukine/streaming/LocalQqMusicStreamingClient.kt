@@ -17,6 +17,29 @@ interface QqMusicHttpClient {
     fun postJson(url: String, body: JSONObject, headers: Map<String, String> = emptyMap()): JSONObject
 }
 
+internal fun hasQqPlaybackCredential(cookie: String?): Boolean {
+    return qqCookieValue(cookie, "qqmusic_key", "qm_keyst", "psrf_qqaccess_token") != null
+}
+
+internal fun qqCookieValue(cookie: String?, vararg names: String): String? {
+    val pairs = cookie.orEmpty().split(";")
+    for (name in names) {
+        val value = pairs.firstNotNullOfOrNull { pair ->
+            val trimmed = pair.trim()
+            val eq = trimmed.indexOf('=')
+            if (eq <= 0) {
+                null
+            } else if (trimmed.substring(0, eq).trim().equals(name, ignoreCase = true)) {
+                trimmed.substring(eq + 1).trim().takeIf { it.isNotBlank() }
+            } else {
+                null
+            }
+        }
+        if (!value.isNullOrBlank()) return value
+    }
+    return null
+}
+
 class DefaultQqMusicHttpClient(
     private val connectTimeoutMs: Int = 8_000,
     private val readTimeoutMs: Int = 12_000
@@ -255,10 +278,12 @@ class LocalQqMusicStreamingClient(
         val mediaMid = parts.getOrNull(1)?.takeIf { it.isNotBlank() } ?: songMid
         var lastMessage = ""
         for (quality in qqQualityFallbacks(request.quality)) {
-            runCatching {
-                return resolvePlaybackWithQuality(id, songMid, mediaMid, quality, cookie)
-            }.onFailure { error ->
-                lastMessage = error.message.orEmpty()
+            for (fileName in qqFileNameCandidates(songMid, mediaMid, quality)) {
+                runCatching {
+                    return resolvePlaybackWithFileName(id, songMid, quality, fileName, cookie)
+                }.onFailure { error ->
+                    lastMessage = error.message.orEmpty()
+                }
             }
         }
         throw StreamingGatewayException(
@@ -267,33 +292,40 @@ class LocalQqMusicStreamingClient(
         )
     }
 
-    private fun resolvePlaybackWithQuality(
+    private fun resolvePlaybackWithFileName(
         providerTrackId: String,
         songMid: String,
-        mediaMid: String,
         quality: StreamingAudioQuality,
+        fileName: String,
         cookie: String
     ): StreamingPlaybackSource {
-        val fileName = qqFileName(mediaMid, quality)
         val uin = uinFromCookie(cookie)
+        val authst = qqCookieValue(cookie, "qqmusic_key")
+        val params = JSONObject()
+            .put("guid", qqGuid())
+            .put("songmid", JSONArray().put(songMid))
+            .put("filename", JSONArray().put(fileName))
+            .put("songtype", JSONArray().put(0))
+            .put("uin", uin)
+            .put("loginflag", 1)
+            .put("platform", "20")
+        authst?.let { params.put("authst", it) }
         val body = JSONObject()
-            .put("comm", JSONObject().put("ct", "19").put("cv", "1859").put("uin", uin))
+            .put("loginUin", uin)
+            .put(
+                "comm",
+                JSONObject()
+                    .put("format", "json")
+                    .put("ct", 24)
+                    .put("cv", 0)
+                    .put("uin", uin)
+            )
             .put(
                 "req_0",
                 JSONObject()
                     .put("module", "vkey.GetVkeyServer")
                     .put("method", "CgiGetVkey")
-                    .put(
-                        "param",
-                        JSONObject()
-                            .put("guid", qqGuid())
-                            .put("songmid", JSONArray().put(songMid))
-                            .put("filename", JSONArray().put(fileName))
-                            .put("songtype", JSONArray().put(0))
-                            .put("uin", uin)
-                            .put("loginflag", 1)
-                            .put("platform", "20")
-                    )
+                    .put("param", params)
             )
         val result = httpClient.postJson("https://u.y.qq.com/cgi-bin/musicu.fcg", body, defaultHeaders(cookie))
         val data = qqVkeyData(result)
@@ -308,16 +340,16 @@ class LocalQqMusicStreamingClient(
         val sip = data.optJSONArray("sip")?.let { array ->
             (0 until array.length()).mapNotNull { array.optString(it).takeIf { value -> value.isNotBlank() } }
         }.orEmpty()
-        val base = sip.firstOrNull() ?: "https://isure.stream.qqmusic.qq.com/"
-        val url = if (purl.startsWith("http://") || purl.startsWith("https://")) purl else base.trimEnd('/') + "/" + purl.trimStart('/')
+        val url = qqPlaybackUrl(purl, sip)
+        val resolvedFileName = purl.substringBefore('?').substringAfterLast('/').takeIf { it.isNotBlank() } ?: fileName
         return StreamingPlaybackSource(
             provider = StreamingProviderName.QQ_MUSIC,
             providerTrackId = providerTrackId,
             url = url,
             expiresAtEpochMs = System.currentTimeMillis() + 55 * 60 * 1000L,
-            mimeType = mimeType(fileName),
-            bitrate = bitrate(quality),
-            codec = fileName.substringAfterLast('.', "").takeIf { it.isNotBlank() },
+            mimeType = mimeType(resolvedFileName),
+            bitrate = bitrate(resolvedFileName, quality),
+            codec = resolvedFileName.substringAfterLast('.', "").takeIf { it.isNotBlank() },
             headers = mapOf(
                 "Referer" to "https://y.qq.com/",
                 "User-Agent" to "Mozilla/5.0 Yukine-Android"
@@ -439,13 +471,26 @@ class LocalQqMusicStreamingClient(
             ?: file.optionalStringLocal("mediaMid")
             ?: value.optionalStringLocal("media_mid")
             ?: value.optionalStringLocal("mediaMid")
+            ?: value.optionalStringLocal("strMediaMid")
+            ?: value.optionalStringLocal("str_media_mid")
             ?: songMid
         val providerTrackId = if (mediaMid.isNotBlank() && mediaMid != songMid) "$songMid|$mediaMid" else songMid
-        val album = value.optJSONObject("album") ?: value.optJSONObject("albumInfo") ?: JSONObject()
+        val album = value.optJSONObject("album") ?: value.optJSONObject("albumInfo")
+        val albumTitle = album?.optionalStringLocal("title")
+            ?: album?.optionalStringLocal("name")
+            ?: value.optionalStringLocal("albumname")
+            ?: value.optionalStringLocal("albumName")
+            ?: value.optionalStringLocal("album")
+        val albumId = idText(album?.opt("id"))
+            ?: idText(value.opt("albumid") ?: value.opt("albumId"))
+        val albumMid = album?.optionalStringLocal("mid")
+            ?: album?.optionalStringLocal("pmid")
+            ?: value.optionalStringLocal("albummid")
+            ?: value.optionalStringLocal("album_mid")
+            ?: value.optionalStringLocal("albumMid")
         val artists = qqArtistRefs(value.optJSONArray("singer"))
         val artistText = artists.joinToString(" / ") { it.name }
             .ifBlank { value.optionalStringLocal("singer").orEmpty() }
-        val albumMid = album.optionalStringLocal("mid") ?: album.optionalStringLocal("pmid")
         val cover = qqCoverUrl(albumMid)
         val title = value.optionalStringLocal("title")
             ?: value.optionalStringLocal("name")
@@ -461,8 +506,8 @@ class LocalQqMusicStreamingClient(
             title = cleanDisplayText(title).orEmpty(),
             artist = cleanDisplayText(artistText).orEmpty(),
             artists = artists,
-            album = cleanDisplayText(album.optionalStringLocal("title") ?: album.optionalStringLocal("name")),
-            albumId = idText(album.opt("id")),
+            album = cleanDisplayText(albumTitle),
+            albumId = albumId,
             durationMs = value.optionalLongLocal("interval")?.times(1000L),
             coverUrl = cover,
             coverThumbUrl = cover,
@@ -526,13 +571,17 @@ class LocalQqMusicStreamingClient(
         return qualities.ifEmpty { setOf(StreamingAudioQuality.STANDARD, StreamingAudioQuality.HIGH) }
     }
 
-    private fun qqFileName(mediaMid: String, quality: StreamingAudioQuality): String {
+    private fun qqFileNameCandidates(
+        songMid: String,
+        mediaMid: String,
+        quality: StreamingAudioQuality
+    ): List<String> {
         return when (quality) {
             StreamingAudioQuality.HIRES,
-            StreamingAudioQuality.LOSSLESS -> "F000$mediaMid.flac"
-            StreamingAudioQuality.HIGH -> "M800$mediaMid.mp3"
-            StreamingAudioQuality.STANDARD -> "M500$mediaMid.mp3"
-        }
+            StreamingAudioQuality.LOSSLESS -> listOf("F000$songMid$mediaMid.flac")
+            StreamingAudioQuality.HIGH -> listOf("M800$songMid$mediaMid.mp3", "C600$songMid$mediaMid.m4a")
+            StreamingAudioQuality.STANDARD -> listOf("M500$songMid$mediaMid.mp3", "C400$songMid$mediaMid.m4a")
+        }.distinct()
     }
 
     private fun qqQualityFallbacks(quality: StreamingAudioQuality): List<StreamingAudioQuality> {
@@ -577,7 +626,7 @@ class LocalQqMusicStreamingClient(
                 code = StreamingErrorCode.AUTH_REQUIRED
             )
         }
-        if (!hasCredentialCookie(cookie)) {
+        if (!hasQqPlaybackCredential(cookie)) {
             throw StreamingGatewayException(
                 "QQ 音乐登录凭证不完整（缺少有效的 qqmusic_key/qm_keyst），请退出登录后重新登录 QQ 音乐",
                 code = StreamingErrorCode.AUTH_REQUIRED
@@ -622,32 +671,9 @@ class LocalQqMusicStreamingClient(
             ?: ""
     }
 
-    private fun hasCredentialCookie(cookie: String): Boolean {
-        return cookieValue(cookie, "qqmusic_key", "qm_keyst", "psrf_qqaccess_token") != null
-    }
-
     private fun uinFromCookie(cookie: String): String {
-        val raw = cookieValue(cookie, "uin", "qqmusic_uin", "p_uin", "pt2gguin", "loginUin", "wxuin")
+        val raw = qqCookieValue(cookie, "uin", "qqmusic_uin", "p_uin", "pt2gguin", "loginUin", "wxuin")
         return Regex("o?(\\d+)").find(raw.orEmpty())?.groupValues?.getOrNull(1)?.takeIf { it.isNotBlank() } ?: "0"
-    }
-
-    private fun cookieValue(cookie: String, vararg names: String): String? {
-        val pairs = cookie.split(";")
-        for (name in names) {
-            val value = pairs.firstNotNullOfOrNull { pair ->
-                val trimmed = pair.trim()
-                val eq = trimmed.indexOf('=')
-                if (eq <= 0) {
-                    null
-                } else if (trimmed.substring(0, eq).trim().equals(name, ignoreCase = true)) {
-                    trimmed.substring(eq + 1).trim().takeIf { it.isNotBlank() }
-                } else {
-                    null
-                }
-            }
-            if (!value.isNullOrBlank()) return value
-        }
-        return null
     }
 
     private fun encode(value: String): String =
@@ -655,6 +681,40 @@ class LocalQqMusicStreamingClient(
 
     private fun qqGuid(): String =
         UUID.randomUUID().toString().filter { it.isDigit() }.padEnd(10, '0').take(10)
+
+    /**
+     * QQ vkey responses commonly contain HTTP SIP endpoints. Android blocks cleartext traffic for
+     * QQ domains by design, while the equivalent HTTPS endpoint serves the same signed purl.
+     * Prefer an HTTPS SIP, avoid the websocket host, and upgrade the final URL instead of
+     * weakening the app-wide network security policy.
+     */
+    private fun qqPlaybackUrl(purl: String, sip: List<String>): String {
+        val rawUrl = if (purl.startsWith("http://", ignoreCase = true) || purl.startsWith("https://", ignoreCase = true)) {
+            purl
+        } else {
+            val playableSip = sip.filterNot(::isQqWebSocketSip)
+            val base = playableSip.firstOrNull { it.startsWith("https://", ignoreCase = true) }
+                ?: playableSip.firstOrNull()
+                ?: "https://isure.stream.qqmusic.qq.com/"
+            base.trimEnd('/') + "/" + purl.trimStart('/')
+        }
+        return if (rawUrl.startsWith("http://", ignoreCase = true)) {
+            "https://${rawUrl.substring("http://".length)}"
+        } else {
+            rawUrl
+        }
+    }
+
+    private fun isQqWebSocketSip(value: String): Boolean {
+        return value.startsWith("http://ws", ignoreCase = true) ||
+            value.startsWith("https://ws", ignoreCase = true)
+    }
+
+    private fun bitrate(fileName: String, quality: StreamingAudioQuality): Int = when {
+        fileName.startsWith("C400", ignoreCase = true) -> 96
+        fileName.startsWith("C600", ignoreCase = true) -> 192
+        else -> bitrate(quality)
+    }
 
     private fun bitrate(quality: StreamingAudioQuality): Int = when (quality) {
         StreamingAudioQuality.STANDARD -> 128

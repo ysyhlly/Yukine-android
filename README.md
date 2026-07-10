@@ -71,9 +71,12 @@ flowchart TD
 - **测试稳定性修复（2026-06-25）**: `LyricsViewModel` 与 `StreamingViewModel` 改为注入 `ioDispatcher`（默认仍 `Dispatchers.IO`），替换硬编码后台调度，消除完整单测套件并行运行时的偶发失败；完整套件连续清运行已稳定全绿。
 - 启动体验优化：实时音频频谱轮询只在实际播放时运行，服务未连接或未播放时复用空频谱，避免打开动画期间每帧触发 Compose 重组。
 - 播放缓存提速：当前歌曲首段缓存改为立即高优先级执行，旧预缓存会主动取消；下一首 URL 预解析不再阻塞用户刚点击的当前歌曲解析，减少点播放时的卡顿。
+- 播放进度隔离：暂停只暂存当前未切歌时的位置；手动切歌、自动切歌和自然播放完成后的新歌曲都会清除旧检查点并从 0 开始，避免旧进度被流媒体换源带到下一首。
 - QQ 音乐登录态修正：QQ 本机直连不再把只有 `uin/p_uin` 的 Cookie 当作有效登录，播放解析前会要求 `qqmusic_key` / `qm_keyst` / `psrf_qqaccess_token` 等真实凭证，减少“已登录但无法解析需登录”的假阳性。
+- QQ 音乐播放解析兼容：vkey 请求会按 `songMid + mediaMid` 生成文件名，并在存在 `qqmusic_key` 时携带鉴权；QQ CDN 返回的 HTTP SIP 会在本机转换为 HTTPS，避免 Android 的明文网络策略拦截播放。
+- QQ 音乐歌单元数据兼容：兼容歌单歌曲顶层的 `albumname`、`albumid`、`albummid`、`strMediaMid` 字段；搜索和歌单条目会显示接口返回的专辑名与封面。
 - 设置迁移继续推进：设置页面状态由 `SettingsViewModel` 直接构建，`SettingsRenderCoordinator`、`SettingsPageEventController`、`SettingsPageChromeBindings`、`SettingsScrollStateSink` 已移除，页面背景和备份选择通过平台 owner/effect 处理。
-- 搜索页升级为本地 + 多音源聚合搜索：一次搜索会并发查询所有已启用且支持搜索的在线音源，结果按音源和歌曲 ID 去重，点击歌曲仍按对应 provider 播放。
+- 搜索页升级为本地 + 多音源聚合搜索：一次搜索会并发查询所有已启用且支持搜索的在线音源；同歌手、同曲名且时长接近的结果合并为一条，并以 `+N` 标记备用音源。所有合并音源仍保留，可在主音源解析失败时自动回退，并在播放页手动切换。
 - 下载管理增强：应用内下载支持断点续传、暂停后保留缓存、继续下载不再清零进度；支持 HTTP Range 的音源会使用有限分片并发下载，不支持时自动回退单连接下载。
 - 歌曲和封面下载：单曲下载会尽量同步保存封面；封面保存失败不应反向标记音频下载失败。
 - 状态环优化：中心音质色球、下载进度细环、内部频谱、常态呼吸和低频鼓点缩放继续保留；频谱显示更强调变化量，降低持续响度占比，避免一直撑满。
@@ -98,7 +101,7 @@ flowchart TD
 - 流媒体：网易云登录、账号歌单加载、登录后弹窗选择导入歌单、在线搜索和播放源解析；QQ Cookie 导入和 LX 自定义源导入入口已接入。
 - 网络曲库：WebDAV、远程流列表、M3U/M3U8 导入。
 - 下载管理：设置页入口、当前歌曲/封面下载、单首暂停/继续、全部暂停/继续、应用内断点续传、Range 分片并发下载和系统下载通知。
-- 搜索：本地和多音源在线聚合搜索入口，搜索历史保留，离开搜索后不污染曲库显示。
+- 搜索：本地和多音源在线聚合搜索入口，同曲多源合并并保留自动回退/手动切换候选；搜索历史保留，离开搜索后不污染曲库显示。
 - 艺人详情：本地艺人目录、在线资料补充、懒加载简介和在线专辑卡片入口。
 - 多语言：应用内语言映射、Android 13+ per-app language `LocaleConfig`。
 
@@ -113,7 +116,7 @@ flowchart TD
 ### 规划中
 
 - QQ/LX 本机 Provider 直连搜索、播放源、歌词、封面和歌单导入。
-- 更完整的多音源切换，同一首歌不同 provider/音质快速切换。
+- 可配置多音源优先级、记住单曲首选音源，并继续完善不同 provider/音质的切换策略。
 - 歌曲介绍、更多歌词源、更多播放源优先级策略。
 - 批量歌单下载的 provider 鉴权链路和失败重试。
 - 标签编辑器、备份/恢复、Last.fm Scrobble。
@@ -270,9 +273,12 @@ flowchart TD
 - **Test stability fix (2026-06-25)**: `LyricsViewModel` and `StreamingViewModel` now inject an `ioDispatcher` (still defaulting to `Dispatchers.IO`) instead of hardcoding the background dispatcher, removing intermittent failures when the full unit-test suite runs in parallel; repeated clean runs of the suite are now consistently green.
 - Startup smoothness: realtime audio-spectrum polling now runs only while playback is active, and disconnected/stopped playback reuses an empty band array so app-open transitions do not trigger frame-by-frame Compose recomposition.
 - Playback cache startup is faster: the current track's leading cache range now starts immediately with high priority, stale precache writers are cancelled, and next-track URL pre-resolve no longer blocks the track the user just tapped.
+- Playback-position isolation: a pause checkpoint is valid only until the current song changes. Manual/automatic track changes and natural completion clear it, and the next song starts at 0 rather than inheriting an old streaming-source position.
 - QQ Music auth state: QQ local playback no longer treats `uin/p_uin` alone as a valid login. Playback resolution now requires a real credential cookie such as `qqmusic_key`, `qm_keyst`, or `psrf_qqaccess_token`, reducing false "logged in but login required" failures.
+- QQ Music playback compatibility: vkey requests now use `songMid + mediaMid` filenames and include `qqmusic_key` auth when available. HTTP QQ CDN SIP URLs are normalized to HTTPS locally so Android's cleartext policy does not block playback.
+- QQ Music playlist metadata compatibility: top-level `albumname`, `albumid`, `albummid`, and `strMediaMid` fields are now handled; streaming search and playlist rows show the returned album title and artwork.
 - Settings migration: settings page state is now built by `SettingsViewModel`; `SettingsRenderCoordinator`, `SettingsPageEventController`, `SettingsPageChromeBindings`, and `SettingsScrollStateSink` have been removed, while page-background and backup pickers route through platform owners/effects.
-- Search now combines local results with multi-source online aggregation. One query can search every enabled provider that supports search, deduplicate by provider and track ID, and still play each result through its own provider.
+- Search now combines local results with multi-source online aggregation. Results with the same artist, title, and a close duration are collapsed into one row with a `+N` source indicator. Every merged source remains available for automatic playback fallback and manual switching on the Now Playing screen.
 - Download management now supports resumable in-app downloads. Paused tasks keep cache files and continue without resetting progress; sources with HTTP Range support use limited segmented parallel downloads, while unsupported sources fall back to a single connection.
 - Track and artwork downloads are linked: track downloads try to save cover art as best effort, and artwork failures should not mark a completed audio download as failed.
 - The status ring keeps the quality center, download progress arc, internal spectrum, idle breathing, and kick-driven scaling. Spectrum rendering now emphasizes changes and reduces the weight of constant loudness.
@@ -297,7 +303,7 @@ flowchart TD
 - NetEase login, account playlist loading, post-login playlist picker, online search, and playback URL resolution; QQ cookie import and LX custom source import entries are available.
 - WebDAV, remote stream lists, and M3U/M3U8 import.
 - Download manager entry, current track/cover downloads, per-item pause/resume, pause/resume all, in-app resumable downloads, Range segmented downloads, and system download notification.
-- Local plus multi-source online aggregate search with history preservation.
+- Local plus multi-source online aggregate search with same-track source merging, automatic fallback, manual source candidates, and history preservation.
 - Artist directory, online artist profile enrichment, lazy-loaded introductions, and online album card entry.
 - In-app language mapping plus Android 13+ per-app language support.
 
@@ -312,7 +318,7 @@ flowchart TD
 ### Planned
 
 - Native QQ/LX provider search, playback URL, lyrics, artwork, and playlist import.
-- Multi-source switching for the same track across provider and quality variants.
+- Configurable source priority, remembered per-track source preference, and richer provider/quality switching policies.
 - Song descriptions, more lyric sources, and richer playback source ranking.
 - Authenticated batch playlist downloads with retry handling.
 - Tag editor, backup/restore, and Last.fm scrobbling.

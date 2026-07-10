@@ -15,6 +15,7 @@ internal class PlaybackStatePublisher(
 ) {
     private val listeners = CopyOnWriteArraySet<PlaybackStateListener>()
     private var released = false
+    private var lastWidgetSignature: WidgetSignature? = null
 
     fun publishState() {
         if (released) {
@@ -24,7 +25,7 @@ internal class PlaybackStatePublisher(
         lyricsPublisher?.syncFloatingLyricsPlaybackState(snapshot)
         notificationUpdater?.updateMediaNotification(false)
         val artwork = artworkProvider?.notificationArtworkFor(snapshot.currentTrack)
-        widgetUpdater.update(snapshot, artwork)
+        updateWidgetIfChanged(snapshot, artwork)
         listeners.forEach { listener ->
             listener.onPlaybackStateChanged(snapshot)
         }
@@ -70,6 +71,15 @@ internal class PlaybackStatePublisher(
         listeners.clear()
     }
 
+    private fun updateWidgetIfChanged(snapshot: PlaybackStateSnapshot, artwork: Bitmap?) {
+        val signature = WidgetSignature.from(snapshot, artwork)
+        if (signature == lastWidgetSignature) {
+            return
+        }
+        lastWidgetSignature = signature
+        widgetUpdater.update(snapshot, artwork)
+    }
+
     internal fun interface BufferingRecorder {
         fun record(snapshot: PlaybackStateSnapshot)
     }
@@ -84,5 +94,30 @@ internal class PlaybackStatePublisher(
 
     internal fun interface ArtworkProvider {
         fun notificationArtworkFor(track: Track?): Bitmap?
+    }
+
+    private data class WidgetSignature(
+        val trackId: Long,
+        val title: String,
+        val artist: String,
+        val album: String,
+        val artworkUri: String,
+        val playing: Boolean,
+        val artwork: Bitmap?
+    ) {
+        companion object {
+            fun from(snapshot: PlaybackStateSnapshot, artwork: Bitmap?): WidgetSignature {
+                val track = snapshot.currentTrack
+                return WidgetSignature(
+                    trackId = track?.id ?: -1L,
+                    title = track?.title.orEmpty(),
+                    artist = track?.artist.orEmpty(),
+                    album = track?.album.orEmpty(),
+                    artworkUri = track?.albumArtUri?.toString().orEmpty(),
+                    playing = snapshot.playing,
+                    artwork = artwork
+                )
+            }
+        }
     }
 }
