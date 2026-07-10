@@ -1118,6 +1118,53 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun replaceCurrentSourceAndResumeKeepsPositionForAConfirmedAlternateSource() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        provider.playbackPositionMsValue = 1_200L
+        val manager = queueManager(store, provider)
+        val current = track(
+            1L,
+            android.net.Uri.parse("https://old.example/1.mp3"),
+            "streaming:qq:1",
+            10_000L
+        )
+        val replacement = track(
+            2L,
+            android.net.Uri.parse("https://alternate.example/2.mp3"),
+            "streaming:netease:2",
+            10_000L
+        )
+        restoreQueue(manager, store, listOf(current), 0)
+
+        val recovery = requireNotNull(
+            manager.replaceCurrentSourceAndResume(current.id, replacement, 800L)
+        )
+
+        assertEquals(replacement, provider.queue.first())
+        assertEquals(1_200L, provider.positionManager.restoredPositionFor(replacement))
+        assertEquals(replacement, recovery.track)
+        assertEquals(1_200L, recovery.restoredPositionMs)
+        assertTrue(recovery.playWhenReady)
+    }
+
+    @Test
+    fun replaceCurrentSourceAndResumeIgnoresAStaleCurrentTrackId() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+        val current = track(1L, durationMs = 10_000L)
+        val replacement = track(2L, durationMs = 10_000L)
+        restoreQueue(manager, store, listOf(current), 0)
+
+        val recovery = manager.replaceCurrentSourceAndResume(99L, replacement, 800L)
+
+        assertNull(recovery)
+        assertEquals(current.id, provider.queue.first().id)
+        assertEquals(0L, provider.positionManager.restoredPositionFor(replacement))
+    }
+
+    @Test
     fun reuseMirroredQueueAppliesQueueStateWithoutPreparingNewMediaSources() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()

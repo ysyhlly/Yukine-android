@@ -28,7 +28,6 @@ internal class BackgroundImagePickerController @JvmOverloads constructor(
     private val ioRunner: BackgroundTaskRunner = BackgroundTaskRunner { task -> task.run() },
     private val mainPoster: BackgroundMainPoster = BackgroundMainPoster { task -> task.run() },
     private val languageModeProvider: () -> String = { AppLanguage.MODE_SYSTEM },
-    private val transformProvider: (String) -> BackgroundTransform = { BackgroundTransform.IDENTITY },
     private val imageStore: BackgroundImageCopyStore = BackgroundImageStore(),
     documentPickerLauncher: BackgroundDocumentPickerLauncher? = null,
     previewResultLauncher: BackgroundPreviewResultLauncher? = null
@@ -93,7 +92,8 @@ internal class BackgroundImagePickerController @JvmOverloads constructor(
                     activity,
                     source,
                     languageModeProvider(),
-                    transformProvider(page)
+                    // A different source must not inherit the old image's crop, pan, or zoom.
+                    BackgroundTransform.IDENTITY
                 )
             ) { result ->
                 handlePreviewResult(result)

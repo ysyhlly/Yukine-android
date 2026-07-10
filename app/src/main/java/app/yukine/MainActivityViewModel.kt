@@ -36,6 +36,8 @@ import javax.inject.Inject
 internal const val STREAMING_AUTH_REDIRECT_URI = "echo-next://streaming-auth"
 
 data class LibraryStoreState(
+    /** Lookup of only duplicate groups, built when the library is refreshed. */
+    val sourceCandidatesByTrackId: Map<Long, List<Track>> = emptyMap(),
     val allTracks: List<Track> = emptyList(),
     val visibleTracks: List<Track> = emptyList(),
     val favoriteTrackIds: Set<Long> = emptySet(),
@@ -340,12 +342,14 @@ class MainActivityViewModel @Inject constructor(
     }
 
     fun replaceLibrary(
+        sourceCandidatesByTrackId: Map<Long, List<Track>>,
         allTracks: List<Track>,
         visibleTracks: List<Track>,
         favoriteTrackIds: Set<Long>
     ) {
         val current = libraryState.value
         libraryState.value = current.copy(
+            sourceCandidatesByTrackId = sourceCandidatesByTrackId.toMap(),
             allTracks = allTracks.toList(),
             visibleTracks = visibleTracks.toList(),
             favoriteTrackIds = favoriteTrackIds.toSet()

@@ -70,7 +70,7 @@ public final class AppLanguage {
         put("choose.page.background", "Choose background", "\u9009\u62e9\u80cc\u666f");
         put("clear.page.background", "Clear background", "\u6e05\u9664\u80cc\u666f");
         put("page.background.preview.title", "Adjust background", "\u8c03\u6574\u80cc\u666f");
-        put("page.background.preview.hint", "Pinch to zoom, drag to move", "\u53cc\u6307\u7f29\u653e\uff0c\u62d6\u52a8\u79fb\u52a8\u753b\u9762");
+        put("page.background.preview.hint", "View the full original image, then pinch to zoom and drag to choose the final display area", "\u5b8c\u6574\u663e\u793a\u539f\u56fe\uff0c\u53cc\u6307\u7f29\u653e\u5e76\u62d6\u52a8\u9009\u62e9\u6700\u7ec8\u663e\u793a\u533a\u57df");
         put("page.background.preview.apply", "Apply", "\u5e94\u7528");
         put("page.background.preview.reset", "Reset", "\u91cd\u7f6e");
         put("page.background.preview.cancel", "Cancel", "\u53d6\u6d88");

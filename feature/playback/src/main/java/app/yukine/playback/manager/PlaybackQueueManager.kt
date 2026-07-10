@@ -592,6 +592,38 @@ internal class PlaybackQueueManager(
         if (current == null || current.id != replacement.id) {
             return null
         }
+        return replaceCurrentTrackAtCurrentIndex(current, replacement, positionMs)
+    }
+
+    /**
+     * Replaces the active queue item with another source for the same logical song.
+     *
+     * Unlike streaming URL refreshes, alternate sources can have different physical track IDs.
+     * The expected current ID keeps a late resolution from replacing a song the user has already
+     * changed to, while still allowing a deliberate source switch to retain its current position.
+     */
+    fun replaceCurrentSourceAndResume(
+        expectedTrackId: Long,
+        replacement: Track?,
+        positionMs: Long
+    ): CurrentTrackReplacementRecovery? {
+        val queue = this.queue
+        if (replacement == null || currentIndex() < 0 || currentIndex() >= queue.size) {
+            return null
+        }
+        val current = currentTrack()
+        if (current == null || current.id != expectedTrackId) {
+            return null
+        }
+        return replaceCurrentTrackAtCurrentIndex(current, replacement, positionMs)
+    }
+
+    private fun replaceCurrentTrackAtCurrentIndex(
+        current: Track,
+        replacement: Track,
+        positionMs: Long
+    ): CurrentTrackReplacementRecovery? {
+        val queue = this.queue
         val resumePositionMs = maxOf(maxOf(0L, positionMs), playbackPositionMs())
         queue[currentIndex()] = replacement
         clearErrorMessage()

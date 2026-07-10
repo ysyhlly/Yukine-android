@@ -66,7 +66,7 @@ Fix:
 - The progress callback boundary, seek, task removal, shutdown, queue changes, and completion paths do not create a checkpoint; only `pause()` writes one.
 - Restoration accepts a checkpoint only when it belongs to the restored current track, has a positive position, and the previous session was paused. The restored position is explicit so streaming tracks can resume too.
 - Starting playback consumes the checkpoint. Manual song selection, replay, skip, natural completion, and active-service recovery all begin at `0 ms`.
-- A streaming source refresh may retain position only when its stable track ID still matches the current queue item; a late recovery for another song is ignored instead of replacing the current item or transferring its position.
+- A streaming URL refresh may retain position only when its stable track ID still matches the current queue item. A deliberate Now Playing source switch may use a different physical ID, but must carry the expected current ID; a late result for another song is ignored instead of replacing it or transferring its position.
 - Headset-noisy and sleep-timer pauses use a non-persisting pause path, so only a user-initiated pause is recoverable.
 - Temporary in-memory position handoff for streaming URL/source replacement remains intact so an in-flight recovery does not restart a song unexpectedly.
 - Before replacing a single source or rebuilding a mirrored queue, the player-state owner drops the prior item's in-memory estimate. This prevents a newly buffering streaming song from inheriting the previous song's estimate.
@@ -80,8 +80,55 @@ Guardrail:
 - `PlaybackQueueManagerTest.restorePlaybackQueueClearsCheckpointAfterAnActiveShutdown`
 - `PlaybackQueueManagerTest.replaceCurrentTrackAndResumeIgnoresAStaleDifferentTrackRecovery`
 - `PlaybackQueueManagerTest.replaceCurrentTrackAndResumeKeepsPositionForTheSameTrackWithARefreshedUri`
+- `PlaybackQueueManagerTest.replaceCurrentSourceAndResumeKeepsPositionForAConfirmedAlternateSource`
+- `PlaybackQueueManagerTest.replaceCurrentSourceAndResumeIgnoresAStaleCurrentTrackId`
 - `PlaybackQueueManagerTest.automaticMirroredTransitionClearsAUserPauseCheckpointBeforeTheNextTrackStarts`
 - `PlaybackPlayerStateOwnerTest.resetPositionEstimateDropsOldPausedPositionBeforeReplacingTheSource`
+
+### P1 - Library Could Show Equivalent Sources As Separate Songs
+
+Status: Fixed in the logical library list; physical files and persisted source rows remain untouched, and alternate sources can be chosen from Now Playing.
+
+Evidence:
+
+- MediaStore scanning, document imports, WebDAV, remote streams, and imported provider tracks can each create a `Track` with a distinct ID/path for the same audio.
+- The former `MainLibraryStore` copied those rows directly into its library state, so album, song, search, count, and play-all surfaces could all render the duplicate separately.
+
+Fix:
+
+- `LibraryTrackMergePolicy` now creates a logical same-song snapshot before `MainLibraryStore` publishes the list or a search result, across every source type.
+- Complete normalized title, artist, and album metadata plus durations within three seconds collapse into the first stable list item. Matching accepts a parenthesized alias only when it has an explicit translation label or conservative Chinese-language signal, plus trailing `feat.` / `featuring` credits in titles or albums; ordinary Japanese Kanji qualifiers remain strict. Remix/Live/Ver./mix and Chinese/Japanese version tags remain semantic differences. The refresh also builds an index only for duplicate groups, so Now Playing does not rescan a large library on every progress update.
+- The playback page combines that group with encoded streaming candidates and switches through an expected-current-ID queue command. Streaming candidates sharing a provider and provider track ID are one source option, with the highest available quality selected (for example QQ `STANDARD` / `HIGH`); genuinely different providers remain separate hot-switch choices and retain the current position. A ViewModel-owned request generation makes rapid source selections last-click-wins, so stale resolver callbacks cannot overwrite the newer choice. Remixes, differing albums, unknown metadata, and materially different durations remain independent. The policy does not delete files or mutate database rows.
+
+Guardrail:
+
+- `LibraryTrackMergePolicyTest.mergesEquivalentLocalTracksWithNormalizedMetadataAndCloseDuration`
+- `LibraryTrackMergePolicyTest.mergesTranslatedAliasesAcrossMetadataAndFeaturedSuffixes`
+- `LibraryTrackMergePolicyTest.mergesEquivalentSourcesButKeepsDifferentVersionsAndIncompleteMetadataSeparate`
+- `LibraryTrackMergePolicyTest.mainLibraryStoreUsesMergedTracksForTheLibraryAndSearchResults`
+- `NowPlayingDestinationTest.librarySourceCandidates_renderAndSwitchFromTheNowPlayingSourceList`
+
+### P1 - Fresh Background Preview Could Inherit A Previous Image Transform
+
+Status: Fixed; each new image starts from its own identity framing, first shows the full original image inside a phone-aspect crop editor, and still fills the page after the user chooses a crop.
+
+Evidence:
+
+- The picker passed the saved transform for a page into every newly chosen source. A prior zoom/pan therefore cropped a different photo before the user had adjusted it.
+- A `ContentScale.Crop` preview immediately cut non-phone-aspect originals, so the user could not inspect the complete image before deciding which area should fill the phone screen.
+- Existing saved `scale|offsetX|offsetY` values must continue to render as valid page-cover transforms; the editor cannot invalidate prior background choices merely to show a new source in full.
+
+Fix:
+
+- `BackgroundImagePickerController` opens every freshly chosen source with `BackgroundTransform.IDENTITY`; the previous image's crop/offset is not reused.
+- The preview editor first shows the original image in full and overlays a phone-aspect crop frame. Pinch and drag select the final visible area, while the applied background still uses that selection to cover the full page.
+- Persisted legacy transform strings remain accepted through `BackgroundTransform.decode(...)`, including their historical zoom range, so no settings migration is required and older chosen backgrounds keep their existing framing.
+
+Guardrail:
+
+- `BackgroundImagePickerControllerTest.newlyPickedImagePreviewStartsAtOriginalFraming`
+- Focused preview geometry coverage for full-original framing, crop-frame bounds, and conversion back to a page-cover transform
+- The existing `BackgroundTransform.decode(...)` path remains the compatibility guard for previously persisted transform values
 
 ### P0 - Mirrored Player Preparation Scales Poorly With Large Streaming Queues
 

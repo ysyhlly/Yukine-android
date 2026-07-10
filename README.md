@@ -72,6 +72,9 @@ flowchart TD
 - 启动体验优化：实时音频频谱轮询只在实际播放时运行，服务未连接或未播放时复用空频谱，避免打开动画期间每帧触发 Compose 重组。
 - 播放缓存提速：当前歌曲首段缓存改为立即高优先级执行，旧预缓存会主动取消；下一首 URL 预解析不再阻塞用户刚点击的当前歌曲解析，减少点播放时的卡顿。
 - 播放进度隔离：暂停只暂存当前未切歌时的位置；手动切歌、自动切歌和自然播放完成后的新歌曲都会清除旧检查点并从 0 开始，避免旧进度被流媒体换源带到下一首。
+- 自定义页面背景预览：新图会先完整显示原图，并以手机画幅选框标出最终可见区域；可双指缩放、拖动图片选择截取范围。应用后仍按所选区域铺满页面，且不会继承上一张图的缩放或偏移。
+- 曲库同曲多音源合并：本地扫描、文档导入、WebDAV、远程流和已导入的网络曲目在歌名、歌手、专辑归一化后匹配且时长相差不超过 3 秒时折叠为一条；会识别并忽略有明确译名标记或中文语法信号的括号译名，以及歌名/专辑末尾的 `feat.` / `featuring` 客串尾缀。所有源文件和数据库条目都会保留，并可在播放页“音源切换”中切换。Remix、Live、Ver.、混音、现场、不同专辑、未知元数据和时长明显不同的版本不会合并。
+- 播放页音源切换：同一提供方且同一曲目 ID 的多个音质档（如 QQ 音乐 `STANDARD` / `HIGH`）合并为一个选项，优先使用最高可用音质；真正不同的提供方仍可热切换并保持当前播放进度，连续点击时以最后一次选择为准。
 - QQ 音乐登录态修正：QQ 本机直连不再把只有 `uin/p_uin` 的 Cookie 当作有效登录，播放解析前会要求 `qqmusic_key` / `qm_keyst` / `psrf_qqaccess_token` 等真实凭证，减少“已登录但无法解析需登录”的假阳性。
 - QQ 音乐播放解析兼容：vkey 请求会按 `songMid + mediaMid` 生成文件名，并在存在 `qqmusic_key` 时携带鉴权；QQ CDN 返回的 HTTP SIP 会在本机转换为 HTTPS，避免 Android 的明文网络策略拦截播放。
 - QQ 音乐歌单元数据兼容：兼容歌单歌曲顶层的 `albumname`、`albumid`、`albummid`、`strMediaMid` 字段；搜索和歌单条目会显示接口返回的专辑名与封面。
@@ -274,6 +277,9 @@ flowchart TD
 - Startup smoothness: realtime audio-spectrum polling now runs only while playback is active, and disconnected/stopped playback reuses an empty band array so app-open transitions do not trigger frame-by-frame Compose recomposition.
 - Playback cache startup is faster: the current track's leading cache range now starts immediately with high priority, stale precache writers are cancelled, and next-track URL pre-resolve no longer blocks the track the user just tapped.
 - Playback-position isolation: a pause checkpoint is valid only until the current song changes. Manual/automatic track changes and natural completion clear it, and the next song starts at 0 rather than inheriting an old streaming-source position.
+- Custom page-background preview: a newly selected image first shows the full original with a phone-aspect crop frame. Pinch and drag the image to choose the crop; after applying, that selection still fills the page, and no zoom or pan is inherited from the previous image.
+- Library same-song source merging: matching copies from device scans, document import, WebDAV, remote streams, and imported online tracks collapse into one item in the library, search, and play-all list when normalized title, artist, album, and duration (within three seconds) agree. Parenthesized aliases are ignored only with an explicit translation label or conservative Chinese-language signal, along with trailing `feat.` / `featuring` credits in titles or albums. Source files and database rows remain intact, and every alternative can be selected from the Now Playing source switcher. Remix, Live, Ver., mix, distinct albums, unknown metadata, and materially different durations remain separate.
+- Now Playing source switching: quality variants with the same provider and provider track ID (for example, QQ Music `STANDARD` / `HIGH`) are one option, using the highest available quality. Genuine different providers still hot-switch at the current position, and rapid taps honor the most recent choice.
 - QQ Music auth state: QQ local playback no longer treats `uin/p_uin` alone as a valid login. Playback resolution now requires a real credential cookie such as `qqmusic_key`, `qm_keyst`, or `psrf_qqaccess_token`, reducing false "logged in but login required" failures.
 - QQ Music playback compatibility: vkey requests now use `songMid + mediaMid` filenames and include `qqmusic_key` auth when available. HTTP QQ CDN SIP URLs are normalized to HTTPS locally so Android's cleartext policy does not block playback.
 - QQ Music playlist metadata compatibility: top-level `albumname`, `albumid`, `albummid`, and `strMediaMid` fields are now handled; streaming search and playlist rows show the returned album title and artwork.

@@ -3525,7 +3525,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(controller.contains("internal fun interface BackgroundLanguageModeProvider"));
         assertFalse(controller.contains("internal fun interface BackgroundTransformProvider"));
         assertTrue(controller.contains("private val languageModeProvider: () -> String"));
-        assertTrue(controller.contains("private val transformProvider: (String) -> BackgroundTransform"));
+        assertFalse(controller.contains("private val transformProvider: (String) -> BackgroundTransform"));
         assertTrue(controller.contains("interface Listener"));
         assertTrue(controller.contains("fun open(page: String)"));
         assertTrue(controller.contains("registerForActivityResult(ActivityResultContracts.StartActivityForResult())"));
@@ -3533,7 +3533,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(controller.contains("documentPickerLauncher.launch(intent)"));
         assertTrue(controller.contains("previewResultLauncher.launch("));
         assertTrue(controller.contains("languageModeProvider()"));
-        assertTrue(controller.contains("transformProvider(page)"));
+        assertTrue(controller.contains("BackgroundTransform.IDENTITY"));
+        assertFalse(controller.contains("transformProvider(page)"));
         assertTrue(controller.contains("takePersistableUriPermission"));
         assertFalse(exists("app/src/main/java/app/yukine/BackgroundImagePickerBindings.kt"));
         assertTrue(mainActivity.contains("new BackgroundImagePickerController("));
@@ -6220,6 +6221,7 @@ public final class MainActivityArchitectureContractTest {
                 "playQueue",
                 "removeTracksById",
                 "replaceCurrentQueueTrack",
+                "replaceCurrentSourceAndResume",
                 "replaceCurrentTrackAndResume",
                 "replaceQueuedTrack",
                 "replaceQueuedTrackById",

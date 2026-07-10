@@ -1046,6 +1046,15 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackCurrentTrackReplacementOwner.replaceCurrentTrackAndResume(replacement, positionMs);
     }
 
+    @Override
+    public void replaceCurrentSourceAndResume(long expectedTrackId, Track replacement, long positionMs) {
+        playbackCurrentTrackReplacementOwner.replaceCurrentSourceAndResume(
+                expectedTrackId,
+                replacement,
+                positionMs
+        );
+    }
+
     public void removeTracksById(Set<Long> trackIds) {
         playbackQueueMutationOwner.removeTracksById(trackIds);
     }

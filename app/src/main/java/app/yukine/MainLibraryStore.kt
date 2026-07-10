@@ -21,6 +21,11 @@ internal class MainLibraryStore(
         return ArrayList(state().allTracks)
     }
 
+    fun sourceCandidatesFor(track: Track?): ArrayList<Track> {
+        val trackId = track?.id ?: return ArrayList()
+        return ArrayList(state().sourceCandidatesByTrackId[trackId].orEmpty())
+    }
+
     fun visibleTracks(): ArrayList<Track> {
         return ArrayList(state().visibleTracks)
     }
@@ -55,7 +60,15 @@ internal class MainLibraryStore(
 
     fun replaceLibrary(tracks: List<Track>, favorites: Set<Long>, searchQuery: String?) {
         val cachedTracks = ArrayList(tracks)
-        viewModel.replaceLibrary(cachedTracks, searchUseCase.execute(cachedTracks, searchQuery), HashSet(favorites))
+        val searchedTracks = searchUseCase.execute(cachedTracks, searchQuery)
+        val librarySnapshot = LibraryTrackMergePolicy.snapshot(cachedTracks)
+        val visibleTracks = LibraryTrackMergePolicy.merge(searchedTracks)
+        viewModel.replaceLibrary(
+            librarySnapshot.sourceCandidatesByTrackId,
+            librarySnapshot.mergedTracks,
+            visibleTracks,
+            HashSet(favorites)
+        )
     }
 
     fun applyCollections(snapshot: LibraryCollectionsResult) {
@@ -71,8 +84,10 @@ internal class MainLibraryStore(
     }
 
     fun applySearch(query: String?) {
-        viewModel.updateVisibleTracks(
+        val searchedTracks =
             combinedSearchUseCase.execute(allTracks(), selectedPlaylistTracks(), query)
+        viewModel.updateVisibleTracks(
+            LibraryTrackMergePolicy.merge(searchedTracks)
         )
     }
 

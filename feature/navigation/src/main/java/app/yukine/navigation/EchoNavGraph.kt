@@ -242,6 +242,12 @@ fun EchoNavGraph(
                         onSwitchSource = { track, provider, providerTrackId, quality ->
                             hostState.nowPlayingStateProvider.switchSource(track, provider, providerTrackId, quality)
                         },
+                        sourceCandidates = { track ->
+                            hostState.nowPlayingStateProvider.sourceCandidatesFor(track)
+                        },
+                        onSwitchLocalSource = { current, replacement ->
+                            hostState.nowPlayingStateProvider.switchLocalSource(current, replacement)
+                        },
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion
@@ -275,6 +281,12 @@ fun EchoNavGraph(
                         onEvent = nowPlayingEventHandler,
                         onSwitchSource = { track, provider, providerTrackId, quality ->
                             hostState.nowPlayingStateProvider.switchSource(track, provider, providerTrackId, quality)
+                        },
+                        sourceCandidates = { track ->
+                            hostState.nowPlayingStateProvider.sourceCandidatesFor(track)
+                        },
+                        onSwitchLocalSource = { current, replacement ->
+                            hostState.nowPlayingStateProvider.switchLocalSource(current, replacement)
                         },
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,

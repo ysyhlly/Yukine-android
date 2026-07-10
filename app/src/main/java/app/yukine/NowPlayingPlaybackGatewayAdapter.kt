@@ -19,6 +19,7 @@ interface NowPlayingPlaybackServicePort {
     fun warmPlaybackTrack(track: Track)
     fun appendToQueue(tracks: List<Track>)
     fun replaceCurrentTrackAndResume(track: Track, positionMs: Long)
+    fun replaceCurrentSourceAndResume(expectedTrackId: Long, track: Track, positionMs: Long) = Unit
     fun startSleepTimerMinutes(minutes: Int)
     fun cancelSleepTimer()
     fun playQueue(tracks: List<Track>, index: Int)
@@ -103,6 +104,10 @@ internal class NowPlayingPlaybackGatewayAdapter(
 
     override fun replaceCurrentTrackAndResume(track: Track, positionMs: Long) {
         service()?.replaceCurrentTrackAndResume(track, positionMs)
+    }
+
+    override fun replaceCurrentSourceAndResume(expectedTrackId: Long, track: Track, positionMs: Long) {
+        service()?.replaceCurrentSourceAndResume(expectedTrackId, track, positionMs)
     }
 
     override fun startSleepTimerMinutes(minutes: Int) {

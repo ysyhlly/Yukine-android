@@ -52,6 +52,91 @@ class BackgroundImagePickerControllerTest {
     }
 
     @Test
+    fun newlyPickedImagePreviewStartsAtOriginalFraming() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        val documentLauncher = RecordingDocumentPickerLauncher()
+        val previewLauncher = RecordingPreviewLauncher()
+        val controller = BackgroundImagePickerController(
+            activity = activity,
+            listener = RecordingListener(),
+            documentPickerLauncher = documentLauncher,
+            previewResultLauncher = previewLauncher
+        )
+
+        controller.open(PageBackgrounds.PAGE_HOME)
+        documentLauncher.emit(
+            ActivityResult(
+                Activity.RESULT_OK,
+                Intent().setData(Uri.parse("content://background/new-home"))
+            )
+        )
+
+        val previewIntent = previewLauncher.launches.single()
+        assertEquals(1f, previewIntent.getFloatExtra("extra_scale", -1f), 0f)
+        assertEquals(0f, previewIntent.getFloatExtra("extra_offset_x", -1f), 0f)
+        assertEquals(0f, previewIntent.getFloatExtra("extra_offset_y", -1f), 0f)
+    }
+
+    @Test
+    fun backgroundTransformDoesNotAllowBlankPageEdgesAfterZoomOut() {
+        val normalized = BackgroundTransform(scale = 0.5f, offsetX = 0.25f, offsetY = -0.25f).normalized()
+
+        assertEquals(1f, normalized.scale, 0f)
+    }
+
+    @Test
+    fun legacyThreePartBackgroundTransformKeepsLegacyCropLayout() {
+        val decoded = BackgroundTransform.decode("1.75|0.25|-0.5")
+
+        assertEquals(1.75f, decoded.scale, 0f)
+        assertEquals(0.25f, decoded.offsetX, 0f)
+        assertEquals(-0.5f, decoded.offsetY, 0f)
+        assertEquals(BackgroundTransformLayout.LEGACY_CROP, decoded.layout)
+        assertEquals("1.75|0.25|-0.5", decoded.encode())
+    }
+
+    @Test
+    fun legacyThreePartBackgroundTransformRetainsHistoricalZoomOut() {
+        val decoded = BackgroundTransform.decode("0.5|0.25|-0.25")
+
+        assertEquals(0.5f, decoded.scale, 0f)
+        assertEquals(BackgroundTransformLayout.LEGACY_CROP, decoded.layout)
+        assertEquals("0.5|0.25|-0.25", decoded.encode())
+    }
+
+    @Test
+    fun v2BackgroundTransformRoundTripsAsCropEditorLayout() {
+        val original = BackgroundTransform(scale = 1.75f, offsetX = 0.25f, offsetY = -0.5f)
+
+        assertEquals(BackgroundTransformLayout.CROP_EDITOR, BackgroundTransform.IDENTITY.layout)
+        assertEquals("v2|1.75|0.25|-0.5", original.encode())
+        assertEquals(original, BackgroundTransform.decode(original.encode()))
+    }
+
+    @Test
+    fun v2BackgroundTransformDoesNotAllowHistoricalZoomOut() {
+        val decoded = BackgroundTransform.decode("v2|0.5|0.25|-0.25")
+
+        assertEquals(1f, decoded.scale, 0f)
+        assertEquals(BackgroundTransformLayout.CROP_EDITOR, decoded.layout)
+        assertEquals("v2|1.0|0.25|-0.25", decoded.encode())
+    }
+
+    @Test
+    fun cropEditorTransformSurvivesPageBackgroundStorage() {
+        val transform = BackgroundTransform(scale = 1.4f, offsetX = -0.3f, offsetY = 0.2f)
+
+        val backgrounds = PageBackgrounds().withBackground(
+            page = PageBackgrounds.PAGE_HOME,
+            uri = "file:///internal/background.jpg",
+            transform = transform
+        )
+
+        assertEquals("v2|1.4|-0.3|0.2", backgrounds.homeTransform)
+        assertEquals(transform, backgrounds.transformFor(PageBackgrounds.PAGE_HOME))
+    }
+
+    @Test
     fun previewResultCopiesOriginalAndEmitsInternalImageAndTransform() {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val documentLauncher = RecordingDocumentPickerLauncher()

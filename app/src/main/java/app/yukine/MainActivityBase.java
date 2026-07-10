@@ -278,6 +278,11 @@ public abstract class MainActivityBase extends ComponentActivity {
         nowPlayingViewModel.bindPlaybackGateway(nowPlayingPlaybackGatewayFactory.create(
                 () -> playbackService
         ));
+        nowPlayingViewModel.bindSourceCandidatesProvider(
+                track -> libraryStore == null
+                        ? Collections.<Track>emptyList()
+                        : libraryStore.sourceCandidatesFor(track)
+        );
     }
 
     private void initializeDownloadRequests() {
@@ -391,10 +396,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 ),
                 task -> executors.io(task),
                 task -> mainHandler.post(task),
-                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
-                page -> settingsStore == null
-                        ? BackgroundTransform.IDENTITY
-                        : settingsStore.pageBackgrounds().transformFor(page)
+                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()
         );
         backupRestoreLauncher = new BackupRestoreLauncher(
                 this,
@@ -1902,6 +1904,9 @@ public abstract class MainActivityBase extends ComponentActivity {
             statusMessageController.showFeedback("\u97f3\u6e90\u5207\u6362\u6682\u4e0d\u53ef\u7528");
             return;
         }
+        if (!nowPlayingViewModel.isLatestSourceSwitchRequest(effect.getRequestId())) {
+            return;
+        }
         final Track current = effect.getTrack();
         final long positionMs = playbackStore == null || playbackStore.snapshot() == null
                 ? 0L
@@ -1915,17 +1920,84 @@ public abstract class MainActivityBase extends ComponentActivity {
                 resolveStreamingPlaybackUseCase.metadataFor(current, effect.getProvider(), effect.getProviderTrackId()),
                 quality,
                 resolved -> {
+                    if (!nowPlayingViewModel.isLatestSourceSwitchRequest(effect.getRequestId())) {
+                        return;
+                    }
                     if (resolved == null) {
                         statusMessageController.showFeedback("\u97f3\u6e90\u5207\u6362\u5931\u8d25\uff0c\u8bf7\u6362\u4e00\u4e2a\u6765\u6e90\u518d\u8bd5");
                         return;
                     }
-                    nowPlayingViewModel.replaceCurrentTrackAndResume(resolved, positionMs);
-                    statusMessageController.showFeedback("\u5df2\u5207\u6362\u97f3\u6e90\uff1a" + resolved.title);
-                    publishPlaybackStore();
-                    nowPlayingStateController.renderNowBar();
-                    renderSelectedTabForNavHostState();
+                    completeNowPlayingSourceSwitch(effect.getRequestId(), current, resolved, positionMs);
                 }
         );
+    }
+
+    private void switchNowPlayingLibrarySource(final NowPlayingEffect.SwitchLibrarySource effect) {
+        if (effect == null || effect.getCurrent() == null || effect.getReplacement() == null) {
+            statusMessageController.showFeedback("\u5f53\u524d\u6ca1\u6709\u53ef\u5207\u6362\u7684\u6b4c\u66f2");
+            return;
+        }
+        if (nowPlayingViewModel == null) {
+            statusMessageController.showFeedback("\u97f3\u6e90\u5207\u6362\u6682\u4e0d\u53ef\u7528");
+            return;
+        }
+        if (!nowPlayingViewModel.isLatestSourceSwitchRequest(effect.getRequestId())) {
+            return;
+        }
+        final Track current = effect.getCurrent();
+        final Track replacement = effect.getReplacement();
+        final long positionMs = playbackStore == null || playbackStore.snapshot() == null
+                ? 0L
+                : playbackStore.snapshot().positionMs;
+        final StreamingSourceSwitchResolveRequest sourceSwitchRequest =
+                resolveStreamingPlaybackUseCase.prepareSourceSwitch(replacement);
+        if (sourceSwitchRequest == null) {
+            completeNowPlayingSourceSwitch(effect.getRequestId(), current, replacement, positionMs);
+            return;
+        }
+        final StreamingProviderName provider = sourceSwitchRequest.getProvider();
+        final String providerTrackId = sourceSwitchRequest.getProviderTrackId();
+        if (provider == null || providerTrackId == null || providerTrackId.trim().isEmpty()
+                || streamingViewModel == null) {
+            statusMessageController.showFeedback("\u97f3\u6e90\u5207\u6362\u6682\u4e0d\u53ef\u7528");
+            return;
+        }
+        statusMessageController.showFeedback("\u6b63\u5728\u5207\u6362\u97f3\u6e90\uff1a" + provider.getWireName());
+        streamingViewModel.resolveStreamingTrackForPlayback(
+                provider,
+                providerTrackId,
+                resolveStreamingPlaybackUseCase.metadataFor(replacement, provider, providerTrackId),
+                selectedStreamingQuality(),
+                resolved -> {
+                    if (!nowPlayingViewModel.isLatestSourceSwitchRequest(effect.getRequestId())) {
+                        return;
+                    }
+                    if (resolved == null) {
+                        statusMessageController.showFeedback("\u97f3\u6e90\u5207\u6362\u5931\u8d25\uff0c\u8bf7\u6362\u4e00\u4e2a\u6765\u6e90\u518d\u8bd5");
+                        return;
+                    }
+                    completeNowPlayingSourceSwitch(effect.getRequestId(), current, resolved, positionMs);
+                }
+        );
+    }
+
+    private void completeNowPlayingSourceSwitch(
+            long requestId,
+            Track current,
+            Track replacement,
+            long positionMs
+    ) {
+        if (current == null || replacement == null || nowPlayingViewModel == null) {
+            return;
+        }
+        if (!nowPlayingViewModel.isLatestSourceSwitchRequest(requestId)) {
+            return;
+        }
+        nowPlayingViewModel.replaceCurrentSourceAndResume(current.id, replacement, positionMs);
+        statusMessageController.showFeedback("\u5df2\u5207\u6362\u97f3\u6e90\uff1a" + replacement.title);
+        publishPlaybackStore();
+        nowPlayingStateController.renderNowBar();
+        renderSelectedTabForNavHostState();
     }
 
     private void loadLyrics(final Track track) {
@@ -2506,6 +2578,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                 downloadRequestController.downloadTrack(downloadTrack.getTrack());
             } else if (effect instanceof NowPlayingEffect.SwitchSource switchSource) {
                 switchNowPlayingSource(switchSource);
+            } else if (effect instanceof NowPlayingEffect.SwitchLibrarySource switchLibrarySource) {
+                switchNowPlayingLibrarySource(switchLibrarySource);
             } else if (effect instanceof NowPlayingEffect.ShowMessage showMessage) {
                 statusMessageController.setStatus(showMessage.getMessage());
             }

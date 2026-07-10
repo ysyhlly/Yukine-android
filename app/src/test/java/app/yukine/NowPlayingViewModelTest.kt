@@ -4,6 +4,8 @@ import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackRepeatMode
 import app.yukine.playback.PlaybackStateSnapshot
+import app.yukine.streaming.StreamingAudioQuality
+import app.yukine.streaming.StreamingProviderName
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -49,6 +51,52 @@ class NowPlayingViewModelTest {
         viewModel.onEvent(NowPlayingEvent.OpenQueue)
 
         assertEquals(listOf(NowPlayingEffect.OpenQueue), viewModel.drainEffects())
+    }
+
+    @Test
+    fun librarySourceCandidatesExposeAlternatesAndEmitAConfirmedSwitchEffect() {
+        val viewModel = NowPlayingViewModel()
+        val current = Track(7L, "Song", "Artist", "Album", 180_000L, Uri.EMPTY, "file:current.mp3")
+        val alternate = Track(8L, "Song", "Artist", "Album", 180_000L, Uri.EMPTY, "file:alternate.flac")
+        viewModel.bindSourceCandidatesProvider { listOf(current, alternate) }
+
+        assertEquals(listOf(current, alternate), viewModel.sourceCandidatesFor(current))
+
+        viewModel.switchLocalSource(current, alternate)
+        val effect = viewModel.drainEffects().single() as NowPlayingEffect.SwitchLibrarySource
+
+        assertEquals(current, effect.current)
+        assertEquals(alternate, effect.replacement)
+        assertTrue(effect.requestId > 0L)
+
+        viewModel.switchLocalSource(current, current)
+        assertEquals(emptyList<NowPlayingEffect>(), viewModel.drainEffects())
+    }
+
+    @Test
+    fun latestManualSourceSwitchSupersedesEarlierPendingRequest() {
+        val viewModel = NowPlayingViewModel()
+        val current = Track(7L, "Song", "Artist", "Album", 180_000L, Uri.EMPTY, "file:current.mp3")
+
+        viewModel.switchSource(
+            current,
+            StreamingProviderName.QQ_MUSIC,
+            "qq-song",
+            StreamingAudioQuality.HIGH
+        )
+        val first = viewModel.drainEffects().single() as NowPlayingEffect.SwitchSource
+
+        viewModel.switchSource(
+            current,
+            StreamingProviderName.NETEASE,
+            "netease-song",
+            StreamingAudioQuality.LOSSLESS
+        )
+        val latest = viewModel.drainEffects().single() as NowPlayingEffect.SwitchSource
+
+        assertTrue(latest.requestId > first.requestId)
+        assertFalse(viewModel.isLatestSourceSwitchRequest(first.requestId))
+        assertTrue(viewModel.isLatestSourceSwitchRequest(latest.requestId))
     }
 
     @Test
@@ -138,6 +186,7 @@ class NowPlayingViewModelTest {
         viewModel.warmPlaybackTrack(track)
         viewModel.appendToQueue(listOf(track))
         viewModel.replaceCurrentTrackAndResume(track, 7_000L)
+        viewModel.replaceCurrentSourceAndResume(8L, track, 7_000L)
 
         assertEquals(
             listOf(
@@ -153,7 +202,8 @@ class NowPlayingViewModelTest {
                 "retain:9",
                 "precache:9",
                 "append:1",
-                "replaceCurrent:9:7000"
+                "replaceCurrent:9:7000",
+                "replaceCurrentSource:8:9:7000"
             ),
             player.calls
         )
@@ -179,6 +229,7 @@ class NowPlayingViewModelTest {
         viewModel.warmPlaybackTrack(track)
         viewModel.appendToQueue(listOf(track))
         viewModel.replaceCurrentTrackAndResume(track, 7_000L)
+        viewModel.replaceCurrentSourceAndResume(8L, track, 7_000L)
         val result = viewModel.playTrackList(emptyList(), 0)
 
         assertEquals(
@@ -189,7 +240,8 @@ class NowPlayingViewModelTest {
                 "retain:9",
                 "precache:9",
                 "append:1",
-                "replaceCurrent:9:7000"
+                "replaceCurrent:9:7000",
+                "replaceCurrentSource:8:9:7000"
             ),
             player.calls
         )
@@ -349,6 +401,10 @@ class NowPlayingViewModelTest {
 
         override fun replaceCurrentTrackAndResume(track: Track, positionMs: Long) {
             calls.add("replaceCurrent:${track.id}:$positionMs")
+        }
+
+        override fun replaceCurrentSourceAndResume(expectedTrackId: Long, track: Track, positionMs: Long) {
+            calls.add("replaceCurrentSource:$expectedTrackId:${track.id}:$positionMs")
         }
 
         override fun startSleepTimerMinutes(minutes: Int) {

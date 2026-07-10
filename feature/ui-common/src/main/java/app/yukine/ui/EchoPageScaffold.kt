@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.yukine.BackgroundTransform
+import app.yukine.BackgroundTransformLayout
 
 object EchoPageDefaults {
     val horizontalPadding: Dp = 18.dp
@@ -105,7 +107,7 @@ private fun AsyncPageBackgroundImage(
         mutableStateOf(uri?.let { ArtworkLoader.peekAnySize(it) })
     }
     val safeTransform = remember(transform) { transform.normalized() }
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize().clipToBounds()) {
         val targetPx = with(density) {
             maxOf(maxWidth.toPx(), maxHeight.toPx()).toInt()
         }.coerceIn(1, ArtworkLoader.MAX_TARGET_PX)
@@ -116,27 +118,63 @@ private fun AsyncPageBackgroundImage(
         }
         val current = bitmap
         if (current != null) {
-            Image(
-                bitmap = current.asImageBitmap(),
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        scaleX = safeTransform.scale
-                        scaleY = safeTransform.scale
-                        translationX = BackgroundTransformGeometry.translationPx(
-                            widthPx,
-                            safeTransform.scale,
-                            safeTransform.offsetX
-                        )
-                        translationY = BackgroundTransformGeometry.translationPx(
-                            heightPx,
-                            safeTransform.scale,
-                            safeTransform.offsetY
-                        )
-                    },
-                contentScale = ContentScale.Crop
-            )
+            val cropFrame = if (safeTransform.layout == BackgroundTransformLayout.CROP_EDITOR) {
+                BackgroundTransformGeometry.pageCropFrame(
+                    sourceWidthPx = current.width.toFloat(),
+                    sourceHeightPx = current.height.toFloat(),
+                    viewportWidthPx = widthPx,
+                    viewportHeightPx = heightPx
+                )
+            } else {
+                BackgroundTransformGeometry.CropFrame.EMPTY
+            }
+            if (safeTransform.layout == BackgroundTransformLayout.LEGACY_CROP || !cropFrame.isUsable) {
+                // Old three-part settings values retain their original Crop-based coordinates.
+                Image(
+                    bitmap = current.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = safeTransform.scale
+                            scaleY = safeTransform.scale
+                            translationX = BackgroundTransformGeometry.translationPx(
+                                widthPx,
+                                safeTransform.scale,
+                                safeTransform.offsetX
+                            )
+                            translationY = BackgroundTransformGeometry.translationPx(
+                                heightPx,
+                                safeTransform.scale,
+                                safeTransform.offsetY
+                            )
+                        },
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                val imageWidth = with(density) { cropFrame.imageWidthPx.toDp() }
+                val imageHeight = with(density) { cropFrame.imageHeightPx.toDp() }
+                Image(
+                    bitmap = current.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(imageWidth, imageHeight)
+                        .graphicsLayer {
+                            scaleX = safeTransform.scale
+                            scaleY = safeTransform.scale
+                            translationX = cropFrame.translationX(
+                                safeTransform.scale,
+                                safeTransform.offsetX
+                            )
+                            translationY = cropFrame.translationY(
+                                safeTransform.scale,
+                                safeTransform.offsetY
+                            )
+                        },
+                    contentScale = ContentScale.FillBounds
+                )
+            }
         }
     }
 }

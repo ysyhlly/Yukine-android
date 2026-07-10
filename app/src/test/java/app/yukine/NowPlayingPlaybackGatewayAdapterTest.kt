@@ -20,13 +20,14 @@ class NowPlayingPlaybackGatewayAdapterTest {
 
         gateway.playQueue(listOf(track), 0)
         gateway.warmPlaybackTrack(track)
+        gateway.replaceCurrentSourceAndResume(6L, track, 1_200L)
         gateway.skipToNext()
         gateway.pause()
 
         assertTrue(gateway.serviceConnected())
         assertEquals(listOf<String?>(null), startedActions)
         assertEquals(
-            listOf("playQueue:1:0", "warm:7", "next", "pause"),
+            listOf("playQueue:1:0", "warm:7", "replaceCurrentSource:6:7:1200", "next", "pause"),
             service.calls
         )
     }
@@ -105,6 +106,10 @@ class NowPlayingPlaybackGatewayAdapterTest {
 
         override fun replaceCurrentTrackAndResume(track: Track, positionMs: Long) {
             calls += "replaceCurrent:${track.id}:$positionMs"
+        }
+
+        override fun replaceCurrentSourceAndResume(expectedTrackId: Long, track: Track, positionMs: Long) {
+            calls += "replaceCurrentSource:$expectedTrackId:${track.id}:$positionMs"
         }
 
         override fun startSleepTimerMinutes(minutes: Int) {

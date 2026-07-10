@@ -59,6 +59,35 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
     }
 
     @Test
+    public void delegatesConfirmedSourceReplacementAndSchedulesRecovery() {
+        List<String> events = new ArrayList<>();
+        Track replacement = track(8L);
+        PlaybackQueueManager.CurrentTrackReplacementRecovery recovery =
+                new PlaybackQueueManager.CurrentTrackReplacementRecovery(replacement, 2500L, true);
+        FakeSourceReplacementAction action = new FakeSourceReplacementAction(events, recovery);
+        PlaybackCurrentTrackReplacementOwner owner = new PlaybackCurrentTrackReplacementOwner(
+                null,
+                action::replaceCurrentSourceAndResume,
+                recorded -> events.add("record:" + recorded.getRestoredPositionMs()),
+                playWhenReady -> events.add("schedule:" + playWhenReady)
+        );
+
+        owner.replaceCurrentSourceAndResume(7L, replacement, 1800L);
+
+        assertEquals(7L, action.expectedTrackId);
+        assertSame(replacement, action.replacement);
+        assertEquals(1800L, action.positionMs);
+        assertEquals(
+                Arrays.asList(
+                        "source:7:8@1800",
+                        "record:2500",
+                        "schedule:true"
+                ),
+                events
+        );
+    }
+
+    @Test
     public void ignoresMissingDependencies() {
         List<String> events = new ArrayList<>();
         Track replacement = track(9L);
@@ -122,6 +151,34 @@ public class PlaybackCurrentTrackReplacementOwnerTest {
             this.replacement = replacement;
             this.positionMs = positionMs;
             events.add("replace:" + replacement.id + "@" + positionMs);
+            return recovery;
+        }
+    }
+
+    private static final class FakeSourceReplacementAction {
+        private final List<String> events;
+        private final PlaybackQueueManager.CurrentTrackReplacementRecovery recovery;
+        private long expectedTrackId;
+        private Track replacement;
+        private long positionMs;
+
+        private FakeSourceReplacementAction(
+                List<String> events,
+                PlaybackQueueManager.CurrentTrackReplacementRecovery recovery
+        ) {
+            this.events = events;
+            this.recovery = recovery;
+        }
+
+        public PlaybackQueueManager.CurrentTrackReplacementRecovery replaceCurrentSourceAndResume(
+                long expectedTrackId,
+                Track replacement,
+                long positionMs
+        ) {
+            this.expectedTrackId = expectedTrackId;
+            this.replacement = replacement;
+            this.positionMs = positionMs;
+            events.add("source:" + expectedTrackId + ":" + replacement.id + "@" + positionMs);
             return recovery;
         }
     }

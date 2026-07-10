@@ -64,4 +64,15 @@ interface NowPlayingScreenStateProvider : NowBarStateProvider {
         providerTrackId: String?,
         quality: StreamingAudioQuality?
     )
+
+    /**
+     * Returns alternate playable copies of the same logical song. The screen owns their
+     * presentation so library and playback owners only need to provide [Track] candidates.
+     */
+    fun sourceCandidatesFor(track: Track): List<Track> = emptyList()
+
+    /**
+     * Switches to an already-known local or library-backed source candidate.
+     */
+    fun switchLocalSource(current: Track, replacement: Track) = Unit
 }

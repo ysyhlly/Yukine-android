@@ -9,6 +9,7 @@ import app.yukine.streaming.StreamingProviderName
 import app.yukine.ui.NowBarState
 import app.yukine.ui.nowBarEmptyState
 import java.util.ArrayDeque
+import java.util.concurrent.atomic.AtomicLong
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +30,13 @@ sealed interface NowPlayingEffect {
         val track: Track,
         val provider: StreamingProviderName,
         val providerTrackId: String,
-        val quality: StreamingAudioQuality?
+        val quality: StreamingAudioQuality?,
+        val requestId: Long
+    ) : NowPlayingEffect
+    data class SwitchLibrarySource(
+        val current: Track,
+        val replacement: Track,
+        val requestId: Long
     ) : NowPlayingEffect
     data class ShowMessage(val message: String) : NowPlayingEffect
 }
@@ -70,6 +77,7 @@ interface NowPlayingPlaybackGateway {
     fun warmPlaybackTrack(track: Track)
     fun appendToQueue(tracks: List<Track>)
     fun replaceCurrentTrackAndResume(track: Track, positionMs: Long)
+    fun replaceCurrentSourceAndResume(expectedTrackId: Long, track: Track, positionMs: Long) = Unit
     fun startSleepTimerMinutes(minutes: Int)
     fun cancelSleepTimer()
     fun playQueue(tracks: List<Track>, index: Int)
@@ -93,6 +101,8 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
     private val pendingEffects = ArrayDeque<NowPlayingEffect>()
     private var gateway: NowPlayingGateway? = null
     private var playbackGateway: NowPlayingPlaybackGateway? = null
+    private var sourceCandidatesProvider: ((Track) -> List<Track>)? = null
+    private val sourceSwitchGeneration = AtomicLong(0L)
 
     fun bindGateway(nextGateway: NowPlayingGateway?) {
         gateway = nextGateway
@@ -100,6 +110,14 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun bindPlaybackGateway(nextGateway: NowPlayingPlaybackGateway?) {
         playbackGateway = nextGateway
+    }
+
+    fun bindSourceCandidatesProvider(nextProvider: ((Track) -> List<Track>)?) {
+        sourceCandidatesProvider = nextProvider
+    }
+
+    fun isLatestSourceSwitchRequest(requestId: Long): Boolean {
+        return requestId == sourceSwitchGeneration.get()
     }
 
     fun updateState(
@@ -208,7 +226,28 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             emitEffect(NowPlayingEffect.ShowMessage("该音源缺少歌曲 ID，暂不能切换"))
             return
         }
-        emitEffect(NowPlayingEffect.SwitchSource(safeTrack, safeProvider, safeTrackId, quality))
+        val requestId = sourceSwitchGeneration.incrementAndGet()
+        emitEffect(
+            NowPlayingEffect.SwitchSource(
+                safeTrack,
+                safeProvider,
+                safeTrackId,
+                quality,
+                requestId
+            )
+        )
+    }
+
+    override fun sourceCandidatesFor(track: Track): List<Track> {
+        return sourceCandidatesProvider?.invoke(track).orEmpty()
+    }
+
+    override fun switchLocalSource(current: Track, replacement: Track) {
+        if (current.id == replacement.id && current.dataPath == replacement.dataPath) {
+            return
+        }
+        val requestId = sourceSwitchGeneration.incrementAndGet()
+        emitEffect(NowPlayingEffect.SwitchLibrarySource(current, replacement, requestId))
     }
 
     fun skipToPrevious() {
@@ -283,6 +322,14 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             return
         }
         player.replaceCurrentTrackAndResume(track, positionMs)
+    }
+
+    fun replaceCurrentSourceAndResume(expectedTrackId: Long, track: Track?, positionMs: Long) {
+        val player = playbackGateway ?: return
+        if (track == null) {
+            return
+        }
+        player.replaceCurrentSourceAndResume(expectedTrackId, track, positionMs)
     }
 
     fun retainTracks(tracksToKeep: List<Track>?) {

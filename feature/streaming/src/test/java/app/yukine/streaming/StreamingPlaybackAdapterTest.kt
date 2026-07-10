@@ -87,4 +87,51 @@ class StreamingPlaybackAdapterTest {
 
         assertEquals("kw:12345", StreamingPlaybackAdapter.providerTrackId(placeholder.dataPath))
     }
+
+    @Test
+    fun playbackCandidatesDecodePrimaryAndAlternatesWithoutDuplicates() {
+        val placeholder = StreamingPlaybackAdapter.placeholderTrack(
+            StreamingTrack(
+                provider = StreamingProviderName.NETEASE,
+                providerTrackId = "netease-1",
+                title = "Song",
+                artist = "Artist",
+                playbackCandidates = listOf(
+                    StreamingPlaybackCandidate(
+                        provider = StreamingProviderName.QQ_MUSIC,
+                        quality = StreamingAudioQuality.HIGH,
+                        label = "QQ 音乐",
+                        providerTrackId = "qq-1"
+                    ),
+                    StreamingPlaybackCandidate(
+                        provider = StreamingProviderName.KUGOU,
+                        quality = StreamingAudioQuality.LOSSLESS,
+                        label = "酷狗音乐",
+                        providerTrackId = "kugou-1"
+                    ),
+                    StreamingPlaybackCandidate(
+                        provider = StreamingProviderName.QQ_MUSIC,
+                        quality = StreamingAudioQuality.HIGH,
+                        label = "重复 QQ",
+                        providerTrackId = "qq-1"
+                    )
+                )
+            )
+        )
+
+        val candidates = StreamingPlaybackAdapter.playbackCandidates(placeholder)
+
+        assertEquals(
+            listOf(
+                "netease:netease-1:",
+                "qqmusic:qq-1:high",
+                "kugou:kugou-1:lossless"
+            ),
+            candidates.map { candidate ->
+                "${candidate.provider.wireName}:${candidate.providerTrackId}:${candidate.quality?.wireName.orEmpty()}"
+            }
+        )
+        assertEquals("QQ 音乐", candidates[1].label)
+        assertEquals(StreamingAudioQuality.HIGH, candidates[1].quality)
+    }
 }

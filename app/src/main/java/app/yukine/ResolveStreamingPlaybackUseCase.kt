@@ -40,6 +40,11 @@ data class StreamingDownloadResolveRequest(
     val metadata: StreamingTrack?
 )
 
+data class StreamingSourceSwitchResolveRequest(
+    val provider: StreamingProviderName?,
+    val providerTrackId: String
+)
+
 interface StreamingPreResolvePlanner {
     fun prepareNextPreResolve(
         snapshot: PlaybackStateSnapshot?,
@@ -255,6 +260,17 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
         if (track == null) {
             return null
         }
+        val primaryCandidate = StreamingPlaybackCandidate(
+            provider = provider,
+            quality = null,
+            label = "${provider.wireName} 播放源",
+            providerTrackId = providerTrackId,
+            available = true
+        )
+        val retainedPlaybackCandidates = retainOtherPlaybackCandidates(
+            primaryCandidate,
+            StreamingPlaybackAdapter.playbackCandidates(track)
+        )
         val coverUrl = track.albumArtUri?.toString()
         return StreamingTrack(
             provider = provider,
@@ -280,15 +296,33 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
                     priority = 0
                 )
             ),
-            playbackCandidates = listOf(
-                StreamingPlaybackCandidate(
-                    provider = provider,
-                    quality = null,
-                    label = "${provider.wireName} 播放源",
-                    providerTrackId = providerTrackId,
-                    available = true
-                )
-            )
+            playbackCandidates = retainedPlaybackCandidates
         )
+    }
+
+    /** Identifies a library-backed source that still needs its streaming URL resolved. */
+    fun prepareSourceSwitch(track: Track?): StreamingSourceSwitchResolveRequest? {
+        if (!unresolvedStreamingTrack(track)) {
+            return null
+        }
+        val selected = track ?: return null
+        val provider = StreamingPlaybackAdapter.streamingProviderName(selected.dataPath)
+        val providerTrackId = StreamingPlaybackAdapter.providerTrackId(selected.dataPath)
+            .trim()
+        return StreamingSourceSwitchResolveRequest(provider, providerTrackId)
+    }
+
+    private fun retainOtherPlaybackCandidates(
+        primary: StreamingPlaybackCandidate,
+        candidates: List<StreamingPlaybackCandidate>
+    ): List<StreamingPlaybackCandidate> {
+        val seen = linkedSetOf(playbackCandidateKey(primary))
+        return candidates.filter { candidate ->
+            candidate.providerTrackId?.isNotBlank() == true && seen.add(playbackCandidateKey(candidate))
+        }
+    }
+
+    private fun playbackCandidateKey(candidate: StreamingPlaybackCandidate): String {
+        return "${candidate.provider.wireName}:${candidate.providerTrackId.orEmpty()}:${candidate.quality?.wireName.orEmpty()}"
     }
 }

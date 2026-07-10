@@ -6,6 +6,7 @@ import app.yukine.common.StreamingDataPathParser
 import app.yukine.model.Track
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import kotlin.math.absoluteValue
@@ -97,6 +98,30 @@ object StreamingPlaybackAdapter : StreamingDataPathParser {
         return StreamingDataPathMetadata.provider(dataPath)
     }
 
+    /**
+     * Returns every playable source encoded in a streaming [track]'s data path. The primary
+     * provider is always first, including tracks created before alternate source metadata was
+     * introduced. Invalid or stale option payloads never prevent playback of that primary source.
+     */
+    fun playbackCandidates(track: Track?): List<StreamingPlaybackCandidate> {
+        val dataPath = track?.dataPath ?: return emptyList()
+        val provider = streamingProviderName(dataPath) ?: return emptyList()
+        val providerTrackId = providerTrackId(dataPath).takeIf { it.isNotBlank() } ?: return emptyList()
+        val decoded = sourceOptions(dataPath)
+        val primary = decoded.firstOrNull { candidate ->
+            candidate.provider == provider &&
+                candidate.providerTrackId == providerTrackId &&
+                candidate.quality == null
+        } ?: StreamingPlaybackCandidate(
+            provider = provider,
+            quality = null,
+            label = provider.wireName,
+            providerTrackId = providerTrackId,
+            available = true
+        )
+        return distinctPlaybackCandidates(provider, providerTrackId, listOf(primary) + decoded)
+    }
+
     override fun providerName(dataPath: String): String? {
         return StreamingDataPathMetadata.providerName(dataPath)
     }
@@ -149,28 +174,20 @@ object StreamingPlaybackAdapter : StreamingDataPathParser {
     }
 
     private fun playbackSourceOptions(metadata: StreamingTrack): String {
-        val seen = linkedSetOf<String>()
         val array = JSONArray()
-        val candidates = buildList {
-            add(
-                StreamingPlaybackCandidate(
-                    provider = metadata.provider,
-                    quality = null,
-                    label = metadata.provider.wireName,
-                    providerTrackId = metadata.providerTrackId,
-                    available = metadata.playable
-                )
-            )
-            addAll(metadata.playbackCandidates)
-        }
-        candidates.forEach { candidate ->
-            val providerTrackId = candidate.providerTrackId?.takeIf { it.isNotBlank() }
-                ?: metadata.providerTrackId.takeIf { candidate.provider == metadata.provider }
-                ?: return@forEach
-            val key = "${candidate.provider.wireName}:$providerTrackId:${candidate.quality?.wireName.orEmpty()}"
-            if (!seen.add(key)) {
-                return@forEach
-            }
+        val primary = StreamingPlaybackCandidate(
+            provider = metadata.provider,
+            quality = null,
+            label = metadata.provider.wireName,
+            providerTrackId = metadata.providerTrackId,
+            available = metadata.playable
+        )
+        distinctPlaybackCandidates(
+            metadata.provider,
+            metadata.providerTrackId,
+            listOf(primary) + metadata.playbackCandidates
+        ).forEach { candidate ->
+            val providerTrackId = candidate.providerTrackId ?: return@forEach
             array.put(
                 JSONObject()
                     .put("provider", candidate.provider.wireName)
@@ -181,6 +198,74 @@ object StreamingPlaybackAdapter : StreamingDataPathParser {
             )
         }
         return if (array.length() > 1) array.toString() else ""
+    }
+
+    private fun sourceOptions(dataPath: String): List<StreamingPlaybackCandidate> {
+        val encoded = queryParam(dataPath, "sourceOptions") ?: return emptyList()
+        val options = runCatching { JSONArray(encoded) }.getOrNull() ?: return emptyList()
+        return (0 until options.length()).mapNotNull { index ->
+            val option = options.optJSONObject(index) ?: return@mapNotNull null
+            val provider = StreamingProviderName.fromWireName(option.optString("provider"))
+                ?: return@mapNotNull null
+            val providerTrackId = option.optString("providerTrackId")
+                .ifBlank { option.optString("id") }
+                .trim()
+                .takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            StreamingPlaybackCandidate(
+                provider = provider,
+                quality = option.optString("quality")
+                    .trim()
+                    .takeIf { it.isNotBlank() }
+                    ?.let(StreamingAudioQuality::fromWireName),
+                label = option.optString("label").trim().ifBlank { provider.wireName },
+                providerTrackId = providerTrackId,
+                available = option.optBoolean("available", true)
+            )
+        }
+    }
+
+    private fun distinctPlaybackCandidates(
+        primaryProvider: StreamingProviderName,
+        primaryProviderTrackId: String,
+        candidates: List<StreamingPlaybackCandidate>
+    ): List<StreamingPlaybackCandidate> {
+        val seen = linkedSetOf<String>()
+        return candidates.mapNotNull { candidate ->
+            val providerTrackId = candidate.providerTrackId?.trim().takeIf { !it.isNullOrBlank() }
+                ?: primaryProviderTrackId.takeIf { candidate.provider == primaryProvider }
+                ?: return@mapNotNull null
+            val normalized = candidate.copy(
+                providerTrackId = providerTrackId,
+                label = candidate.label.ifBlank { candidate.provider.wireName }
+            )
+            val key = "${normalized.provider.wireName}:$providerTrackId:${normalized.quality?.wireName.orEmpty()}"
+            normalized.takeIf { seen.add(key) }
+        }
+    }
+
+    private fun queryParam(dataPath: String, target: String): String? {
+        val query = dataPath.substringAfter('?', "")
+        if (query.isBlank()) {
+            return null
+        }
+        return query.split('&').firstNotNullOfOrNull { parameter ->
+            val separator = parameter.indexOf('=')
+            if (separator < 0) {
+                return@firstNotNullOfOrNull null
+            }
+            val key = decodeQueryComponent(parameter.substring(0, separator))
+            if (key != target) {
+                null
+            } else {
+                decodeQueryComponent(parameter.substring(separator + 1))
+            }
+        }
+    }
+
+    private fun decodeQueryComponent(value: String): String {
+        return runCatching { URLDecoder.decode(value, StandardCharsets.UTF_8.name()) }
+            .getOrDefault(value)
     }
 
 }
