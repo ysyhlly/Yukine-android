@@ -1597,8 +1597,6 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("this::applyPlaybackActionResult"));
         assertTrue(mainActivity.contains("() -> playbackService != null"));
         assertTrue(mainActivity.contains("(fromIndex, toIndex) -> playbackService.moveQueueTrack(fromIndex, toIndex)"));
-        assertTrue(mainActivity.contains("() -> nowPlayingStateController.renderNowBar()"));
-        assertTrue(mainActivity.contains("this::renderSelectedTab"));
         assertTrue(mainActivity.contains("() -> confirmationDialogController.confirmClearQueue()"));
         assertTrue(mainActivity.contains("() -> AppLanguage.text(settingsStore.languageMode(), \"queue.empty\")"));
         assertTrue(mainActivity.contains("status -> statusMessageController.setStatus(status)"));
@@ -1607,8 +1605,6 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainQueueActionListener.contains("resultApplier.apply(result)"));
         assertTrue(mainQueueActionListener.contains("serviceAvailability.hasService()"));
         assertTrue(mainQueueActionListener.contains("trackMoveSink.move(fromIndex, toIndex)"));
-        assertTrue(mainQueueActionListener.contains("nowBarRenderer.renderNowBar()"));
-        assertTrue(mainQueueActionListener.contains("selectedTabRenderer.renderSelectedTab()"));
         assertTrue(mainQueueActionListener.contains("clearQueueConfirmer.confirmClearQueue()"));
         assertTrue(mainQueueActionListener.contains("emptyStatusProvider.queueEmptyStatus()"));
         assertTrue(mainQueueActionListener.contains("statusSink.setStatus(status)"));
@@ -1617,6 +1613,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("queueActionController.confirmClearQueue()"));
         assertTrue(mainActivity.contains("queueActionController.clearQueue();"));
         assertTrue(mainActivity.contains("queueActionController.moveQueueTrack(move.getFromIndex(), move.getToIndex())"));
+        assertTrue(mainActivity.contains("private void bindQueueViewModelInputs(boolean verifyPlaybackServiceSnapshot)"));
+        assertTrue(mainActivity.contains("if (verifyPlaybackServiceSnapshot && playbackService != null)"));
+        assertTrue(mainActivity.contains("bindQueueViewModelInputs(true);"));
+        assertFalse(queueActionController.contains("renderNowBar"));
+        assertFalse(queueActionController.contains("renderSelectedTab"));
+        assertFalse(mainQueueActionListener.contains("nowBarRenderer"));
+        assertFalse(mainQueueActionListener.contains("selectedTabRenderer"));
         assertFalse(mainActivity.contains("private void removeQueueTrack(Track track)"));
         assertFalse(mainActivity.contains("private void moveQueueTrack(int fromIndex, int toIndex)"));
         assertFalse(mainActivity.contains("private void confirmClearQueue()"));
@@ -6183,10 +6186,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(queuePlaybackActions.contains("fun publishState()"));
         assertTrue(queuePlaybackActions.contains("fun stopAndClear()"));
         assertTrue(queuePlaybackActions.contains("fun persistQueueAsync(tracks: List<Track>, currentIndex: Int): Boolean"));
+        assertTrue(queuePlaybackActions.contains("fun persistQueueNow(tracks: List<Track>, currentIndex: Int): Boolean"));
         assertTrue(owner.contains("queuePlaybackActions.prepareCurrent("));
         assertTrue(owner.contains("queuePlaybackActions.publishState()"));
         assertTrue(owner.contains("queuePlaybackActions.stopAndClear()"));
         assertTrue(owner.contains("queuePlaybackActions.persistQueueAsync(tracks, index)"));
+        assertTrue(owner.contains("queuePlaybackActions.persistQueueNow(tracks, index)"));
         assertFalse(owner.contains("queueProvider.prepareCurrent("));
         assertFalse(owner.contains("queueProvider.publishState()"));
         assertFalse(owner.contains("queueProvider.stopAndClear()"));
@@ -6317,6 +6322,7 @@ public final class MainActivityArchitectureContractTest {
         assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
                 "prepareCurrent",
                 "persistQueueAsync",
+                "persistQueueNow",
                 "publishState",
                 "stopAndClear"
         )), kotlinInterfaceFunNames(queuePlaybackActions));
@@ -7112,7 +7118,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("private var serviceResourcesReleased = false"));
         assertTrue(owner.contains("private fun releaseServiceResources()"));
         assertFalse(normalizedOwner.contains("\n    fun releaseServiceResources()"));
-        assertTrue(normalizedOwner.contains("fun handleServiceDestroyed() {\n        if (serviceResourcesReleased) {\n            return\n        }\n        serviceResourcesReleased = true\n        lifecycleResources.persistPlaybackPosition()\n        releaseServiceResources()\n    }"));
+        assertTrue(normalizedOwner.contains("fun handleServiceDestroyed() {\n        if (serviceResourcesReleased) {\n            return\n        }\n        serviceResourcesReleased = true\n        lifecycleResources.persistPlaybackPosition()\n        lifecycleResources.persistPlaybackQueue()\n        releaseServiceResources()\n    }"));
         assertTrue(normalizedOwner.contains("private fun releaseServiceResources() {\n        releaseLyricsOnce()\n        serviceResources.unregisterNoisyReceiver()\n        serviceResources.releaseWarmup()\n        serviceResources.releaseVisualizationAnalyzer()\n        serviceResources.releaseRecoveryScheduler()\n        serviceResources.shutdownTaskSchedulers()\n        serviceResources.releasePrecache()\n        serviceResources.releaseErrorRecovery()\n        serviceResources.releaseProgressUpdates()\n        serviceResources.releaseSleepTimer()\n        serviceResources.releaseCrossfade()\n        serviceResources.clearMainCallbacks()"));
         assertTrue(normalizedOwner.contains("serviceResources.releaseWarmup()\n        serviceResources.releaseVisualizationAnalyzer()\n        serviceResources.releaseRecoveryScheduler()\n        serviceResources.shutdownTaskSchedulers()"));
         assertTrue(normalizedOwner.contains("serviceResources.shutdownTaskSchedulers()\n        serviceResources.releasePrecache()\n        serviceResources.releaseErrorRecovery()"));

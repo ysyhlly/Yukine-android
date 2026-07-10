@@ -246,6 +246,14 @@ public class PlaybackQueueMutationOwnerTest {
         ) {
             return false;
         }
+
+        @Override
+        public boolean persistQueueNow(
+                java.util.List<app.yukine.model.Track> tracks,
+                int currentIndex
+        ) {
+            return false;
+        }
     }
 
     private static final class NoopStreamingRestoreProvider
