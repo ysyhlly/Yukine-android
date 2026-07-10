@@ -41,6 +41,8 @@ import app.yukine.ui.UnifiedSearchStreamingState
 import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlin.math.max
 
 private val EmptyRealtimeBands = FloatArray(0)
@@ -128,7 +130,13 @@ fun EchoNavGraph(
         }
     }
     val openSearchAction = remember(hostState) { Runnable { onTabChanged(SearchTab) } }
-    var openNowPlayingImmersive by remember { mutableStateOf(false) }
+    var nowPlayingImmersive by remember { mutableStateOf(false) }
+    val playerPageSelected = selectedTab == QueueTab || selectedTab == NowTab
+    LaunchedEffect(playerPageSelected) {
+        if (!playerPageSelected) {
+            nowPlayingImmersive = false
+        }
+    }
 
     val pagerState = rememberPagerState(initialPage = selectedIndex) { pagerTabs.size }
 
@@ -167,7 +175,7 @@ fun EchoNavGraph(
             onShuffle = Runnable { nowPlayingEventHandler(NowPlayingEvent.ToggleShuffle) },
             onRepeat = Runnable { nowPlayingEventHandler(NowPlayingEvent.CycleRepeatMode) },
             onOpenNowPlaying = {
-                openNowPlayingImmersive = true
+                nowPlayingImmersive = true
                 hostState.selectedTabRoute = QueueTab.route
                 onTabChanged(QueueTab)
             },
@@ -186,7 +194,8 @@ fun EchoNavGraph(
         nowBar = persistentNowBar,
         topBar = topBar,
         backgroundUri = settingsChromeState.pageBackgrounds.uriFor(backgroundPageForTab(selectedTab)),
-        backgroundTransform = settingsChromeState.pageBackgrounds.transformFor(backgroundPageForTab(selectedTab))
+        backgroundTransform = settingsChromeState.pageBackgrounds.transformFor(backgroundPageForTab(selectedTab)),
+        customBackgroundVisible = !playerPageSelected || !nowPlayingImmersive
     ) { contentModifier ->
         if (!selectedInPager) {
             // Routes that live outside the 4-tab pager (Collections / Network / Now),
@@ -234,8 +243,8 @@ fun EchoNavGraph(
                     }
                     NowTab -> NowPlayingDestination(
                         state = hostState.nowPlayingUiState,
-                        defaultImmersive = openNowPlayingImmersive,
-                        onDefaultImmersiveConsumed = { openNowPlayingImmersive = false },
+                        immersive = nowPlayingImmersive,
+                        onImmersiveChanged = { nowPlayingImmersive = it },
                         gesturesEnabled = settingsChromeState.nowPlayingGesturesEnabled,
                         onClose = closeNowPlayingAction,
                         onEvent = nowPlayingEventHandler,
@@ -274,8 +283,8 @@ fun EchoNavGraph(
                     )
                     QueueTab -> NowPlayingDestination(
                         state = hostState.nowPlayingUiState,
-                        defaultImmersive = openNowPlayingImmersive,
-                        onDefaultImmersiveConsumed = { openNowPlayingImmersive = false },
+                        immersive = nowPlayingImmersive,
+                        onImmersiveChanged = { nowPlayingImmersive = it },
                         gesturesEnabled = settingsChromeState.nowPlayingGesturesEnabled,
                         onClose = closeNowPlayingAction,
                         onEvent = nowPlayingEventHandler,
@@ -329,9 +338,15 @@ private fun LibraryDestination(
     playbackQuality: String,
     audioMotion: YukineOrbAudioMotion
 ) {
-    val groups by groupsState.collectAsState()
-    val trackList by trackListState.collectAsState()
-    val renderGroups = groups.title.isNotBlank() && trackList.title.isBlank()
+    // The child destinations own full list collection. The parent only needs to know which
+    // destination is active, so row/action updates in a large list do not recompose this branch.
+    val hasGroups by remember(groupsState) {
+        groupsState.map { it.title.isNotBlank() }.distinctUntilChanged()
+    }.collectAsState(initial = groupsState.value.title.isNotBlank())
+    val hasTrackList by remember(trackListState) {
+        trackListState.map { it.title.isNotBlank() }.distinctUntilChanged()
+    }.collectAsState(initial = trackListState.value.title.isNotBlank())
+    val renderGroups = hasGroups && !hasTrackList
     if (renderGroups) {
         LibraryGroupsDestination(
             state = groupsState,

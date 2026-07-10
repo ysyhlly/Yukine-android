@@ -206,7 +206,8 @@ final class PlaybackStateSnapshotOwner {
                 sleepTimerProvider == null ? 0L : sleepTimerProvider.sleepTimerRemainingMs(),
                 waveform,
                 spectrum,
-                playing && realtimeBeatProvider != null ? realtimeBeatProvider.beat() : 0f
+                playing && realtimeBeatProvider != null ? realtimeBeatProvider.beat() : 0f,
+                queueState.getQueueRevision()
         );
     }
 }

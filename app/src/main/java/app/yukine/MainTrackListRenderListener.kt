@@ -1,11 +1,6 @@
 package app.yukine
 
 import app.yukine.model.Track
-import app.yukine.ui.TrackListHeaderAction
-import app.yukine.ui.TrackListHeaderMetric
-import app.yukine.ui.TrackListLabels
-import app.yukine.ui.TrackListModeAction
-import app.yukine.ui.TrackRowActions
 
 internal fun interface MainTrackListRenderListenerFactory {
     fun create(
@@ -15,8 +10,7 @@ internal fun interface MainTrackListRenderListenerFactory {
         trackDownloader: MainTrackListRenderListener.TrackDownloader,
         tracksDownloader: MainTrackListRenderListener.TracksDownloader,
         streamEditor: MainTrackListRenderListener.StreamEditor,
-        trackDeleteConfirmer: MainTrackListRenderListener.TrackDeleteConfirmer,
-        chromePublisher: MainTrackListRenderListener.ChromePublisher
+        trackDeleteConfirmer: MainTrackListRenderListener.TrackDeleteConfirmer
     ): TrackListRenderController.Listener
 }
 
@@ -27,8 +21,7 @@ internal class MainTrackListRenderListener(
     private val trackDownloader: TrackDownloader,
     private val tracksDownloader: TracksDownloader,
     private val streamEditor: StreamEditor,
-    private val trackDeleteConfirmer: TrackDeleteConfirmer,
-    private val chromePublisher: ChromePublisher
+    private val trackDeleteConfirmer: TrackDeleteConfirmer
 ) : TrackListRenderController.Listener {
     fun interface TrackListPlayer {
         fun playTrackList(tracks: List<Track>, index: Int)
@@ -58,10 +51,6 @@ internal class MainTrackListRenderListener(
         fun confirmDeleteTrack(track: Track)
     }
 
-    fun interface ChromePublisher {
-        fun publishTrackListChromeState(state: TrackListChromeState)
-    }
-
     override fun playTrackList(tracks: List<Track>, index: Int) {
         trackListPlayer.playTrackList(tracks, index)
     }
@@ -88,25 +77,5 @@ internal class MainTrackListRenderListener(
 
     override fun confirmDeleteTrack(track: Track) {
         trackDeleteConfirmer.confirmDeleteTrack(track)
-    }
-
-    override fun publishTrackListChrome(
-        actions: List<TrackRowActions>,
-        headerMetrics: List<TrackListHeaderMetric>,
-        headerActions: List<TrackListHeaderAction>,
-        emptyText: String,
-        modeActions: List<TrackListModeAction>,
-        labels: TrackListLabels
-    ) {
-        chromePublisher.publishTrackListChromeState(
-            TrackListChromeState(
-                actions = ArrayList(actions),
-                headerMetrics = ArrayList(headerMetrics),
-                headerActions = ArrayList(headerActions),
-                emptyText = emptyText,
-                modeActions = ArrayList(modeActions),
-                labels = labels
-            )
-        )
     }
 }

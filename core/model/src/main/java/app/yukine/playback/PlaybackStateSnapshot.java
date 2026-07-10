@@ -6,6 +6,7 @@ public final class PlaybackStateSnapshot {
     public final Track currentTrack;
     public final int currentIndex;
     public final int queueSize;
+    public final long queueRevision;
     public final long positionMs;
     public final long durationMs;
     public final boolean playing;
@@ -36,11 +37,13 @@ public final class PlaybackStateSnapshot {
             long sleepTimerRemainingMs,
             PlaybackWaveformSnapshot waveform,
             PlaybackSpectrumSnapshot spectrum,
-            float realtimeBeat
+            float realtimeBeat,
+            long queueRevision
     ) {
         this.currentTrack = currentTrack;
         this.currentIndex = currentIndex;
         this.queueSize = Math.max(queueSize, 0);
+        this.queueRevision = Math.max(queueRevision, 0L);
         this.positionMs = Math.max(positionMs, 0L);
         this.durationMs = Math.max(durationMs, 0L);
         this.playing = playing;
@@ -54,6 +57,45 @@ public final class PlaybackStateSnapshot {
         this.waveform = waveform == null ? PlaybackWaveformSnapshot.empty() : waveform;
         this.spectrum = spectrum == null ? PlaybackSpectrumSnapshot.empty() : spectrum;
         this.realtimeBeat = Math.max(0f, Math.min(realtimeBeat, 1f));
+    }
+
+    public PlaybackStateSnapshot(
+            Track currentTrack,
+            int currentIndex,
+            int queueSize,
+            long positionMs,
+            long durationMs,
+            boolean playing,
+            boolean preparing,
+            String errorMessage,
+            boolean shuffleEnabled,
+            int repeatMode,
+            float playbackSpeed,
+            float appVolume,
+            long sleepTimerRemainingMs,
+            PlaybackWaveformSnapshot waveform,
+            PlaybackSpectrumSnapshot spectrum,
+            float realtimeBeat
+    ) {
+        this(
+                currentTrack,
+                currentIndex,
+                queueSize,
+                positionMs,
+                durationMs,
+                playing,
+                preparing,
+                errorMessage,
+                shuffleEnabled,
+                repeatMode,
+                playbackSpeed,
+                appVolume,
+                sleepTimerRemainingMs,
+                waveform,
+                spectrum,
+                realtimeBeat,
+                0L
+        );
     }
 
     public PlaybackStateSnapshot(
@@ -89,7 +131,8 @@ public final class PlaybackStateSnapshot {
                 sleepTimerRemainingMs,
                 waveform,
                 spectrum,
-                0f
+                0f,
+                0L
         );
     }
 
@@ -125,7 +168,45 @@ public final class PlaybackStateSnapshot {
                 sleepTimerRemainingMs,
                 waveform,
                 PlaybackSpectrumSnapshot.empty(),
-                0f
+                0f,
+                0L
+        );
+    }
+
+    public PlaybackStateSnapshot(
+            Track currentTrack,
+            int currentIndex,
+            int queueSize,
+            long positionMs,
+            long durationMs,
+            boolean playing,
+            boolean preparing,
+            String errorMessage,
+            boolean shuffleEnabled,
+            int repeatMode,
+            float playbackSpeed,
+            float appVolume,
+            long sleepTimerRemainingMs,
+            long queueRevision
+    ) {
+        this(
+                currentTrack,
+                currentIndex,
+                queueSize,
+                positionMs,
+                durationMs,
+                playing,
+                preparing,
+                errorMessage,
+                shuffleEnabled,
+                repeatMode,
+                playbackSpeed,
+                appVolume,
+                sleepTimerRemainingMs,
+                PlaybackWaveformSnapshot.empty(),
+                PlaybackSpectrumSnapshot.empty(),
+                0f,
+                queueRevision
         );
     }
 
@@ -158,9 +239,7 @@ public final class PlaybackStateSnapshot {
                 playbackSpeed,
                 appVolume,
                 sleepTimerRemainingMs,
-                PlaybackWaveformSnapshot.empty(),
-                PlaybackSpectrumSnapshot.empty(),
-                0f
+                0L
         );
     }
 

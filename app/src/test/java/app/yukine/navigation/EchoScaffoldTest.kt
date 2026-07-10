@@ -1,11 +1,16 @@
 package app.yukine.navigation
 
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import app.yukine.ui.EchoTheme
+import app.yukine.ui.EchoPageBackground
+import app.yukine.ui.LocalEchoCustomBackground
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -153,6 +158,34 @@ class EchoScaffoldTest {
         }
 
         composeRule.onNodeWithText("no-topbar-content").assertIsDisplayed()
+    }
+
+    @Test
+    fun customBackgroundCanBeSuppressedForImmersiveContent() {
+        var customBackgroundVisible by mutableStateOf(true)
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                EchoPageBackground(
+                    backgroundUri = "content://background/player",
+                    customBackgroundVisible = customBackgroundVisible
+                ) {
+                    Text(
+                        if (LocalEchoCustomBackground.current) {
+                            "custom-background-active"
+                        } else {
+                            "custom-background-suppressed"
+                        }
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithText("custom-background-active").assertIsDisplayed()
+
+        customBackgroundVisible = false
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("custom-background-suppressed").assertIsDisplayed()
     }
 
     @Test

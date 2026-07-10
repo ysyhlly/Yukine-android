@@ -48,6 +48,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.Rule
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -754,6 +755,53 @@ class StreamingViewModelTest {
     }
 
     @Test
+    fun preResolveStreamingQueueWindowDoesNotDuplicateInFlightTargets() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        Dispatchers.setMain(dispatcher)
+        val provider = FakeProvider()
+        val gate = CompletableDeferred<Unit>()
+        provider.playbackResolveGate = gate
+        val viewModel = StreamingViewModel()
+        viewModel.bindIoDispatcherForTest(dispatcher)
+        val current = localTrack(id = 1L)
+        val next = streamingPlaceholderTrack(id = 2L, providerTrackId = "next-2")
+        val third = streamingPlaceholderTrack(id = 3L, providerTrackId = "next-3")
+        val resolved = mutableListOf<Pair<Long, Track?>>()
+        viewModel.bindStreamingRepository(repository(provider))
+        val snapshot = playbackSnapshot(
+            currentTrack = current,
+            currentIndex = 0,
+            queueSize = 3,
+            playing = true
+        )
+        val queue = listOf(current, next, third)
+
+        val first = viewModel.preResolveStreamingQueueWindow(
+            snapshot = snapshot,
+            queue = queue,
+            quality = StreamingAudioQuality.HIGH,
+            maxCount = 1
+        ) { oldTrackId, track -> resolved += oldTrackId to track }
+        val repeated = viewModel.preResolveStreamingQueueWindow(
+            snapshot = snapshot,
+            queue = queue,
+            quality = StreamingAudioQuality.HIGH,
+            maxCount = 1
+        ) { oldTrackId, track -> resolved += oldTrackId to track }
+
+        assertNull(repeated)
+        assertEquals(
+            listOf(StreamingPlaybackRequest(StreamingProviderName.NETEASE, "next-3", StreamingAudioQuality.HIGH)),
+            provider.playbackRequests.toList()
+        )
+
+        gate.complete(Unit)
+        first?.join()
+
+        assertEquals(listOf(3L), resolved.map { it.first })
+    }
+
+    @Test
     fun prepareCurrentStreamingQueueResolveTargetSelectsCurrentPlaceholder() {
         val viewModel = StreamingViewModel()
         val local = localTrack(id = 1L)
@@ -1301,6 +1349,7 @@ class StreamingViewModelTest {
         val startAuthRedirectUris: MutableList<String?> = java.util.concurrent.CopyOnWriteArrayList()
         val completeAuthCalls: MutableList<String> = java.util.concurrent.CopyOnWriteArrayList()
         val signOutCalls = java.util.concurrent.atomic.AtomicInteger(0)
+        var playbackResolveGate: CompletableDeferred<Unit>? = null
         var startAuthResult: StreamingAuthResult = StreamingAuthResult(
             StreamingProviderName.NETEASE,
             StreamingAuthState()
@@ -1316,6 +1365,7 @@ class StreamingViewModelTest {
 
         override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource {
             playbackRequests += request
+            playbackResolveGate?.await()
             return StreamingPlaybackSource(
                 provider = request.provider,
                 providerTrackId = request.providerTrackId,

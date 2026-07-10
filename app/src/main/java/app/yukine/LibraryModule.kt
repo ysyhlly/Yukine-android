@@ -159,8 +159,7 @@ internal object LibraryModule {
                 trackDownloader,
                 tracksDownloader,
                 streamEditor,
-                trackDeleteConfirmer,
-                chromePublisher ->
+                trackDeleteConfirmer ->
             MainTrackListRenderListener(
                 trackListPlayer,
                 favoriteToggler,
@@ -168,8 +167,7 @@ internal object LibraryModule {
                 trackDownloader,
                 tracksDownloader,
                 streamEditor,
-                trackDeleteConfirmer,
-                chromePublisher
+                trackDeleteConfirmer
             )
         }
 

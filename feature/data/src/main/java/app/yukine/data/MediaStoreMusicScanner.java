@@ -5,6 +5,7 @@ import android.content.ContentUris;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.MediaStore;
 
 import java.util.ArrayList;
@@ -79,6 +80,21 @@ public final class MediaStoreMusicScanner {
             }
         }
         return tracks;
+    }
+
+    /**
+     * Android 11+ increments this token whenever the external MediaStore content changes. Older
+     * versions and providers that deny the query fall back to a full scan.
+     */
+    public long generation() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            return -1L;
+        }
+        try {
+            return MediaStore.getGeneration(context, MediaStore.VOLUME_EXTERNAL);
+        } catch (RuntimeException ignored) {
+            return -1L;
+        }
     }
 
     private boolean isCallRecording(String title, String artist, String album, String dataPath) {

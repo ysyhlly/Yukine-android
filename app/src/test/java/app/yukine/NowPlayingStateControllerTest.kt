@@ -84,6 +84,20 @@ class NowPlayingStateControllerTest {
     }
 
     @Test
+    fun queueContentRevisionResyncsSameSizedQueue() {
+        val listener = FakeListener(
+            snapshot = snapshot(positionMs = 1_000L, queueSize = 3, queueRevision = 7L)
+        )
+        val controller = NowPlayingStateController(NowPlayingViewModel(), listener)
+
+        controller.renderNowBar()
+        listener.snapshot = snapshot(positionMs = 2_000L, queueSize = 3, queueRevision = 8L)
+        controller.renderNowBar()
+
+        assertEquals(2, listener.calls.count { it == "queue" })
+    }
+
+    @Test
     fun queueIdentityChangesDoNotSyncQueueInputsWhenQueueIsHidden() {
         val listener = FakeListener(
             queueVisible = false,
@@ -135,7 +149,8 @@ class NowPlayingStateControllerTest {
         private fun snapshot(
             trackId: Long = 7L,
             positionMs: Long = 0L,
-            queueSize: Int = 1
+            queueSize: Int = 1,
+            queueRevision: Long = 0L
         ): PlaybackStateSnapshot =
             PlaybackStateSnapshot(
                 Track(trackId, "Song", "Artist", "Album", 180_000L, Uri.EMPTY, "file:song.mp3"),
@@ -150,7 +165,8 @@ class NowPlayingStateControllerTest {
                 PlaybackRepeatMode.REPEAT_ALL,
                 1.0f,
                 1.0f,
-                0L
+                0L,
+                queueRevision
             )
     }
 }

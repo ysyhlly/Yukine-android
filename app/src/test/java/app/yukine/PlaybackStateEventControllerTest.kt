@@ -69,6 +69,32 @@ class PlaybackStateEventControllerTest {
     }
 
     @Test
+    fun queueContentRevisionRepublishesSameSizedQueueWithoutProgressChurn() {
+        val playbackViewModel = PlaybackViewModel()
+        val playbackStore = MainPlaybackStore(playbackViewModel)
+        val queueSource = CountingQueueSource(listOf(track(1L), track(2L)))
+        val controller = PlaybackStateEventController(
+            Handler(Looper.getMainLooper()),
+            playbackStore,
+            queueSource,
+            RecordingListener()
+        )
+
+        controller.onPlaybackStateChanged(
+            snapshot(track = track(1L), positionMs = 1_000L, queueSize = 2, queueRevision = 4L)
+        )
+        idleMain()
+        queueSource.queue = listOf(track(1L), track(22L))
+        controller.onPlaybackStateChanged(
+            snapshot(track = track(1L), positionMs = 2_000L, queueSize = 2, queueRevision = 5L)
+        )
+        idleMain()
+
+        assertEquals(2, queueSource.calls)
+        assertEquals(22L, playbackViewModel.playback.value.queue.last().id)
+    }
+
+    @Test
     fun hiddenQueueTabDoesNotReadLargeQueueOnTrackChanges() {
         val playbackViewModel = PlaybackViewModel()
         val playbackStore = MainPlaybackStore(playbackViewModel)
@@ -225,7 +251,8 @@ class PlaybackStateEventControllerTest {
     private fun snapshot(
         track: Track,
         positionMs: Long,
-        queueSize: Int
+        queueSize: Int,
+        queueRevision: Long = 0L
     ): PlaybackStateSnapshot =
         PlaybackStateSnapshot(
             track,
@@ -240,7 +267,8 @@ class PlaybackStateEventControllerTest {
             0,
             1.0f,
             1.0f,
-            0L
+            0L,
+            queueRevision
         )
 
     private fun track(id: Long): Track =

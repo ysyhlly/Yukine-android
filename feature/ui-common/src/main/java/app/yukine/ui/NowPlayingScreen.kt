@@ -28,7 +28,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -107,23 +106,15 @@ data class NowPlayingGestureActions(
 @Composable
 fun NowPlayingScreen(
     state: NowPlayingUiState,
-    defaultImmersive: Boolean = false,
-    onDefaultImmersiveConsumed: () -> Unit = {},
+    immersive: Boolean = false,
+    onImmersiveChanged: (Boolean) -> Unit = {},
     gestureActions: NowPlayingGestureActions = NowPlayingGestureActions.Empty,
     onLyricSeek: (Long) -> Unit = {}
 ) {
-    var immersiveLyrics by remember { mutableStateOf(false) }
     val activeLyricIndex = state.lyrics.indexOfFirst { it.active }
 
-    LaunchedEffect(defaultImmersive, state.title, state.subtitle) {
-        if (defaultImmersive) {
-            immersiveLyrics = true
-            onDefaultImmersiveConsumed()
-        }
-    }
-
     AnimatedContent(
-        targetState = immersiveLyrics,
+        targetState = immersive,
         transitionSpec = { fadeIn() togetherWith fadeOut() },
         label = "nowPlayingMode"
     ) { isImmersive ->
@@ -135,13 +126,17 @@ fun NowPlayingScreen(
                 subtitle = state.subtitle,
                 albumArtUri = state.albumArtUri,
                 onLyricSeek = onLyricSeek,
-                onExit = { immersiveLyrics = false }
+                onExit = { onImmersiveChanged(false) }
             )
         } else {
             NowPlayingNormalView(
                 state = state,
                 activeLyricIndex = activeLyricIndex,
-                onArtworkClick = { if (state.lyrics.isNotEmpty()) immersiveLyrics = true },
+                onArtworkClick = {
+                    if (state.lyrics.isNotEmpty()) {
+                        onImmersiveChanged(true)
+                    }
+                },
                 gestureActions = gestureActions,
                 onLyricSeek = onLyricSeek
             )

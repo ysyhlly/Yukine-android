@@ -497,8 +497,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 track -> downloadRequestController.downloadTrack(track),
                 tracks -> downloadRequestController.downloadTracks(tracks),
                 track -> networkDialogController.showEditStream(track),
-                track -> confirmationDialogController.confirmDeleteTrack(track),
-                state -> publishTrackListChromeState(state)
+                track -> confirmationDialogController.confirmDeleteTrack(track)
         ));
     }
 
@@ -1363,22 +1362,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
     }
 
-    private void publishTrackListChromeState(TrackListChromeState state) {
-        libraryViewModel.updateTrackListChrome(
-                new LibraryTrackListDestinationState(
-                        "",
-                        Collections.emptyList(),
-                        Collections.emptyList(),
-                        new ArrayList<>(state.getActions()),
-                        new ArrayList<>(state.getHeaderMetrics()),
-                        new ArrayList<>(state.getHeaderActions()),
-                        state.getEmptyText(),
-                        new ArrayList<>(state.getModeActions()),
-                        state.getLabels()
-                )
-        );
-    }
-
     private void publishLibraryGroupsChromeState(LibraryGroupsChromeState state) {
         libraryViewModel.updateLibraryGroupsChrome(
                 new LibraryGroupsDestinationState(
@@ -1689,16 +1672,22 @@ public abstract class MainActivityBase extends ComponentActivity {
                 allowCachedFirst,
                 canScan,
                 result -> {
-                    replaceLibrary(result.getTracks(), result.getFavorites(), result.getStatus());
-                    if (canScan && !allowCachedFirst) {
-                        statusMessageController.setStatus(libraryScanResultStatus(result.getTracks().size()));
-                    }
-                    if (onboardingController != null) {
-                        onboardingController.onLibraryScanResult(canScan);
-                        if (showOnboarding()) {
-                            mountNavHostShell();
-                        }
-                    }
+                    replaceLibrary(
+                            result.getTracks(),
+                            result.getFavorites(),
+                            result.getStatus(),
+                            () -> {
+                                if (canScan && !allowCachedFirst) {
+                                    statusMessageController.setStatus(libraryScanResultStatus(result.getTracks().size()));
+                                }
+                                if (onboardingController != null) {
+                                    onboardingController.onLibraryScanResult(canScan);
+                                    if (showOnboarding()) {
+                                        mountNavHostShell();
+                                    }
+                                }
+                            }
+                    );
                 },
                 status -> {
                     statusMessageController.setStatus(status);
@@ -1781,24 +1770,40 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void replaceLibrary(List<Track> tracks, Set<Long> favorites, String status) {
-        libraryStore.replaceLibrary(tracks, favorites, searchQuery());
-        renderAndPersistSelectedTab();
-        statusMessageController.setStatus(status);
-        loadCollections();
-        libraryViewModel.parseMissingAudioSpecsJava(result -> applyBackgroundAudioSpecs(
-                result.getTracks(),
-                result.getFavorites(),
-                result.getUpdatedCount()
-        ));
+        replaceLibrary(tracks, favorites, status, () -> { });
+    }
+
+    private void replaceLibrary(
+            List<Track> tracks,
+            Set<Long> favorites,
+            String status,
+            Runnable onApplied
+    ) {
+        applyLibraryReplacement(tracks, favorites, () -> {
+            statusMessageController.setStatus(status);
+            libraryViewModel.parseMissingAudioSpecsJava(result -> applyBackgroundAudioSpecs(
+                    result.getTracks(),
+                    result.getFavorites(),
+                    result.getUpdatedCount()
+            ));
+            onApplied.run();
+        });
+    }
+
+    private void applyLibraryReplacement(List<Track> tracks, Set<Long> favorites, Runnable onApplied) {
+        libraryStore.replaceLibraryAsync(tracks, favorites, searchQuery(), () -> {
+            renderAndPersistSelectedTab();
+            loadCollections();
+            onApplied.run();
+        });
     }
 
     private void applyBackgroundAudioSpecs(List<Track> tracks, Set<Long> favorites, int updatedCount) {
-        libraryStore.replaceLibrary(tracks, favorites, searchQuery());
-        renderAndPersistSelectedTab();
-        loadCollections();
-        if (updatedCount > 0) {
-            statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), "audio.specs.updated") + " (" + updatedCount + ")");
-        }
+        applyLibraryReplacement(tracks, favorites, () -> {
+            if (updatedCount > 0) {
+                statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), "audio.specs.updated") + " (" + updatedCount + ")");
+            }
+        });
     }
 
     private void loadCollections() {
@@ -2015,7 +2020,12 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private void applySearch() {
         String query = searchQuery();
-        libraryStore.applySearch(query);
+        libraryStore.applySearchAsync(query, () -> {
+            if (query != null && !query.trim().isEmpty() && libraryStore.visibleTracks().isEmpty()) {
+                statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), "search.no.results"));
+            }
+            renderAndPersistSelectedTab();
+        });
         if (TAB_SEARCH.equals(selectedTab())) {
             refreshUnifiedSearch(true);
         }
@@ -2026,10 +2036,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 streamingSearchActionHandler.search(searchQuery());
             }
         }
-        if (query != null && !query.trim().isEmpty() && libraryStore.visibleTracks().isEmpty()) {
-            statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), "search.no.results"));
-        }
-        renderAndPersistSelectedTab();
     }
 
     private void renderAndPersistSelectedTab() {

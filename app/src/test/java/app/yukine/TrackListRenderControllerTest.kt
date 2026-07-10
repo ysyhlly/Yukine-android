@@ -2,11 +2,7 @@ package app.yukine
 
 import android.net.Uri
 import app.yukine.model.Track
-import app.yukine.ui.TrackListHeaderAction
-import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListLabels
-import app.yukine.ui.TrackListModeAction
-import app.yukine.ui.TrackRowActions
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -24,8 +20,8 @@ class TrackListRenderControllerTest {
         )
 
         assertEquals("Daily", viewModel.trackList.value.title)
-        assertEquals("Tracks", listener.chromeState?.headerMetrics?.single()?.label)
-        assertEquals("1", listener.chromeState?.headerMetrics?.single()?.value)
+        assertEquals("Tracks", viewModel.trackList.value.headerMetrics.single().label)
+        assertEquals("1", viewModel.trackList.value.headerMetrics.single().value)
     }
 
     @Test
@@ -61,7 +57,6 @@ class TrackListRenderControllerTest {
     }
 
     private class FakeListener : TrackListRenderController.Listener {
-        var chromeState: TrackListChromeState? = null
         val playCalls = ArrayList<String>()
 
         override fun playTrackList(tracks: List<Track>, index: Int) {
@@ -79,23 +74,5 @@ class TrackListRenderControllerTest {
         override fun showEditStream(track: Track) = Unit
 
         override fun confirmDeleteTrack(track: Track) = Unit
-
-        override fun publishTrackListChrome(
-            actions: List<TrackRowActions>,
-            headerMetrics: List<TrackListHeaderMetric>,
-            headerActions: List<TrackListHeaderAction>,
-            emptyText: String,
-            modeActions: List<TrackListModeAction>,
-            labels: TrackListLabels
-        ) {
-            chromeState = TrackListChromeState(
-                actions,
-                headerMetrics,
-                headerActions,
-                emptyText,
-                modeActions,
-                labels
-            )
-        }
     }
 }

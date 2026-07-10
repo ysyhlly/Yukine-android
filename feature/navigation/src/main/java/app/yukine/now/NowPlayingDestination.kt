@@ -24,8 +24,8 @@ import kotlinx.coroutines.flow.StateFlow
 @Composable
 fun NowPlayingDestination(
     state: StateFlow<app.yukine.NowPlayingUiState>,
-    defaultImmersive: Boolean = false,
-    onDefaultImmersiveConsumed: () -> Unit = {},
+    immersive: Boolean = false,
+    onImmersiveChanged: (Boolean) -> Unit = {},
     gesturesEnabled: Boolean = true,
     onClose: Runnable = Runnable {},
     onEvent: (NowPlayingEvent) -> Unit = {},
@@ -80,8 +80,8 @@ fun NowPlayingDestination(
             onShare = Runnable { onEvent(NowPlayingEvent.ShareCurrentTrack) },
             onDownload = Runnable { onEvent(NowPlayingEvent.DownloadCurrentTrack) }
         ),
-        defaultImmersive = defaultImmersive,
-        onDefaultImmersiveConsumed = onDefaultImmersiveConsumed,
+        immersive = immersive,
+        onImmersiveChanged = onImmersiveChanged,
         onLyricSeek = { positionMs -> onEvent(NowPlayingEvent.SeekTo(positionMs)) },
         gestureActions = if (gesturesEnabled) {
             NowPlayingGestureActions(

@@ -18,7 +18,7 @@ public class PlaybackStateSnapshotOwnerTest {
         FakePlaybackPositionProvider playback = new FakePlaybackPositionProvider(321L, 7000L, true);
         FakeVisualizationProvider visualization = new FakeVisualizationProvider(waveform, spectrum, true);
         PlaybackStateSnapshotOwner owner = new PlaybackStateSnapshotOwner(
-                () -> new PlaybackQueueManager.QueueStateSnapshot(track, 2, 5),
+                () -> new PlaybackQueueManager.QueueStateSnapshot(track, 2, 5, 9L),
                 playback,
                 new FakeRuntimeStateProvider(true, "buffering", true, 1, 1.25f, 0.75f),
                 () -> 9000L,
@@ -32,6 +32,7 @@ public class PlaybackStateSnapshotOwnerTest {
         assertSame(track, snapshot.currentTrack);
         assertEquals(2, snapshot.currentIndex);
         assertEquals(5, snapshot.queueSize);
+        assertEquals(9L, snapshot.queueRevision);
         assertEquals(321L, snapshot.positionMs);
         assertEquals(7000L, snapshot.durationMs);
         assertEquals(true, snapshot.playing);
@@ -67,6 +68,7 @@ public class PlaybackStateSnapshotOwnerTest {
         assertSame(null, snapshot.currentTrack);
         assertEquals(-1, snapshot.currentIndex);
         assertEquals(0, snapshot.queueSize);
+        assertEquals(0L, snapshot.queueRevision);
         assertEquals(0L, snapshot.positionMs);
         assertEquals(0L, snapshot.durationMs);
         assertEquals(false, snapshot.playing);

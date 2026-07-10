@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.max
 import javax.inject.Inject
 
@@ -63,6 +64,8 @@ class StreamingViewModel @Inject constructor(
     private var streamingLocalPlaylistOperations: StreamingLocalPlaylistOperations? = null
     private var streamingTrackMatchStore: StreamingTrackMatchStore? = null
     private var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val queueWindowPreResolveInFlight =
+        ConcurrentHashMap.newKeySet<StreamingQueuePreResolveKey>()
     val streaming: StateFlow<StreamingSearchState> = streamingState.asStateFlow()
     var state: StreamingSearchState
         get() = streamingState.value
@@ -912,26 +915,37 @@ class StreamingViewModel @Inject constructor(
         if (targets.isEmpty()) {
             return null
         }
+        val eligibleTargets = targets.filter { target ->
+            queueWindowPreResolveInFlight.add(target.inFlightKey(quality))
+        }
+        if (eligibleTargets.isEmpty()) {
+            return null
+        }
         return viewModelScope.launch {
-            targets.map { target ->
-                async(ioDispatcher) {
-                    val resolved = runCatching {
-                        streamingRepository.resolvePlaybackTrack(
-                            target.provider,
-                            target.providerTrackId,
-                            quality,
-                            target.metadata
-                        )
-                    }.getOrNull()
-                    target.oldTrackId to resolved
+            try {
+                eligibleTargets.map { target ->
+                    async(ioDispatcher) {
+                        target to runCatching {
+                            streamingRepository.resolvePlaybackTrack(
+                                target.provider,
+                                target.providerTrackId,
+                                quality,
+                                target.metadata
+                            )
+                        }.getOrNull()
+                    }
+                }.awaitAll().forEach { (target, result) ->
+                    result?.let {
+                        updateStreamingPlaybackTrack(it.source, it.track)
+                        onResolved.onResult(target.oldTrackId, it.track)
+                    }
                 }
-            }.awaitAll().forEach { (oldTrackId, result) ->
-                result?.let {
-                    updateStreamingPlaybackTrack(it.source, it.track)
-                    onResolved.onResult(oldTrackId, it.track)
+                updateStreamingDiagnostics(streamingRepository.diagnostics())
+            } finally {
+                eligibleTargets.forEach { target ->
+                    queueWindowPreResolveInFlight.remove(target.inFlightKey(quality))
                 }
             }
-            updateStreamingDiagnostics(streamingRepository.diagnostics())
         }
     }
 
@@ -997,6 +1011,16 @@ class StreamingViewModel @Inject constructor(
         val provider: StreamingProviderName,
         val providerTrackId: String,
         val metadata: StreamingTrack?
+    ) {
+        fun inFlightKey(quality: StreamingAudioQuality): StreamingQueuePreResolveKey =
+            StreamingQueuePreResolveKey(oldTrackId, provider, providerTrackId, quality)
+    }
+
+    private data class StreamingQueuePreResolveKey(
+        val oldTrackId: Long,
+        val provider: StreamingProviderName,
+        val providerTrackId: String,
+        val quality: StreamingAudioQuality
     )
 
     private fun streamingQueuePreResolveTargets(

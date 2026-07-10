@@ -9,6 +9,7 @@ import app.yukine.TrackRowStateFactory
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.ui.QueueScreenLabels
+import app.yukine.ui.QueueTrackUiState
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -96,6 +97,7 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
         val eagerRows = eagerTracks.mapIndexed { index, track ->
             rowForTrack(keyFactory, index, track, currentTrack, favoriteIds)
         }
+        val lazyRows = HashMap<Int, QueueTrackUiState>()
         _uiState.value = QueueDestinationState(
             rows = eagerRows,
             rowCount = tracks.size,
@@ -104,7 +106,9 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
                     if (index < eagerRows.size) {
                         eagerRows[index]
                     } else {
-                        rowForTrack(keyFactory, index, track, currentTrack, favoriteIds)
+                        lazyRows.getOrPut(index) {
+                            rowForTrack(keyFactory, index, track, currentTrack, favoriteIds)
+                        }
                     }
                 }
             }
@@ -175,7 +179,9 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
     )
 
     private class QueueRowKeyFactory(private val tracks: List<Track>) {
-        private val keys = arrayOfNulls<String>(tracks.size)
+        // Queue rows are lazy. Do not reserve one slot for every track while only the first
+        // viewport is rendered; large libraries otherwise allocate an unnecessary full array.
+        private val keys = HashMap<Int, String>()
         private val occurrences = HashMap<Long, Int>()
         private var scannedUntil = -1
 

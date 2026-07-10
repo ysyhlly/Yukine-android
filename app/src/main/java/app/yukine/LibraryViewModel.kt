@@ -702,13 +702,15 @@ class LibraryViewModel @JvmOverloads constructor(
     ) {
         trackListState.value = trackListState.value.copy(
             title = title,
-            rows = rows.toList(),
-            footerAlbums = footerAlbums.toList(),
-            actions = actions.toList(),
-            headerMetrics = headerMetrics.toList(),
-            headerActions = headerActions.toList(),
+            // TrackListRenderController owns these freshly built lists. Retaining them avoids a
+            // second O(n) copy immediately after a large background row build.
+            rows = rows,
+            footerAlbums = footerAlbums,
+            actions = actions,
+            headerMetrics = headerMetrics,
+            headerActions = headerActions,
             emptyText = emptyText,
-            modeActions = modeActions.toList(),
+            modeActions = modeActions,
             labels = labels
         )
     }
@@ -726,38 +728,6 @@ class LibraryViewModel @JvmOverloads constructor(
 
     fun clearLibraryGroups() {
         libraryGroupsState.value = LibraryGroupsDestinationState()
-    }
-
-    fun updateTrackListChrome(
-        actions: List<TrackRowActions>,
-        headerMetrics: List<TrackListHeaderMetric>,
-        headerActions: List<TrackListHeaderAction>,
-        emptyText: String,
-        modeActions: List<TrackListModeAction>,
-        labels: TrackListLabels
-    ) {
-        trackListState.value = trackListState.value.copy(
-            actions = actions.toList(),
-            headerMetrics = headerMetrics.toList(),
-            headerActions = headerActions.toList(),
-            emptyText = emptyText,
-            modeActions = modeActions.toList(),
-            labels = labels
-        )
-    }
-
-    fun updateTrackListChrome(state: LibraryTrackListDestinationState) {
-        // Chrome publish carries only chrome fields; the title/rows/footerAlbums are placeholders
-        // (built empty by the host). Preserve the content set by updateTrackList(...) instead of
-        // letting the blank placeholders wipe it, which would render an empty track list.
-        trackListState.value = trackListState.value.copy(
-            actions = state.actions.toList(),
-            headerMetrics = state.headerMetrics.toList(),
-            headerActions = state.headerActions.toList(),
-            emptyText = state.emptyText,
-            modeActions = state.modeActions.toList(),
-            labels = state.labels
-        )
     }
 
     fun updateLibraryGroupsChrome(

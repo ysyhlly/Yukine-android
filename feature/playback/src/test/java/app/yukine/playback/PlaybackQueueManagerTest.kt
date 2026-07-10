@@ -664,6 +664,25 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun restoreLargeQueueStagesTracksBeforeOneQueueCommit() {
+        val store = FakeQueueStore()
+        val recordingQueue = CountingQueue()
+        val provider = FakeQueueState(recordingQueue)
+        val tracks = List(1_000) { index ->
+            track(index.toLong(), android.net.Uri.parse("content://music/$index"), "/music/$index")
+        }
+        store.restore = PlaybackQueueState(tracks, 700)
+        val manager = queueManager(store, provider)
+
+        val snapshot = manager.restorePlaybackQueue()
+
+        assertEquals(1_000, snapshot.queueSize)
+        assertEquals(700, snapshot.currentIndex)
+        assertEquals(1, recordingQueue.addAllCalls)
+        assertEquals(0, recordingQueue.singleAddCalls)
+    }
+
+    @Test
     fun restoreLargeQueueReplacesAndHydratesTheSelectedCurrentStreamingTrack() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
@@ -1073,6 +1092,38 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun shuffledNextStartsTheDifferentMirroredTrackAtZeroAndDropsThePauseCheckpoint() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        provider.playbackPositionMsValue = 4_200L
+        provider.mirroredQueuePlayer.matchesCurrentQueueValue = true
+        provider.mirroredQueuePlayer.seekToValue = true
+        val manager = queueManager(
+            store,
+            provider,
+            object : java.util.Random() {
+                override fun nextInt(bound: Int): Int = 2
+            }
+        )
+        val first = track(1L, durationMs = 10_000L)
+        val second = track(2L, durationMs = 10_000L)
+        val third = track(3L, durationMs = 10_000L)
+        restoreQueue(manager, store, listOf(first, second, third), 0)
+        provider.runtimeStateManager.setShuffleEnabled(true)
+        manager.persistPausedPlaybackPosition()
+
+        val reused = manager.skipToNextImmediately()
+
+        assertTrue(reused)
+        assertEquals(2, manager.queueStateSnapshot().currentIndex)
+        assertEquals(third.id, manager.queueStateSnapshot().currentTrack?.id)
+        assertEquals(2, provider.mirroredQueuePlayer.seekIndex)
+        assertEquals(0L, provider.mirroredQueuePlayer.seekPositionMs)
+        assertEquals(listOf(first.id to 4_200L, -1L to 0L), store.savedPositions)
+        assertEquals(0L, provider.positionManager.restoredPositionFor(third))
+    }
+
+    @Test
     fun replaceCurrentTrackAndResumeIgnoresAStaleDifferentTrackRecovery() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()
@@ -1453,6 +1504,19 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun queueContentRevisionChangesWhenAQueuedSourceIsReplaced() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(track(1L), track(2L)), 0)
+        val before = manager.queueStateSnapshot().queueRevision
+
+        manager.replaceQueuedTrack(track(2L, dataPath = "/resolved/2"))
+
+        assertEquals(before + 1L, manager.queueStateSnapshot().queueRevision)
+    }
+
+    @Test
     fun emptyQueueStateSnapshotIsOwnedByQueueManager() {
         val snapshot = PlaybackQueueManager.QueueStateSnapshot.empty()
 
@@ -1663,7 +1727,11 @@ class PlaybackQueueManagerTest {
         )
     }
 
-    private fun queueManager(store: FakeQueueStore, provider: FakeQueueState): PlaybackQueueManager {
+    private fun queueManager(
+        store: FakeQueueStore,
+        provider: FakeQueueState,
+        random: java.util.Random = java.util.Random()
+    ): PlaybackQueueManager {
         lateinit var manager: PlaybackQueueManager
         val positionManager = PlaybackPositionManager(
                 store,
@@ -1684,7 +1752,8 @@ class PlaybackQueueManagerTest {
                 provider.streamingRestoreProvider,
                 provider.mirroredQueuePlayer,
                 provider.runtimeStateManager,
-                provider.transitionStateManager
+                provider.transitionStateManager,
+                random
         )
         provider.positionManager = positionManager
         return manager
@@ -1781,8 +1850,9 @@ class PlaybackQueueManagerTest {
         }
     }
 
-    private class FakeQueueState {
-        val queue = mutableListOf<Track>()
+    private class FakeQueueState(
+        val queue: MutableList<Track> = mutableListOf()
+    ) {
         lateinit var positionManager: PlaybackPositionManager
         val streamingRestoreProvider = FakeStreamingRestoreProvider()
         val mirroredQueuePlayer = FakeMirroredQueuePlayer()
@@ -1832,6 +1902,31 @@ class PlaybackQueueManagerTest {
         fun flushDeferredQueue(store: FakeQueueStore) {
             store.save(deferredQueueTracks, deferredQueueIndex)
         }
+    }
+
+    private class CountingQueue : AbstractMutableList<Track>() {
+        private val backing = mutableListOf<Track>()
+        var singleAddCalls = 0
+        var addAllCalls = 0
+
+        override val size: Int
+            get() = backing.size
+
+        override fun get(index: Int): Track = backing[index]
+
+        override fun add(index: Int, element: Track) {
+            singleAddCalls += 1
+            backing.add(index, element)
+        }
+
+        override fun addAll(elements: Collection<Track>): Boolean {
+            addAllCalls += 1
+            return backing.addAll(elements)
+        }
+
+        override fun removeAt(index: Int): Track = backing.removeAt(index)
+
+        override fun set(index: Int, element: Track): Track = backing.set(index, element)
     }
 
     private class FakeStreamingRestoreProvider : PlaybackQueueManager.StreamingRestoreProvider {

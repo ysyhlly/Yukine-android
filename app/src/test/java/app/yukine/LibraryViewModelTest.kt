@@ -39,18 +39,10 @@ class LibraryViewModelTest {
         assertEquals(listOf("play:2:1", "favorite:1:true", "playlist:2"), gateway.calls)
     }
 
-    /**
-     * Regression: opening a library group (folder/album/artist) detail must leave a non-blank
-     * track-list title and populated rows. The detail path runs TrackListRenderController.render
-     * (updateTrackList) and then publishes chrome; if the chrome publish replaces the whole
-     * track-list state with a blank title/rows, the NavHost renders an empty screen
-     * (groups.title blank + trackList.title blank). This pins the wiring used by MainActivity.
-     */
+    /** Opening a group detail publishes its content and chrome in one destination state. */
     @Test
-    fun openingGroupDetailKeepsTrackListTitleAndRowsAfterChromePublish() {
+    fun openingGroupDetailPublishesCompleteTrackListState() {
         val viewModel = LibraryViewModel()
-        // Mirror MainActivity wiring: chrome publish funnels through updateTrackListChrome(state)
-        // built with an empty title + empty rows (only chrome fields are meaningful there).
         val listener = object : TrackListRenderController.Listener {
             override fun playTrackList(tracks: List<Track>, index: Int) = Unit
             override fun toggleFavorite(track: Track) = Unit
@@ -59,28 +51,6 @@ class LibraryViewModelTest {
             override fun downloadTracks(tracks: List<Track>) = Unit
             override fun showEditStream(track: Track) = Unit
             override fun confirmDeleteTrack(track: Track) = Unit
-            override fun publishTrackListChrome(
-                actions: List<app.yukine.ui.TrackRowActions>,
-                headerMetrics: List<app.yukine.ui.TrackListHeaderMetric>,
-                headerActions: List<app.yukine.ui.TrackListHeaderAction>,
-                emptyText: String,
-                modeActions: List<app.yukine.ui.TrackListModeAction>,
-                labels: app.yukine.ui.TrackListLabels
-            ) {
-                viewModel.updateTrackListChrome(
-                    LibraryTrackListDestinationState(
-                        "",
-                        emptyList(),
-                        emptyList(),
-                        actions,
-                        headerMetrics,
-                        headerActions,
-                        emptyText,
-                        modeActions,
-                        labels
-                    )
-                )
-            }
         }
         val controller = TrackListRenderController(viewModel, listener)
 
@@ -101,6 +71,8 @@ class LibraryViewModelTest {
 
         assertEquals("Rock", viewModel.trackList.value.title)
         assertEquals(2, viewModel.trackList.value.rows.size)
+        assertEquals(2, viewModel.trackList.value.actions.size)
+        assertEquals("收藏", viewModel.trackList.value.labels.favoriteLabel)
         assertEquals("", viewModel.libraryGroups.value.title)
     }
 

@@ -1,6 +1,7 @@
 package app.yukine.ui
 
 import android.net.Uri
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -72,21 +73,35 @@ fun EchoPageBackground(
     backgroundUri: String,
     modifier: Modifier = Modifier,
     transform: BackgroundTransform = BackgroundTransform.IDENTITY,
+    customBackgroundVisible: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val p = EchoTheme.colors()
     val hasCustomBackground = backgroundUri.isNotBlank()
+    val backgroundAlpha by animateFloatAsState(
+        targetValue = if (customBackgroundVisible) 1f else 0f,
+        animationSpec = EchoMotion.fade(),
+        label = "customPageBackground"
+    )
     Box(modifier = modifier.echoPageBackground()) {
-        AsyncPageBackgroundImage(backgroundUri, transform)
-        if (hasCustomBackground) {
-            // 轻一点的整页蒙版：磨砂卡片本身半透，过重的蒙版会让背景看不见。
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(p.background.copy(alpha = 0.34f))
-            )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = backgroundAlpha }
+        ) {
+            AsyncPageBackgroundImage(backgroundUri, transform)
+            if (hasCustomBackground) {
+                // 轻一点的整页蒙版：磨砂卡片本身半透，过重的蒙版会让背景看不见。
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(p.background.copy(alpha = 0.34f))
+                )
+            }
         }
-        CompositionLocalProvider(LocalEchoCustomBackground provides hasCustomBackground) {
+        CompositionLocalProvider(
+            LocalEchoCustomBackground provides (hasCustomBackground && customBackgroundVisible)
+        ) {
             content()
         }
     }

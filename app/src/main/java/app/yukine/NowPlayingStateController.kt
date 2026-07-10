@@ -61,16 +61,18 @@ internal class NowPlayingStateController(
     private data class QueueKey(
         val currentTrackId: Long,
         val currentIndex: Int,
-        val queueSize: Int
+        val queueSize: Int,
+        val queueRevision: Long
     ) {
         companion object {
-            fun empty(): QueueKey = QueueKey(-1L, -1, 0)
+            fun empty(): QueueKey = QueueKey(-1L, -1, 0, 0L)
 
             fun from(snapshot: PlaybackStateSnapshot): QueueKey =
                 QueueKey(
                     snapshot.currentTrack?.id ?: -1L,
                     snapshot.currentIndex,
-                    snapshot.queueSize
+                    snapshot.queueSize,
+                    snapshot.queueRevision
                 )
         }
     }

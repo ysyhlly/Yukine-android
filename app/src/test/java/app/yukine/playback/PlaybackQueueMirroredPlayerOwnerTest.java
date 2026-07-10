@@ -36,6 +36,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 },
                 resetTrack -> events.add("waveform:" + resetTrack.id),
                 () -> events.add("apply"),
+                (index, positionMs) -> events.add("position:" + index + ":" + positionMs),
                 (index, positionMs) -> events.add("seek:" + index + ":" + positionMs),
                 playWhenReady -> events.add("ready:" + playWhenReady),
                 () -> events.add("play"),
@@ -54,6 +55,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                         "track",
                         "waveform:1",
                         "apply",
+                        "position:2:3000",
                         "seek:2:3000",
                         "ready:true",
                         "play"
@@ -72,6 +74,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 () -> track(1L),
                 track -> events.add("waveform"),
                 () -> events.add("apply"),
+                null,
                 (index, positionMs) -> events.add("seek"),
                 playWhenReady -> events.add("ready"),
                 () -> events.add("play"),
@@ -93,6 +96,7 @@ public class PlaybackQueueMirroredPlayerOwnerTest {
                 () -> null,
                 track -> events.add("waveform"),
                 () -> events.add("apply"),
+                null,
                 (index, positionMs) -> {
                     throw new IllegalStateException("seek failed");
                 },

@@ -69,7 +69,7 @@ Fix:
 - A streaming URL refresh may retain position only when its stable track ID still matches the current queue item. A deliberate Now Playing source switch may use a different physical ID, but must carry the expected current ID; a late result for another song is ignored instead of replacing it or transferring its position.
 - Headset-noisy and sleep-timer pauses use a non-persisting pause path, so only a user-initiated pause is recoverable.
 - Temporary in-memory position handoff for streaming URL/source replacement remains intact so an in-flight recovery does not restart a song unexpectedly.
-- Before replacing a single source or rebuilding a mirrored queue, the player-state owner drops the prior item's in-memory estimate. This prevents a newly buffering streaming song from inheriting the previous song's estimate.
+- Before replacing a single source or rebuilding a mirrored queue, the player-state owner drops the prior item's in-memory estimate. For a mirrored queue seek (including shuffle), it also holds the target media-item index and requested start position until ExoPlayer reaches that item; this prevents the old item's estimate from being published or paused under the new song ID during the hand-off.
 
 Guardrail:
 
@@ -78,6 +78,8 @@ Guardrail:
 - `PlaybackQueueManagerTest.explicitPlayAfterPausedColdRestoreKeepsSavedPosition`
 - `PlaybackQueueManagerTest.restorePlaybackQueueRestoresPausedStreamingProgress`
 - `PlaybackQueueManagerTest.restorePlaybackQueueClearsCheckpointAfterAnActiveShutdown`
+- `PlaybackQueueManagerTest.shuffledNextStartsTheDifferentMirroredTrackAtZeroAndDropsThePauseCheckpoint`
+- `PlaybackPlayerStateOwnerTest.pendingMediaItemTransitionDoesNotExposeOldTrackProgress`
 - `PlaybackQueueManagerTest.replaceCurrentTrackAndResumeIgnoresAStaleDifferentTrackRecovery`
 - `PlaybackQueueManagerTest.replaceCurrentTrackAndResumeKeepsPositionForTheSameTrackWithARefreshedUri`
 - `PlaybackQueueManagerTest.replaceCurrentSourceAndResumeKeepsPositionForAConfirmedAlternateSource`
@@ -121,6 +123,8 @@ Evidence:
 Fix:
 
 - `BackgroundImagePickerController` opens every freshly chosen source with `BackgroundTransform.IDENTITY`; the previous image's crop/offset is not reused.
+- Each applied image receives a fresh local identity. Clearing a background and then choosing a new one must never reuse the prior bitmap cache.
+- While immersive Now Playing is active, the host fades out the active page custom background and its dim mask but keeps the base theme gradient. It restores both on exit, so semi-transparent album art cannot stack over custom wallpaper.
 - The preview editor first shows the original image in full and overlays a phone-aspect crop frame. Pinch and drag select the final visible area, while the applied background still uses that selection to cover the full page.
 - Persisted legacy transform strings remain accepted through `BackgroundTransform.decode(...)`, including their historical zoom range, so no settings migration is required and older chosen backgrounds keep their existing framing.
 
@@ -798,6 +802,15 @@ Guardrail:
 - `OnboardingControllerTest.hungScanTimeoutCancelsLoadAndRestoresRetryableState`
 - `LibraryViewModelTest.cancelLibraryLoadSuppressesQueuedRefreshAndStaleCallbacks`
 - `MainActivityArchitectureContractTest`
+
+### P1 Fixed - Large-library refresh avoids redundant scans and list churn
+
+Invariants:
+
+- On Android 11+, an unchanged MediaStore generation skips a full device scan. Missing or unreadable generation data, a changed generation, and older Android versions safely fall back to a full scan.
+- Whole-library deduplication and search run off the main thread. Each refresh/search has a current request identity, so an older task may finish but cannot publish over newer results.
+- A list refresh publishes its state once. Parent UI layers observe only the boolean state for their active branch rather than subscribing to the full list.
+- Audio-spec parsing consumes only the already selected batch candidates; it does not walk the entire library for a batch operation.
 
 ## Open Findings
 

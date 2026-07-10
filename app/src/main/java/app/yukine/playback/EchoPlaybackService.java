@@ -278,16 +278,20 @@ public final class EchoPlaybackService extends MediaLibraryService
 
         @Override
         public void onMediaItemTransition(MediaItem mediaItem, int reason) {
-            if (player == null || !playbackQueueMirroredTransitionOwner.canApplyMirroredTransition()) {
+            if (player == null) {
                 return;
             }
-            playbackPlayerStateOwner.resetPositionEstimate();
             int nextIndex = player.getCurrentMediaItemIndex();
+            if (!playbackQueueMirroredTransitionOwner.canApplyMirroredTransition()) {
+                playbackPlayerStateOwner.resetPositionEstimate();
+                return;
+            }
             PlaybackQueueManager.MirroredTransitionResult transition =
                     playbackQueueMirroredTransitionOwner.applyMirroredTransitionReason(nextIndex, reason);
             if (transition == null) {
                 return;
             }
+            playbackPlayerStateOwner.beginMediaItemPositionTransition(nextIndex, 0L);
             if (transition.getStopAfterAutomaticAdvance()) {
                 stopAfterAutomaticAdvance(transition.getCompletedIndex());
                 return;
@@ -536,6 +540,7 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackQueueStateOwner::currentTrack,
                 EchoPlaybackService.this::resetWaveformIfTrackChanged,
                 EchoPlaybackService.this::applyPlaybackModeAndParametersToPlayer,
+                playbackPlayerStateOwner::beginMediaItemPositionTransition,
                 (index, positionMs) -> player.seekTo(index, positionMs),
                 playWhenReady -> player.setPlayWhenReady(playWhenReady),
                 () -> player.play(),

@@ -651,8 +651,17 @@ public final class MusicLibraryRepository {
     }
 
     public List<Track> refreshFromDevice() {
+        long generation = scanner.generation();
+        if (generation >= 0L && generation == database.loadMediaStoreGeneration()) {
+            // The full DB list also contains document, stream, streaming and WebDAV rows, so it
+            // remains the single source of truth while avoiding a redundant MediaStore rewrite.
+            return database.loadTracks();
+        }
         List<Track> tracks = scanner.scan();
         database.replaceTracks(tracks);
+        // Persist only after the replacement transaction succeeds. If the scan or write fails,
+        // the old token forces a safe retry next time.
+        database.saveMediaStoreGeneration(generation);
         return database.loadTracks();
     }
 
@@ -669,17 +678,12 @@ public final class MusicLibraryRepository {
     }
 
     public int parseMissingAudioSpecs() {
-        List<Track> tracks = database.loadTracks();
+        List<Track> tracks = database.loadTracksNeedingAudioSpecs(AUDIO_SPEC_PARSE_BATCH_LIMIT);
         ArrayList<Track> enriched = new ArrayList<>();
-        int parsedCandidates = 0;
         for (Track track : tracks) {
             if (track == null || !track.needsAudioSpecParsing()) {
                 continue;
             }
-            if (parsedCandidates >= AUDIO_SPEC_PARSE_BATCH_LIMIT) {
-                break;
-            }
-            parsedCandidates++;
             Track parsed = audioSpecParser.enrich(track);
             if (parsed != null && parsed.hasAudioSpec()) {
                 enriched.add(parsed);

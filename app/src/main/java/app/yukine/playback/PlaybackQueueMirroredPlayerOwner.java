@@ -17,6 +17,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
     private final Supplier<Track> currentTrackProvider;
     private final Consumer<Track> waveformResetter;
     private final Runnable playbackParameterApplier;
+    private final BiConsumer<Integer, Long> mediaItemPositionTransitionStarter;
     private final BiConsumer<Integer, Long> playerSeeker;
     private final Consumer<Boolean> playWhenReadySetter;
     private final Runnable playerStarter;
@@ -70,6 +71,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
             Supplier<Track> currentTrackProvider,
             Consumer<Track> waveformResetter,
             Runnable playbackParameterApplier,
+            BiConsumer<Integer, Long> mediaItemPositionTransitionStarter,
             BiConsumer<Integer, Long> playerSeeker,
             Consumer<Boolean> playWhenReadySetter,
             Runnable playerStarter,
@@ -82,6 +84,7 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
         this.currentTrackProvider = currentTrackProvider;
         this.waveformResetter = waveformResetter;
         this.playbackParameterApplier = playbackParameterApplier;
+        this.mediaItemPositionTransitionStarter = mediaItemPositionTransitionStarter;
         this.playerSeeker = playerSeeker;
         this.playWhenReadySetter = playWhenReadySetter;
         this.playerStarter = playerStarter;
@@ -106,6 +109,9 @@ final class PlaybackQueueMirroredPlayerOwner implements PlaybackQueueManager.Mir
                 waveformResetter.accept(track);
             }
             playbackParameterApplier.run();
+            if (mediaItemPositionTransitionStarter != null) {
+                mediaItemPositionTransitionStarter.accept(index, Math.max(0L, positionMs));
+            }
             playerSeeker.accept(index, positionMs);
             playWhenReadySetter.accept(playWhenReady);
             if (playWhenReady) {

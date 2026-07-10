@@ -55,7 +55,7 @@ object EchoMotion {
     const val CROSSFADE_MS = 180
     const val FAST_CROSSFADE_MS = 140
 
-    fun <T> fade(): FiniteAnimationSpec<Float> = tween(CROSSFADE_MS)
+    fun fade(): FiniteAnimationSpec<Float> = tween(CROSSFADE_MS)
 
     /** Press-scale target used consistently across all tappable controls. */
     const val PRESS_SCALE = 0.93f

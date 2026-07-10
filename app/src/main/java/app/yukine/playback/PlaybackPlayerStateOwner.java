@@ -22,6 +22,11 @@ final class PlaybackPlayerStateOwner implements
     private long estimatedPositionMs;
     private long lastEstimateTimeMs;
     private boolean lastPlaying;
+    // A mirrored queue changes its logical current track before ExoPlayer necessarily reports
+    // the target media item. Keep the old item's position out of the new track's snapshot
+    // during that short hand-off window.
+    private int pendingMediaItemIndex = C.INDEX_UNSET;
+    private long pendingMediaItemPositionMs;
 
     PlaybackPlayerStateOwner(PlayerProvider playerProvider) {
         this(playerProvider, SystemClock::elapsedRealtime);
@@ -57,6 +62,10 @@ final class PlaybackPlayerStateOwner implements
             return 0L;
         }
         try {
+            if (shouldReportPendingMediaItemPosition(player)) {
+                return pendingMediaItemPositionMs;
+            }
+            clearPendingMediaItemPosition();
             long rawPositionMs = Math.max(0L, player.getCurrentPosition());
             boolean playing = player.isPlaying();
             long nowMs = Math.max(0L, elapsedRealtimeMs.getAsLong());
@@ -93,6 +102,10 @@ final class PlaybackPlayerStateOwner implements
             return Math.max(0L, estimatedPositionMs);
         }
         try {
+            if (shouldReportPendingMediaItemPosition(player)) {
+                return pendingMediaItemPositionMs;
+            }
+            clearPendingMediaItemPosition();
             long rawPositionMs = Math.max(0L, player.getCurrentPosition());
             if (rawPositionMs > 0L || estimatedPositionMs <= 0L) {
                 return rawPositionMs;
@@ -122,6 +135,32 @@ final class PlaybackPlayerStateOwner implements
     }
 
     synchronized void resetPositionEstimate() {
+        clearPendingMediaItemPosition();
+        resetPositionEstimateInternal();
+    }
+
+    /**
+     * Starts a media-item hand-off without allowing the previous item's position estimate to
+     * leak into the target item. The target start position remains visible until ExoPlayer has
+     * actually selected the requested media-item index.
+     */
+    synchronized void beginMediaItemPositionTransition(int mediaItemIndex, long startPositionMs) {
+        resetPositionEstimateInternal();
+        pendingMediaItemIndex = mediaItemIndex < 0 ? C.INDEX_UNSET : mediaItemIndex;
+        pendingMediaItemPositionMs = Math.max(0L, startPositionMs);
+    }
+
+    private boolean shouldReportPendingMediaItemPosition(Player player) {
+        return pendingMediaItemIndex != C.INDEX_UNSET
+                && player.getCurrentMediaItemIndex() != pendingMediaItemIndex;
+    }
+
+    private void clearPendingMediaItemPosition() {
+        pendingMediaItemIndex = C.INDEX_UNSET;
+        pendingMediaItemPositionMs = 0L;
+    }
+
+    private void resetPositionEstimateInternal() {
         lastRawPositionMs = Long.MIN_VALUE;
         estimatedPositionMs = 0L;
         lastEstimateTimeMs = 0L;

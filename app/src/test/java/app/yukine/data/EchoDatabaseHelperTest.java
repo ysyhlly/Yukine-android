@@ -200,6 +200,53 @@ public final class EchoDatabaseHelperTest {
         Assert.assertFalse(containsTrackId(tracks, 1_012L));
     }
 
+    @Test
+    public void loadTracksNeedingAudioSpecsLimitsAndExcludesRemoteTracks() {
+        helper = new EchoDatabaseHelper(ApplicationProvider.getApplicationContext(), TRANSACTION_DATABASE);
+        Track first = localTrack(1_021L, "NeedsSpecsFirst");
+        Track second = localTrack(1_022L, "NeedsSpecsSecond");
+        Track parsed = new Track(
+                1_023L,
+                "AlreadyParsed",
+                "Artist",
+                "Album",
+                120_000L,
+                Uri.parse("file:///music/1023.mp3"),
+                "/music/1023.mp3",
+                0L,
+                null,
+                "mp3",
+                320,
+                44_100,
+                16,
+                2
+        );
+        Track remote = streamingTrack(1_024L);
+        helper.upsertTracks(Arrays.asList(first, second, parsed, remote));
+
+        List<Track> firstBatch = helper.loadTracksNeedingAudioSpecs(1);
+        List<Track> allCandidates = helper.loadTracksNeedingAudioSpecs(10);
+
+        Assert.assertEquals(1, firstBatch.size());
+        Assert.assertEquals(first.id, firstBatch.get(0).id);
+        Assert.assertEquals(2, allCandidates.size());
+        Assert.assertTrue(containsTrackId(allCandidates, first.id));
+        Assert.assertTrue(containsTrackId(allCandidates, second.id));
+        Assert.assertFalse(containsTrackId(allCandidates, parsed.id));
+        Assert.assertFalse(containsTrackId(allCandidates, remote.id));
+    }
+
+    @Test
+    public void mediaStoreGenerationPersistsOnlyValidTokens() {
+        helper = new EchoDatabaseHelper(ApplicationProvider.getApplicationContext(), TRANSACTION_DATABASE);
+
+        Assert.assertEquals(-1L, helper.loadMediaStoreGeneration());
+        helper.saveMediaStoreGeneration(42L);
+        helper.saveMediaStoreGeneration(-1L);
+
+        Assert.assertEquals(42L, helper.loadMediaStoreGeneration());
+    }
+
 
 
 

@@ -349,17 +349,21 @@ class MainActivityViewModel @Inject constructor(
     ) {
         val current = libraryState.value
         libraryState.value = current.copy(
-            sourceCandidatesByTrackId = sourceCandidatesByTrackId.toMap(),
-            allTracks = allTracks.toList(),
-            visibleTracks = visibleTracks.toList(),
-            favoriteTrackIds = favoriteTrackIds.toSet()
+            // MainLibraryStore publishes a freshly built, owned snapshot. Copying every large
+            // collection again here doubles allocation and delays the first visible list frame.
+            sourceCandidatesByTrackId = sourceCandidatesByTrackId,
+            allTracks = allTracks,
+            visibleTracks = visibleTracks,
+            favoriteTrackIds = favoriteTrackIds
         )
     }
 
     fun updateVisibleTracks(visibleTracks: List<Track>) {
-        libraryState.value = libraryState.value.copy(
-            visibleTracks = visibleTracks.toList()
-        )
+        val current = libraryState.value
+        if (current.visibleTracks === visibleTracks) {
+            return
+        }
+        libraryState.value = current.copy(visibleTracks = visibleTracks)
     }
 
     fun applyCollections(

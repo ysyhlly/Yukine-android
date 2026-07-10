@@ -81,6 +81,7 @@ class QueueViewModelTest {
         assertEquals("Track 120", lateRow?.title)
         assertTrue(lateRow?.current == true)
         assertTrue(lateRow?.favorite == true)
+        assertSame(lateRow, state.rowAt(120))
         assertEquals(tracks, vm.tracks())
     }
 

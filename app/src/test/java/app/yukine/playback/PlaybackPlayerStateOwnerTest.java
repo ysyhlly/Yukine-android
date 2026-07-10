@@ -101,6 +101,29 @@ public class PlaybackPlayerStateOwnerTest {
     }
 
     @Test
+    public void pendingMediaItemTransitionDoesNotExposeOldTrackProgress() {
+        MutableClock clock = new MutableClock(1_000L);
+        MutablePlayerState state = new MutablePlayerState(false, 4_200L, 9_000L);
+        state.mediaItemIndex = 0;
+        PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
+                () -> fakePlayer(state),
+                clock
+        );
+
+        assertEquals(4_200L, owner.positionMs());
+
+        owner.beginMediaItemPositionTransition(1, 0L);
+
+        // Queue state already points at song 2, while ExoPlayer still reports song 1.
+        assertEquals(0L, owner.positionMs());
+        assertEquals(0L, owner.sessionPositionMs());
+
+        state.mediaItemIndex = 1;
+        state.positionMs = 0L;
+        assertEquals(0L, owner.positionMs());
+    }
+
+    @Test
     public void keepsEstimatedPositionWhenPausedPlayerReportsZero() {
         MutableClock clock = new MutableClock(1_000L);
         MutablePlayerState state = new MutablePlayerState(true, 0L, 9_000L);
@@ -199,6 +222,8 @@ public class PlaybackPlayerStateOwnerTest {
                     return state.playing;
                 case "getCurrentPosition":
                     return state.positionMs;
+                case "getCurrentMediaItemIndex":
+                    return state.mediaItemIndex;
                 case "getDuration":
                     return state.durationMs;
                 default:
@@ -263,11 +288,13 @@ public class PlaybackPlayerStateOwnerTest {
         boolean playing;
         long positionMs;
         long durationMs;
+        int mediaItemIndex;
 
         MutablePlayerState(boolean playing, long positionMs, long durationMs) {
             this.playing = playing;
             this.positionMs = positionMs;
             this.durationMs = durationMs;
+            this.mediaItemIndex = 0;
         }
     }
 }

@@ -939,7 +939,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(nowBarStateFactory.contains("AppLanguage.text(languageMode, \"retry.playback\")"));
         assertFalse(exists("app/src/main/java/app/yukine/ui/NowPlayingOverlayController.kt"));
         assertTrue(nowPlayingScreen.contains("fun NowPlayingScreen("));
-        assertTrue(nowPlayingScreen.contains("defaultImmersive: Boolean = false"));
+        assertTrue(nowPlayingScreen.contains("immersive: Boolean = false"));
         assertTrue(nowPlayingScreen.contains("LyricsPanel("));
         assertTrue(echoNowBar.contains("fun EchoNowBar("));
         assertTrue(echoNowBar.contains("state: NowBarState"));
@@ -2351,8 +2351,12 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(libraryStore.contains("MusicLibraryRepository"));
         assertTrue(libraryStore.contains("private val viewModel: MainActivityViewModel"));
         assertTrue(libraryStore.contains("return ArrayList(state().allTracks)"));
-        assertTrue(libraryStore.contains("searchUseCase.execute(cachedTracks, searchQuery)"));
-        assertTrue(libraryStore.contains("combinedSearchUseCase.execute(allTracks(), selectedPlaylistTracks(), query)"));
+        assertTrue(libraryStore.contains("prepareLibraryBase(tracks, favorites)"));
+        assertTrue(libraryStore.contains("LibraryTrackMergePolicy.snapshot(sourceTracks)"));
+        assertTrue(libraryStore.contains("if (searchQuery.isEmpty())"));
+        assertTrue(libraryStore.contains("combinedSearchUseCase.execute("));
+        assertTrue(libraryStore.contains("current.allTracks"));
+        assertTrue(libraryStore.contains("current.selectedPlaylistTracks"));
         assertTrue(libraryStore.contains("fun filteredSelectedPlaylistTracks(searchQuery: String?)"));
         assertTrue(librarySearchUseCase.contains("internal class LibrarySearchUseCase"));
         assertTrue(librarySearchUseCase.contains("operations.search(source, query)"));
@@ -2485,9 +2489,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(controller.contains("TrackRowStateFactory.trackRow("));
         assertTrue(controller.contains("viewModel.updateTrackListContentAndChrome("));
         assertFalse(controller.contains("viewModel.updateTrackList(title, rows)"));
-        assertTrue(controller.contains("listener.publishTrackListChrome("));
+        assertFalse(controller.contains("listener.publishTrackListChrome("));
         assertFalse(controller.contains("publishTrackList(title, rows)"));
-        assertTrue(controller.contains("internal data class TrackListChromeState("));
+        assertFalse(controller.contains("internal data class TrackListChromeState("));
         assertFalse(controller.contains("TrackListUiStatePublisher"));
         assertFalse(mainActivity.contains("new TrackListRenderController(libraryViewModel, new TrackListRenderController.Listener()"));
         assertFalse(mainActivity.contains("new TrackListRenderBindings("));
@@ -2499,11 +2503,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("publishTrackListChromeState(new TrackListChromeState("));
         assertTrue(mainTrackListRenderListener.contains("internal class MainTrackListRenderListener("));
         assertTrue(mainTrackListRenderListener.contains(": TrackListRenderController.Listener"));
-        assertTrue(mainTrackListRenderListener.contains("TrackListChromeState("));
-        assertTrue(mainTrackListRenderListener.contains("actions = ArrayList(actions)"));
+        assertFalse(mainTrackListRenderListener.contains("TrackListChromeState("));
+        assertFalse(mainTrackListRenderListener.contains("ChromePublisher"));
         assertTrue(libraryModule.contains("fun provideMainTrackListRenderListenerFactory(): MainTrackListRenderListenerFactory"));
-        assertTrue(mainActivity.contains("private void publishTrackListChromeState(TrackListChromeState state)"));
-        assertTrue(mainActivity.contains("libraryViewModel.updateTrackListChrome("));
+        assertFalse(mainActivity.contains("publishTrackListChromeState"));
+        assertFalse(mainActivity.contains("libraryViewModel.updateTrackListChrome("));
         assertFalse(mainActivity.contains("navHostState.setTrackListActions(new ArrayList<>(state.getActions()));"));
         assertFalse(mainActivity.contains("navHostState.setLibraryGroupModeActions(new ArrayList<>(state.getModeActions()));"));
         assertTrue(mainActivity.contains("actions -> homeDashboardViewModel.updateHomeDashboardActions(actions)"));
@@ -4059,7 +4063,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(importUseCases.contains("ParseMissingAudioSpecsUseCase(operations).execute()"));
         assertTrue(importUseCases.contains("LibraryLoadResultUi(tracks, favorites, \"Library updated\")"));
         assertTrue(repository.contains("AUDIO_SPEC_PARSE_BATCH_LIMIT"));
-        assertTrue(repository.contains("parsedCandidates >= AUDIO_SPEC_PARSE_BATCH_LIMIT"));
+        assertTrue(repository.contains("database.loadTracksNeedingAudioSpecs(AUDIO_SPEC_PARSE_BATCH_LIMIT)"));
         assertFalse(mainActivity.contains("new MusicLibraryCollectionOperations(repository)"));
         assertFalse(mainActivity.contains("new MusicLibraryImportOperations(repository)"));
         assertFalse(mainActivity.contains("void onCollectionsLoaded(LibraryActionsController.CollectionsSnapshot snapshot)"));
@@ -5793,6 +5797,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(service.contains("() -> mainHandler.post(() -> prepareCurrent(recovery.getPlayWhenReady()))"));
         assertTrue(service.contains("playbackQueueMirroredPlayerOwner = new PlaybackQueueMirroredPlayerOwner("));
         assertTrue(service.contains("PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManager("));
+        assertTrue(service.contains("playbackPlayerStateOwner::beginMediaItemPositionTransition"));
         assertFalse(service.contains("PlaybackQueueMirroredPlayerOwner.fromPlaybackQueueManagerProvider("));
         assertTrue(service.contains("playbackCurrentTrackPreparationRuntimeOwner::setPreparing"));
         assertFalse(service.contains("playbackRuntimeStateManager::setPreparing"));
@@ -5844,6 +5849,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mirroredPlayerOwner.contains("PlaybackQueueManagerOperations"));
         assertTrue(mirroredPlayerOwner.contains("import java.util.function.BiConsumer;"));
         assertTrue(mirroredPlayerOwner.contains("import java.util.function.BiPredicate;"));
+        assertTrue(mirroredPlayerOwner.contains("mediaItemPositionTransitionStarter.accept(index, Math.max(0L, positionMs));"));
+        assertTrue(playerStateOwner.contains(
+                "synchronized void beginMediaItemPositionTransition(int mediaItemIndex, long startPositionMs)"));
+        assertTrue(playerStateOwner.contains(
+                "player.getCurrentMediaItemIndex() != pendingMediaItemIndex"));
         assertTrue(mirroredPlayerOwner.contains("import java.util.function.BooleanSupplier;"));
         assertTrue(mirroredPlayerOwner.contains("import java.util.function.Consumer;"));
         assertTrue(mirroredPlayerOwner.contains("import java.util.function.IntSupplier;"));

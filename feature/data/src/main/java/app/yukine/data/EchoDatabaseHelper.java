@@ -68,6 +68,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     private static final String SETTING_PAGE_BACKGROUND_LIBRARY_TRANSFORM = "page_background_library_transform";
     private static final String SETTING_PAGE_BACKGROUND_PLAYER_TRANSFORM = "page_background_player_transform";
     private static final String SETTING_PAGE_BACKGROUND_SETTINGS_TRANSFORM = "page_background_settings_transform";
+    private static final String SETTING_MEDIA_STORE_GENERATION = "media_store_generation";
 
     public EchoDatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -540,6 +541,22 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         saveSetting(SETTING_ONBOARDING_COMPLETED, completed ? "true" : "false");
     }
 
+    public long loadMediaStoreGeneration() {
+        String value = loadSetting(SETTING_MEDIA_STORE_GENERATION, "-1");
+        try {
+            return Math.max(-1L, Long.parseLong(value));
+        } catch (NumberFormatException ignored) {
+            return -1L;
+        }
+    }
+
+    public void saveMediaStoreGeneration(long generation) {
+        if (generation < 0L) {
+            return;
+        }
+        saveSetting(SETTING_MEDIA_STORE_GENERATION, String.valueOf(generation));
+    }
+
     private String loadSetting(String key, String fallback) {
         SQLiteDatabase db = getReadableDatabase();
         try (Cursor cursor = db.query(
@@ -575,8 +592,14 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                     "data_path NOT LIKE ? AND data_path NOT LIKE ? AND data_path NOT LIKE ? AND data_path NOT LIKE ?",
                     new String[]{"document:%", "stream:%", "streaming:%", "webdav:%"});
             long now = System.currentTimeMillis();
-            for (Track track : tracks) {
-                db.insertWithOnConflict(TABLE_TRACKS, null, trackValues(track, now), SQLiteDatabase.CONFLICT_REPLACE);
+            SQLiteStatement insert = db.compileStatement(trackInsertSql());
+            try {
+                for (Track track : tracks) {
+                    bindTrack(insert, track, now);
+                    insert.executeInsert();
+                }
+            } finally {
+                insert.close();
             }
             db.setTransactionSuccessful();
         } finally {
@@ -735,6 +758,36 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         return values;
     }
 
+    /** Reused only for full MediaStore replacement to avoid per-track ContentValues allocation. */
+    private static String trackInsertSql() {
+        return "INSERT OR REPLACE INTO " + TABLE_TRACKS + " ("
+                + "id, title, artist, album, duration_ms, content_uri, data_path, album_id, "
+                + "album_art_uri, codec, bitrate_kbps, sample_rate_hz, bits_per_sample, "
+                + "channel_count, replay_gain_track_db, replay_gain_album_db, updated_at"
+                + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    }
+
+    private static void bindTrack(SQLiteStatement statement, Track track, long updatedAt) {
+        statement.clearBindings();
+        statement.bindLong(1, track.id);
+        bindString(statement, 2, track.title);
+        bindString(statement, 3, track.artist);
+        bindString(statement, 4, track.album);
+        statement.bindLong(5, track.durationMs);
+        bindString(statement, 6, track.contentUri.toString());
+        bindString(statement, 7, track.dataPath);
+        statement.bindLong(8, track.albumId);
+        bindString(statement, 9, track.albumArtUriString());
+        bindString(statement, 10, track.codec);
+        statement.bindLong(11, track.bitrateKbps);
+        statement.bindLong(12, track.sampleRateHz);
+        statement.bindLong(13, track.bitsPerSample);
+        statement.bindLong(14, track.channelCount);
+        statement.bindDouble(15, track.replayGainTrackDb);
+        statement.bindDouble(16, track.replayGainAlbumDb);
+        statement.bindLong(17, updatedAt);
+    }
+
     private ContentValues playbackQueueValues(Track track, int position) {
         ContentValues values = playbackQueueTrackValues(track);
         values.put("position", position);
@@ -873,6 +926,39 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                         cursor.getFloat(14),
                         cursor.getFloat(15)
                 ));
+            }
+        }
+        return tracks;
+    }
+
+    /**
+     * Returns only the next local/document rows that still need media-format enrichment. The
+     * background parser works in a small batch, so loading the whole library first is needless
+     * work for large collections.
+     */
+    public List<Track> loadTracksNeedingAudioSpecs(int limit) {
+        if (limit <= 0) {
+            return new ArrayList<>();
+        }
+        ArrayList<Track> tracks = new ArrayList<>();
+        SQLiteDatabase db = getReadableDatabase();
+        String selection = "codec = '' AND bitrate_kbps = 0 AND sample_rate_hz = 0 "
+                + "AND bits_per_sample = 0 AND channel_count = 0 "
+                + "AND data_path NOT LIKE 'stream:%' "
+                + "AND data_path NOT LIKE 'streaming:%' "
+                + "AND data_path NOT LIKE 'webdav:%'";
+        try (Cursor cursor = db.query(
+                TABLE_TRACKS,
+                trackProjection(),
+                selection,
+                null,
+                null,
+                null,
+                "updated_at ASC, id ASC",
+                String.valueOf(limit)
+        )) {
+            while (cursor.moveToNext()) {
+                tracks.add(readTrack(cursor, 0));
             }
         }
         return tracks;

@@ -69,12 +69,14 @@ fun EchoScaffold(
     topBar: @Composable () -> Unit = {},
     backgroundUri: String = "",
     backgroundTransform: BackgroundTransform = BackgroundTransform.IDENTITY,
+    customBackgroundVisible: Boolean = true,
     content: @Composable (Modifier) -> Unit
 ) {
     EchoPageBackground(
         backgroundUri = backgroundUri,
         modifier = Modifier.fillMaxSize(),
-        transform = backgroundTransform
+        transform = backgroundTransform,
+        customBackgroundVisible = customBackgroundVisible
     ) {
         Column(modifier = Modifier
             .fillMaxSize()

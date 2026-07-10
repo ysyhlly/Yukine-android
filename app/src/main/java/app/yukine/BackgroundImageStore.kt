@@ -7,6 +7,7 @@ import android.net.Uri
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.UUID
 
 internal interface BackgroundImageCopyStore {
     fun saveInternalCopy(context: Context, page: String, source: Uri): Uri?
@@ -82,7 +83,9 @@ internal class BackgroundImageStore(
 
     private fun fileNameForPage(page: String): String {
         val safe = PageBackgrounds.normalizePage(page).ifBlank { PageBackgrounds.PAGE_ALL }
-        return "$FILE_PREFIX$safe$FILE_SUFFIX"
+        // Compose and ArtworkLoader both use the URI as their reload/cache identity. Replacing a
+        // background must therefore create a new URI instead of overwriting a fixed page file.
+        return "$FILE_PREFIX$safe-${UUID.randomUUID()}$FILE_SUFFIX"
     }
 
     companion object {
