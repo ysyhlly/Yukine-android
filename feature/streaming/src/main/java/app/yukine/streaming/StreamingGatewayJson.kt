@@ -414,7 +414,14 @@ internal object StreamingGatewayJson {
             accountDisplayName = value.optionalString("accountDisplayName"),
             accountUsername = value.optionalString("accountUsername"),
             accountAvatarUrl = value.optionalString("accountAvatarUrl"),
-            statusMessage = value.optionalString("statusMessage")
+            statusMessage = value.optionalString("statusMessage"),
+            credentialState = StreamingCredentialState.fromWireName(value.optionalString("credentialState"))
+                ?: if (value.optBoolean("connected", false)) {
+                    StreamingCredentialState.VALID
+                } else {
+                    StreamingCredentialState.NOT_LOGGED_IN
+                },
+            lastVerifiedAtEpochMs = value.optionalLong("lastVerifiedAtEpochMs")
         )
     }
 
@@ -872,6 +879,8 @@ internal object StreamingGatewayJson {
             .put("accountUsername", state.accountUsername)
             .put("accountAvatarUrl", state.accountAvatarUrl)
             .put("statusMessage", state.statusMessage)
+            .put("credentialState", state.credentialState.wireName)
+            .put("lastVerifiedAtEpochMs", state.lastVerifiedAtEpochMs)
     }
 
     private fun mediaTypes(array: JSONArray?): Set<StreamingMediaType> {
@@ -940,7 +949,11 @@ internal object StreamingGatewayJson {
 
     private fun JSONObject.optionalLong(name: String): Long? {
         if (!has(name) || isNull(name)) return null
-        return optLong(name)
+        return when (val value = opt(name)) {
+            is Number -> value.toLong()
+            is String -> value.toLongOrNull()
+            else -> null
+        }
     }
 
     private fun JSONObject.optionalBoolean(name: String): Boolean? {

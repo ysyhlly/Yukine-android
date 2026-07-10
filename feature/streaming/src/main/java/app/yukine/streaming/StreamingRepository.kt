@@ -209,10 +209,32 @@ class StreamingRepository(
             val attempts = playbackResolveAttempts(provider, providerTrackId, metadata)
             var lastError: Throwable? = null
             attempts.forEachIndexed { index, attempt ->
-                val attemptResult = runCatching {
+                val initialResult = runCatching {
                     val source = resolvePlayback(attempt.provider, attempt.providerTrackId, quality)
                     validatePlaybackSource(source)
                     source
+                }
+                val attemptResult = if (
+                    (initialResult.exceptionOrNull() as? StreamingGatewayException)?.code ==
+                        StreamingErrorCode.AUTH_REQUIRED
+                ) {
+                    // An expired local Cookie can be repaired once without moving to a different
+                    // provider. Never retry region/membership/source errors: they are not auth
+                    // refresh problems and would only create duplicate network traffic.
+                    val refreshed = runCatching {
+                        refreshAuthSession(attempt.provider, force = true)
+                    }.getOrNull()
+                    if (refreshed?.connected == true) {
+                        runCatching {
+                            val source = resolvePlayback(attempt.provider, attempt.providerTrackId, quality)
+                            validatePlaybackSource(source)
+                            source
+                        }
+                    } else {
+                        initialResult
+                    }
+                } else {
+                    initialResult
                 }
                 attemptResult.getOrNull()?.let { source ->
                     // 命中备用音源时，元数据沿用代表项但替换为实际播放的音源标识，
@@ -285,6 +307,29 @@ class StreamingRepository(
                         provider,
                         StreamingGatewayJson.authStateJson(provider, authState),
                         cachePolicy.ttlForAuth(provider, authState)
+                    )
+                }
+            }
+        }
+    }
+
+    /** Explicitly bypasses the 24-hour auth metadata cache for verification/automatic renewal. */
+    suspend fun refreshAuthSession(
+        provider: StreamingProviderName,
+        force: Boolean = false
+    ): StreamingAuthState {
+        return withContext(Dispatchers.IO) {
+            recordGatewayCall("auth_refresh", provider) {
+                gateway.refreshAuthSession(provider, force).also { authState ->
+                    val ttl = if (authState.credentialState == StreamingCredentialState.INVALID || !authState.connected) {
+                        cachePolicy.ttlForSignedOutAuth()
+                    } else {
+                        cachePolicy.ttlForAuth(provider, authState)
+                    }
+                    cache?.saveAuth(
+                        provider,
+                        StreamingGatewayJson.authStateJson(provider, authState),
+                        ttl
                     )
                 }
             }

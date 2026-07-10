@@ -8,19 +8,24 @@ interface StreamingGatewayFactory {
 
 class RemoteStreamingGatewayFactory(
     private val localAuthStore: StreamingLocalAuthStore? = null,
+    private val webCookieSessionSource: StreamingWebCookieSessionSource = NoopStreamingWebCookieSessionSource,
     private val luoxueSourceStore: LuoxueSourceStore? = null
 ) : StreamingGatewayFactory {
     override fun remote(endpointBaseUrl: String): StreamingGateway {
         return RemoteStreamingGateway(
             endpointBaseUrl = endpointBaseUrl,
             localAuthStore = localAuthStore,
+            webCookieSessionSource = webCookieSessionSource,
             luoxueSourceStore = luoxueSourceStore
         )
     }
 
     companion object {
         fun create(context: Context): RemoteStreamingGatewayFactory {
-            return RemoteStreamingGatewayFactory(LocalStreamingAuthStore(context), LuoxueSourceStore(context))
+            return RemoteStreamingGatewayFactory(
+                localAuthStore = LocalStreamingAuthStore(context),
+                luoxueSourceStore = LuoxueSourceStore(context)
+            )
         }
     }
 }

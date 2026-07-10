@@ -3,6 +3,7 @@ package app.yukine.di
 import android.content.Context
 import app.yukine.common.StreamingDataPathParser
 import app.yukine.StreamingGatewaySettingsStore
+import app.yukine.AndroidStreamingWebCookieSessionSource
 import app.yukine.StreamingRepositoryProvider
 import app.yukine.StreamingRepositorySource
 import app.yukine.streaming.HeaderBackedStreamingPlaybackTrackAdapter
@@ -11,6 +12,7 @@ import app.yukine.streaming.LuoxueSourceStore
 import app.yukine.streaming.PersistentStreamingPlaybackHeaders
 import app.yukine.streaming.RemoteStreamingGatewayFactory
 import app.yukine.streaming.StreamingGatewayFactory
+import app.yukine.streaming.StreamingWebCookieSessionSource
 import app.yukine.streaming.StreamingPlaybackAdapter
 import app.yukine.streaming.StreamingPlaybackHeaderStore
 import app.yukine.streaming.StreamingPlaybackTrackAdapter
@@ -81,9 +83,20 @@ object StreamingDataModule {
     @Singleton
     fun provideStreamingGatewayFactory(
         localAuthStore: LocalStreamingAuthStore,
+        webCookieSessionSource: StreamingWebCookieSessionSource,
         luoxueSourceStore: LuoxueSourceStore
     ): StreamingGatewayFactory {
-        return RemoteStreamingGatewayFactory(localAuthStore, luoxueSourceStore)
+        return RemoteStreamingGatewayFactory(
+            localAuthStore = localAuthStore,
+            webCookieSessionSource = webCookieSessionSource,
+            luoxueSourceStore = luoxueSourceStore
+        )
+    }
+
+    @Provides
+    @Singleton
+    fun provideStreamingWebCookieSessionSource(): StreamingWebCookieSessionSource {
+        return AndroidStreamingWebCookieSessionSource()
     }
 
     @Provides

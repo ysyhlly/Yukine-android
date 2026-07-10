@@ -16,7 +16,7 @@ import javax.crypto.spec.GCMParameterSpec
  * 设计要点：
  * - 所有方法在失败时返回 null 而非抛异常。调用方按“无数据”处理即可（最坏情况是用户需要重新
  *   登录），从而避免 keystore 在系统升级 / 数据恢复后失效时直接让应用崩溃。
- * - 存储格式为 Base64(iv ‖ ciphertext)，IV 固定 12 字节，GCM 认证标签 128 位。
+ * - 当前存储格式为 `enc:v1:` + Base64(iv ‖ ciphertext)，IV 固定 12 字节，GCM 认证标签 128 位。
  * - [encryptOrPlain] / [decryptOrPlain] 提供向后兼容：读取旧的明文数据不会失败，
  *   方便从“明文存储”平滑迁移到“加密存储”。
  *
@@ -30,8 +30,9 @@ object SecureSecretStore {
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
     private const val IV_LENGTH = 12
     private const val GCM_TAG_BITS = 128
+    private const val FORMAT_PREFIX = "enc:v1:"
 
-    /** 加密成功返回 Base64 密文，任何失败返回 null。 */
+    /** 加密成功返回带版本标识的密文，任何失败返回 null。 */
     fun encrypt(plain: String?): String? {
         if (plain == null) return null
         return try {
@@ -42,7 +43,7 @@ object SecureSecretStore {
             val combined = ByteArray(iv.size + ciphertext.size)
             System.arraycopy(iv, 0, combined, 0, iv.size)
             System.arraycopy(ciphertext, 0, combined, iv.size, ciphertext.size)
-            Base64.encodeToString(combined, Base64.NO_WRAP)
+            FORMAT_PREFIX + Base64.encodeToString(combined, Base64.NO_WRAP)
         } catch (t: Throwable) {
             null
         }
@@ -51,7 +52,8 @@ object SecureSecretStore {
     fun decrypt(encoded: String?): String? {
         if (encoded.isNullOrBlank()) return null
         return try {
-            val combined = Base64.decode(encoded, Base64.NO_WRAP)
+            val payload = encoded.removePrefix(FORMAT_PREFIX)
+            val combined = Base64.decode(payload, Base64.NO_WRAP)
             if (combined.size <= IV_LENGTH) return null
             val iv = combined.copyOfRange(0, IV_LENGTH)
             val ciphertext = combined.copyOfRange(IV_LENGTH, combined.size)
@@ -75,8 +77,15 @@ object SecureSecretStore {
      */
     fun decryptOrPlain(stored: String?): String? {
         if (stored.isNullOrBlank()) return stored
+        // A versioned value is known to be ciphertext. Returning it as a cookie after a Keystore
+        // reset would turn opaque garbage into a seemingly valid credential, so fail closed.
+        if (stored.startsWith(FORMAT_PREFIX)) {
+            return decrypt(stored)
+        }
         return decrypt(stored) ?: stored
     }
+
+    fun isVersionedCiphertext(stored: String?): Boolean = stored?.startsWith(FORMAT_PREFIX) == true
 
     @Synchronized
     private fun secretKey(): SecretKey {

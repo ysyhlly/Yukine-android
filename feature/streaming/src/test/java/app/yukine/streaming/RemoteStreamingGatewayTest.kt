@@ -484,6 +484,76 @@ class RemoteStreamingGatewayTest {
         }
     }
 
+    @Test
+    fun refreshNeteaseSessionVerifiesCookieAndKeepsItConnected() = runTest {
+        val authStore = MaintenanceAuthStore(
+            mapOf(StreamingProviderName.NETEASE to "MUSIC_U=local-token")
+        )
+        val http = FakeNeteaseHttpClient(
+            responses = mapOf(
+                "/api/nuser/account/get" to JSONObject()
+                    .put("account", JSONObject().put("userId", 42L))
+            )
+        )
+        val gateway = RemoteStreamingGateway(
+            endpointBaseUrl = "gateway://unconfigured",
+            localAuthStore = authStore,
+            localNeteaseClient = LocalNeteaseStreamingClient(authStore, http)
+        )
+
+        val state = gateway.refreshAuthSession(StreamingProviderName.NETEASE, force = true)
+
+        assertTrue(state.connected)
+        assertEquals(StreamingCredentialState.VALID, state.credentialState)
+        assertTrue(state.lastVerifiedAtEpochMs != null)
+        assertEquals(listOf("/api/nuser/account/get"), http.paths)
+    }
+
+    @Test
+    fun refreshNeteaseSessionMarksExplicitAuthRejectionInvalidWithoutDeletingCookie() = runTest {
+        val authStore = MaintenanceAuthStore(
+            mapOf(StreamingProviderName.NETEASE to "MUSIC_U=local-token")
+        )
+        val gateway = RemoteStreamingGateway(
+            endpointBaseUrl = "gateway://unconfigured",
+            localAuthStore = authStore,
+            localNeteaseClient = LocalNeteaseStreamingClient(
+                authStore,
+                FakeNeteaseHttpClient(responses = mapOf("/api/nuser/account/get" to JSONObject()))
+            )
+        )
+
+        val state = gateway.refreshAuthSession(StreamingProviderName.NETEASE, force = true)
+
+        assertFalse(state.connected)
+        assertEquals(StreamingCredentialState.INVALID, state.credentialState)
+        assertEquals("MUSIC_U=local-token", authStore.cookieHeader(StreamingProviderName.NETEASE))
+    }
+
+    @Test
+    fun refreshQqSessionAcceptsAnEmptyPlaylistListAsAValidAccount() = runTest {
+        val authStore = MaintenanceAuthStore(
+            mapOf(StreamingProviderName.QQ_MUSIC to "uin=o12345; qqmusic_key=local-key")
+        )
+        val qq = FakeQqMusicHttpClient(
+            responses = mapOf(
+                "/rsc/fcgi-bin/fcg_user_created_diss" to JSONObject()
+                    .put("data", JSONObject().put("disslist", JSONArray()))
+            )
+        )
+        val gateway = RemoteStreamingGateway(
+            endpointBaseUrl = "gateway://unconfigured",
+            localAuthStore = authStore,
+            localQqMusicClient = LocalQqMusicStreamingClient(authStore, qq)
+        )
+
+        val state = gateway.refreshAuthSession(StreamingProviderName.QQ_MUSIC, force = true)
+
+        assertTrue(state.connected)
+        assertEquals(StreamingCredentialState.VALID, state.credentialState)
+        assertEquals(listOf("/rsc/fcgi-bin/fcg_user_created_diss"), qq.paths)
+    }
+
     private class FakeLocalAuthStore(
         cookies: Map<StreamingProviderName, String> = emptyMap()
     ) : StreamingLocalAuthStore {
@@ -522,6 +592,82 @@ class RemoteStreamingGatewayTest {
 
         override fun connected(provider: StreamingProviderName): Boolean {
             return !cookies[provider].isNullOrBlank()
+        }
+    }
+
+    private class MaintenanceAuthStore(
+        initialCookies: Map<StreamingProviderName, String>
+    ) : StreamingLocalAuthStore {
+        private val cookies = initialCookies.toMutableMap()
+        private val states = initialCookies.keys.associateWith {
+            StreamingCredentialState.PENDING_VERIFICATION
+        }.toMutableMap()
+        private val verifiedAt = mutableMapOf<StreamingProviderName, Long>()
+
+        override fun authState(provider: StreamingProviderName): StreamingAuthState {
+            val credentialState = states[provider] ?: if (cookies[provider].isNullOrBlank()) {
+                StreamingCredentialState.NOT_LOGGED_IN
+            } else {
+                StreamingCredentialState.PENDING_VERIFICATION
+            }
+            return StreamingAuthState(
+                kind = LocalStreamingAuthStore.providerAuthKind(provider),
+                connected = !cookies[provider].isNullOrBlank() && credentialState != StreamingCredentialState.INVALID,
+                credentialState = credentialState,
+                lastVerifiedAtEpochMs = verifiedAt[provider]
+            )
+        }
+
+        override fun saveLogin(
+            provider: StreamingProviderName,
+            cookieHeader: String?,
+            displayName: String?
+        ): StreamingAuthState {
+            if (cookieHeader.isNullOrBlank()) {
+                cookies.remove(provider)
+                states[provider] = StreamingCredentialState.NOT_LOGGED_IN
+            } else {
+                cookies[provider] = cookieHeader
+                states[provider] = StreamingCredentialState.PENDING_VERIFICATION
+                verifiedAt.remove(provider)
+            }
+            return authState(provider)
+        }
+
+        override fun signOut(provider: StreamingProviderName): StreamingAuthState {
+            cookies.remove(provider)
+            states[provider] = StreamingCredentialState.NOT_LOGGED_IN
+            verifiedAt.remove(provider)
+            return authState(provider)
+        }
+
+        override fun cookieHeader(provider: StreamingProviderName): String? = cookies[provider]
+
+        override fun connected(provider: StreamingProviderName): Boolean = authState(provider).connected
+
+        override fun hasStoredCredential(provider: StreamingProviderName): Boolean = cookies.containsKey(provider)
+
+        override fun markVerified(provider: StreamingProviderName, verifiedAtEpochMs: Long): StreamingAuthState {
+            states[provider] = StreamingCredentialState.VALID
+            verifiedAt[provider] = verifiedAtEpochMs
+            return authState(provider)
+        }
+
+        override fun markPendingVerification(
+            provider: StreamingProviderName,
+            message: String?
+        ): StreamingAuthState {
+            states[provider] = StreamingCredentialState.PENDING_VERIFICATION
+            return authState(provider)
+        }
+
+        override fun markInvalid(
+            provider: StreamingProviderName,
+            message: String?,
+            checkedAtEpochMs: Long
+        ): StreamingAuthState {
+            states[provider] = StreamingCredentialState.INVALID
+            return authState(provider)
         }
     }
 

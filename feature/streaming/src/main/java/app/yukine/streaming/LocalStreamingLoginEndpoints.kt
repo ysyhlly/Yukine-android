@@ -142,8 +142,7 @@ object LocalStreamingLoginEndpoints {
                 "MUSIC_A",
                 "MUSIC_R",
                 "MUSIC_R_T",
-                "MUSIC_SNS",
-                "__csrf"
+                "MUSIC_SNS"
             )
             StreamingProviderName.QQ_MUSIC -> listOf("qqmusic_key", "qm_keyst", "psrf_qqaccess_token")
             StreamingProviderName.KUGOU -> listOf("token", "kg_mid", "t_token")

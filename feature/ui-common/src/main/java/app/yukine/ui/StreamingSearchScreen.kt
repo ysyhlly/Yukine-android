@@ -131,6 +131,9 @@ data class StreamingSearchLabels(
     val error: String,
     val localLoginSaved: String,
     val notSignedIn: String,
+    val sessionVerified: String,
+    val sessionPendingVerification: String,
+    val sessionInvalid: String,
     val localLoginComplete: String,
     val gatewayLocalLogin: String,
     val gatewayRequired: String,
@@ -195,6 +198,9 @@ data class StreamingSearchLabels(
             error = "\u9519\u8bef",
             localLoginSaved = "\u672c\u673a\u767b\u5f55\u5df2\u4fdd\u5b58",
             notSignedIn = "\u672a\u767b\u5f55",
+            sessionVerified = "\u5df2\u9a8c\u8bc1",
+            sessionPendingVerification = "\u767b\u5f55\u5f85\u9a8c\u8bc1",
+            sessionInvalid = "\u767b\u5f55\u5df2\u5931\u6548\uff0c\u8bf7\u91cd\u65b0\u767b\u5f55",
             localLoginComplete = "\u672c\u673a\u767b\u5f55\u5b8c\u6210",
             gatewayLocalLogin = "\u7f51\u5173\u4e0d\u53ef\u7528\uff0c\u53ef\u4f7f\u7528\u672c\u673a\u767b\u5f55",
             gatewayRequired = "\u9700\u8981\u7f51\u5173",
@@ -462,9 +468,26 @@ fun streamingProviderStatusText(
     authState: app.yukine.streaming.StreamingAuthState? = null,
     labels: StreamingSearchLabels
 ): String {
+    when (authState?.credentialState) {
+        app.yukine.streaming.StreamingCredentialState.PENDING_VERIFICATION -> {
+            return labels.sessionPendingVerification
+        }
+        app.yukine.streaming.StreamingCredentialState.INVALID -> {
+            return labels.sessionInvalid
+        }
+        else -> Unit
+    }
     if (authState?.connected == true) {
         val name = authState.accountDisplayName?.takeIf { it.isNotBlank() }
-        return if (name != null) "${labels.signedIn} - $name" else labels.signedIn
+        val signedIn = if (name != null) "${labels.signedIn} - $name" else labels.signedIn
+        return if (
+            authState.credentialState == app.yukine.streaming.StreamingCredentialState.VALID &&
+            authState.lastVerifiedAtEpochMs != null
+        ) {
+            "$signedIn · ${labels.sessionVerified}"
+        } else {
+            signedIn
+        }
     }
     streamingStatusMessage(message, labels)?.let { return it }
     health?.let {

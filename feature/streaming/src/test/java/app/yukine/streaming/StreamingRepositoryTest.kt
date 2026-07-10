@@ -609,6 +609,37 @@ class StreamingRepositoryTest {
         assertEquals(capabilities, repository.providerCapabilities())
         assertEquals(1, gateway.capabilityCalls)
     }
+
+    @Test
+    fun resolvePlaybackTrackRefreshesAuthOnceThenRetriesTheSameSource() = runTest {
+        val gateway = FakeStreamingGateway(
+            playbackSource = playbackSource("https://stream.example.test/refreshed.mp3"),
+            playbackFailures = ArrayDeque(
+                listOf(
+                    StreamingGatewayException(
+                        "session expired",
+                        code = StreamingErrorCode.AUTH_REQUIRED
+                    )
+                )
+            ),
+            refreshedAuthState = StreamingAuthState(
+                kind = StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE,
+                connected = true,
+                credentialState = StreamingCredentialState.VALID
+            )
+        )
+        val repository = StreamingRepository(gateway)
+
+        val result = repository.resolvePlaybackTrack(
+            provider = StreamingProviderName.NETEASE,
+            providerTrackId = "track-1"
+        )
+
+        assertEquals("https://stream.example.test/refreshed.mp3", result.source.url)
+        assertEquals(2, gateway.playbackRequests.size)
+        assertEquals(listOf("track-1", "track-1"), gateway.playbackRequests.map { it.providerTrackId })
+        assertEquals(1, gateway.refreshAuthCalls)
+    }
 }
 
 private class FakeStreamingGateway(
@@ -617,12 +648,15 @@ private class FakeStreamingGateway(
     private val playbackSource: StreamingPlaybackSource = playbackSource("url"),
     private val authState: StreamingAuthState = StreamingAuthState(),
     private val health: List<StreamingProviderHealth> = emptyList(),
-    private val capabilities: List<StreamingProviderCapability> = emptyList()
+    private val capabilities: List<StreamingProviderCapability> = emptyList(),
+    private val playbackFailures: ArrayDeque<StreamingGatewayException> = ArrayDeque(),
+    private val refreshedAuthState: StreamingAuthState? = null
 ) : StreamingGateway {
     val searchRequests = mutableListOf<StreamingSearchRequest>()
     val playlistRequests = mutableListOf<StreamingPlaylistRequest>()
     val playbackRequests = mutableListOf<StreamingPlaybackRequest>()
     val authStateProviders = mutableListOf<StreamingProviderName>()
+    var refreshAuthCalls = 0
     var healthCalls = 0
     var capabilityCalls = 0
 
@@ -674,6 +708,9 @@ private class FakeStreamingGateway(
 
     override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource {
         playbackRequests += request
+        if (playbackFailures.isNotEmpty()) {
+            throw playbackFailures.removeFirst()
+        }
         return playbackSource.copy(
             provider = request.provider,
             providerTrackId = request.providerTrackId
@@ -683,6 +720,14 @@ private class FakeStreamingGateway(
     override suspend fun authState(provider: StreamingProviderName): StreamingAuthState {
         authStateProviders += provider
         return authState
+    }
+
+    override suspend fun refreshAuthSession(
+        provider: StreamingProviderName,
+        force: Boolean
+    ): StreamingAuthState {
+        refreshAuthCalls += 1
+        return refreshedAuthState ?: authState
     }
 
     override suspend fun startAuth(request: StreamingAuthRequest): StreamingAuthResult {

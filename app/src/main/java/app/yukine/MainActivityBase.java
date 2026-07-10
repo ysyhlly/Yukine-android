@@ -1207,7 +1207,8 @@ public abstract class MainActivityBase extends ComponentActivity {
         if (playbackService != null) {
             playbackService.setAppVisible(true);
         }
-        // Manual sync only; no automatic periodic sync.
+        // Stored throttles keep this lightweight; it only verifies/renews sessions that are due.
+        streamingViewModel.maintainStreamingAuthSessions();
     }
 
     @Override

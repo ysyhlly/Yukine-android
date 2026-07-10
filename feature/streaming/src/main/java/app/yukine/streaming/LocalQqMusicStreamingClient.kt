@@ -21,6 +21,11 @@ internal fun hasQqPlaybackCredential(cookie: String?): Boolean {
     return qqCookieValue(cookie, "qqmusic_key", "qm_keyst", "psrf_qqaccess_token") != null
 }
 
+internal fun qqPlaybackAuthst(cookie: String?): String? {
+    // `psrf_qqaccess_token` stays in the Cookie header but is not the vkey `authst` value.
+    return qqCookieValue(cookie, "qqmusic_key", "qm_keyst")
+}
+
 internal fun qqCookieValue(cookie: String?, vararg names: String): String? {
     val pairs = cookie.orEmpty().split(";")
     for (name in names) {
@@ -85,7 +90,11 @@ class DefaultQqMusicHttpClient(
             if (status !in 200..299) {
                 throw StreamingGatewayException(
                     "QQ 音乐请求失败 ($status): ${response.ifBlank { url }}",
-                    code = StreamingErrorCode.SOURCE_UNAVAILABLE
+                    code = when (status) {
+                        HttpURLConnection.HTTP_UNAUTHORIZED,
+                        HttpURLConnection.HTTP_FORBIDDEN -> StreamingErrorCode.AUTH_REQUIRED
+                        else -> StreamingErrorCode.SOURCE_UNAVAILABLE
+                    }
                 )
             }
             return JSONObject(response)
@@ -196,11 +205,20 @@ class LocalQqMusicStreamingClient(
         )
     }
 
+    /**
+     * Validates the current QQ web session with an account endpoint. An empty playlist list is a
+     * valid account result and therefore must not be interpreted as a logout.
+     */
+    fun verifySession() {
+        val cookie = requireCookie()
+        createdPlaylists(uinFromCookie(cookie), cookie)
+    }
+
     fun userPlaylists(): List<StreamingPlaylist> {
         val cookie = requireCookie()
         val uin = uinFromCookie(cookie)
-        val created = runCatching { createdPlaylists(uin, cookie) }.getOrDefault(emptyList())
-        val collected = runCatching { collectedPlaylists(uin, cookie) }.getOrDefault(emptyList())
+        val created = ignoreNonAuthFailures { createdPlaylists(uin, cookie) }.orEmpty()
+        val collected = ignoreNonAuthFailures { collectedPlaylists(uin, cookie) }.orEmpty()
         val result = (likedPlaylist(uin, cookie, created) + created + collected)
             .distinctBy { it.providerPlaylistId }
         if (result.isEmpty()) {
@@ -219,6 +237,7 @@ class LocalQqMusicStreamingClient(
                 "&sin=0&size=200&g_tk=5381&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json",
             defaultHeaders(cookie)
         )
+        throwIfQqAuthRejected(body)
         return playlistArray(body, "disslist", "cdlist", "list")
             .mapNotNull { playlistSummary(it) }
     }
@@ -230,6 +249,7 @@ class LocalQqMusicStreamingClient(
                 "&sin=0&ein=49&g_tk=5381&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json",
             defaultHeaders(cookie)
         )
+        throwIfQqAuthRejected(body)
         return playlistArray(body, "cdlist", "disslist", "list")
             .mapNotNull { playlistSummary(it) }
     }
@@ -243,14 +263,15 @@ class LocalQqMusicStreamingClient(
         if (existing != null) {
             return listOf(existing)
         }
-        val body = runCatching {
+        val body = ignoreNonAuthFailures {
             httpClient.getJson(
                 "https://c.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg" +
                     "?format=json&cid=205360838&userid=${encode(uin)}&reqfrom=1" +
                     "&g_tk=5381&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json",
                 defaultHeaders(cookie)
             )
-        }.getOrNull() ?: return emptyList()
+        } ?: return emptyList()
+        throwIfQqAuthRejected(body)
         val first = body.optJSONObject("data")
             ?.optJSONArray("mymusic")
             ?.optJSONObject(0)
@@ -276,18 +297,30 @@ class LocalQqMusicStreamingClient(
         val parts = id.split('|')
         val songMid = parts.firstOrNull().orEmpty().ifBlank { id }
         val mediaMid = parts.getOrNull(1)?.takeIf { it.isNotBlank() } ?: songMid
-        var lastMessage = ""
+        var lastError: StreamingGatewayException? = null
         for (quality in qqQualityFallbacks(request.quality)) {
             for (fileName in qqFileNameCandidates(songMid, mediaMid, quality)) {
-                runCatching {
+                try {
                     return resolvePlaybackWithFileName(id, songMid, quality, fileName, cookie)
-                }.onFailure { error ->
-                    lastMessage = error.message.orEmpty()
+                } catch (error: StreamingGatewayException) {
+                    // An explicit login rejection cannot be repaired by trying another quality
+                    // or filename, and should reach the UI unchanged.
+                    if (error.code == StreamingErrorCode.AUTH_REQUIRED ||
+                        error.code == StreamingErrorCode.REGION_BLOCKED
+                    ) {
+                        throw error
+                    }
+                    lastError = error
+                } catch (error: Throwable) {
+                    lastError = StreamingGatewayException(
+                        error.message ?: "QQ 音乐播放地址解析失败",
+                        cause = error
+                    )
                 }
             }
         }
-        throw StreamingGatewayException(
-            lastMessage.ifBlank { "QQ 音乐未返回可播放链接，可能需要会员或地区不可用" },
+        throw lastError ?: StreamingGatewayException(
+            "QQ 音乐未返回可播放链接，可能需要会员或地区不可用",
             code = StreamingErrorCode.SOURCE_UNAVAILABLE
         )
     }
@@ -300,7 +333,7 @@ class LocalQqMusicStreamingClient(
         cookie: String
     ): StreamingPlaybackSource {
         val uin = uinFromCookie(cookie)
-        val authst = qqCookieValue(cookie, "qqmusic_key")
+        val authst = qqPlaybackAuthst(cookie)
         val params = JSONObject()
             .put("guid", qqGuid())
             .put("songmid", JSONArray().put(songMid))
@@ -332,10 +365,13 @@ class LocalQqMusicStreamingClient(
         val midUrlInfo = qqMidUrlInfo(data)
         val purl = midUrlInfo.optionalStringLocal("purl")
         if (purl.isNullOrBlank()) {
-            val message = midUrlInfo.optionalStringLocal("msg")
+            val serverMessage = midUrlInfo.optionalStringLocal("msg")
                 ?: data.optionalStringLocal("msg")
-                ?: "QQ 音乐未返回可播放链接，可能需要会员或地区不可用"
-            throw StreamingGatewayException(message, code = StreamingErrorCode.SOURCE_UNAVAILABLE)
+            val message = serverMessage ?: "QQ 音乐未返回可播放链接，可能需要会员或地区不可用"
+            throw StreamingGatewayException(
+                message,
+                code = serverMessage?.let(::qqVkeyErrorCode) ?: StreamingErrorCode.SOURCE_UNAVAILABLE
+            )
         }
         val sip = data.optJSONArray("sip")?.let { array ->
             (0 until array.length()).mapNotNull { array.optString(it).takeIf { value -> value.isNotBlank() } }
@@ -576,12 +612,19 @@ class LocalQqMusicStreamingClient(
         mediaMid: String,
         quality: StreamingAudioQuality
     ): List<String> {
-        return when (quality) {
+        val variants = when (quality) {
             StreamingAudioQuality.HIRES,
-            StreamingAudioQuality.LOSSLESS -> listOf("F000$songMid$mediaMid.flac")
-            StreamingAudioQuality.HIGH -> listOf("M800$songMid$mediaMid.mp3", "C600$songMid$mediaMid.m4a")
-            StreamingAudioQuality.STANDARD -> listOf("M500$songMid$mediaMid.mp3", "C400$songMid$mediaMid.m4a")
-        }.distinct()
+            StreamingAudioQuality.LOSSLESS -> listOf("F000" to ".flac")
+            StreamingAudioQuality.HIGH -> listOf("M800" to ".mp3", "C600" to ".m4a")
+            StreamingAudioQuality.STANDARD -> listOf("M500" to ".mp3", "C400" to ".m4a")
+        }
+        // QQ vkey accepts the media MID as its canonical filename identifier.  A previous
+        // change concatenated songMid and mediaMid first, which makes affected tracks look
+        // like an authentication failure when QQ simply returns an empty purl.  Retain that
+        // legacy spelling only as a last-resort compatibility fallback.
+        val canonical = variants.map { (prefix, extension) -> "$prefix$mediaMid$extension" }
+        val legacy = variants.map { (prefix, extension) -> "$prefix$songMid$mediaMid$extension" }
+        return (canonical + legacy).distinct()
     }
 
     private fun qqQualityFallbacks(quality: StreamingAudioQuality): List<StreamingAudioQuality> {
@@ -628,11 +671,48 @@ class LocalQqMusicStreamingClient(
         }
         if (!hasQqPlaybackCredential(cookie)) {
             throw StreamingGatewayException(
-                "QQ 音乐登录凭证不完整（缺少有效的 qqmusic_key/qm_keyst），请退出登录后重新登录 QQ 音乐",
+                "QQ 音乐登录凭证不完整（缺少有效的 qqmusic_key/qm_keyst/psrf_qqaccess_token），请退出登录后重新登录 QQ 音乐",
                 code = StreamingErrorCode.AUTH_REQUIRED
             )
         }
         return cookie
+    }
+
+    private fun qqVkeyErrorCode(message: String): StreamingErrorCode {
+        return when {
+            message.contains("登录") ||
+                message.contains("login", ignoreCase = true) ||
+                message.contains("auth", ignoreCase = true) -> StreamingErrorCode.AUTH_REQUIRED
+            message.contains("地区") || message.contains("region", ignoreCase = true) ->
+                StreamingErrorCode.REGION_BLOCKED
+            else -> StreamingErrorCode.SOURCE_UNAVAILABLE
+        }
+    }
+
+    private fun throwIfQqAuthRejected(body: JSONObject) {
+        val messages = listOfNotNull(
+            body.optionalStringLocal("msg"),
+            body.optionalStringLocal("message"),
+            body.optJSONObject("data")?.optionalStringLocal("msg"),
+            body.optJSONObject("data")?.optionalStringLocal("message")
+        )
+        val message = messages.firstOrNull { it.isNotBlank() } ?: return
+        if (qqVkeyErrorCode(message) == StreamingErrorCode.AUTH_REQUIRED) {
+            throw StreamingGatewayException(message, code = StreamingErrorCode.AUTH_REQUIRED)
+        }
+    }
+
+    private inline fun <T> ignoreNonAuthFailures(block: () -> T): T? {
+        return try {
+            block()
+        } catch (error: StreamingGatewayException) {
+            if (error.code == StreamingErrorCode.AUTH_REQUIRED) {
+                throw error
+            }
+            null
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     private fun qqVkeyData(result: JSONObject): JSONObject {

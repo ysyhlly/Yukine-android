@@ -23,6 +23,36 @@ interface StreamingLocalAuthStore {
     fun cookieHeader(provider: StreamingProviderName): String?
 
     fun connected(provider: StreamingProviderName): Boolean
+
+    /**
+     * Whether encrypted credential material exists, including a credential already marked invalid.
+     * This is deliberately distinct from [connected]: invalid credentials stay on device until the
+     * user explicitly signs out or replaces them, so a temporary transport failure never erases a
+     * login.
+     */
+    fun hasStoredCredential(provider: StreamingProviderName): Boolean = !cookieHeader(provider).isNullOrBlank()
+
+    /** Returns true when a local credential is due for a lightweight platform verification. */
+    fun needsSessionMaintenance(provider: StreamingProviderName, nowEpochMs: Long): Boolean = false
+
+    fun markSessionMaintenanceStarted(provider: StreamingProviderName, nowEpochMs: Long) = Unit
+
+    fun markVerified(provider: StreamingProviderName, verifiedAtEpochMs: Long): StreamingAuthState = authState(provider)
+
+    fun markPendingVerification(
+        provider: StreamingProviderName,
+        message: String? = null
+    ): StreamingAuthState = authState(provider)
+
+    fun markInvalid(
+        provider: StreamingProviderName,
+        message: String? = null,
+        checkedAtEpochMs: Long = System.currentTimeMillis()
+    ): StreamingAuthState = authState(provider)
+
+    /** Merges a platform-refreshed Cookie header without discarding fields absent from the update. */
+    fun mergeRefreshedCookie(provider: StreamingProviderName, cookieHeader: String?): StreamingAuthState =
+        saveLogin(provider, cookieHeader)
 }
 
 class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
@@ -31,19 +61,47 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     override fun authState(provider: StreamingProviderName): StreamingAuthState {
-        val connected = preferences.getBoolean(keyConnected(provider), false)
-        val cookie = SecureSecretStore.decryptOrPlain(preferences.getString(keyCookie(provider), null))
+        val storedCookie = preferences.getString(keyCookie(provider), null)
+        val cookie = SecureSecretStore.decryptOrPlain(storedCookie)
         val displayName = preferences.getString(keyDisplayName(provider), null)
         val hasCookie = !cookie.isNullOrBlank()
+        val usableCookie = hasUsableCookie(provider, cookie)
+        val decryptionFailed = SecureSecretStore.isVersionedCiphertext(storedCookie) && cookie == null
+        val savedState = preferences.getString(keyCredentialState(provider), null)
+            ?.let(StreamingCredentialState::fromWireName)
+        val credentialState = when {
+            decryptionFailed -> StreamingCredentialState.INVALID
+            !hasCookie -> StreamingCredentialState.NOT_LOGGED_IN
+            !usableCookie -> StreamingCredentialState.INVALID
+            savedState == StreamingCredentialState.INVALID -> StreamingCredentialState.INVALID
+            savedState != null -> savedState
+            else -> StreamingCredentialState.PENDING_VERIFICATION
+        }
+        val isConnected = preferences.getBoolean(keyConnected(provider), false) &&
+            usableCookie && credentialState != StreamingCredentialState.INVALID
+        val lastVerifiedAt = preferences.getLong(keyLastVerified(provider), NO_TIMESTAMP)
+            .takeIf { it != NO_TIMESTAMP }
         return StreamingAuthState(
             kind = providerAuthKind(provider),
-            connected = connected && hasCookie,
+            connected = isConnected,
             accountDisplayName = displayName?.takeIf { it.isNotBlank() },
-            statusMessage = if (connected && hasCookie) {
-                "本地登录已保存"
-            } else {
-                "未登录"
-            }
+            statusMessage = when {
+                credentialState == StreamingCredentialState.VALID -> "本地登录有效"
+                credentialState == StreamingCredentialState.PENDING_VERIFICATION ->
+                    preferences.getString(keyStatusMessage(provider), null)
+                        ?.takeIf { it.isNotBlank() }
+                        ?: "本地登录待验证"
+                decryptionFailed -> "登录凭据无法解密，请重新登录"
+                hasCookie && !usableCookie && provider == StreamingProviderName.QQ_MUSIC ->
+                    "QQ 音乐登录凭证不完整，请重新导入 Cookie"
+                credentialState == StreamingCredentialState.INVALID ->
+                    preferences.getString(keyStatusMessage(provider), null)
+                        ?.takeIf { it.isNotBlank() }
+                        ?: "登录凭据已失效，请重新登录"
+                else -> "未登录"
+            },
+            credentialState = credentialState,
+            lastVerifiedAtEpochMs = lastVerifiedAt
         )
     }
 
@@ -52,14 +110,26 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
         cookieHeader: String?,
         displayName: String?
     ): StreamingAuthState {
-        val cookie = cookieHeader?.trim().orEmpty()
+        val cookie = StreamingCookieHeaderParser.normalize(cookieHeader)
         if (cookie.isBlank()) {
             return authState(provider)
         }
 
+        val usable = hasUsableCookie(provider, cookie)
         val editor = preferences.edit()
-            .putBoolean(keyConnected(provider), true)
+            .putBoolean(keyConnected(provider), usable)
             .putString(keyCookie(provider), SecureSecretStore.encryptOrPlain(cookie))
+            .putString(
+                keyCredentialState(provider),
+                if (usable) {
+                    StreamingCredentialState.PENDING_VERIFICATION.wireName
+                } else {
+                    StreamingCredentialState.INVALID.wireName
+                }
+            )
+            .remove(keyLastVerified(provider))
+            .remove(keyLastMaintenanceAttempt(provider))
+            .remove(keyStatusMessage(provider))
 
         if (displayName.isNullOrBlank()) {
             editor.remove(keyDisplayName(provider))
@@ -82,6 +152,10 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
             .remove(keyConnected(provider))
             .remove(keyCookie(provider))
             .remove(keyDisplayName(provider))
+            .remove(keyCredentialState(provider))
+            .remove(keyLastVerified(provider))
+            .remove(keyLastMaintenanceAttempt(provider))
+            .remove(keyStatusMessage(provider))
             .commit()
         return authState(provider)
     }
@@ -91,17 +165,122 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
             ?.takeIf { it.isNotBlank() }
     }
 
-    override fun connected(provider: StreamingProviderName): Boolean {
-        return preferences.getBoolean(keyConnected(provider), false) &&
-            !SecureSecretStore.decryptOrPlain(preferences.getString(keyCookie(provider), null)).isNullOrBlank()
+    override fun connected(provider: StreamingProviderName): Boolean = authState(provider).connected
+
+    override fun hasStoredCredential(provider: StreamingProviderName): Boolean {
+        return !preferences.getString(keyCookie(provider), null).isNullOrBlank()
+    }
+
+    override fun needsSessionMaintenance(provider: StreamingProviderName, nowEpochMs: Long): Boolean {
+        val state = authState(provider)
+        if (!state.connected || state.credentialState == StreamingCredentialState.INVALID) {
+            return false
+        }
+        val lastAttempt = preferences.getLong(keyLastMaintenanceAttempt(provider), NO_TIMESTAMP)
+        if (lastAttempt != NO_TIMESTAMP && nowEpochMs - lastAttempt < RETRY_INTERVAL_MS) {
+            return false
+        }
+        val lastVerifiedAt = state.lastVerifiedAtEpochMs
+        return state.credentialState == StreamingCredentialState.PENDING_VERIFICATION ||
+            lastVerifiedAt == null ||
+            nowEpochMs - lastVerifiedAt >= REVERIFY_INTERVAL_MS
+    }
+
+    override fun markSessionMaintenanceStarted(provider: StreamingProviderName, nowEpochMs: Long) {
+        preferences.edit().putLong(keyLastMaintenanceAttempt(provider), nowEpochMs).apply()
+    }
+
+    override fun markVerified(provider: StreamingProviderName, verifiedAtEpochMs: Long): StreamingAuthState {
+        val cookie = cookieHeader(provider)
+        if (!hasUsableCookie(provider, cookie)) {
+            return markInvalid(provider, checkedAtEpochMs = verifiedAtEpochMs)
+        }
+        preferences.edit()
+            .putBoolean(keyConnected(provider), true)
+            .putString(keyCredentialState(provider), StreamingCredentialState.VALID.wireName)
+            .putLong(keyLastVerified(provider), verifiedAtEpochMs)
+            .remove(keyStatusMessage(provider))
+            .commit()
+        return authState(provider)
+    }
+
+    override fun markPendingVerification(
+        provider: StreamingProviderName,
+        message: String?
+    ): StreamingAuthState {
+        val cookie = cookieHeader(provider)
+        if (!hasUsableCookie(provider, cookie)) {
+            return markInvalid(provider, message)
+        }
+        preferences.edit()
+            .putBoolean(keyConnected(provider), true)
+            .putString(keyCredentialState(provider), StreamingCredentialState.PENDING_VERIFICATION.wireName)
+            .apply {
+                if (message.isNullOrBlank()) remove(keyStatusMessage(provider))
+                else putString(keyStatusMessage(provider), message.trim())
+            }
+            .commit()
+        return authState(provider)
+    }
+
+    override fun markInvalid(
+        provider: StreamingProviderName,
+        message: String?,
+        checkedAtEpochMs: Long
+    ): StreamingAuthState {
+        preferences.edit()
+            .putBoolean(keyConnected(provider), false)
+            .putString(keyCredentialState(provider), StreamingCredentialState.INVALID.wireName)
+            .putLong(keyLastMaintenanceAttempt(provider), checkedAtEpochMs)
+            .apply {
+                if (message.isNullOrBlank()) remove(keyStatusMessage(provider))
+                else putString(keyStatusMessage(provider), message.trim())
+            }
+            .commit()
+        return authState(provider)
+    }
+
+    override fun mergeRefreshedCookie(
+        provider: StreamingProviderName,
+        cookieHeader: String?
+    ): StreamingAuthState {
+        val refreshed = StreamingCookieHeaderParser.normalize(cookieHeader)
+        if (refreshed.isBlank()) {
+            return authState(provider)
+        }
+        val merged = StreamingCookieHeaderParser.merge(cookieHeader(provider), refreshed)
+        if (merged == cookieHeader(provider)) {
+            return authState(provider)
+        }
+        return saveLogin(
+            provider = provider,
+            cookieHeader = merged,
+            displayName = preferences.getString(keyDisplayName(provider), null)
+        )
+    }
+
+    private fun hasUsableCookie(provider: StreamingProviderName, cookie: String?): Boolean {
+        if (cookie.isNullOrBlank()) {
+            return false
+        }
+        val namesWithValue = StreamingCookieHeaderParser.namesWithValue(cookie)
+        return LocalStreamingLoginEndpoints.hasSessionToken(provider, namesWithValue) &&
+            (provider != StreamingProviderName.QQ_MUSIC || hasQqPlaybackCredential(cookie))
     }
 
     private fun keyConnected(provider: StreamingProviderName) = "connected:${provider.wireName}"
     private fun keyCookie(provider: StreamingProviderName) = "cookie:${provider.wireName}"
     private fun keyDisplayName(provider: StreamingProviderName) = "display:${provider.wireName}"
+    private fun keyCredentialState(provider: StreamingProviderName) = "credential_state:${provider.wireName}"
+    private fun keyLastVerified(provider: StreamingProviderName) = "last_verified:${provider.wireName}"
+    private fun keyLastMaintenanceAttempt(provider: StreamingProviderName) = "last_maintenance_attempt:${provider.wireName}"
+    private fun keyStatusMessage(provider: StreamingProviderName) = "credential_status:${provider.wireName}"
 
     companion object {
         const val PREFS_NAME: String = "streaming_local_auth"
+        private const val NO_TIMESTAMP: Long = -1L
+        private const val RETRY_INTERVAL_MS: Long = 15 * 60 * 1000L
+        private const val REVERIFY_INTERVAL_MS: Long = 12 * 60 * 60 * 1000L
 
         fun providerAuthKind(provider: StreamingProviderName): StreamingAuthKind {
             return when (provider) {

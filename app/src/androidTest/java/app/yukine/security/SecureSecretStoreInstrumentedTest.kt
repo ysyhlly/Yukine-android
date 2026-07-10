@@ -37,9 +37,11 @@ class SecureSecretStoreInstrumentedTest {
         val encrypted = SecureSecretStore.encrypt(plain)
 
         assertTrue(!encrypted.isNullOrBlank())
+        assertTrue(encrypted!!.startsWith("enc:v1:"))
         assertNotEquals(plain, encrypted)
         assertEquals(plain, SecureSecretStore.decrypt(encrypted))
         assertEquals("legacy-plain", SecureSecretStore.decryptOrPlain("legacy-plain"))
+        assertEquals(null, SecureSecretStore.decryptOrPlain("enc:v1:not-a-valid-ciphertext"))
     }
 
     @Test

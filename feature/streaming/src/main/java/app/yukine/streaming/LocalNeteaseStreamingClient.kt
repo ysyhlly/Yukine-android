@@ -4,17 +4,45 @@ import kotlin.math.absoluteValue
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.security.KeyFactory
+import java.security.SecureRandom
 import java.util.concurrent.atomic.AtomicInteger
+import javax.crypto.Cipher
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
+import java.security.spec.X509EncodedKeySpec
+import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
 
 interface NeteaseHttpClient {
     fun getJson(path: String, query: Map<String, String>, cookieHeader: String?): JSONObject
+
+    /**
+     * Posts a form request and exposes response Cookie headers. Existing test/local clients can
+     * omit this capability; session maintenance then falls back to lightweight verification.
+     */
+    fun postForm(
+        path: String,
+        form: Map<String, String>,
+        cookieHeader: String?
+    ): NeteaseHttpResponse {
+        throw StreamingGatewayException(
+            "NetEase session refresh is unavailable for this HTTP client",
+            code = StreamingErrorCode.SOURCE_UNAVAILABLE
+        )
+    }
 }
+
+data class NeteaseHttpResponse(
+    val body: JSONObject,
+    val setCookieHeaders: List<String> = emptyList()
+)
 
 class DefaultNeteaseHttpClient(
     private val baseUrl: String = "https://music.163.com",
@@ -22,16 +50,45 @@ class DefaultNeteaseHttpClient(
     private val readTimeoutMs: Int = 12_000
 ) : NeteaseHttpClient {
     override fun getJson(path: String, query: Map<String, String>, cookieHeader: String?): JSONObject {
+        return request("GET", path, query, null, cookieHeader).body
+    }
+
+    override fun postForm(
+        path: String,
+        form: Map<String, String>,
+        cookieHeader: String?
+    ): NeteaseHttpResponse {
+        val formBody = form.entries.joinToString("&") { (key, value) ->
+            "${encode(key)}=${encode(value)}"
+        }
+        return request("POST", path, emptyMap(), formBody, cookieHeader)
+    }
+
+    private fun request(
+        method: String,
+        path: String,
+        query: Map<String, String>,
+        formBody: String?,
+        cookieHeader: String?
+    ): NeteaseHttpResponse {
         val url = URL(url(path, query))
         val connection = url.openConnection() as HttpURLConnection
-        connection.requestMethod = "GET"
+        connection.requestMethod = method
         connection.connectTimeout = connectTimeoutMs
         connection.readTimeout = readTimeoutMs
+        connection.instanceFollowRedirects = false
         connection.setRequestProperty("Accept", "application/json")
         connection.setRequestProperty("User-Agent", "Mozilla/5.0 Yukine-Android")
         connection.setRequestProperty("Referer", "https://music.163.com/")
         cookieHeader?.takeIf { it.isNotBlank() }?.let { connection.setRequestProperty("Cookie", it) }
         try {
+            if (formBody != null) {
+                connection.doOutput = true
+                connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+                OutputStreamWriter(connection.outputStream, StandardCharsets.UTF_8).use { writer ->
+                    writer.write(formBody)
+                }
+            }
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
             val body = stream?.use { input ->
@@ -48,10 +105,23 @@ class DefaultNeteaseHttpClient(
             if (status !in 200..299) {
                 throw StreamingGatewayException(
                     "NetEase request failed ($status): ${body.ifBlank { path }}",
-                    code = StreamingErrorCode.SOURCE_UNAVAILABLE
+                    code = when (status) {
+                        HttpURLConnection.HTTP_MOVED_PERM,
+                        HttpURLConnection.HTTP_MOVED_TEMP,
+                        HttpURLConnection.HTTP_UNAUTHORIZED,
+                        HttpURLConnection.HTTP_FORBIDDEN -> StreamingErrorCode.AUTH_REQUIRED
+                        else -> StreamingErrorCode.SOURCE_UNAVAILABLE
+                    }
                 )
             }
-            return JSONObject(body).also { validateNeteaseResponse(it, path) }
+            val json = JSONObject(body).also { validateNeteaseResponse(it, path) }
+            val setCookieHeaders = connection.headerFields
+                .entries
+                .firstOrNull { (name, _) -> name.equals("Set-Cookie", ignoreCase = true) }
+                ?.value
+                .orEmpty()
+                .filterNotNull()
+            return NeteaseHttpResponse(json, setCookieHeaders)
         } catch (error: IOException) {
             throw StreamingGatewayException(
                 "NetEase request failed: ${error.message ?: path}",
@@ -108,6 +178,70 @@ class DefaultNeteaseHttpClient(
     }
 }
 
+data class NeteaseSessionRefreshResult(
+    val cookieHeader: String,
+    val changed: Boolean
+)
+
+private fun neteaseCookieValue(cookie: String, name: String): String? {
+    return cookie.split(';').firstNotNullOfOrNull { pair ->
+        val separator = pair.indexOf('=')
+        if (separator <= 0 || !pair.substring(0, separator).trim().equals(name, ignoreCase = true)) {
+            null
+        } else {
+            pair.substring(separator + 1).trim().takeIf { it.isNotBlank() }
+        }
+    }
+}
+
+/**
+ * Minimal independent implementation of the request envelope required by NetEase's token refresh
+ * endpoint. It follows the public protocol shape but intentionally exposes no login or password
+ * operations; it only renews a session the user already established in the isolated WebView.
+ */
+private object NeteaseWeApiCipher {
+    private const val PRESET_KEY = "0CoJUm6Qyw8W8jud"
+    private const val IV = "0102030405060708"
+    private const val ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    private const val PUBLIC_KEY_DER_BASE64 =
+        "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDgtQn2JZ34ZC28NWYpAUd98iZ37BUrX/aKzmFbt7clFSs6sXqHauqKWqdtLkF2KexO40H1YTX8z2lSgBBOAxLsvaklV8k4cBFK9snQXE9/DDaFt6Rr7iVZMldczhC0JNgTz+SHXT6CBHuX3e9SdB1Ua44oncaTWz7OBGLbCiK45wIDAQAB"
+    private val random = SecureRandom()
+
+    fun encryptForm(payload: JSONObject): Map<String, String> {
+        val secret = buildString(16) {
+            repeat(16) {
+                append(ALPHABET[random.nextInt(ALPHABET.length)])
+            }
+        }
+        val firstPass = aesCbc(payload.toString(), PRESET_KEY)
+        return mapOf(
+            "params" to aesCbc(firstPass, secret),
+            "encSecKey" to rsaNoPadding(secret.reversed())
+        )
+    }
+
+    private fun aesCbc(value: String, key: String): String {
+        val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+        cipher.init(
+            Cipher.ENCRYPT_MODE,
+            SecretKeySpec(key.toByteArray(StandardCharsets.UTF_8), "AES"),
+            IvParameterSpec(IV.toByteArray(StandardCharsets.UTF_8))
+        )
+        return Base64.encodeToString(cipher.doFinal(value.toByteArray(StandardCharsets.UTF_8)), Base64.NO_WRAP)
+    }
+
+    private fun rsaNoPadding(value: String): String {
+        val key = KeyFactory.getInstance("RSA").generatePublic(
+            X509EncodedKeySpec(Base64.decode(PUBLIC_KEY_DER_BASE64, Base64.NO_WRAP))
+        )
+        val cipher = Cipher.getInstance("RSA/ECB/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, key)
+        return cipher.doFinal(value.toByteArray(StandardCharsets.UTF_8)).joinToString("") { byte ->
+            (byte.toInt() and 0xff).toString(16).padStart(2, '0')
+        }
+    }
+}
+
 class LocalNeteaseStreamingClient(
     private val authStore: StreamingLocalAuthStore?,
     private val httpClient: NeteaseHttpClient = DefaultNeteaseHttpClient()
@@ -117,6 +251,36 @@ class LocalNeteaseStreamingClient(
 
     fun canHandle(provider: StreamingProviderName): Boolean {
         return supportsProvider(provider) && authStore?.connected(provider) == true
+    }
+
+    /** Lightweight account API used to validate a persisted session without loading a playlist. */
+    fun verifySession(): String {
+        return resolveUserId(requireCookie())
+    }
+
+    /**
+     * Refreshes a NetEase web session through the provider's token-refresh endpoint when supported.
+     * QR-login cookies are known to be unsupported by that endpoint, so callers must still verify
+     * the returned/current session before deciding that a credential is invalid.
+     */
+    fun refreshSession(): NeteaseSessionRefreshResult {
+        val cookie = requireCookie()
+        val requestCookie = StreamingCookieHeaderParser.merge(cookie, "os=pc")
+        val csrf = neteaseCookieValue(requestCookie, "__csrf").orEmpty()
+        val response = httpClient.postForm(
+            path = "/weapi/login/token/refresh",
+            form = NeteaseWeApiCipher.encryptForm(JSONObject().put("csrf_token", csrf)),
+            cookieHeader = requestCookie
+        )
+        var refreshed = requestCookie
+        response.body.optString("cookie").takeIf { it.isNotBlank() }?.let { bodyCookie ->
+            refreshed = StreamingCookieHeaderParser.merge(refreshed, bodyCookie)
+        }
+        refreshed = StreamingCookieHeaderParser.mergeSetCookieHeaders(refreshed, response.setCookieHeaders)
+        return NeteaseSessionRefreshResult(
+            cookieHeader = refreshed,
+            changed = refreshed != cookie
+        )
     }
 
     companion object {

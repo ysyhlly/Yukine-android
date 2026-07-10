@@ -66,6 +66,8 @@ class StreamingViewModel @Inject constructor(
     private var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
     private val queueWindowPreResolveInFlight =
         ConcurrentHashMap.newKeySet<StreamingQueuePreResolveKey>()
+    private val sessionMaintenanceInFlight =
+        ConcurrentHashMap.newKeySet<StreamingProviderName>()
     val streaming: StateFlow<StreamingSearchState> = streamingState.asStateFlow()
     var state: StreamingSearchState
         get() = streamingState.value
@@ -735,7 +737,7 @@ class StreamingViewModel @Inject constructor(
         beginStreamingRequest()
         viewModelScope.launch {
             runCatching {
-                streamingRepository.authState(provider)
+                streamingRepository.refreshAuthSession(provider, force = true)
             }.onSuccess { authState ->
                 updateStreamingAuthState(provider, authState)
                 updateStreamingDiagnostics(streamingRepository.diagnostics())
@@ -915,6 +917,31 @@ class StreamingViewModel @Inject constructor(
     ) { resolvedTracks ->
         resolvedTracks.forEach { (oldTrackId, resolved) ->
             onResolved.onResult(oldTrackId, resolved)
+        }
+    }
+
+    /**
+     * Foreground maintenance for local NetEase/QQ sessions. The repository/store throttle actual
+     * network work, and this method deliberately avoids the global loading/error UI so reopening
+     * the app never feels blocked by a background cookie check.
+     */
+    fun maintainStreamingAuthSessions(): Job {
+        return viewModelScope.launch {
+            listOf(StreamingProviderName.NETEASE, StreamingProviderName.QQ_MUSIC).forEach { provider ->
+                if (!sessionMaintenanceInFlight.add(provider)) {
+                    return@forEach
+                }
+                try {
+                    runCatching {
+                        streamingRepository.refreshAuthSession(provider)
+                    }.onSuccess { authState ->
+                        updateStreamingAuthState(provider, authState)
+                    }
+                } finally {
+                    sessionMaintenanceInFlight.remove(provider)
+                }
+            }
+            updateStreamingDiagnostics(streamingRepository.diagnostics())
         }
     }
 

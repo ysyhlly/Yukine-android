@@ -69,6 +69,22 @@ class LocalStreamingLoginEndpointsTest {
     }
 
     @Test
+    fun neteaseCsrfAloneDoesNotProveAnAccountSession() {
+        assertFalse(
+            LocalStreamingLoginEndpoints.hasSessionToken(
+                StreamingProviderName.NETEASE,
+                listOf("__csrf")
+            )
+        )
+        assertTrue(
+            LocalStreamingLoginEndpoints.hasSessionToken(
+                StreamingProviderName.NETEASE,
+                listOf("__csrf", "MUSIC_U")
+            )
+        )
+    }
+
+    @Test
     fun hasSessionTokenTrimsCookieNames() {
         assertTrue(
             LocalStreamingLoginEndpoints.hasSessionToken(

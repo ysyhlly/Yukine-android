@@ -241,65 +241,15 @@ class StreamingWebAuthActivity : Activity() {
     }
 
     private fun collectCookieHeader(logOnly: Boolean = false): String? {
-        val cookieManager = CookieManager.getInstance()
-        cookieManager.flush()
-        // Query every domain the provider might store cookies on (login sub-domain AND the
-        // registrable parent domain where the real session token usually lives), then merge them
-        // into one header. Querying a single domain — as the old code did — silently dropped the
-        // session token (e.g. NetEase MUSIC_U on .163.com, Bilibili SESSDATA on .bilibili.com),
-        // which is why captured cookies looked "fake": present but missing the auth credential.
-        val candidates = LinkedHashSet<String>()
-        lastProviderUrl?.takeIf { it.isNotBlank() }?.let { candidates.add(it) }
-        intent.getStringExtra(EXTRA_URL)?.takeIf { it.isNotBlank() }?.let { candidates.add(it) }
         val provider = intent.getStringExtra(EXTRA_PROVIDER)
             ?.takeIf { it.isNotBlank() }
             ?.let { StreamingProviderName.fromWireName(it) }
-        if (provider != null) {
-            candidates.addAll(app.yukine.streaming.LocalStreamingLoginEndpoints.cookieDomainHints(provider))
-        }
-
-        // name -> value. A later non-empty value may replace an early domain's empty placeholder.
-        val merged = LinkedHashMap<String, String>()
-        for (candidate in candidates) {
-            val raw = cookieManager.getCookie(candidate)?.takeIf { it.isNotBlank() } ?: continue
-            for (pair in raw.split(";")) {
-                val trimmed = pair.trim()
-                if (trimmed.isEmpty()) continue
-                val eq = trimmed.indexOf('=')
-                if (eq <= 0) continue
-                val name = trimmed.substring(0, eq).trim()
-                val value = trimmed.substring(eq + 1).trim()
-                if (
-                    name.isNotEmpty() &&
-                    (!merged.containsKey(name) || (merged[name].isNullOrBlank() && value.isNotBlank()))
-                ) {
-                    merged[name] = value
-                }
-            }
-        }
-        Log.d(TAG, "Captured streaming cookie names: ${merged.keys.sorted().joinToString(",")}")
-        if (merged.isEmpty()) {
-            return null
-        }
-        val header = merged.entries.joinToString("; ") { "${it.key}=${it.value}" }
-        // A session token only proves login when it has a real value. QQ Music (and others) can set
-        // a name-only placeholder such as `qm_keyst=` before the credential is issued; counting that
-        // as logged-in produced a false success where the UI showed "connected" and search ran, but
-        // playback later failed with "cookie incomplete" because resolvePlayback needs the value.
-        // Validate against names that actually carry a non-blank value so login matches playback.
-        val namesWithValue = merged.entries
-            .filter { it.value.isNotBlank() }
-            .map { it.key }
-        if (provider != null &&
-            !app.yukine.streaming.LocalStreamingLoginEndpoints.hasSessionToken(provider, namesWithValue)
-        ) {
-            // We captured cookies but none of the names the provider uses to prove login. Treat as
-            // not-logged-in so the UI does not report a false success. Returning null lets
-            // completeAuth() surface an "auth canceled / incomplete" state instead.
-            return null
-        }
+        val header = AndroidStreamingWebCookieSessionSource.collectCookieHeader(
+            provider = provider,
+            extraCandidates = listOfNotNull(lastProviderUrl, intent.getStringExtra(EXTRA_URL))
+        )
         if (logOnly) {
-            Log.d(TAG, "Streaming auth cookie is ready for provider=$provider")
+            Log.d(TAG, "Streaming auth cookie is ${if (header == null) "not ready" else "ready"} for provider=$provider")
         }
         return header
     }
@@ -324,6 +274,12 @@ class StreamingWebAuthActivity : Activity() {
         const val EXTRA_URL: String = "app.yukine.extra.URL"
         const val EXTRA_COOKIE_HEADER: String = "app.yukine.extra.COOKIE_HEADER"
         private var webViewSuffixApplied: Boolean = false
+
+        /** Must run before any CookieManager access so session maintenance uses the isolated jar. */
+        @JvmStatic
+        internal fun prepareStreamingAuthCookieStore() {
+            applyWebViewDataDirectorySuffix()
+        }
 
         @Synchronized
         private fun applyWebViewDataDirectorySuffix() {

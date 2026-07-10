@@ -9,5 +9,6 @@ class EchoApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         CrashLogger.install(this)
+        StreamingSessionMaintenanceScheduler.schedule(this)
     }
 }

@@ -9,6 +9,9 @@ import java.net.URL
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 
 interface StreamingGateway {
@@ -50,6 +53,15 @@ interface StreamingGateway {
     suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource
 
     suspend fun authState(provider: StreamingProviderName): StreamingAuthState
+
+    /**
+     * Bypasses cached auth metadata to validate and, where the provider supports it, renew a local
+     * session. Implementations without a local credential capability retain the existing state.
+     */
+    suspend fun refreshAuthSession(
+        provider: StreamingProviderName,
+        force: Boolean = false
+    ): StreamingAuthState = authState(provider)
 
     suspend fun startAuth(request: StreamingAuthRequest): StreamingAuthResult
 
@@ -190,6 +202,7 @@ class RemoteStreamingGateway(
     private val circuitBreakerThreshold: Int = 3,
     private val circuitOpenMs: Long = 30_000L,
     private val localAuthStore: StreamingLocalAuthStore? = null,
+    private val webCookieSessionSource: StreamingWebCookieSessionSource = NoopStreamingWebCookieSessionSource,
     private val localNeteaseClient: LocalNeteaseStreamingClient = LocalNeteaseStreamingClient(localAuthStore),
     private val localQqMusicClient: LocalQqMusicStreamingClient = LocalQqMusicStreamingClient(localAuthStore),
     private val localLuoxueClient: LocalLuoxueStreamingClient = LocalLuoxueStreamingClient(
@@ -201,6 +214,7 @@ class RemoteStreamingGateway(
     private var consecutiveGatewayFailures = 0
     private var circuitOpenUntilMs = 0L
     private var rateLimitedUntilMs = 0L
+    private val sessionMaintenanceLocks = ConcurrentHashMap<StreamingProviderName, Mutex>()
     private val localProviders = LocalStreamingProviderRegistry(
         localAuthStore,
         localNeteaseClient,
@@ -427,6 +441,7 @@ class RemoteStreamingGateway(
         if (!configured() && provider == offlineProvider.descriptor.name) {
             return emptyList()
         }
+        requireCurrentLocalSession(provider)
         if (!configured() && provider == StreamingProviderName.NETEASE && localNeteaseClient.canHandle(provider)) {
             return localNeteaseClient.userPlaylists()
         }
@@ -458,6 +473,7 @@ class RemoteStreamingGateway(
         if (!configured() && provider == offlineProvider.descriptor.name) {
             return emptyList()
         }
+        requireCurrentLocalSession(provider)
         if (!configured() && provider == StreamingProviderName.NETEASE && localNeteaseClient.canHandle(provider)) {
             return localNeteaseClient.userLikedTracks()
         }
@@ -483,6 +499,7 @@ class RemoteStreamingGateway(
         // No remote gateway endpoint exists for personalized recommendations; serve NetEase via the
         // local client and return empty for everything else. In local mode artwork is used as-is
         // (matching userLikedTracks' local branch) so we don't proxy through an unconfigured gateway.
+        requireCurrentLocalSession(provider)
         if (provider == StreamingProviderName.NETEASE && localNeteaseClient.canHandle(provider)) {
             val tracks = localNeteaseClient.dailyRecommendedTracks()
             return if (configured()) tracks.map { it.withProxiedArtwork() } else tracks
@@ -492,6 +509,7 @@ class RemoteStreamingGateway(
 
     override suspend fun heartbeatRecommendations(request: StreamingHeartbeatRequest): List<StreamingTrack> {
         val provider = request.provider
+        requireCurrentLocalSession(provider)
         if (localProviders.canHandle(provider) && provider == StreamingProviderName.NETEASE) {
             val tracks = localNeteaseClient.heartbeatRecommendedTracks(
                 seedTrackId = request.providerTrackId,
@@ -507,6 +525,9 @@ class RemoteStreamingGateway(
         if (!configured() && request.provider == offlineProvider.descriptor.name) {
             return offlineProvider.resolvePlayback(request)
         }
+        // First restricted playback after a saved login is a useful, low-noise verification point.
+        // The store throttles this to avoid a network request on every track.
+        requireCurrentLocalSession(request.provider)
         if (!configured()) {
             localProviders.provider(request.provider)?.takeIf { it.descriptor.enabled }?.let { provider ->
                 return provider.resolvePlayback(request)
@@ -559,6 +580,126 @@ class RemoteStreamingGateway(
             StreamingGatewayJson.authState(get("auth/state?provider=${encode(provider.wireName)}"), provider)
         } catch (_: StreamingGatewayException) {
             localAuthStore?.authState(provider) ?: disconnectedAuthState(provider)
+        }
+    }
+
+    override suspend fun refreshAuthSession(
+        provider: StreamingProviderName,
+        force: Boolean
+    ): StreamingAuthState {
+        val store = localAuthStore ?: return authState(provider)
+        if (provider != StreamingProviderName.NETEASE && provider != StreamingProviderName.QQ_MUSIC) {
+            return authState(provider)
+        }
+        if (!store.hasStoredCredential(provider)) {
+            return authState(provider)
+        }
+        val lock = sessionMaintenanceLocks.getOrPut(provider) { Mutex() }
+        return lock.withLock {
+            // The WebView cookie jar can rotate a cookie while the app is alive. Sync it first;
+            // this is safe for both providers and does not send credentials to a configured gateway.
+            runCatching { webCookieSessionSource.readCookieHeader(provider) }
+                .getOrNull()
+                ?.takeIf { it.isNotBlank() && it != store.cookieHeader(provider) }
+                ?.let { refreshed -> store.mergeRefreshedCookie(provider, refreshed) }
+
+            var state = store.authState(provider)
+            if (state.credentialState == StreamingCredentialState.INVALID || !state.connected) {
+                return@withLock state
+            }
+            val now = clockMs()
+            if (!force && !store.needsSessionMaintenance(provider, now)) {
+                return@withLock state
+            }
+            store.markSessionMaintenanceStarted(provider, now)
+            state = when (provider) {
+                StreamingProviderName.NETEASE -> refreshNeteaseSession(store, now)
+                StreamingProviderName.QQ_MUSIC -> verifyQqMusicSession(store, now)
+                else -> state
+            }
+            state
+        }
+    }
+
+    /** Ensures account-only actions and restricted playback do not rely on an unverified cookie. */
+    private suspend fun requireCurrentLocalSession(provider: StreamingProviderName) {
+        if (
+            (provider != StreamingProviderName.NETEASE && provider != StreamingProviderName.QQ_MUSIC) ||
+            localAuthStore?.hasStoredCredential(provider) != true
+        ) {
+            return
+        }
+        val maintained = refreshAuthSession(provider)
+        if (maintained.credentialState == StreamingCredentialState.INVALID || !maintained.connected) {
+            throw StreamingGatewayException(
+                maintained.statusMessage ?: "登录凭据已失效，请重新登录",
+                code = StreamingErrorCode.AUTH_REQUIRED
+            )
+        }
+    }
+
+    private fun refreshNeteaseSession(
+        store: StreamingLocalAuthStore,
+        now: Long
+    ): StreamingAuthState {
+        // QR-login cookies may not support the refresh endpoint. Refresh failure is therefore not
+        // proof of logout; the account endpoint below is the authoritative verification step.
+        runCatching { localNeteaseClient.refreshSession() }
+            .getOrNull()
+            ?.takeIf { it.changed }
+            ?.let { refreshed -> store.mergeRefreshedCookie(StreamingProviderName.NETEASE, refreshed.cookieHeader) }
+        return try {
+            localNeteaseClient.verifySession()
+            store.markVerified(StreamingProviderName.NETEASE, now)
+        } catch (error: StreamingGatewayException) {
+            if (error.code == StreamingErrorCode.AUTH_REQUIRED) {
+                store.markInvalid(
+                    StreamingProviderName.NETEASE,
+                    message = "网易云登录已失效，请重新登录",
+                    checkedAtEpochMs = now
+                )
+            } else {
+                store.markPendingVerification(
+                    StreamingProviderName.NETEASE,
+                    message = "网易云登录待验证（网络暂不可用）"
+                )
+            }
+        } catch (_: Throwable) {
+            store.markPendingVerification(
+                StreamingProviderName.NETEASE,
+                message = "网易云登录待验证（网络暂不可用）"
+            )
+        }
+    }
+
+    private fun verifyQqMusicSession(
+        store: StreamingLocalAuthStore,
+        now: Long
+    ): StreamingAuthState {
+        return try {
+            // A browser Cookie does not reliably contain QQ's refresh_key/refresh_token pair. We
+            // therefore verify it and automatically sync any WebView-rotated key, but never fake
+            // a full-token refresh from an incomplete Cookie header.
+            localQqMusicClient.verifySession()
+            store.markVerified(StreamingProviderName.QQ_MUSIC, now)
+        } catch (error: StreamingGatewayException) {
+            if (error.code == StreamingErrorCode.AUTH_REQUIRED) {
+                store.markInvalid(
+                    StreamingProviderName.QQ_MUSIC,
+                    message = "QQ 音乐登录已失效，请重新登录",
+                    checkedAtEpochMs = now
+                )
+            } else {
+                store.markPendingVerification(
+                    StreamingProviderName.QQ_MUSIC,
+                    message = "QQ 音乐登录待验证（网络暂不可用）"
+                )
+            }
+        } catch (_: Throwable) {
+            store.markPendingVerification(
+                StreamingProviderName.QQ_MUSIC,
+                message = "QQ 音乐登录待验证（网络暂不可用）"
+            )
         }
     }
 
@@ -635,7 +776,7 @@ class RemoteStreamingGateway(
         localState: StreamingAuthState?,
         remoteState: StreamingAuthState
     ): StreamingAuthState {
-        if (localState?.connected != true || remoteState.connected) {
+        if (localState?.connected != true) {
             return remoteState
         }
         return remoteState.copy(
@@ -644,12 +785,15 @@ class RemoteStreamingGateway(
             accountDisplayName = remoteState.accountDisplayName ?: localState.accountDisplayName,
             accountUsername = remoteState.accountUsername ?: localState.accountUsername,
             accountAvatarUrl = remoteState.accountAvatarUrl ?: localState.accountAvatarUrl,
-            statusMessage = remoteState.statusMessage ?: localState.statusMessage
+            statusMessage = localState.statusMessage ?: remoteState.statusMessage,
+            credentialState = localState.credentialState,
+            lastVerifiedAtEpochMs = localState.lastVerifiedAtEpochMs
         )
     }
 
     override suspend fun signOut(provider: StreamingProviderName): StreamingAuthState {
         localAuthStore?.signOut(provider)
+        runCatching { webCookieSessionSource.clearSession(provider) }
         if (!configured()) {
             return localAuthStore?.authState(provider) ?: disconnectedAuthState(provider)
         }

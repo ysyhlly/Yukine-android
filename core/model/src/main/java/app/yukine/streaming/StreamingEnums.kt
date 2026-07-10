@@ -110,3 +110,23 @@ enum class StreamingAuthKind(val wireName: String) {
     ISOLATED_WEB_VIEW_COOKIE("isolated_web_view_cookie"),
     REMOTE_GATEWAY("remote_gateway")
 }
+
+/**
+ * The locally persisted lifecycle of a provider credential.
+ *
+ * This intentionally describes the credential rather than the current network state: a transient
+ * network failure moves a cookie to [PENDING_VERIFICATION], while only an explicit platform
+ * rejection moves it to [INVALID].
+ */
+enum class StreamingCredentialState(val wireName: String) {
+    NOT_LOGGED_IN("not_logged_in"),
+    PENDING_VERIFICATION("pending_verification"),
+    VALID("valid"),
+    INVALID("invalid");
+
+    companion object {
+        fun fromWireName(value: String?): StreamingCredentialState? {
+            return entries.firstOrNull { it.wireName == value.orEmpty().trim().lowercase() }
+        }
+    }
+}

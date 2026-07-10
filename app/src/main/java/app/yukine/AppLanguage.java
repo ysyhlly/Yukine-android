@@ -504,6 +504,9 @@ public final class AppLanguage {
         put("streaming.load.more", "Load more", "\u52a0\u8f7d\u66f4\u591a");
         put("streaming.play.resolved.track", "Play resolved song", "\u64ad\u653e\u5df2\u89e3\u6790\u6b4c\u66f2");
         put("streaming.status.signed.in", "Signed in", "\u5df2\u767b\u5f55");
+        put("streaming.status.session.verified", "Verified", "\u5df2\u9a8c\u8bc1");
+        put("streaming.status.session.pending.verification", "Session pending verification", "\u767b\u5f55\u5f85\u9a8c\u8bc1");
+        put("streaming.status.session.invalid", "Session expired; sign in again", "\u767b\u5f55\u5df2\u5931\u6548\uff0c\u8bf7\u91cd\u65b0\u767b\u5f55");
         put("streaming.status.online.authenticated", "Online, authenticated", "\u5728\u7ebf\uff0c\u5df2\u8ba4\u8bc1");
         put("streaming.status.online", "Online", "\u5728\u7ebf");
         put("streaming.status.unavailable", "Unavailable", "\u4e0d\u53ef\u7528");

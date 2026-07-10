@@ -17,7 +17,13 @@ data class StreamingAuthState(
     val accountDisplayName: String? = null,
     val accountUsername: String? = null,
     val accountAvatarUrl: String? = null,
-    val statusMessage: String? = null
+    val statusMessage: String? = null,
+    val credentialState: StreamingCredentialState = if (connected) {
+        StreamingCredentialState.VALID
+    } else {
+        StreamingCredentialState.NOT_LOGGED_IN
+    },
+    val lastVerifiedAtEpochMs: Long? = null
 )
 
 data class StreamingProviderDescriptor(

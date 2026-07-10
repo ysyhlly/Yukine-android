@@ -42,8 +42,12 @@ internal class StreamingPlaybackController(
             listener.adaptiveStreamingQuality()
         ) { resolved ->
             if (resolved == null) {
+                val error = streamingViewModel.state.errorMessage?.takeIf { it.isNotBlank() }
                 listener.setStatus(
-                    streamingViewModel.prepareStreamingPlaybackStatusText(listener.languageMode(), null).resolveFailed
+                    error ?: streamingViewModel.prepareStreamingPlaybackStatusText(
+                        listener.languageMode(),
+                        null
+                    ).resolveFailed
                 )
                 return@resolveStreamingTrackListForPlayback
             }

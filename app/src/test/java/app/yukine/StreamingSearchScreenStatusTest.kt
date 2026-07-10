@@ -84,4 +84,54 @@ class StreamingSearchScreenStatusTest {
 
         assertEquals("已登录 - Yukine", status)
     }
+
+    @Test
+    fun providerStatusSurfacesPendingAndInvalidCredentialStates() {
+        val labels = StreamingSearchLabels.empty().copy(
+            sessionVerified = "已验证",
+            sessionPendingVerification = "待验证",
+            sessionInvalid = "已失效"
+        )
+
+        assertEquals(
+            "已登录 · 已验证",
+            streamingProviderStatusText(
+                message = null,
+                status = StreamingProviderStatus.READY,
+                health = null,
+                authState = StreamingAuthState(
+                    connected = true,
+                    credentialState = app.yukine.streaming.StreamingCredentialState.VALID,
+                    lastVerifiedAtEpochMs = 1L
+                ),
+                labels = labels
+            )
+        )
+
+        assertEquals(
+            "待验证",
+            streamingProviderStatusText(
+                message = null,
+                status = StreamingProviderStatus.READY,
+                health = null,
+                authState = StreamingAuthState(
+                    connected = true,
+                    credentialState = app.yukine.streaming.StreamingCredentialState.PENDING_VERIFICATION
+                ),
+                labels = labels
+            )
+        )
+        assertEquals(
+            "已失效",
+            streamingProviderStatusText(
+                message = null,
+                status = StreamingProviderStatus.NEEDS_ACCOUNT,
+                health = null,
+                authState = StreamingAuthState(
+                    credentialState = app.yukine.streaming.StreamingCredentialState.INVALID
+                ),
+                labels = labels
+            )
+        )
+    }
 }
