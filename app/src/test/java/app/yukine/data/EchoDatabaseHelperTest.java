@@ -37,6 +37,7 @@ public final class EchoDatabaseHelperTest {
     private static final String MIGRATION_DATABASE = "test-echo-migration.db";
     private static final String TRANSACTION_DATABASE = "test-echo-transaction.db";
     private static final String CONCURRENT_DATABASE = "test-echo-concurrent.db";
+    private static final String SETTINGS_DATABASE = "test-echo-settings.db";
 
     private EchoDatabaseHelper helper;
 
@@ -50,6 +51,18 @@ public final class EchoDatabaseHelperTest {
         deleteDatabase(context, MIGRATION_DATABASE);
         deleteDatabase(context, TRANSACTION_DATABASE);
         deleteDatabase(context, CONCURRENT_DATABASE);
+        deleteDatabase(context, SETTINGS_DATABASE);
+    }
+
+    @Test
+    public void systemMediaLyricsTitleSettingDefaultsOffAndPersists() {
+        helper = new EchoDatabaseHelper(ApplicationProvider.getApplicationContext(), SETTINGS_DATABASE);
+
+        Assert.assertFalse(helper.loadSystemMediaLyricsTitleEnabled());
+
+        helper.saveSystemMediaLyricsTitleEnabled(true);
+
+        Assert.assertTrue(helper.loadSystemMediaLyricsTitleEnabled());
     }
 
     @Test

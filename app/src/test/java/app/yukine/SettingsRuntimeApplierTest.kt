@@ -39,6 +39,10 @@ class SettingsRuntimeApplierTest {
                 calls += "statusLyrics:$enabled"
             }
 
+            override fun setSystemMediaLyricsTitleEnabled(enabled: Boolean) {
+                calls += "systemMediaTitle:$enabled"
+            }
+
             override fun setPlaybackRestoreEnabled(enabled: Boolean) {
                 calls += "restore:$enabled"
             }
@@ -79,6 +83,7 @@ class SettingsRuntimeApplierTest {
         assertTrue(applier.apply(SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(true)))
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyAudioEffects(AudioEffectSettings.DEFAULT.withEnabled(true))))
         assertTrue(applier.apply(SettingsRuntimeEffect.SetStatusBarLyrics(false)))
+        assertTrue(applier.apply(SettingsRuntimeEffect.SetSystemMediaLyricsTitleEnabled(true)))
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyFloatingLyrics(true)))
         floatingAllowed = false
         assertFalse(applier.apply(SettingsRuntimeEffect.ApplyFloatingLyrics(true)))
@@ -96,6 +101,7 @@ class SettingsRuntimeApplierTest {
                 "concurrent:true",
                 "effects:true",
                 "statusLyrics:false",
+                "systemMediaTitle:true",
                 "floating:true",
                 "floating:true",
                 "floatingPermission",

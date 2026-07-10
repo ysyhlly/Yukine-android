@@ -19,6 +19,7 @@ class LoadSettingsPreferencesUseCaseTest {
         operations.streamingAudioQuality = "bad-quality"
         operations.concurrentPlaybackEnabled = false
         operations.statusBarLyricsEnabled = false
+        operations.systemMediaLyricsTitleEnabled = true
         operations.floatingLyricsEnabled = true
         operations.nowPlayingGesturesEnabled = false
         operations.playbackRestoreEnabled = true
@@ -37,6 +38,7 @@ class LoadSettingsPreferencesUseCaseTest {
         assertFalse(result.concurrentPlaybackEnabled)
         assertFalse(result.audioEffectSettings.enabled)
         assertFalse(result.statusBarLyricsEnabled)
+        assertEquals(true, result.systemMediaLyricsTitleEnabled)
         assertEquals(true, result.floatingLyricsEnabled)
         assertFalse(result.nowPlayingGesturesEnabled)
         assertEquals(true, result.playbackRestoreEnabled)
@@ -44,7 +46,7 @@ class LoadSettingsPreferencesUseCaseTest {
         assertEquals(TrackShareStyle.PLATFORM_CARD, result.shareStyle)
         assertEquals("content://all", result.pageBackgrounds.sharedUri)
         assertEquals(
-            listOf("theme", "accent", "language", "speed", "volume", "quality", "concurrent", "effects", "statusLyrics", "floatingLyrics", "gestures", "restore", "replayGain", "shareStyle", "backgrounds"),
+            listOf("theme", "accent", "language", "speed", "volume", "quality", "concurrent", "effects", "statusLyrics", "floatingLyrics", "systemMediaTitle", "gestures", "restore", "replayGain", "shareStyle", "backgrounds"),
             operations.events
         )
     }
@@ -72,6 +74,7 @@ class LoadSettingsPreferencesUseCaseTest {
         var concurrentPlaybackEnabled = true
         var audioEffectSettings = AudioEffectSettings.DEFAULT
         var statusBarLyricsEnabled = true
+        var systemMediaLyricsTitleEnabled = false
         var floatingLyricsEnabled = false
         var nowPlayingGesturesEnabled = true
         var playbackRestoreEnabled = true
@@ -122,6 +125,11 @@ class LoadSettingsPreferencesUseCaseTest {
         override fun loadStatusBarLyricsEnabled(): Boolean {
             events.add("statusLyrics")
             return statusBarLyricsEnabled
+        }
+
+        override fun loadSystemMediaLyricsTitleEnabled(): Boolean {
+            events.add("systemMediaTitle")
+            return systemMediaLyricsTitleEnabled
         }
 
         override fun loadFloatingLyricsEnabled(): Boolean {

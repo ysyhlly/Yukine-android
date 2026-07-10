@@ -21,6 +21,7 @@ class ApplySettingsPreferenceUseCaseTest {
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.LyricsOffsetMs, -200L))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.AudioEffectSettings, AudioEffectSettings.DEFAULT.withEnabled(true)))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.StatusBarLyricsEnabled, false))
+        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.SystemMediaLyricsTitleEnabled, true))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.FloatingLyricsEnabled, true))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.NowPlayingGesturesEnabled, false))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.PlaybackRestoreEnabled, true))
@@ -41,6 +42,7 @@ class ApplySettingsPreferenceUseCaseTest {
                 "lyricsOffset:-200",
                 "effects:true",
                 "statusLyrics:false",
+                "systemMediaTitle:true",
                 "floatingLyrics:true",
                 "gestures:false",
                 "restore:true",
@@ -97,6 +99,10 @@ class ApplySettingsPreferenceUseCaseTest {
 
         override fun saveStatusBarLyricsEnabled(enabled: Boolean) {
             events.add("statusLyrics:$enabled")
+        }
+
+        override fun saveSystemMediaLyricsTitleEnabled(enabled: Boolean) {
+            events.add("systemMediaTitle:$enabled")
         }
 
         override fun saveFloatingLyricsEnabled(enabled: Boolean) {

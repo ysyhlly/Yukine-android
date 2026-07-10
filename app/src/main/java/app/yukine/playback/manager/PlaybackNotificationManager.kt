@@ -65,12 +65,25 @@ internal class PlaybackNotificationManager(
         val playing = stateProvider.isPlaying() || stateProvider.isPreparing()
         val isFavorite = stateProvider.isFavorite(track)
         val lyricText = currentNotificationLyric(track)
-        val signature = NotificationSignature.from(track, playing, isFavorite, lyricText)
+        val systemMediaTitle = currentSystemMediaTitle(track)
+        val signature = NotificationSignature.from(
+            track,
+            playing,
+            isFavorite,
+            lyricText,
+            systemMediaTitle
+        )
         if (!force && signature == lastPublishedNotificationSignature) {
             return
         }
         lastPublishedNotificationSignature = signature
-        val notification = playbackNotification(track, playing, isFavorite, lyricText)
+        val notification = playbackNotification(
+            track,
+            playing,
+            isFavorite,
+            lyricText,
+            systemMediaTitle
+        )
         foregroundController.startPlaybackForeground(notification)
     }
 
@@ -129,11 +142,13 @@ internal class PlaybackNotificationManager(
     }
 
     fun playbackNotification(track: Track?): Notification {
+        val lyricText = currentNotificationLyric(track)
         return playbackNotification(
             track,
             stateProvider.isPlaying() || stateProvider.isPreparing(),
             stateProvider.isFavorite(track),
-            currentNotificationLyric(track)
+            lyricText,
+            currentSystemMediaTitle(track)
         )
     }
 
@@ -141,12 +156,23 @@ internal class PlaybackNotificationManager(
         track: Track?,
         playing: Boolean,
         isFavorite: Boolean,
-        lyricText: String
+        lyricText: String,
+        systemMediaTitle: String
     ): Notification {
         val hasTrack = track != null
-        val contentText = if (lyricText.isNotEmpty()) lyricText else if (hasTrack) track!!.subtitle() else EMPTY_NOTIFICATION_TEXT
-        val titleText = if (hasTrack) track!!.title else EMPTY_NOTIFICATION_TITLE
-        val capsuleText = if (lyricText.isNotEmpty()) shortCriticalText(lyricText) else if (hasTrack) shortCriticalText(track!!.title) else "Yukine"
+        val lyricTitleEnabled = systemMediaTitle.isNotEmpty()
+        val contentText = when {
+            lyricTitleEnabled && hasTrack -> trackIdentityText(track!!)
+            lyricText.isNotEmpty() -> lyricText
+            hasTrack -> track!!.subtitle()
+            else -> EMPTY_NOTIFICATION_TEXT
+        }
+        val titleText = when {
+            lyricTitleEnabled -> systemMediaTitle
+            hasTrack -> track!!.title
+            else -> EMPTY_NOTIFICATION_TITLE
+        }
+        val capsuleText = if (titleText.isNotEmpty()) shortCriticalText(titleText) else "Yukine"
         val favoriteTitle = if (isFavorite) "Favorited" else "Favorite"
         val favoriteIcon = if (isFavorite) R.drawable.ic_notif_favorite_filled else R.drawable.ic_notif_favorite_outline
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -206,14 +232,16 @@ internal class PlaybackNotificationManager(
         val albumArtUri: String,
         val playing: Boolean,
         val favorite: Boolean,
-        val lyricText: String
+        val lyricText: String,
+        val systemMediaTitle: String
     ) {
         companion object {
             fun from(
                 track: Track?,
                 playing: Boolean,
                 favorite: Boolean,
-                lyricText: String
+                lyricText: String,
+                systemMediaTitle: String
             ): NotificationSignature =
                 NotificationSignature(
                     track?.id ?: -1L,
@@ -223,25 +251,31 @@ internal class PlaybackNotificationManager(
                     track?.albumArtUri?.toString().orEmpty(),
                     playing,
                     favorite,
-                    lyricText
+                    lyricText,
+                    systemMediaTitle
                 )
         }
     }
 
     fun mediaMetadataForTrack(track: Track): MediaMetadata {
         val lyricText = currentNotificationLyric(track)
+        val systemMediaTitle = currentSystemMediaTitle(track)
+        val lyricTitleEnabled = systemMediaTitle.isNotEmpty()
+        val currentLyric = if (lyricTitleEnabled) systemMediaTitle else lyricText
+        val trackIdentity = trackIdentityText(track)
         val metadata = MediaMetadata.Builder()
-            .setTitle(track.title)
+            .setTitle(if (lyricTitleEnabled) systemMediaTitle else track.title)
             .setArtist(track.artist)
             .setAlbumTitle(track.album)
             .setDurationMs(if (track.durationMs > 0L) track.durationMs else null)
             .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
-        if (lyricText.isNotEmpty()) {
+        if (currentLyric.isNotEmpty()) {
             val extras = Bundle()
-            extras.putString(EXTRA_CURRENT_LYRIC, lyricText)
+            extras.putString(EXTRA_CURRENT_LYRIC, currentLyric)
             extras.putString(EXTRA_LYRIC_TRACK_TITLE, track.title)
-            metadata.setSubtitle(lyricText)
-                .setDescription(lyricText)
+            extras.putString(EXTRA_LYRIC_TRACK_ARTIST, track.artist)
+            metadata.setSubtitle(if (lyricTitleEnabled) trackIdentity else lyricText)
+                .setDescription(if (lyricTitleEnabled) trackIdentity else lyricText)
                 .setExtras(extras)
         }
         if (track.albumArtUri != null) {
@@ -266,6 +300,21 @@ internal class PlaybackNotificationManager(
         return lyricsPublisherSupplier?.get()?.notificationLyricText(track).orEmpty()
     }
 
+    private fun currentSystemMediaTitle(track: Track?): String {
+        return lyricsPublisherSupplier?.get()
+            ?.systemMediaTitleLyricText(track)
+            .orEmpty()
+            .replace('\n', ' ')
+            .trim()
+    }
+
+    private fun trackIdentityText(track: Track): String {
+        return listOf(track.title, track.artist)
+            .filter { it.isNotBlank() }
+            .joinToString(" · ")
+            .ifBlank { track.subtitle() }
+    }
+
     private fun sanitizeNotificationLyric(value: String?): String {
         return lyricsPublisherSupplier?.get()?.sanitizeNotificationLyric(value).orEmpty()
     }
@@ -288,5 +337,6 @@ internal class PlaybackNotificationManager(
         private const val EXTRA_REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing"
         private const val EXTRA_CURRENT_LYRIC = "extra_current_lyric"
         private const val EXTRA_LYRIC_TRACK_TITLE = "extra_lyric_track_title"
+        private const val EXTRA_LYRIC_TRACK_ARTIST = "extra_lyric_track_artist"
     }
 }

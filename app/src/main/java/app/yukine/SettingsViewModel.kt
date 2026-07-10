@@ -503,10 +503,14 @@ class SettingsViewModel @JvmOverloads constructor(
                     runtime.lyricsOffsetMs,
                     runtime.onlineLyricsEnabled,
                     preferences.statusBarLyricsEnabled,
+                    preferences.systemMediaLyricsTitleEnabled,
                     preferences.floatingLyricsEnabled,
                     runtime.overlayPermissionGranted,
                     onNavigate = ::navigateSettingsPage,
                     onOnlineLyricsEnabledChange = { enabled -> onEvent(SettingsEvent.SetOnlineLyricsEnabled(enabled)) },
+                    onSystemMediaLyricsTitleEnabledChange = { enabled ->
+                        onEvent(SettingsEvent.SetSystemMediaLyricsTitleEnabled(enabled))
+                    },
                     onReloadLyrics = { onEvent(SettingsEvent.ReloadCurrentLyrics) },
                     onApplyLyricsOffset = { offset -> onEvent(SettingsEvent.ApplyLyricsOffset(offset)) }
                 )

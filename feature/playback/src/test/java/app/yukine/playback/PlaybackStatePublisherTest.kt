@@ -24,11 +24,13 @@ class PlaybackStatePublisherTest {
                 override fun bind() {}
                 override fun release() {}
                 override fun setStatusBarLyricsEnabled(enabled: Boolean) {}
+                override fun setSystemMediaLyricsTitleEnabled(enabled: Boolean) {}
                 override fun onAppVisibilityChanged() {}
                 override fun syncFloatingLyricsPlaybackState(snapshot: PlaybackStateSnapshot) {
                     calls.add("lyrics")
                 }
                 override fun notificationLyricText(track: Track?): String = ""
+                override fun systemMediaTitleLyricText(track: Track?): String = ""
                 override fun sanitizeNotificationLyric(value: String?): String = value ?: ""
             },
             notificationUpdater = PlaybackStatePublisher.NotificationUpdater {

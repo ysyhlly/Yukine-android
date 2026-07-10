@@ -15,6 +15,7 @@ class SettingsPlaybackServiceControlsAdapterTest {
         controls.setConcurrentPlaybackEnabled(true)
         controls.applyAudioEffectSettings(AudioEffectSettings.DEFAULT.withEnabled(true))
         controls.setStatusBarLyricsEnabled(false)
+        controls.setSystemMediaLyricsTitleEnabled(true)
         controls.setPlaybackRestoreEnabled(true)
         controls.setReplayGainEnabled(false)
 
@@ -25,6 +26,7 @@ class SettingsPlaybackServiceControlsAdapterTest {
                 "concurrent:true",
                 "effects:true",
                 "statusLyrics:false",
+                "systemMediaTitle:true",
                 "restore:true",
                 "replayGain:false"
             ),
@@ -53,6 +55,10 @@ class SettingsPlaybackServiceControlsAdapterTest {
 
         override fun setStatusBarLyricsEnabled(enabled: Boolean) {
             calls += "statusLyrics:$enabled"
+        }
+
+        override fun setSystemMediaLyricsTitleEnabled(enabled: Boolean) {
+            calls += "systemMediaTitle:$enabled"
         }
 
         override fun setPlaybackRestoreEnabled(enabled: Boolean) {

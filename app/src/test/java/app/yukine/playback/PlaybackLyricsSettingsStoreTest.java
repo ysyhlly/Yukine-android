@@ -20,6 +20,8 @@ public final class PlaybackLyricsSettingsStoreTest {
 
         assertEquals(1, publisher.setStatusBarLyricsEnabledCalls);
         assertEquals(false, publisher.statusBarLyricsEnabled);
+        assertEquals(1, publisher.setSystemMediaLyricsTitleEnabledCalls);
+        assertEquals(false, publisher.systemMediaLyricsTitleEnabled);
     }
 
     @Test
@@ -51,8 +53,21 @@ public final class PlaybackLyricsSettingsStoreTest {
         action.accept(false);
     }
 
+    @Test
+    public void systemMediaLyricsTitleActionDelegatesToPublisher() {
+        FakeLyricsPublisher publisher = new FakeLyricsPublisher();
+        Consumer<Boolean> action =
+                PlaybackLyricsSettingsStore.systemMediaLyricsTitleEnabledActionFromSupplier(() -> publisher);
+
+        action.accept(true);
+
+        assertEquals(1, publisher.setSystemMediaLyricsTitleEnabledCalls);
+        assertEquals(true, publisher.systemMediaLyricsTitleEnabled);
+    }
+
     private static final class FakeLyricsSettings implements PlaybackLyricsSettingsStore.LyricsSettings {
         boolean statusBarLyricsEnabled = true;
+        boolean systemMediaLyricsTitleEnabled;
         int loadCalls;
 
         @Override
@@ -60,11 +75,19 @@ public final class PlaybackLyricsSettingsStoreTest {
             loadCalls++;
             return statusBarLyricsEnabled;
         }
+
+        @Override
+        public boolean loadSystemMediaLyricsTitleEnabled() {
+            loadCalls++;
+            return systemMediaLyricsTitleEnabled;
+        }
     }
 
     private static final class FakeLyricsPublisher implements LyricsPublisher {
         int setStatusBarLyricsEnabledCalls;
+        int setSystemMediaLyricsTitleEnabledCalls;
         boolean statusBarLyricsEnabled = true;
+        boolean systemMediaLyricsTitleEnabled;
 
         @Override
         public void bind() {
@@ -81,6 +104,12 @@ public final class PlaybackLyricsSettingsStoreTest {
         }
 
         @Override
+        public void setSystemMediaLyricsTitleEnabled(boolean enabled) {
+            setSystemMediaLyricsTitleEnabledCalls++;
+            systemMediaLyricsTitleEnabled = enabled;
+        }
+
+        @Override
         public void onAppVisibilityChanged() {
         }
 
@@ -90,6 +119,11 @@ public final class PlaybackLyricsSettingsStoreTest {
 
         @Override
         public String notificationLyricText(Track track) {
+            return "";
+        }
+
+        @Override
+        public String systemMediaTitleLyricText(Track track) {
             return "";
         }
 

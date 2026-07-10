@@ -37,6 +37,23 @@ class PlaybackLyricsManagerTest {
     }
 
     @Test
+    fun systemMediaLyricTitleSettingChangeRefreshesSessionAndNotificationOnce() {
+        val provider = FakeStateProvider()
+        val bridge = FakeNotificationBridge().apply { notificationWorthy = true }
+        val manager = PlaybackLyricsManager(
+            ApplicationProvider.getApplicationContext<Context>(),
+            provider,
+            bridge
+        )
+
+        manager.setSystemMediaLyricsTitleEnabled(true)
+        manager.setSystemMediaLyricsTitleEnabled(true)
+
+        assertEquals(1, bridge.refreshPlaybackSessionCalls)
+        assertEquals(listOf(true), bridge.notificationForces)
+    }
+
+    @Test
     fun releaseStopsFutureStatusBarSettingRefreshes() {
         val provider = FakeStateProvider()
         val bridge = FakeNotificationBridge()
@@ -368,6 +385,22 @@ class PlaybackLyricsManagerTest {
         manager.setStatusBarLyricsEnabled(false)
 
         assertEquals("", manager.notificationLyricText(track()))
+    }
+
+    @Test
+    fun systemMediaTitleLyricRemainsAvailableWhenNotificationLyricsAreDisabled() {
+        FloatingLyricsPublisher.clear()
+        FloatingLyricsPublisher.update("Track 1", "Artist", null, true, "first line\nsecond line")
+        val manager = PlaybackLyricsManager(
+            ApplicationProvider.getApplicationContext<Context>(),
+            FakeStateProvider(),
+            FakeNotificationBridge()
+        )
+
+        manager.setStatusBarLyricsEnabled(false)
+        manager.setSystemMediaLyricsTitleEnabled(true)
+
+        assertEquals("first line\nsecond line", manager.systemMediaTitleLyricText(track()))
     }
 
     @Test

@@ -799,6 +799,7 @@ class SettingsPageStateBuilderTest {
     fun lyricsBuildsLyricsActions() {
         val navigated = mutableListOf<SettingsPage>()
         val onlineChanges = mutableListOf<Boolean>()
+        val systemMediaTitleChanges = mutableListOf<Boolean>()
         var reloadCount = 0
         val offsets = mutableListOf<Long>()
 
@@ -807,25 +808,28 @@ class SettingsPageStateBuilderTest {
             offsetMs = 500L,
             onlineLyricsEnabled = true,
             statusBarLyricsEnabled = false,
+            systemMediaLyricsTitleEnabled = false,
             floatingLyricsEnabled = true,
             overlayPermissionGranted = false,
             onNavigate = { page -> navigated += page },
             onOnlineLyricsEnabledChange = { enabled -> onlineChanges += enabled },
+            onSystemMediaLyricsTitleEnabledChange = { enabled -> systemMediaTitleChanges += enabled },
             onReloadLyrics = { reloadCount += 1 },
             onApplyLyricsOffset = { offset -> offsets += offset }
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "lyrics"), content.uiState.title)
-        assertEquals(7, content.uiState.metrics.size)
+        assertEquals(8, content.uiState.metrics.size)
         assertEquals("+0.5 s", content.uiState.metrics[0].value)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "enabled"), content.uiState.metrics[1].value)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "disabled"), content.uiState.metrics[2].value)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "enabled"), content.uiState.metrics[3].value)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "missing"), content.uiState.metrics[4].value)
-        assertEquals("LRCLIB", content.uiState.metrics[5].value)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "same.name.lrc"), content.uiState.metrics[6].value)
-        assertEquals(10, content.actions.size)
-        assertEquals("+0.5 s" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "selected"), content.actions[8].label)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "disabled"), content.uiState.metrics[3].value)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "enabled"), content.uiState.metrics[4].value)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "missing"), content.uiState.metrics[5].value)
+        assertEquals("LRCLIB", content.uiState.metrics[6].value)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "same.name.lrc"), content.uiState.metrics[7].value)
+        assertEquals(11, content.actions.size)
+        assertEquals("+0.5 s" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "selected"), content.actions[9].label)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
@@ -837,9 +841,11 @@ class SettingsPageStateBuilderTest {
         content.actions[7].onClick.run()
         content.actions[8].onClick.run()
         content.actions[9].onClick.run()
+        content.actions[10].onClick.run()
 
         assertEquals(listOf(SettingsPage.LyricsGroup, SettingsPage.StatusBarLyrics, SettingsPage.FloatingLyrics), navigated)
         assertEquals(listOf(false), onlineChanges)
+        assertEquals(listOf(true), systemMediaTitleChanges)
         assertEquals(1, reloadCount)
         assertEquals(listOf(-1000L, -500L, 0L, 500L, 1000L), offsets)
     }
@@ -853,18 +859,20 @@ class SettingsPageStateBuilderTest {
             offsetMs = 0L,
             onlineLyricsEnabled = false,
             statusBarLyricsEnabled = false,
+            systemMediaLyricsTitleEnabled = false,
             floatingLyricsEnabled = false,
             overlayPermissionGranted = true,
             onNavigate = { page -> navigated += page },
             onOnlineLyricsEnabledChange = {},
+            onSystemMediaLyricsTitleEnabledChange = {},
             onReloadLyrics = {},
             onApplyLyricsOffset = {}
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.lyrics"), content.uiState.title)
-        assertEquals(7, content.uiState.metrics.size)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "granted"), content.uiState.metrics[4].value)
-        assertEquals(10, content.actions.size)
+        assertEquals(8, content.uiState.metrics.size)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "granted"), content.uiState.metrics[5].value)
+        assertEquals(11, content.actions.size)
 
         content.actions[0].onClick.run()
 

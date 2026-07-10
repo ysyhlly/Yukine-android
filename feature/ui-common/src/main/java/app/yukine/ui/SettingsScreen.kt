@@ -36,7 +36,23 @@ data class SettingsMetric(
     val value: String,
     val compact: Boolean = false
 )
-data class SettingsAction(val label: String, val onClick: Runnable, val description: String = "")
+enum class SettingsActionStyle {
+    Default,
+    Navigation,
+    Toggle,
+    Choice,
+    Destructive
+}
+
+data class SettingsAction(
+    val label: String,
+    val onClick: Runnable,
+    val description: String = "",
+    val value: String = "",
+    val style: SettingsActionStyle = SettingsActionStyle.Default,
+    val checked: Boolean = false,
+    val section: String = ""
+)
 
 class SettingsListScrollState(
     var firstVisibleItemIndex: Int = 0,

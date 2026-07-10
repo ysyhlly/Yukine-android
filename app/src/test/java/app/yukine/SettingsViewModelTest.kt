@@ -48,6 +48,7 @@ class SettingsViewModelTest {
         viewModel.onEvent(SettingsEvent.StartSleepTimer(30))
         viewModel.onEvent(SettingsEvent.CancelSleepTimer)
         viewModel.onEvent(SettingsEvent.SetStatusBarLyricsEnabled(false))
+        viewModel.onEvent(SettingsEvent.SetSystemMediaLyricsTitleEnabled(true))
         viewModel.onEvent(SettingsEvent.SetFloatingLyricsEnabled(true))
         viewModel.onEvent(SettingsEvent.OpenFloatingLyricsPermission)
         viewModel.onEvent(SettingsEvent.ChoosePageBackground(PageBackgrounds.PAGE_HOME))
@@ -73,6 +74,7 @@ class SettingsViewModelTest {
                 SettingsEffect.StartSleepTimer(30),
                 SettingsEffect.CancelSleepTimer,
                 SettingsEffect.ShowStatus(AppLanguage.text(AppLanguage.MODE_SYSTEM, "status.bar.lyrics.disabled")),
+                SettingsEffect.ShowStatus(AppLanguage.text(AppLanguage.MODE_SYSTEM, "system.media.lyrics.title.enabled")),
                 SettingsEffect.ShowStatus(AppLanguage.text(AppLanguage.MODE_SYSTEM, "floating.lyrics.enabled")),
                 SettingsEffect.OpenFloatingLyricsPermission,
                 SettingsEffect.ChoosePageBackground(PageBackgrounds.PAGE_HOME),
@@ -281,6 +283,7 @@ class SettingsViewModelTest {
         viewModel.onEvent(SettingsEvent.ApplyLyricsOffset(5555L))
         viewModel.onEvent(SettingsEvent.ApplyAudioEffectSettings(app.yukine.playback.AudioEffectSettings.DEFAULT.withEnabled(true)))
         viewModel.onEvent(SettingsEvent.SetStatusBarLyricsEnabled(false))
+        viewModel.onEvent(SettingsEvent.SetSystemMediaLyricsTitleEnabled(true))
         viewModel.onEvent(SettingsEvent.SetFloatingLyricsEnabled(true))
         viewModel.onEvent(SettingsEvent.SetNowPlayingGesturesEnabled(false))
         viewModel.onEvent(SettingsEvent.SetPlaybackRestoreEnabled(true))
@@ -297,6 +300,7 @@ class SettingsViewModelTest {
                 "lyricsOffset:5000",
                 "audioEffects:true",
                 "statusLyrics:false",
+                "systemMediaTitle:true",
                 "floatingLyrics:true",
                 "restore:true",
                 "replayGain:false"
@@ -311,6 +315,7 @@ class SettingsViewModelTest {
                     is SettingsRuntimeEffect.SetLyricsOffsetMs -> "lyricsOffset:${effect.offsetMs}"
                     is SettingsRuntimeEffect.ApplyAudioEffects -> "audioEffects:${effect.settings.enabled}"
                     is SettingsRuntimeEffect.SetStatusBarLyrics -> "statusLyrics:${effect.enabled}"
+                    is SettingsRuntimeEffect.SetSystemMediaLyricsTitleEnabled -> "systemMediaTitle:${effect.enabled}"
                     is SettingsRuntimeEffect.ApplyFloatingLyrics -> "floatingLyrics:${effect.enabled}"
                     SettingsRuntimeEffect.OpenFloatingLyricsPermissionSettings -> "floatingPermission"
                     is SettingsRuntimeEffect.SetPlaybackRestoreEnabled -> "restore:${effect.enabled}"
@@ -333,6 +338,7 @@ class SettingsViewModelTest {
                 "lyricsOffset:5000",
                 "audioEffects:enabled=true;preset=-1;bands=;bass=0;virtualizer=0;loudness=0",
                 "statusLyrics:false",
+                "systemMediaTitle:true",
                 "floatingLyrics:true",
                 "gestures:false",
                 "restore:true",
@@ -351,6 +357,7 @@ class SettingsViewModelTest {
         assertEquals(true, state.runtime.onlineLyricsEnabled)
         assertEquals(false, state.preferences.concurrentPlaybackEnabled)
         assertEquals(false, state.preferences.statusBarLyricsEnabled)
+        assertEquals(true, state.preferences.systemMediaLyricsTitleEnabled)
         assertEquals(true, state.preferences.floatingLyricsEnabled)
         assertEquals(false, state.preferences.nowPlayingGesturesEnabled)
         assertEquals(true, state.preferences.playbackRestoreEnabled)
@@ -714,6 +721,7 @@ class SettingsViewModelTest {
                     "audioEffects:${settings.encode()}"
                 }
                 SettingsPreferenceKey.StatusBarLyricsEnabled -> "statusLyrics:${update.value}"
+                SettingsPreferenceKey.SystemMediaLyricsTitleEnabled -> "systemMediaTitle:${update.value}"
                 SettingsPreferenceKey.FloatingLyricsEnabled -> "floatingLyrics:${update.value}"
                 SettingsPreferenceKey.NowPlayingGesturesEnabled -> "gestures:${update.value}"
                 SettingsPreferenceKey.PlaybackRestoreEnabled -> "restore:${update.value}"

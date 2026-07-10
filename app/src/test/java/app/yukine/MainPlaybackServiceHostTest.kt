@@ -18,6 +18,7 @@ class MainPlaybackServiceHostTest {
             appVolumeSource = MainPlaybackServiceHost.AppVolumeSource { 0.65f },
             concurrentPlaybackSource = MainPlaybackServiceHost.ConcurrentPlaybackSource { true },
             statusBarLyricsSource = MainPlaybackServiceHost.StatusBarLyricsSource { false },
+            systemMediaLyricsTitleSource = MainPlaybackServiceHost.SystemMediaLyricsTitleSource { true },
             playbackRestoreSource = MainPlaybackServiceHost.PlaybackRestoreSource { true },
             replayGainSource = MainPlaybackServiceHost.ReplayGainSource { false },
             playbackServiceAttacher = MainPlaybackServiceHost.PlaybackServiceAttacher { calls += "attach" },
@@ -32,6 +33,7 @@ class MainPlaybackServiceHostTest {
         assertEquals(0.65f, host.appVolume())
         assertTrue(host.concurrentPlaybackEnabled())
         assertFalse(host.statusBarLyricsEnabled())
+        assertTrue(host.systemMediaLyricsTitleEnabled())
         assertTrue(host.playbackRestoreEnabled())
         assertFalse(host.replayGainEnabled())
         host.clearPlaybackService()
@@ -52,6 +54,7 @@ class MainPlaybackServiceHostTest {
             appVolumeSource = MainPlaybackServiceHost.AppVolumeSource { 1.0f },
             concurrentPlaybackSource = MainPlaybackServiceHost.ConcurrentPlaybackSource { false },
             statusBarLyricsSource = MainPlaybackServiceHost.StatusBarLyricsSource { true },
+            systemMediaLyricsTitleSource = MainPlaybackServiceHost.SystemMediaLyricsTitleSource { false },
             playbackRestoreSource = MainPlaybackServiceHost.PlaybackRestoreSource { true },
             replayGainSource = MainPlaybackServiceHost.ReplayGainSource { false },
             playbackServiceAttacher = MainPlaybackServiceHost.PlaybackServiceAttacher {
@@ -77,6 +80,7 @@ class MainPlaybackServiceHostTest {
             MainPlaybackServiceHost.AppVolumeSource { 0.9f },
             MainPlaybackServiceHost.ConcurrentPlaybackSource { false },
             MainPlaybackServiceHost.StatusBarLyricsSource { true },
+            MainPlaybackServiceHost.SystemMediaLyricsTitleSource { true },
             MainPlaybackServiceHost.PlaybackRestoreSource { false },
             MainPlaybackServiceHost.ReplayGainSource { true },
             MainPlaybackServiceHost.PlaybackServiceAttacher { calls += "attach" },
@@ -91,6 +95,7 @@ class MainPlaybackServiceHostTest {
         assertEquals(0.9f, host.appVolume())
         assertFalse(host.concurrentPlaybackEnabled())
         assertTrue(host.statusBarLyricsEnabled())
+        assertTrue(host.systemMediaLyricsTitleEnabled())
         assertFalse(host.playbackRestoreEnabled())
         assertTrue(host.replayGainEnabled())
         host.playPendingTracksIfNeeded()
@@ -170,6 +175,8 @@ class MainPlaybackServiceHostTest {
         override fun applyAudioEffectSettings(settings: AudioEffectSettings) = Unit
 
         override fun setStatusBarLyricsEnabled(enabled: Boolean) = Unit
+
+        override fun setSystemMediaLyricsTitleEnabled(enabled: Boolean) = Unit
 
         override fun setPlaybackRestoreEnabled(enabled: Boolean) = Unit
 

@@ -5313,6 +5313,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(lyricsOwner.contains("fun notifyMediaNotification(force: Boolean)"));
         assertTrue(lyricsOwner.contains("fun refreshPlaybackSession()"));
         assertTrue(lyricsOwner.contains("override fun setStatusBarLyricsEnabled(enabled: Boolean)"));
+        assertTrue(lyricsOwner.contains("override fun setSystemMediaLyricsTitleEnabled(enabled: Boolean)"));
+        assertTrue(lyricsOwner.contains("override fun systemMediaTitleLyricText(track: Track?): String"));
         assertTrue(lyricsOwner.contains("FloatingLyricsPublisher.syncPlaybackState("));
         assertTrue(lyricsOwner.contains("private var released = false"));
         assertTrue(lyricsOwner.contains("if (released)"));
@@ -5334,14 +5336,20 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(lyricsOwner.contains("fun isPreparing(): Boolean\n        fun refreshPlaybackSession()"));
         assertTrue(lyricsSettingsStore.contains("interface LyricsSettings"));
         assertTrue(lyricsSettingsStore.contains("void restoreInto(LyricsPublisher lyricsPublisher)"));
-        assertTrue(lyricsSettingsStore.contains("repository::loadStatusBarLyricsEnabled"));
+        assertTrue(lyricsSettingsStore.contains("return repository.loadStatusBarLyricsEnabled();"));
+        assertTrue(lyricsSettingsStore.contains("return repository.loadSystemMediaLyricsTitleEnabled();"));
         assertTrue(lyricsSettingsStore.contains("lyricsPublisher.setStatusBarLyricsEnabled(lyricsSettings.loadStatusBarLyricsEnabled())"));
+        assertTrue(lyricsSettingsStore.contains("lyricsPublisher.setSystemMediaLyricsTitleEnabled("));
         assertTrue(lyricsSettingsStore.contains("static Consumer<Boolean> statusBarLyricsEnabledActionFromSupplier("));
+        assertTrue(lyricsSettingsStore.contains("static Consumer<Boolean> systemMediaLyricsTitleEnabledActionFromSupplier("));
         assertTrue(lyricsSettingsStore.contains("lyricsPublisher.setStatusBarLyricsEnabled(enabled);"));
+        assertTrue(lyricsSettingsStore.contains("lyricsPublisher.setSystemMediaLyricsTitleEnabled(enabled);"));
         assertTrue(playbackService.contains(
                 "PlaybackLyricsSettingsStore.statusBarLyricsEnabledActionFromSupplier(() -> playbackLyricsManager)"));
         assertTrue(normalizedPlaybackService.contains(
                 "public void setStatusBarLyricsEnabled(boolean enabled) {\n        statusBarLyricsEnabledAction.accept(enabled);\n    }"));
+        assertTrue(normalizedPlaybackService.contains(
+                "public void setSystemMediaLyricsTitleEnabled(boolean enabled) {\n        systemMediaLyricsTitleEnabledAction.accept(enabled);\n    }"));
         assertFalse(playbackService.contains("playbackLyricsManager.setStatusBarLyricsEnabled(enabled);"));
         assertFalse(normalizedPlaybackService.contains("public void setStatusBarLyricsEnabled(boolean enabled) {\n        if (playbackLyricsManager != null) {\n            playbackLyricsManager.setStatusBarLyricsEnabled(enabled);\n        }\n        refreshPlaybackSession();"));
         assertFalse(normalizedPlaybackService.contains("public void setStatusBarLyricsEnabled(boolean enabled) {\n        if (playbackLyricsManager != null) {\n            playbackLyricsManager.setStatusBarLyricsEnabled(enabled);\n        }\n        publishPlaybackNotification(true);"));

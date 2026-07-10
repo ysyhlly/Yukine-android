@@ -268,6 +268,49 @@ class PlaybackNotificationManagerTest {
     }
 
     @Test
+    fun lyricTitleCompatibilityUsesCurrentLyricAsSystemTitleAndRetainsTrackIdentity() {
+        val state = FakeStateProvider().apply { track = track(9L) }
+        val manager = manager(
+            state,
+            FakeForegroundController(),
+            lyricsPublisherSupplier = java.util.function.Supplier {
+                FakeLyricsPublisher("current\nlyric", systemMediaLyricsTitleEnabled = true)
+            }
+        )
+
+        val notification = manager.playbackNotification(state.track)
+        val metadata = manager.mediaMetadataForTrack(state.track!!)
+
+        assertEquals("current lyric", notification.extras.getString(Notification.EXTRA_TITLE))
+        assertEquals("Track 9 · Artist", notification.extras.getString(Notification.EXTRA_TEXT))
+        assertEquals("current lyric", metadata.title.toString())
+        assertEquals("Track 9 · Artist", metadata.subtitle.toString())
+        assertEquals("Track 9 · Artist", metadata.description.toString())
+        assertEquals("Artist", metadata.artist.toString())
+        assertEquals("current lyric", metadata.extras?.getString("extra_current_lyric"))
+        assertEquals("Track 9", metadata.extras?.getString("extra_lyric_track_title"))
+    }
+
+    @Test
+    fun lyricTitleCompatibilityFallsBackToTrackTitleWhenLyricsAreUnavailable() {
+        val track = track(9L)
+        val manager = manager(
+            FakeStateProvider(),
+            FakeForegroundController(),
+            lyricsPublisherSupplier = java.util.function.Supplier {
+                FakeLyricsPublisher("", systemMediaLyricsTitleEnabled = true)
+            }
+        )
+
+        val notification = manager.playbackNotification(track)
+        val metadata = manager.mediaMetadataForTrack(track)
+
+        assertEquals("Track 9", notification.extras.getString(Notification.EXTRA_TITLE))
+        assertEquals("Track 9", metadata.title.toString())
+        assertNull(metadata.subtitle)
+    }
+
+    @Test
     fun notificationLyricsUseCurrentPublisherWhenAvailable() {
         val state = FakeStateProvider()
         state.track = track(9L)
@@ -411,7 +454,8 @@ class PlaybackNotificationManagerTest {
     }
 
     private class FakeLyricsPublisher(
-        private val lyric: String
+        private val lyric: String,
+        private var systemMediaLyricsTitleEnabled: Boolean = false
     ) : LyricsPublisher {
         override fun bind() {
         }
@@ -422,6 +466,10 @@ class PlaybackNotificationManagerTest {
         override fun setStatusBarLyricsEnabled(enabled: Boolean) {
         }
 
+        override fun setSystemMediaLyricsTitleEnabled(enabled: Boolean) {
+            systemMediaLyricsTitleEnabled = enabled
+        }
+
         override fun onAppVisibilityChanged() {
         }
 
@@ -429,6 +477,9 @@ class PlaybackNotificationManagerTest {
         }
 
         override fun notificationLyricText(track: Track?): String = lyric
+
+        override fun systemMediaTitleLyricText(track: Track?): String =
+            if (systemMediaLyricsTitleEnabled) lyric else ""
 
         override fun sanitizeNotificationLyric(value: String?): String = value.orEmpty().trim().replace("   ", " ")
     }
