@@ -155,6 +155,10 @@ public final class PlaybackTaskSchedulerTest {
         AtomicInteger calls = new AtomicInteger();
 
         scheduler.shutdownNow();
+        assertFalse(scheduler.schedule(
+                PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE,
+                calls::incrementAndGet
+        ));
         scheduler.execute(calls::incrementAndGet);
 
         Thread.sleep(100L);
@@ -165,7 +169,7 @@ public final class PlaybackTaskSchedulerTest {
     public void nullTasksAreIgnored() throws Exception {
         PlaybackTaskScheduler scheduler = scheduler();
 
-        scheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY, null);
+        assertFalse(scheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY, null));
         scheduler.execute(null);
 
         scheduler.shutdownNow();

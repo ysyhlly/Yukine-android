@@ -203,15 +203,16 @@ internal class PlaybackQueueManager(
         clearErrorMessage()
         clearLastMarkedTrack()
         clearRestoredPosition()
-        persistQueue()
-        resetCurrentPlaybackPosition()
-        if (startPositionMs >= 0L) {
-            currentTrack()?.let { track ->
-                setRestoredPosition(track.id, startPositionMs, explicit = true)
+        persistQueueAroundPlaybackAction {
+            resetCurrentPlaybackPosition()
+            if (startPositionMs >= 0L) {
+                currentTrack()?.let { track ->
+                    setRestoredPosition(track.id, startPositionMs, explicit = true)
+                }
             }
+            savePlaybackResumeRequested(true)
+            queuePlaybackActions.prepareCurrent(true)
         }
-        savePlaybackResumeRequested(true)
-        queuePlaybackActions.prepareCurrent(true)
     }
 
     fun appendToQueue(tracks: List<Track>) {
@@ -224,16 +225,18 @@ internal class PlaybackQueueManager(
         if (currentIndex() < 0 || currentIndex() >= queue.size) {
             setCurrentIndex(0)
         }
-        persistQueue()
         if (wasEmpty) {
             clearErrorMessage()
             clearLastMarkedTrack()
             clearRestoredPosition()
-            resetCurrentPlaybackPosition()
-            savePlaybackResumeRequested(true)
-            queuePlaybackActions.prepareCurrent(true)
+            persistQueueAroundPlaybackAction {
+                resetCurrentPlaybackPosition()
+                savePlaybackResumeRequested(true)
+                queuePlaybackActions.prepareCurrent(true)
+            }
             return
         }
+        persistQueue()
         queuePlaybackActions.publishState()
     }
 
@@ -245,10 +248,11 @@ internal class PlaybackQueueManager(
         clearErrorMessage()
         clearLastMarkedTrack()
         clearRestoredPosition()
-        persistQueue()
-        resetCurrentPlaybackPosition()
-        savePlaybackResumeRequested(true)
-        queuePlaybackActions.prepareCurrent(true)
+        persistQueueAroundPlaybackAction {
+            resetCurrentPlaybackPosition()
+            savePlaybackResumeRequested(true)
+            queuePlaybackActions.prepareCurrent(true)
+        }
     }
 
     private fun advanceQueueIndexToNext(): Boolean {
@@ -291,10 +295,11 @@ internal class PlaybackQueueManager(
         clearErrorMessage()
         clearLastMarkedTrack()
         clearRestoredPosition()
-        persistQueue()
-        resetCurrentPlaybackPosition()
-        savePlaybackResumeRequested(true)
-        queuePlaybackActions.prepareCurrent(true)
+        persistQueueAroundPlaybackAction {
+            resetCurrentPlaybackPosition()
+            savePlaybackResumeRequested(true)
+            queuePlaybackActions.prepareCurrent(true)
+        }
         return false
     }
 
@@ -391,10 +396,11 @@ internal class PlaybackQueueManager(
         clearErrorMessage()
         clearLastMarkedTrack()
         clearRestoredPosition()
-        persistQueue()
-        resetCurrentPlaybackPosition()
-        savePlaybackResumeRequested(true)
-        queuePlaybackActions.prepareCurrent(true)
+        persistQueueAroundPlaybackAction {
+            resetCurrentPlaybackPosition()
+            savePlaybackResumeRequested(true)
+            queuePlaybackActions.prepareCurrent(true)
+        }
         return false
     }
 
@@ -819,14 +825,24 @@ internal class PlaybackQueueManager(
     }
 
     private fun persistQueue() {
-        val tracks = queue.toList()
+        val tracks: List<Track> = queue
         val index = currentIndex()
         if (tracks.size > MAX_SYNC_PERSISTED_QUEUE_TRACKS &&
             queuePlaybackActions.persistQueueAsync(tracks, index)
         ) {
             return
         }
-        queueStore.save(tracks, index)
+        queueStore.save(tracks.toList(), index)
+    }
+
+    private inline fun persistQueueAroundPlaybackAction(action: () -> Unit) {
+        if (queue.size > MAX_SYNC_PERSISTED_QUEUE_TRACKS) {
+            action()
+            persistQueue()
+            return
+        }
+        persistQueue()
+        action()
     }
 
     private fun persistPlaybackPosition() {

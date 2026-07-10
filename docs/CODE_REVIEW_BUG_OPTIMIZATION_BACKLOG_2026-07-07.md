@@ -37,13 +37,16 @@ Evidence:
 Fix:
 
 - Large queues now defer full queue persistence through `PlaybackQueueManager.QueuePlaybackActions.persistQueueAsync(...)`.
-- `EchoPlaybackService` schedules the deferred save on the existing playback scheduler instead of blocking the playback-start path.
+- Large-queue playback now writes the small resume checkpoint and prepares the current track before it submits the full queue save, so the background SQLite transaction cannot acquire the writer lock ahead of playback startup.
+- `PlaybackQueueCommandOwner` keeps at most the latest pending full-queue snapshot. Rapid play/skip actions no longer enqueue an unbounded series of stale `DELETE + INSERT` rewrites, and each completed save yields back to the priority scheduler before a newer snapshot is written.
+- `EchoPlaybackService` schedules the conflated save on the existing playback scheduler instead of blocking the playback-start path.
 - Small queues keep synchronous persistence to preserve simple restore behavior.
 
 Guardrail:
 
 - `PlaybackQueueManagerTest.playLargeQueueDefersFullQueuePersistenceUntilAfterPlaybackStart`
-- `PlaybackQueueCommandOwnerTest`
+- `PlaybackQueueCommandOwnerTest.conflatingQueuePersistenceKeepsOnlyLatestPendingSnapshot`
+- `PlaybackQueueCommandOwnerTest.conflatingQueuePersistenceYieldsBeforeSavingUpdatesArrivingDuringWrite`
 
 Follow-up:
 
@@ -280,66 +283,45 @@ Impact:
 - Download snapshot polling no longer runs globally when the active screen cannot display the download orb/status.
 - Remaining polling loops should still be reviewed individually, but this removes one broad navigation-level loop.
 
-### P1 - MediaSession Timeline Exposes Large App Queues Without ExoPlayer Mirroring
+### P1 - MediaSession Timeline Matches The Underlying Player Shape
 
 Status: Fixed in current working tree, keep regression coverage.
 
 Evidence:
 
-- Large app queues still avoid ExoPlayer mirroring when `PlaybackQueueManager.mirroredQueueTracksForPreparation()` returns `null` above `MAX_MIRRORED_QUEUE_TRACKS = 64`.
-- `PlaybackSessionPlayer` now exposes the app queue through `getCurrentTimeline()`, `getMediaItemCount()`, `getCurrentMediaItemIndex()`, `getCurrentMediaItem()`, and `getMediaItemAt(index)`.
-- `PlaybackSessionCommandOwner.sessionQueueTracks()` delegates to the service queue snapshot and `sessionQueueCurrentIndex()` delegates to the current app queue index.
+- Large app queues still avoid ExoPlayer mirroring above `MAX_MIRRORED_QUEUE_TRACKS = 64`.
+- `PlaybackSessionPlayer` no longer synthesizes a Timeline from the app queue. Timeline, media-item count, current index, and item reads all come from the same underlying ExoPlayer instance that emits Media3 callbacks.
+- When ExoPlayer mirrors a small queue, system controllers see that mirrored queue. When ExoPlayer contains only the current item, including all large queues, system controllers see exactly that item at index 0.
+- Rich notification metadata (current lyric and cached artwork bytes) remains limited to the current `getMediaMetadata()` result instead of being copied into a synthetic queue Timeline.
+- Removing the synthetic queue prevents a single-item callback Timeline from being combined with a large app-queue index in Media3 position bundles.
 - `PlaybackControllerMediaItemsOwner` still handles the opposite direction, where external controllers send media items into the app queue.
 
 Impact:
 
-- Android system controllers can see a large app queue without forcing ExoPlayer to prepare every streaming item.
+- Android system controllers see the actual ExoPlayer shape without allocating or serializing thousands of synthetic `MediaItem` / `MediaMetadata` objects.
 - The previous playback-start stability guard remains intact because this is a MediaSession-facing queue view, not full player media-source mirroring.
 
 Guardrail:
 
-- `PlaybackSessionPlayerTest.sessionQueueExposesLargeAppQueueWithoutMirroringDelegatePlayer`
+- `PlaybackSessionPlayerTest.sessionPlayerKeepsUnderlyingTimelineInsteadOfSynthesizingTheLargeAppQueue`
 - `PlaybackControllerMediaItemsOwnerTest.playsResolvedControllerQueue`
 
-### P0 - PlaybackSessionCommandOwner Unit Test Compiles Against Session Queue API
+### P2 - Synthetic Session Queue API Removed
 
 Status: Fixed in current working tree, keep regression coverage.
 
 Evidence:
 
-- `PlaybackSessionCommandOwner.StateProvider` now includes queue-facing methods: `queueSnapshot()`, `currentIndex()`, `queueSize()`, and `trackAt(index)`.
-- `PlaybackSessionCommandOwnerTest` still used an anonymous fake that only implemented playback position/current-track methods.
-- Running the app unit-test task failed during Java test compilation because the fake did not implement `trackAt(int)`.
+- The retired synthetic Timeline required queue snapshot/size/index/item methods on `PlaybackSessionCommandOwner.StateProvider` and `PlaybackSessionPlayer.Delegate`.
+- Those methods duplicated queue state at the MediaSession boundary and allowed getter state to diverge from ExoPlayer callback state.
 
 Fix:
 
-- `PlaybackSessionCommandOwnerTest` now supplies a small two-track queue through the fake `StateProvider`.
-- The test also asserts `sessionQueueTracks()`, `sessionQueueSize()`, `sessionQueueCurrentIndex()`, and `sessionQueueTrackAt(index)` delegation.
+- Queue-facing session methods were removed from both interfaces.
+- MediaSession transport commands still delegate to the app queue owners, while Timeline/state reads remain owned by ExoPlayer.
 
 Guardrail:
 
-- `PlaybackSessionCommandOwnerTest.delegatesMediaSessionCommandsToPlaybackOwners`
-
-### P2 - Session Queue Timeline Reuses Cached Timeline And Narrow Reads
-
-Status: Fixed in current working tree, keep regression coverage.
-
-Evidence:
-
-- `PlaybackSessionPlayer.getMediaItemCount()` now uses `delegate.sessionQueueSize()` instead of reading a full queue snapshot.
-- `PlaybackSessionPlayer.getMediaItemAt(index)` now uses `delegate.sessionQueueTrackAt(index)` and only materializes the requested `MediaItem`.
-- `PlaybackSessionPlayer.sessionQueueTimeline()` caches `SessionQueueTimeline` by a cheap queue key: size, current index, first track id, current track id, and last track id.
-- `PlaybackQueueStateOwner` and `PlaybackQueueManager` expose `queueSize()` / `trackAt(index)` so the session player can avoid full-list copies on common system reads.
-
-Impact:
-
-- Android media UI and lock-screen queue reads no longer need to copy the full app queue for count, current index, or single-item access.
-- Timeline construction still materializes the visible session queue once per queue key, but repeated reads reuse the cached timeline until the queue changes.
-- This keeps the queue visible to Android without reintroducing ExoPlayer full-queue mirroring for large streaming queues.
-
-Guardrail:
-
-- `PlaybackSessionPlayerTest.repeatedSessionQueueReadsReuseTimelineAndPreferNarrowAccess`
 - `PlaybackSessionCommandOwnerTest.delegatesMediaSessionCommandsToPlaybackOwners`
 
 ### P1 - Streaming Playlist Pagination Has A Local Safety Cap
@@ -593,30 +575,25 @@ Guardrail:
 
 ## Recently Closed Findings
 
-### P1 Fixed - MediaSession timeline cache detects middle-queue replacements
+### P1 Superseded - Synthetic MediaSession Timeline Cache
 
 Evidence:
 
-- `PlaybackSessionPlayer.getCurrentTimeline()` returns `sessionQueueTimeline()`.
-- `sessionQueueTimeline()` is cached by `SessionQueueKey`.
-- The key uses queue size, current index, first track id, current track id, and last track id.
-- Large streaming queues can replace unresolved placeholders in the middle of the queue while size/current/first/last remain unchanged.
+- An earlier fix cached a synthetic app-queue Timeline and added fingerprints for middle-queue replacements.
+- Media3 player callbacks still carried the underlying ExoPlayer Timeline, so any separate getter Timeline could diverge in item count or current index.
 
 Risk:
 
-- Android system media UI may keep a stale timeline for middle queue entries after background streaming pre-resolve or queue replacement.
-- This is a plausible contributor to "songs still do not appear correctly in Android's media playback list" when the app queue is present but the system-facing timeline does not refresh.
+- Divergent callback/getter Timelines could produce stale system UI and invalid Media3 position bundles; on large queues that is more serious than a cache miss.
 
 Change:
 
-- `SessionQueueKey` now includes a deterministic sampled queue fingerprint.
-- Small queues fingerprint every track id; large queues sample the ends, current-track neighborhood, and stable intervals.
-- `getMediaItemCount()` and `getMediaItemAt(index)` keep using narrow queue reads, while repeated unchanged timeline reads still reuse the cached timeline.
+- The synthetic Timeline and its cache/key/fingerprint were removed.
+- PlaybackSession reads now use the same underlying player state as Timeline callbacks.
 
 Guardrail:
 
-- `PlaybackSessionPlayerTest.sessionQueueTimelineRefreshesWhenMiddleQueueEntryChanges`
-- `PlaybackSessionPlayerTest.repeatedSessionQueueReadsReuseTimelineAndPreferNarrowAccess`
+- `PlaybackSessionPlayerTest.sessionPlayerKeepsUnderlyingTimelineInsteadOfSynthesizingTheLargeAppQueue`
 
 Device check:
 
@@ -712,7 +689,7 @@ Suggested tests:
 - `MainExecutors` has an explicit `shutdownNow()` method and guards rejected execution.
 - `PlaybackPrecacheManager` uses a named daemon `ThreadFactory` for a managed executor path; the raw `Thread` creation is localized to thread factory construction.
 - Persisted page backgrounds are hydrated before settings page navigation: `MainActivityBase` calls `settingsStore.load(loadSettingsPreferencesUseCase.execute())`, creates `SettingsContextProvider`, then calls `refreshSettingsContext()`; `MainActivityArchitectureContractTest.mainActivityPushesLoadedSettingsContextBeforeSettingsPageNavigation` protects that ordering.
-- Android Auto / MediaLibrary support is not absent: `PlaybackMediaLibraryCallback` implements `onGetLibraryRoot`, `onGetChildren`, `onGetItem`, `onAddMediaItems`, and `onSetMediaItems`; active playback timeline exposure for large queues is covered by `PlaybackSessionPlayer`, with remaining system-facing risks tracked under Open Findings.
+- Android Auto / MediaLibrary support remains available through `PlaybackMediaLibraryCallback` paging (`onGetLibraryRoot`, `onGetChildren`, `onGetItem`, `onAddMediaItems`, and `onSetMediaItems`); active playback Timeline state deliberately follows ExoPlayer instead of synthesizing the full large app queue.
 - `TrackDownloadManager` has several `while (true)` loops, but the reviewed ones are bounded stream-copy loops that break on EOF and check pause/removal between chunks; `TrackDownloadManagerTest.shutdownStopsExecutorsAndRejectsNewAppManagedDownloads` covers executor shutdown.
 
 ## Verification Commands

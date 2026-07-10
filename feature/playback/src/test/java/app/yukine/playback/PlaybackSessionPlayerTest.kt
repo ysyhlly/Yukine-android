@@ -4,11 +4,11 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import org.junit.Assert.assertFalse
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackSessionPlayer
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -167,92 +167,40 @@ class PlaybackSessionPlayerTest {
     }
 
     @Test
-    fun sessionQueueExposesLargeAppQueueWithoutMirroringDelegatePlayer() {
-        val delegate = RecordingDelegate().apply {
-            queueTracks = (1L..80L).map { id ->
-                Track(id, "Track $id", "Artist $id", "Album", 60_000L, android.net.Uri.EMPTY, "streaming:$id")
-            }
-            queueCurrentIndex = 65
-        }
-        val player = PlaybackSessionPlayer(fakePlayer(), delegate)
-
-        assertEquals(80, player.mediaItemCount)
-        assertEquals(65, player.currentMediaItemIndex)
-        assertEquals("queue:65:66", player.currentMediaItem?.mediaId)
-        assertEquals("queue:79:80", player.getMediaItemAt(79).mediaId)
-        assertEquals(80, player.currentTimeline.windowCount)
-        assertEquals(80, player.currentTimeline.periodCount)
-        assertEquals("Track 66", player.currentMediaItem?.mediaMetadata?.title.toString())
-    }
-
-    @Test
-    fun repeatedSessionQueueReadsReuseTimelineAndPreferNarrowAccess() {
-        val delegate = RecordingDelegate().apply {
-            queueTracks = (1L..4L).map { id ->
-                Track(id, "Track $id", "Artist", "Album", 60_000L, android.net.Uri.EMPTY, "streaming:$id")
-            }
-            queueCurrentIndex = 1
-        }
-        val player = PlaybackSessionPlayer(fakePlayer(), delegate)
-
-        assertEquals(4, player.mediaItemCount)
-        assertEquals(1, player.currentMediaItemIndex)
-        assertEquals("queue:2:3", player.getMediaItemAt(2).mediaId)
-        assertEquals(0, delegate.queueSnapshotReads)
-
-        assertEquals(4, player.currentTimeline.windowCount)
-        assertEquals(4, player.currentTimeline.windowCount)
-        assertEquals(1, delegate.queueSnapshotReads)
-
-        delegate.queueTracks = delegate.queueTracks + Track(
-            5L,
-            "Track 5",
+    fun sessionPlayerKeepsUnderlyingTimelineInsteadOfSynthesizingTheLargeAppQueue() {
+        val track = Track(
+            4_001L,
+            "Track 4001",
             "Artist",
             "Album",
             60_000L,
             android.net.Uri.EMPTY,
-            "streaming:5"
+            "file:4001"
         )
-
-        assertEquals(5, player.currentTimeline.windowCount)
-        assertEquals(2, delegate.queueSnapshotReads)
-    }
-
-    @Test
-    fun sessionQueueTimelineRefreshesWhenMiddleQueueEntryChanges() {
+        val mediaItem = MediaItem.Builder()
+            .setMediaId("underlying-current")
+            .setMediaMetadata(MediaMetadata.Builder().setTitle(track.title).build())
+            .build()
+        val timeline = singleItemTimeline(mediaItem)
         val delegate = RecordingDelegate().apply {
-            queueTracks = (1L..5L).map { id ->
-                Track(id, "Track $id", "Artist", "Album", 60_000L, android.net.Uri.EMPTY, "streaming:$id")
+            currentTrackValue = track
+        }
+        val player = PlaybackSessionPlayer(fakePlayer(FakeQueueState(timeline, mediaItem)), delegate)
+
+        assertSame(timeline, player.currentTimeline)
+        assertEquals(1, player.mediaItemCount)
+        assertEquals(0, player.currentMediaItemIndex)
+        assertSame(mediaItem, player.currentMediaItem)
+        assertSame(mediaItem, player.getMediaItemAt(0))
+        assertFalse(
+            PlaybackSessionPlayer.Delegate::class.java.declaredMethods.any {
+                it.name.startsWith("sessionQueue")
             }
-            queueCurrentIndex = 1
-        }
-        val player = PlaybackSessionPlayer(fakePlayer(), delegate)
-        val window = androidx.media3.common.Timeline.Window()
+        )
+        assertEquals(0, delegate.metadataReads)
 
-        val firstTimeline = player.currentTimeline
-        assertEquals("Track 4", firstTimeline.getWindow(3, window).mediaItem.mediaMetadata.title.toString())
-        assertEquals(1, delegate.queueSnapshotReads)
-
-        assertSame(firstTimeline, player.currentTimeline)
-        assertEquals(1, delegate.queueSnapshotReads)
-
-        delegate.queueTracks = delegate.queueTracks.toMutableList().also { tracks ->
-            tracks[3] = Track(
-                99L,
-                "Resolved Track",
-                "Artist",
-                "Album",
-                60_000L,
-                android.net.Uri.EMPTY,
-                "streaming:99"
-            )
-        }
-
-        val refreshedTimeline = player.currentTimeline
-
-        assertNotSame(firstTimeline, refreshedTimeline)
-        assertEquals("Resolved Track", refreshedTimeline.getWindow(3, window).mediaItem.mediaMetadata.title.toString())
-        assertEquals(2, delegate.queueSnapshotReads)
+        assertEquals("Track 4001", player.mediaMetadata.title.toString())
+        assertEquals(1, delegate.metadataReads)
     }
 
     private class RecordingDelegate : PlaybackSessionPlayer.Delegate {
@@ -260,9 +208,8 @@ class PlaybackSessionPlayerTest {
         var reportedPositionMs: Long = 0L
         var reportedSessionPositionMs: Long = 0L
         var reportedDurationMs: Long = 0L
-        var queueTracks: List<Track> = emptyList()
-        var queueCurrentIndex: Int = -1
-        var queueSnapshotReads: Int = 0
+        var currentTrackValue: Track? = null
+        var metadataReads: Int = 0
 
         override fun play() {
             events += "play"
@@ -301,25 +248,16 @@ class PlaybackSessionPlayerTest {
             return true
         }
 
-        override fun sessionQueueTracks(): List<Track> {
-            queueSnapshotReads++
-            return queueTracks
-        }
+        override fun currentTrack(): Track? = currentTrackValue
 
-        override fun sessionQueueSize(): Int = queueTracks.size
-
-        override fun sessionQueueCurrentIndex(): Int = queueCurrentIndex
-
-        override fun sessionQueueTrackAt(index: Int): Track? = queueTracks.getOrNull(index)
-
-        override fun currentTrack(): Track? = null
-
-        override fun mediaMetadataForTrack(track: Track): MediaMetadata? =
-            MediaMetadata.Builder()
+        override fun mediaMetadataForTrack(track: Track): MediaMetadata? {
+            metadataReads++
+            return MediaMetadata.Builder()
                 .setTitle(track.title)
                 .setArtist(track.artist)
                 .setAlbumTitle(track.album)
                 .build()
+        }
 
         override fun positionMs(): Long = reportedPositionMs
 
@@ -332,8 +270,13 @@ class PlaybackSessionPlayerTest {
         override fun getAsLong(): Long = nowMs
     }
 
+    private data class FakeQueueState(
+        val timeline: Timeline,
+        val mediaItem: MediaItem
+    )
+
     companion object {
-        private fun fakePlayer(): Player {
+        private fun fakePlayer(queueState: FakeQueueState? = null): Player {
             return Proxy.newProxyInstance(
                 Player::class.java.classLoader,
                 arrayOf(Player::class.java)
@@ -342,9 +285,54 @@ class PlaybackSessionPlayerTest {
                     "getAvailableCommands" -> Player.Commands.Builder().add(Player.COMMAND_PLAY_PAUSE).build()
                     "isCommandAvailable" -> false
                     "getMediaMetadata" -> MediaMetadata.Builder().build()
+                    "getCurrentTimeline" -> queueState?.timeline ?: Timeline.EMPTY
+                    "getMediaItemCount" -> if (queueState == null) 0 else 1
+                    "getCurrentMediaItemIndex", "getCurrentPeriodIndex", "getCurrentWindowIndex" -> 0
+                    "getCurrentMediaItem", "getMediaItemAt" -> queueState?.mediaItem
                     else -> defaultReturnValue(method.returnType)
                 }
             } as Player
+        }
+
+        private fun singleItemTimeline(mediaItem: MediaItem): Timeline = object : Timeline() {
+            override fun getWindowCount(): Int = 1
+
+            override fun getWindow(
+                windowIndex: Int,
+                window: Window,
+                defaultPositionProjectionUs: Long
+            ): Window = window.set(
+                "window-0",
+                mediaItem,
+                null,
+                C.TIME_UNSET,
+                C.TIME_UNSET,
+                C.TIME_UNSET,
+                true,
+                false,
+                null,
+                0L,
+                C.TIME_UNSET,
+                0,
+                0,
+                0L
+            )
+
+            override fun getPeriodCount(): Int = 1
+
+            override fun getPeriod(periodIndex: Int, period: Period, setIds: Boolean): Period =
+                period.set(
+                    if (setIds) "period-0" else null,
+                    if (setIds) "period-0" else null,
+                    0,
+                    C.TIME_UNSET,
+                    0L
+                )
+
+            override fun getIndexOfPeriod(uid: Any): Int =
+                if (uid == "period-0") 0 else C.INDEX_UNSET
+
+            override fun getUidOfPeriod(periodIndex: Int): Any = "period-0"
         }
 
         private fun defaultReturnValue(returnType: Class<*>): Any? {

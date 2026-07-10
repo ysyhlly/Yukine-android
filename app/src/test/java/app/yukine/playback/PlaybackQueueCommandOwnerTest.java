@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class PlaybackQueueCommandOwnerTest {
@@ -40,6 +41,102 @@ public class PlaybackQueueCommandOwnerTest {
                 ),
                 events
         );
+    }
+
+    @Test
+    public void conflatingQueuePersistenceKeepsOnlyLatestPendingSnapshot() {
+        java.util.ArrayDeque<Runnable> scheduled = new java.util.ArrayDeque<>();
+        List<String> saves = new ArrayList<>();
+        PlaybackQueueCommandOwner.QueuePersistence persistence =
+                PlaybackQueueCommandOwner.conflatingQueuePersistence(
+                        scheduled::offerLast,
+                        (tracks, currentIndex) ->
+                                saves.add(tracks.get(0).id + ":" + currentIndex)
+                );
+
+        assertTrue(persistence.persist(java.util.Collections.singletonList(track(1L)), 0));
+        assertTrue(persistence.persist(java.util.Collections.singletonList(track(2L)), 1));
+        assertTrue(persistence.persist(java.util.Collections.singletonList(track(3L)), 2));
+
+        assertEquals(1, scheduled.size());
+        scheduled.removeFirst().run();
+
+        assertEquals(java.util.Collections.singletonList("3:2"), saves);
+        assertTrue(scheduled.isEmpty());
+    }
+
+    @Test
+    public void conflatingQueuePersistenceYieldsBeforeSavingUpdatesArrivingDuringWrite() {
+        java.util.ArrayDeque<Runnable> scheduled = new java.util.ArrayDeque<>();
+        List<String> saves = new ArrayList<>();
+        PlaybackQueueCommandOwner.QueuePersistence[] persistence =
+                new PlaybackQueueCommandOwner.QueuePersistence[1];
+        persistence[0] = PlaybackQueueCommandOwner.conflatingQueuePersistence(
+                scheduled::offerLast,
+                (tracks, currentIndex) -> {
+                    saves.add(tracks.get(0).id + ":" + currentIndex);
+                    if (currentIndex == 0) {
+                        persistence[0].persist(java.util.Collections.singletonList(track(2L)), 1);
+                        persistence[0].persist(java.util.Collections.singletonList(track(3L)), 2);
+                    }
+                }
+        );
+
+        assertTrue(persistence[0].persist(java.util.Collections.singletonList(track(1L)), 0));
+        scheduled.removeFirst().run();
+
+        assertEquals(java.util.Collections.singletonList("1:0"), saves);
+        assertEquals(1, scheduled.size());
+
+        scheduled.removeFirst().run();
+
+        assertEquals(java.util.Arrays.asList("1:0", "3:2"), saves);
+        assertTrue(scheduled.isEmpty());
+    }
+
+    @Test
+    public void conflatingQueuePersistenceFallsBackWhenSchedulerRejectsWork() {
+        PlaybackQueueCommandOwner.QueuePersistence persistence =
+                PlaybackQueueCommandOwner.conflatingQueuePersistence(
+                        command -> false,
+                        (tracks, currentIndex) -> {
+                            throw new AssertionError("Rejected work must not run");
+                        }
+                );
+
+        assertFalse(persistence.persist(java.util.Collections.singletonList(track(1L)), 0));
+    }
+
+    @Test
+    public void conflatingQueuePersistenceReschedulesNewerSnapshotAfterSaveFailure() {
+        java.util.ArrayDeque<Runnable> scheduled = new java.util.ArrayDeque<>();
+        List<String> saves = new ArrayList<>();
+        PlaybackQueueCommandOwner.QueuePersistence[] persistence =
+                new PlaybackQueueCommandOwner.QueuePersistence[1];
+        persistence[0] = PlaybackQueueCommandOwner.conflatingQueuePersistence(
+                scheduled::offerLast,
+                (tracks, currentIndex) -> {
+                    if (currentIndex == 0) {
+                        persistence[0].persist(java.util.Collections.singletonList(track(2L)), 1);
+                        throw new IllegalStateException("simulated write failure");
+                    }
+                    saves.add(tracks.get(0).id + ":" + currentIndex);
+                }
+        );
+
+        assertTrue(persistence[0].persist(java.util.Collections.singletonList(track(1L)), 0));
+        try {
+            scheduled.removeFirst().run();
+            throw new AssertionError("Expected simulated write failure");
+        } catch (IllegalStateException expected) {
+            assertEquals("simulated write failure", expected.getMessage());
+        }
+
+        assertEquals(1, scheduled.size());
+        scheduled.removeFirst().run();
+
+        assertEquals(java.util.Collections.singletonList("2:1"), saves);
+        assertTrue(scheduled.isEmpty());
     }
 
     private static app.yukine.model.Track track(long id) {

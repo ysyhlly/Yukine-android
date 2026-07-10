@@ -3,6 +3,7 @@ package app.yukine.playback;
 import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.model.Track;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -52,7 +53,117 @@ final class PlaybackQueueCommandOwner implements PlaybackQueueManager.QueuePlayb
         return queuePersistence != null && queuePersistence.persist(tracks, currentIndex);
     }
 
+    static QueuePersistence conflatingQueuePersistence(
+            QueuePersistenceScheduler scheduler,
+            QueueSaver queueSaver
+    ) {
+        if (scheduler == null || queueSaver == null) {
+            return null;
+        }
+        return new ConflatingQueuePersistence(scheduler, queueSaver);
+    }
+
     interface QueuePersistence {
         boolean persist(List<Track> tracks, int currentIndex);
+    }
+
+    interface QueuePersistenceScheduler {
+        boolean schedule(Runnable command);
+    }
+
+    interface QueueSaver {
+        void save(List<Track> tracks, int currentIndex);
+    }
+
+    private static final class ConflatingQueuePersistence implements QueuePersistence {
+        private final Object lock = new Object();
+        private final QueuePersistenceScheduler scheduler;
+        private final QueueSaver queueSaver;
+        private PendingQueueSave pendingSave;
+        private boolean drainScheduled;
+
+        private ConflatingQueuePersistence(
+                QueuePersistenceScheduler scheduler,
+                QueueSaver queueSaver
+        ) {
+            this.scheduler = scheduler;
+            this.queueSaver = queueSaver;
+        }
+
+        @Override
+        public boolean persist(List<Track> tracks, int currentIndex) {
+            if (tracks == null) {
+                return false;
+            }
+            synchronized (lock) {
+                PendingQueueSave requestedSave =
+                        new PendingQueueSave(new ArrayList<>(tracks), currentIndex);
+                pendingSave = requestedSave;
+                if (drainScheduled) {
+                    return true;
+                }
+                drainScheduled = true;
+                if (scheduleDrainLocked()) {
+                    return true;
+                }
+                if (pendingSave == requestedSave) {
+                    pendingSave = null;
+                }
+                return false;
+            }
+        }
+
+        private void drainLatest() {
+            PendingQueueSave next;
+            synchronized (lock) {
+                next = pendingSave;
+                pendingSave = null;
+                if (next == null) {
+                    drainScheduled = false;
+                    return;
+                }
+            }
+            try {
+                queueSaver.save(next.tracks, next.currentIndex);
+            } catch (RuntimeException error) {
+                synchronized (lock) {
+                    if (pendingSave == null) {
+                        drainScheduled = false;
+                    } else {
+                        scheduleDrainLocked();
+                    }
+                }
+                throw error;
+            }
+            synchronized (lock) {
+                if (pendingSave == null) {
+                    drainScheduled = false;
+                    return;
+                }
+                scheduleDrainLocked();
+            }
+        }
+
+        private boolean scheduleDrainLocked() {
+            try {
+                if (scheduler.schedule(this::drainLatest)) {
+                    return true;
+                }
+            } catch (RuntimeException error) {
+                // Fall through so a future persistence request can retry scheduling.
+            }
+            drainScheduled = false;
+            return false;
+        }
+    }
+
+    private static final class PendingQueueSave {
+        private final List<Track> tracks;
+        private final int currentIndex;
+
+        private PendingQueueSave(List<Track> tracks, int currentIndex) {
+            this.tracks = tracks;
+            this.currentIndex = currentIndex;
+        }
     }
 }

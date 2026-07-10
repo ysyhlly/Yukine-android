@@ -1024,9 +1024,11 @@ class PlaybackQueueManagerTest {
 
     @Test
     fun playLargeQueueDefersFullQueuePersistenceUntilAfterPlaybackStart() {
-        val store = FakeQueueStore()
+        val events = mutableListOf<String>()
+        val store = FakeQueueStore(events)
         val provider = FakeQueueState()
         provider.queuePlaybackActions.deferQueuePersistence = true
+        provider.queuePlaybackActions.eventSink = events
         val manager = queueManager(store, provider)
         val tracks = (1L..120L).map { id ->
             track(id, android.net.Uri.parse("content://music/$id"), "streaming:netease:$id")
@@ -1038,9 +1040,28 @@ class PlaybackQueueManagerTest {
         assertTrue(store.savedTracks.isEmpty())
         assertEquals(120, provider.queuePlaybackActions.deferredQueueTracks.size)
         assertEquals(70, provider.queuePlaybackActions.deferredQueueIndex)
+        assertEquals(listOf("resume", "prepare", "persist"), events)
 
         provider.queuePlaybackActions.flushDeferredQueue(store)
 
+        assertEquals((1L..120L).toList(), store.savedTracks.map { it.id })
+        assertEquals(70, store.savedIndex)
+    }
+
+    @Test
+    fun playLargeQueueFallsBackToSyncPersistenceAfterPlaybackStartWhenAsyncIsRejected() {
+        val events = mutableListOf<String>()
+        val store = FakeQueueStore(events)
+        val provider = FakeQueueState()
+        provider.queuePlaybackActions.eventSink = events
+        val manager = queueManager(store, provider)
+        val tracks = (1L..120L).map { id ->
+            track(id, android.net.Uri.parse("content://music/$id"), "/music/$id")
+        }
+
+        manager.playQueue(tracks, 70, 0L)
+
+        assertEquals(listOf("resume", "prepare", "save"), events)
         assertEquals((1L..120L).toList(), store.savedTracks.map { it.id })
         assertEquals(70, store.savedIndex)
     }
@@ -1422,7 +1443,9 @@ class PlaybackQueueManagerTest {
         )
     }
 
-    private class FakeQueueStore : PlaybackQueueStore {
+    private class FakeQueueStore(
+        private val eventSink: MutableList<String>? = null
+    ) : PlaybackQueueStore {
         var savedTracks: List<Track> = emptyList()
         var savedIndex: Int = -1
         val savedPositions = mutableListOf<Pair<Long, Long>>()
@@ -1435,10 +1458,12 @@ class PlaybackQueueManagerTest {
         override fun save(tracks: List<Track>, currentIndex: Int) {
             savedTracks = tracks
             savedIndex = currentIndex
+            eventSink?.add("save")
         }
         override fun loadResumeRequested(): Boolean = resumeRequested
         override fun saveResumeRequested(requested: Boolean) {
             resumeRequested = requested
+            eventSink?.add("resume")
         }
         override fun loadPlaybackRestoreEnabled(): Boolean = playbackRestoreEnabled
         override fun savePlaybackRestoreEnabled(enabled: Boolean) {
@@ -1479,9 +1504,11 @@ class PlaybackQueueManagerTest {
         var deferQueuePersistence = false
         var deferredQueueTracks: List<Track> = emptyList()
         var deferredQueueIndex = -1
+        var eventSink: MutableList<String>? = null
         override fun prepareCurrent(playWhenReady: Boolean) {
             prepareCurrentCalled = true
             lastPreparePlayWhenReady = playWhenReady
+            eventSink?.add("prepare")
         }
         override fun publishState() {
             published = true
@@ -1493,7 +1520,8 @@ class PlaybackQueueManagerTest {
             if (!deferQueuePersistence) {
                 return false
             }
-            deferredQueueTracks = tracks
+            eventSink?.add("persist")
+            deferredQueueTracks = tracks.toList()
             deferredQueueIndex = currentIndex
             return true
         }

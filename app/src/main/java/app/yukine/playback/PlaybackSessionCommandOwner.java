@@ -33,13 +33,6 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
 
         long durationMs();
 
-        List<Track> queueSnapshot();
-
-        int currentIndex();
-
-        int queueSize();
-
-        Track trackAt(int index);
     }
 
     interface MetadataProvider {
@@ -107,26 +100,6 @@ final class PlaybackSessionCommandOwner implements PlaybackSessionPlayer.Delegat
     @Override
     public boolean setControllerMediaItems(List<MediaItem> mediaItems, int startIndex, long startPositionMs) {
         return controllerMediaItems.setControllerMediaItems(mediaItems, startIndex, startPositionMs);
-    }
-
-    @Override
-    public List<Track> sessionQueueTracks() {
-        return stateProvider.queueSnapshot();
-    }
-
-    @Override
-    public int sessionQueueSize() {
-        return stateProvider.queueSize();
-    }
-
-    @Override
-    public int sessionQueueCurrentIndex() {
-        return stateProvider.currentIndex();
-    }
-
-    @Override
-    public Track sessionQueueTrackAt(int index) {
-        return stateProvider.trackAt(index);
     }
 
     @Override

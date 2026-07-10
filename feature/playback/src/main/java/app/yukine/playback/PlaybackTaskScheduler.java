@@ -55,11 +55,12 @@ final class PlaybackTaskScheduler implements Executor {
         schedule(Priority.NEXT_TRACK_PRECACHE, command);
     }
 
-    void schedule(Priority priority, Runnable command) {
+    boolean schedule(Priority priority, Runnable command) {
         if (command == null || !running) {
-            return;
+            return false;
         }
         queue.offer(new ScheduledTask(priority, sequence.getAndIncrement(), command));
+        return true;
     }
 
     void shutdownNow() {

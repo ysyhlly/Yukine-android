@@ -509,14 +509,13 @@ public final class EchoPlaybackService extends MediaLibraryService
                 EchoPlaybackService.this::prepareCurrent,
                 EchoPlaybackService.this::publishState,
                 EchoPlaybackService.this,
-                (tracks, currentIndex) -> {
-                    final List<Track> snapshot = new ArrayList<>(tracks);
-                    playbackTaskScheduler.schedule(
-                            PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE,
-                            () -> queueStore.save(snapshot, currentIndex)
-                    );
-                    return true;
-                }
+                PlaybackQueueCommandOwner.conflatingQueuePersistence(
+                        command -> playbackTaskScheduler.schedule(
+                                PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE,
+                                command
+                        ),
+                        queueStore::save
+                )
         );
         playbackMirroredQueueTrackMatcherOwner =
                 PlaybackMirroredQueueTrackMatcherOwner.fromMediaSourceProvider(
@@ -811,25 +810,6 @@ public final class EchoPlaybackService extends MediaLibraryService
                             return playbackPlayerStateOwner.durationMs();
                         }
 
-                        @Override
-                        public List<Track> queueSnapshot() {
-                            return playbackQueueStateOwner.queueSnapshot();
-                        }
-
-                        @Override
-                        public int currentIndex() {
-                            return playbackQueueStateOwner.queueStateSnapshot().getCurrentIndex();
-                        }
-
-                        @Override
-                        public int queueSize() {
-                            return playbackQueueStateOwner.queueSize();
-                        }
-
-                        @Override
-                        public Track trackAt(int index) {
-                            return playbackQueueStateOwner.trackAt(index);
-                        }
                     },
                     playbackNotificationManager::mediaMetadataForTrack
             );
