@@ -100,6 +100,33 @@ class NowPlayingViewModelTest {
     }
 
     @Test
+    fun sourceSwitchEventsImmediatelyEmitTheirSwitchEffects() {
+        val viewModel = NowPlayingViewModel()
+        val current = Track(7L, "Song", "Artist", "Album", 180_000L, Uri.EMPTY, "file:current.mp3")
+        val alternate = Track(8L, "Song", "Artist", "Album", 180_000L, Uri.EMPTY, "file:alternate.flac")
+
+        viewModel.onEvent(
+            NowPlayingEvent.SwitchSource(
+                current,
+                StreamingProviderName.QQ_MUSIC,
+                "qq-song",
+                StreamingAudioQuality.HIGH
+            )
+        )
+        val streamingEffect = viewModel.drainEffects().single() as NowPlayingEffect.SwitchSource
+
+        assertEquals(current, streamingEffect.track)
+        assertEquals(StreamingProviderName.QQ_MUSIC, streamingEffect.provider)
+        assertEquals("qq-song", streamingEffect.providerTrackId)
+
+        viewModel.onEvent(NowPlayingEvent.SwitchLibrarySource(current, alternate))
+        val libraryEffect = viewModel.drainEffects().single() as NowPlayingEffect.SwitchLibrarySource
+
+        assertEquals(current, libraryEffect.current)
+        assertEquals(alternate, libraryEffect.replacement)
+    }
+
+    @Test
     fun addToPlaylistEmitsCurrentTrackEffect() {
         val viewModel = NowPlayingViewModel()
         viewModel.updateState(snapshotWithTrack(), emptySet(), null)
@@ -249,6 +276,22 @@ class NowPlayingViewModelTest {
     }
 
     @Test
+    fun sameIdStreamingResolutionsCrossThePlaybackBoundaryAsOneBatch() {
+        val player = FakePlaybackGateway()
+        val viewModel = NowPlayingViewModel()
+        viewModel.bindPlaybackGateway(player)
+
+        viewModel.replaceQueuedTracks(
+            linkedMapOf(
+                10L to Track(10L, "Ten", "Artist", "Album", 1_000L, Uri.EMPTY, "streaming:ten"),
+                11L to Track(11L, "Eleven", "Artist", "Album", 1_000L, Uri.EMPTY, "streaming:eleven")
+            )
+        )
+
+        assertEquals(listOf("replaceBatch:10,11"), player.calls)
+    }
+
+    @Test
     fun playbackModeActionsUpdateGateway() {
         val player = FakePlaybackGateway()
         val viewModel = NowPlayingViewModel()
@@ -381,6 +424,10 @@ class NowPlayingViewModelTest {
 
         override fun replaceQueuedTrack(updated: Track) {
             calls.add("replace:${updated.id}")
+        }
+
+        override fun replaceQueuedTracks(updated: List<Track>) {
+            calls.add("replaceBatch:${updated.joinToString(",") { it.id.toString() }}")
         }
 
         override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) {

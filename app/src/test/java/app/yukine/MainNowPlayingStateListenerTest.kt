@@ -1,6 +1,7 @@
 package app.yukine
 
 import android.net.Uri
+import app.yukine.model.LyricsLine
 import app.yukine.model.Track
 import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.PlaybackStateSnapshot
@@ -72,6 +73,39 @@ class MainNowPlayingStateListenerTest {
     }
 
     @Test
+    fun publishesMatchingLyricsTimelineForServiceSideProgressUpdates() {
+        val calls = mutableListOf<String>()
+        val lyrics = listOf(
+            LyricsLine(1_000L, "first"),
+            LyricsLine(2_000L, "second")
+        )
+        var publishedTrackId = -1L
+        var publishedLines: List<LyricsLine> = emptyList()
+        var publishedOffsetMs = 0L
+        val listener = listener(
+            calls = calls,
+            lyricsState = LyricsState(trackId = 7L, lines = lyrics, offsetMs = 250L),
+            onFloatingLyrics = { trackId, lines, offsetMs ->
+                publishedTrackId = trackId
+                publishedLines = lines
+                publishedOffsetMs = offsetMs
+            }
+        )
+
+        listener.publishFloatingLyrics(
+            NowPlayingUiState(
+                trackId = 7L,
+                trackTitle = "Song",
+                lyrics = LyricsUiState(lines = listOf(LyricUiLine("first", active = true)))
+            )
+        )
+
+        assertEquals(7L, publishedTrackId)
+        assertEquals(lyrics, publishedLines)
+        assertEquals(250L, publishedOffsetMs)
+    }
+
+    @Test
     fun factoryCreatesNowPlayingStateControllerListener() {
         val calls = mutableListOf<String>()
         val listener = PlaybackUiModule.provideMainNowPlayingStateListenerFactory().create(
@@ -81,7 +115,9 @@ class MainNowPlayingStateListenerTest {
             NowPlayingLyricsStateSource { null },
             NowPlayingLanguageModeSource { AppLanguage.MODE_SYSTEM },
             NowPlayingQueueVisibilitySource { true },
-            NowPlayingFloatingLyricsSink { title, _, _, _, activeLine -> calls += "floating:$title:$activeLine" },
+            NowPlayingFloatingLyricsSink { _, title, _, _, _, activeLine, _, _ ->
+                calls += "floating:$title:$activeLine"
+            },
             NowPlayingQueueInputsSyncer { calls += "queue" }
         )
 
@@ -107,7 +143,8 @@ class MainNowPlayingStateListenerTest {
         favoriteIds: Set<Long> = emptySet(),
         lyricsState: LyricsState? = null,
         languageMode: String = AppLanguage.MODE_SYSTEM,
-        queueVisible: Boolean = true
+        queueVisible: Boolean = true,
+        onFloatingLyrics: ((Long, List<LyricsLine>, Long) -> Unit)? = null
     ): MainNowPlayingStateListener =
         MainNowPlayingStateListener(
             storesReadySource = NowPlayingStoresReadySource { storesReady },
@@ -116,8 +153,9 @@ class MainNowPlayingStateListenerTest {
             lyricsStateSource = NowPlayingLyricsStateSource { lyricsState },
             languageModeSource = NowPlayingLanguageModeSource { languageMode },
             queueVisibilitySource = NowPlayingQueueVisibilitySource { queueVisible },
-            floatingLyricsSink = NowPlayingFloatingLyricsSink { title, artist, coverUri, playing, activeLine ->
+            floatingLyricsSink = NowPlayingFloatingLyricsSink { trackId, title, artist, coverUri, playing, activeLine, lines, offsetMs ->
                 calls += "floating:$title:$artist:${coverUri.orEmpty()}:$playing:$activeLine"
+                onFloatingLyrics?.invoke(trackId, lines, offsetMs)
             },
             queueInputsSyncer = NowPlayingQueueInputsSyncer { calls += "queue" }
         )

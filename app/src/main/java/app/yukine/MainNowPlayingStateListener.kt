@@ -1,5 +1,6 @@
 package app.yukine
 
+import app.yukine.model.LyricsLine
 import app.yukine.playback.PlaybackStateSnapshot
 
 internal fun interface NowPlayingStoresReadySource {
@@ -28,11 +29,14 @@ internal fun interface NowPlayingQueueVisibilitySource {
 
 internal fun interface NowPlayingFloatingLyricsSink {
     fun publishFloatingLyrics(
+        trackId: Long,
         trackTitle: String,
         artist: String,
         coverUri: String?,
         playing: Boolean,
-        activeLine: String
+        activeLine: String,
+        lyrics: List<LyricsLine>,
+        lyricsOffsetMs: Long
     )
 }
 
@@ -82,12 +86,16 @@ internal class MainNowPlayingStateListener(
         queueVisibilitySource.queueVisible()
 
     override fun publishFloatingLyrics(state: NowPlayingUiState) {
+        val timeline = lyricsState()?.takeIf { it.trackId == state.trackId }
         floatingLyricsSink.publishFloatingLyrics(
+            state.trackId,
             state.trackTitle,
             state.artist,
             state.coverUri,
             state.isPlaying,
-            activeLyricLine(state)
+            activeLyricLine(state),
+            timeline?.lines.orEmpty(),
+            timeline?.offsetMs ?: 0L
         )
     }
 

@@ -907,6 +907,23 @@ class StreamingViewModel @Inject constructor(
         quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
         maxCount: Int = STREAMING_QUEUE_PRE_RESOLVE_LIMIT,
         onResolved: StreamingBiCallback<Long, Track?>
+    ): Job? = preResolveStreamingQueueWindowBatch(
+        snapshot,
+        queue,
+        quality,
+        maxCount
+    ) { resolvedTracks ->
+        resolvedTracks.forEach { (oldTrackId, resolved) ->
+            onResolved.onResult(oldTrackId, resolved)
+        }
+    }
+
+    fun preResolveStreamingQueueWindowBatch(
+        snapshot: PlaybackStateSnapshot?,
+        queue: List<Track>?,
+        quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
+        maxCount: Int = STREAMING_QUEUE_PRE_RESOLVE_LIMIT,
+        onResolved: (Map<Long, Track>) -> Unit
     ): Job? {
         if (snapshot == null || !snapshot.playing || queue.isNullOrEmpty() || maxCount <= 0) {
             return null
@@ -923,6 +940,7 @@ class StreamingViewModel @Inject constructor(
         }
         return viewModelScope.launch {
             try {
+                val resolvedTracks = linkedMapOf<Long, Track>()
                 eligibleTargets.map { target ->
                     async(ioDispatcher) {
                         target to runCatching {
@@ -937,8 +955,11 @@ class StreamingViewModel @Inject constructor(
                 }.awaitAll().forEach { (target, result) ->
                     result?.let {
                         updateStreamingPlaybackTrack(it.source, it.track)
-                        onResolved.onResult(target.oldTrackId, it.track)
+                        resolvedTracks[target.oldTrackId] = it.track
                     }
+                }
+                if (resolvedTracks.isNotEmpty()) {
+                    onResolved(resolvedTracks)
                 }
                 updateStreamingDiagnostics(streamingRepository.diagnostics())
             } finally {

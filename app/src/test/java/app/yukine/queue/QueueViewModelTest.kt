@@ -28,10 +28,10 @@ class QueueViewModelTest {
     private fun track(id: Long): Track =
         Track(id, "Track $id", "Artist", "Album", 1_000L, Uri.EMPTY, "file:$id")
 
-    private fun snapshot(current: Track?): PlaybackStateSnapshot =
+    private fun snapshot(current: Track?, currentIndex: Int = 0): PlaybackStateSnapshot =
         PlaybackStateSnapshot(
             current,
-            0,      // currentIndex
+            currentIndex,
             0,      // queueSize
             0L,     // positionMs
             0L,     // durationMs
@@ -50,7 +50,7 @@ class QueueViewModelTest {
         val vm = QueueViewModel()
         val tracks = listOf(track(1L), track(2L), track(3L))
 
-        vm.bind(tracks, snapshot(tracks[1]), setOf(2L), "zh")
+        vm.bind(tracks, snapshot(tracks[1], currentIndex = 1), setOf(2L), "zh")
 
         val state = vm.uiState.value
         assertEquals(3, state.rows.size)
@@ -72,7 +72,7 @@ class QueueViewModelTest {
         val vm = QueueViewModel()
         val tracks = (0 until 160).map { track(it.toLong()) }
 
-        vm.bind(tracks, snapshot(tracks[120]), setOf(120L), "en")
+        vm.bind(tracks, snapshot(tracks[120], currentIndex = 120), setOf(120L), "en")
 
         val state = vm.uiState.value
         assertEquals(160, state.rowCount)
@@ -97,6 +97,19 @@ class QueueViewModelTest {
         val lateDuplicate = vm.uiState.value.rowAt(120)
         assertEquals("7:2", lateDuplicate?.key)
         assertEquals("Track 7", lateDuplicate?.title)
+    }
+
+    @Test
+    fun bind_duplicateTrackIdsHighlightsOnlyThePlaybackIndex() {
+        val vm = QueueViewModel()
+        val tracks = listOf(track(7L), track(8L), track(7L))
+
+        vm.bind(tracks, snapshot(tracks[2], currentIndex = 2), emptySet(), "en")
+
+        val rows = vm.uiState.value.rows
+        assertTrue(!rows[0].current)
+        assertTrue(!rows[1].current)
+        assertTrue(rows[2].current)
     }
 
     @Test

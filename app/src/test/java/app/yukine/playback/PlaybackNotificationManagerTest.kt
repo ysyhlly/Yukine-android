@@ -422,6 +422,9 @@ class PlaybackNotificationManagerTest {
         override fun setStatusBarLyricsEnabled(enabled: Boolean) {
         }
 
+        override fun onAppVisibilityChanged() {
+        }
+
         override fun syncFloatingLyricsPlaybackState(snapshot: PlaybackStateSnapshot) {
         }
 

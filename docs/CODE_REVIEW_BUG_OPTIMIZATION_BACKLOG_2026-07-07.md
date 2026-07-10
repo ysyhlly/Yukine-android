@@ -70,6 +70,7 @@ Fix:
 - Headset-noisy and sleep-timer pauses use a non-persisting pause path, so only a user-initiated pause is recoverable.
 - Temporary in-memory position handoff for streaming URL/source replacement remains intact so an in-flight recovery does not restart a song unexpectedly.
 - Before replacing a single source or rebuilding a mirrored queue, the player-state owner drops the prior item's in-memory estimate. For a mirrored queue seek (including shuffle), it also holds the target media-item index and requested start position until ExoPlayer reaches that item; this prevents the old item's estimate from being published or paused under the new song ID during the hand-off.
+- Source-card taps dispatch typed `NowPlayingEvent` values through the same host handler as transport controls, so queued source-switch effects are consumed immediately instead of waiting for an unrelated action such as pause.
 
 Guardrail:
 
@@ -84,8 +85,35 @@ Guardrail:
 - `PlaybackQueueManagerTest.replaceCurrentTrackAndResumeKeepsPositionForTheSameTrackWithARefreshedUri`
 - `PlaybackQueueManagerTest.replaceCurrentSourceAndResumeKeepsPositionForAConfirmedAlternateSource`
 - `PlaybackQueueManagerTest.replaceCurrentSourceAndResumeIgnoresAStaleCurrentTrackId`
+- `NowPlayingViewModelTest.sourceSwitchEventsImmediatelyEmitTheirSwitchEffects`
+- `MainActivityArchitectureContractTest.playbackStateListenerStaysOutOfMainActivity`
 - `PlaybackQueueManagerTest.automaticMirroredTransitionClearsAUserPauseCheckpointBeforeTheNextTrackStarts`
 - `PlaybackPlayerStateOwnerTest.resetPositionEstimateDropsOldPausedPositionBeforeReplacingTheSource`
+
+### P1 - Audio Exclusive Must Reuse One Media-Focus Owner
+
+Status: Fixed; the user-facing setting now exposes the existing Media3 audio-focus path without adding a second `AudioManager` controller.
+
+Evidence:
+
+- `PlaybackRuntimeStateManager` already applies Media3 audio attributes with audio-focus handling enabled when its persisted `concurrentPlaybackEnabled` flag is `false`.
+- A second manual focus request would race Media3's focus lifecycle across notification controls, calls, noisy-headset handling, and background playback; Android's focus contract is cooperative, so it still cannot forcibly silence non-compliant third-party apps.
+
+Fix:
+
+- Playback settings now present the inverse-compatible control as `音频独占` / `Audio exclusive`, enabled by default.
+- Enabling audio exclusive stores `concurrentPlaybackEnabled = false`, so Media3 requests long-lived media focus; compatible other media apps pause or mute. Disabling it stores `true` and permits mixing.
+- The existing preference key, service boundary, and runtime state owner remain the only source of truth, keeping existing users' saved mixing preference compatible.
+
+Guardrail:
+
+- `SettingsViewModelTest.audioExclusiveMapsToTheInverseConcurrentPlaybackRuntimeSetting`
+- `SettingsPageStateBuilderTest.audioExclusiveBuildsBooleanLeafPage`
+- `PlaybackRuntimeStateManagerTest.concurrentPlaybackSetterAppliesAudioFocusHandling`
+
+Manual follow-up:
+
+- Verify a music/video app, a navigation prompt, a phone call, wired/BT headset disconnect, and background playback on a real device. Record behavior separately for apps that do not honor Android audio focus.
 
 ### P1 - Library Could Show Equivalent Sources As Separate Songs
 
@@ -266,15 +294,45 @@ Evidence:
 - `QueueDestinationState` now carries `rowCount` and `rowAt(index)` so the UI can resolve rows lazily.
 - `QueueScreen` now renders through `trackCount` / `trackAt(index)` instead of requiring a full `List<QueueTrackUiState>` for every row.
 - `QueueViewModelTest.bind_largeQueueKeepsRowsLazyAndStillResolvesIndexedRows` covers a 160-track queue, 96 eager rows, and a late current row.
+- Late rows and duplicate row keys are now cached on demand, so Compose's key/content lookup does not parse the same off-screen row twice or allocate a key array sized to the whole queue.
+- When the event controller already copied a changed queue, `MainPlaybackStore` reuses that immutable UI snapshot for the immediately following Queue bind instead of requesting a second service-wide queue copy.
 
 Risk:
 
-- `rowAt(index)` still derives a row synchronously on the Compose path, so row construction should stay cheap and side-effect free.
-- This reduces queue-open jank, but it does not by itself reduce upstream queue snapshot copies, MediaSession timeline exposure, or recommendation batch size.
+- `rowAt(index)` still derives its first visit synchronously on the Compose path, so row construction should stay cheap and side-effect free.
+- This does not reduce MediaSession timeline exposure or recommendation batch size.
 
 Recommended check:
 
 - On device, open/close a 500-track streaming queue and scroll near the middle/end.
+
+### P1 - Queue Restore And Streaming Pre-Resolve Repeated Work
+
+Status: Fixed in current working tree, keep regression coverage.
+
+Evidence:
+
+- The production queue is a `CopyOnWriteArrayList`; restoring a persisted queue previously called `add()` once per valid track, copying the backing array for every row.
+- Playback progress emits about once per second. While an online queue window target remained unresolved, each emission could start the same URL resolve again.
+- A same-size, non-current queued-source replacement did not change the prior `(currentTrackId, currentIndex, queueSize)` UI key, so a visible Queue page could wait for a later navigation event to show the update.
+
+Fix:
+
+- Restore now stages valid tracks and resolved index selection in an `ArrayList`, then commits with one `addAll()`.
+- Window pre-resolve keeps an in-flight key per queued source/provider/quality until its callback completes.
+- A completed pre-resolve window now crosses the playback-service boundary as one same-ID replacement batch, so `PlaybackQueueManager` persists and publishes only the final queue version instead of once per resolved URL.
+- `PlaybackQueueManager` emits a monotonic queue-content revision through `PlaybackStateSnapshot`; Queue refresh gates include it, preserving the no-full-copy progress-tick path while immediately updating actual queue mutations.
+- `QueueViewModel` marks the current row by a valid playback index rather than track ID alone, so duplicate online queue entries no longer all render as active.
+
+Guardrail:
+
+- `PlaybackQueueManagerTest.restoreLargeQueueStagesTracksBeforeOneQueueCommit`
+- `PlaybackQueueManagerTest.batchQueuedStreamingResolutionsCommitOnceAndPublishTheFinalQueue`
+- `StreamingViewModelTest.preResolveStreamingQueueWindowBatchResolvesUpcomingTracksInOneCallback`
+- `StreamingViewModelTest.preResolveStreamingQueueWindowDoesNotDuplicateInFlightTargets`
+- `QueueViewModelTest.bind_duplicateTrackIdsHighlightsOnlyThePlaybackIndex`
+- `PlaybackStateEventControllerTest.queueContentRevisionRepublishesSameSizedQueueWithoutProgressChurn`
+- `NowPlayingStateControllerTest.queueContentRevisionResyncsSameSizedQueue`
 
 ### P1 - Daily Recommendation Initial Playback Queue Is Capped
 

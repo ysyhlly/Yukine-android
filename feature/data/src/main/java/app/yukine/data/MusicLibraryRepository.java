@@ -125,6 +125,14 @@ public final class MusicLibraryRepository {
         database.saveStatusBarLyricsEnabled(enabled);
     }
 
+    public boolean loadSystemMediaLyricsTitleEnabled() {
+        return database.loadSystemMediaLyricsTitleEnabled();
+    }
+
+    public void saveSystemMediaLyricsTitleEnabled(boolean enabled) {
+        database.saveSystemMediaLyricsTitleEnabled(enabled);
+    }
+
     public boolean loadFloatingLyricsEnabled() {
         return database.loadFloatingLyricsEnabled();
     }

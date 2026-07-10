@@ -24,6 +24,7 @@ class PlaybackStatePublisherTest {
                 override fun bind() {}
                 override fun release() {}
                 override fun setStatusBarLyricsEnabled(enabled: Boolean) {}
+                override fun onAppVisibilityChanged() {}
                 override fun syncFloatingLyricsPlaybackState(snapshot: PlaybackStateSnapshot) {
                     calls.add("lyrics")
                 }

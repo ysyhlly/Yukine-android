@@ -81,18 +81,12 @@ internal class PlaybackQueueManager(
         }
     }
 
-    data class QueueStateSnapshot(
+    data class QueueStateSnapshot @JvmOverloads constructor(
         val currentTrack: Track?,
         val currentIndex: Int,
         val queueSize: Int,
-        val queueRevision: Long
+        val queueRevision: Long = 0L
     ) {
-        constructor(
-            currentTrack: Track?,
-            currentIndex: Int,
-            queueSize: Int
-        ) : this(currentTrack, currentIndex, queueSize, 0L)
-
         val isQueueEmpty: Boolean
             get() = queueSize <= 0
 
@@ -553,6 +547,58 @@ internal class PlaybackQueueManager(
             }
             queuePlaybackActions.publishState()
         }
+    }
+
+    /**
+     * Commits several same-ID streaming URL resolutions as one logical queue mutation. A
+     * pre-resolve window can finish multiple tracks at once; publishing and persisting every
+     * result separately makes a large CopyOnWriteArrayList repeatedly copy itself and lets the
+     * UI observe intermediate queue versions.
+     */
+    fun replaceQueuedTracks(replacements: List<Track>) {
+        val queue = this.queue
+        if (queue.isEmpty() || replacements.isEmpty()) {
+            return
+        }
+        val replacementsById = HashMap<Long, Track>(replacements.size)
+        replacements.forEach { replacement -> replacementsById[replacement.id] = replacement }
+        if (replacementsById.isEmpty()) {
+            return
+        }
+        val updatedQueue = ArrayList<Track>(queue.size)
+        var replaced = false
+        var replacedCurrent = false
+        for (index in queue.indices) {
+            val current = queue[index]
+            val replacement = replacementsById[current.id]
+            if (replacement == null || replacement === current) {
+                updatedQueue.add(current)
+                continue
+            }
+            updatedQueue.add(replacement)
+            replaced = true
+            if (index == currentIndex()) {
+                replacedCurrent = true
+            }
+        }
+        if (!replaced) {
+            return
+        }
+        // The production queue is a CopyOnWriteArrayList. One bulk commit avoids one full
+        // backing-array copy for every result in a streaming pre-resolve window.
+        queue.clear()
+        queue.addAll(updatedQueue)
+        markQueueContentChanged()
+        clearErrorMessage()
+        clearLastMarkedTrack()
+        clearRestoredPosition()
+        persistQueue()
+        if (replacedCurrent) {
+            resetCurrentPlaybackPosition()
+            queuePlaybackActions.prepareCurrent(isPlaying() || preparing() || queue.isEmpty())
+            return
+        }
+        queuePlaybackActions.publishState()
     }
 
     fun replaceQueuedTrackById(oldTrackId: Long, replacement: Track) {

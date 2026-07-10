@@ -295,7 +295,7 @@ class SettingsPageStateBuilderTest {
             languageMode = AppLanguage.MODE_ENGLISH,
             playbackSpeed = 1.25f,
             appVolume = 0.7f,
-            concurrentPlaybackEnabled = true,
+            concurrentPlaybackEnabled = false,
             audioEffects = audioEffects,
             nowPlayingGesturesEnabled = false,
             playbackRestoreEnabled = true,
@@ -308,6 +308,8 @@ class SettingsPageStateBuilderTest {
         assertEquals(8, content.uiState.metrics.size)
         assertEquals("1.25x", content.uiState.metrics[0].value)
         assertEquals("70%", content.uiState.metrics[1].value)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "audio.exclusive"), content.uiState.metrics[6].label)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "enabled"), content.uiState.metrics[6].value)
         assertEquals(
             AppLanguage.text(AppLanguage.MODE_ENGLISH, "enabled") + " / " + AppLanguage.text(AppLanguage.MODE_ENGLISH, "eq.classical"),
             content.uiState.metrics[2].value
@@ -382,11 +384,11 @@ class SettingsPageStateBuilderTest {
     }
 
     @Test
-    fun concurrentPlaybackBuildsBooleanLeafPage() {
+    fun audioExclusiveBuildsBooleanLeafPage() {
         val navigated = mutableListOf<SettingsPage>()
         val toggles = mutableListOf<Boolean>()
 
-        val content = SettingsPageStateBuilder.concurrentPlayback(
+        val content = SettingsPageStateBuilder.audioExclusive(
             languageMode = AppLanguage.MODE_ENGLISH,
             enabled = true,
             onNavigate = { page -> navigated += page },
@@ -395,9 +397,9 @@ class SettingsPageStateBuilderTest {
 
         assertBooleanLeafPage(
             content = content,
-            titleKey = "concurrent.playback",
+            titleKey = "audio.exclusive",
             enabled = true,
-            toggleKey = "disable.concurrent.playback"
+            toggleKey = "disable.audio.exclusive"
         )
 
         content.actions[0].onClick.run()

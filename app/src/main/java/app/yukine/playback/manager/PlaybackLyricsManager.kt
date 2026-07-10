@@ -26,8 +26,8 @@ internal class PlaybackLyricsManager(
     }
 
     private var statusBarLyricsEnabled = true
+    private var systemMediaLyricsTitleEnabled = false
     private var lastNotificationLyric = ""
-    private var lastLyricNotificationUpdateAtMs = 0L
     private var released = false
 
     private val floatingLyricsListener = FloatingLyricsPublisher.Listener { state ->
@@ -40,11 +40,12 @@ internal class PlaybackLyricsManager(
         }
         lastNotificationLyric = nextLyric
         if (notificationBridge.hasNotificationWorthyState()) {
-            val now = System.currentTimeMillis()
-            if (!stateProvider.isAppVisible() && now - lastLyricNotificationUpdateAtMs < BACKGROUND_LYRIC_NOTIFICATION_MIN_INTERVAL_MS) {
-                return@Listener
-            }
-            lastLyricNotificationUpdateAtMs = now
+            // PlaybackStatePublisher already de-duplicates unchanged notification signatures.
+            // Do not drop a new line here: a short lyric line may be the final update before a
+            // pause or track transition, leaving the notification stuck on the previous text.
+            // MediaSession metadata is consumed by some system/OEM notification surfaces, so
+            // refresh that existing bridge together with the foreground notification.
+            notificationBridge.refreshPlaybackSession()
             notificationBridge.notifyMediaNotification(false)
             updateLiveLyricsNotificationService()
         }
@@ -80,6 +81,32 @@ internal class PlaybackLyricsManager(
         notificationBridge.notifyMediaNotification(true)
     }
 
+    override fun setSystemMediaLyricsTitleEnabled(enabled: Boolean) {
+        if (released || systemMediaLyricsTitleEnabled == enabled) {
+            return
+        }
+        systemMediaLyricsTitleEnabled = enabled
+        if (notificationBridge.hasNotificationWorthyState()) {
+            notificationBridge.refreshPlaybackSession()
+            notificationBridge.notifyMediaNotification(true)
+        }
+    }
+
+    /**
+     * The service owns whether playback has moved to the background. Refresh both notification
+     * surfaces immediately so a long current lyric line does not wait for the next lyric change.
+     */
+    override fun onAppVisibilityChanged() {
+        if (released) {
+            return
+        }
+        updateLiveLyricsNotificationService()
+        if (notificationBridge.hasNotificationWorthyState()) {
+            notificationBridge.refreshPlaybackSession()
+            notificationBridge.notifyMediaNotification(true)
+        }
+    }
+
     override fun syncFloatingLyricsPlaybackState(snapshot: PlaybackStateSnapshot) {
         if (released) {
             return
@@ -87,19 +114,11 @@ internal class PlaybackLyricsManager(
         if (snapshot.currentTrack == null) {
             return
         }
-        val state = FloatingLyricsPublisher.snapshot()
         val track = snapshot.currentTrack
-        val activeLine = if (floatingLyricsTrackMatches(state, track)) {
-            state.activeLine
-        } else {
-            ""
-        }
-        FloatingLyricsPublisher.update(
-            track.title,
-            track.artist,
-            track.albumArtUriString(),
+        FloatingLyricsPublisher.syncPlaybackState(
+            track,
             snapshot.playing || snapshot.preparing,
-            activeLine
+            snapshot.positionMs
         )
     }
 
@@ -116,6 +135,17 @@ internal class PlaybackLyricsManager(
         }
         val activeLine = state.activeLine
         return if (activeLine.isBlank()) "" else sanitizeNotificationLyric(activeLine)
+    }
+
+    override fun systemMediaTitleLyricText(track: Track?): String {
+        if (released || !systemMediaLyricsTitleEnabled || track == null) {
+            return ""
+        }
+        val state = FloatingLyricsPublisher.snapshot()
+        if (!floatingLyricsTrackMatches(state, track)) {
+            return ""
+        }
+        return sanitizeNotificationLyric(state.activeLine)
     }
 
     override fun sanitizeNotificationLyric(value: String?): String {
@@ -147,7 +177,11 @@ internal class PlaybackLyricsManager(
     }
 
     private fun floatingLyricsTrackMatches(state: FloatingLyricsState, track: Track): Boolean {
-        return track.title == state.trackTitle && track.artist == state.artist
+        return if (state.trackId >= 0L) {
+            state.trackId == track.id
+        } else {
+            track.title == state.trackTitle && track.artist == state.artist
+        }
     }
 
     private fun updateLiveLyricsNotificationService() {
@@ -165,7 +199,4 @@ internal class PlaybackLyricsManager(
         }
     }
 
-    companion object {
-        private const val BACKGROUND_LYRIC_NOTIFICATION_MIN_INTERVAL_MS = 1500L
-    }
 }

@@ -38,6 +38,7 @@ data class SettingsPreferencesSnapshot(
     val concurrentPlaybackEnabled: Boolean = false,
     val audioEffectSettings: AudioEffectSettings = AudioEffectSettings.DEFAULT,
     val statusBarLyricsEnabled: Boolean = true,
+    val systemMediaLyricsTitleEnabled: Boolean = false,
     val floatingLyricsEnabled: Boolean = false,
     val nowPlayingGesturesEnabled: Boolean = true,
     val playbackRestoreEnabled: Boolean = true,
@@ -138,9 +139,11 @@ sealed interface SettingsEvent {
     data class ApplyAppVolume(val volume: Float) : SettingsEvent
     data class ApplyStreamingAudioQuality(val quality: String) : SettingsEvent
     data class ApplyShareStyle(val style: String) : SettingsEvent
+    data class SetAudioExclusiveEnabled(val enabled: Boolean) : SettingsEvent
     data class SetConcurrentPlaybackEnabled(val enabled: Boolean) : SettingsEvent
     data class ApplyAudioEffectSettings(val settings: AudioEffectSettings) : SettingsEvent
     data class SetStatusBarLyricsEnabled(val enabled: Boolean) : SettingsEvent
+    data class SetSystemMediaLyricsTitleEnabled(val enabled: Boolean) : SettingsEvent
     data class SetFloatingLyricsEnabled(val enabled: Boolean) : SettingsEvent
     data object OpenFloatingLyricsPermission : SettingsEvent
     data class SetNowPlayingGesturesEnabled(val enabled: Boolean) : SettingsEvent
@@ -280,9 +283,11 @@ class SettingsViewModel @JvmOverloads constructor(
             is SettingsEvent.ApplyAppVolume -> applyAppVolume(event.volume)
             is SettingsEvent.ApplyStreamingAudioQuality -> applyStreamingAudioQuality(event.quality)
             is SettingsEvent.ApplyShareStyle -> applyShareStyle(event.style)
+            is SettingsEvent.SetAudioExclusiveEnabled -> setAudioExclusiveEnabled(event.enabled)
             is SettingsEvent.SetConcurrentPlaybackEnabled -> setConcurrentPlaybackEnabled(event.enabled)
             is SettingsEvent.ApplyAudioEffectSettings -> applyAudioEffectSettings(event.settings)
             is SettingsEvent.SetStatusBarLyricsEnabled -> setStatusBarLyricsEnabled(event.enabled)
+            is SettingsEvent.SetSystemMediaLyricsTitleEnabled -> setSystemMediaLyricsTitleEnabled(event.enabled)
             is SettingsEvent.SetFloatingLyricsEnabled -> setFloatingLyricsEnabled(event.enabled)
             SettingsEvent.OpenFloatingLyricsPermission -> emitEffect(SettingsEffect.OpenFloatingLyricsPermission)
             is SettingsEvent.SetNowPlayingGesturesEnabled -> setNowPlayingGesturesEnabled(event.enabled)
@@ -356,10 +361,14 @@ class SettingsViewModel @JvmOverloads constructor(
                     runtime.lyricsOffsetMs,
                     runtime.onlineLyricsEnabled,
                     preferences.statusBarLyricsEnabled,
+                    preferences.systemMediaLyricsTitleEnabled,
                     preferences.floatingLyricsEnabled,
                     runtime.overlayPermissionGranted,
                     onNavigate = ::navigateSettingsPage,
                     onOnlineLyricsEnabledChange = { enabled -> onEvent(SettingsEvent.SetOnlineLyricsEnabled(enabled)) },
+                    onSystemMediaLyricsTitleEnabledChange = { enabled ->
+                        onEvent(SettingsEvent.SetSystemMediaLyricsTitleEnabled(enabled))
+                    },
                     onReloadLyrics = { onEvent(SettingsEvent.ReloadCurrentLyrics) },
                     onApplyLyricsOffset = { offset -> onEvent(SettingsEvent.ApplyLyricsOffset(offset)) }
                 )
@@ -474,11 +483,11 @@ class SettingsViewModel @JvmOverloads constructor(
                     onApplyStyle = { style -> onEvent(SettingsEvent.ApplyShareStyle(style)) }
                 )
             SettingsPage.ConcurrentPlayback ->
-                SettingsPageStateBuilder.concurrentPlayback(
+                SettingsPageStateBuilder.audioExclusive(
                     languageMode,
-                    preferences.concurrentPlaybackEnabled,
+                    !preferences.concurrentPlaybackEnabled,
                     onNavigate = ::navigateSettingsPage,
-                    onToggle = { enabled -> onEvent(SettingsEvent.SetConcurrentPlaybackEnabled(enabled)) }
+                    onToggle = { enabled -> onEvent(SettingsEvent.SetAudioExclusiveEnabled(enabled)) }
                 )
             SettingsPage.SleepTimer ->
                 SettingsPageStateBuilder.sleepTimer(
@@ -677,10 +686,33 @@ class SettingsViewModel @JvmOverloads constructor(
     }
 
     fun setConcurrentPlaybackEnabled(enabled: Boolean) {
+        val statusText = currentAppliedStatusText()
+        updateConcurrentPlaybackEnabled(
+            enabled,
+            if (enabled) statusText.concurrentPlaybackEnabled else statusText.concurrentPlaybackDisabled
+        )
+    }
+
+    /**
+     * User-facing audio exclusivity maps to the existing persisted mixing flag. Keeping one
+     * source of truth avoids competing audio-focus requests while remaining compatible with
+     * existing preferences: exclusive on means concurrent playback off.
+     */
+    fun setAudioExclusiveEnabled(enabled: Boolean) {
+        val languageMode = _state.value.preferences.languageMode
+        updateConcurrentPlaybackEnabled(
+            !enabled,
+            AppLanguage.text(
+                languageMode,
+                if (enabled) "audio.exclusive.enabled" else "audio.exclusive.disabled"
+            )
+        )
+    }
+
+    private fun updateConcurrentPlaybackEnabled(enabled: Boolean, status: String) {
         applyRuntimeEffect(SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(enabled))
         updatePreferences { it.copy(concurrentPlaybackEnabled = enabled) }
-        val statusText = currentAppliedStatusText()
-        emitAppliedStatus(if (enabled) statusText.concurrentPlaybackEnabled else statusText.concurrentPlaybackDisabled)
+        emitAppliedStatus(status)
         savePreference(SettingsPreferenceKey.ConcurrentPlaybackEnabled, enabled)
     }
 
@@ -710,6 +742,19 @@ class SettingsViewModel @JvmOverloads constructor(
             savePreference(SettingsPreferenceKey.FloatingLyricsEnabled, false)
         }
         savePreference(SettingsPreferenceKey.StatusBarLyricsEnabled, enabled)
+    }
+
+    fun setSystemMediaLyricsTitleEnabled(enabled: Boolean) {
+        applyRuntimeEffect(SettingsRuntimeEffect.SetSystemMediaLyricsTitleEnabled(enabled))
+        updatePreferences { it.copy(systemMediaLyricsTitleEnabled = enabled) }
+        val languageMode = _state.value.preferences.languageMode
+        emitAppliedStatus(
+            AppLanguage.text(
+                languageMode,
+                if (enabled) "system.media.lyrics.title.enabled" else "system.media.lyrics.title.disabled"
+            )
+        )
+        savePreference(SettingsPreferenceKey.SystemMediaLyricsTitleEnabled, enabled)
     }
 
     fun setFloatingLyricsEnabled(enabled: Boolean) {

@@ -38,9 +38,10 @@ record those rows before claiming runtime smoke coverage for a playback slice.
 | 后台播放 | `:app:assembleDebug` 与 playback 单测只证明构建和核心 owner 行为；无后台进程运行证据。 | Home 后 2 分钟持续播放、返回 UI 同步录屏/通知截图。 |
 | 锁屏控制 | `PlaybackSessionPlayerTest` 覆盖 MediaSession 可用命令与上一首/下一首/seek 委托。 | 锁屏暂停、播放、下一首录屏。 |
 | 通知控制 | `PlaybackNotificationManagerTest` 覆盖通知按钮 action 映射和 stop action；`PlaybackQueueManagerTest.skipToNextAtQueueEndWithRepeatOffDoesNotRestartCurrentTrack` 覆盖通知委托到 queue owner 的队尾边界。 | 通知暂停/播放/上一首/下一首录屏。 |
+| 通知栏歌词 | `PlaybackLyricsManagerTest.movingPlaybackToBackgroundImmediatelyStartsLiveLyricsAndRefreshesNotification` 覆盖前后台切换即时刷新；`rapidBackgroundLyricLinesDoNotDropTheLatestNotificationRefresh` 覆盖短间隔歌词行不会丢失最后一次通知/MediaSession 刷新；`serviceProgressAdvancesPublishedLyricsTimelineAfterActivityStopsPublishing` 和 `serviceProgressDoesNotReuseLyricsTimelineForAnotherTrack` 覆盖 Activity 不再发布时的服务侧续推与按曲目 ID 隔离。 | 有时间戳歌词时前台播放、按 Home、锁屏、返回前台；逐行确认通知、锁屏/OEM 媒体面板不滞留旧歌词。 |
 | 耳机断开 | `PlaybackNoisyReceiverManagerTest.audioBecomingNoisyBroadcastPausesOnlyActivePlayback` 覆盖 `ACTION_AUDIO_BECOMING_NOISY` 只暂停活跃播放。 | 有线/蓝牙断开真实录屏和 `AudioManager` logcat。 |
 | 蓝牙切换 | noisy receiver 与 MediaSession command 单测覆盖部分服务行为。 | 扬声器 -> 蓝牙 -> 断开 -> 重连全流程录屏/logcat。 |
-| 媒体焦点抢占 / 来电 | `PlaybackRuntimeStateManagerTest.concurrentPlaybackSetterAppliesAudioFocusHandling` 覆盖“同时播放”开关对应的 audio-focus handling 配置。 | 真实或模拟来电/其他媒体抢焦点录屏和 logcat。 |
+| 音频独占 / 来电 | `PlaybackRuntimeStateManagerTest.concurrentPlaybackSetterAppliesAudioFocusHandling` 覆盖“音频独占”开关反向映射后的 Media3 audio-focus handling 配置；`SettingsViewModelTest.audioExclusiveMapsToTheInverseConcurrentPlaybackRuntimeSetting` 覆盖 UI 与存储兼容映射。 | 真实或模拟来电/其他媒体抢焦点录屏和 logcat。 |
 | 冷启动恢复 | `PlaybackQueueManagerTest.restorePlaybackQueue...` 系列覆盖过滤坏行、index 重映射、全坏队列清理、resume 标记清理；`playFirstQueuedTrackPersistsResumeRequestForColdStartRestore` 覆盖用户重新启动播放后的 resume 持久化；`EchoDatabaseHelperTest.savePlaybackPositionRollsBackTrackIdWhenPositionWriteFails` 覆盖恢复曲目 id 与位置毫秒的事务原子性。 | 杀进程/冷启动后当前曲、队列、位置恢复录屏/logcat。 |
 | 后台被杀 | 队列/位置/SQLite 事务护栏已覆盖一部分持久化基础；无 force-stop 运行证据。 | `adb shell am force-stop app.yukine` 后重新打开的命令输出、录屏、logcat。 |
 | 无效本地 URI | `PlaybackErrorRecoveryManagerTest.invalidLocalTrackSkipsToNextWhenQueueCanContinue`、`PlaybackQueueManagerTest.restorePlaybackQueueClearsPersistedStateWhenAllRowsAreFilteredOut` 覆盖不可恢复本地项处理。 | 真机缺失 MediaStore/文件条目的失败状态录屏/logcat。 |
@@ -252,10 +253,11 @@ adb devices
 | 后台播放 | 任意歌曲播放中。 | 按 Home，等待 2 分钟，再回到应用。 | 播放持续；返回后 UI 与通知状态同步。 | 录屏、通知截图。 |  |
 | 锁屏控制 | 播放中并锁屏。 | 在锁屏执行暂停、播放、下一首。 | 控制生效；标题/封面/进度合理更新。 | 锁屏截图或录屏。 |  |
 | 通知控制 | 播放中拉下通知。 | 执行暂停、播放、上一首、下一首。 | 控制即时生效；通知不会丢失或重复出现。 | 录屏。 |  |
+| 通知栏歌词 | 播放一首有时间戳歌词的歌曲。 | 前台播放数行后按 Home、锁屏，再返回前台。 | 每次歌词行变化都同步到通知；前后台切换后当前行立即出现，锁屏/OEM 媒体面板不保持旧行。 | 通知/锁屏截图、录屏。 |  |
 | 耳机断开 | 有线或蓝牙耳机播放中。 | 拔出有线耳机或断开蓝牙。 | 触发 `ACTION_AUDIO_BECOMING_NOISY` 后按预期暂停；不会突然外放。 | logcat、录屏。 |  |
 | 蓝牙切换 | 蓝牙耳机或车机可用。 | 手机扬声器 -> 蓝牙 -> 断开 -> 重新连接。 | 播放状态可理解；媒体按键仍能控制；无崩溃。 | 录屏、logcat。 |  |
-| 媒体焦点抢占 | 关闭“同时播放”设置。 | 播放 Echo，同时打开其他音乐/视频 App 播放。 | Echo 按系统焦点规则暂停/降音/恢复；状态提示清楚。 | 录屏、logcat。 |  |
-| 同时播放 | 开启“同时播放”设置。 | Echo 播放中再播放其他媒体 App。 | Echo 不主动抢焦点；与设置说明一致。 | 录屏。 |  |
+| 音频独占 | 开启“音频独占”（默认）。 | 播放 Echo，同时打开其他音乐/视频 App 播放。 | Echo 请求系统媒体焦点；遵守焦点的其他 App 暂停或静音。不承诺强制停止所有第三方 App。 | 录屏、logcat。 |  |
+| 音频混音 | 关闭“音频独占”。 | Echo 播放中再播放其他媒体 App。 | Echo 不主动请求焦点；允许与其他媒体同时播放，与设置说明一致。 | 录屏。 |  |
 | 来电/通话 | 可模拟来电或使用真实测试机。 | 播放中接入通话，结束后返回。 | 通话期间播放行为符合系统预期；结束后可手动或自动恢复。 | 录屏、logcat。 |  |
 
 ## 4. 恢复与异常矩阵

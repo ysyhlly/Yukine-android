@@ -17,6 +17,8 @@ internal interface SettingsPlaybackServiceControls {
 
     fun setStatusBarLyricsEnabled(enabled: Boolean)
 
+    fun setSystemMediaLyricsTitleEnabled(enabled: Boolean)
+
     fun setPlaybackRestoreEnabled(enabled: Boolean)
 
     fun setReplayGainEnabled(enabled: Boolean)

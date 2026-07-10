@@ -92,10 +92,20 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
         val tracks = queue ?: emptyList()
         boundTracks = tracks
         val currentTrack = playbackState?.currentTrack
+        val currentQueueIndex = playbackState?.currentIndex
+            ?.takeIf { it in tracks.indices }
         val keyFactory = QueueRowKeyFactory(tracks)
         val eagerTracks = tracks.take(EAGER_QUEUE_ROW_LIMIT)
         val eagerRows = eagerTracks.mapIndexed { index, track ->
-            rowForTrack(keyFactory, index, track, currentTrack, favoriteIds)
+            rowForTrack(
+                keyFactory,
+                index,
+                track,
+                currentTrack,
+                favoriteIds,
+                isCurrent = currentQueueIndex?.let { it == index }
+                    ?: (currentTrack != null && currentTrack.id == track.id)
+            )
         }
         val lazyRows = HashMap<Int, QueueTrackUiState>()
         _uiState.value = QueueDestinationState(
@@ -107,7 +117,15 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
                         eagerRows[index]
                     } else {
                         lazyRows.getOrPut(index) {
-                            rowForTrack(keyFactory, index, track, currentTrack, favoriteIds)
+                            rowForTrack(
+                                keyFactory,
+                                index,
+                                track,
+                                currentTrack,
+                                favoriteIds,
+                                isCurrent = currentQueueIndex?.let { it == index }
+                                    ?: (currentTrack != null && currentTrack.id == track.id)
+                            )
                         }
                     }
                 }
@@ -170,13 +188,14 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
         index: Int,
         track: Track,
         currentTrack: Track?,
-        favoriteIds: Set<Long>
+        favoriteIds: Set<Long>,
+        isCurrent: Boolean
     ) = TrackRowStateFactory.queueRow(
         keyFactory.keyFor(index),
         track,
         currentTrack,
         favoriteIds
-    )
+    ).copy(current = isCurrent)
 
     private class QueueRowKeyFactory(private val tracks: List<Track>) {
         // Queue rows are lazy. Do not reserve one slot for every track while only the first

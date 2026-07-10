@@ -7,6 +7,7 @@ import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import app.yukine.FloatingLyricsPublisher
 import app.yukine.LiveLyricsNotificationService
+import app.yukine.model.LyricsLine
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackLyricsManager
 import org.junit.Assert.assertEquals
@@ -179,8 +180,153 @@ class PlaybackLyricsManagerTest {
         FloatingLyricsPublisher.update("Track 1", "Artist", null, true, "second line")
 
         assertEquals(listOf(false), bridge.notificationForces)
+        assertEquals(1, bridge.refreshPlaybackSessionCalls)
 
         manager.release()
+    }
+
+    @Test
+    fun movingPlaybackToBackgroundImmediatelyStartsLiveLyricsAndRefreshesNotification() {
+        FloatingLyricsPublisher.clear()
+        val context = FakeContext(ApplicationProvider.getApplicationContext())
+        val provider = FakeStateProvider(
+            appVisible = true,
+            currentTrack = track(),
+            playing = true
+        )
+        val bridge = FakeNotificationBridge().apply { notificationWorthy = true }
+        val manager = PlaybackLyricsManager(context, provider, bridge)
+
+        provider.appVisible = false
+        manager.onAppVisibilityChanged()
+
+        assertEquals(
+            listOf(LiveLyricsNotificationService::class.java.name),
+            context.startedServices
+        )
+        assertEquals(listOf(true), bridge.notificationForces)
+        assertEquals(1, bridge.refreshPlaybackSessionCalls)
+
+        manager.release()
+    }
+
+    @Test
+    fun movingPlaybackBackToForegroundImmediatelyStopsLiveLyrics() {
+        val context = FakeContext(ApplicationProvider.getApplicationContext())
+        val provider = FakeStateProvider(
+            appVisible = false,
+            currentTrack = track(),
+            playing = true
+        )
+        val manager = PlaybackLyricsManager(context, provider, FakeNotificationBridge())
+
+        manager.onAppVisibilityChanged()
+        provider.appVisible = true
+        manager.onAppVisibilityChanged()
+
+        assertEquals(
+            listOf(LiveLyricsNotificationService::class.java.name),
+            context.startedServices
+        )
+        assertEquals(
+            listOf(LiveLyricsNotificationService::class.java.name),
+            context.stoppedServices
+        )
+
+        manager.release()
+    }
+
+    @Test
+    fun rapidBackgroundLyricLinesDoNotDropTheLatestNotificationRefresh() {
+        FloatingLyricsPublisher.clear()
+        val context = FakeContext(ApplicationProvider.getApplicationContext())
+        val provider = FakeStateProvider(
+            appVisible = false,
+            currentTrack = track(),
+            playing = true
+        )
+        val bridge = FakeNotificationBridge().apply { notificationWorthy = true }
+        val manager = PlaybackLyricsManager(context, provider, bridge)
+
+        manager.bind()
+        FloatingLyricsPublisher.update("Track 1", "Artist", null, true, "first line")
+        FloatingLyricsPublisher.update("Track 1", "Artist", null, true, "latest line")
+
+        assertEquals(listOf(false, false), bridge.notificationForces)
+        assertEquals(2, bridge.refreshPlaybackSessionCalls)
+        assertEquals("latest line", manager.notificationLyricText(track()))
+
+        manager.release()
+    }
+
+    @Test
+    fun serviceProgressAdvancesPublishedLyricsTimelineAfterActivityStopsPublishing() {
+        FloatingLyricsPublisher.clear()
+        val manager = PlaybackLyricsManager(
+            ApplicationProvider.getApplicationContext<Context>(),
+            FakeStateProvider(),
+            FakeNotificationBridge()
+        )
+
+        FloatingLyricsPublisher.update(
+            trackId = 1L,
+            trackTitle = "Track 1",
+            artist = "Artist",
+            albumArtUri = null,
+            playing = true,
+            activeLine = "stale",
+            lyrics = listOf(
+                LyricsLine(1_000L, "first"),
+                LyricsLine(2_000L, "second")
+            ),
+            lyricsOffsetMs = 250L
+        )
+        manager.syncFloatingLyricsPlaybackState(snapshot(track(), positionMs = 0L))
+
+        assertEquals("first", FloatingLyricsPublisher.snapshot().activeLine)
+
+        manager.syncFloatingLyricsPlaybackState(snapshot(track(), positionMs = 1_800L))
+
+        assertEquals("second", FloatingLyricsPublisher.snapshot().activeLine)
+
+        manager.release()
+        FloatingLyricsPublisher.clear()
+    }
+
+    @Test
+    fun serviceProgressDoesNotReuseLyricsTimelineForAnotherTrack() {
+        FloatingLyricsPublisher.clear()
+        val manager = PlaybackLyricsManager(
+            ApplicationProvider.getApplicationContext<Context>(),
+            FakeStateProvider(),
+            FakeNotificationBridge()
+        )
+        FloatingLyricsPublisher.update(
+            trackId = 1L,
+            trackTitle = "Track 1",
+            artist = "Artist",
+            albumArtUri = null,
+            playing = true,
+            activeLine = "first",
+            lyrics = listOf(LyricsLine(0L, "first")),
+            lyricsOffsetMs = 0L
+        )
+        val anotherTrack = Track(
+            2L,
+            "Track 2",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.EMPTY,
+            "local-2"
+        )
+
+        manager.syncFloatingLyricsPlaybackState(snapshot(anotherTrack, positionMs = 2_000L))
+
+        assertEquals("", FloatingLyricsPublisher.snapshot().activeLine)
+
+        manager.release()
+        FloatingLyricsPublisher.clear()
     }
 
     @Test
@@ -252,12 +398,12 @@ class PlaybackLyricsManagerTest {
         )
     }
 
-    private fun snapshot(track: Track): PlaybackStateSnapshot {
+    private fun snapshot(track: Track, positionMs: Long = 0L): PlaybackStateSnapshot {
         return PlaybackStateSnapshot(
             track,
             0,
             1,
-            0L,
+            positionMs,
             track.durationMs,
             true,
             false,
@@ -271,10 +417,10 @@ class PlaybackLyricsManagerTest {
     }
 
     private class FakeStateProvider(
-        private val appVisible: Boolean = true,
-        private val currentTrack: Track? = null,
-        private val playing: Boolean = false,
-        private val preparing: Boolean = false
+        var appVisible: Boolean = true,
+        var currentTrack: Track? = null,
+        var playing: Boolean = false,
+        var preparing: Boolean = false
     ) : PlaybackLyricsManager.StateProvider {
         override fun isAppVisible(): Boolean = appVisible
 

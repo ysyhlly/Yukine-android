@@ -95,6 +95,24 @@ class PlaybackStateEventControllerTest {
     }
 
     @Test
+    fun publishedQueueIsReusedOnlyForTheMatchingQueueRevision() {
+        val playbackViewModel = PlaybackViewModel()
+        val playbackStore = MainPlaybackStore(playbackViewModel)
+        val current = track(1L)
+        val first = snapshot(current, positionMs = 1_000L, queueSize = 2, queueRevision = 9L)
+        playbackStore.replaceSnapshot(first)
+        playbackStore.publish(listOf(current, track(2L)))
+
+        assertEquals(listOf(1L, 2L), playbackStore.publishedQueueFor(first)?.map { it.id })
+        assertEquals(
+            null,
+            playbackStore.publishedQueueFor(
+                snapshot(current, positionMs = 2_000L, queueSize = 2, queueRevision = 10L)
+            )
+        )
+    }
+
+    @Test
     fun hiddenQueueTabDoesNotReadLargeQueueOnTrackChanges() {
         val playbackViewModel = PlaybackViewModel()
         val playbackStore = MainPlaybackStore(playbackViewModel)

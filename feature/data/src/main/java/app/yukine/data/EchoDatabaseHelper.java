@@ -53,6 +53,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     private static final String SETTING_AUDIO_EFFECTS = "audio_effects";
     private static final String SETTING_ONBOARDING_COMPLETED = "onboarding_completed";
     private static final String SETTING_STATUS_BAR_LYRICS = "status_bar_lyrics";
+    private static final String SETTING_SYSTEM_MEDIA_LYRICS_TITLE = "system_media_lyrics_title";
     private static final String SETTING_FLOATING_LYRICS = "floating_lyrics";
     private static final String SETTING_NOW_PLAYING_GESTURES = "now_playing_gestures";
     private static final String SETTING_PLAYBACK_RESTORE_ENABLED = "playback_restore_enabled";
@@ -462,6 +463,14 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
 
     public void saveStatusBarLyricsEnabled(boolean enabled) {
         saveSetting(SETTING_STATUS_BAR_LYRICS, enabled ? "true" : "false");
+    }
+
+    public boolean loadSystemMediaLyricsTitleEnabled() {
+        return "true".equals(loadSetting(SETTING_SYSTEM_MEDIA_LYRICS_TITLE, "false"));
+    }
+
+    public void saveSystemMediaLyricsTitleEnabled(boolean enabled) {
+        saveSetting(SETTING_SYSTEM_MEDIA_LYRICS_TITLE, enabled ? "true" : "false");
     }
 
     public boolean loadFloatingLyricsEnabled() {

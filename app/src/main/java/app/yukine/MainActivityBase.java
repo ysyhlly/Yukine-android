@@ -463,6 +463,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         () -> settingsStore.appVolume(),
                         () -> settingsStore.concurrentPlaybackEnabled(),
                         () -> settingsStore.statusBarLyricsEnabled(),
+                        () -> settingsStore.systemMediaLyricsTitleEnabled(),
                         () -> settingsStore.playbackRestoreEnabled(),
                         () -> settingsStore.replayGainEnabled(),
                         service -> playbackService = service,
@@ -622,12 +623,15 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> lyricsViewModel == null ? new LyricsState() : lyricsViewModel.stateSnapshot(),
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 () -> TAB_QUEUE.equals(selectedTab()),
-                (trackTitle, artist, coverUri, playing, activeLine) -> FloatingLyricsPublisher.update(
+                (trackId, trackTitle, artist, coverUri, playing, activeLine, lyrics, lyricsOffsetMs) -> FloatingLyricsPublisher.update(
+                        trackId,
                         trackTitle,
                         artist,
                         coverUri,
                         playing,
-                        activeLine
+                        activeLine,
+                        lyrics,
+                        lyricsOffsetMs
                 ),
                 this::bindQueueViewModelInputs
         ));
@@ -1526,9 +1530,16 @@ public abstract class MainActivityBase extends ComponentActivity {
         if (queueViewModel == null) {
             return;
         }
+        PlaybackStateSnapshot snapshot = playbackStore == null ? null : playbackStore.snapshot();
+        java.util.List<Track> queue = playbackStore == null
+                ? null
+                : playbackStore.publishedQueueFor(snapshot);
+        if (queue == null) {
+            queue = playbackService == null ? new ArrayList<>() : playbackService.queueSnapshot();
+        }
         queueViewModel.bind(
-                playbackService == null ? new ArrayList<>() : playbackService.queueSnapshot(),
-                playbackStore == null ? null : playbackStore.snapshot(),
+                queue,
+                snapshot,
                 libraryStore == null ? java.util.Collections.<Long>emptySet() : libraryStore.favoriteIds(),
                 settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()
         );

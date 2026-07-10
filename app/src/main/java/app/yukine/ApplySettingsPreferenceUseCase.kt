@@ -15,6 +15,7 @@ enum class SettingsPreferenceKey {
     LyricsOffsetMs,
     AudioEffectSettings,
     StatusBarLyricsEnabled,
+    SystemMediaLyricsTitleEnabled,
     FloatingLyricsEnabled,
     NowPlayingGesturesEnabled,
     PlaybackRestoreEnabled,
@@ -40,6 +41,7 @@ internal interface SettingsPreferenceOperations {
     fun saveLyricsOffsetMs(offsetMs: Long)
     fun saveAudioEffectSettings(settings: AudioEffectSettings)
     fun saveStatusBarLyricsEnabled(enabled: Boolean)
+    fun saveSystemMediaLyricsTitleEnabled(enabled: Boolean)
     fun saveFloatingLyricsEnabled(enabled: Boolean)
     fun saveNowPlayingGesturesEnabled(enabled: Boolean)
     fun savePlaybackRestoreEnabled(enabled: Boolean)
@@ -77,6 +79,9 @@ internal class MusicLibrarySettingsPreferenceOperations(
 
     override fun saveStatusBarLyricsEnabled(enabled: Boolean) =
         repository.saveStatusBarLyricsEnabled(enabled)
+
+    override fun saveSystemMediaLyricsTitleEnabled(enabled: Boolean) =
+        repository.saveSystemMediaLyricsTitleEnabled(enabled)
 
     override fun saveFloatingLyricsEnabled(enabled: Boolean) =
         repository.saveFloatingLyricsEnabled(enabled)
@@ -118,6 +123,8 @@ internal class ApplySettingsPreferenceUseCase(
                 operations.saveAudioEffectSettings(update.value as AudioEffectSettings)
             SettingsPreferenceKey.StatusBarLyricsEnabled ->
                 operations.saveStatusBarLyricsEnabled(update.value as Boolean)
+            SettingsPreferenceKey.SystemMediaLyricsTitleEnabled ->
+                operations.saveSystemMediaLyricsTitleEnabled(update.value as Boolean)
             SettingsPreferenceKey.FloatingLyricsEnabled ->
                 operations.saveFloatingLyricsEnabled(update.value as Boolean)
             SettingsPreferenceKey.NowPlayingGesturesEnabled ->

@@ -169,6 +169,10 @@ public final class EchoPlaybackService extends MediaLibraryService
     private app.yukine.playback.manager.LyricsPublisher playbackLyricsManager;
     private final Consumer<Boolean> statusBarLyricsEnabledAction =
             PlaybackLyricsSettingsStore.statusBarLyricsEnabledActionFromSupplier(() -> playbackLyricsManager);
+    private final Consumer<Boolean> systemMediaLyricsTitleEnabledAction =
+            PlaybackLyricsSettingsStore.systemMediaLyricsTitleEnabledActionFromSupplier(
+                    () -> playbackLyricsManager
+            );
     private PlaybackLyricsStateOwner playbackLyricsStateOwner;
     private PlaybackMediaLibraryCallback playbackMediaLibraryCallback;
     private PlaybackModeSettingsStore playbackModeSettingsStore;
@@ -893,6 +897,9 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     public void setAppVisible(boolean visible) {
         appVisible = visible;
+        if (playbackLyricsManager != null) {
+            playbackLyricsManager.onAppVisibilityChanged();
+        }
         if (visible) {
             if (playbackNotificationCommandOwner != null) {
                 playbackNotificationCommandOwner.publishPlaybackNotificationIfWorthy();
@@ -1110,6 +1117,10 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackQueueMutationOwner.replaceQueuedTrack(replacement);
     }
 
+    public void replaceQueuedTracks(List<Track> replacements) {
+        playbackQueueMutationOwner.replaceQueuedTracks(replacements);
+    }
+
     public void replaceQueuedTrackById(long oldTrackId, Track replacement) {
         playbackQueueMutationOwner.replaceQueuedTrackById(oldTrackId, replacement);
     }
@@ -1188,6 +1199,10 @@ public final class EchoPlaybackService extends MediaLibraryService
 
     public void setStatusBarLyricsEnabled(boolean enabled) {
         statusBarLyricsEnabledAction.accept(enabled);
+    }
+
+    public void setSystemMediaLyricsTitleEnabled(boolean enabled) {
+        systemMediaLyricsTitleEnabledAction.accept(enabled);
     }
 
     public void setPlaybackRestoreEnabled(boolean enabled) {

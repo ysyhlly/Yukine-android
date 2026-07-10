@@ -22,6 +22,16 @@ sealed interface NowPlayingEvent {
     data object DownloadCurrentTrack : NowPlayingEvent
     data object ToggleShuffle : NowPlayingEvent
     data object CycleRepeatMode : NowPlayingEvent
+    data class SwitchSource(
+        val track: Track,
+        val provider: StreamingProviderName,
+        val providerTrackId: String,
+        val quality: StreamingAudioQuality?
+    ) : NowPlayingEvent
+    data class SwitchLibrarySource(
+        val current: Track,
+        val replacement: Track
+    ) : NowPlayingEvent
 }
 
 enum class RepeatModeUi {
@@ -58,21 +68,10 @@ data class NowPlayingUiState @JvmOverloads constructor(
 
 interface NowPlayingScreenStateProvider : NowBarStateProvider {
     val uiState: StateFlow<NowPlayingUiState>
-    fun switchSource(
-        track: Track?,
-        provider: StreamingProviderName?,
-        providerTrackId: String?,
-        quality: StreamingAudioQuality?
-    )
 
     /**
      * Returns alternate playable copies of the same logical song. The screen owns their
      * presentation so library and playback owners only need to provide [Track] candidates.
      */
     fun sourceCandidatesFor(track: Track): List<Track> = emptyList()
-
-    /**
-     * Switches to an already-known local or library-backed source candidate.
-     */
-    fun switchLocalSource(current: Track, replacement: Track) = Unit
 }

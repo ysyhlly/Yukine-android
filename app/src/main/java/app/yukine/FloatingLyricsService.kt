@@ -18,6 +18,8 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
+import app.yukine.model.LyricsLine
+import app.yukine.model.Track
 import app.yukine.ui.LyricUiLine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,7 +38,8 @@ data class FloatingLyricsState(
     val albumArtUri: String? = null,
     val playing: Boolean = false,
     val activeLine: String = "",
-    val visible: Boolean = false
+    val visible: Boolean = false,
+    val trackId: Long = -1L
 )
 
 /**
@@ -51,18 +54,84 @@ object FloatingLyricsPublisher {
     private val _state = MutableStateFlow(FloatingLyricsState())
     private val listeners = java.util.concurrent.CopyOnWriteArraySet<Listener>()
     val state: StateFlow<FloatingLyricsState> = _state.asStateFlow()
+    @Volatile private var lyricsTimeline = LyricsTimeline()
+
+    private data class LyricsTimeline(
+        val trackId: Long = -1L,
+        val lines: List<LyricsLine> = emptyList(),
+        val offsetMs: Long = 0L
+    )
 
     @JvmStatic
     fun update(trackTitle: String, lyrics: List<LyricUiLine>) {
+        val previous = _state.value
         val active = lyrics.firstOrNull { it.active }?.text
             ?: lyrics.firstOrNull()?.text
             ?: ""
-        update(
-            trackTitle = trackTitle,
-            artist = _state.value.artist,
-            albumArtUri = _state.value.albumArtUri,
-            playing = _state.value.playing,
-            activeLine = active
+        val sameTrack = previous.trackTitle == trackTitle
+        if (!sameTrack) {
+            clearLyricsTimeline()
+        }
+        publish(
+            FloatingLyricsState(
+                trackTitle = trackTitle,
+                artist = previous.artist,
+                albumArtUri = previous.albumArtUri,
+                playing = previous.playing,
+                activeLine = active,
+                visible = active.isNotBlank(),
+                trackId = if (sameTrack) previous.trackId else -1L
+            )
+        )
+    }
+
+    @JvmStatic
+    fun update(
+        trackId: Long,
+        trackTitle: String,
+        artist: String,
+        albumArtUri: String?,
+        playing: Boolean,
+        activeLine: String,
+        lyrics: List<LyricsLine>,
+        lyricsOffsetMs: Long
+    ) {
+        updateLyricsTimeline(trackId, lyrics, lyricsOffsetMs)
+        publish(
+            FloatingLyricsState(
+                trackTitle = trackTitle,
+                artist = artist,
+                albumArtUri = albumArtUri,
+                playing = playing,
+                activeLine = activeLine,
+                visible = activeLine.isNotBlank(),
+                trackId = trackId
+            )
+        )
+    }
+
+    /**
+     * Uses the timeline published by the Activity to keep lyrics moving from the playback
+     * service's progress updates after the Activity has been destroyed.
+     */
+    @JvmStatic
+    fun syncPlaybackState(track: Track, playing: Boolean, positionMs: Long) {
+        val timeline = lyricsTimeline
+        val activeLine = if (timeline.trackId == track.id) {
+            activeLineAt(timeline.lines, (positionMs + timeline.offsetMs).coerceAtLeast(0L))
+        } else {
+            ""
+        }
+        publish(
+            FloatingLyricsState(
+                trackTitle = track.title,
+                artist = track.artist,
+                albumArtUri = track.albumArtUri?.toString(),
+                playing = playing,
+                activeLine = activeLine,
+                visible = activeLine.isNotBlank(),
+                trackId = track.id
+            )
         )
     }
 
@@ -74,6 +143,11 @@ object FloatingLyricsPublisher {
         playing: Boolean,
         activeLine: String
     ) {
+        val previous = _state.value
+        val sameTrack = previous.trackTitle == trackTitle && previous.artist == artist
+        if (!sameTrack) {
+            clearLyricsTimeline()
+        }
         publish(
             FloatingLyricsState(
                 trackTitle = trackTitle,
@@ -81,13 +155,39 @@ object FloatingLyricsPublisher {
                 albumArtUri = albumArtUri,
                 playing = playing,
                 activeLine = activeLine,
-                visible = activeLine.isNotBlank()
+                visible = activeLine.isNotBlank(),
+                trackId = if (sameTrack) previous.trackId else -1L
             )
         )
     }
 
+    private fun updateLyricsTimeline(trackId: Long, lines: List<LyricsLine>, offsetMs: Long) {
+        val previous = lyricsTimeline
+        if (previous.trackId == trackId && previous.offsetMs == offsetMs && previous.lines == lines) {
+            return
+        }
+        lyricsTimeline = LyricsTimeline(trackId, lines.toList(), offsetMs)
+    }
+
+    private fun clearLyricsTimeline() {
+        lyricsTimeline = LyricsTimeline()
+    }
+
+    private fun activeLineAt(lines: List<LyricsLine>, positionMs: Long): String {
+        var active: LyricsLine? = null
+        for (line in lines) {
+            if (line.timeMs <= positionMs) {
+                active = line
+            } else {
+                break
+            }
+        }
+        return active?.text ?: lines.firstOrNull()?.text.orEmpty()
+    }
+
     @JvmStatic
     fun clear() {
+        clearLyricsTimeline()
         publish(FloatingLyricsState())
     }
 

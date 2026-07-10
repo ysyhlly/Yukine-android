@@ -12,6 +12,8 @@ internal class PlaybackServiceHostController(
 
         fun statusBarLyricsEnabled(): Boolean
 
+        fun systemMediaLyricsTitleEnabled(): Boolean
+
         fun playbackRestoreEnabled(): Boolean
 
         fun replayGainEnabled(): Boolean
@@ -35,6 +37,7 @@ internal class PlaybackServiceHostController(
         service.setAppVolume(host.appVolume())
         service.setConcurrentPlaybackEnabled(host.concurrentPlaybackEnabled())
         service.setStatusBarLyricsEnabled(host.statusBarLyricsEnabled())
+        service.setSystemMediaLyricsTitleEnabled(host.systemMediaLyricsTitleEnabled())
         service.setPlaybackRestoreEnabled(host.playbackRestoreEnabled())
         service.setReplayGainEnabled(host.replayGainEnabled())
         host.playPendingTracksIfNeeded()

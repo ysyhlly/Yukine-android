@@ -20,6 +20,7 @@ internal class SettingsContextProvider(
             concurrentPlaybackEnabled = settingsStore.concurrentPlaybackEnabled(),
             audioEffectSettings = settingsStore.audioEffectSettings(),
             statusBarLyricsEnabled = settingsStore.statusBarLyricsEnabled(),
+            systemMediaLyricsTitleEnabled = settingsStore.systemMediaLyricsTitleEnabled(),
             floatingLyricsEnabled = settingsStore.floatingLyricsEnabled(),
             nowPlayingGesturesEnabled = settingsStore.nowPlayingGesturesEnabled(),
             playbackRestoreEnabled = settingsStore.playbackRestoreEnabled(),

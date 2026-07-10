@@ -172,7 +172,7 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "replay.gain"), enabledLabel(replayGainEnabled, languageMode)),
             SettingsMetric(text(languageMode, "now.playing.gestures"), enabledLabel(nowPlayingGesturesEnabled, languageMode)),
             SettingsMetric(text(languageMode, "playback.restore"), enabledLabel(playbackRestoreEnabled, languageMode)),
-            SettingsMetric(text(languageMode, "concurrent.playback"), enabledLabel(concurrentPlaybackEnabled, languageMode)),
+            SettingsMetric(text(languageMode, "audio.exclusive"), enabledLabel(!concurrentPlaybackEnabled, languageMode)),
             SettingsMetric(text(languageMode, "sleep.timer"), sleepTimerLabel(remainingMs, languageMode))
         )
         val actions = listOf(
@@ -183,7 +183,7 @@ internal object SettingsPageStateBuilder {
             navigationAction(text(languageMode, "replay.gain"), SettingsPage.ReplayGain, onNavigate, text(languageMode, "replay.gain.hint")),
             navigationAction(text(languageMode, "now.playing.gestures"), SettingsPage.NowPlayingGestures, onNavigate, text(languageMode, "now.playing.gestures.hint")),
             navigationAction(text(languageMode, "playback.restore"), SettingsPage.PlaybackRestore, onNavigate, text(languageMode, "playback.restore.hint")),
-            navigationAction(text(languageMode, "concurrent.playback"), SettingsPage.ConcurrentPlayback, onNavigate, text(languageMode, "concurrent.playback.hint")),
+            navigationAction(text(languageMode, "audio.exclusive"), SettingsPage.ConcurrentPlayback, onNavigate, text(languageMode, "audio.exclusive.hint")),
             navigationAction(text(languageMode, "sleep.timer"), SettingsPage.SleepTimer, onNavigate)
         )
         return buildContent(groupTitle(languageMode, "playback"), metrics, actions)
@@ -326,7 +326,7 @@ internal object SettingsPageStateBuilder {
         return buildContent(text(languageMode, "page.background"), metrics, actions)
     }
 
-    fun concurrentPlayback(
+    fun audioExclusive(
         languageMode: String,
         enabled: Boolean,
         onNavigate: (SettingsPage) -> Unit,
@@ -334,10 +334,10 @@ internal object SettingsPageStateBuilder {
     ): SettingsPageStateContent = booleanLeafPage(
         languageMode = languageMode,
         currentPage = SettingsPage.ConcurrentPlayback,
-        titleKey = "concurrent.playback",
-        descriptionKey = "concurrent.playback.description",
-        enableKey = "enable.concurrent.playback",
-        disableKey = "disable.concurrent.playback",
+        titleKey = "audio.exclusive",
+        descriptionKey = "audio.exclusive.description",
+        enableKey = "enable.audio.exclusive",
+        disableKey = "disable.audio.exclusive",
         enabled = enabled,
         onNavigate = onNavigate,
         onToggle = onToggle
@@ -645,10 +645,12 @@ internal object SettingsPageStateBuilder {
         offsetMs: Long,
         onlineLyricsEnabled: Boolean,
         statusBarLyricsEnabled: Boolean,
+        systemMediaLyricsTitleEnabled: Boolean,
         floatingLyricsEnabled: Boolean,
         overlayPermissionGranted: Boolean,
         onNavigate: (SettingsPage) -> Unit,
         onOnlineLyricsEnabledChange: (Boolean) -> Unit,
+        onSystemMediaLyricsTitleEnabledChange: (Boolean) -> Unit,
         onReloadLyrics: () -> Unit,
         onApplyLyricsOffset: (Long) -> Unit
     ): SettingsPageStateContent = lyricsContent(
@@ -658,10 +660,12 @@ internal object SettingsPageStateBuilder {
         offsetMs = offsetMs,
         onlineLyricsEnabled = onlineLyricsEnabled,
         statusBarLyricsEnabled = statusBarLyricsEnabled,
+        systemMediaLyricsTitleEnabled = systemMediaLyricsTitleEnabled,
         floatingLyricsEnabled = floatingLyricsEnabled,
         overlayPermissionGranted = overlayPermissionGranted,
         onNavigate = onNavigate,
         onOnlineLyricsEnabledChange = onOnlineLyricsEnabledChange,
+        onSystemMediaLyricsTitleEnabledChange = onSystemMediaLyricsTitleEnabledChange,
         onReloadLyrics = onReloadLyrics,
         onApplyLyricsOffset = onApplyLyricsOffset
     )
@@ -671,10 +675,12 @@ internal object SettingsPageStateBuilder {
         offsetMs: Long,
         onlineLyricsEnabled: Boolean,
         statusBarLyricsEnabled: Boolean,
+        systemMediaLyricsTitleEnabled: Boolean,
         floatingLyricsEnabled: Boolean,
         overlayPermissionGranted: Boolean,
         onNavigate: (SettingsPage) -> Unit,
         onOnlineLyricsEnabledChange: (Boolean) -> Unit,
+        onSystemMediaLyricsTitleEnabledChange: (Boolean) -> Unit,
         onReloadLyrics: () -> Unit,
         onApplyLyricsOffset: (Long) -> Unit
     ): SettingsPageStateContent = lyricsContent(
@@ -684,10 +690,12 @@ internal object SettingsPageStateBuilder {
         offsetMs = offsetMs,
         onlineLyricsEnabled = onlineLyricsEnabled,
         statusBarLyricsEnabled = statusBarLyricsEnabled,
+        systemMediaLyricsTitleEnabled = systemMediaLyricsTitleEnabled,
         floatingLyricsEnabled = floatingLyricsEnabled,
         overlayPermissionGranted = overlayPermissionGranted,
         onNavigate = onNavigate,
         onOnlineLyricsEnabledChange = onOnlineLyricsEnabledChange,
+        onSystemMediaLyricsTitleEnabledChange = onSystemMediaLyricsTitleEnabledChange,
         onReloadLyrics = onReloadLyrics,
         onApplyLyricsOffset = onApplyLyricsOffset
     )
@@ -699,10 +707,12 @@ internal object SettingsPageStateBuilder {
         offsetMs: Long,
         onlineLyricsEnabled: Boolean,
         statusBarLyricsEnabled: Boolean,
+        systemMediaLyricsTitleEnabled: Boolean,
         floatingLyricsEnabled: Boolean,
         overlayPermissionGranted: Boolean,
         onNavigate: (SettingsPage) -> Unit,
         onOnlineLyricsEnabledChange: (Boolean) -> Unit,
+        onSystemMediaLyricsTitleEnabledChange: (Boolean) -> Unit,
         onReloadLyrics: () -> Unit,
         onApplyLyricsOffset: (Long) -> Unit
     ): SettingsPageStateContent {
@@ -710,6 +720,7 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "offset"), lyricsOffsetLabel(offsetMs)),
             SettingsMetric(text(languageMode, "online.lyrics"), enabledLabel(onlineLyricsEnabled, languageMode)),
             SettingsMetric(text(languageMode, "status.bar.lyrics"), enabledLabel(statusBarLyricsEnabled, languageMode)),
+            SettingsMetric(text(languageMode, "system.media.lyrics.title"), enabledLabel(systemMediaLyricsTitleEnabled, languageMode)),
             SettingsMetric(text(languageMode, "floating.lyrics"), enabledLabel(floatingLyricsEnabled, languageMode)),
             SettingsMetric(text(languageMode, "overlay.permission"), permissionLabel(overlayPermissionGranted, languageMode)),
             SettingsMetric(text(languageMode, "provider"), "LRCLIB"),
@@ -725,6 +736,17 @@ internal object SettingsPageStateBuilder {
             )
             add(SettingsAction(text(languageMode, "reload.lyrics"), Runnable { onReloadLyrics() }))
             add(navigationAction(text(languageMode, "status.bar.lyrics"), SettingsPage.StatusBarLyrics, onNavigate))
+            add(
+                SettingsAction(
+                    if (systemMediaLyricsTitleEnabled) {
+                        text(languageMode, "disable.system.media.lyrics.title")
+                    } else {
+                        text(languageMode, "enable.system.media.lyrics.title")
+                    },
+                    Runnable { onSystemMediaLyricsTitleEnabledChange(!systemMediaLyricsTitleEnabled) },
+                    text(languageMode, "system.media.lyrics.title.description")
+                )
+            )
             add(navigationAction(text(languageMode, "floating.lyrics"), SettingsPage.FloatingLyrics, onNavigate))
             listOf(-1000L, -500L, 0L, 500L, 1000L).forEach { offset ->
                 add(lyricsOffsetAction(languageMode, offsetMs, offset, onApplyLyricsOffset))

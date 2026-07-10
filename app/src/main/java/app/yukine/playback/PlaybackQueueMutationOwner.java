@@ -82,6 +82,16 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
         }
     }
 
+    void replaceQueuedTracks(List<Track> replacements) {
+        if (replacements == null || replacements.isEmpty()) {
+            return;
+        }
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.replaceQueuedTracks(replacements);
+        }
+    }
+
     void replaceQueuedTrackById(long oldTrackId, Track replacement) {
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         if (playbackQueueManager != null) {

@@ -249,13 +249,15 @@ fun EchoNavGraph(
                         onClose = closeNowPlayingAction,
                         onEvent = nowPlayingEventHandler,
                         onSwitchSource = { track, provider, providerTrackId, quality ->
-                            hostState.nowPlayingStateProvider.switchSource(track, provider, providerTrackId, quality)
+                            nowPlayingEventHandler(
+                                NowPlayingEvent.SwitchSource(track, provider, providerTrackId, quality)
+                            )
                         },
                         sourceCandidates = { track ->
                             hostState.nowPlayingStateProvider.sourceCandidatesFor(track)
                         },
                         onSwitchLocalSource = { current, replacement ->
-                            hostState.nowPlayingStateProvider.switchLocalSource(current, replacement)
+                            nowPlayingEventHandler(NowPlayingEvent.SwitchLibrarySource(current, replacement))
                         },
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
@@ -289,13 +291,15 @@ fun EchoNavGraph(
                         onClose = closeNowPlayingAction,
                         onEvent = nowPlayingEventHandler,
                         onSwitchSource = { track, provider, providerTrackId, quality ->
-                            hostState.nowPlayingStateProvider.switchSource(track, provider, providerTrackId, quality)
+                            nowPlayingEventHandler(
+                                NowPlayingEvent.SwitchSource(track, provider, providerTrackId, quality)
+                            )
                         },
                         sourceCandidates = { track ->
                             hostState.nowPlayingStateProvider.sourceCandidatesFor(track)
                         },
                         onSwitchLocalSource = { current, replacement ->
-                            hostState.nowPlayingStateProvider.switchLocalSource(current, replacement)
+                            nowPlayingEventHandler(NowPlayingEvent.SwitchLibrarySource(current, replacement))
                         },
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,

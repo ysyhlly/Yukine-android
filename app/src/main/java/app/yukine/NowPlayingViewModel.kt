@@ -72,6 +72,9 @@ interface NowPlayingPlaybackGateway {
     fun clearQueue()
     fun moveQueueTrack(fromIndex: Int, toIndex: Int)
     fun replaceQueuedTrack(updated: Track)
+    fun replaceQueuedTracks(updated: List<Track>) {
+        updated.forEach { replaceQueuedTrack(it) }
+    }
     fun replaceQueuedTrackById(oldTrackId: Long, updated: Track)
     fun retainTracksById(trackIds: Set<Long>)
     fun warmPlaybackTrack(track: Track)
@@ -202,6 +205,16 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             }
             NowPlayingEvent.ToggleShuffle -> gateway?.toggleShuffle()
             NowPlayingEvent.CycleRepeatMode -> gateway?.cycleRepeatMode()
+            is NowPlayingEvent.SwitchSource -> switchSource(
+                event.track,
+                event.provider,
+                event.providerTrackId,
+                event.quality
+            )
+            is NowPlayingEvent.SwitchLibrarySource -> switchLocalSource(
+                event.current,
+                event.replacement
+            )
         }
     }
 
@@ -213,7 +226,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         return drained
     }
 
-    override fun switchSource(
+    fun switchSource(
         track: Track?,
         provider: StreamingProviderName?,
         providerTrackId: String?,
@@ -242,7 +255,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         return sourceCandidatesProvider?.invoke(track).orEmpty()
     }
 
-    override fun switchLocalSource(current: Track, replacement: Track) {
+    fun switchLocalSource(current: Track, replacement: Track) {
         if (current.id == replacement.id && current.dataPath == replacement.dataPath) {
             return
         }
@@ -297,6 +310,29 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             player.replaceQueuedTrack(updated)
         } else {
             player.replaceQueuedTrackById(oldTrackId, updated)
+        }
+    }
+
+    /**
+     * Streaming placeholders retain their stable IDs after URL resolution, so a full pre-resolve
+     * window can cross the service boundary once. Different physical IDs keep the existing
+     * single-item replacement path because it also owns duplicate-collapse behavior.
+     */
+    fun replaceQueuedTracks(replacements: Map<Long, Track>) {
+        val player = playbackGateway ?: return
+        if (replacements.isEmpty()) {
+            return
+        }
+        val sameIdReplacements = linkedMapOf<Long, Track>()
+        replacements.forEach { (oldTrackId, replacement) ->
+            if (oldTrackId == replacement.id) {
+                sameIdReplacements[replacement.id] = replacement
+            } else {
+                player.replaceQueuedTrackById(oldTrackId, replacement)
+            }
+        }
+        if (sameIdReplacements.isNotEmpty()) {
+            player.replaceQueuedTracks(sameIdReplacements.values.toList())
         }
     }
 

@@ -81,6 +81,10 @@ public final class PlaybackLyricsSettingsStoreTest {
         }
 
         @Override
+        public void onAppVisibilityChanged() {
+        }
+
+        @Override
         public void syncFloatingLyricsPlaybackState(PlaybackStateSnapshot snapshot) {
         }
 

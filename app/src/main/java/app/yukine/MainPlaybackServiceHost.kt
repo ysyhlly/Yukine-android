@@ -6,6 +6,7 @@ internal fun interface MainPlaybackServiceHostFactory {
         appVolumeSource: MainPlaybackServiceHost.AppVolumeSource,
         concurrentPlaybackSource: MainPlaybackServiceHost.ConcurrentPlaybackSource,
         statusBarLyricsSource: MainPlaybackServiceHost.StatusBarLyricsSource,
+        systemMediaLyricsTitleSource: MainPlaybackServiceHost.SystemMediaLyricsTitleSource,
         playbackRestoreSource: MainPlaybackServiceHost.PlaybackRestoreSource,
         replayGainSource: MainPlaybackServiceHost.ReplayGainSource,
         playbackServiceAttacher: MainPlaybackServiceHost.PlaybackServiceAttacher,
@@ -22,6 +23,7 @@ internal class MainPlaybackServiceHost(
     private val appVolumeSource: AppVolumeSource,
     private val concurrentPlaybackSource: ConcurrentPlaybackSource,
     private val statusBarLyricsSource: StatusBarLyricsSource,
+    private val systemMediaLyricsTitleSource: SystemMediaLyricsTitleSource,
     private val playbackRestoreSource: PlaybackRestoreSource,
     private val replayGainSource: ReplayGainSource,
     private val playbackServiceAttacher: PlaybackServiceAttacher,
@@ -45,6 +47,10 @@ internal class MainPlaybackServiceHost(
 
     fun interface StatusBarLyricsSource {
         fun statusBarLyricsEnabled(): Boolean
+    }
+
+    fun interface SystemMediaLyricsTitleSource {
+        fun systemMediaLyricsTitleEnabled(): Boolean
     }
 
     fun interface PlaybackRestoreSource {
@@ -86,6 +92,9 @@ internal class MainPlaybackServiceHost(
     override fun concurrentPlaybackEnabled(): Boolean = concurrentPlaybackSource.concurrentPlaybackEnabled()
 
     override fun statusBarLyricsEnabled(): Boolean = statusBarLyricsSource.statusBarLyricsEnabled()
+
+    override fun systemMediaLyricsTitleEnabled(): Boolean =
+        systemMediaLyricsTitleSource.systemMediaLyricsTitleEnabled()
 
     override fun playbackRestoreEnabled(): Boolean = playbackRestoreSource.playbackRestoreEnabled()
 

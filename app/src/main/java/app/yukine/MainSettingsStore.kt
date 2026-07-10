@@ -14,6 +14,7 @@ internal class MainSettingsStore {
     private var concurrentPlaybackEnabled: Boolean = false
     private var audioEffectSettings: AudioEffectSettings = AudioEffectSettings.DEFAULT
     private var statusBarLyricsEnabled: Boolean = true
+    private var systemMediaLyricsTitleEnabled: Boolean = false
     private var floatingLyricsEnabled: Boolean = false
     private var nowPlayingGesturesEnabled: Boolean = true
     private var playbackRestoreEnabled: Boolean = true
@@ -31,6 +32,7 @@ internal class MainSettingsStore {
         concurrentPlaybackEnabled = preferences.concurrentPlaybackEnabled
         audioEffectSettings = preferences.audioEffectSettings
         statusBarLyricsEnabled = preferences.statusBarLyricsEnabled && !preferences.floatingLyricsEnabled
+        systemMediaLyricsTitleEnabled = preferences.systemMediaLyricsTitleEnabled
         floatingLyricsEnabled = preferences.floatingLyricsEnabled
         nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled
         playbackRestoreEnabled = preferences.playbackRestoreEnabled
@@ -51,6 +53,7 @@ internal class MainSettingsStore {
         concurrentPlaybackEnabled = preferences.concurrentPlaybackEnabled
         audioEffectSettings = preferences.audioEffectSettings
         statusBarLyricsEnabled = preferences.statusBarLyricsEnabled && !preferences.floatingLyricsEnabled
+        systemMediaLyricsTitleEnabled = preferences.systemMediaLyricsTitleEnabled
         floatingLyricsEnabled = preferences.floatingLyricsEnabled
         nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled
         playbackRestoreEnabled = preferences.playbackRestoreEnabled
@@ -93,6 +96,10 @@ internal class MainSettingsStore {
 
     fun statusBarLyricsEnabled(): Boolean {
         return statusBarLyricsEnabled
+    }
+
+    fun systemMediaLyricsTitleEnabled(): Boolean {
+        return systemMediaLyricsTitleEnabled
     }
 
     fun floatingLyricsEnabled(): Boolean {
@@ -153,6 +160,10 @@ internal class MainSettingsStore {
 
     fun setStatusBarLyricsEnabled(enabled: Boolean) {
         this.statusBarLyricsEnabled = enabled
+    }
+
+    fun setSystemMediaLyricsTitleEnabled(enabled: Boolean) {
+        this.systemMediaLyricsTitleEnabled = enabled
     }
 
     fun setFloatingLyricsEnabled(enabled: Boolean) {

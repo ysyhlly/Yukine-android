@@ -119,6 +119,12 @@ public final class AppLanguage {
         put("disable.status.bar.lyrics", "Hide lyrics from notification", "\u5173\u95ed\u901a\u77e5\u6b4c\u8bcd");
         put("status.bar.lyrics.enabled", "Notification lyrics enabled", "\u5df2\u5f00\u542f\u901a\u77e5\u6b4c\u8bcd");
         put("status.bar.lyrics.disabled", "Notification lyrics disabled", "\u5df2\u5173\u95ed\u901a\u77e5\u6b4c\u8bcd");
+        put("system.media.lyrics.title", "System media lyric-title mode", "\u7cfb\u7edf\u5a92\u4f53\u6b4c\u8bcd\u6807\u9898\u517c\u5bb9\u6a21\u5f0f");
+        put("system.media.lyrics.title.description", "For car head units or media panels that only show a title. The current lyric temporarily replaces the system media title while the song title and artist remain in the subtitle and metadata.", "\u7528\u4e8e\u53ea\u663e\u793a\u6807\u9898\u7684\u8f66\u673a\u6216\u5a92\u4f53\u9762\u677f\u3002\u5f53\u524d\u6b4c\u8bcd\u4f1a\u6682\u65f6\u66ff\u6362\u7cfb\u7edf\u5a92\u4f53\u6807\u9898\uff0c\u6b4c\u540d\u548c\u6b4c\u624b\u4ecd\u4f1a\u4fdd\u7559\u5728\u526f\u6807\u9898\u548c\u5a92\u4f53\u5143\u6570\u636e\u4e2d\u3002");
+        put("enable.system.media.lyrics.title", "Enable lyric-title mode", "\u5f00\u542f\u6b4c\u8bcd\u6807\u9898\u517c\u5bb9\u6a21\u5f0f");
+        put("disable.system.media.lyrics.title", "Disable lyric-title mode", "\u5173\u95ed\u6b4c\u8bcd\u6807\u9898\u517c\u5bb9\u6a21\u5f0f");
+        put("system.media.lyrics.title.enabled", "System media lyric-title mode enabled", "\u5df2\u5f00\u542f\u7cfb\u7edf\u5a92\u4f53\u6b4c\u8bcd\u6807\u9898\u517c\u5bb9\u6a21\u5f0f");
+        put("system.media.lyrics.title.disabled", "System media lyric-title mode disabled", "\u5df2\u5173\u95ed\u7cfb\u7edf\u5a92\u4f53\u6b4c\u8bcd\u6807\u9898\u517c\u5bb9\u6a21\u5f0f");
         put("floating.lyrics", "Floating lyrics", "\u60ac\u6d6e\u7a97\u6b4c\u8bcd");
         put("floating.lyrics.description", "Show synced lyrics in a movable overlay above other apps. Overlay permission is required.", "\u5728\u5176\u4ed6\u5e94\u7528\u4e0a\u65b9\u663e\u793a\u53ef\u79fb\u52a8\u7684\u540c\u6b65\u6b4c\u8bcd\uff0c\u9700\u8981\u60ac\u6d6e\u7a97\u6743\u9650\u3002");
         put("enable.floating.lyrics", "Enable floating lyrics", "\u5f00\u542f\u60ac\u6d6e\u7a97\u6b4c\u8bcd");
@@ -146,6 +152,7 @@ public final class AppLanguage {
         put("now.playing.gestures.hint", "Swipe left or right to switch songs; swipe down to close the player", "\u5728\u64ad\u653e\u9875\u5de6\u53f3\u6ed1\u52a8\u5207\u6b4c\uff0c\u4e0b\u6ed1\u5173\u95ed\u64ad\u653e\u9875");
         put("playback.restore.hint", "Restore the last queue when the app reopens", "\u91cd\u65b0\u6253\u5f00\u5e94\u7528\u65f6\u6062\u590d\u4e0a\u6b21\u7684\u64ad\u653e\u961f\u5217");
         put("concurrent.playback.hint", "Play alongside videos or calls without pausing them", "\u4e0e\u89c6\u9891\u3001\u901a\u8bdd\u7b49\u540c\u65f6\u51fa\u58f0\uff0c\u4e92\u4e0d\u6253\u65ad");
+        put("audio.exclusive.hint", "Request audio focus while playing so other media usually pauses or mutes", "\u64ad\u653e\u65f6\u8bf7\u6c42\u7cfb\u7edf\u97f3\u9891\u7126\u70b9\uff0c\u5176\u4ed6\u5a92\u4f53\u901a\u5e38\u4f1a\u6682\u505c\u6216\u9759\u97f3");
         put("remote.music.sources.hint", "Add WebDAV or other network music sources", "\u6dfb\u52a0 WebDAV \u7b49\u7f51\u7edc\u97f3\u4e50\u6765\u6e90");
         put("streaming.audio.quality.hint", "Audio quality for online streaming playback", "\u5728\u7ebf\u64ad\u653e\u7684\u97f3\u8d28\u9009\u62e9");
         put("streaming.gateway.hint", "For advanced users; normal users can skip this", "\u9ad8\u7ea7\u9009\u9879\uff0c\u666e\u901a\u7528\u6237\u65e0\u9700\u8bbe\u7f6e");
@@ -165,6 +172,7 @@ public final class AppLanguage {
         put("eq.preset", "Preset", "\u9884\u8bbe");
         put("streaming.audio.quality", "Streaming quality", "\u6d41\u5a92\u4f53\u97f3\u8d28");
         put("concurrent.playback", "Mix with other media", "\u4e0e\u5176\u4ed6\u5a92\u4f53\u540c\u65f6\u64ad\u653e");
+        put("audio.exclusive", "Audio exclusive", "\u97f3\u9891\u72ec\u5360");
         put("sleep.timer", "Sleep timer", "\u7761\u7720\u5b9a\u65f6");
         put("lyrics", "Lyrics", "\u6b4c\u8bcd");
         put("duration", "Duration", "\u65f6\u957f");
@@ -210,6 +218,9 @@ public final class AppLanguage {
         put("concurrent.playback.description", "Keep playing alongside other media apps instead of pausing them. Yukine will not request audio focus, so it won't pause other apps and won't be paused by them.", "\u4e0e\u5176\u4ed6\u5a92\u4f53\u5e94\u7528\u540c\u65f6\u51fa\u58f0\uff0c\u800c\u4e0d\u662f\u6682\u505c\u5b83\u4eec\u3002Yukine \u4e0d\u518d\u62a2\u5360\u97f3\u9891\u7126\u70b9\uff0c\u56e0\u6b64\u65e2\u4e0d\u4f1a\u6682\u505c\u5176\u4ed6\u5e94\u7528\uff0c\u4e5f\u4e0d\u4f1a\u88ab\u5b83\u4eec\u6682\u505c\u3002");
         put("enable.concurrent.playback", "Enable mixing", "\u5f00\u542f\u540c\u65f6\u64ad\u653e");
         put("disable.concurrent.playback", "Disable mixing", "\u5173\u95ed\u540c\u65f6\u64ad\u653e");
+        put("audio.exclusive.description", "Yukine requests system media focus while playing, so compatible media apps pause or mute. Android cannot force every app to stop.", "Yukine \u64ad\u653e\u65f6\u4f1a\u8bf7\u6c42\u7cfb\u7edf\u5a92\u4f53\u7126\u70b9\uff0c\u517c\u5bb9\u7684\u5a92\u4f53\u5e94\u7528\u4f1a\u6682\u505c\u6216\u9759\u97f3\u3002Android \u65e0\u6cd5\u5f3a\u5236\u6240\u6709\u5e94\u7528\u505c\u6b62\u64ad\u653e\u3002");
+        put("enable.audio.exclusive", "Enable audio exclusive", "\u5f00\u542f\u97f3\u9891\u72ec\u5360");
+        put("disable.audio.exclusive", "Disable audio exclusive", "\u5173\u95ed\u97f3\u9891\u72ec\u5360");
         put("options", "Options", "\u9009\u9879");
         put("back", "Back", "\u8fd4\u56de");
         put("disable", "Disable", "\u5173\u95ed");
@@ -278,6 +289,8 @@ public final class AppLanguage {
         put("online.lyrics.disabled", "Online lyrics disabled", "\u5df2\u5173\u95ed\u5728\u7ebf\u6b4c\u8bcd");
         put("concurrent.playback.enabled", "Mixing with other media enabled", "\u5df2\u5f00\u542f\u4e0e\u5176\u4ed6\u5a92\u4f53\u540c\u65f6\u64ad\u653e");
         put("concurrent.playback.disabled", "Mixing with other media disabled", "\u5df2\u5173\u95ed\u4e0e\u5176\u4ed6\u5a92\u4f53\u540c\u65f6\u64ad\u653e");
+        put("audio.exclusive.enabled", "Audio exclusive enabled", "\u5df2\u5f00\u542f\u97f3\u9891\u72ec\u5360");
+        put("audio.exclusive.disabled", "Audio exclusive disabled; mixing is allowed", "\u5df2\u5173\u95ed\u97f3\u9891\u72ec\u5360\uff0c\u53ef\u4e0e\u5176\u4ed6\u5a92\u4f53\u540c\u65f6\u64ad\u653e");
         put("lyrics.offset.applied", "Lyrics offset: ", "\u6b4c\u8bcd\u504f\u79fb\uff1a");
         put("streaming.gateway.applied", "Streaming gateway: ", "\u5728\u7ebf\u97f3\u4e50\u7f51\u5173\uff1a");
         put("no.track.selected", "No track selected", "\u672a\u9009\u62e9\u6b4c\u66f2");

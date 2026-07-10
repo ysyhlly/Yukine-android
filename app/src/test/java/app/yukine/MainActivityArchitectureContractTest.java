@@ -956,7 +956,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(navGraph.contains("Runnable { nowPlayingEventHandler(NowPlayingEvent.ToggleShuffle) }"));
         assertTrue(navGraph.contains("Runnable { nowPlayingEventHandler(NowPlayingEvent.CycleRepeatMode) }"));
         assertTrue(navGraph.contains("nowPlayingEventHandler(NowPlayingEvent.SeekTo(positionMs))"));
-        assertTrue(navGraph.contains("hostState.nowPlayingStateProvider.switchSource(track, provider, providerTrackId, quality)"));
+        assertTrue(navGraph.contains("NowPlayingEvent.SwitchSource(track, provider, providerTrackId, quality)"));
+        assertTrue(navGraph.contains("NowPlayingEvent.SwitchLibrarySource(current, replacement)"));
+        assertFalse(navGraph.contains("hostState.nowPlayingStateProvider.switchSource("));
+        assertFalse(navGraph.contains("hostState.nowPlayingStateProvider.switchLocalSource("));
         assertFalse(navGraph.contains("hostState.nowPlayingViewModel.switchSource("));
         assertTrue(navHostState.contains("val nowPlayingStateProvider: NowPlayingScreenStateProvider"));
         assertTrue(navHostState.contains("nowPlayingStateProvider.uiState"));
@@ -1145,10 +1148,13 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("() -> TAB_QUEUE.equals(selectedTab())"));
         assertTrue(mainActivity.contains("this::bindQueueViewModelInputs"));
         assertTrue(mainActivity.contains("FloatingLyricsPublisher.update("));
+        assertTrue(mainActivity.contains("(trackId, trackTitle, artist, coverUri, playing, activeLine, lyrics, lyricsOffsetMs)"));
         assertTrue(mainNowPlayingStateListener.contains("internal class MainNowPlayingStateListener("));
         assertTrue(mainNowPlayingStateListener.contains(": NowPlayingStateController.Listener"));
         assertTrue(mainNowPlayingStateListener.contains("private fun activeLyricLine(state: NowPlayingUiState?): String"));
         assertTrue(mainNowPlayingStateListener.contains("lines.firstOrNull { it.active }?.text"));
+        assertTrue(mainNowPlayingStateListener.contains("timeline?.lines.orEmpty()"));
+        assertTrue(mainNowPlayingStateListener.contains("timeline?.offsetMs ?: 0L"));
         assertTrue(mainNowPlayingStateListener.contains("queueVisibilitySource.queueVisible()"));
         assertTrue(mainNowPlayingStateListener.contains("queueInputsSyncer.syncQueueInputs()"));
         assertTrue(mainActivity.contains("nowPlayingStateController.renderNowBar()"));
@@ -3375,7 +3381,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(pageStateBuilder.contains("fun accent("));
         assertTrue(pageStateBuilder.contains("fun language("));
         assertTrue(pageStateBuilder.contains("fun pageBackgrounds("));
-        assertTrue(pageStateBuilder.contains("fun concurrentPlayback("));
+        assertTrue(pageStateBuilder.contains("fun audioExclusive("));
         assertTrue(pageStateBuilder.contains("fun audioEffects("));
         assertTrue(pageStateBuilder.contains("fun nowPlayingGestures("));
         assertTrue(pageStateBuilder.contains("fun playbackRestore("));
@@ -3401,7 +3407,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(pageStateBuilder.contains("fun accent("));
         assertTrue(pageStateBuilder.contains("fun language("));
         assertTrue(pageStateBuilder.contains("fun pageBackgrounds("));
-        assertTrue(pageStateBuilder.contains("fun concurrentPlayback("));
+        assertTrue(pageStateBuilder.contains("fun audioExclusive("));
         assertTrue(pageStateBuilder.contains("fun audioEffects("));
         assertTrue(pageStateBuilder.contains("fun nowPlayingGestures("));
         assertTrue(pageStateBuilder.contains("fun playbackRestore("));
@@ -5293,6 +5299,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(playbackService.contains("repository.loadStatusBarLyricsEnabled()"));
         assertFalse(playbackService.contains("playbackLyricsManager.setStatusBarLyricsEnabled(repository.loadStatusBarLyricsEnabled())"));
         assertTrue(playbackService.contains("PlaybackLyricsSettingsStore.fromRepository(repository).restoreInto(playbackLyricsManager)"));
+        assertTrue(playbackService.contains("playbackLyricsManager.onAppVisibilityChanged();"));
         assertTrue(playbackService.contains("private PlaybackLyricsStateOwner playbackLyricsStateOwner;"));
         assertFalse(Files.exists(Path.of("app/src/main/java/app/yukine/playback/PlaybackActiveStateOwner.java")));
         assertFalse(playbackService.contains("PlaybackActiveStateOwner"));
@@ -5306,6 +5313,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(lyricsOwner.contains("fun notifyMediaNotification(force: Boolean)"));
         assertTrue(lyricsOwner.contains("fun refreshPlaybackSession()"));
         assertTrue(lyricsOwner.contains("override fun setStatusBarLyricsEnabled(enabled: Boolean)"));
+        assertTrue(lyricsOwner.contains("FloatingLyricsPublisher.syncPlaybackState("));
         assertTrue(lyricsOwner.contains("private var released = false"));
         assertTrue(lyricsOwner.contains("if (released)"));
         assertTrue(lyricsOwner.contains("notificationBridge.refreshPlaybackSession()"));
@@ -6235,6 +6243,7 @@ public final class MainActivityArchitectureContractTest {
                 "replaceCurrentTrackAndResume",
                 "replaceQueuedTrack",
                 "replaceQueuedTrackById",
+                "replaceQueuedTracks",
                 "retainTracksById",
                 "setPlaybackRestoreEnabled",
                 "skipToNextImmediately",

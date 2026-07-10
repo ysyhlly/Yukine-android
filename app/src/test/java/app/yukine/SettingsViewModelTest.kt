@@ -359,6 +359,40 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun audioExclusiveMapsToTheInverseConcurrentPlaybackRuntimeSetting() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val viewModel = SettingsViewModel(dispatcher)
+        val preferenceGateway = FakePreferenceGateway()
+        val runtimeEffects = mutableListOf<SettingsRuntimeEffect>()
+        viewModel.bindPreferenceGateway(preferenceGateway)
+        viewModel.bindRuntimeEffectListener { effect ->
+            runtimeEffects += effect
+            true
+        }
+
+        viewModel.onEvent(SettingsEvent.SetAudioExclusiveEnabled(true))
+        viewModel.onEvent(SettingsEvent.SetAudioExclusiveEnabled(false))
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(false),
+                SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(true)
+            ),
+            runtimeEffects
+        )
+        assertEquals(listOf("concurrent:false", "concurrent:true"), preferenceGateway.events)
+        assertEquals(true, viewModel.state.value.preferences.concurrentPlaybackEnabled)
+        assertEquals(
+            listOf(
+                AppLanguage.text(AppLanguage.MODE_SYSTEM, "audio.exclusive.enabled"),
+                AppLanguage.text(AppLanguage.MODE_SYSTEM, "audio.exclusive.disabled")
+            ),
+            viewModel.drainEffects().filterIsInstance<SettingsEffect.ShowStatus>().map { it.message }
+        )
+    }
+
+    @Test
     fun clearPageBackgroundAppliesCurrentSnapshotWithoutGateway() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val viewModel = SettingsViewModel(dispatcher)

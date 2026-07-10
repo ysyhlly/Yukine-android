@@ -705,6 +705,17 @@ Now Playing state boundary:
 - Updated navigation tests and `MainActivityArchitectureContractTest` so this path
   does not drift back to `hostState.nowPlayingViewModel`.
 
+### Follow-up: immediate Now Playing source-card dispatch
+
+- Source cards now create `NowPlayingEvent.SwitchSource` or
+  `NowPlayingEvent.SwitchLibrarySource` and call the existing
+  `nowPlayingEventHandler`.
+- This keeps `NowPlayingViewModel` as the source-switch policy owner while ensuring
+  `MainActivityBase.handleNowPlayingEvent(...)` drains its effect immediately; playback
+  no longer waits for a later pause, seek, or transport action before switching.
+- `sourceCandidatesFor(...)` remains on `NowPlayingScreenStateProvider`, so the nav host
+  still uses the narrow screen-state boundary for rendering candidate cards.
+
 Verification:
 
 ```powershell

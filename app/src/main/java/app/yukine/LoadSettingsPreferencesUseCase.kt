@@ -14,6 +14,7 @@ internal data class LoadedSettingsPreferences(
     val concurrentPlaybackEnabled: Boolean,
     val audioEffectSettings: AudioEffectSettings,
     val statusBarLyricsEnabled: Boolean,
+    val systemMediaLyricsTitleEnabled: Boolean,
     val floatingLyricsEnabled: Boolean,
     val nowPlayingGesturesEnabled: Boolean,
     val playbackRestoreEnabled: Boolean,
@@ -32,6 +33,7 @@ internal interface SettingsPreferenceLoadOperations {
     fun loadConcurrentPlaybackEnabled(): Boolean
     fun loadAudioEffectSettings(): AudioEffectSettings
     fun loadStatusBarLyricsEnabled(): Boolean
+    fun loadSystemMediaLyricsTitleEnabled(): Boolean
     fun loadFloatingLyricsEnabled(): Boolean
     fun loadNowPlayingGesturesEnabled(): Boolean
     fun loadPlaybackRestoreEnabled(): Boolean
@@ -63,6 +65,9 @@ internal class MusicLibrarySettingsPreferenceLoadOperations(
 
     override fun loadStatusBarLyricsEnabled(): Boolean =
         repository.loadStatusBarLyricsEnabled()
+
+    override fun loadSystemMediaLyricsTitleEnabled(): Boolean =
+        repository.loadSystemMediaLyricsTitleEnabled()
 
     override fun loadFloatingLyricsEnabled(): Boolean =
         repository.loadFloatingLyricsEnabled()
@@ -105,6 +110,7 @@ internal class LoadSettingsPreferencesUseCase(
             concurrentPlaybackEnabled = concurrentPlaybackEnabled,
             audioEffectSettings = audioEffectSettings,
             statusBarLyricsEnabled = statusBarLyricsEnabled && !floatingLyricsEnabled,
+            systemMediaLyricsTitleEnabled = operations.loadSystemMediaLyricsTitleEnabled(),
             floatingLyricsEnabled = floatingLyricsEnabled,
             nowPlayingGesturesEnabled = operations.loadNowPlayingGesturesEnabled(),
             playbackRestoreEnabled = operations.loadPlaybackRestoreEnabled(),

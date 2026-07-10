@@ -1,12 +1,15 @@
 package app.yukine
 
 import android.net.Uri
+import androidx.lifecycle.viewModelScope
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingPlaybackAdapter
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Rule
@@ -30,6 +33,7 @@ class StreamingPlaybackControllerTest {
         val listener = CountingListener(queue)
         val planner = RecordingPlanner()
         val viewModel = StreamingViewModel()
+        viewModel.bindIoDispatcherForTest(Dispatchers.Main)
         viewModel.bindStreamingPlaybackCoordinator(planner, NoopStreamingPlaybackTaskQueue)
         val controller = StreamingPlaybackController(
             viewModel,
@@ -67,6 +71,7 @@ class StreamingPlaybackControllerTest {
         assertEquals(0, planner.snapshot?.currentIndex)
         assertEquals(5, planner.snapshot?.queueSize)
         assertSame(queue[currentIndex], planner.snapshot?.currentTrack)
+        viewModel.viewModelScope.cancel()
     }
 
     @Test
@@ -79,6 +84,7 @@ class StreamingPlaybackControllerTest {
         val listener = CountingListener(queue)
         val planner = RecordingPlanner()
         val viewModel = StreamingViewModel()
+        viewModel.bindIoDispatcherForTest(Dispatchers.Main)
         viewModel.bindStreamingPlaybackCoordinator(planner, NoopStreamingPlaybackTaskQueue)
         val controller = StreamingPlaybackController(
             viewModel,
@@ -116,6 +122,7 @@ class StreamingPlaybackControllerTest {
         assertEquals(0, planner.snapshot?.currentIndex)
         assertEquals(5, planner.snapshot?.queueSize)
         assertSame(queue[currentIndex], planner.snapshot?.currentTrack)
+        viewModel.viewModelScope.cancel()
     }
 
     private class CountingListener(

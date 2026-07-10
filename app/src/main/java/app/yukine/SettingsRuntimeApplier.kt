@@ -14,6 +14,7 @@ sealed interface SettingsRuntimeEffect {
     data class SetConcurrentPlaybackEnabled(val enabled: Boolean) : SettingsRuntimeEffect
     data class ApplyAudioEffects(val settings: AudioEffectSettings) : SettingsRuntimeEffect
     data class SetStatusBarLyrics(val enabled: Boolean) : SettingsRuntimeEffect
+    data class SetSystemMediaLyricsTitleEnabled(val enabled: Boolean) : SettingsRuntimeEffect
     data class ApplyFloatingLyrics(val enabled: Boolean) : SettingsRuntimeEffect
     data object OpenFloatingLyricsPermissionSettings : SettingsRuntimeEffect
     data class SetPlaybackRestoreEnabled(val enabled: Boolean) : SettingsRuntimeEffect
@@ -111,6 +112,10 @@ internal class SettingsRuntimeApplier(
                 playbackServiceControlsProvider.controls()?.setStatusBarLyricsEnabled(effect.enabled)
                 true
             }
+            is SettingsRuntimeEffect.SetSystemMediaLyricsTitleEnabled -> {
+                playbackServiceControlsProvider.controls()?.setSystemMediaLyricsTitleEnabled(effect.enabled)
+                true
+            }
             is SettingsRuntimeEffect.ApplyFloatingLyrics -> {
                 floatingLyricsControlsProvider.controls()?.apply(effect.enabled) != false
             }
@@ -159,6 +164,10 @@ internal class SettingsRuntimeApplier(
 
     fun setStatusBarLyricsEnabled(enabled: Boolean) {
         apply(SettingsRuntimeEffect.SetStatusBarLyrics(enabled))
+    }
+
+    fun setSystemMediaLyricsTitleEnabled(enabled: Boolean) {
+        apply(SettingsRuntimeEffect.SetSystemMediaLyricsTitleEnabled(enabled))
     }
 
     fun applyFloatingLyrics(enabled: Boolean): Boolean {

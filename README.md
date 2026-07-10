@@ -72,10 +72,11 @@ flowchart TD
 - 启动体验优化：实时音频频谱轮询只在实际播放时运行，服务未连接或未播放时复用空频谱，避免打开动画期间每帧触发 Compose 重组。
 - 播放缓存提速：当前歌曲首段缓存改为立即高优先级执行，旧预缓存会主动取消；下一首 URL 预解析不再阻塞用户刚点击的当前歌曲解析，减少点播放时的卡顿。
 - 大曲库刷新提速：Android 11+ 的 MediaStore generation 未变化时跳过全量扫描，无法读取 generation 或旧系统会安全回退全扫；整库去重与搜索在后台运行且旧任务不能覆盖新结果，列表每次刷新只发布一次状态、父层只订阅分支布尔值，音频规格解析仅处理当前批量候选。
+- 队列解析与刷新提速：大队列恢复先在普通列表中完成过滤和索引计算，再一次性写入线程安全队列；在线预解析窗口会合并同一未完成解析请求，并将同一窗口的解析结果作为一次队列提交，避免多次持久化、全队列复制和中间 UI 版本。队列内容版本变化会立即刷新当前列表，但单纯播放进度不会重建整条队列；当前行按实际播放索引标记，重复曲目不会同时显示为正在播放。
 - 播放进度隔离：暂停只暂存当前未切歌时的位置；手动切歌、随机切歌、自动切歌和自然播放完成后的新歌曲都会清除旧检查点并从 0 开始，避免旧进度被流媒体换源带到下一首。
 - 自定义页面背景预览：新图会先完整显示原图，并以手机画幅选框标出最终可见区域；可双指缩放、拖动图片选择截取范围。每次应用的新图都会获得新的本地身份，清空后再选图也不会复用旧位图缓存；应用后仍按所选区域铺满页面，且不会继承上一张图的缩放或偏移。进入沉浸式播放页时会淡出当前页的自定义背景及其遮罩、保留主题渐变，退出时恢复，避免半透明专辑封面叠在壁纸上。
 - 曲库同曲多音源合并：本地扫描、文档导入、WebDAV、远程流和已导入的网络曲目在歌名、歌手、专辑归一化后匹配且时长相差不超过 3 秒时折叠为一条；会识别并忽略有明确译名标记或中文语法信号的括号译名，以及歌名/专辑末尾的 `feat.` / `featuring` 客串尾缀。所有源文件和数据库条目都会保留，并可在播放页“音源切换”中切换。Remix、Live、Ver.、混音、现场、不同专辑、未知元数据和时长明显不同的版本不会合并。
-- 播放页音源切换：同一提供方且同一曲目 ID 的多个音质档（如 QQ 音乐 `STANDARD` / `HIGH`）合并为一个选项，优先使用最高可用音质；真正不同的提供方仍可热切换并保持当前播放进度，连续点击时以最后一次选择为准。
+- 播放页音源切换：同一提供方且同一曲目 ID 的多个音质档（如 QQ 音乐 `STANDARD` / `HIGH`）合并为一个选项，优先使用最高可用音质；真正不同的提供方仍可热切换并保持当前播放进度，点击音源卡片会立即开始解析和切换，无需先暂停；连续点击时以最后一次选择为准。
 - QQ 音乐登录态修正：QQ 本机直连不再把只有 `uin/p_uin` 的 Cookie 当作有效登录，播放解析前会要求 `qqmusic_key` / `qm_keyst` / `psrf_qqaccess_token` 等真实凭证，减少“已登录但无法解析需登录”的假阳性。
 - QQ 音乐播放解析兼容：vkey 请求会按 `songMid + mediaMid` 生成文件名，并在存在 `qqmusic_key` 时携带鉴权；QQ CDN 返回的 HTTP SIP 会在本机转换为 HTTPS，避免 Android 的明文网络策略拦截播放。
 - QQ 音乐歌单元数据兼容：兼容歌单歌曲顶层的 `albumname`、`albumid`、`albummid`、`strMediaMid` 字段；搜索和歌单条目会显示接口返回的专辑名与封面。
@@ -96,10 +97,11 @@ flowchart TD
 - 收藏歌单：曲库歌单页提供 `收藏歌单` 入口，收藏歌曲集中查看。
 - 播放队列：顺序播放、列表循环、单曲循环、随机、关闭循环播完停止。
 - 后台播放：Media3 前台服务、MediaSession、媒体通知、耳机控制、开机恢复入口。
+- 音频独占：播放设置中默认开启，使用系统媒体焦点让兼容的其他媒体应用暂停或静音；关闭后可与其他媒体同时播放。Android 无法强制不遵守音频焦点的应用停止。
 - 桌面小部件：封面、标题、艺人、上一首、播放/暂停、下一首。
 - NowBar：歌词条、进度、波形、收藏、随机、循环、队列入口。
 - 歌词：本地/在线歌词加载、偏移、当前行高亮、沉浸歌词、复制和状态同步。
-- 状态栏/悬浮歌词：播放通知歌词、锁屏/状态栏歌词、悬浮窗歌词，支持 OPPO 流体云依赖通知展示。
+- 状态栏/悬浮歌词：播放通知歌词、锁屏/状态栏歌词、悬浮窗歌词，歌词行变化、前后台切换和界面被系统回收但播放仍继续时，都会由播放服务同步刷新通知与媒体会话；支持 OPPO 流体云依赖通知展示。
 - 音效：系统 Equalizer、BassBoost、Virtualizer、LoudnessEnhancer 设置入口。
 - ReplayGain：读取本地音频 ReplayGain 标签并在播放时应用。
 - 流媒体：网易云登录、账号歌单加载、登录后弹窗选择导入歌单、在线搜索和播放源解析；QQ Cookie 导入和 LX 自定义源导入入口已接入。
@@ -278,10 +280,11 @@ flowchart TD
 - Startup smoothness: realtime audio-spectrum polling now runs only while playback is active, and disconnected/stopped playback reuses an empty band array so app-open transitions do not trigger frame-by-frame Compose recomposition.
 - Playback cache startup is faster: the current track's leading cache range now starts immediately with high priority, stale precache writers are cancelled, and next-track URL pre-resolve no longer blocks the track the user just tapped.
 - Large-library refresh is faster: on Android 11+, an unchanged MediaStore generation skips the full scan; unavailable generation data and older Android versions safely fall back to a full scan. Whole-library deduplication and search run in the background, stale jobs cannot publish over newer results, each refresh publishes list state once while the parent observes only branch booleans, and audio-spec parsing handles only the current batch candidates.
+- Queue parsing and refresh are faster: large restored queues are filtered and indexed in a regular list before one thread-safe queue commit; the streaming pre-resolve window coalesces the same in-flight target and commits one window's results as one queue mutation, avoiding repeated persistence, full-queue copies, and intermediate UI versions. A queue-content revision refreshes the visible list immediately, while progress-only updates still avoid rebuilding it; the active row uses the actual playback index so duplicate tracks do not all appear active.
 - Playback-position isolation: a pause checkpoint is valid only until the current song changes. Manual, shuffled, and automatic track changes plus natural completion clear it, and the next song starts at 0 rather than inheriting an old streaming-source position.
 - Custom page-background preview: a newly selected image first shows the full original with a phone-aspect crop frame. Pinch and drag the image to choose the crop. Each newly applied image receives a fresh local identity, so clearing and then choosing another image cannot reuse the old bitmap cache; after applying, that selection still fills the page, and no zoom or pan is inherited from the previous image. Entering immersive Now Playing fades out the active page's custom background and dim mask while preserving the base theme gradient, then restores them on exit so semi-transparent album art never stacks over custom wallpaper.
 - Library same-song source merging: matching copies from device scans, document import, WebDAV, remote streams, and imported online tracks collapse into one item in the library, search, and play-all list when normalized title, artist, album, and duration (within three seconds) agree. Parenthesized aliases are ignored only with an explicit translation label or conservative Chinese-language signal, along with trailing `feat.` / `featuring` credits in titles or albums. Source files and database rows remain intact, and every alternative can be selected from the Now Playing source switcher. Remix, Live, Ver., mix, distinct albums, unknown metadata, and materially different durations remain separate.
-- Now Playing source switching: quality variants with the same provider and provider track ID (for example, QQ Music `STANDARD` / `HIGH`) are one option, using the highest available quality. Genuine different providers still hot-switch at the current position, and rapid taps honor the most recent choice.
+- Now Playing source switching: quality variants with the same provider and provider track ID (for example, QQ Music `STANDARD` / `HIGH`) are one option, using the highest available quality. Genuine different providers hot-switch at the current position; tapping a source card starts resolution and switching immediately without a prior pause, and rapid taps honor the most recent choice.
 - QQ Music auth state: QQ local playback no longer treats `uin/p_uin` alone as a valid login. Playback resolution now requires a real credential cookie such as `qqmusic_key`, `qm_keyst`, or `psrf_qqaccess_token`, reducing false "logged in but login required" failures.
 - QQ Music playback compatibility: vkey requests now use `songMid + mediaMid` filenames and include `qqmusic_key` auth when available. HTTP QQ CDN SIP URLs are normalized to HTTPS locally so Android's cleartext policy does not block playback.
 - QQ Music playlist metadata compatibility: top-level `albumname`, `albumid`, `albummid`, and `strMediaMid` fields are now handled; streaming search and playlist rows show the returned album title and artwork.
@@ -302,10 +305,11 @@ flowchart TD
 - Favorites collection entry from the playlist grouping page.
 - Queue modes: sequential playback, repeat all, repeat one, shuffle, and repeat off that stops after the current track.
 - Background playback through Media3 foreground service, MediaSession, notifications, headset controls, and boot restore entry.
+- Audio exclusive: enabled by default in Playback settings. It requests system media focus so compatible media apps pause or mute; turning it off allows mixing with other media. Android cannot force apps that ignore audio focus to stop.
 - Home screen widget with artwork, title, artist, previous, play/pause, and next actions.
 - NowBar with lyric strip, progress, waveform, favorite, shuffle, repeat, and queue controls.
 - Lyrics loading, offset control, active-line highlight, immersive lyrics, copy support, and state publishing.
-- Live lyric notification and floating lyrics. Supported OPPO fluid cloud panels can display lyric content from the notification.
+- Live lyric notification and floating lyrics. Lyric-line updates, foreground/background transitions, and Activity destruction while playback continues are synchronized by the playback service to both the notification and MediaSession; supported OPPO fluid cloud panels can display lyric content from the notification.
 - Android system audio effects: Equalizer, BassBoost, Virtualizer, and LoudnessEnhancer.
 - ReplayGain parsing and playback gain application for local tracks.
 - NetEase login, account playlist loading, post-login playlist picker, online search, and playback URL resolution; QQ cookie import and LX custom source import entries are available.

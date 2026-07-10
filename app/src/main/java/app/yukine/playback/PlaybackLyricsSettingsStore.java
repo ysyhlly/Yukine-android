@@ -9,6 +9,8 @@ import java.util.function.Supplier;
 final class PlaybackLyricsSettingsStore {
     interface LyricsSettings {
         boolean loadStatusBarLyricsEnabled();
+
+        boolean loadSystemMediaLyricsTitleEnabled();
     }
 
     private final LyricsSettings lyricsSettings;
@@ -18,7 +20,17 @@ final class PlaybackLyricsSettingsStore {
     }
 
     static PlaybackLyricsSettingsStore fromRepository(MusicLibraryRepository repository) {
-        return new PlaybackLyricsSettingsStore(repository::loadStatusBarLyricsEnabled);
+        return new PlaybackLyricsSettingsStore(new LyricsSettings() {
+            @Override
+            public boolean loadStatusBarLyricsEnabled() {
+                return repository.loadStatusBarLyricsEnabled();
+            }
+
+            @Override
+            public boolean loadSystemMediaLyricsTitleEnabled() {
+                return repository.loadSystemMediaLyricsTitleEnabled();
+            }
+        });
     }
 
     static Consumer<Boolean> statusBarLyricsEnabledActionFromSupplier(
@@ -33,10 +45,25 @@ final class PlaybackLyricsSettingsStore {
         };
     }
 
+    static Consumer<Boolean> systemMediaLyricsTitleEnabledActionFromSupplier(
+            Supplier<? extends LyricsPublisher> lyricsPublisherSupplier
+    ) {
+        return enabled -> {
+            LyricsPublisher lyricsPublisher =
+                    lyricsPublisherSupplier == null ? null : lyricsPublisherSupplier.get();
+            if (lyricsPublisher != null && enabled != null) {
+                lyricsPublisher.setSystemMediaLyricsTitleEnabled(enabled);
+            }
+        };
+    }
+
     void restoreInto(LyricsPublisher lyricsPublisher) {
         if (lyricsPublisher == null) {
             return;
         }
         lyricsPublisher.setStatusBarLyricsEnabled(lyricsSettings.loadStatusBarLyricsEnabled());
+        lyricsPublisher.setSystemMediaLyricsTitleEnabled(
+                lyricsSettings.loadSystemMediaLyricsTitleEnabled()
+        );
     }
 }

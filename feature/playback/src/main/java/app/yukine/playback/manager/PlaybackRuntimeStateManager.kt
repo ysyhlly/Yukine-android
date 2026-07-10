@@ -169,6 +169,8 @@ internal class PlaybackRuntimeStateManager(
 
     fun applyAudioFocusHandling() {
         val player = stateProvider.player() ?: return
+        // Standard media focus is Android's long-lived audio-exclusivity contract. It asks
+        // compatible media apps to pause or duck without interfering with calls/navigation.
         player.setAudioAttributes(
             AudioAttributes.Builder()
                 .setUsage(C.USAGE_MEDIA)

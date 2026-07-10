@@ -718,7 +718,7 @@ class StreamingViewModelTest {
     }
 
     @Test
-    fun preResolveStreamingQueueWindowResolvesUpcomingTracksAfterNextTrack() = runTest {
+    fun preResolveStreamingQueueWindowBatchResolvesUpcomingTracksInOneCallback() = runTest {
         // Unify viewModelScope (Main), the IO async children, and runTest on a single
         // scheduler so awaitAll fully drains before job.join() returns. Mixing the class
         // rule's Main scheduler with runTest's scheduler dropped one of the two resolves.
@@ -731,15 +731,15 @@ class StreamingViewModelTest {
         val next = streamingPlaceholderTrack(id = 2L, providerTrackId = "next-2")
         val third = streamingPlaceholderTrack(id = 3L, providerTrackId = "next-3")
         val fourth = streamingPlaceholderTrack(id = 4L, providerTrackId = "next-4")
-        val resolved = mutableListOf<Pair<Long, Track?>>()
+        val resolved = mutableListOf<Map<Long, Track>>()
         viewModel.bindStreamingRepository(repository(provider))
 
-        val job = viewModel.preResolveStreamingQueueWindow(
+        val job = viewModel.preResolveStreamingQueueWindowBatch(
             snapshot = playbackSnapshot(currentTrack = current, currentIndex = 0, queueSize = 4, playing = true),
             queue = listOf(current, next, third, fourth),
             quality = StreamingAudioQuality.HIGH,
             maxCount = 2
-        ) { oldTrackId, track -> resolved += oldTrackId to track }
+        ) { resolvedTracks -> resolved += resolvedTracks }
 
         job?.join()
 
@@ -750,8 +750,9 @@ class StreamingViewModelTest {
             ),
             provider.playbackRequests.toSet()
         )
-        assertEquals(listOf(3L, 4L), resolved.map { it.first })
-        assertEquals(listOf("Streaming 3", "Streaming 4"), resolved.map { it.second?.title })
+        assertEquals(1, resolved.size)
+        assertEquals(listOf(3L, 4L), resolved.single().keys.toList())
+        assertEquals(listOf("Streaming 3", "Streaming 4"), resolved.single().values.map { it.title })
     }
 
     @Test
@@ -790,14 +791,14 @@ class StreamingViewModelTest {
         ) { oldTrackId, track -> resolved += oldTrackId to track }
 
         assertNull(repeated)
-        assertEquals(
-            listOf(StreamingPlaybackRequest(StreamingProviderName.NETEASE, "next-3", StreamingAudioQuality.HIGH)),
-            provider.playbackRequests.toList()
-        )
 
         gate.complete(Unit)
         first?.join()
 
+        assertEquals(
+            listOf(StreamingPlaybackRequest(StreamingProviderName.NETEASE, "next-3", StreamingAudioQuality.HIGH)),
+            provider.playbackRequests.toList()
+        )
         assertEquals(listOf(3L), resolved.map { it.first })
     }
 

@@ -15,8 +15,11 @@ interface LyricsPublisher {
     fun bind()
     fun release()
     fun setStatusBarLyricsEnabled(enabled: Boolean)
+    fun setSystemMediaLyricsTitleEnabled(enabled: Boolean)
+    fun onAppVisibilityChanged()
     fun syncFloatingLyricsPlaybackState(snapshot: PlaybackStateSnapshot)
     fun notificationLyricText(track: Track?): String
+    fun systemMediaTitleLyricText(track: Track?): String
     fun sanitizeNotificationLyric(value: String?): String
 }
 

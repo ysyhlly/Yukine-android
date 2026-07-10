@@ -79,16 +79,13 @@ internal class StreamingPlaybackController(
             nowPlayingViewModel.replaceQueuedTrack(oldTrackId, resolved)
             nowPlayingViewModel.warmPlaybackTrack(resolved)
         }
-        streamingViewModel.preResolveStreamingQueueWindow(
+        streamingViewModel.preResolveStreamingQueueWindowBatch(
             preResolveSnapshot,
             queue,
             quality
-        ) { oldTrackId, resolved ->
-            if (resolved == null) {
-                return@preResolveStreamingQueueWindow
-            }
-            nowPlayingViewModel.replaceQueuedTrack(oldTrackId, resolved)
-            nowPlayingViewModel.warmPlaybackTrack(resolved)
+        ) { resolvedTracks ->
+            nowPlayingViewModel.replaceQueuedTracks(resolvedTracks)
+            resolvedTracks.values.forEach(nowPlayingViewModel::warmPlaybackTrack)
         }
     }
 

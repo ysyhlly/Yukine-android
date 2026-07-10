@@ -1517,6 +1517,31 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun batchQueuedStreamingResolutionsCommitOnceAndPublishTheFinalQueue() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(track(1L), track(2L), track(3L), track(4L)), 0)
+        val revisionBefore = manager.queueStateSnapshot().queueRevision
+        val savesBefore = store.saveCount
+        val publishesBefore = provider.queuePlaybackActions.publishCount
+
+        manager.replaceQueuedTracks(
+            listOf(
+                track(2L, dataPath = "/resolved/2"),
+                track(3L, dataPath = "/resolved/3"),
+                track(4L, dataPath = "/resolved/4")
+            )
+        )
+
+        assertEquals(listOf("/music/1", "/resolved/2", "/resolved/3", "/resolved/4"), provider.queue.map { it.dataPath })
+        assertEquals(revisionBefore + 1L, manager.queueStateSnapshot().queueRevision)
+        assertEquals(savesBefore + 1, store.saveCount)
+        assertEquals(publishesBefore + 1, provider.queuePlaybackActions.publishCount)
+        assertFalse(provider.prepareCurrentCalled)
+    }
+
+    @Test
     fun emptyQueueStateSnapshotIsOwnedByQueueManager() {
         val snapshot = PlaybackQueueManager.QueueStateSnapshot.empty()
 
@@ -1815,6 +1840,7 @@ class PlaybackQueueManagerTest {
     private class FakeQueueStore(
         private val eventSink: MutableList<String>? = null
     ) : PlaybackQueueStore {
+        var saveCount = 0
         var savedTracks: List<Track> = emptyList()
         var savedIndex: Int = -1
         val savedPositions = mutableListOf<Pair<Long, Long>>()
@@ -1827,6 +1853,7 @@ class PlaybackQueueManagerTest {
 
         override fun load(): PlaybackQueueState = restore
         override fun save(tracks: List<Track>, currentIndex: Int) {
+            saveCount += 1
             savedTracks = tracks
             savedIndex = currentIndex
             eventSink?.add("save")
@@ -1874,6 +1901,7 @@ class PlaybackQueueManagerTest {
         var prepareCurrentCalled = false
         var lastPreparePlayWhenReady = false
         var published = false
+        var publishCount = 0
         var stoppedAndCleared = false
         var deferQueuePersistence = false
         var deferredQueueTracks: List<Track> = emptyList()
@@ -1886,6 +1914,7 @@ class PlaybackQueueManagerTest {
         }
         override fun publishState() {
             published = true
+            publishCount += 1
         }
         override fun stopAndClear() {
             stoppedAndCleared = true

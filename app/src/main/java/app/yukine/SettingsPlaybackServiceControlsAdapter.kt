@@ -8,6 +8,7 @@ interface SettingsPlaybackServicePort {
     fun setConcurrentPlaybackEnabled(enabled: Boolean)
     fun applyAudioEffectSettings(settings: AudioEffectSettings)
     fun setStatusBarLyricsEnabled(enabled: Boolean)
+    fun setSystemMediaLyricsTitleEnabled(enabled: Boolean)
     fun setPlaybackRestoreEnabled(enabled: Boolean)
     fun setReplayGainEnabled(enabled: Boolean)
 }
@@ -33,6 +34,10 @@ internal class MainSettingsPlaybackServiceControls(
 
     override fun setStatusBarLyricsEnabled(enabled: Boolean) {
         service.setStatusBarLyricsEnabled(enabled)
+    }
+
+    override fun setSystemMediaLyricsTitleEnabled(enabled: Boolean) {
+        service.setSystemMediaLyricsTitleEnabled(enabled)
     }
 
     override fun setPlaybackRestoreEnabled(enabled: Boolean) {
