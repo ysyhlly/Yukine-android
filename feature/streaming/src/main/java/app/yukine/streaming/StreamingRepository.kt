@@ -173,10 +173,11 @@ class StreamingRepository(
         provider: StreamingProviderName,
         providerTrackId: String,
         quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
-        luoxueMusicInfoJson: String? = null
+        luoxueMusicInfoJson: String? = null,
+        forceRefresh: Boolean = false
     ): StreamingPlaybackSource {
         return withContext(Dispatchers.IO) {
-            cache?.cachedPlayback(provider, providerTrackId, quality, luoxueMusicInfoJson)?.let { cached ->
+            if (!forceRefresh) cache?.cachedPlayback(provider, providerTrackId, quality, luoxueMusicInfoJson)?.let { cached ->
                 val source = runCatching { StreamingGatewayJson.playbackSource(cached) }.getOrNull()
                 if (source != null && isSupportedPlaybackSourceUrl(source.url)) {
                     recordCacheHit("playback", provider)
@@ -211,7 +212,8 @@ class StreamingRepository(
         provider: StreamingProviderName,
         providerTrackId: String,
         quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
-        metadata: StreamingTrack? = null
+        metadata: StreamingTrack? = null,
+        forceRefresh: Boolean = false
     ): StreamingResolvedPlayback {
         return withContext(Dispatchers.IO) {
             val attempts = playbackResolveAttempts(provider, providerTrackId, metadata)
@@ -222,7 +224,8 @@ class StreamingRepository(
                         attempt.provider,
                         attempt.providerTrackId,
                         quality,
-                        attempt.luoxueMusicInfoJson
+                        attempt.luoxueMusicInfoJson,
+                        forceRefresh
                     )
                     validatePlaybackSource(source)
                     source
@@ -243,7 +246,8 @@ class StreamingRepository(
                                 attempt.provider,
                                 attempt.providerTrackId,
                                 quality,
-                                attempt.luoxueMusicInfoJson
+                                attempt.luoxueMusicInfoJson,
+                                true
                             )
                             validatePlaybackSource(source)
                             source

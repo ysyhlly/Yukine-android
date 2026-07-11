@@ -7558,6 +7558,7 @@ public final class MainActivityArchitectureContractTest {
     public void playbackErrorRecoveryCommandsAreOwnedOutsideEchoPlaybackService() throws Exception {
         String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
         String commandOwner = read("app/src/main/java/app/yukine/playback/PlaybackErrorRecoveryCommandOwner.java");
+        String urlRecovery = read("app/src/main/java/app/yukine/playback/PlaybackStreamingUrlRecovery.kt");
 
         assertFalse(service.contains("new PlaybackErrorRecoveryManager.Actions()"));
         assertFalse(service.contains("private String debugTrack(Track track)"));
@@ -7573,6 +7574,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackErrorRecoveryCommandOwner.debugTrack(track)"));
         assertTrue(commandOwner.contains("final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryManager.Actions"));
         assertTrue(commandOwner.contains("interface FailedTrackPolicy"));
+        assertTrue(commandOwner.contains("interface FailedStreamingTrackRefresher"));
+        assertTrue(commandOwner.contains("failedStreamingTrackRefresher.refresh(failed)"));
         assertFalse(commandOwner.contains("interface TrackDebugger"));
         assertTrue(commandOwner.contains("interface PlaybackPreparer"));
         assertTrue(commandOwner.contains("interface ErrorMessageStore"));
@@ -7581,6 +7584,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(commandOwner.contains("playbackCommands.skipToNext();"));
         assertTrue(commandOwner.contains("errorMessageStore.setErrorMessage(message);"));
         assertTrue(commandOwner.contains("warningLogger.logWarning(message, error);"));
+        assertTrue(service.contains("private PlaybackStreamingUrlRecovery playbackStreamingUrlRecovery;"));
+        assertTrue(service.contains("playbackStreamingUrlRecovery.refresh("));
+        assertTrue(urlRecovery.contains("forceRefresh = true"));
+        assertTrue(urlRecovery.contains("repositorySource.current().resolvePlaybackTrack("));
     }
 
     @Test

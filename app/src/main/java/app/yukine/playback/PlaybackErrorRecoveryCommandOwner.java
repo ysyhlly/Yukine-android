@@ -28,6 +28,10 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
         void logWarning(String message, Exception error);
     }
 
+    interface FailedStreamingTrackRefresher {
+        boolean refresh(Track failed);
+    }
+
     private final CurrentTrackProvider currentTrackProvider;
     private final FailedTrackPolicy failedTrackPolicy;
     private final PlaybackPreparer playbackPreparer;
@@ -35,6 +39,7 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
     private final ErrorMessageStore errorMessageStore;
     private final StatePublisher statePublisher;
     private final WarningLogger warningLogger;
+    private final FailedStreamingTrackRefresher failedStreamingTrackRefresher;
 
     PlaybackErrorRecoveryCommandOwner(
             CurrentTrackProvider currentTrackProvider,
@@ -45,6 +50,28 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
             StatePublisher statePublisher,
             WarningLogger warningLogger
     ) {
+        this(
+                currentTrackProvider,
+                failedTrackPolicy,
+                playbackPreparer,
+                playbackCommands,
+                errorMessageStore,
+                statePublisher,
+                warningLogger,
+                null
+        );
+    }
+
+    PlaybackErrorRecoveryCommandOwner(
+            CurrentTrackProvider currentTrackProvider,
+            FailedTrackPolicy failedTrackPolicy,
+            PlaybackPreparer playbackPreparer,
+            PlaybackNotificationCommandOwner.PlaybackCommands playbackCommands,
+            ErrorMessageStore errorMessageStore,
+            StatePublisher statePublisher,
+            WarningLogger warningLogger,
+            FailedStreamingTrackRefresher failedStreamingTrackRefresher
+    ) {
         this.currentTrackProvider = currentTrackProvider;
         this.failedTrackPolicy = failedTrackPolicy;
         this.playbackPreparer = playbackPreparer;
@@ -52,6 +79,7 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
         this.errorMessageStore = errorMessageStore;
         this.statePublisher = statePublisher;
         this.warningLogger = warningLogger;
+        this.failedStreamingTrackRefresher = failedStreamingTrackRefresher;
     }
 
     @Override
@@ -62,6 +90,11 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
     @Override
     public boolean canSkipFailedTrack(Track failed) {
         return failedTrackPolicy.canSkipFailedTrack(failed);
+    }
+
+    @Override
+    public boolean refreshStreamingTrack(Track failed) {
+        return failedStreamingTrackRefresher != null && failedStreamingTrackRefresher.refresh(failed);
     }
 
     @Override

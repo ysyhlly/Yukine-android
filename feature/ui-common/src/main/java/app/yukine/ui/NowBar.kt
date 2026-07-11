@@ -49,7 +49,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -378,8 +381,7 @@ private fun NowBarProgressSection(
             playing = slice.playing,
             cachedProgress = slice.waveformCachedProgress,
             progressLabel = slice.playbackProgressLabel,
-            expandLabel = slice.expandWaveformLabel,
-            onExpand = onCollapseWaveform,
+            onSeek = onSeek,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(EchoMobileLayoutMetrics.nowBarProgressHeight)
@@ -391,8 +393,7 @@ private fun NowBarProgressSection(
             playing = slice.playing,
             cachedProgress = slice.waveformCachedProgress,
             progressLabel = slice.playbackProgressLabel,
-            expandLabel = slice.expandWaveformLabel,
-            onExpand = onExpandWaveform,
+            onSeek = onSeek,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(EchoMobileLayoutMetrics.nowBarProgressHeight)
@@ -401,7 +402,10 @@ private fun NowBarProgressSection(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = waveformExpanded, onClick = onCollapseWaveform)
+            .clickable(onClick = if (waveformExpanded) onCollapseWaveform else onExpandWaveform)
+            .semantics {
+                contentDescription = slice.expandWaveformLabel.ifBlank { slice.playbackProgressLabel }
+            }
             .padding(top = 0.dp, bottom = 1.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -447,16 +451,28 @@ private fun CollapsedProgress(
     playing: Boolean,
     cachedProgress: Float,
     progressLabel: String,
-    expandLabel: String,
-    onExpand: () -> Unit,
+    onSeek: SeekAction,
     modifier: Modifier = Modifier
 ) {
     val p = EchoTheme.colors()
     val scrub = rememberScrubbablePlaybackPosition(positionMs, durationMs, playing)
     Canvas(
         modifier = modifier
-            .clickable(onClick = onExpand)
-            .semantics { contentDescription = expandLabel.ifBlank { progressLabel } }
+            .semantics {
+                contentDescription = progressLabel
+                progressBarRangeInfo = ProgressBarRangeInfo(
+                    current = (scrub.displayPosition.value.toFloat() / scrub.duration.toFloat())
+                        .coerceIn(0f, 1f),
+                    range = 0f..1f
+                )
+                if (scrub.seekEnabled) {
+                    setProgress { targetProgress ->
+                        onSeek.seekTo((scrub.duration * targetProgress.coerceIn(0f, 1f)).toLong())
+                        true
+                    }
+                }
+            }
+            .playbackSeekGesture(scrub, onSeek)
     ) {
         val progress = (scrub.displayPosition.value.toFloat() / scrub.duration.toFloat())
             .coerceIn(0f, 1f)
@@ -661,6 +677,26 @@ private fun AlbumArtThumb(uri: Uri?, title: String, subtitle: String) {
     )
 }
 
+private fun Modifier.playbackSeekGesture(
+    scrub: ScrubbablePlaybackPosition,
+    onSeek: SeekAction
+): Modifier = pointerInput(scrub.seekEnabled, scrub.duration) {
+    awaitEachGesture {
+        val down = awaitFirstDown()
+        if (!scrub.seekEnabled) {
+            return@awaitEachGesture
+        }
+        var targetPosition = scrub.scrubTo(down.position.x, size.width.toFloat())
+        onSeek.seekTo(targetPosition)
+        drag(down.id) { change ->
+            targetPosition = scrub.scrubTo(change.position.x, size.width.toFloat())
+            onSeek.seekTo(targetPosition)
+            change.consume()
+        }
+        scrub.clearScrub()
+    }
+}
+
 @Composable
 private fun WaveformProgress(
     positionMs: Long,
@@ -792,22 +828,7 @@ private fun WaveformProgress(
                     )
                 }
             }
-            .pointerInput(scrub.seekEnabled, scrub.duration) {
-                awaitEachGesture {
-                    val down = awaitFirstDown()
-                    if (!scrub.seekEnabled) {
-                        return@awaitEachGesture
-                    }
-                    var targetPosition = scrub.scrubTo(down.position.x, size.width.toFloat())
-                    onSeek.seekTo(targetPosition)
-                    drag(down.id) { change ->
-                        targetPosition = scrub.scrubTo(change.position.x, size.width.toFloat())
-                        onSeek.seekTo(targetPosition)
-                        change.consume()
-                    }
-                    scrub.clearScrub()
-                }
-            }
+            .playbackSeekGesture(scrub, onSeek)
     )
 }
 

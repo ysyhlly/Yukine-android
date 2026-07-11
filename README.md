@@ -75,7 +75,7 @@ flowchart TD
 - 大曲库刷新提速：Android 11+ 的 MediaStore generation 未变化时跳过全量扫描，无法读取 generation 或旧系统会安全回退全扫；刷新会依次提示检查、扫描、原子更新和重载阶段，超过 45 秒会给出可重新扫描的提示；整库去重与搜索在后台运行且旧任务不能覆盖新结果，列表每次刷新只发布一次状态、父层只订阅分支布尔值，音频规格解析仅处理当前批量候选。
 - 队列解析与刷新提速：大队列恢复先在普通列表中完成过滤和索引计算，再一次性写入线程安全队列；在线预解析窗口会合并同一未完成解析请求，并将同一窗口的解析结果作为一次队列提交，避免多次持久化、全队列复制和中间 UI 版本。队列内容版本变化会立即刷新当前列表，但单纯播放进度不会重建整条队列；当前行按实际播放索引标记，重复曲目不会同时显示为正在播放。
 - 播放进度隔离：暂停只暂存当前未切歌时的位置；手动切歌、随机切歌、自动切歌和自然播放完成后的新歌曲都会清除旧检查点并从 0 开始，避免旧进度被流媒体换源带到下一首。
-- 流媒体地址恢复：后台播放或冷启动恢复遇到临时 URL 过期时，会优先换用仍有效的缓存地址，并在播放失败后自动热替换当前歌曲 URL，保留队列、进度和继续播放状态，不再要求重新进入网络页手动拉取 URL，也不会因重建队列停在暂停态。
+- 流媒体地址恢复：后台播放或冷启动恢复遇到临时 URL 过期时，会优先换用仍有效的缓存地址；即使界面已被回收，播放服务也会强制绕过旧缓存重新解析并热替换当前歌曲 URL，保留队列、进度和继续播放状态，不再依赖重新打开应用恢复。
 - 自定义页面背景预览：新图会先完整显示原图，并以手机画幅选框标出最终可见区域；可双指缩放、拖动图片选择截取范围。每次应用的新图都会获得新的本地身份，清空后再选图也不会复用旧位图缓存；应用后仍按所选区域铺满页面，且不会继承上一张图的缩放或偏移。进入沉浸式播放页时会淡出当前页的自定义背景及其遮罩、保留主题渐变，退出时恢复，避免半透明专辑封面叠在壁纸上。
 - 浮动底栏：底部导航使用避开系统手势区的悬浮玻璃药丸，Now Bar 同样以悬浮玻璃卡片呈现，同时保留原有 148dp 高度和完整控制布局。
 - 统一悬浮卡片：页面内容卡片统一使用 6dp 悬浮层级、磨砂半透明材质与一致圆角；Now Bar 和底部导航使用更高的 10dp 层级，按钮、标签和列表操作保持轻量。
@@ -105,7 +105,7 @@ flowchart TD
 - 后台播放：Media3 前台服务、MediaSession、媒体通知、耳机控制、开机恢复入口。
 - 音频独占：播放设置中默认开启，使用系统媒体焦点让兼容的其他媒体应用暂停或静音；关闭后可与其他媒体同时播放。Android 无法强制不遵守音频焦点的应用停止。
 - 桌面小部件：封面、标题、艺人、上一首、播放/暂停、下一首。
-- NowBar：歌词条、进度、波形、收藏、随机、循环、队列入口。
+- NowBar：歌词条、可直接点击和拖动的进度条、波形、收藏、随机、循环、队列入口；点击时间区域可展开或收起波形。
 - 歌词：本地/在线歌词加载、偏移、当前行高亮、沉浸歌词、复制和状态同步。
 - 状态栏/悬浮歌词：播放通知歌词、锁屏/状态栏歌词、悬浮窗歌词，歌词行变化、前后台切换和界面被系统回收但播放仍继续时，都会由播放服务同步刷新通知与媒体会话；支持 OPPO 流体云依赖通知展示。歌词设置还提供默认关闭的「系统媒体歌词标题兼容模式」，供只显示标题的车机或媒体面板把当前歌词作为标题，同时保留歌曲名和歌手元数据；兼容模式会随每句歌词发送 MediaSession 元数据更新，避免系统媒体标题停在第一句。
 - 音效：系统 Equalizer、BassBoost、Virtualizer、LoudnessEnhancer 设置入口。
@@ -291,7 +291,7 @@ flowchart TD
 - Large-library refresh is faster: on Android 11+, an unchanged MediaStore generation skips the full scan; unavailable generation data and older Android versions safely fall back to a full scan. Refresh status now identifies checking, scanning, atomic replacement, and reloading, then offers a retryable scan message after 45 seconds. Whole-library deduplication and search run in the background, stale jobs cannot publish over newer results, each refresh publishes list state once while the parent observes only branch booleans, and audio-spec parsing handles only the current batch candidates.
 - Queue parsing and refresh are faster: large restored queues are filtered and indexed in a regular list before one thread-safe queue commit; the streaming pre-resolve window coalesces the same in-flight target and commits one window's results as one queue mutation, avoiding repeated persistence, full-queue copies, and intermediate UI versions. A queue-content revision refreshes the visible list immediately, while progress-only updates still avoid rebuilding it; the active row uses the actual playback index so duplicate tracks do not all appear active.
 - Playback-position isolation: a pause checkpoint is valid only until the current song changes. Manual, shuffled, and automatic track changes plus natural completion clear it, and the next song starts at 0 rather than inheriting an old streaming-source position.
-- Streaming URL recovery: background playback and cold-start queue restore reuse a still-valid cached source when available, then hot-swap an expired current URL while preserving the queue, position, and resume intent instead of rebuilding the queue, pausing, or requiring a manual refresh from the network page.
+- Streaming URL recovery: background playback and cold-start queue restore reuse a still-valid cached source when available. Even after the Activity is gone, the playback service bypasses stale cache, resolves a fresh current URL, and hot-swaps it while preserving the queue, position, and resume intent.
 - Custom page-background preview: a newly selected image first shows the full original with a phone-aspect crop frame. Pinch and drag the image to choose the crop. Each newly applied image receives a fresh local identity, so clearing and then choosing another image cannot reuse the old bitmap cache; after applying, that selection still fills the page, and no zoom or pan is inherited from the previous image. Entering immersive Now Playing fades out the active page's custom background and dim mask while preserving the base theme gradient, then restores them on exit so semi-transparent album art never stacks over custom wallpaper.
 - Floating playback chrome: the bottom navigation uses a gesture-safe floating glass pill, while the Now Bar uses a matching floating glass card and retains its original 148dp height and full control layout.
 - Unified floating cards: page content cards share a 6dp floating layer, frosted translucency, and consistent corners; the Now Bar and bottom navigation use a higher 10dp chrome layer while buttons, chips, and list actions stay lightweight.
@@ -321,7 +321,7 @@ flowchart TD
 - Background playback through Media3 foreground service, MediaSession, notifications, headset controls, and boot restore entry.
 - Audio exclusive: enabled by default in Playback settings. It requests system media focus so compatible media apps pause or mute; turning it off allows mixing with other media. Android cannot force apps that ignore audio focus to stop.
 - Home screen widget with artwork, title, artist, previous, play/pause, and next actions.
-- NowBar with lyric strip, progress, waveform, favorite, shuffle, repeat, and queue controls.
+- NowBar with a directly tappable and draggable progress bar, lyric strip, waveform, favorite, shuffle, repeat, and queue controls; tap the time row to expand or collapse the waveform.
 - Lyrics loading, offset control, active-line highlight, immersive lyrics, copy support, and state publishing.
 - Live lyric notification and floating lyrics. Lyric-line updates, foreground/background transitions, and Activity destruction while playback continues are synchronized by the playback service to both the notification and MediaSession; supported OPPO fluid cloud panels can display lyric content from the notification. Lyrics settings also include a default-off system-media lyric-title compatibility mode for car head units or media panels that only show a title; it keeps the real track title and artist in metadata and emits a MediaSession metadata update for every lyric line so title-only surfaces do not stay on the first line.
 - Android system audio effects: Equalizer, BassBoost, Virtualizer, and LoudnessEnhancer.

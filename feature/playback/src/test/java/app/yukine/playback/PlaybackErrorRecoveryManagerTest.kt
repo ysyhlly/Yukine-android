@@ -13,6 +13,24 @@ import java.util.function.Predicate
 @RunWith(RobolectricTestRunner::class)
 class PlaybackErrorRecoveryManagerTest {
     @Test
+    fun serviceUrlRefreshPreemptsRetryingTheExpiredUrl() {
+        val scheduler = FakeScheduler()
+        val actions = FakeActions(
+            track = track(1L, "https://example.com/expired.mp3"),
+            canSkipFailedTrack = true,
+            refreshStreamingTrack = true
+        )
+        val manager = PlaybackErrorRecoveryManager(scheduler, actions, httpTrackPredicate())
+
+        manager.onPlayerError(Exception("expired url"))
+        scheduler.runPending()
+
+        assertEquals(listOf("refresh"), actions.calls)
+        assertEquals(null, scheduler.pending)
+        assertTrue(actions.logs.any { it.startsWith("warn:Refreshing expired streaming URL") })
+    }
+
+    @Test
     fun retriesStreamingTrackOnceBeforeSkipping() {
         val scheduler = FakeScheduler()
         val actions = FakeActions(
@@ -190,13 +208,20 @@ class PlaybackErrorRecoveryManagerTest {
 
     private class FakeActions(
         private val track: Track?,
-        private val canSkipFailedTrack: Boolean
+        private val canSkipFailedTrack: Boolean,
+        private val refreshStreamingTrack: Boolean = false
     ) : PlaybackErrorRecoveryManager.Actions {
         val calls = mutableListOf<String>()
         val logs = mutableListOf<String>()
 
         override fun currentTrack(): Track? = track
         override fun canSkipFailedTrack(failed: Track?): Boolean = canSkipFailedTrack && failed == track
+        override fun refreshStreamingTrack(failed: Track?): Boolean {
+            if (refreshStreamingTrack) {
+                calls += "refresh"
+            }
+            return refreshStreamingTrack
+        }
         override fun debugTrack(track: Track?): String = track?.id?.toString() ?: "null"
         override fun prepareCurrent(playWhenReady: Boolean) { calls.add("prepare") }
         override fun skipToNext() { calls.add("skip") }

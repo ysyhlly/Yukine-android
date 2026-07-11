@@ -191,10 +191,17 @@ class StreamingRepositoryTest {
             providerTrackId = "track-1",
             quality = StreamingAudioQuality.LOSSLESS
         )
+        val forced = repository.resolvePlayback(
+            provider = StreamingProviderName.NETEASE,
+            providerTrackId = "track-1",
+            quality = StreamingAudioQuality.LOSSLESS,
+            forceRefresh = true
+        )
 
         assertEquals("https://stream.example.test/remote-url.mp3", first.url)
         assertEquals("https://stream.example.test/remote-url.mp3", second.url)
-        assertEquals(1, gateway.playbackRequests.size)
+        assertEquals("https://stream.example.test/remote-url.mp3", forced.url)
+        assertEquals(2, gateway.playbackRequests.size)
         assertEquals(
             3_088L,
             dao.playbacks[Triple("netease", "track-1", "lossless")]?.expiresAtMs

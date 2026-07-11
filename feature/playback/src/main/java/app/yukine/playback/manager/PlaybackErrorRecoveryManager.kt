@@ -17,6 +17,7 @@ internal class PlaybackErrorRecoveryManager(
     interface Actions {
         fun currentTrack(): Track?
         fun canSkipFailedTrack(failed: Track?): Boolean
+        fun refreshStreamingTrack(failed: Track?): Boolean = false
         fun debugTrack(track: Track?): String
         fun prepareCurrent(playWhenReady: Boolean)
         fun skipToNext()
@@ -56,6 +57,10 @@ internal class PlaybackErrorRecoveryManager(
         actions.logWarning("Playback failed for ${actions.debugTrack(failed)}", error)
         if (isStreaming && failedId != -1L && failedId != lastErrorTrackId) {
             lastErrorTrackId = failedId
+            if (actions.refreshStreamingTrack(failed)) {
+                actions.logWarning("Refreshing expired streaming URL: ${actions.debugTrack(failed)}", error)
+                return
+            }
             actions.logWarning("Retrying streaming track after error: ${actions.debugTrack(failed)}", error)
             val generation = ++retryGeneration
             val retry = Runnable {

@@ -23,6 +23,7 @@ import app.yukine.R;
 import app.yukine.common.EmbeddedArtwork;
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.PlaybackServiceHostPort;
+import app.yukine.StreamingRepositorySource;
 import app.yukine.ToggleFavoriteUseCase;
 import app.yukine.playback.manager.PlaybackAudioEffectManager;
 import app.yukine.playback.manager.PlaybackCrossfadeAdvanceManager;
@@ -249,11 +250,14 @@ public final class EchoPlaybackService extends MediaLibraryService
     @Inject
     StreamingPlaybackHeaderStore streamingPlaybackHeaderStore;
     @Inject
+    StreamingRepositorySource streamingRepositorySource;
+    @Inject
     ToggleFavoriteUseCase toggleFavoriteUseCase;
     private PlaybackAudioEffectSettingsStore playbackAudioEffectSettingsStore;
     private PlaybackMediaSourceProvider mediaSourceProvider;
     private PlaybackPlayerFactory playerFactory;
     private PlaybackRuntimeSettingsStore playbackRuntimeSettingsStore;
+    private PlaybackStreamingUrlRecovery playbackStreamingUrlRecovery;
     private final PlaybackTransitionStateManager playbackTransitionStateManager = new PlaybackTransitionStateManager();
     private volatile boolean appVisible;
 
@@ -387,6 +391,26 @@ public final class EchoPlaybackService extends MediaLibraryService
                 playbackMainHandlerSchedulerOwner,
                 playbackSleepTimerCommandOwner
         );
+        playbackStreamingUrlRecovery = new PlaybackStreamingUrlRecovery(
+                streamingRepositorySource,
+                task -> playbackTaskScheduler.schedule(
+                        PlaybackTaskScheduler.Priority.CURRENT_PLAYBACK_RECOVERY,
+                        task
+                ),
+                task -> mainHandler.post(task),
+                (expectedTrackId, refreshedTrack, positionMs) ->
+                        playbackCurrentTrackReplacementOwner.replaceCurrentSourceAndResume(
+                                expectedTrackId,
+                                refreshedTrack,
+                                positionMs
+                        ),
+                failedTrackId -> {
+                    Track currentTrack = playbackQueueStateOwner.currentTrack();
+                    if (currentTrack != null && currentTrack.id == failedTrackId) {
+                        prepareCurrent(true);
+                    }
+                }
+        );
         playbackErrorRecoveryCommandOwner = new PlaybackErrorRecoveryCommandOwner(
                 playbackQueueStateOwner::currentTrack,
                 playbackQueueStateOwner,
@@ -394,7 +418,12 @@ public final class EchoPlaybackService extends MediaLibraryService
                 EchoPlaybackService.this,
                 playbackCurrentTrackPreparationRuntimeOwner::setErrorMessage,
                 EchoPlaybackService.this::publishState,
-                (message, error) -> Log.w(TAG, message, error)
+                (message, error) -> Log.w(TAG, message, error),
+                failed -> playbackStreamingUrlRecovery != null
+                        && playbackStreamingUrlRecovery.refresh(
+                                failed,
+                                playbackPlayerStateOwner.positionMs()
+                        )
         );
         playbackErrorRecoveryManager = new PlaybackErrorRecoveryManager(
                 playbackMainHandlerSchedulerOwner,
