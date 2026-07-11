@@ -296,7 +296,8 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
                     priority = 0
                 )
             ),
-            playbackCandidates = retainedPlaybackCandidates
+            playbackCandidates = retainedPlaybackCandidates,
+            luoxueMusicInfoJson = StreamingPlaybackAdapter.luoxueMusicInfoJson(track.dataPath)
         )
     }
 

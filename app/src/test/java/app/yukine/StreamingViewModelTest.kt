@@ -1710,6 +1710,8 @@ class StreamingViewModelTest {
 
         override suspend fun upsertSearch(entity: StreamingSearchCacheEntity) = Unit
 
+        override suspend fun deleteSearchForProvider(provider: String): Int = 0
+
         override suspend fun playlist(
             provider: String,
             providerPlaylistId: String,
@@ -1732,6 +1734,8 @@ class StreamingViewModelTest {
         ): StreamingPlaybackCacheEntity? = null
 
         override suspend fun upsertPlayback(entity: StreamingPlaybackCacheEntity) = Unit
+
+        override suspend fun deletePlaybackForProvider(provider: String): Int = 0
 
         override suspend fun auth(provider: String, nowMs: Long): StreamingAuthMetadataEntity? = null
 

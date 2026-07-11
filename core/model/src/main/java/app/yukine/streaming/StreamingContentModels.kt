@@ -57,7 +57,12 @@ data class StreamingTrack(
     val unavailableReason: String? = null,
     val description: String? = null,
     val lyricSources: List<StreamingLyricSource> = emptyList(),
-    val playbackCandidates: List<StreamingPlaybackCandidate> = emptyList()
+    val playbackCandidates: List<StreamingPlaybackCandidate> = emptyList(),
+    /**
+     * Source-specific LX musicInfo object, serialized as a JSON object. It is retained only for
+     * LX tracks so imported JS sources can receive the original fields after cache/queue restore.
+     */
+    val luoxueMusicInfoJson: String? = null
 ) {
     val stableKey: String = "streaming:${provider.wireName}:$providerTrackId"
 
@@ -258,7 +263,8 @@ data class StreamingHeartbeatRequest(
 data class StreamingPlaybackRequest(
     val provider: StreamingProviderName,
     val providerTrackId: String,
-    val quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS
+    val quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
+    val luoxueMusicInfoJson: String? = null
 )
 
 data class StreamingPlaybackSource(

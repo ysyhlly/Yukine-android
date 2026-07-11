@@ -2,6 +2,7 @@ package app.yukine
 
 import android.net.Uri
 import app.yukine.streaming.LuoxueImportedSource
+import app.yukine.streaming.LuoxueSourceStoreManager
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -101,6 +102,32 @@ class LuoxueSourceImportControllerTest {
         assertEquals(1, fixture.completions)
     }
 
+    @Test
+    fun managesImportedSourcesAndPublishesEachSuccessfulChange() {
+        val fixture = Fixture()
+        fixture.sourceStore.replace(
+            listOf(
+                LuoxueImportedSource("one", "First", script = "one"),
+                LuoxueImportedSource("two", "Second", script = "two")
+            )
+        )
+
+        assertEquals(true, fixture.controller.setSourceEnabled("one", false))
+        assertEquals(true, fixture.controller.moveSource("two", -1))
+        assertEquals(true, fixture.controller.removeSource("one"))
+
+        assertEquals(listOf("Second"), fixture.controller.importedSources().map { it.name })
+        assertEquals(
+            listOf(
+                "streaming.lx.source.updated",
+                "streaming.lx.source.updated",
+                "streaming.lx.source.updated"
+            ),
+            fixture.statuses
+        )
+        assertEquals(3, fixture.completions)
+    }
+
     private class Fixture(
         val picker: FakePicker? = FakePicker(),
         private val documents: Map<Uri, String> = emptyMap()
@@ -108,17 +135,16 @@ class LuoxueSourceImportControllerTest {
         val statuses = mutableListOf<String>()
         val executorCalls = mutableListOf<String>()
         val posterCalls = mutableListOf<String>()
-        val savedSources = mutableListOf<LuoxueImportedSource>()
+        val sourceStore = FakeSourceStore()
+        val savedSources: List<LuoxueImportedSource>
+            get() = sourceStore.savedSources
         var completions = 0
 
         val controller = LuoxueSourceImportController(
             textProvider = LuoxueSourceImportTextProvider { key -> key },
             documentPickerProvider = LuoxueSourceDocumentPickerProvider { picker },
             documentReader = LuoxueSourceDocumentReader { uri -> documents[uri] },
-            sourceStore = LuoxueSourceStoreWriter { sources ->
-                savedSources += sources
-                sources.size
-            },
+            sourceStore = sourceStore,
             ioExecutor = LuoxueSourceTaskExecutor { task ->
                 executorCalls += "io"
                 task.run()
@@ -141,6 +167,52 @@ class LuoxueSourceImportControllerTest {
 
         override fun openLuoxueSourceFilePicker() {
             opens += 1
+        }
+    }
+
+    private class FakeSourceStore : LuoxueSourceStoreManager {
+        val savedSources = mutableListOf<LuoxueImportedSource>()
+        private val sources = mutableListOf<LuoxueImportedSource>()
+
+        override fun load(): List<LuoxueImportedSource> = sources.toList()
+
+        override fun saveAll(sources: List<LuoxueImportedSource>): Int {
+            savedSources += sources
+            sources.forEach { source ->
+                val index = this.sources.indexOfFirst { it.id == source.id }
+                if (index >= 0) {
+                    this.sources[index] = source.copy(order = index)
+                } else {
+                    this.sources += source.copy(order = this.sources.size)
+                }
+            }
+            return sources.size
+        }
+
+        override fun setEnabled(sourceId: String, enabled: Boolean): Boolean {
+            val index = sources.indexOfFirst { it.id == sourceId }
+            if (index < 0) return false
+            sources[index] = sources[index].copy(enabled = enabled)
+            return true
+        }
+
+        override fun move(sourceId: String, direction: Int): Boolean {
+            val from = sources.indexOfFirst { it.id == sourceId }
+            val to = from + direction.compareTo(0)
+            if (from < 0 || to !in sources.indices) return false
+            val source = sources.removeAt(from)
+            sources.add(to, source)
+            sources.indices.forEach { index -> sources[index] = sources[index].copy(order = index) }
+            return true
+        }
+
+        override fun remove(sourceId: String): Boolean {
+            return sources.removeAll { it.id == sourceId }
+        }
+
+        fun replace(value: List<LuoxueImportedSource>) {
+            sources.clear()
+            sources += value.mapIndexed { index, source -> source.copy(order = index) }
         }
     }
 

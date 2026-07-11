@@ -8,7 +8,9 @@ import app.yukine.StreamingRepositoryProvider
 import app.yukine.StreamingRepositorySource
 import app.yukine.streaming.HeaderBackedStreamingPlaybackTrackAdapter
 import app.yukine.streaming.LocalStreamingAuthStore
+import app.yukine.streaming.LocalLuoxueTrackMetadataResolver
 import app.yukine.streaming.LuoxueSourceStore
+import app.yukine.streaming.LuoxueTrackMetadataResolver
 import app.yukine.streaming.PersistentStreamingPlaybackHeaders
 import app.yukine.streaming.RemoteStreamingGatewayFactory
 import app.yukine.streaming.StreamingGatewayFactory
@@ -52,6 +54,14 @@ object StreamingDataModule {
         @ApplicationContext context: Context
     ): LuoxueSourceStore {
         return LuoxueSourceStore(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideLuoxueTrackMetadataResolver(
+        sourceStore: LuoxueSourceStore
+    ): LuoxueTrackMetadataResolver {
+        return LocalLuoxueTrackMetadataResolver(sourceStore)
     }
 
     @Provides

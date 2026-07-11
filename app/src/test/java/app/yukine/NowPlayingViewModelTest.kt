@@ -334,14 +334,15 @@ class NowPlayingViewModelTest {
 
     private fun snapshotWithTrack(
         playing: Boolean = false,
-        positionMs: Long = 0L
+        positionMs: Long = 0L,
+        track: Track = Track(7L, "Song", "Artist", "Album", 180_000L, Uri.EMPTY, "file:song.mp3")
     ): PlaybackStateSnapshot {
         return PlaybackStateSnapshot(
-            Track(7L, "Song", "Artist", "Album", 180_000L, Uri.EMPTY, "file:song.mp3"),
+            track,
             0,
             1,
             positionMs,
-            180_000L,
+            track.durationMs,
             playing,
             false,
             "",
@@ -426,6 +427,10 @@ class NowPlayingViewModelTest {
             calls.add("replace:${updated.id}")
         }
 
+        override fun updateQueuedTrackArtwork(trackId: Long, artworkUri: Uri) {
+            calls.add("artwork:$trackId:$artworkUri")
+        }
+
         override fun replaceQueuedTracks(updated: List<Track>) {
             calls.add("replaceBatch:${updated.joinToString(",") { it.id.toString() }}")
         }
@@ -490,4 +495,5 @@ class NowPlayingViewModelTest {
             calls.add("move:$fromIndex:$toIndex")
         }
     }
+
 }

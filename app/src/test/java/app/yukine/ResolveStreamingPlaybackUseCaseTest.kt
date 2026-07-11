@@ -168,6 +168,31 @@ class ResolveStreamingPlaybackUseCaseTest {
     }
 
     @Test
+    fun metadataForRestoresLuoxueMusicInfoFromPersistedDataPath() {
+        val musicInfo = """{"hash":"abc123","album_id":"22","nested":{"name":"恢复"}}"""
+        val persistedQueueTrack = StreamingPlaybackAdapter.placeholderTrack(
+            StreamingTrack(
+                provider = StreamingProviderName.LUOXUE,
+                providerTrackId = "kg:abc123.22.33",
+                title = "Song",
+                artist = "Artist",
+                luoxueMusicInfoJson = musicInfo
+            )
+        )
+
+        val metadata = ResolveStreamingPlaybackUseCase().metadataFor(
+            persistedQueueTrack,
+            StreamingProviderName.LUOXUE,
+            "kg:abc123.22.33"
+        )
+
+        assertEquals(
+            StreamingPlaybackAdapter.luoxueMusicInfoJson(persistedQueueTrack.dataPath),
+            metadata?.luoxueMusicInfoJson
+        )
+    }
+
+    @Test
     fun prepareSourceSwitchOnlyRequestsResolutionForUnresolvedStreamingCandidates() {
         val streaming = StreamingPlaybackAdapter.placeholderTrack(
             StreamingTrack(

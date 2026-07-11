@@ -9,7 +9,68 @@ import org.json.JSONObject
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.util.Base64
 import kotlin.math.absoluteValue
+
+private const val LUOXUE_MUSIC_INFO_QUERY = "lxmi"
+private const val MAX_LUOXUE_MUSIC_INFO_BYTES = 24 * 1024
+
+/**
+ * Normalizes an LX musicInfo value to a bounded JSON object. There is deliberately no partial
+ * truncation: an invalid or oversized payload falls back to the legacy synthesized identifiers.
+ */
+internal fun normalizeLuoxueMusicInfoJson(value: String?): String? {
+    val raw = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    if (raw.toByteArray(StandardCharsets.UTF_8).size > MAX_LUOXUE_MUSIC_INFO_BYTES) {
+        return null
+    }
+    val normalized = runCatching { JSONObject(raw).toString() }.getOrNull() ?: return null
+    return normalized.takeIf {
+        it.toByteArray(StandardCharsets.UTF_8).size <= MAX_LUOXUE_MUSIC_INFO_BYTES
+    }
+}
+
+internal fun luoxueMusicInfoFingerprint(value: String?): String? {
+    val normalized = normalizeLuoxueMusicInfoJson(value) ?: return null
+    return MessageDigest.getInstance("SHA-256")
+        .digest(normalized.toByteArray(StandardCharsets.UTF_8))
+        .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+}
+
+/**
+ * Keeps the playback-cache identity sensitive to source-specific LX fields without changing the
+ * Room schema. Non-LX callers retain their existing cache key exactly.
+ */
+internal fun streamingPlaybackCacheTrackId(
+    provider: StreamingProviderName,
+    providerTrackId: String,
+    luoxueMusicInfoJson: String?
+): String {
+    val fingerprint = if (provider == StreamingProviderName.LUOXUE) {
+        luoxueMusicInfoFingerprint(luoxueMusicInfoJson)
+    } else {
+        null
+    }
+    return fingerprint?.let { "${providerTrackId}|lxmi=${it}" } ?: providerTrackId
+}
+
+private fun encodeLuoxueMusicInfo(value: String?): String? {
+    val normalized = normalizeLuoxueMusicInfoJson(value) ?: return null
+    return Base64.getUrlEncoder()
+        .withoutPadding()
+        .encodeToString(normalized.toByteArray(StandardCharsets.UTF_8))
+}
+
+private fun decodeLuoxueMusicInfo(value: String?): String? {
+    val encoded = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    val raw = runCatching {
+        Base64.getUrlDecoder()
+            .decode(encoded)
+            .toString(StandardCharsets.UTF_8)
+    }.getOrNull()
+    return normalizeLuoxueMusicInfoJson(raw)
+}
 
 interface StreamingPlaybackTrackAdapter {
     fun toTrack(source: StreamingPlaybackSource, metadata: StreamingTrack? = null): Track
@@ -99,6 +160,14 @@ object StreamingPlaybackAdapter : StreamingDataPathParser {
     }
 
     /**
+     * Reads the complete bounded LX musicInfo object embedded in a queue-safe dataPath.
+     * Old paths and malformed payloads simply return null and retain legacy playback behavior.
+     */
+    fun luoxueMusicInfoJson(dataPath: String): String? {
+        return decodeLuoxueMusicInfo(queryParam(dataPath, LUOXUE_MUSIC_INFO_QUERY))
+    }
+
+    /**
      * Returns every playable source encoded in a streaming [track]'s data path. The primary
      * provider is always first, including tracks created before alternate source metadata was
      * introduced. Invalid or stale option payloads never prevent playback of that primary source.
@@ -164,6 +233,11 @@ object StreamingPlaybackAdapter : StreamingDataPathParser {
         val playbackOptions = playbackSourceOptions(metadata)
         if (playbackOptions.isNotBlank()) {
             params["sourceOptions"] = playbackOptions
+        }
+        if (metadata.provider == StreamingProviderName.LUOXUE) {
+            encodeLuoxueMusicInfo(metadata.luoxueMusicInfoJson)?.let { encoded ->
+                params[LUOXUE_MUSIC_INFO_QUERY] = encoded
+            }
         }
         if (params.isEmpty()) {
             return ""

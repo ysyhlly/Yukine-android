@@ -1,5 +1,6 @@
 package app.yukine.playback;
 
+import android.net.Uri;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -79,6 +80,13 @@ final class PlaybackQueueMutationOwner implements PlaybackControllerMediaItemsOw
         PlaybackQueueManager playbackQueueManager = playbackQueueManager();
         if (playbackQueueManager != null) {
             playbackQueueManager.replaceQueuedTrack(replacement);
+        }
+    }
+
+    void updateQueuedTrackArtwork(long trackId, Uri artworkUri) {
+        PlaybackQueueManager playbackQueueManager = playbackQueueManager();
+        if (playbackQueueManager != null) {
+            playbackQueueManager.updateQueuedTrackArtwork(trackId, artworkUri);
         }
     }
 

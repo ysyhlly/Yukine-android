@@ -1,6 +1,8 @@
 package app.yukine.streaming
 
 import android.content.Context
+import android.util.AtomicFile
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
@@ -14,7 +16,9 @@ data class LuoxueImportedSource(
     val author: String = "",
     val sourceKinds: List<String> = emptyList(),
     val origin: String = "",
-    val script: String = ""
+    val script: String = "",
+    val enabled: Boolean = true,
+    val order: Int = 0
 )
 
 data class LuoxueSourceImportResult(
@@ -24,15 +28,161 @@ data class LuoxueSourceImportResult(
     val sources: List<LuoxueImportedSource> = emptyList()
 )
 
-class LuoxueSourceStore(context: Context) {
-    private val preferences = context.applicationContext.getSharedPreferences("luoxue_sources", Context.MODE_PRIVATE)
+/**
+ * Persists only LX source metadata in SharedPreferences. The executable script body lives in the
+ * app-private files directory so a large imported source is not repeatedly copied through the
+ * preferences XML and is never exposed as a user-visible shared file.
+ */
+interface LuoxueSourceStoreManager {
+    fun load(): List<LuoxueImportedSource>
 
-    fun saveAll(sources: List<LuoxueImportedSource>): Int {
-        if (sources.isEmpty()) return 0
-        val existing = load().associateBy { it.id }.toMutableMap()
-        sources.forEach { existing[it.id] = it }
+    fun saveAll(sources: List<LuoxueImportedSource>): Int
+
+    fun setEnabled(sourceId: String, enabled: Boolean): Boolean
+
+    /**
+     * Moves a source by one position. [direction] must be negative for up or positive for down.
+     */
+    fun move(sourceId: String, direction: Int): Boolean
+
+    fun remove(sourceId: String): Boolean
+}
+
+class LuoxueSourceStore(context: Context) : LuoxueSourceStoreManager {
+    private val applicationContext = context.applicationContext
+    private val preferences = applicationContext.getSharedPreferences("luoxue_sources", Context.MODE_PRIVATE)
+    private val scriptsDirectory = File(applicationContext.filesDir, SCRIPT_DIRECTORY)
+
+    @Synchronized
+    override fun saveAll(sources: List<LuoxueImportedSource>): Int {
+        val imported = sources
+            .asSequence()
+            .filter { it.id.isNotBlank() && it.name.isNotBlank() }
+            .distinctBy { it.id }
+            .toList()
+        if (imported.isEmpty()) return 0
+
+        val merged = normalizeOrder(load()).toMutableList()
+        var saved = 0
+        imported.forEach { incoming ->
+            val existingIndex = merged.indexOfFirst { it.id == incoming.id }
+            val existing = merged.getOrNull(existingIndex)
+            val script = incoming.script.ifBlank { existing?.script.orEmpty() }
+            if (script.isBlank() || !writeScript(incoming.id, script)) {
+                return@forEach
+            }
+            val updated = incoming.copy(
+                script = script,
+                enabled = existing?.enabled ?: incoming.enabled,
+                order = existing?.order ?: merged.size
+            )
+            if (existingIndex >= 0) {
+                merged[existingIndex] = updated
+            } else {
+                merged += updated
+            }
+            saved += 1
+        }
+        return if (saved > 0 && writeMetadata(normalizeOrder(merged))) saved else 0
+    }
+
+    @Synchronized
+    override fun load(): List<LuoxueImportedSource> {
+        val stored = readStoredSources()
+        if (stored.isEmpty()) return emptyList()
+
+        var foundLegacyScripts = false
+        var canClearLegacyScripts = true
+        val loaded = stored.map { storedSource ->
+            var script = readScript(storedSource.source.id)
+            if (script.isBlank() && storedSource.legacyScript.isNotBlank()) {
+                if (writeScript(storedSource.source.id, storedSource.legacyScript)) {
+                    script = storedSource.legacyScript
+                } else {
+                    canClearLegacyScripts = false
+                }
+            }
+            if (storedSource.legacyScript.isNotBlank()) {
+                foundLegacyScripts = true
+            }
+            storedSource.source.copy(script = script)
+        }
+        val normalized = normalizeOrder(loaded)
+        if (foundLegacyScripts && canClearLegacyScripts) {
+            writeMetadata(normalized)
+        }
+        return normalized
+    }
+
+    @Synchronized
+    override fun setEnabled(sourceId: String, enabled: Boolean): Boolean {
+        val current = normalizeOrder(load()).toMutableList()
+        val index = current.indexOfFirst { it.id == sourceId }
+        if (index < 0) return false
+        if (current[index].enabled == enabled) return true
+        current[index] = current[index].copy(enabled = enabled)
+        return writeMetadata(normalizeOrder(current))
+    }
+
+    @Synchronized
+    override fun move(sourceId: String, direction: Int): Boolean {
+        val offset = direction.compareTo(0)
+        if (offset == 0) return false
+        val current = normalizeOrder(load()).toMutableList()
+        val from = current.indexOfFirst { it.id == sourceId }
+        if (from < 0) return false
+        val to = (from + offset).takeIf { it in current.indices } ?: return false
+        val source = current.removeAt(from)
+        current.add(to, source)
+        return writeMetadata(normalizeOrder(current))
+    }
+
+    @Synchronized
+    override fun remove(sourceId: String): Boolean {
+        val current = normalizeOrder(load()).toMutableList()
+        val removed = current.firstOrNull { it.id == sourceId } ?: return false
+        current.removeAll { it.id == sourceId }
+        if (!writeMetadata(normalizeOrder(current))) {
+            return false
+        }
+        scriptFile(removed.id).delete()
+        return true
+    }
+
+    private fun readStoredSources(): List<StoredSource> {
+        val raw = preferences.getString(KEY_SOURCES, null).orEmpty()
+        if (raw.isBlank()) return emptyList()
+        return runCatching {
+            val seen = linkedSetOf<String>()
+            val array = JSONArray(raw)
+            (0 until array.length()).mapNotNull { index ->
+                val item = array.optJSONObject(index) ?: return@mapNotNull null
+                val source = LuoxueImportedSource(
+                    id = item.optString("id").trim(),
+                    name = item.optString("name").trim(),
+                    version = item.optString("version"),
+                    author = item.optString("author"),
+                    origin = item.optString("origin"),
+                    sourceKinds = jsonStringList(item.optJSONArray("sourceKinds")),
+                    enabled = item.optBoolean("enabled", true),
+                    order = if (item.has("order")) item.optInt("order", index) else index
+                ).takeIf { it.id.isNotBlank() && it.name.isNotBlank() && seen.add(it.id) }
+                    ?: return@mapNotNull null
+                StoredSource(source, item.optString("script"))
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun normalizeOrder(sources: List<LuoxueImportedSource>): List<LuoxueImportedSource> {
+        return sources
+            .withIndex()
+            .sortedWith(compareBy<IndexedValue<LuoxueImportedSource>> { it.value.order }.thenBy { it.index })
+            .mapIndexed { index, indexed -> indexed.value.copy(order = index) }
+    }
+
+    private fun writeMetadata(sources: List<LuoxueImportedSource>): Boolean {
         val array = JSONArray()
-        existing.values.sortedBy { it.name.lowercase() }.forEach { source ->
+        normalizeOrder(sources).forEach { source ->
             array.put(
                 JSONObject()
                     .put("id", source.id)
@@ -40,32 +190,46 @@ class LuoxueSourceStore(context: Context) {
                     .put("version", source.version)
                     .put("author", source.author)
                     .put("origin", source.origin)
-                    .put("script", source.script)
+                    .put("enabled", source.enabled)
+                    .put("order", source.order)
                     .put("sourceKinds", JSONArray(source.sourceKinds))
             )
         }
-        preferences.edit().putString(KEY_SOURCES, array.toString()).apply()
-        return sources.size
+        return preferences.edit().putString(KEY_SOURCES, array.toString()).commit()
     }
 
-    fun load(): List<LuoxueImportedSource> {
-        val raw = preferences.getString(KEY_SOURCES, null).orEmpty()
-        if (raw.isBlank()) return emptyList()
-        return runCatching {
-            val array = JSONArray(raw)
-            (0 until array.length()).mapNotNull { index ->
-                val item = array.optJSONObject(index) ?: return@mapNotNull null
-                LuoxueImportedSource(
-                    id = item.optString("id"),
-                    name = item.optString("name"),
-                    version = item.optString("version"),
-                    author = item.optString("author"),
-                    origin = item.optString("origin"),
-                    script = item.optString("script"),
-                    sourceKinds = jsonStringList(item.optJSONArray("sourceKinds"))
-                ).takeIf { it.id.isNotBlank() && it.name.isNotBlank() }
+    private fun readScript(sourceId: String): String {
+        val file = scriptFile(sourceId)
+        if (!file.isFile) return ""
+        return runCatching { file.readText(StandardCharsets.UTF_8) }.getOrDefault("")
+    }
+
+    private fun writeScript(sourceId: String, script: String): Boolean {
+        if ((!scriptsDirectory.exists() && !scriptsDirectory.mkdirs()) || !scriptsDirectory.isDirectory) {
+            return false
+        }
+        val atomicFile = AtomicFile(scriptFile(sourceId))
+        return try {
+            val stream = atomicFile.startWrite()
+            try {
+                stream.write(script.toByteArray(StandardCharsets.UTF_8))
+                atomicFile.finishWrite(stream)
+            } catch (error: Throwable) {
+                atomicFile.failWrite(stream)
+                throw error
             }
-        }.getOrDefault(emptyList())
+            true
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    private fun scriptFile(sourceId: String): File {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(sourceId.toByteArray(StandardCharsets.UTF_8))
+            .take(16)
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        return File(scriptsDirectory, "source-${digest}.js")
     }
 
     private fun jsonStringList(array: JSONArray?): List<String> {
@@ -73,8 +237,14 @@ class LuoxueSourceStore(context: Context) {
         return (0 until array.length()).mapNotNull { array.optString(it).trim().takeIf(String::isNotBlank) }
     }
 
+    private data class StoredSource(
+        val source: LuoxueImportedSource,
+        val legacyScript: String
+    )
+
     private companion object {
         private const val KEY_SOURCES = "sources_json"
+        private const val SCRIPT_DIRECTORY = "luoxue-sources"
     }
 }
 
@@ -200,12 +370,17 @@ object LuoxueSourceImporter {
 
     private fun sourceKinds(script: String): List<String> {
         val kinds = linkedSetOf<String>()
+        Regex("""(?:^|[,{])\s*["']?(kw|kg|tx|wy|mg|git|local)["']?\s*:""")
+            .findAll(script)
+            .map { normalizeKind(it.groupValues[1]) }
+            .forEach(kinds::add)
         val checks = listOf(
             "kw" to listOf("kuwo", "酷我", "kw"),
             "kg" to listOf("kugou", "酷狗", "kg"),
             "tx" to listOf("tencent", "qq", "tx"),
             "wy" to listOf("netease", "网易", "wy"),
-            "mg" to listOf("migu", "咪咕", "mg")
+            "mg" to listOf("migu", "咪咕", "mg"),
+            "git" to listOf("git")
         )
         val lower = script.lowercase()
         checks.forEach { (kind, needles) ->

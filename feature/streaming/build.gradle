@@ -16,6 +16,7 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
     }
 
     kotlinOptions {
@@ -40,6 +41,7 @@ ksp {
 dependencies {
     api project(":core:model")
     implementation project(":core:common")
+    coreLibraryDesugaring libs.desugar.jdk.libs
 
     // Room
     implementation libs.androidx.room.runtime
@@ -50,8 +52,16 @@ dependencies {
     implementation libs.hilt.android
     ksp libs.hilt.compiler
 
+    // Runs imported LX JavaScript sources outside the Activity / playback-service boundary.
+    implementation libs.quickjs.kt
+
     testImplementation libs.junit
     testImplementation libs.kotlinx.coroutines.test
     testImplementation libs.json
+
+    androidTestImplementation libs.junit
+    androidTestImplementation libs.androidx.test.junit
+    androidTestImplementation libs.androidx.test.core
+    androidTestImplementation libs.kotlinx.coroutines.test
 
 }

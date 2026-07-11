@@ -306,7 +306,8 @@ internal class PlaybackMediaSourceProvider(
         fun mediaCacheKey(dataPath: String?, uri: String?): String? {
             if (dataPath.isNullOrEmpty()) return null
             if (dataPath.startsWith("streaming:")) {
-                return if (uri.isNullOrEmpty()) dataPath else "$dataPath|url=$uri"
+                val identity = StreamingDataPathMetadata.cacheIdentity(dataPath) ?: dataPath
+                return if (uri.isNullOrEmpty()) identity else "$identity|url=$uri"
             }
             if (dataPath.startsWith("webdav:")) return dataPath
             return null

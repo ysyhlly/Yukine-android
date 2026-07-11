@@ -159,6 +159,38 @@ class StreamingGatewayJsonTest {
     }
 
     @Test
+    fun searchCacheRoundTripRetainsCompleteLuoxueMusicInfoObject() {
+        val musicInfo = JSONObject()
+            .put("hash", "abc123")
+            .put("album_id", "22")
+            .put("nested", JSONObject().put("label", "完整"))
+            .put("qualities", JSONArray().put("320k").put("flac"))
+            .toString()
+        val source = StreamingSearchResult(
+            provider = StreamingProviderName.LUOXUE,
+            query = "echo",
+            page = 1,
+            pageSize = 20,
+            tracks = listOf(
+                StreamingTrack(
+                    provider = StreamingProviderName.LUOXUE,
+                    providerTrackId = "kg:abc123.22.33",
+                    title = "Song",
+                    artist = "Artist",
+                    luoxueMusicInfoJson = musicInfo
+                )
+            )
+        )
+
+        val restored = StreamingGatewayJson.searchResult(StreamingGatewayJson.searchResultJson(source))
+
+        assertEquals(
+            normalizeLuoxueMusicInfoJson(musicInfo),
+            restored.tracks.single().luoxueMusicInfoJson
+        )
+    }
+
+    @Test
     fun neteaseTracksAndPlaybackSourcesPreferSongId() {
         val tracksJson = JSONObject()
             .put(

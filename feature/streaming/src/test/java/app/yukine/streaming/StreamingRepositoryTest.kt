@@ -174,6 +174,42 @@ class StreamingRepositoryTest {
     }
 
     @Test
+    fun luoxuePlaybackCacheSeparatesDifferentMusicInfoPayloads() = runTest {
+        val dao = FakeStreamingCacheDao()
+        val cache = StreamingCacheRepository(dao) { 3_000L }
+        val gateway = FakeStreamingGateway(
+            playbackSource = playbackSource("https://stream.example.test/lx-url.mp3")
+        )
+        val repository = StreamingRepository(gateway = gateway, cache = cache)
+        val firstInfo = """{"hash":"same","album_id":"one"}"""
+        val secondInfo = """{"hash":"same","album_id":"two"}"""
+
+        repository.resolvePlayback(
+            StreamingProviderName.LUOXUE,
+            "kg:same.0.0",
+            StreamingAudioQuality.LOSSLESS,
+            firstInfo
+        )
+        repository.resolvePlayback(
+            StreamingProviderName.LUOXUE,
+            "kg:same.0.0",
+            StreamingAudioQuality.LOSSLESS,
+            firstInfo
+        )
+        repository.resolvePlayback(
+            StreamingProviderName.LUOXUE,
+            "kg:same.0.0",
+            StreamingAudioQuality.LOSSLESS,
+            secondInfo
+        )
+
+        assertEquals(2, gateway.playbackRequests.size)
+        assertEquals(firstInfo, gateway.playbackRequests[0].luoxueMusicInfoJson)
+        assertEquals(secondInfo, gateway.playbackRequests[1].luoxueMusicInfoJson)
+        assertEquals(2, dao.playbacks.size)
+    }
+
+    @Test
     fun resolvePlaybackIgnoresInvalidCachedSourceAndResolvesAgain() = runTest {
         val dao = FakeStreamingCacheDao()
         val cache = StreamingCacheRepository(dao) { 3_000L }
@@ -545,6 +581,29 @@ class StreamingRepositoryTest {
     }
 
     @Test
+    fun changingLuoxueSourcesClearsSearchAndPlaybackButKeepsOtherProviderCache() = runTest {
+        val dao = FakeStreamingCacheDao()
+        val cache = StreamingCacheRepository(dao) { 25_000L }
+        val lxRequest = StreamingSearchRequest(StreamingProviderName.LUOXUE, "echo")
+        val qqRequest = StreamingSearchRequest(StreamingProviderName.QQ_MUSIC, "echo")
+        cache.saveSearch(lxRequest, """{"provider":"lx"}""", ttlMs = 1_000L)
+        cache.saveSearch(qqRequest, """{"provider":"qq"}""", ttlMs = 1_000L)
+        cache.savePlayback(
+            StreamingProviderName.LUOXUE,
+            "tx:track",
+            StreamingAudioQuality.HIGH,
+            """{"url":"https://lx.example.test/song"}""",
+            ttlMs = 1_000L
+        )
+
+        assertEquals(2, cache.clearSearchAndPlaybackForProvider(StreamingProviderName.LUOXUE))
+
+        assertEquals(null, cache.cachedSearch(lxRequest))
+        assertEquals(null, cache.cachedPlayback(StreamingProviderName.LUOXUE, "tx:track", StreamingAudioQuality.HIGH))
+        assertEquals("""{"provider":"qq"}""", cache.cachedSearch(qqRequest))
+    }
+
+    @Test
     fun cachedPlaybackBlockingReadsLatestUnexpiredPlaybackWithoutCoroutineBridge() = runTest {
         val dao = FakeStreamingCacheDao()
         val cache = StreamingCacheRepository(dao) { 40_000L }
@@ -807,6 +866,12 @@ private class FakeStreamingCacheDao : StreamingCacheDao {
         searches[entity.provider to entity.cacheKey] = entity
     }
 
+    override suspend fun deleteSearchForProvider(provider: String): Int {
+        val keys = searches.filterKeys { it.first == provider }.keys.toList()
+        keys.forEach(searches::remove)
+        return keys.size
+    }
+
     override suspend fun playlist(
         provider: String,
         providerPlaylistId: String,
@@ -844,6 +909,12 @@ private class FakeStreamingCacheDao : StreamingCacheDao {
 
     override suspend fun upsertPlayback(entity: StreamingPlaybackCacheEntity) {
         playbacks[Triple(entity.provider, entity.providerTrackId, entity.quality)] = entity
+    }
+
+    override suspend fun deletePlaybackForProvider(provider: String): Int {
+        val keys = playbacks.filterKeys { it.first == provider }.keys.toList()
+        keys.forEach(playbacks::remove)
+        return keys.size
     }
 
     override suspend fun auth(provider: String, nowMs: Long): StreamingAuthMetadataEntity? {

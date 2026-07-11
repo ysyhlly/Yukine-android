@@ -1,7 +1,9 @@
 package app.yukine
 
 import android.content.Context
+import app.yukine.data.LyricsRepository
 import app.yukine.data.MusicLibraryRepository
+import app.yukine.streaming.LuoxueTrackMetadataResolver
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -32,10 +34,20 @@ internal object SettingsModule {
 
     @Provides
     @ActivityScoped
-    fun provideLyricsLoader(): LyricsLoader =
-        LoadTrackLyricsUseCaseLyricsLoader(
-            LoadTrackLyricsUseCase(LyricsRepositoryLoadOperations())
+    fun provideLyricsLoader(
+        luoxueTrackMetadataResolver: LuoxueTrackMetadataResolver
+    ): LyricsLoader {
+        val repository = LyricsRepository()
+        return LoadTrackLyricsUseCaseLyricsLoader(
+            LoadTrackLyricsUseCase(
+                LuoxueFirstTrackLyricsOperations(
+                    resolver = luoxueTrackMetadataResolver,
+                    repository = repository,
+                    fallback = LyricsRepositoryLoadOperations(repository)
+                )
+            )
         )
+    }
 
     @Provides
     @ActivityScoped

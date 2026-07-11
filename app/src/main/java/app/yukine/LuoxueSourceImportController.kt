@@ -4,12 +4,13 @@ import android.content.ContentResolver
 import android.net.Uri
 import app.yukine.streaming.LuoxueImportedSource
 import app.yukine.streaming.LuoxueSourceImporter
+import app.yukine.streaming.LuoxueSourceStoreManager
 
 internal class LuoxueSourceImportController(
     private val textProvider: LuoxueSourceImportTextProvider,
     private val documentPickerProvider: LuoxueSourceDocumentPickerProvider,
     private val documentReader: LuoxueSourceDocumentReader,
-    private val sourceStore: LuoxueSourceStoreWriter,
+    private val sourceStore: LuoxueSourceStoreManager,
     private val ioExecutor: LuoxueSourceTaskExecutor,
     private val networkExecutor: LuoxueSourceTaskExecutor,
     private val mainPoster: LuoxueSourceTaskPoster,
@@ -88,6 +89,35 @@ internal class LuoxueSourceImportController(
         completionAction.onImportComplete()
     }
 
+    fun importedSources(): List<LuoxueImportedSource> = sourceStore.load()
+
+    fun setSourceEnabled(sourceId: String, enabled: Boolean): Boolean {
+        return sourceStore.setEnabled(sourceId, enabled).also(::publishSourceChange)
+    }
+
+    fun moveSource(sourceId: String, direction: Int): Boolean {
+        return sourceStore.move(sourceId, direction).also(::publishSourceChange)
+    }
+
+    fun removeSource(sourceId: String): Boolean {
+        return sourceStore.remove(sourceId).also(::publishSourceChange)
+    }
+
+    private fun publishSourceChange(changed: Boolean) {
+        statusSink.setStatus(
+            text(
+                if (changed) {
+                    "streaming.lx.source.updated"
+                } else {
+                    "streaming.lx.source.update.failed"
+                }
+            )
+        )
+        if (changed) {
+            completionAction.onImportComplete()
+        }
+    }
+
     private fun text(key: String): String = textProvider.text(key)
 }
 
@@ -114,10 +144,6 @@ internal class ContentResolverLuoxueSourceDocumentReader(
         val read = M3uDocumentHelper.readText(contentResolver, uri)
         return if (read == null || !read.success) null else read.text
     }
-}
-
-internal fun interface LuoxueSourceStoreWriter {
-    fun saveAll(sources: List<LuoxueImportedSource>): Int
 }
 
 internal fun interface LuoxueSourceTaskExecutor {

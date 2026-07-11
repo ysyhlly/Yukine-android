@@ -22,10 +22,12 @@ import app.yukine.model.Track;
 import app.yukine.playback.PlaybackStateSnapshot;
 import app.yukine.queue.QueueIntent;
 import app.yukine.streaming.LuoxueSourceStore;
+import app.yukine.streaming.LuoxueTrackMetadataResolver;
 import app.yukine.streaming.StreamingAudioQuality;
 import app.yukine.streaming.StreamingPlaylist;
 import app.yukine.streaming.StreamingProviderName;
 import app.yukine.streaming.StreamingTrack;
+import app.yukine.streaming.cache.StreamingCacheRepository;
 import app.yukine.ui.LibraryGroupActions;
 import app.yukine.ui.LibraryGroupUiState;
 import app.yukine.ui.TrackListAlbumCardUiState;
@@ -65,6 +67,9 @@ public abstract class MainActivityBase extends ComponentActivity {
     private static final String LIBRARY_PLAYLISTS = LibraryGrouping.PLAYLISTS;
     @Inject Handler mainHandler;
     @Inject MainExecutors executors;
+    @Inject LuoxueSourceStore luoxueSourceStore;
+    @Inject LuoxueTrackMetadataResolver luoxueTrackMetadataResolver;
+    @Inject StreamingCacheRepository streamingCacheRepository;
     @Inject StreamingPlaybackTaskScheduler streamingPlaybackTaskScheduler;
     @Inject ResolveStreamingPlaybackUseCase resolveStreamingPlaybackUseCase;
     @Inject StreamingTrackMatchUseCase streamingTrackMatchUseCase;
@@ -278,6 +283,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         nowPlayingViewModel.bindPlaybackGateway(nowPlayingPlaybackGatewayFactory.create(
                 () -> playbackService
         ));
+        nowPlayingViewModel.bindLuoxueTrackMetadataResolver(luoxueTrackMetadataResolver);
         nowPlayingViewModel.bindSourceCandidatesProvider(
                 track -> libraryStore == null
                         ? Collections.<Track>emptyList()
@@ -405,7 +411,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                     return kotlin.Unit.INSTANCE;
                 }
         );
-        final LuoxueSourceStore luoxueSourceStore = new LuoxueSourceStore(this);
         luoxueSourceImportController = new LuoxueSourceImportController(
                 key -> AppLanguage.text(
                         settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
@@ -413,14 +418,22 @@ public abstract class MainActivityBase extends ComponentActivity {
                 ),
                 () -> documentPickerController,
                 new ContentResolverLuoxueSourceDocumentReader(getContentResolver()),
-                sources -> luoxueSourceStore.saveAll(sources),
+                luoxueSourceStore,
                 task -> executors.io(task),
                 task -> executors.network(task),
                 task -> mainHandler.post(task),
                 status -> statusMessageController.setStatus(status),
                 () -> {
-                    refreshStreamingProviders();
-                    renderSelectedTab();
+                    executors.io(() -> {
+                        streamingCacheRepository.clearSearchAndPlaybackForProviderBlocking(StreamingProviderName.LUOXUE);
+                        mainHandler.post(() -> {
+                            if (nowPlayingViewModel != null) {
+                                nowPlayingViewModel.bindLuoxueTrackMetadataResolver(luoxueTrackMetadataResolver);
+                            }
+                            refreshStreamingProviders();
+                            renderSelectedTab();
+                        });
+                    });
                 }
         );
         luoxueSourceImportDialogController = new LuoxueSourceImportDialogController(

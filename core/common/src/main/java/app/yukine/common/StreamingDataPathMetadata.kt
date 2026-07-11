@@ -1,10 +1,13 @@
 package app.yukine.common
 
 import app.yukine.streaming.StreamingProviderName
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 
 object StreamingDataPathMetadata {
     private const val DATA_PATH_PREFIX = "streaming:"
     private const val QUALITY_MARKER = "quality="
+    private const val LUOXUE_MUSIC_INFO_QUERY = "lxmi"
 
     @JvmStatic
     fun isStreamingTrack(dataPath: String?): Boolean {
@@ -43,6 +46,43 @@ object StreamingDataPathMetadata {
             dataPath.indexOf('#', valueStart)
         ).filter { it >= 0 }.minOrNull() ?: dataPath.length
         return dataPath.substring(valueStart, valueEnd).trim().lowercase()
+    }
+
+    /**
+     * Returns a bounded identity for in-memory headers and media caches. Queue persistence still
+     * keeps the original dataPath, including LX musicInfo, but cache keys retain only a digest of
+     * that opaque payload.
+     */
+    @JvmStatic
+    fun cacheIdentity(dataPath: String?): String? {
+        val value = dataPath ?: return null
+        if (!isStreamingTrack(value)) {
+            return value
+        }
+        val fragmentStart = value.indexOf('#')
+        val beforeFragment = if (fragmentStart >= 0) value.substring(0, fragmentStart) else value
+        val fragment = if (fragmentStart >= 0) value.substring(fragmentStart) else ""
+        val queryStart = beforeFragment.indexOf('?')
+        if (queryStart < 0) {
+            return value
+        }
+        val compactQuery = beforeFragment.substring(queryStart + 1)
+            .split('&')
+            .joinToString("&") { parameter ->
+                val key = parameter.substringBefore('=')
+                if (key == LUOXUE_MUSIC_INFO_QUERY) {
+                    "${LUOXUE_MUSIC_INFO_QUERY}Hash=" + sha256(parameter.substringAfter('=', ""))
+                } else {
+                    parameter
+                }
+            }
+        return beforeFragment.substring(0, queryStart) + "?" + compactQuery + fragment
+    }
+
+    private fun sha256(value: String): String {
+        return MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(StandardCharsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
     }
 
     private fun parsedDataPath(dataPath: String?): ParsedStreamingDataPath? {

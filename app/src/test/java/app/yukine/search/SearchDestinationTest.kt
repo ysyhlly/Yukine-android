@@ -1,11 +1,13 @@
 package app.yukine.search
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.dp
 import app.yukine.UnifiedSearchUiState
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.StreamingTrackAction
@@ -59,7 +61,9 @@ class SearchDestinationTest {
             }
         }
 
-        composeRule.onNodeWithTag("unified-search-input").performTextInput("周杰伦")
+        composeRule.onNodeWithTag("unified-search-input")
+            .assertHeightIsAtLeast(56.dp)
+            .performTextInput("周杰伦")
         composeRule.waitForIdle()
         composeRule.onNodeWithText("周杰伦").assertIsDisplayed()
         composeRule.onNodeWithTag("unified-search-input").performImeAction()

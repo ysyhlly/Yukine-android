@@ -1,5 +1,6 @@
 package app.yukine
 
+import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.playback.service.PlaybackServiceActions
@@ -14,6 +15,7 @@ interface NowPlayingPlaybackServicePort {
     fun clearQueue()
     fun moveQueueTrack(fromIndex: Int, toIndex: Int)
     fun replaceQueuedTrack(updated: Track)
+    fun updateQueuedTrackArtwork(trackId: Long, artworkUri: Uri) = Unit
     fun replaceQueuedTracks(updated: List<Track>) {
         updated.forEach { replaceQueuedTrack(it) }
     }
@@ -87,6 +89,10 @@ internal class NowPlayingPlaybackGatewayAdapter(
 
     override fun replaceQueuedTrack(updated: Track) {
         service()?.replaceQueuedTrack(updated)
+    }
+
+    override fun updateQueuedTrackArtwork(trackId: Long, artworkUri: Uri) {
+        service()?.updateQueuedTrackArtwork(trackId, artworkUri)
     }
 
     override fun replaceQueuedTracks(updated: List<Track>) {

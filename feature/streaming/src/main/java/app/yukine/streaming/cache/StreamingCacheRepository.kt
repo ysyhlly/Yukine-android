@@ -4,6 +4,7 @@ import android.content.Context
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingSearchRequest
+import app.yukine.streaming.streamingPlaybackCacheTrackId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
@@ -56,9 +57,15 @@ class StreamingCacheRepository(
     suspend fun cachedPlayback(
         provider: StreamingProviderName,
         providerTrackId: String,
-        quality: StreamingAudioQuality
+        quality: StreamingAudioQuality,
+        luoxueMusicInfoJson: String? = null
     ): String? {
-        return dao.playback(provider.wireName, providerTrackId, quality.wireName, clock())?.payloadJson
+        return dao.playback(
+            provider.wireName,
+            streamingPlaybackCacheTrackId(provider, providerTrackId, luoxueMusicInfoJson),
+            quality.wireName,
+            clock()
+        )?.payloadJson
     }
 
     /**
@@ -78,24 +85,65 @@ class StreamingCacheRepository(
         }
     }
 
+    fun cachedPlaybackBlocking(
+        provider: StreamingProviderName,
+        providerTrackId: String,
+        luoxueMusicInfoJson: String?
+    ): String? {
+        return runBlocking(Dispatchers.IO) {
+            dao.playbackBlocking(
+                provider.wireName,
+                streamingPlaybackCacheTrackId(provider, providerTrackId, luoxueMusicInfoJson),
+                clock()
+            )?.payloadJson
+        }
+    }
+
     suspend fun savePlayback(
         provider: StreamingProviderName,
         providerTrackId: String,
         quality: StreamingAudioQuality,
         payloadJson: String,
-        ttlMs: Long
+        ttlMs: Long,
+        luoxueMusicInfoJson: String? = null
     ) {
         val now = clock()
         dao.upsertPlayback(
             StreamingPlaybackCacheEntity(
                 provider = provider.wireName,
-                providerTrackId = providerTrackId,
+                providerTrackId = streamingPlaybackCacheTrackId(provider, providerTrackId, luoxueMusicInfoJson),
                 quality = quality.wireName,
                 payloadJson = payloadJson,
                 createdAtMs = now,
                 expiresAtMs = now + ttlMs.coerceAtLeast(0L)
             )
         )
+    }
+
+    suspend fun clearPlaybackForProvider(provider: StreamingProviderName): Int {
+        return dao.deletePlaybackForProvider(provider.wireName)
+    }
+
+    suspend fun clearSearchAndPlaybackForProvider(provider: StreamingProviderName): Int {
+        return dao.deleteSearchForProvider(provider.wireName) +
+            dao.deletePlaybackForProvider(provider.wireName)
+    }
+
+    /**
+     * Source-management UI calls this from its IO executor before refreshing LX provider state.
+     * Keep the synchronous bridge local to that background boundary rather than teaching UI code
+     * about Room or coroutines.
+     */
+    fun clearPlaybackForProviderBlocking(provider: StreamingProviderName): Int {
+        return runBlocking(Dispatchers.IO) {
+            clearPlaybackForProvider(provider)
+        }
+    }
+
+    fun clearSearchAndPlaybackForProviderBlocking(provider: StreamingProviderName): Int {
+        return runBlocking(Dispatchers.IO) {
+            clearSearchAndPlaybackForProvider(provider)
+        }
     }
 
     suspend fun cachedAuth(provider: StreamingProviderName): String? {

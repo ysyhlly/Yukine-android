@@ -17,7 +17,9 @@ class LuoxueSourceImporterTest {
               sources: {
                 kw: { name: '酷我' },
                 kg: { name: '酷狗' },
-                tx: { name: 'QQ' }
+                tx: { name: 'QQ' },
+                git: { name: '扩展源' },
+                local: { name: '聚合搜索', actions: ['search'] }
               }
             })
         """.trimIndent()
@@ -31,6 +33,8 @@ class LuoxueSourceImporterTest {
         assertTrue(sources.single().sourceKinds.contains("kw"))
         assertTrue(sources.single().sourceKinds.contains("kg"))
         assertTrue(sources.single().sourceKinds.contains("tx"))
+        assertTrue(sources.single().sourceKinds.contains("git"))
+        assertTrue(sources.single().sourceKinds.contains("local"))
     }
 
     @Test

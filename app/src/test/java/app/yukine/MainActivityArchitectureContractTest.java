@@ -407,9 +407,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(settingsModule.contains("@ActivityContext context: Context"));
         assertTrue(settingsModule.contains("fun provideLoadLyricsSettingsUseCase("));
         assertTrue(settingsModule.contains("LoadLyricsSettingsUseCase(MusicLibraryLyricsSettingsOperations(repository))"));
-        assertTrue(settingsModule.contains("fun provideLyricsLoader(): LyricsLoader"));
+        assertTrue(settingsModule.contains("fun provideLyricsLoader("));
+        assertTrue(settingsModule.contains("luoxueTrackMetadataResolver: LuoxueTrackMetadataResolver"));
         assertTrue(settingsModule.contains("LoadTrackLyricsUseCaseLyricsLoader("));
-        assertTrue(settingsModule.contains("LoadTrackLyricsUseCase(LyricsRepositoryLoadOperations())"));
+        assertTrue(settingsModule.contains("LuoxueFirstTrackLyricsOperations("));
+        assertTrue(settingsModule.contains("fallback = LyricsRepositoryLoadOperations(repository)"));
         assertTrue(settingsModule.contains("fun provideLoadSettingsPreferencesUseCase("));
         assertTrue(settingsModule.contains("LoadSettingsPreferencesUseCase(MusicLibrarySettingsPreferenceLoadOperations(repository))"));
         assertTrue(settingsModule.contains("fun provideApplySettingsPreferenceUseCase("));
@@ -6264,6 +6266,7 @@ public final class MainActivityArchitectureContractTest {
                 "replaceQueuedTrackById",
                 "replaceQueuedTracks",
                 "retainTracksById",
+                "updateQueuedTrackArtwork",
                 "setPlaybackRestoreEnabled",
                 "skipToNextImmediately",
                 "skipToPrevious",

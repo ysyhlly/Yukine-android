@@ -57,7 +57,7 @@ internal class LyricsStateRefreshListener(
 }
 
 fun interface LyricsLoader {
-    fun load(track: Track, onlineEnabled: Boolean, neteaseProviderTrackId: String): List<LyricsLine>
+    suspend fun load(track: Track, onlineEnabled: Boolean, neteaseProviderTrackId: String): List<LyricsLine>
 }
 
 fun interface CurrentLyricsTrackProvider {
@@ -75,7 +75,7 @@ fun interface LyricsReloadStatusSink {
 internal class LoadTrackLyricsUseCaseLyricsLoader(
     private val useCase: LoadTrackLyricsUseCase
 ) : LyricsLoader {
-    override fun load(track: Track, onlineEnabled: Boolean, neteaseProviderTrackId: String): List<LyricsLine> =
+    override suspend fun load(track: Track, onlineEnabled: Boolean, neteaseProviderTrackId: String): List<LyricsLine> =
         useCase.execute(track, onlineEnabled, neteaseProviderTrackId)
 }
 

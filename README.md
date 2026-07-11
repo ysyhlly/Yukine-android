@@ -88,7 +88,7 @@ flowchart TD
 - 状态环优化：中心音质色球、下载进度细环、内部频谱、常态呼吸和低频鼓点缩放继续保留；频谱显示更强调变化量，降低持续响度占比，避免一直撑满。
 - NowBar 排版优化：新 CJK 字体下歌名、歌手、专辑信息和收藏/循环/队列按钮不再挤压，底部控制区高度已重新分配。
 - 艺人详情增强：先显示本地统计和懒加载简介，再补充在线简介；歌手全部在线专辑以底部卡片展示，点击专辑可加载曲目并播放。
-- 流媒体账号与导入：网易云登录后可弹窗选择导入歌单；QQ 支持 Cookie 导入格式适配；LX/洛雪支持本地 `.js` 文件和网络链接导入多个自定义音源脚本。
+- 流媒体账号与导入：网易云登录后可弹窗选择导入歌单；QQ 支持 Cookie 导入格式适配；LX/洛雪支持本地 `.js` 文件和网络链接导入多个自定义音源脚本，并可由脚本独立提供搜索结果、播放链接、歌词和封面，其中搜索结果支持 `tx`/QQ 音乐字段。
 - 文档与合规：README 补充测试版定位、版权与音源风险、Cookie 本机保存、APK 分发和上架注意事项。
 
 ### 已实现
@@ -105,7 +105,7 @@ flowchart TD
 - 状态栏/悬浮歌词：播放通知歌词、锁屏/状态栏歌词、悬浮窗歌词，歌词行变化、前后台切换和界面被系统回收但播放仍继续时，都会由播放服务同步刷新通知与媒体会话；支持 OPPO 流体云依赖通知展示。歌词设置还提供默认关闭的「系统媒体歌词标题兼容模式」，供只显示标题的车机或媒体面板把当前歌词作为标题，同时保留歌曲名和歌手元数据；兼容模式会随每句歌词发送 MediaSession 元数据更新，避免系统媒体标题停在第一句。
 - 音效：系统 Equalizer、BassBoost、Virtualizer、LoudnessEnhancer 设置入口。
 - ReplayGain：读取本地音频 ReplayGain 标签并在播放时应用。
-- 流媒体：网易云登录、账号歌单加载、登录后弹窗选择导入歌单、在线搜索和播放源解析；QQ Cookie 导入和 LX 自定义源导入入口已接入。
+- 流媒体：网易云登录、账号歌单加载、登录后弹窗选择导入歌单、在线搜索和播放源解析；QQ Cookie 导入，以及 LX 自定义源的启用/排序、脚本搜索、播放、歌词和封面解析已接入。
 - 网络曲库：WebDAV、远程流列表、M3U/M3U8 导入。
 - 下载管理：设置页入口、当前歌曲/封面下载、单首暂停/继续、全部暂停/继续、应用内断点续传、Range 分片并发下载和系统下载通知。
 - 搜索：本地和多音源在线聚合搜索入口，同曲多源合并并保留自动回退/手动切换候选；搜索历史保留，离开搜索后不污染曲库显示。
@@ -114,7 +114,9 @@ flowchart TD
 
 ### 部分实现或受限
 
-- QQ 音乐、LX/洛雪等 provider：已接入 provider 列表、QQ Cookie 导入和 LX 自定义源导入入口，但完整本机直连搜索、播放源、歌词、封面和歌单同步仍需逐个补 Provider。
+- QQ 音乐、LX/洛雪等 provider：LX 已覆盖 kw/kg/wy/tx 本机基础搜索和播放，并支持已导入脚本通过可选 `search` 扩展直接返回歌曲、通过 `musicUrl`/`lyric`/`pic` 解析播放和元数据；LX 歌单导入、更多子源及第三方脚本兼容性仍需逐项补齐，其他 provider 也需按平台实现。
+
+LX 脚本搜索是 Yukine 的向后兼容扩展，并非 LX 官方自定义源的必选能力。脚本可在子源 `actions` 中声明 `search`；请求 `info` 包含 `query`、`keyword`、`page`、`limit`、`pageSize`、`offset`，返回歌曲数组或 `{ list/items/tracks/songs, total, hasMore }`。QQ 子源使用 `tx`，歌曲对象应至少包含 `songmid` 或 `mid`，可携带 `file.media_mid` 以提高后续播放解析兼容性。未声明该动作的旧脚本继续使用内置搜索。
 - 流媒体下载：应用内下载已支持断点续传和 Range 分片并发，但受音源鉴权、会员、地区、Range 支持和临时 URL 时效影响，仍可能失败。
 - OPPO 流体云：通过播放通知和状态栏歌词提供内容，实际展示形态由系统和机型决定。
 - Android Auto：服务已以 MediaLibraryService 暴露基础能力，完整车机浏览树仍需继续验收和扩展。
@@ -122,7 +124,7 @@ flowchart TD
 
 ### 规划中
 
-- QQ/LX 本机 Provider 直连搜索、播放源、歌词、封面和歌单导入。
+- QQ Provider 完整能力、LX 歌单导入、更多子源，以及更广泛的第三方脚本兼容性。
 - 可配置多音源优先级、记住单曲首选音源，并继续完善不同 provider/音质的切换策略。
 - 歌曲介绍、更多歌词源、更多播放源优先级策略。
 - 批量歌单下载的 provider 鉴权链路和失败重试。
@@ -297,7 +299,7 @@ flowchart TD
 - The status ring keeps the quality center, download progress arc, internal spectrum, idle breathing, and kick-driven scaling. Spectrum rendering now emphasizes changes and reduces the weight of constant loudness.
 - NowBar layout was adjusted for the CJK font so title, artist/album, favorite, repeat, and queue controls do not crowd each other.
 - Artist detail pages now show local stats first, lazy-load online introductions, and render online album cards at the bottom. Album cards can load tracks and start playback.
-- Streaming account/import flow now includes NetEase playlist import selection after login, QQ cookie import normalization, and LX custom source import from local `.js` files or network links.
+- Streaming account/import flow now includes NetEase playlist import selection after login, QQ cookie import normalization, and LX custom-source import from local `.js` files or network links. Imported LX scripts can independently provide search results, playback URLs, lyrics, and artwork, including `tx`/QQ Music search objects.
 - Documentation now calls out beta status, copyright/source risk, local-only cookie storage, APK distribution expectations, and store-review caveats.
 
 ### Implemented
@@ -314,7 +316,7 @@ flowchart TD
 - Live lyric notification and floating lyrics. Lyric-line updates, foreground/background transitions, and Activity destruction while playback continues are synchronized by the playback service to both the notification and MediaSession; supported OPPO fluid cloud panels can display lyric content from the notification. Lyrics settings also include a default-off system-media lyric-title compatibility mode for car head units or media panels that only show a title; it keeps the real track title and artist in metadata and emits a MediaSession metadata update for every lyric line so title-only surfaces do not stay on the first line.
 - Android system audio effects: Equalizer, BassBoost, Virtualizer, and LoudnessEnhancer.
 - ReplayGain parsing and playback gain application for local tracks.
-- NetEase login, account playlist loading, post-login playlist picker, online search, and playback URL resolution; QQ cookie import and LX custom source import entries are available.
+- NetEase login, account playlist loading, post-login playlist picker, online search, and playback URL resolution; QQ cookie import plus LX custom-source enablement, ordering, script search, playback, lyric, and artwork resolution are available.
 - WebDAV, remote stream lists, and M3U/M3U8 import.
 - Download manager entry, current track/cover downloads, per-item pause/resume, pause/resume all, in-app resumable downloads, Range segmented downloads, and system download notification.
 - Local plus multi-source online aggregate search with same-track source merging, automatic fallback, manual source candidates, and history preservation.
@@ -323,7 +325,9 @@ flowchart TD
 
 ### Partial or Limited
 
-- QQ Music and LX providers are listed, QQ cookie import and LX custom-source import entries exist, but full native provider search, playback URL, lyrics, artwork, and playlist sync still need provider-specific implementation.
+- LX covers basic built-in kw/kg/wy/tx search and playback. Imported scripts can optionally return songs through the `search` extension and resolve playback, lyrics, and artwork through `musicUrl`/`lyric`/`pic`. LX playlist import, more sub-sources, and wider third-party script compatibility still need provider-specific work, as do other providers.
+
+LX script search is a backward-compatible Yukine extension, not a required part of the official LX custom-source contract. A script may declare `search` in a sub-source's `actions`; request `info` contains `query`, `keyword`, `page`, `limit`, `pageSize`, and `offset`, and the response may be an array or `{ list/items/tracks/songs, total, hasMore }`. QQ uses the `tx` key; each song should contain at least `songmid` or `mid`, with optional `file.media_mid` for better playback compatibility. Existing scripts without `search` continue through built-in search.
 - Streaming downloads support resumable in-app downloads and Range segmented downloads, but may still fail because of authentication, membership, region, missing Range support, or temporary URL expiry.
 - OPPO fluid cloud display is driven through notifications and depends on OS support.
 - Android Auto support has a MediaLibraryService base; the full browsable tree still needs device/emulator validation.
@@ -331,7 +335,7 @@ flowchart TD
 
 ### Planned
 
-- Native QQ/LX provider search, playback URL, lyrics, artwork, and playlist import.
+- Complete QQ provider support, LX playlist import and more sub-sources, plus wider third-party script compatibility.
 - Configurable source priority, remembered per-track source preference, and richer provider/quality switching policies.
 - Song descriptions, more lyric sources, and richer playback source ranking.
 - Authenticated batch playlist downloads with retry handling.

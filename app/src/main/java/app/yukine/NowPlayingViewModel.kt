@@ -1,11 +1,14 @@
 package app.yukine
 
 import androidx.lifecycle.ViewModel
+import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackRepeatMode
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingProviderName
+import app.yukine.streaming.LuoxueTrackMetadataResolver
+import app.yukine.streaming.StreamingPlaybackAdapter
 import app.yukine.ui.NowBarState
 import app.yukine.ui.nowBarEmptyState
 import java.util.ArrayDeque
@@ -20,6 +23,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 
 sealed interface NowPlayingEffect {
     data object OpenQueue : NowPlayingEffect
@@ -72,6 +77,7 @@ interface NowPlayingPlaybackGateway {
     fun clearQueue()
     fun moveQueueTrack(fromIndex: Int, toIndex: Int)
     fun replaceQueuedTrack(updated: Track)
+    fun updateQueuedTrackArtwork(trackId: Long, artworkUri: Uri) = Unit
     fun replaceQueuedTracks(updated: List<Track>) {
         updated.forEach { replaceQueuedTrack(it) }
     }
@@ -105,7 +111,9 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
     private var gateway: NowPlayingGateway? = null
     private var playbackGateway: NowPlayingPlaybackGateway? = null
     private var sourceCandidatesProvider: ((Track) -> List<Track>)? = null
+    private var luoxueTrackMetadataResolver: LuoxueTrackMetadataResolver? = null
     private val sourceSwitchGeneration = AtomicLong(0L)
+    private val artworkResolutionTrackIds = mutableSetOf<Long>()
 
     fun bindGateway(nextGateway: NowPlayingGateway?) {
         gateway = nextGateway
@@ -117,6 +125,11 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun bindSourceCandidatesProvider(nextProvider: ((Track) -> List<Track>)?) {
         sourceCandidatesProvider = nextProvider
+    }
+
+    fun bindLuoxueTrackMetadataResolver(nextResolver: LuoxueTrackMetadataResolver?) {
+        luoxueTrackMetadataResolver = nextResolver
+        artworkResolutionTrackIds.clear()
     }
 
     fun isLatestSourceSwitchRequest(requestId: Long): Boolean {
@@ -162,6 +175,27 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             overlayState = overlay,
             appVolume = snapshot.appVolume
         )
+        resolveMissingLuoxueArtwork(track)
+    }
+
+    private fun resolveMissingLuoxueArtwork(track: Track?) {
+        val resolver = luoxueTrackMetadataResolver ?: return
+        val candidate = track ?: return
+        if (candidate.albumArtUri != null ||
+            StreamingPlaybackAdapter.streamingProviderName(candidate.dataPath) != StreamingProviderName.LUOXUE ||
+            !artworkResolutionTrackIds.add(candidate.id)
+        ) {
+            return
+        }
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            val coverUrl = resolver.resolveCoverUrl(candidate)
+            val artworkUri = coverUrl
+                ?.trim()
+                ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+                ?.let(Uri::parse)
+                ?: return@launch
+            updateQueuedTrackArtwork(candidate.id, artworkUri)
+        }
     }
 
     fun onEvent(event: NowPlayingEvent) {
@@ -311,6 +345,11 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         } else {
             player.replaceQueuedTrackById(oldTrackId, updated)
         }
+    }
+
+    fun updateQueuedTrackArtwork(trackId: Long, artworkUri: Uri?) {
+        val safeUri = artworkUri ?: return
+        playbackGateway?.updateQueuedTrackArtwork(trackId, safeUri)
     }
 
     /**

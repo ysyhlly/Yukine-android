@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <base-config cleartextTrafficPermitted="false" />
+    <!--
+      LX custom sources frequently return short-lived http:// media URLs from arbitrary CDN
+      hosts. Android cannot enumerate those hosts at build time, so playback must allow cleartext
+      media traffic globally. Script HTTP requests remain separately restricted by the LX host.
+    -->
+    <base-config cleartextTrafficPermitted="true" />
 
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">localhost</domain>

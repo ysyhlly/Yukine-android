@@ -8,6 +8,7 @@ import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import kotlinx.coroutines.CancellationException
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -65,7 +66,8 @@ class DefaultLuoxueHttpClient(
 class LocalLuoxueStreamingClient(
     private val httpClient: LuoxueHttpClient = DefaultLuoxueHttpClient(),
     private val neteaseClient: LocalNeteaseStreamingClient? = null,
-    private val qqMusicClient: LocalQqMusicStreamingClient? = null
+    private val qqMusicClient: LocalQqMusicStreamingClient? = null,
+    private val scriptRuntime: LuoxueScriptRuntime = QuickJsLuoxueScriptRuntime()
 ) {
     fun search(request: StreamingSearchRequest): StreamingSearchResult {
         val normalized = request.normalizedLocal()
@@ -80,7 +82,7 @@ class LocalLuoxueStreamingClient(
         }
         val sourceQuery = sourcePrefixFromQuery(normalized.query)
         val searchQuery = sourceQuery?.second ?: normalized.query
-        val sources = sourceQuery?.let { listOf(it.first) } ?: listOf("kw", "kg", "wy", "tx")
+        val sources = sourceQuery?.let { listOf(it.first) } ?: BUILT_IN_SEARCH_SOURCE_KEYS
         val tracks = sources
             .flatMap { source ->
                 runCatching {
@@ -96,6 +98,66 @@ class LocalLuoxueStreamingClient(
             pageSize = normalized.pageSize,
             total = tracks.size,
             hasMore = tracks.size >= normalized.pageSize,
+            tracks = tracks
+        )
+    }
+
+    /**
+     * Lets search-capable imported scripts contribute results before the built-in LX providers.
+     * Official playback-only scripts are skipped cheaply and retain the normal built-in behavior.
+     */
+    suspend fun search(
+        request: StreamingSearchRequest,
+        importedSources: List<LuoxueImportedSource>
+    ): StreamingSearchResult {
+        val normalized = request.normalizedLocal()
+        if (normalized.query.isBlank() || !normalized.mediaTypes.contains(StreamingMediaType.TRACK)) {
+            return search(normalized)
+        }
+        val sourceQuery = sourcePrefixFromQuery(normalized.query)
+        val searchQuery = sourceQuery?.second ?: normalized.query
+        val scriptTracks = mutableListOf<StreamingTrack>()
+        var scriptTotal: Int? = null
+        var scriptHasMore = false
+        for (imported in activeImportedSources(importedSources)) {
+            if (!imported.script.contains("search", ignoreCase = true)) {
+                continue
+            }
+            for (sourceKey in scriptSearchSourceKeys(imported, sourceQuery?.first)) {
+                val page = try {
+                    scriptRuntime.search(
+                        source = imported,
+                        sourceKey = sourceKey,
+                        query = searchQuery,
+                        page = normalized.page,
+                        pageSize = normalized.pageSize
+                    )
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Throwable) {
+                    null
+                } ?: continue
+                page.items.mapNotNullTo(scriptTracks) { musicInfo ->
+                    scriptSearchTrack(imported, sourceKey, musicInfo)
+                }
+                page.total?.let { total -> scriptTotal = maxOf(scriptTotal ?: 0, total) }
+                scriptHasMore = scriptHasMore || page.hasMore == true
+                if (sourceQuery != null && page.items.isNotEmpty()) {
+                    break
+                }
+            }
+        }
+        val builtIn = search(normalized)
+        val combined = (scriptTracks + builtIn.tracks)
+            .distinctBy { it.providerTrackId }
+        val tracks = combined.take(normalized.pageSize)
+        return builtIn.copy(
+            total = maxOf(
+                tracks.size,
+                scriptTotal ?: 0,
+                builtIn.total ?: builtIn.tracks.size
+            ),
+            hasMore = scriptHasMore || builtIn.hasMore || combined.size > tracks.size,
             tracks = tracks
         )
     }
@@ -123,6 +185,419 @@ class LocalLuoxueStreamingClient(
         }
     }
 
+    /**
+     * Lets imported LX scripts resolve a URL before the built-in resolver is tried. The queue,
+     * cache, and playback-service paths remain unchanged.
+     */
+    suspend fun resolvePlayback(
+        request: StreamingPlaybackRequest,
+        importedSources: List<LuoxueImportedSource>
+    ): StreamingPlaybackSource {
+        val sourceId = parseLuoxueId(request.providerTrackId)
+        val scriptFailures = mutableListOf<String>()
+        for (imported in importedSources) {
+            if (!imported.enabled) {
+                continue
+            }
+            for (sourceKey in scriptSourceKeys(imported, sourceId.source)) {
+                val url = try {
+                    scriptRuntime.resolveMusicUrl(
+                        source = imported,
+                        sourceKey = sourceKey,
+                        musicInfo = scriptMusicInfo(sourceId, request.luoxueMusicInfoJson),
+                        quality = request.quality.toLuoxueScriptQuality()
+                    )
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Throwable) {
+                    scriptFailures += "${imported.name}/$sourceKey：${error.message ?: "未知错误"}"
+                    null
+                }?.trim()
+                if (url.isNullOrBlank()) {
+                    continue
+                }
+                if (!url.isHttpUrl()) {
+                    scriptFailures += "${imported.name}/$sourceKey：返回的不是 HTTP 播放地址"
+                    continue
+                }
+                return StreamingPlaybackSource(
+                    provider = StreamingProviderName.LUOXUE,
+                    providerTrackId = request.providerTrackId,
+                    url = url,
+                    mimeType = mimeType(url),
+                    bitrate = bitrate(request.quality),
+                    codec = url.substringBefore('?').substringAfterLast('.', "").takeIf { it.isNotBlank() },
+                    supportsRange = true
+                )
+            }
+        }
+        return try {
+            resolvePlayback(request)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            if (scriptFailures.isEmpty()) throw error
+            val scriptMessage = scriptFailures.distinct().take(3).joinToString("；")
+            throw StreamingGatewayException(
+                "LX 脚本解析失败（$scriptMessage）；本机兜底也不可用：${error.message ?: "未知错误"}",
+                cause = error,
+                code = StreamingErrorCode.SOURCE_UNAVAILABLE,
+                retryable = true
+            )
+        }
+    }
+
+    /**
+     * Resolves LX lyrics through the imported script protocol, independently from playback URL
+     * resolution. Shared scripts are tried against their native sub-source first, then the LX
+     * `local` sub-source convention used by lyric-capable scripts.
+     */
+    suspend fun resolveLyrics(
+        providerTrackId: String,
+        luoxueMusicInfoJson: String?,
+        importedSources: List<LuoxueImportedSource>
+    ): LuoxueScriptLyrics? {
+        val sourceId = parseLuoxueId(providerTrackId)
+        val musicInfo = scriptMusicInfo(sourceId, luoxueMusicInfoJson)
+        for (imported in activeImportedSources(importedSources)) {
+            for (sourceKey in scriptSourceKeys(imported, sourceId.source)) {
+                val lyrics = try {
+                    scriptRuntime.resolveLyrics(imported, sourceKey, musicInfo)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Throwable) {
+                    null
+                }
+                if (lyrics?.lyric?.isNotBlank() == true) {
+                    return lyrics
+                }
+            }
+        }
+        return null
+    }
+
+    /** Resolves LX artwork through the imported script protocol without delaying playback. */
+    suspend fun resolveCoverUrl(
+        providerTrackId: String,
+        luoxueMusicInfoJson: String?,
+        importedSources: List<LuoxueImportedSource>
+    ): String? {
+        val sourceId = parseLuoxueId(providerTrackId)
+        val musicInfo = scriptMusicInfo(sourceId, luoxueMusicInfoJson)
+        for (imported in activeImportedSources(importedSources)) {
+            for (sourceKey in scriptSourceKeys(imported, sourceId.source)) {
+                val url = try {
+                    scriptRuntime.resolveCoverUrl(imported, sourceKey, musicInfo)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Throwable) {
+                    null
+                }?.trim()
+                if (!url.isNullOrBlank() && url.isHttpUrl()) {
+                    return url
+                }
+            }
+        }
+        return null
+    }
+
+    private fun activeImportedSources(sources: List<LuoxueImportedSource>): List<LuoxueImportedSource> {
+        return sources.filter { source -> source.enabled && source.script.isNotBlank() }
+    }
+
+    private fun scriptSourceKeys(source: LuoxueImportedSource, primarySource: String): List<String> {
+        val supported = scriptSourceKinds(source).toSet()
+        return linkedSetOf(primarySource, "local")
+            .filter { candidate -> supported.isEmpty() || candidate in supported }
+    }
+
+    private fun scriptSearchSourceKeys(
+        source: LuoxueImportedSource,
+        requestedSource: String?
+    ): List<String> {
+        val supported = scriptSourceKinds(source)
+        if (!requestedSource.isNullOrBlank()) {
+            return linkedSetOf(normalizeScriptSourceKey(requestedSource), "local")
+                .filter { candidate -> supported.isEmpty() || candidate in supported }
+        }
+        return supported.ifEmpty { listOf("tx", "kw", "kg", "wy", "mg", "local") }
+    }
+
+    private fun scriptSourceKinds(source: LuoxueImportedSource): List<String> {
+        val persisted = source.sourceKinds.map(::normalizeScriptSourceKey)
+        val currentScript = LuoxueSourceImporter.parseMany(source.script, source.origin)
+            .firstOrNull()
+            ?.sourceKinds
+            .orEmpty()
+            .map(::normalizeScriptSourceKey)
+        return (persisted + currentScript).filter(String::isNotBlank).distinct()
+    }
+
+    private fun scriptSearchTrack(
+        imported: LuoxueImportedSource,
+        requestedSource: String,
+        musicInfo: Map<String, Any?>
+    ): StreamingTrack? {
+        val value = runCatching { JSONObject(musicInfo) }.getOrNull() ?: return null
+        val declaredSource = value.firstTextValue("source", "platform", "provider")
+            ?.let(::normalizeScriptSourceKey)
+            ?.takeIf { it in LUOXUE_SCRIPT_SOURCE_KEYS }
+        val sourceKey = declaredSource ?: normalizeScriptSourceKey(requestedSource)
+        val mapped = when (sourceKey) {
+            "kw" -> kuwoTrack(value)
+            "kg" -> kugouTrack(value)
+            "tx" -> scriptQqTrack(value)
+            else -> genericScriptTrack(value, sourceKey)
+        }
+        return mapped?.copy(
+            description = listOfNotNull(
+                "LX JS · ${imported.name}",
+                mapped.description?.takeIf { it.isNotBlank() }
+            ).joinToString("\n")
+        )
+    }
+
+    private fun scriptQqTrack(value: JSONObject): StreamingTrack? {
+        val file = value.optJSONObject("file") ?: JSONObject()
+        val songMid = value.firstTextValue("songmid", "songMid", "mid", "id", "providerTrackId")
+            ?.removePrefix("tx:")
+            ?.substringBefore('|')
+            .orEmpty()
+        if (songMid.isBlank()) return null
+        val mediaMid = file.firstTextValue("media_mid", "mediaMid")
+            ?: value.firstTextValue("media_mid", "mediaMid", "strMediaMid", "str_media_mid")
+        val resolvedId = if (!mediaMid.isNullOrBlank() && mediaMid != songMid) {
+            "$songMid|$mediaMid"
+        } else {
+            songMid
+        }
+        val albumObject = value.optJSONObject("album")
+        val albumMid = albumObject?.firstTextValue("mid", "albumMid", "albummid")
+            ?: value.firstTextValue("albummid", "albumMid", "album_mid")
+        val title = cleanDisplayText(value.firstTextValue("name", "title", "songname", "songName", "songorig"))
+            .orEmpty()
+        val artist = cleanDisplayText(scriptArtist(value)).orEmpty()
+        val album = cleanDisplayText(
+            albumObject?.firstTextValue("name", "title")
+                ?: value.textValue("album")
+                ?: value.firstTextValue("albumName", "albumname", "album_name")
+        )
+        val cover = scriptCover(value)
+            ?: albumMid?.takeIf { it.isNotBlank() }?.let(::qqAlbumCover)
+        val qualities = scriptQualities(value)
+        val providerTrackId = "tx:$resolvedId"
+        return StreamingTrack(
+            provider = StreamingProviderName.LUOXUE,
+            providerTrackId = providerTrackId,
+            title = title,
+            artist = artist,
+            artists = scriptArtists(value, "tx"),
+            album = album,
+            albumId = albumMid,
+            durationMs = scriptDurationMs(value),
+            coverUrl = cover,
+            coverThumbUrl = cover,
+            qualities = qualities,
+            playable = true,
+            description = listOfNotNull(
+                "LX/洛雪 · QQ 音乐子源",
+                album?.let { "专辑：$it" }
+            ).joinToString("\n"),
+            lyricSources = listOf(
+                StreamingLyricSource(StreamingProviderName.LUOXUE, "LX/QQ 歌词", providerTrackId, 20)
+            ),
+            luoxueMusicInfoJson = sourceMusicInfo(value, "tx", songMid),
+            playbackCandidates = qualities.map { quality ->
+                StreamingPlaybackCandidate(
+                    StreamingProviderName.LUOXUE,
+                    quality,
+                    "LX/QQ 音乐",
+                    providerTrackId,
+                    true
+                )
+            }
+        )
+    }
+
+    private fun genericScriptTrack(value: JSONObject, sourceKey: String): StreamingTrack? {
+        val rawId = when (sourceKey) {
+            "wy" -> value.firstTextValue("id", "songId", "songid", "mid")
+            "mg" -> value.firstTextValue("copyrightId", "copyright_id", "id", "mid")
+            "local" -> value.firstTextValue("id", "songId", "songmid", "mid", "hash", "url")
+            else -> value.firstTextValue("id", "songId", "songmid", "mid", "rid", "hash")
+        }?.removePrefix("$sourceKey:").orEmpty()
+        if (rawId.isBlank()) return null
+        val title = cleanDisplayText(value.firstTextValue("name", "title", "songname", "songName"))
+            .orEmpty()
+        val artist = cleanDisplayText(scriptArtist(value)).orEmpty()
+        val albumObject = value.optJSONObject("album")
+        val album = cleanDisplayText(
+            albumObject?.firstTextValue("name", "title")
+                ?: value.textValue("album")
+                ?: value.firstTextValue("albumName", "albumname", "album_name")
+        )
+        val albumId = albumObject?.firstTextValue("id", "mid")
+            ?: value.firstTextValue("albumId", "album_id", "albumid", "albumMid", "albummid")
+        val cover = scriptCover(value)
+        val qualities = scriptQualities(value)
+        val providerTrackId = "$sourceKey:$rawId"
+        val label = scriptSourceLabel(sourceKey)
+        return StreamingTrack(
+            provider = StreamingProviderName.LUOXUE,
+            providerTrackId = providerTrackId,
+            title = title,
+            artist = artist,
+            artists = scriptArtists(value, sourceKey),
+            album = album,
+            albumId = albumId,
+            durationMs = scriptDurationMs(value),
+            coverUrl = cover,
+            coverThumbUrl = cover,
+            qualities = qualities,
+            playable = true,
+            description = listOfNotNull(
+                "LX/洛雪 · $label 子源",
+                album?.let { "专辑：$it" }
+            ).joinToString("\n"),
+            lyricSources = listOf(
+                StreamingLyricSource(StreamingProviderName.LUOXUE, "LX/$label 歌词", providerTrackId, 18)
+            ),
+            luoxueMusicInfoJson = sourceMusicInfo(value, sourceKey, rawId),
+            playbackCandidates = qualities.map { quality ->
+                StreamingPlaybackCandidate(
+                    StreamingProviderName.LUOXUE,
+                    quality,
+                    "LX/$label",
+                    providerTrackId,
+                    true
+                )
+            }
+        )
+    }
+
+    private fun scriptArtists(value: JSONObject, sourceKey: String): List<StreamingArtistRef> {
+        val arrays = listOf("singer", "singers", "artist", "artists")
+            .mapNotNull(value::optJSONArray)
+        val names = arrays.firstOrNull { it.length() > 0 }
+            ?.let { array ->
+                (0 until array.length()).mapNotNull { index ->
+                    when (val item = array.opt(index)) {
+                        is JSONObject -> item.firstTextValue("name", "title")
+                        is String -> item.trim().takeIf(String::isNotBlank)
+                        else -> null
+                    }
+                }
+            }
+            .orEmpty()
+            .ifEmpty { scriptArtist(value)?.let(::listOf).orEmpty() }
+        return names.distinct().map { name ->
+            StreamingArtistRef(StreamingProviderName.LUOXUE, "$sourceKey:$name", name)
+        }
+    }
+
+    private fun scriptArtist(value: JSONObject): String? {
+        value.firstTextValue("singerName", "singername", "artistName", "artist_name", "author")
+            ?.let { return it }
+        listOf("singer", "artist").forEach { name ->
+            value.textValue(name)?.let { return it }
+        }
+        return listOf("singer", "singers", "artist", "artists")
+            .mapNotNull(value::optJSONArray)
+            .firstOrNull { it.length() > 0 }
+            ?.let { array ->
+                (0 until array.length()).mapNotNull { index ->
+                    when (val item = array.opt(index)) {
+                        is JSONObject -> item.firstTextValue("name", "title")
+                        is String -> item.trim().takeIf(String::isNotBlank)
+                        else -> null
+                    }
+                }.joinToString(" / ").takeIf(String::isNotBlank)
+            }
+    }
+
+    private fun scriptCover(value: JSONObject): String? {
+        return value.firstTextValue(
+            "coverUrl",
+            "cover",
+            "picUrl",
+            "picurl",
+            "pic",
+            "img",
+            "image",
+            "albumPic"
+        ) ?: value.optJSONObject("album")?.firstTextValue("cover", "picUrl", "pic", "image")
+    }
+
+    private fun scriptDurationMs(value: JSONObject): Long? {
+        value.firstLongValue("durationMs", "duration_ms", "dt")?.let { return it.coerceAtLeast(0L) }
+        value.firstLongValue("interval")?.let { return it.coerceAtLeast(0L) * 1000L }
+        val duration = value.firstLongValue("duration", "time")
+        if (duration != null) {
+            return if (duration > 10_000L) duration else duration.coerceAtLeast(0L) * 1000L
+        }
+        val clock = value.firstTextValue("playTime", "durationText") ?: return null
+        val parts = clock.split(':').mapNotNull(String::toLongOrNull)
+        return when (parts.size) {
+            2 -> (parts[0] * 60L + parts[1]) * 1000L
+            3 -> (parts[0] * 3600L + parts[1] * 60L + parts[2]) * 1000L
+            else -> null
+        }
+    }
+
+    private fun scriptQualities(value: JSONObject): Set<StreamingAudioQuality> {
+        val result = linkedSetOf<StreamingAudioQuality>()
+        listOf("qualitys", "qualities", "types")
+            .mapNotNull(value::optJSONArray)
+            .forEach { array ->
+                (0 until array.length()).forEach { index ->
+                    when (array.optString(index).lowercase()) {
+                        "128k", "standard", "low" -> result += StreamingAudioQuality.STANDARD
+                        "320k", "high", "hq" -> result += StreamingAudioQuality.HIGH
+                        "flac", "lossless", "sq" -> result += StreamingAudioQuality.LOSSLESS
+                        "flac24bit", "hires", "hi-res" -> result += StreamingAudioQuality.HIRES
+                    }
+                }
+            }
+        if (value.firstLongValue("size128", "size_128", "filesize")?.let { it > 0L } == true) {
+            result += StreamingAudioQuality.STANDARD
+        }
+        if (value.firstLongValue("size320", "size_320")?.let { it > 0L } == true) {
+            result += StreamingAudioQuality.HIGH
+        }
+        if (value.firstLongValue("sizeflac", "size_flac", "sizeape")?.let { it > 0L } == true) {
+            result += StreamingAudioQuality.LOSSLESS
+        }
+        if (value.firstLongValue("size_hires", "sizeHiRes")?.let { it > 0L } == true) {
+            result += StreamingAudioQuality.HIRES
+        }
+        if (result.isEmpty()) result += StreamingAudioQuality.STANDARD
+        return result
+    }
+
+    private fun normalizeScriptSourceKey(value: String): String = when (value.trim().lowercase()) {
+        "qq", "tencent", "tencentmusic" -> "tx"
+        "kuwo" -> "kw"
+        "kugou" -> "kg"
+        "netease", "neteasecloud", "163" -> "wy"
+        "migu" -> "mg"
+        else -> value.trim().lowercase()
+    }
+
+    private fun scriptSourceLabel(sourceKey: String): String = when (sourceKey) {
+        "tx" -> "QQ 音乐"
+        "kw" -> "酷我"
+        "kg" -> "酷狗"
+        "wy" -> "网易云"
+        "mg" -> "咪咕"
+        "git" -> "Git"
+        "local" -> "脚本本地"
+        else -> sourceKey
+    }
+
+    private fun qqAlbumCover(albumMid: String): String {
+        return "https://y.gtimg.cn/music/photo_new/T002R500x500M000${albumMid}.jpg?max_age=2592000"
+    }
+
     private fun searchBySource(source: String, request: StreamingSearchRequest): List<StreamingTrack> {
         return when (source) {
             "kw" -> searchKuwo(request)
@@ -135,8 +610,95 @@ class LocalLuoxueStreamingClient(
                 ?.tracks
                 ?.map { it.asLuoxueTrack("tx", "QQ 音乐") }
                 .orEmpty()
+            "mg" -> searchMigu(request)
             else -> emptyList()
         }
+    }
+
+    private fun searchMigu(request: StreamingSearchRequest): List<StreamingTrack> {
+        val searchSwitch = encode(
+            """{"song":1,"album":0,"singer":0,"tagSong":1,"mvSong":0,"songlist":0,"bestShow":1,"lyricSong":0}"""
+        )
+        val body = httpClient.getText(
+            "https://app.c.nf.migu.cn/MIGUM2.0/v1.0/content/search_all.do" +
+                "?isCopyright=1&isCorrect=1&pageNo=${request.page}&pageSize=${request.pageSize.coerceIn(1, 50)}" +
+                "&sort=0&text=${encode(request.query)}&searchSwitch=$searchSwitch",
+            mapOf(
+                "Accept" to "*/*",
+                "platform" to "Android",
+                "User-Agent" to "MGMobileMusic/7.0.0 Yukine-Android",
+                "Referer" to "https://music.migu.cn/"
+            )
+        )
+        val root = JSONObject(body)
+        if (root.optString("code") !in setOf("", "000000")) return emptyList()
+        val songs = root.optJSONObject("songResultData")?.optJSONArray("resultList") ?: JSONArray()
+        return (0 until songs.length())
+            .mapNotNull(songs::optJSONObject)
+            .mapNotNull(::miguTrack)
+    }
+
+    private fun miguTrack(value: JSONObject): StreamingTrack? {
+        val copyrightId = value.firstTextValue("copyrightId", "copyright_id", "contentId", "id")
+            ?.trim()
+            ?.takeIf(String::isNotBlank)
+            ?: return null
+        val title = cleanDisplayText(value.firstTextValue("name", "songName", "title")).orEmpty()
+        val singers = value.optJSONArray("singers") ?: JSONArray()
+        val artistNames = (0 until singers.length()).mapNotNull { index ->
+            singers.optJSONObject(index)?.firstTextValue("name")
+        }.filter(String::isNotBlank)
+        val artist = artistNames.joinToString(" / ")
+        val albums = value.optJSONArray("albums") ?: JSONArray()
+        val albumObject = albums.optJSONObject(0)
+        val album = cleanDisplayText(albumObject?.firstTextValue("name"))
+        val albumId = albumObject?.firstTextValue("id")
+        val images = value.optJSONArray("imgItems") ?: JSONArray()
+        val cover = (0 until images.length()).mapNotNull { index ->
+            images.optJSONObject(index)?.firstTextValue("img", "url")
+        }.firstOrNull(String::isNotBlank)
+        val qualities = linkedSetOf<StreamingAudioQuality>()
+        val formats = value.optJSONArray("newRateFormats") ?: value.optJSONArray("rateFormats") ?: JSONArray()
+        (0 until formats.length()).forEach { index ->
+            when (formats.optJSONObject(index)?.optString("formatType")?.uppercase()) {
+                "PQ", "LQ" -> qualities += StreamingAudioQuality.STANDARD
+                "HQ" -> qualities += StreamingAudioQuality.HIGH
+                "SQ" -> qualities += StreamingAudioQuality.LOSSLESS
+                "ZQ", "Z3D", "Z3D24" -> qualities += StreamingAudioQuality.HIRES
+            }
+        }
+        if (qualities.isEmpty()) qualities += StreamingAudioQuality.STANDARD
+        val providerTrackId = "mg:$copyrightId"
+        return StreamingTrack(
+            provider = StreamingProviderName.LUOXUE,
+            providerTrackId = providerTrackId,
+            title = title,
+            artist = artist,
+            artists = artistNames.mapIndexed { index, name ->
+                val artistId = singers.optJSONObject(index)?.firstTextValue("id").orEmpty().ifBlank { name }
+                StreamingArtistRef(StreamingProviderName.LUOXUE, "mg:$artistId", name)
+            },
+            album = album,
+            albumId = albumId,
+            coverUrl = cover,
+            coverThumbUrl = cover,
+            qualities = qualities,
+            playable = true,
+            description = listOfNotNull("LX/洛雪 · 咪咕子源", album?.let { "专辑：$it" }).joinToString("\n"),
+            lyricSources = listOf(
+                StreamingLyricSource(StreamingProviderName.LUOXUE, "LX/咪咕歌词", providerTrackId, 18)
+            ),
+            luoxueMusicInfoJson = sourceMusicInfo(value, "mg", copyrightId),
+            playbackCandidates = qualities.map { quality ->
+                StreamingPlaybackCandidate(
+                    StreamingProviderName.LUOXUE,
+                    quality,
+                    "LX/咪咕",
+                    providerTrackId,
+                    true
+                )
+            }
+        )
     }
 
     private fun searchKuwo(request: StreamingSearchRequest): List<StreamingTrack> {
@@ -471,6 +1033,7 @@ class LocalLuoxueStreamingClient(
                     priority = 20
                 )
             ),
+            luoxueMusicInfoJson = sourceMusicInfo(value, "kw", rawId),
             playbackCandidates = qualities.ifEmpty { setOf(StreamingAudioQuality.STANDARD) }
                 .sortedBy { it.ordinal }
                 .map { quality ->
@@ -554,6 +1117,7 @@ class LocalLuoxueStreamingClient(
                     priority = 18
                 )
             ),
+            luoxueMusicInfoJson = sourceMusicInfo(value, "kg", hash),
             playbackCandidates = qualities.ifEmpty { setOf(StreamingAudioQuality.STANDARD) }
                 .sortedBy { it.ordinal }
                 .map { quality ->
@@ -618,18 +1182,20 @@ class LocalLuoxueStreamingClient(
         if (!trimmed.contains(':')) return null
         val prefix = trimmed.substringBefore(':')
         val source = parseLuoxueId("$prefix:placeholder").source
-        if (source !in setOf("kw", "kg", "wy", "tx", "mg")) return null
+        if (source !in LUOXUE_SCRIPT_SOURCE_KEYS) return null
         val query = trimmed.substringAfter(':').trim()
         return if (query.isBlank()) null else source to query
     }
 
     private fun kuwoImage(value: String?): String? {
         val raw = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
-        return when {
-            raw.startsWith("http://") || raw.startsWith("https://") -> raw
-            raw.startsWith("albumcover/") -> "https://img4.kuwo.cn/star/albumcover/500/$raw"
-            else -> "https://img4.kuwo.cn/star/albumcover/500/$raw"
-        }
+        if (raw.startsWith("http://") || raw.startsWith("https://")) return raw
+        val relative = raw
+            .substringAfter("albumcover/", raw)
+            .replace(Regex("^\\d+/"), "")
+            .trimStart('/')
+        return relative.takeIf(String::isNotBlank)
+            ?.let { "https://img1.kuwo.cn/star/albumcover/500/$it" }
     }
 
     private fun kuwoQualities(value: JSONObject): Set<StreamingAudioQuality> {
@@ -805,6 +1371,16 @@ class LocalLuoxueStreamingClient(
         }
     }
 
+    private fun sourceMusicInfo(value: JSONObject, source: String, sourceId: String): String? {
+        val musicInfo = JSONObject(value.toString())
+        musicInfo.put("source", source)
+        musicInfo.put("type", source)
+        if (!musicInfo.has("id")) {
+            musicInfo.put("id", sourceId)
+        }
+        return normalizeLuoxueMusicInfoJson(musicInfo.toString())
+    }
+
     private fun StreamingTrack.asLuoxueTrack(source: String, label: String): StreamingTrack {
         val luoxueId = "$source:$providerTrackId"
         return copy(
@@ -822,6 +1398,7 @@ class LocalLuoxueStreamingClient(
             }.ifEmpty {
                 listOf(StreamingLyricSource(StreamingProviderName.LUOXUE, "LX/$label 歌词", luoxueId, 15))
             },
+            luoxueMusicInfoJson = luoxueMusicInfoJson ?: fallbackLuoxueMusicInfo(source),
             playbackCandidates = playbackCandidates.map {
                 it.copy(
                     provider = StreamingProviderName.LUOXUE,
@@ -841,6 +1418,112 @@ class LocalLuoxueStreamingClient(
             providerPlaylistId = "$source:$providerPlaylistId",
             description = listOfNotNull("LX/洛雪 · $label 子源", description).joinToString("\n")
         )
+    }
+
+    private fun StreamingTrack.fallbackLuoxueMusicInfo(source: String): String? {
+        val info = JSONObject()
+            .put("id", providerTrackId)
+            .put("source", source)
+            .put("type", source)
+            .put("name", title)
+            .put("title", title)
+            .put("artist", artist)
+            .put("album", album)
+            .put("albumId", albumId)
+            .put("duration", durationMs)
+        when (source) {
+            "tx" -> {
+                info.put("songmid", providerTrackId)
+                info.put("mid", providerTrackId)
+            }
+            "wy" -> info.put("songId", providerTrackId)
+            "kw" -> {
+                info.put("rid", providerTrackId)
+                info.put("musicrid", "MUSIC_$providerTrackId")
+            }
+        }
+        return normalizeLuoxueMusicInfoJson(info.toString())
+    }
+
+    private fun scriptMusicInfo(
+        sourceId: SourceId,
+        luoxueMusicInfoJson: String?
+    ): Map<String, Any?> {
+        val values = musicInfoFromJson(luoxueMusicInfoJson)
+        values["source"] = sourceId.source
+        values["type"] = sourceId.source
+        values.putIfAbsent("id", sourceId.id)
+        // Several shared LX scripts select hash first and songmid second regardless of the
+        // platform key, so retain the legacy aliases whenever the source payload omits them.
+        values.putIfAbsent("hash", sourceId.id)
+        if (sourceId.source != "tx") {
+            values.putIfAbsent("songmid", sourceId.id)
+        }
+        when (sourceId.source) {
+            "kg" -> {
+                val key = parseKugouProviderTrackId(sourceId.id)
+                values["hash"] = key.hash
+                key.albumId?.let { values.putIfAbsent("album_id", it) }
+                key.albumAudioId?.let { values.putIfAbsent("album_audio_id", it) }
+            }
+            "tx" -> {
+                val songMid = sourceId.id.substringBefore('|')
+                val mediaMid = sourceId.id.substringAfter('|', "").takeIf { it.isNotBlank() }
+                values.putIfAbsent("songmid", songMid)
+                values.putIfAbsent("mid", songMid)
+                mediaMid?.let {
+                    values.putIfAbsent("mediaMid", it)
+                    values.putIfAbsent("media_mid", it)
+                    values.putIfAbsent("strMediaMid", it)
+                }
+            }
+            "wy" -> values.putIfAbsent("songId", sourceId.id)
+            "kw" -> {
+                values.putIfAbsent("rid", sourceId.id)
+                values.putIfAbsent("musicrid", "MUSIC_${sourceId.id}")
+            }
+            "mg" -> values.putIfAbsent("copyrightId", sourceId.id)
+        }
+        return values.filterValues { it != null }
+    }
+
+    private fun musicInfoFromJson(value: String?): LinkedHashMap<String, Any?> {
+        val normalized = normalizeLuoxueMusicInfoJson(value) ?: return linkedMapOf()
+        val json = runCatching { JSONObject(normalized) }.getOrNull() ?: return linkedMapOf()
+        val result = linkedMapOf<String, Any?>()
+        json.keys().asSequence().forEach { key ->
+            result[key] = jsonValueToKotlin(json.opt(key))
+        }
+        return result
+    }
+
+    private fun jsonValueToKotlin(value: Any?): Any? {
+        return when (value) {
+            JSONObject.NULL -> null
+            is JSONObject -> {
+                val objectValues = linkedMapOf<String, Any?>()
+                value.keys().asSequence().forEach { key ->
+                    objectValues[key] = jsonValueToKotlin(value.opt(key))
+                }
+                objectValues
+            }
+            is JSONArray -> (0 until value.length()).map { index -> jsonValueToKotlin(value.opt(index)) }
+            else -> value
+        }
+    }
+
+    private fun StreamingAudioQuality.toLuoxueScriptQuality(): String = when (this) {
+        StreamingAudioQuality.STANDARD -> "128k"
+        StreamingAudioQuality.HIGH -> "320k"
+        StreamingAudioQuality.LOSSLESS -> "flac"
+        StreamingAudioQuality.HIRES -> "flac24bit"
+    }
+
+    private fun String.isHttpUrl(): Boolean {
+        return runCatching {
+            val protocol = URL(this).protocol.lowercase()
+            protocol == "http" || protocol == "https"
+        }.getOrDefault(false)
     }
 
     private fun <T> unsupportedSource(source: String): T {
@@ -872,6 +1555,32 @@ class LocalLuoxueStreamingClient(
 
     private fun JSONObject.optionalStringLocal(name: String): String? {
         return if (has(name) && !isNull(name)) optString(name).trim().takeIf { it.isNotBlank() } else null
+    }
+
+    private fun JSONObject.firstTextValue(vararg names: String): String? {
+        return names.firstNotNullOfOrNull { name -> textValue(name) }
+    }
+
+    private fun JSONObject.textValue(name: String): String? {
+        if (!has(name) || isNull(name)) return null
+        return when (val raw = opt(name)) {
+            is String -> raw.trim().takeIf(String::isNotBlank)
+            is Number -> raw.toString()
+            else -> null
+        }
+    }
+
+    private fun JSONObject.firstLongValue(vararg names: String): Long? {
+        return names.firstNotNullOfOrNull { name ->
+            if (!has(name) || isNull(name)) {
+                null
+            } else {
+                when (val raw = opt(name)) {
+                    is Number -> raw.toLong()
+                    else -> raw?.toString()?.trim()?.toDoubleOrNull()?.toLong()
+                }
+            }
+        }
     }
 
     private fun cleanDisplayText(value: String?): String? {
@@ -913,5 +1622,7 @@ class LocalLuoxueStreamingClient(
         private const val KUGOU_ANDROID_SECRET = "OIlwieks28dk2k092lksi2UIkp"
         private const val KUGOU_PLAYBACK_KEY_SECRET = "57ae12eb6890223e355ccfcb74edf70d"
         private const val KUGOU_PLAYBACK_USER_AGENT = "Android15-1070-11083-46-0-DiscoveryDRADProtocol-wifi"
+        private val BUILT_IN_SEARCH_SOURCE_KEYS = listOf("kw", "kg", "wy", "tx", "mg")
+        private val LUOXUE_SCRIPT_SOURCE_KEYS = setOf("kw", "kg", "tx", "wy", "mg", "git", "local")
     }
 }

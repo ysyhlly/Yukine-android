@@ -1,6 +1,7 @@
 package app.yukine.streaming
 
 import android.net.Uri
+import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.model.Track
 import app.yukine.streaming.cache.StreamingCacheRepository
 import java.net.URI
@@ -27,12 +28,13 @@ class PersistentStreamingPlaybackHeaders(
         if (dataPath.isBlank()) {
             return
         }
+        val headerKey = headerKey(dataPath)
         val runtimeHeaders = headersWithStreamingAuth(dataPath, headers, localAuthStore)
         if (runtimeHeaders.isEmpty()) {
-            headersByDataPath.remove(dataPath)
+            headersByDataPath.remove(headerKey)
             return
         }
-        headersByDataPath[dataPath] = runtimeHeaders
+        headersByDataPath[headerKey] = runtimeHeaders
     }
 
     override
@@ -40,17 +42,21 @@ class PersistentStreamingPlaybackHeaders(
         if (dataPath.isNullOrBlank()) {
             return emptyMap()
         }
-        return headersByDataPath[dataPath].orEmpty()
+        return headersByDataPath[headerKey(dataPath)].orEmpty()
     }
 
     override
     fun restoreForDataPath(dataPath: String?): Boolean {
-        if (dataPath.isNullOrBlank() || headersByDataPath.containsKey(dataPath)) {
+        if (dataPath.isNullOrBlank() || headersByDataPath.containsKey(headerKey(dataPath))) {
             return false
         }
         val provider = StreamingPlaybackAdapter.streamingProviderName(dataPath) ?: return false
         val providerTrackId = StreamingPlaybackAdapter.providerTrackId(dataPath).takeIf { it.isNotBlank() } ?: return false
-        val cached = cacheRepository.cachedPlaybackBlocking(provider, providerTrackId) ?: return false
+        val cached = cacheRepository.cachedPlaybackBlocking(
+            provider,
+            providerTrackId,
+            StreamingPlaybackAdapter.luoxueMusicInfoJson(dataPath)
+        ) ?: return false
         val source = runCatching { StreamingGatewayJson.playbackSource(cached) }.getOrNull() ?: return false
         if (!isSupportedPlaybackSourceUrl(source.url)) {
             return false
@@ -70,7 +76,11 @@ class PersistentStreamingPlaybackHeaders(
         val dataPath = track?.dataPath ?: return null
         val provider = StreamingPlaybackAdapter.streamingProviderName(dataPath) ?: return null
         val providerTrackId = StreamingPlaybackAdapter.providerTrackId(dataPath).takeIf { it.isNotBlank() } ?: return null
-        val cached = cacheRepository.cachedPlaybackBlocking(provider, providerTrackId) ?: return null
+        val cached = cacheRepository.cachedPlaybackBlocking(
+            provider,
+            providerTrackId,
+            StreamingPlaybackAdapter.luoxueMusicInfoJson(dataPath)
+        ) ?: return null
         val source = runCatching { StreamingGatewayJson.playbackSource(cached) }.getOrNull() ?: return null
         if (!isSupportedPlaybackSourceUrl(source.url)) {
             return null
@@ -87,6 +97,10 @@ class PersistentStreamingPlaybackHeaders(
             track.albumId,
             track.albumArtUri
         )
+    }
+
+    private fun headerKey(dataPath: String): String {
+        return StreamingDataPathMetadata.cacheIdentity(dataPath) ?: dataPath
     }
 }
 
@@ -128,18 +142,19 @@ object StreamingPlaybackHeaders : StreamingPlaybackHeaderStore {
         if (dataPath.isBlank()) {
             return
         }
+        val headerKey = headerKey(dataPath)
         if (headers.isEmpty()) {
-            headersByDataPath.remove(dataPath)
+            headersByDataPath.remove(headerKey)
             return
         }
-        headersByDataPath[dataPath] = headers.toMap()
+        headersByDataPath[headerKey] = headers.toMap()
     }
 
     override fun forDataPath(dataPath: String?): Map<String, String> {
         if (dataPath.isNullOrBlank()) {
             return emptyMap()
         }
-        return headersByDataPath[dataPath].orEmpty()
+        return headersByDataPath[headerKey(dataPath)].orEmpty()
     }
 
     override fun restoreForDataPath(dataPath: String?): Boolean {
@@ -148,5 +163,9 @@ object StreamingPlaybackHeaders : StreamingPlaybackHeaderStore {
 
     override fun restoredTrackFor(track: Track?): Track? {
         return null
+    }
+
+    private fun headerKey(dataPath: String): String {
+        return StreamingDataPathMetadata.cacheIdentity(dataPath) ?: dataPath
     }
 }

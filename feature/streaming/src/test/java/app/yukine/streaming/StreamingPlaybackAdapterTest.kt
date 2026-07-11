@@ -1,6 +1,8 @@
 package app.yukine.streaming
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class StreamingPlaybackAdapterTest {
@@ -86,6 +88,44 @@ class StreamingPlaybackAdapterTest {
         val placeholder = StreamingPlaybackAdapter.placeholderTrack(track)
 
         assertEquals("kw:12345", StreamingPlaybackAdapter.providerTrackId(placeholder.dataPath))
+    }
+
+    @Test
+    fun luoxueMusicInfoSurvivesDataPathRoundTripWithoutBecomingCacheIdentityText() {
+        val musicInfo = """{"hash":"abc123","album_id":"22","nested":{"label":"完整信息"},"list":[1,2]}"""
+        val placeholder = StreamingPlaybackAdapter.placeholderTrack(
+            StreamingTrack(
+                provider = StreamingProviderName.LUOXUE,
+                providerTrackId = "kg:abc123.22.33",
+                title = "Song",
+                artist = "Artist",
+                luoxueMusicInfoJson = musicInfo
+            )
+        )
+
+        assertEquals(
+            normalizeLuoxueMusicInfoJson(musicInfo),
+            StreamingPlaybackAdapter.luoxueMusicInfoJson(placeholder.dataPath)
+        )
+        val cacheIdentity = app.yukine.common.StreamingDataPathMetadata.cacheIdentity(placeholder.dataPath)
+        assertFalse(cacheIdentity.orEmpty().contains("完整信息"))
+        org.junit.Assert.assertTrue(cacheIdentity.orEmpty().contains("lxmiHash="))
+    }
+
+    @Test
+    fun invalidLuoxueMusicInfoFallsBackWithoutWritingPayload() {
+        val placeholder = StreamingPlaybackAdapter.placeholderTrack(
+            StreamingTrack(
+                provider = StreamingProviderName.LUOXUE,
+                providerTrackId = "kw:12345",
+                title = "Song",
+                artist = "Artist",
+                luoxueMusicInfoJson = "not json"
+            )
+        )
+
+        assertNull(StreamingPlaybackAdapter.luoxueMusicInfoJson(placeholder.dataPath))
+        assertFalse(placeholder.dataPath.contains("lxmi="))
     }
 
     @Test

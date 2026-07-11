@@ -641,7 +641,12 @@ public final class LyricsRepository {
         return new ArrayList<>(queries);
     }
 
-    private List<LyricsLine> parseProviderLyrics(String primary, String translation) throws IOException {
+    /**
+     * Parses a provider-style LRC payload and merges time-aligned translations using the same
+     * rules as the built-in online lyric sources. External source adapters call this after their
+     * own transport succeeds so parsing behavior remains consistent across providers.
+     */
+    public List<LyricsLine> parseProviderLyrics(String primary, String translation) throws IOException {
         String clean = primary == null ? "" : primary.trim();
         if (clean.isEmpty() || isInstrumentalLyricsText(clean)) {
             return Collections.emptyList();

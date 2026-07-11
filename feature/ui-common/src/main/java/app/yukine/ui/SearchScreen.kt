@@ -199,7 +199,7 @@ private fun SearchInput(
         Box(
             modifier = Modifier
                 .weight(1f)
-                .height(48.dp)
+                .height(56.dp)
                 .echoGlassLayer(p, EchoShapes.medium),
             contentAlignment = Alignment.Center
         ) {
@@ -234,7 +234,7 @@ private fun SearchInput(
             shape = EchoShapes.medium,
             color = Color.Transparent,
             modifier = Modifier
-                .height(48.dp)
+                .height(56.dp)
                 .echoGlassLayer(p, EchoShapes.medium)
         ) {
             Row(

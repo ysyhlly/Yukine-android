@@ -497,6 +497,22 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
+    fun updateQueuedTrackArtworkPersistsAndPublishesWithoutPreparingPlayback() {
+        val store = FakeQueueStore()
+        val provider = FakeQueueState()
+        val manager = queueManager(store, provider)
+        restoreQueue(manager, store, listOf(track(1L)), 0)
+        val artwork = android.net.Uri.parse("https://image.example.test/cover.jpg")
+
+        assertTrue(manager.updateQueuedTrackArtwork(1L, artwork))
+
+        assertEquals(artwork, provider.queue.single().albumArtUri)
+        assertEquals(artwork, store.savedTracks.single().albumArtUri)
+        assertFalse(provider.prepareCurrentCalled)
+        assertTrue(provider.queuePlaybackActions.published)
+    }
+
+    @Test
     fun replaceCurrentQueueTrackPersistsCurrentSlotOnly() {
         val store = FakeQueueStore()
         val provider = FakeQueueState()

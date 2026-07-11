@@ -85,8 +85,12 @@ class LocalLuoxueStreamingProvider(
     override val descriptor: StreamingProviderDescriptor
         get() {
             val sources = sourceStore?.load().orEmpty()
-            val sourceStatus = if (sources.isNotEmpty()) {
-                "已导入 ${sources.size} 个 LX JS 音源：" + sources.take(3).joinToString("、") { it.name }
+            val activeSources = sources.filter { it.enabled && it.script.isNotBlank() }
+            val sourceStatus = if (activeSources.isNotEmpty()) {
+                "已启用 ${activeSources.size}/${sources.size} 个 LX JS 音源：" +
+                    activeSources.take(3).joinToString("、") { it.name }
+            } else if (sources.isNotEmpty()) {
+                "已导入 ${sources.size} 个 LX JS 音源，当前均已停用或脚本文件不可用"
             } else {
                 "可选择本地 JS 文件或网络链接导入 LX 音源；内置 kw/kg/wy/tx 子源仍可用"
             }
@@ -102,12 +106,19 @@ class LocalLuoxueStreamingProvider(
             )
         }
 
-    override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult = client.search(request)
+    override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult =
+        client.search(
+            request,
+            sourceStore?.load().orEmpty().filter { it.enabled && it.script.isNotBlank() }
+        )
 
     override suspend fun playlist(request: StreamingPlaylistRequest): StreamingPlaylistDetail = client.playlist(request)
 
     override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource =
-        client.resolvePlayback(request)
+        client.resolvePlayback(
+            request,
+            sourceStore?.load().orEmpty().filter { it.enabled && it.script.isNotBlank() }
+        )
 
     override suspend fun authState(): StreamingAuthState = descriptor.auth
 }

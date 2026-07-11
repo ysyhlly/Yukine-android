@@ -1,5 +1,6 @@
 package app.yukine.playback.manager
 
+import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import app.yukine.playback.PlaybackRepeatMode.REPEAT_ALL
@@ -551,6 +552,33 @@ internal class PlaybackQueueManager(
     }
 
     /**
+     * Updates artwork as queue metadata only. Unlike [replaceQueuedTrack], this never recreates
+     * the Media3 item or resets playback position, so a late artwork lookup cannot interrupt
+     * audible playback.
+     */
+    fun updateQueuedTrackArtwork(trackId: Long, artworkUri: Uri?): Boolean {
+        if (trackId <= 0L || artworkUri == null || queue.isEmpty()) {
+            return false
+        }
+        var changed = false
+        for (index in queue.indices) {
+            val current = queue[index]
+            if (current.id != trackId || current.albumArtUri == artworkUri) {
+                continue
+            }
+            queue[index] = copyWithArtwork(current, artworkUri)
+            changed = true
+        }
+        if (!changed) {
+            return false
+        }
+        markQueueContentChanged()
+        persistQueue()
+        queuePlaybackActions.publishState()
+        return true
+    }
+
+    /**
      * Commits several same-ID streaming URL resolutions as one logical queue mutation. A
      * pre-resolve window can finish multiple tracks at once; publishing and persisting every
      * result separately makes a large CopyOnWriteArrayList repeatedly copy itself and lets the
@@ -1015,6 +1043,27 @@ internal class PlaybackQueueManager(
             shouldCreatePlayer = true,
             shouldPrepare = true,
             playWhenReady = playWhenReady
+        )
+    }
+
+    private fun copyWithArtwork(track: Track, artworkUri: Uri): Track {
+        return Track(
+            track.id,
+            track.title,
+            track.artist,
+            track.album,
+            track.durationMs,
+            track.contentUri,
+            track.dataPath,
+            track.albumId,
+            artworkUri,
+            track.codec,
+            track.bitrateKbps,
+            track.sampleRateHz,
+            track.bitsPerSample,
+            track.channelCount,
+            track.replayGainTrackDb,
+            track.replayGainAlbumDb
         )
     }
 

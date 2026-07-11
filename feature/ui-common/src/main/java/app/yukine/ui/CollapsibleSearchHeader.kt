@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
@@ -79,7 +80,8 @@ fun CollapsibleSearchHeader(
                     .height(SearchHeaderHeight)
                     .offset(y = headerOffset)
                     .alpha(headerAlpha)
-                    .padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 10.dp)
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                contentAlignment = Alignment.CenterStart
             ) {
                 header()
             }

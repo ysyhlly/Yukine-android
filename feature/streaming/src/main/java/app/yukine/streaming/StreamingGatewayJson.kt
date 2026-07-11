@@ -448,7 +448,8 @@ internal object StreamingGatewayJson {
                     ?: value.optionalString("intro")
                     ?: value.optionalString("summary"),
                 lyricSources = lyricSources(value.optJSONArray("lyricSources"), provider),
-                playbackCandidates = playbackCandidates(value.optJSONArray("playbackCandidates"), provider)
+                playbackCandidates = playbackCandidates(value.optJSONArray("playbackCandidates"), provider),
+                luoxueMusicInfoJson = luoxueMusicInfoJson(value)
             )
         }
     }
@@ -542,7 +543,8 @@ internal object StreamingGatewayJson {
                             ?: value.optionalString("intro")
                             ?: value.optionalString("summary"),
                         lyricSources = lyricSources(value.optJSONArray("lyricSources"), provider),
-                        playbackCandidates = playbackCandidates(value.optJSONArray("playbackCandidates"), provider)
+                        playbackCandidates = playbackCandidates(value.optJSONArray("playbackCandidates"), provider),
+                        luoxueMusicInfoJson = luoxueMusicInfoJson(value)
                     )
                 StreamingSearchItem.fromTrack(track).copy(
                     title = value.optionalString("title") ?: track.title,
@@ -693,6 +695,14 @@ internal object StreamingGatewayJson {
         }
     }
 
+    private fun luoxueMusicInfoJson(value: JSONObject): String? {
+        val raw = value.optJSONObject("luoxueMusicInfo")?.toString()
+            ?: value.optJSONObject("musicInfo")?.toString()
+            ?: value.optionalString("luoxueMusicInfo")
+            ?: value.optionalString("musicInfo")
+        return normalizeLuoxueMusicInfoJson(raw)
+    }
+
     private fun playbackUrl(value: JSONObject): String {
         return value.optionalString("url")
             ?: value.optionalString("playUrl")
@@ -754,7 +764,7 @@ internal object StreamingGatewayJson {
     }
 
     private fun trackJson(track: StreamingTrack): JSONObject {
-        return JSONObject()
+        val value = JSONObject()
             .put("provider", track.provider.wireName)
             .put("providerTrackId", track.providerTrackId)
             .put("title", track.title)
@@ -772,6 +782,10 @@ internal object StreamingGatewayJson {
             .put("description", track.description)
             .put("lyricSources", JSONArray(track.lyricSources.map { lyricSourceJson(it) }))
             .put("playbackCandidates", JSONArray(track.playbackCandidates.map { playbackCandidateJson(it) }))
+        normalizeLuoxueMusicInfoJson(track.luoxueMusicInfoJson)?.let { musicInfo ->
+            value.put("luoxueMusicInfo", JSONObject(musicInfo))
+        }
+        return value
     }
 
     private fun lyricSourceJson(source: StreamingLyricSource): JSONObject {

@@ -1117,6 +1117,10 @@ public final class EchoPlaybackService extends MediaLibraryService
         playbackQueueMutationOwner.replaceQueuedTrack(replacement);
     }
 
+    public void updateQueuedTrackArtwork(long trackId, android.net.Uri artworkUri) {
+        playbackQueueMutationOwner.updateQueuedTrackArtwork(trackId, artworkUri);
+    }
+
     public void replaceQueuedTracks(List<Track> replacements) {
         playbackQueueMutationOwner.replaceQueuedTracks(replacements);
     }

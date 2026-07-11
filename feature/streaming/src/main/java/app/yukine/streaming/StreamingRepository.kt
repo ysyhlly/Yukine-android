@@ -172,10 +172,11 @@ class StreamingRepository(
     suspend fun resolvePlayback(
         provider: StreamingProviderName,
         providerTrackId: String,
-        quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS
+        quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
+        luoxueMusicInfoJson: String? = null
     ): StreamingPlaybackSource {
         return withContext(Dispatchers.IO) {
-            cache?.cachedPlayback(provider, providerTrackId, quality)?.let { cached ->
+            cache?.cachedPlayback(provider, providerTrackId, quality, luoxueMusicInfoJson)?.let { cached ->
                 val source = runCatching { StreamingGatewayJson.playbackSource(cached) }.getOrNull()
                 if (source != null && isSupportedPlaybackSourceUrl(source.url)) {
                     recordCacheHit("playback", provider)
@@ -186,7 +187,8 @@ class StreamingRepository(
             val request = StreamingPlaybackRequest(
                 provider = provider,
                 providerTrackId = providerTrackId,
-                quality = quality
+                quality = quality,
+                luoxueMusicInfoJson = luoxueMusicInfoJson
             )
             recordGatewayCall("playback", provider) {
                 gateway.resolvePlayback(request).also { source ->
@@ -197,7 +199,8 @@ class StreamingRepository(
                         providerTrackId,
                         quality,
                         StreamingGatewayJson.playbackSourceJson(source),
-                        ttlMs
+                        ttlMs,
+                        luoxueMusicInfoJson
                     )
                 }
             }
@@ -215,7 +218,12 @@ class StreamingRepository(
             var lastError: Throwable? = null
             attempts.forEachIndexed { index, attempt ->
                 val initialResult = runCatching {
-                    val source = resolvePlayback(attempt.provider, attempt.providerTrackId, quality)
+                    val source = resolvePlayback(
+                        attempt.provider,
+                        attempt.providerTrackId,
+                        quality,
+                        attempt.luoxueMusicInfoJson
+                    )
                     validatePlaybackSource(source)
                     source
                 }
@@ -231,7 +239,12 @@ class StreamingRepository(
                     }.getOrNull()
                     if (refreshed?.connected == true) {
                         runCatching {
-                            val source = resolvePlayback(attempt.provider, attempt.providerTrackId, quality)
+                            val source = resolvePlayback(
+                                attempt.provider,
+                                attempt.providerTrackId,
+                                quality,
+                                attempt.luoxueMusicInfoJson
+                            )
                             validatePlaybackSource(source)
                             source
                         }
@@ -247,7 +260,11 @@ class StreamingRepository(
                     val resolvedMetadata = if (index == 0 || metadata == null) {
                         metadata
                     } else {
-                        metadata.copy(provider = attempt.provider, providerTrackId = attempt.providerTrackId)
+                        metadata.copy(
+                            provider = attempt.provider,
+                            providerTrackId = attempt.providerTrackId,
+                            luoxueMusicInfoJson = attempt.luoxueMusicInfoJson
+                        )
                     }
                     return@withContext StreamingResolvedPlayback(
                         source = source,
@@ -276,7 +293,10 @@ class StreamingRepository(
         providerTrackId: String,
         metadata: StreamingTrack?
     ): List<PlaybackResolveAttempt> {
-        val attempts = mutableListOf(PlaybackResolveAttempt(provider, providerTrackId))
+        val primaryPayload = metadata
+            ?.takeIf { it.provider == provider && it.providerTrackId == providerTrackId }
+            ?.luoxueMusicInfoJson
+        val attempts = mutableListOf(PlaybackResolveAttempt(provider, providerTrackId, primaryPayload))
         val seen = linkedSetOf("${provider.wireName}:$providerTrackId")
         metadata?.playbackCandidates?.forEach { candidate ->
             val candidateTrackId = candidate.providerTrackId?.takeIf { it.isNotBlank() }
@@ -286,7 +306,13 @@ class StreamingRepository(
                 return@forEach
             }
             if (seen.add("${candidate.provider.wireName}:$candidateTrackId")) {
-                attempts += PlaybackResolveAttempt(candidate.provider, candidateTrackId)
+                val candidatePayload = metadata
+                    ?.takeIf {
+                        it.provider == candidate.provider &&
+                            it.providerTrackId == candidateTrackId
+                    }
+                    ?.luoxueMusicInfoJson
+                attempts += PlaybackResolveAttempt(candidate.provider, candidateTrackId, candidatePayload)
             }
         }
         return attempts
@@ -294,7 +320,8 @@ class StreamingRepository(
 
     private data class PlaybackResolveAttempt(
         val provider: StreamingProviderName,
-        val providerTrackId: String
+        val providerTrackId: String,
+        val luoxueMusicInfoJson: String?
     )
 
     suspend fun authState(provider: StreamingProviderName): StreamingAuthState {

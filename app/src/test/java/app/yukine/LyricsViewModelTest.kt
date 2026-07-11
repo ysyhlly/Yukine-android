@@ -134,7 +134,7 @@ class LyricsViewModelTest {
         val events = mutableListOf<String>()
         var result: List<LyricsLine> = emptyList()
 
-        override fun load(
+        override suspend fun load(
             track: Track,
             onlineEnabled: Boolean,
             neteaseProviderTrackId: String

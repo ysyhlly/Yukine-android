@@ -16,6 +16,9 @@ interface StreamingCacheDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSearch(entity: StreamingSearchCacheEntity)
 
+    @Query("DELETE FROM streaming_search_cache WHERE provider = :provider")
+    suspend fun deleteSearchForProvider(provider: String): Int
+
     @Query(
         "SELECT * FROM streaming_playlist_cache " +
             "WHERE provider = :provider AND provider_playlist_id = :providerPlaylistId AND expires_at_ms > :nowMs LIMIT 1"
@@ -40,6 +43,9 @@ interface StreamingCacheDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertPlayback(entity: StreamingPlaybackCacheEntity)
+
+    @Query("DELETE FROM streaming_playback_cache WHERE provider = :provider")
+    suspend fun deletePlaybackForProvider(provider: String): Int
 
     @Query(
         "SELECT * FROM streaming_auth_metadata " +
