@@ -23,10 +23,12 @@ public final class DocumentMusicImporter {
 
     private final Context context;
     private final AudioSpecParser audioSpecParser;
+    private final PortableAudioMetadataReader portableMetadataReader;
 
     public DocumentMusicImporter(Context context) {
         this.context = context.getApplicationContext();
         this.audioSpecParser = new AudioSpecParser(this.context);
+        this.portableMetadataReader = new PortableAudioMetadataReader(this.context);
     }
 
     public List<Track> importAudioUris(List<Uri> uris) {
@@ -91,13 +93,22 @@ public final class DocumentMusicImporter {
         String artist = "未知艺人";
         String album = "导入音频";
         long durationMs = 0L;
+        byte[] embeddedArtwork = null;
 
         MediaMetadataRetriever retriever = new MediaMetadataRetriever();
         try {
             retriever.setDataSource(context, uri);
-            title = firstText(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE), title);
-            artist = firstText(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST), artist);
-            album = firstText(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM), album);
+            String platformTitle = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE);
+            String platformArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST);
+            String platformAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM);
+            PortableAudioMetadataReader.Metadata portable = portableMetadataReader.read(uri, displayName);
+            title = firstText(platformTitle, firstText(portable.title, title));
+            artist = firstText(platformArtist, firstText(portable.artist, artist));
+            album = firstText(platformAlbum, firstText(portable.album, album));
+            embeddedArtwork = retriever.getEmbeddedPicture();
+            if ((embeddedArtwork == null || embeddedArtwork.length == 0) && portable.artwork != null) {
+                embeddedArtwork = portable.artwork;
+            }
             durationMs = parseLong(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
         } catch (RuntimeException ignored) {
             // The file can still be playable even when metadata extraction fails.
@@ -118,7 +129,7 @@ public final class DocumentMusicImporter {
                 uri,
                 "document:" + uri.toString(),
                 0L,
-                EmbeddedArtwork.uriIfEmbeddedPicture(context, uri)
+                EmbeddedArtwork.uriFor(uri, embeddedArtwork)
         );
         return audioSpecParser.enrich(track);
     }

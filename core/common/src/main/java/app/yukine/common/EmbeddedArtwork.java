@@ -40,6 +40,11 @@ public final class EmbeddedArtwork {
                 .build();
     }
 
+    public static Uri uriFor(Uri audioUri, byte[] picture) {
+        cacheEmbeddedPicture(audioUri, picture);
+        return picture == null || picture.length == 0 ? null : uriFor(audioUri);
+    }
+
     public static boolean isEmbeddedArtworkUri(Uri uri) {
         return uri != null && SCHEME.equals(uri.getScheme()) && AUTHORITY.equals(uri.getAuthority());
     }

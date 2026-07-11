@@ -731,7 +731,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(scanner.contains("albumArtUri(albumId)"));
         assertTrue(scanner.contains("EmbeddedArtwork.uriFor(uri)"));
         assertFalse(scanner.contains("EmbeddedArtwork.uriIfEmbeddedPicture(context, uri)"));
-        assertTrue(importer.contains("EmbeddedArtwork.uriIfEmbeddedPicture(context, uri)"));
+        assertTrue(importer.contains("EmbeddedArtwork.uriFor(uri, embeddedArtwork)"));
         assertTrue(embeddedArtwork.contains("retriever.getEmbeddedPicture()"));
         assertTrue(embeddedArtwork.contains("LruCache<String, byte[]>"));
         assertTrue(embeddedArtwork.contains("cachedEmbeddedPicture(audioUri)"));
