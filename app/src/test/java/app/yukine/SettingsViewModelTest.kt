@@ -292,6 +292,7 @@ class SettingsViewModelTest {
         viewModel.onEvent(SettingsEvent.SetNowPlayingGesturesEnabled(false))
         viewModel.onEvent(SettingsEvent.SetPlaybackRestoreEnabled(true))
         viewModel.onEvent(SettingsEvent.SetReplayGainEnabled(false))
+        viewModel.onEvent(SettingsEvent.SetDebugPromptsEnabled(true))
         advanceUntilIdle()
 
         assertEquals(
@@ -346,7 +347,8 @@ class SettingsViewModelTest {
                 "floatingLyrics:true",
                 "gestures:false",
                 "restore:true",
-                "replayGain:false"
+                "replayGain:false",
+                "debugPrompts:true"
             ),
             preferenceGateway.events
         )
@@ -365,6 +367,7 @@ class SettingsViewModelTest {
         assertEquals(true, state.preferences.floatingLyricsEnabled)
         assertEquals(false, state.preferences.nowPlayingGesturesEnabled)
         assertEquals(true, state.preferences.playbackRestoreEnabled)
+        assertEquals(true, state.preferences.debugPromptsEnabled)
         assertEquals(5000L, state.runtime.lyricsOffsetMs)
         assertEquals(state.ui, viewModel.uiState.value)
     }
@@ -730,6 +733,7 @@ class SettingsViewModelTest {
                 SettingsPreferenceKey.NowPlayingGesturesEnabled -> "gestures:${update.value}"
                 SettingsPreferenceKey.PlaybackRestoreEnabled -> "restore:${update.value}"
                 SettingsPreferenceKey.ReplayGainEnabled -> "replayGain:${update.value}"
+                SettingsPreferenceKey.DebugPromptsEnabled -> "debugPrompts:${update.value}"
                 SettingsPreferenceKey.ShareStyle -> "shareStyle:${update.value}"
                 SettingsPreferenceKey.PageBackgrounds -> {
                     val backgrounds = update.value as PageBackgrounds

@@ -68,6 +68,17 @@ public final class EchoDatabaseHelperTest {
     }
 
     @Test
+    public void debugPromptsDefaultOffAndPersist() {
+        helper = new EchoDatabaseHelper(ApplicationProvider.getApplicationContext(), SETTINGS_DATABASE);
+
+        Assert.assertFalse(helper.loadDebugPromptsEnabled());
+
+        helper.saveDebugPromptsEnabled(true);
+
+        Assert.assertTrue(helper.loadDebugPromptsEnabled());
+    }
+
+    @Test
     public void hiddenTrackStaysExcludedUntilItIsRestored() {
         helper = new EchoDatabaseHelper(ApplicationProvider.getApplicationContext(), EXCLUSION_DATABASE);
         Track track = localTrack(701L, "Hidden");

@@ -20,6 +20,7 @@ enum class SettingsPreferenceKey {
     NowPlayingGesturesEnabled,
     PlaybackRestoreEnabled,
     ReplayGainEnabled,
+    DebugPromptsEnabled,
     ShareStyle,
     PageBackgrounds
 }
@@ -46,6 +47,7 @@ internal interface SettingsPreferenceOperations {
     fun saveNowPlayingGesturesEnabled(enabled: Boolean)
     fun savePlaybackRestoreEnabled(enabled: Boolean)
     fun saveReplayGainEnabled(enabled: Boolean)
+    fun saveDebugPromptsEnabled(enabled: Boolean)
     fun saveShareStyle(style: String)
     fun savePageBackgrounds(backgrounds: PageBackgrounds)
 }
@@ -95,6 +97,9 @@ internal class MusicLibrarySettingsPreferenceOperations(
     override fun saveReplayGainEnabled(enabled: Boolean) =
         repository.saveReplayGainEnabled(enabled)
 
+    override fun saveDebugPromptsEnabled(enabled: Boolean) =
+        repository.saveDebugPromptsEnabled(enabled)
+
     override fun saveShareStyle(style: String) =
         repository.saveShareStyle(style)
 
@@ -133,6 +138,8 @@ internal class ApplySettingsPreferenceUseCase(
                 operations.savePlaybackRestoreEnabled(update.value as Boolean)
             SettingsPreferenceKey.ReplayGainEnabled ->
                 operations.saveReplayGainEnabled(update.value as Boolean)
+            SettingsPreferenceKey.DebugPromptsEnabled ->
+                operations.saveDebugPromptsEnabled(update.value as Boolean)
             SettingsPreferenceKey.ShareStyle ->
                 operations.saveShareStyle(update.value as String)
             SettingsPreferenceKey.PageBackgrounds ->

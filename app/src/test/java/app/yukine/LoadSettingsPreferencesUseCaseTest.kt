@@ -24,6 +24,7 @@ class LoadSettingsPreferencesUseCaseTest {
         operations.nowPlayingGesturesEnabled = false
         operations.playbackRestoreEnabled = true
         operations.replayGainEnabled = false
+        operations.debugPromptsEnabled = true
         operations.shareStyle = TrackShareStyle.PLATFORM_CARD
         operations.pageBackgrounds = PageBackgrounds(sharedUri = "content://all")
 
@@ -43,10 +44,11 @@ class LoadSettingsPreferencesUseCaseTest {
         assertFalse(result.nowPlayingGesturesEnabled)
         assertEquals(true, result.playbackRestoreEnabled)
         assertFalse(result.replayGainEnabled)
+        assertEquals(true, result.debugPromptsEnabled)
         assertEquals(TrackShareStyle.PLATFORM_CARD, result.shareStyle)
         assertEquals("content://all", result.pageBackgrounds.sharedUri)
         assertEquals(
-            listOf("theme", "accent", "language", "speed", "volume", "quality", "concurrent", "effects", "statusLyrics", "floatingLyrics", "systemMediaTitle", "gestures", "restore", "replayGain", "shareStyle", "backgrounds"),
+            listOf("theme", "accent", "language", "speed", "volume", "quality", "concurrent", "effects", "statusLyrics", "floatingLyrics", "systemMediaTitle", "gestures", "restore", "replayGain", "debugPrompts", "shareStyle", "backgrounds"),
             operations.events
         )
     }
@@ -79,6 +81,7 @@ class LoadSettingsPreferencesUseCaseTest {
         var nowPlayingGesturesEnabled = true
         var playbackRestoreEnabled = true
         var replayGainEnabled = true
+        var debugPromptsEnabled = false
         var shareStyle = TrackShareStyle.TEXT
         var pageBackgrounds = PageBackgrounds.empty()
 
@@ -150,6 +153,11 @@ class LoadSettingsPreferencesUseCaseTest {
         override fun loadReplayGainEnabled(): Boolean {
             events.add("replayGain")
             return replayGainEnabled
+        }
+
+        override fun loadDebugPromptsEnabled(): Boolean {
+            events.add("debugPrompts")
+            return debugPromptsEnabled
         }
 
         override fun loadShareStyle(): String {

@@ -43,6 +43,7 @@ data class SettingsPreferencesSnapshot(
     val nowPlayingGesturesEnabled: Boolean = true,
     val playbackRestoreEnabled: Boolean = true,
     val replayGainEnabled: Boolean = true,
+    val debugPromptsEnabled: Boolean = false,
     val shareStyle: String = TrackShareStyle.defaultValue(),
     val pageBackgrounds: PageBackgrounds = PageBackgrounds.empty()
 )
@@ -158,6 +159,7 @@ sealed interface SettingsEvent {
     data class SetNowPlayingGesturesEnabled(val enabled: Boolean) : SettingsEvent
     data class SetPlaybackRestoreEnabled(val enabled: Boolean) : SettingsEvent
     data class SetReplayGainEnabled(val enabled: Boolean) : SettingsEvent
+    data class SetDebugPromptsEnabled(val enabled: Boolean) : SettingsEvent
     data class ChoosePageBackground(val page: String) : SettingsEvent
     data class ClearPageBackground(val page: String) : SettingsEvent
     data object ExportBackup : SettingsEvent
@@ -306,6 +308,7 @@ class SettingsViewModel @JvmOverloads constructor(
             is SettingsEvent.SetNowPlayingGesturesEnabled -> setNowPlayingGesturesEnabled(event.enabled)
             is SettingsEvent.SetPlaybackRestoreEnabled -> setPlaybackRestoreEnabled(event.enabled)
             is SettingsEvent.SetReplayGainEnabled -> setReplayGainEnabled(event.enabled)
+            is SettingsEvent.SetDebugPromptsEnabled -> setDebugPromptsEnabled(event.enabled)
             is SettingsEvent.ChoosePageBackground -> emitEffect(SettingsEffect.ChoosePageBackground(event.page))
             is SettingsEvent.ClearPageBackground -> clearPageBackground(event.page)
             is SettingsEvent.ExportBackup -> emitEffect(SettingsEffect.ExportBackup)
@@ -418,9 +421,13 @@ class SettingsViewModel @JvmOverloads constructor(
                     runtime.audioPermissionGranted,
                     runtime.notificationPermissionGranted,
                     runtime.playbackServiceConnected,
+                    preferences.debugPromptsEnabled,
                     onNavigate = ::navigateSettingsPage,
                     onExportBackup = { onEvent(SettingsEvent.ExportBackup) },
-                    onImportBackup = { onEvent(SettingsEvent.ImportBackup) }
+                    onImportBackup = { onEvent(SettingsEvent.ImportBackup) },
+                    onDebugPromptsEnabledChange = { enabled ->
+                        onEvent(SettingsEvent.SetDebugPromptsEnabled(enabled))
+                    }
                 )
             SettingsPage.Appearance ->
                 SettingsPageStateBuilder.theme(
@@ -848,6 +855,18 @@ class SettingsViewModel @JvmOverloads constructor(
         val statusText = currentAppliedStatusText()
         emitAppliedStatus(if (enabled) statusText.replayGainEnabled else statusText.replayGainDisabled)
         savePreference(SettingsPreferenceKey.ReplayGainEnabled, enabled)
+    }
+
+    fun setDebugPromptsEnabled(enabled: Boolean) {
+        updatePreferences { it.copy(debugPromptsEnabled = enabled) }
+        val languageMode = _state.value.preferences.languageMode
+        emitAppliedStatus(
+            AppLanguage.text(
+                languageMode,
+                if (enabled) "debug.prompts.enabled" else "debug.prompts.disabled"
+            )
+        )
+        savePreference(SettingsPreferenceKey.DebugPromptsEnabled, enabled)
     }
 
     fun applyPageBackgrounds(backgrounds: PageBackgrounds, page: String, cleared: Boolean) {

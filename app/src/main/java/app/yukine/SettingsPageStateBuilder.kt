@@ -132,9 +132,11 @@ internal object SettingsPageStateBuilder {
         audioPermissionGranted: Boolean,
         notificationPermissionGranted: Boolean,
         playbackServiceConnected: Boolean,
+        debugPromptsEnabled: Boolean,
         onNavigate: (SettingsPage) -> Unit,
         onExportBackup: () -> Unit,
-        onImportBackup: () -> Unit
+        onImportBackup: () -> Unit,
+        onDebugPromptsEnabledChange: (Boolean) -> Unit
     ): SettingsPageStateContent {
         val metrics = listOf(
             SettingsMetric(text(languageMode, "version"), BuildConfig.VERSION_NAME),
@@ -157,6 +159,13 @@ internal object SettingsPageStateBuilder {
                     imageContentDescription = text(languageMode, "qq.group.qr.description"),
                     dismissLabel = text(languageMode, "close")
                 )
+            ),
+            SettingsAction(
+                label = text(languageMode, "debug.prompts"),
+                onClick = Runnable { onDebugPromptsEnabledChange(!debugPromptsEnabled) },
+                description = text(languageMode, "debug.prompts.hint"),
+                style = SettingsActionStyle.Toggle,
+                checked = debugPromptsEnabled
             ),
             SettingsAction(text(languageMode, "backup.export"), Runnable { onExportBackup() }),
             SettingsAction(

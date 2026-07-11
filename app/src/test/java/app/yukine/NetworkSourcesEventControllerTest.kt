@@ -24,8 +24,20 @@ class NetworkSourcesEventControllerTest {
             ),
             fakes.events
         )
-        assertEquals(MainRoutes.NETWORK_HOME, fakes.navigationViewModel.state.value.networkPage)
+        assertEquals(MainRoutes.NETWORK_SOURCES, fakes.navigationViewModel.state.value.networkPage)
         assertEquals(-1L, fakes.navigationViewModel.state.value.selectedRemoteSourceId)
+    }
+
+    @Test
+    fun backFromSourcesRestoresTheSettingsPageThatOpenedIt() {
+        val fakes = Fakes()
+        fakes.openSourcesFromSettings()
+        val controller = fakes.controller()
+
+        controller.backToNetwork()
+
+        assertEquals(MainRoutes.TAB_SETTINGS, fakes.navigationViewModel.state.value.selectedTab)
+        assertEquals(MainRoutes.SETTINGS_SOURCES_GROUP, fakes.navigationViewModel.state.value.settingsPage)
     }
 
     @Test
@@ -84,6 +96,15 @@ class NetworkSourcesEventControllerTest {
             FakeListener(events)
         )
 
+        init {
+            routeController.persist(
+                NavigationRouteState(
+                    selectedTab = MainRoutes.TAB_NETWORK,
+                    networkPage = MainRoutes.NETWORK_SOURCES
+                )
+            )
+        }
+
         fun controller(): NetworkSourcesEventController =
             NetworkSourcesEventController(
                 routeController,
@@ -95,8 +116,22 @@ class NetworkSourcesEventControllerTest {
                 { tracks, index -> events.add("play:${tracks.first().id}@$index") },
                 { key -> "label:$key" },
                 { status -> events.add("status:$status") },
-                { events.add("render") }
+                {
+                    routeController.persist()
+                    events.add("render")
+                }
             )
+
+        fun openSourcesFromSettings() {
+            routeController.persist(
+                NavigationRouteState(
+                    selectedTab = MainRoutes.TAB_SETTINGS,
+                    settingsPage = MainRoutes.SETTINGS_SOURCES_GROUP
+                )
+            )
+            routeController.navigateToNetworkPageFromCurrent(MainRoutes.NETWORK_SOURCES)
+            routeController.persist()
+        }
     }
 
     private class FakeListener(private val events: ArrayList<String>) : NetworkRequestController.Listener {

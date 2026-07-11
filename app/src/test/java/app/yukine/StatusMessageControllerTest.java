@@ -88,6 +88,55 @@ public final class StatusMessageControllerTest {
     }
 
     @Test
+    public void routineStatusIsSilentUntilDebugPromptsAreEnabled() {
+        StatusMessageViewModel viewModel = new StatusMessageViewModel();
+        List<String> updates = new ArrayList<>();
+        StatusMessageController quietController = new StatusMessageController(
+                viewModel,
+                () -> AppLanguage.MODE_CHINESE,
+                updates::add,
+                () -> false
+        );
+
+        quietController.setStatus("Cookie saved");
+        quietController.showFeedback("\u7528\u6237\u64cd\u4f5c\u53cd\u9988");
+
+        assertEquals(1, updates.size());
+        assertEquals("\u7528\u6237\u64cd\u4f5c\u53cd\u9988", updates.get(0));
+
+        StatusMessageController debugController = new StatusMessageController(
+                viewModel,
+                () -> AppLanguage.MODE_CHINESE,
+                updates::add,
+                () -> true
+        );
+        debugController.setStatus("Cookie saved");
+
+        assertEquals(2, updates.size());
+        assertEquals(AppLanguage.text(AppLanguage.MODE_CHINESE, "streaming.cookie.saved"), updates.get(1));
+    }
+
+    @Test
+    public void importantErrorsRemainVisibleWithoutDebugPrompts() {
+        StatusMessageViewModel viewModel = new StatusMessageViewModel();
+        List<String> updates = new ArrayList<>();
+        StatusMessageController controller = new StatusMessageController(
+                viewModel,
+                () -> AppLanguage.MODE_CHINESE,
+                updates::add,
+                () -> false
+        );
+
+        controller.setStatus("Playback service is not connected");
+
+        assertEquals(1, updates.size());
+        assertEquals(
+                AppLanguage.text(AppLanguage.MODE_CHINESE, "playback.service.not.connected"),
+                updates.get(0)
+        );
+    }
+
+    @Test
     public void ignoresStatusUpdatesWhenHostIsMissing() {
         StatusMessageViewModel viewModel = new StatusMessageViewModel();
         StatusMessageController controller = new StatusMessageController(

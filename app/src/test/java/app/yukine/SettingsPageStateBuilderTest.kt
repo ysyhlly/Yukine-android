@@ -87,33 +87,40 @@ class SettingsPageStateBuilderTest {
         val navigated = mutableListOf<SettingsPage>()
         var exported = false
         var imported = false
+        var debugPromptsEnabled = false
 
         val content = SettingsPageStateBuilder.aboutGroup(
             languageMode = AppLanguage.MODE_ENGLISH,
             audioPermissionGranted = true,
             notificationPermissionGranted = true,
             playbackServiceConnected = false,
+            debugPromptsEnabled = false,
             onNavigate = { page -> navigated += page },
             onExportBackup = { exported = true },
-            onImportBackup = { imported = true }
+            onImportBackup = { imported = true },
+            onDebugPromptsEnabledChange = { debugPromptsEnabled = it }
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.about"), content.uiState.title)
         assertEquals(4, content.uiState.metrics.size)
-        assertEquals(4, content.actions.size)
+        assertEquals(5, content.actions.size)
         assertTrue(content.actions[0].isBack)
         assertEquals("1013122077", content.actions[1].value)
         assertEquals(R.drawable.qq_group_qr, content.actions[1].imageDialog?.imageResId)
-        assertEquals(SettingsActionStyle.Destructive, content.actions[3].style)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "backup.import.description"), content.actions[3].description)
+        assertEquals(SettingsActionStyle.Toggle, content.actions[2].style)
+        assertEquals(false, content.actions[2].checked)
+        assertEquals(SettingsActionStyle.Destructive, content.actions[4].style)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "backup.import.description"), content.actions[4].description)
 
         content.actions[0].onClick.run()
         content.actions[2].onClick.run()
         content.actions[3].onClick.run()
+        content.actions[4].onClick.run()
 
         assertEquals(listOf(SettingsPage.Home), navigated)
         assertEquals(true, exported)
         assertEquals(true, imported)
+        assertEquals(true, debugPromptsEnabled)
     }
 
     @Test

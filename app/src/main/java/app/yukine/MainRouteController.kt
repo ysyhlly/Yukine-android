@@ -4,6 +4,7 @@ internal class MainRouteController(
     private val viewModel: NavigationViewModel
 ) : LibraryRouteActions {
     private var state: NavigationRouteState = NavigationRouteState()
+    private var networkEntry: NetworkEntry? = null
 
     init {
         restoreFromViewModel()
@@ -129,6 +130,9 @@ internal class MainRouteController(
     fun navigateToTab(tabKey: String, userInitiated: Boolean): Boolean {
         val normalizedTab = normalizeTab(tabKey)
         val sameTab = normalizedTab == selectedTab()
+        if (userInitiated || (selectedTab() == MainRoutes.TAB_NETWORK && normalizedTab != MainRoutes.TAB_NETWORK)) {
+            networkEntry = null
+        }
         var nextNetworkPage = networkPage()
         var nextSettingsPage = settingsPage()
         var nextRemoteSourceId = selectedRemoteSourceId()
@@ -153,6 +157,23 @@ internal class MainRouteController(
             nextRemoteSourceId
         )
         return sameTab
+    }
+
+    fun navigateToNetworkPageFromCurrent(networkPage: String) {
+        if (selectedTab() != MainRoutes.TAB_NETWORK) {
+            networkEntry = NetworkEntry(state, networkPage)
+        }
+        update(
+            MainRoutes.TAB_NETWORK,
+            libraryMode(),
+            selectedLibraryGroupKey(),
+            selectedLibraryGroupTitle(),
+            selectedPlaylistId(),
+            searchQuery(),
+            networkPage,
+            settingsPage(),
+            selectedRemoteSourceId()
+        )
     }
 
     override fun setLibraryMode(libraryMode: String) {
@@ -262,6 +283,21 @@ internal class MainRouteController(
     }
 
     fun applyBackNavigation(): MainBackNavigationPolicy.Result {
+        val entry = networkEntry
+        if (
+            entry != null &&
+            selectedTab() == MainRoutes.TAB_NETWORK &&
+            networkPage() == entry.entryPage
+        ) {
+            state = entry.origin
+            networkEntry = null
+            return MainBackNavigationPolicy.Result.navigate(
+                state.selectedTab,
+                state.networkPage,
+                state.settingsPage,
+                true
+            )
+        }
         val result = MainBackNavigationPolicy.resolve(
             selectedTab(),
             networkPage(),
@@ -290,6 +326,11 @@ internal class MainRouteController(
         )
         return result
     }
+
+    private data class NetworkEntry(
+        val origin: NavigationRouteState,
+        val entryPage: String
+    )
 
     private fun update(
         selectedTab: String,

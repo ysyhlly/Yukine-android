@@ -60,6 +60,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     private static final String SETTING_NOW_PLAYING_GESTURES = "now_playing_gestures";
     private static final String SETTING_PLAYBACK_RESTORE_ENABLED = "playback_restore_enabled";
     private static final String SETTING_REPLAY_GAIN_ENABLED = "replay_gain_enabled";
+    private static final String SETTING_DEBUG_PROMPTS_ENABLED = "debug_prompts_enabled";
     private static final String SETTING_SHARE_STYLE = "share_style";
     private static final String SETTING_PAGE_BACKGROUND_SHARED = "page_background_shared";
     private static final String SETTING_PAGE_BACKGROUND_HOME = "page_background_home";
@@ -518,6 +519,14 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
 
     public void saveReplayGainEnabled(boolean enabled) {
         saveSetting(SETTING_REPLAY_GAIN_ENABLED, enabled ? "true" : "false");
+    }
+
+    public boolean loadDebugPromptsEnabled() {
+        return "true".equals(loadSetting(SETTING_DEBUG_PROMPTS_ENABLED, "false"));
+    }
+
+    public void saveDebugPromptsEnabled(boolean enabled) {
+        saveSetting(SETTING_DEBUG_PROMPTS_ENABLED, enabled ? "true" : "false");
     }
 
     public String loadShareStyle() {

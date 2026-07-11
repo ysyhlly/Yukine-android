@@ -26,6 +26,7 @@ internal class SettingsContextProvider(
             nowPlayingGesturesEnabled = settingsStore.nowPlayingGesturesEnabled(),
             playbackRestoreEnabled = settingsStore.playbackRestoreEnabled(),
             replayGainEnabled = settingsStore.replayGainEnabled(),
+            debugPromptsEnabled = settingsStore.debugPromptsEnabled(),
             shareStyle = settingsStore.shareStyle(),
             pageBackgrounds = settingsStore.pageBackgrounds()
         )

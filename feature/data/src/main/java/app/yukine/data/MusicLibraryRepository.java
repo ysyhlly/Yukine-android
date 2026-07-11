@@ -170,6 +170,14 @@ public final class MusicLibraryRepository {
         database.saveReplayGainEnabled(enabled);
     }
 
+    public boolean loadDebugPromptsEnabled() {
+        return database.loadDebugPromptsEnabled();
+    }
+
+    public void saveDebugPromptsEnabled(boolean enabled) {
+        database.saveDebugPromptsEnabled(enabled);
+    }
+
     public String loadShareStyle() {
         return TrackShareStyle.normalize(database.loadShareStyle());
     }

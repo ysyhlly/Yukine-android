@@ -23,6 +23,46 @@ class MainRouteControllerTest {
     }
 
     @Test
+    fun networkEntryReturnsToTheSettingsPageThatOpenedIt() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_SETTINGS,
+            settingsPage = MainRoutes.SETTINGS_SOURCES_GROUP
+        )
+
+        controller.navigateToNetworkPageFromCurrent(MainRoutes.NETWORK_HOME)
+
+        assertEquals(MainRoutes.TAB_NETWORK, controller.current().selectedTab)
+        assertEquals(MainRoutes.NETWORK_HOME, controller.current().networkPage)
+
+        val result = controller.applyBackNavigation()
+
+        assertEquals(true, result.handled)
+        assertEquals(true, result.navigateTab)
+        assertEquals(MainRoutes.TAB_SETTINGS, controller.current().selectedTab)
+        assertEquals(MainRoutes.SETTINGS_SOURCES_GROUP, controller.current().settingsPage)
+    }
+
+    @Test
+    fun nestedNetworkPageReturnsToEntryBeforeRestoringPreviousPage() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_SETTINGS,
+            settingsPage = MainRoutes.SETTINGS_SOURCES_GROUP
+        )
+        controller.navigateToNetworkPageFromCurrent(MainRoutes.NETWORK_SOURCES)
+        controller.setNetworkPage(MainRoutes.NETWORK_WEBDAV_SOURCE_TRACKS)
+
+        controller.applyBackNavigation()
+
+        assertEquals(MainRoutes.TAB_NETWORK, controller.current().selectedTab)
+        assertEquals(MainRoutes.NETWORK_SOURCES, controller.current().networkPage)
+
+        controller.applyBackNavigation()
+
+        assertEquals(MainRoutes.TAB_SETTINGS, controller.current().selectedTab)
+        assertEquals(MainRoutes.SETTINGS_SOURCES_GROUP, controller.current().settingsPage)
+    }
+
+    @Test
     fun nonUserTabNavigationPreservesSettingsSubpage() {
         val controller = controllerWith(
             selectedTab = MainRoutes.TAB_LIBRARY,

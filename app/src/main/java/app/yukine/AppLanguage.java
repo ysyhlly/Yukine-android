@@ -131,6 +131,10 @@ public final class AppLanguage {
         put("qq.group.hint", "Tap to view the group QR code", "\u70b9\u51fb\u67e5\u770b\u7fa4\u4e8c\u7ef4\u7801");
         put("qq.group.number", "Group number: 1013122077", "\u7fa4\u53f7\uff1a1013122077");
         put("qq.group.qr.description", "QQ group QR code for 1013122077", "QQ \u7fa4 1013122077 \u4e8c\u7ef4\u7801");
+        put("debug.prompts", "Debug prompts", "\u8c03\u8bd5\u63d0\u793a");
+        put("debug.prompts.hint", "Show detailed loading, switching, and settings status prompts", "\u663e\u793a\u52a0\u8f7d\u3001\u5207\u6362\u548c\u8bbe\u7f6e\u72b6\u6001\u7b49\u8be6\u7ec6\u63d0\u793a");
+        put("debug.prompts.enabled", "Debug prompts enabled", "\u5df2\u5f00\u542f\u8c03\u8bd5\u63d0\u793a");
+        put("debug.prompts.disabled", "Debug prompts disabled", "\u5df2\u5173\u95ed\u8c03\u8bd5\u63d0\u793a");
         put("backup.export.success", "Backup exported", "\u5907\u4efd\u5df2\u5bfc\u51fa");
         put("backup.export.failed", "Export failed", "\u5bfc\u51fa\u5931\u8d25");
         put("backup.import.success", "Backup imported, restart to apply", "\u5907\u4efd\u5df2\u5bfc\u5165\uff0c\u8bf7\u91cd\u542f\u5e94\u7528");

@@ -355,7 +355,8 @@ public abstract class MainActivityBase extends ComponentActivity {
         statusMessageController = new StatusMessageController(
                 statusMessageViewModel,
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
-                message -> uiShellController.updateStatus(message)
+                message -> uiShellController.updateStatus(message),
+                () -> settingsStore != null && settingsStore.debugPromptsEnabled()
         );
         trackShareLauncher = new TrackShareLauncher(
                 this,
@@ -2202,8 +2203,8 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void navigateToNetworkTabPage(String page) {
-        routeController.setNetworkPage(page);
-        navigateToTab(TAB_NETWORK);
+        routeController.navigateToNetworkPageFromCurrent(page);
+        renderAndPersistSelectedTab();
     }
 
     private String normalizedTabKey(String tabKey) {

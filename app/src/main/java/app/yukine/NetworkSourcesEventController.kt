@@ -45,8 +45,11 @@ internal class NetworkSourcesEventController(
     }
 
     override fun backToNetwork() {
-        routeController.clearSelectedRemoteSource()
-        routeController.setNetworkPage(MainRoutes.NETWORK_HOME)
+        val result = routeController.applyBackNavigation()
+        if (!result.handled) {
+            routeController.clearSelectedRemoteSource()
+            routeController.setNetworkPage(MainRoutes.NETWORK_HOME)
+        }
         renderer.renderAndPersistSelectedTab()
     }
 

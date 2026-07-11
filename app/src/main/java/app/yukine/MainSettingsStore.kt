@@ -19,6 +19,7 @@ internal class MainSettingsStore {
     private var nowPlayingGesturesEnabled: Boolean = true
     private var playbackRestoreEnabled: Boolean = true
     private var replayGainEnabled: Boolean = true
+    private var debugPromptsEnabled: Boolean = false
     private var shareStyle: String = TrackShareStyle.defaultValue()
     private var pageBackgrounds: PageBackgrounds = PageBackgrounds.empty()
 
@@ -37,6 +38,7 @@ internal class MainSettingsStore {
         nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled
         playbackRestoreEnabled = preferences.playbackRestoreEnabled
         replayGainEnabled = preferences.replayGainEnabled
+        debugPromptsEnabled = preferences.debugPromptsEnabled
         shareStyle = preferences.shareStyle
         pageBackgrounds = preferences.pageBackgrounds
         EchoTheme.setMode(themeMode)
@@ -58,6 +60,7 @@ internal class MainSettingsStore {
         nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled
         playbackRestoreEnabled = preferences.playbackRestoreEnabled
         replayGainEnabled = preferences.replayGainEnabled
+        debugPromptsEnabled = preferences.debugPromptsEnabled
         shareStyle = TrackShareStyle.normalize(preferences.shareStyle)
         pageBackgrounds = preferences.pageBackgrounds
     }
@@ -116,6 +119,10 @@ internal class MainSettingsStore {
 
     fun replayGainEnabled(): Boolean {
         return replayGainEnabled
+    }
+
+    fun debugPromptsEnabled(): Boolean {
+        return debugPromptsEnabled
     }
 
     fun shareStyle(): String {
@@ -180,6 +187,10 @@ internal class MainSettingsStore {
 
     fun setReplayGainEnabled(enabled: Boolean) {
         this.replayGainEnabled = enabled
+    }
+
+    fun setDebugPromptsEnabled(enabled: Boolean) {
+        this.debugPromptsEnabled = enabled
     }
 
     fun setShareStyle(style: String) {
