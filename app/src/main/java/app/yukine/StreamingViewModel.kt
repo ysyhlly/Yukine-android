@@ -1045,7 +1045,7 @@ class StreamingViewModel @Inject constructor(
         if (snapshot?.currentTrack == null) {
             return null
         }
-        if (!StreamingPlaybackAdapter.isUnresolvedStreamingTrack(snapshot.currentTrack)) {
+        if (!StreamingPlaybackAdapter.isStreamingTrack(snapshot.currentTrack)) {
             return null
         }
         if (queue.isNullOrEmpty()) {

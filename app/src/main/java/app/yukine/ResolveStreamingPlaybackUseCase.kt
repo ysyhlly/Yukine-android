@@ -93,7 +93,7 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
         }
         val safeIndex = index.coerceIn(0, tracks.size - 1)
         val selected = tracks[safeIndex]
-        if (!StreamingPlaybackAdapter.isUnresolvedStreamingTrack(selected)) {
+        if (!StreamingPlaybackAdapter.isStreamingTrack(selected)) {
             return null
         }
         val provider = StreamingPlaybackAdapter.streamingProviderName(selected.dataPath) ?: return null

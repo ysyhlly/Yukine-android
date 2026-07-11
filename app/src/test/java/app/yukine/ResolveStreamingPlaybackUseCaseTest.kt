@@ -28,11 +28,15 @@ class ResolveStreamingPlaybackUseCaseTest {
     }
 
     @Test
-    fun prepareIgnoresNonStreamingOrResolvedTracks() {
+    fun prepareIgnoresNonStreamingTracksAndRefreshesResolvedStreamingTracks() {
         val useCase = ResolveStreamingPlaybackUseCase()
 
         assertNull(useCase.prepare(emptyList(), 0))
         assertNull(useCase.prepare(listOf(localTrack(1)), 0))
+        assertEquals(
+            "resolved",
+            useCase.prepare(listOf(resolvedStreamingTrack("resolved")), 0)?.providerTrackId
+        )
     }
 
     @Test

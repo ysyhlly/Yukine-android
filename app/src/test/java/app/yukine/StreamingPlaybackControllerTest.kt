@@ -8,20 +8,25 @@ import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingPlaybackAdapter
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Rule
 import org.junit.Test
 import java.util.ArrayList
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class StreamingPlaybackControllerTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun preResolveUsesBoundedQueueReadsWithoutFullSnapshot() {
+    fun preResolveUsesBoundedQueueReadsWithoutFullSnapshot() = runTest {
         val currentIndex = 250
         val queue = (0 until 500).map { index ->
             if (index in 252..254) {
@@ -33,7 +38,7 @@ class StreamingPlaybackControllerTest {
         val listener = CountingListener(queue)
         val planner = RecordingPlanner()
         val viewModel = StreamingViewModel()
-        viewModel.bindIoDispatcherForTest(Dispatchers.Main)
+        viewModel.bindIoDispatcherForTest(StandardTestDispatcher(testScheduler))
         viewModel.bindStreamingPlaybackCoordinator(planner, NoopStreamingPlaybackTaskQueue)
         val controller = StreamingPlaybackController(
             viewModel,
@@ -71,11 +76,12 @@ class StreamingPlaybackControllerTest {
         assertEquals(0, planner.snapshot?.currentIndex)
         assertEquals(5, planner.snapshot?.queueSize)
         assertSame(queue[currentIndex], planner.snapshot?.currentTrack)
-        viewModel.viewModelScope.cancel()
+        advanceUntilIdle()
+        viewModel.viewModelScope.coroutineContext[Job]?.cancelAndJoin()
     }
 
     @Test
-    fun preResolveSkipsResolvedLookaheadTracksForStreamingCandidatesWithoutFullSnapshot() {
+    fun preResolveSkipsResolvedLookaheadTracksForStreamingCandidatesWithoutFullSnapshot() = runTest {
         val currentIndex = 10
         val queue = (0 until 100).map { index -> track(index.toLong()) }.toMutableList()
         queue[15] = streamingPlaceholderTrack(15L)
@@ -84,7 +90,7 @@ class StreamingPlaybackControllerTest {
         val listener = CountingListener(queue)
         val planner = RecordingPlanner()
         val viewModel = StreamingViewModel()
-        viewModel.bindIoDispatcherForTest(Dispatchers.Main)
+        viewModel.bindIoDispatcherForTest(StandardTestDispatcher(testScheduler))
         viewModel.bindStreamingPlaybackCoordinator(planner, NoopStreamingPlaybackTaskQueue)
         val controller = StreamingPlaybackController(
             viewModel,
@@ -122,7 +128,8 @@ class StreamingPlaybackControllerTest {
         assertEquals(0, planner.snapshot?.currentIndex)
         assertEquals(5, planner.snapshot?.queueSize)
         assertSame(queue[currentIndex], planner.snapshot?.currentTrack)
-        viewModel.viewModelScope.cancel()
+        advanceUntilIdle()
+        viewModel.viewModelScope.coroutineContext[Job]?.cancelAndJoin()
     }
 
     private class CountingListener(

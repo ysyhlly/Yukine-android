@@ -821,6 +821,26 @@ class StreamingViewModelTest {
 
         assertEquals(listOf(local, current, next), target?.tracks)
         assertEquals(2, target?.index)
+        val resolved = StreamingPlaybackAdapter.toTrack(
+            StreamingPlaybackSource(
+                provider = StreamingProviderName.NETEASE,
+                providerTrackId = "resolved",
+                url = "https://old.example.test/resolved.mp3"
+            ),
+            streamingTrack("resolved")
+        )
+        assertEquals(
+            0,
+            viewModel.prepareCurrentStreamingQueueResolveTarget(
+                snapshot = playbackSnapshot(
+                    currentTrack = resolved,
+                    currentIndex = 0,
+                    queueSize = 1,
+                    playing = false
+                ),
+                queue = listOf(resolved)
+            )?.index
+        )
         assertNull(
             viewModel.prepareCurrentStreamingQueueResolveTarget(
                 snapshot = playbackSnapshot(

@@ -264,6 +264,34 @@ class PlaybackStateEventControllerTest {
         assertEquals(listOf(2L), listener.preResolvedTrackIds)
     }
 
+    @Test
+    fun resolvedStreamingPlaybackErrorRefreshesUrlAndSuppressesStaleError() {
+        val listener = RecordingListener(resolveStreamingResult = true)
+        val controller = PlaybackStateEventController(
+            Handler(Looper.getMainLooper()),
+            MainPlaybackStore(PlaybackViewModel()),
+            CountingQueueSource(emptyList()),
+            listener
+        )
+        val streaming = Track(
+            77L,
+            "Streaming",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://expired.example.test/song.mp3"),
+            "streaming:netease:song-77"
+        )
+
+        controller.onPlaybackStateChanged(
+            snapshot(streaming, 10_000L, 1, errorMessage = "Unable to play this track.")
+        )
+        idleMain()
+
+        assertEquals(1, listener.streamingResolveCalls)
+        assertEquals(emptyList<String>(), listener.statuses)
+    }
+
     private class CountingQueueSource(
         var queue: List<Track>
     ) : PlaybackStateEventController.QueueSnapshotSource {
@@ -277,7 +305,8 @@ class PlaybackStateEventControllerTest {
 
     private class RecordingListener(
         var selectedTab: String = MainRoutes.TAB_QUEUE,
-        var queueVisibleOverride: Boolean? = null
+        var queueVisibleOverride: Boolean? = null,
+        private val resolveStreamingResult: Boolean = false
     ) : PlaybackStateEventController.Listener {
         var nowBarUpdates = 0
         val homePlaybackPositions = mutableListOf<Long>()
@@ -285,6 +314,8 @@ class PlaybackStateEventControllerTest {
         val loadedLyricsTrackIds = mutableListOf<Long>()
         val homeTrackIds = mutableListOf<Long>()
         val preResolvedTrackIds = mutableListOf<Long>()
+        var streamingResolveCalls = 0
+        val statuses = mutableListOf<String>()
 
         override fun selectedTab(): String = selectedTab
 
@@ -321,16 +352,22 @@ class PlaybackStateEventControllerTest {
 
         override fun recoverStreamingBuffering(snapshot: PlaybackStateSnapshot) = Unit
 
-        override fun resolveCurrentStreamingTrackIfNeeded(): Boolean = false
+        override fun resolveCurrentStreamingTrackIfNeeded(): Boolean {
+            streamingResolveCalls += 1
+            return resolveStreamingResult
+        }
 
-        override fun setStatus(status: String) = Unit
+        override fun setStatus(status: String) {
+            statuses += status
+        }
     }
 
     private fun snapshot(
         track: Track,
         positionMs: Long,
         queueSize: Int,
-        queueRevision: Long = 0L
+        queueRevision: Long = 0L,
+        errorMessage: String = ""
     ): PlaybackStateSnapshot =
         PlaybackStateSnapshot(
             track,
@@ -340,7 +377,7 @@ class PlaybackStateEventControllerTest {
             track.durationMs,
             true,
             false,
-            "",
+            errorMessage,
             false,
             0,
             1.0f,

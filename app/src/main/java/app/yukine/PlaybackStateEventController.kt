@@ -119,9 +119,9 @@ internal class PlaybackStateEventController(
             listener.updateNowPlayingContent()
         }
         if (result.showError) {
-            // 当前曲目仍是未解析的流媒体占位（自动切歌/恢复时常见）：自动触发解析并吞掉
-            // “请重新点击歌曲”这条过期提示，而不是要求用户再点一次。
-            if (StreamingPlaybackAdapter.isUnresolvedStreamingTrack(snapshot.currentTrack)) {
+            // 流媒体地址可能在后台或冷启动恢复后过期。任何流媒体播放错误都先自动刷新
+            // 当前 URL；占位曲和已解析但已失效的临时地址走同一条恢复路径。
+            if (StreamingPlaybackAdapter.isStreamingTrack(snapshot.currentTrack)) {
                 val trackId = snapshot.currentTrack?.id ?: -1L
                 if (trackId != lastAutoResolveTrackId && listener.resolveCurrentStreamingTrackIfNeeded()) {
                     lastAutoResolveTrackId = trackId
@@ -130,7 +130,7 @@ internal class PlaybackStateEventController(
             }
             listener.setStatus(snapshot.errorMessage)
         } else {
-            // 一旦当前曲目可正常播放，重置自动解析去重标记，便于后续占位曲再次自动解析。
+            // 一旦当前曲目可正常播放，重置自动解析去重标记，便于地址后续再次失效时恢复。
             if (!StreamingPlaybackAdapter.isUnresolvedStreamingTrack(snapshot.currentTrack)) {
                 lastAutoResolveTrackId = -1L
             }

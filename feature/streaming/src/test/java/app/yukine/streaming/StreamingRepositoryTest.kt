@@ -18,6 +18,34 @@ import org.junit.Test
 
 class StreamingRepositoryTest {
     @Test
+    fun persistentHeadersReplaceExpiredPersistedUrlWithFreshCachedUrl() = runTest {
+        val dao = FakeStreamingCacheDao()
+        val cache = StreamingCacheRepository(dao) { 3_000L }
+        cache.savePlayback(
+            StreamingProviderName.NETEASE,
+            "track-restore",
+            StreamingAudioQuality.HIGH,
+            StreamingGatewayJson.playbackSourceJson(
+                playbackSource("https://fresh.example.test/track.mp3").copy(
+                    providerTrackId = "track-restore"
+                )
+            ),
+            ttlMs = 60_000L
+        )
+        val persisted = StreamingPlaybackAdapter.toTrack(
+            playbackSource("https://expired.example.test/track.mp3").copy(
+                providerTrackId = "track-restore"
+            )
+        )
+        assertNotNull(cache.cachedPlaybackBlocking(StreamingProviderName.NETEASE, "track-restore"))
+
+        val restored = PersistentStreamingPlaybackHeaders(cache).restoredTrackFor(persisted)
+
+        assertNotNull(restored)
+        assertEquals(persisted.dataPath, restored?.dataPath)
+    }
+
+    @Test
     fun emptyRepositoryFactoryProvidesOfflineMockProvider() = runTest {
         val repository = StreamingRepositoryFactory.empty()
 

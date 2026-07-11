@@ -13,6 +13,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.lifecycleScope
 import app.yukine.model.Track
 import app.yukine.ui.EchoDialog
@@ -92,6 +93,7 @@ internal class LibraryFileDeleteLauncher @JvmOverloads constructor(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.R)
     private fun launchModernMediaDelete(
         media: List<Track>,
         deleted: List<Track>,
@@ -162,10 +164,29 @@ internal class LibraryFileDeleteLauncher @JvmOverloads constructor(
 
     private fun tryDeleteMedia(track: Track): DirectDeleteOutcome {
         val uri = validContentUri(track) ?: return deleteFilePath(track)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            tryDeleteMediaWithRecovery(uri)
+        } else {
+            tryDeleteMediaDirect(uri)
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun tryDeleteMediaWithRecovery(uri: Uri): DirectDeleteOutcome {
         return try {
             if (resolver.delete(uri, null, null) > 0) DirectDeleteOutcome.Deleted else DirectDeleteOutcome.Failed
         } catch (error: RecoverableSecurityException) {
             DirectDeleteOutcome.NeedsPermission(error.userAction.actionIntent)
+        } catch (_: SecurityException) {
+            DirectDeleteOutcome.Failed
+        } catch (_: IllegalArgumentException) {
+            DirectDeleteOutcome.Failed
+        }
+    }
+
+    private fun tryDeleteMediaDirect(uri: Uri): DirectDeleteOutcome {
+        return try {
+            if (resolver.delete(uri, null, null) > 0) DirectDeleteOutcome.Deleted else DirectDeleteOutcome.Failed
         } catch (_: SecurityException) {
             DirectDeleteOutcome.Failed
         } catch (_: IllegalArgumentException) {

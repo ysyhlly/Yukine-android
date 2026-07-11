@@ -70,7 +70,7 @@ class PersistentStreamingPlaybackHeaders(
     }
 
     override fun restoredTrackFor(track: Track?): Track? {
-        if (!StreamingPlaybackAdapter.isUnresolvedStreamingTrack(track)) {
+        if (!StreamingPlaybackAdapter.isStreamingTrack(track)) {
             return null
         }
         val dataPath = track?.dataPath ?: return null
@@ -86,16 +86,27 @@ class PersistentStreamingPlaybackHeaders(
             return null
         }
         register(dataPath, source.headers)
+        val restoredUri = Uri.parse(source.url)
+        if (track.contentUri?.toString() == source.url) {
+            return null
+        }
         return Track(
             track.id,
             track.title,
             track.artist,
             track.album,
             track.durationMs,
-            Uri.parse(source.url),
+            restoredUri,
             dataPath,
             track.albumId,
-            track.albumArtUri
+            track.albumArtUri,
+            track.codec,
+            track.bitrateKbps,
+            track.sampleRateHz,
+            track.bitsPerSample,
+            track.channelCount,
+            track.replayGainTrackDb,
+            track.replayGainAlbumDb
         )
     }
 

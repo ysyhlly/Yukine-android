@@ -4593,7 +4593,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(mainActivity.contains("streamingPlaylistSyncStore.linkPlaylist(\r\n                            result.playlistId"));
         assertFalse(mainActivity.contains("streamingPlaylistSyncStore.linkPlaylist(\n                            result.playlistId"));
         assertTrue(resolveUseCase.contains("internal class ResolveStreamingPlaybackUseCase"));
-        assertTrue(resolveUseCase.contains("StreamingPlaybackAdapter.isUnresolvedStreamingTrack"));
+        assertTrue(resolveUseCase.contains("StreamingPlaybackAdapter.isStreamingTrack"));
         assertTrue(resolveUseCase.contains("StreamingPlaybackAdapter.streamingProviderName"));
         assertTrue(resolveUseCase.contains("fun metadataFor("));
         assertTrue(resolveUseCase.contains("fun replaceResolvedTrack("));
