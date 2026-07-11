@@ -2,6 +2,7 @@ package app.yukine.ui
 
 import android.net.Uri
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Surface
@@ -26,7 +28,10 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import app.yukine.TrackDownloadItem
 import app.yukine.UnifiedSearchUiState
 import app.yukine.model.Track
+import app.yukine.streaming.StreamingPlaybackCandidate
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
 
@@ -152,8 +158,10 @@ fun UnifiedSearchScreen(
                 query.isBlank() -> item("online-empty-before") {
                     EmptyHint("按搜索后会使用当前已连接的流媒体账号查找在线歌曲。")
                 }
-                streamingState.loading -> item("online-loading") { EmptyHint("正在搜索在线音乐...") }
-                !streamingState.errorMessage.isNullOrBlank() -> item("online-error") {
+                streamingState.loading && onlineTracks.isEmpty() -> item("online-loading") {
+                    EmptyHint("正在搜索在线音乐...")
+                }
+                !streamingState.errorMessage.isNullOrBlank() && onlineTracks.isEmpty() -> item("online-error") {
                     EmptyHint(streamingState.errorMessage ?: "在线搜索失败")
                 }
                 onlineTracks.isEmpty() && searchState.searched -> item("online-empty") {
@@ -163,9 +171,13 @@ fun UnifiedSearchScreen(
                     items(onlineTracks, key = { it.stableKey }) { track ->
                         StreamingTrackResultRow(
                             track = track,
-                            sourceLabel = streamingState.sourceLabel(track.provider)
-                        ) {
-                            actions.onPlayStreamingTrack.run(track)
+                            streamingState = streamingState,
+                            onPlay = actions.onPlayStreamingTrack::run
+                        )
+                    }
+                    if (!streamingState.errorMessage.isNullOrBlank()) {
+                        item("online-playback-error") {
+                            EmptyHint(streamingState.errorMessage ?: "在线歌曲解析失败")
                         }
                     }
                     if (streamingState.hasMore) {
@@ -284,9 +296,12 @@ private fun LocalTrackResultRow(track: Track, onClick: () -> Unit) {
 @Composable
 private fun StreamingTrackResultRow(
     track: StreamingTrack,
-    sourceLabel: String,
-    onClick: () -> Unit
+    streamingState: UnifiedSearchStreamingState,
+    onPlay: (StreamingTrack) -> Unit
 ) {
+    val sources = track.selectablePlaybackSources()
+    var sourcesExpanded by rememberSaveable(track.stableKey) { mutableStateOf(false) }
+    val additionalSourceCount = (sources.size - 1).coerceAtLeast(0)
     ResultRow(
         title = cleanSearchDisplayText(track.title),
         subtitle = listOf(track.artist, track.album.orEmpty())
@@ -294,11 +309,39 @@ private fun StreamingTrackResultRow(
             .filter { it.isNotBlank() }
             .joinToString(" / "),
         coverUri = (track.coverThumbUrl ?: track.coverUrl)?.let(Uri::parse),
-        sourceLabel = sourceLabel + (track.playbackSourceCount - 1)
+        sourceLabel = streamingState.sourceLabel(track) + additionalSourceCount
             .takeIf { it > 0 }
             ?.let { " +$it" }
             .orEmpty(),
-        onClick = onClick
+        onClick = { onPlay(track) },
+        onSourceClick = if (additionalSourceCount > 0) {
+            { sourcesExpanded = !sourcesExpanded }
+        } else {
+            null
+        },
+        expandedContent = if (sourcesExpanded && additionalSourceCount > 0) {
+            {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    sources.forEach { source ->
+                        PlaybackSourceOptionChip(
+                            label = streamingState.sourceLabel(source),
+                            selected = source.matches(track.provider, track.providerTrackId),
+                            enabled = source.available
+                        ) {
+                            sourcesExpanded = false
+                            onPlay(track.withSelectedPlaybackSource(source))
+                        }
+                    }
+                }
+            }
+        } else {
+            null
+        }
     )
 }
 
@@ -308,7 +351,9 @@ private fun ResultRow(
     subtitle: String,
     coverUri: Uri?,
     sourceLabel: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onSourceClick: (() -> Unit)? = null,
+    expandedContent: (@Composable () -> Unit)? = null
 ) {
     val p = EchoTheme.colors()
     Surface(
@@ -319,51 +364,57 @@ private fun ResultRow(
         shape = EchoShapes.medium,
         color = Color.Transparent
     ) {
-        Row(
-            modifier = Modifier.padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AsyncArtwork(
-                uri = coverUri,
-                title = title,
-                subtitle = subtitle,
-                modifier = Modifier.size(52.dp),
-                cornerRadius = 8.dp,
-                fallbackTextSize = 14.sp,
-                targetSize = 52.dp,
-                backgroundColor = p.surfaceVariant
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    title.ifBlank { "未知歌曲" },
-                    style = EchoTypography.body.copy(fontWeight = FontWeight.SemiBold),
-                    color = p.heading,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+        Column {
+            Row(
+                modifier = Modifier.padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AsyncArtwork(
+                    uri = coverUri,
+                    title = title,
+                    subtitle = subtitle,
+                    modifier = Modifier.size(52.dp),
+                    cornerRadius = 8.dp,
+                    fallbackTextSize = 14.sp,
+                    targetSize = 52.dp,
+                    backgroundColor = p.surfaceVariant
                 )
-                Text(
-                    subtitle.ifBlank { "未知歌手" },
-                    style = EchoTypography.caption,
-                    color = p.muted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        title.ifBlank { "未知歌曲" },
+                        style = EchoTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                        color = p.heading,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        subtitle.ifBlank { "未知歌手" },
+                        style = EchoTypography.caption,
+                        color = p.muted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                SourceChip(sourceLabel, onSourceClick)
+                Spacer(Modifier.width(8.dp))
+                EchoIcon(EchoIconKind.Play, Modifier.size(22.dp), p.accent)
             }
-            SourceChip(sourceLabel)
-            Spacer(Modifier.width(8.dp))
-            EchoIcon(EchoIconKind.Play, Modifier.size(22.dp), p.accent)
+            if (expandedContent != null) {
+                Box(
+                    modifier = Modifier.padding(start = 74.dp, end = 10.dp, bottom = 10.dp)
+                ) {
+                    expandedContent()
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun SourceChip(label: String) {
+private fun SourceChip(label: String, onClick: (() -> Unit)? = null) {
     val p = EchoTheme.colors()
-    Surface(
-        shape = EchoShapes.small,
-        color = p.accent.copy(alpha = 0.10f)
-    ) {
+    val content: @Composable () -> Unit = {
         Text(
             label,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -371,6 +422,40 @@ private fun SourceChip(label: String) {
             color = p.accent,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
+        )
+    }
+    if (onClick == null) {
+        Surface(shape = EchoShapes.small, color = p.accent.copy(alpha = 0.10f), content = content)
+    } else {
+        Surface(
+            onClick = onClick,
+            shape = EchoShapes.small,
+            color = p.accent.copy(alpha = 0.10f),
+            content = content
+        )
+    }
+}
+
+@Composable
+private fun PlaybackSourceOptionChip(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val p = EchoTheme.colors()
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = EchoShapes.small,
+        color = if (selected) p.accent.copy(alpha = 0.18f) else p.surfaceVariant
+    ) {
+        Text(
+            if (selected) "$label · 当前" else label,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+            color = if (enabled) p.accent else p.muted,
+            maxLines = 1
         )
     }
 }
@@ -388,6 +473,64 @@ private fun fallbackSourceLabel(provider: StreamingProviderName): String = when 
     StreamingProviderName.M3U8 -> "M3U8"
     StreamingProviderName.PLUGIN -> "自定义"
     StreamingProviderName.MOCK -> "在线"
+}
+
+private fun UnifiedSearchStreamingState.sourceLabel(track: StreamingTrack): String {
+    if (track.provider != StreamingProviderName.LUOXUE) return sourceLabel(track.provider)
+    val sourceKey = track.providerTrackId.substringBefore(':').trim().lowercase()
+    return if (sourceKey in setOf("tx", "wy", "kw", "kg", "mg", "git", "local")) {
+        "LX · ${sourceKey.uppercase()}"
+    } else {
+        sourceLabel(track.provider)
+    }
+}
+
+private fun UnifiedSearchStreamingState.sourceLabel(candidate: StreamingPlaybackCandidate): String {
+    if (candidate.provider != StreamingProviderName.LUOXUE) return sourceLabel(candidate.provider)
+    val sourceKey = candidate.providerTrackId.orEmpty().substringBefore(':').trim().lowercase()
+    return if (sourceKey in setOf("tx", "wy", "kw", "kg", "mg", "git", "local")) {
+        "LX · ${sourceKey.uppercase()}"
+    } else {
+        sourceLabel(candidate.provider)
+    }
+}
+
+private fun StreamingTrack.selectablePlaybackSources(): List<StreamingPlaybackCandidate> {
+    val primary = StreamingPlaybackCandidate(
+        provider = provider,
+        label = provider.wireName,
+        providerTrackId = providerTrackId,
+        available = playable,
+        luoxueMusicInfoJson = luoxueMusicInfoJson
+    )
+    val seen = linkedSetOf<String>()
+    return (listOf(primary) + playbackCandidates).mapNotNull { candidate ->
+        val candidateTrackId = candidate.providerTrackId?.trim().orEmpty()
+        if (candidateTrackId.isBlank()) return@mapNotNull null
+        candidate.copy(providerTrackId = candidateTrackId)
+            .takeIf { seen.add("${candidate.provider.wireName}:$candidateTrackId") }
+    }
+}
+
+private fun StreamingPlaybackCandidate.matches(
+    provider: StreamingProviderName,
+    providerTrackId: String
+): Boolean = this.provider == provider && this.providerTrackId == providerTrackId
+
+private fun StreamingTrack.withSelectedPlaybackSource(
+    selected: StreamingPlaybackCandidate
+): StreamingTrack {
+    val selectedTrackId = selected.providerTrackId?.trim().orEmpty()
+    if (selectedTrackId.isBlank()) return this
+    return copy(
+        provider = selected.provider,
+        providerTrackId = selectedTrackId,
+        qualities = selected.quality?.let(::setOf) ?: qualities,
+        playable = selected.available,
+        unavailableReason = null,
+        playbackCandidates = selectablePlaybackSources(),
+        luoxueMusicInfoJson = selected.luoxueMusicInfoJson
+    )
 }
 
 private fun cleanSearchDisplayText(value: String?): String {

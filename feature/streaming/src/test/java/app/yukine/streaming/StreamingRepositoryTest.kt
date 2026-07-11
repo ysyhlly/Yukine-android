@@ -419,6 +419,47 @@ class StreamingRepositoryTest {
     }
 
     @Test
+    fun resolvePlaybackTrackPassesCandidateLuoxueMusicInfoToFallback() = runTest {
+        val musicInfo = """{"hash":"lx-hash","album_id":"22"}"""
+        val requests = mutableListOf<StreamingPlaybackRequest>()
+        val gateway = object : StreamingGateway by FakeStreamingGateway() {
+            override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource {
+                requests += request
+                return if (request.provider == StreamingProviderName.NETEASE) {
+                    playbackSource("").copy(provider = request.provider, providerTrackId = request.providerTrackId)
+                } else {
+                    playbackSource("https://stream.example.test/lx-echo.flac")
+                        .copy(provider = request.provider, providerTrackId = request.providerTrackId)
+                }
+            }
+        }
+        val repository = StreamingRepository(gateway = gateway)
+        val metadata = StreamingTrack(
+            provider = StreamingProviderName.NETEASE,
+            providerTrackId = "netease-echo",
+            title = "Echo",
+            artist = "Artist",
+            playbackCandidates = listOf(
+                StreamingPlaybackCandidate(
+                    provider = StreamingProviderName.LUOXUE,
+                    providerTrackId = "kg:lx-hash.22.0",
+                    luoxueMusicInfoJson = musicInfo
+                )
+            )
+        )
+
+        repository.resolvePlaybackTrack(
+            provider = StreamingProviderName.NETEASE,
+            providerTrackId = "netease-echo",
+            quality = StreamingAudioQuality.HIGH,
+            metadata = metadata
+        )
+
+        assertEquals(2, requests.size)
+        assertEquals(musicInfo, requests[1].luoxueMusicInfoJson)
+    }
+
+    @Test
     fun resolvePlaybackTrackFailsWhenAllCandidateSourcesFail() = runTest {
         val gateway = FakeStreamingGateway(playbackSource = playbackSource(""))
         val repository = StreamingRepository(gateway = gateway)

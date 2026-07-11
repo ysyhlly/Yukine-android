@@ -177,6 +177,13 @@ class StreamingGatewayJsonTest {
                     providerTrackId = "kg:abc123.22.33",
                     title = "Song",
                     artist = "Artist",
+                    playbackCandidates = listOf(
+                        StreamingPlaybackCandidate(
+                            provider = StreamingProviderName.LUOXUE,
+                            providerTrackId = "kg:alternate.22.33",
+                            luoxueMusicInfoJson = musicInfo
+                        )
+                    ),
                     luoxueMusicInfoJson = musicInfo
                 )
             )
@@ -187,6 +194,10 @@ class StreamingGatewayJsonTest {
         assertEquals(
             normalizeLuoxueMusicInfoJson(musicInfo),
             restored.tracks.single().luoxueMusicInfoJson
+        )
+        assertEquals(
+            normalizeLuoxueMusicInfoJson(musicInfo),
+            restored.tracks.single().playbackCandidates.single().luoxueMusicInfoJson
         )
     }
 

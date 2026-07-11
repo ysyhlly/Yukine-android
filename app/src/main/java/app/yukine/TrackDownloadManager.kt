@@ -52,7 +52,8 @@ class TrackDownloadManager internal constructor(
     @ApplicationContext private val context: Context,
     private val streamingHeaders: StreamingPlaybackHeaderStore,
     private val customExecutor: ExecutorService,
-    private val segmentExecutor: ExecutorService
+    private val segmentExecutor: ExecutorService,
+    private val metadataWriter: DownloadedAudioMetadataWriter = DownloadedAudioMetadataWriter()
 ) : TrackDownloadRequestQueue {
     private val records = linkedMapOf<Long, TrackDownloadRecord>()
     private val preferences = context.getSharedPreferences("track_downloads", Context.MODE_PRIVATE)
@@ -81,56 +82,7 @@ class TrackDownloadManager internal constructor(
         }
         val uri = downloadableUri(track)
             ?: return TrackDownloadResult(false, message = "当前歌曲暂不支持下载，请先播放解析成功后再试")
-        customDownloadTreeUri()?.let { treeUri ->
-            return enqueueAppManagedDownload(track, quality, uri, treeUri)
-        }
-        if (shouldUseAppManagedDownload(track)) {
-            return enqueueAppManagedDownload(track, quality, uri, null)
-        }
-        val request = DownloadManager.Request(uri)
-            .setTitle(track.title)
-            .setDescription(track.artist)
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setAllowedOverMetered(true)
-            .setAllowedOverRoaming(true)
-            .setMimeType(mimeTypeFor(track))
-            .setDestinationInExternalPublicDir(
-                publicDirectoryName(),
-                "Yukine/${safeFileName(track)}"
-            )
-        request.allowScanningByMediaScanner()
-        val headers = streamingHeaders.forDataPath(track.dataPath)
-        headers.forEach { (name, value) ->
-            if (name.isNotBlank() && value.isNotBlank()) {
-                request.addRequestHeader(name, value)
-            }
-        }
-        if (headers.keys.none { it.equals("User-Agent", ignoreCase = true) }) {
-            request.addRequestHeader("User-Agent", DEFAULT_USER_AGENT)
-        }
-        if (headers.keys.none { it.equals("Accept", ignoreCase = true) }) {
-            request.addRequestHeader("Accept", "audio/*,*/*")
-        }
-        val manager = context.getSystemService(DownloadManager::class.java)
-            ?: return TrackDownloadResult(false, message = "系统下载服务不可用")
-        val id = try {
-            manager.enqueue(request)
-        } catch (error: RuntimeException) {
-            return TrackDownloadResult(false, message = "下载任务创建失败：${error.message ?: "系统下载服务拒绝该链接"}")
-        }
-        synchronized(records) {
-            records[id] = TrackDownloadRecord(
-                id,
-                track.title,
-                track.artist,
-                quality.wireName,
-                album = track.album,
-                albumArtUri = track.albumArtUriString()
-            )
-            persistRecordsLocked()
-        }
-        scheduleArtworkDownload(track, null)
-        return TrackDownloadResult(true, id, downloadStartedMessage("已提交系统下载", track))
+        return enqueueAppManagedDownload(track, quality, uri, customDownloadTreeUri())
     }
 
     fun shutdownNow() {
@@ -402,11 +354,22 @@ class TrackDownloadManager internal constructor(
             } else {
                 runSingleConnectionDownload(id, sourceUri, headers, workDir, total)
             }
+            val downloadedFile = File(workDir, SINGLE_PART_FILE_NAME)
+            val artworkSource = runCatching {
+                track.albumArtUri?.let(::readArtworkBytes)
+            }.getOrNull()
+            val publishFile = metadataWriter.prepareTaggedCopy(
+                source = downloadedFile,
+                track = track,
+                extension = extensionFor(track),
+                artworkBytes = artworkSource?.bytes,
+                artworkMimeType = artworkSource?.mimeType
+            )
             targetUri = synchronized(records) {
                 records[id]?.localUri?.takeIf { it.isNotBlank() }?.let(Uri::parse)
             } ?: createTargetUri(treeUri, track)
             updateCustomRecord(id) { it.copy(localUri = targetUri.toString(), totalBytes = total) }
-            mergeWorkFileToTarget(id, workDir, targetUri)
+            mergeWorkFileToTarget(id, publishFile, targetUri)
             updateCustomRecord(id) {
                 it.copy(
                     status = TrackDownloadStatus.Finished,
@@ -416,7 +379,8 @@ class TrackDownloadManager internal constructor(
                 )
             }
             markPublicTargetFinished(targetUri)
-            saveArtworkForTrack(track, treeUri)
+            saveArtworkForTrack(track, treeUri, artworkSource)
+            workDir.deleteRecursively()
         } catch (_: DownloadRemovedException) {
             targetUri?.let(::deleteTargetUri)
             downloadWorkDir(id).deleteRecursively()
@@ -599,8 +563,7 @@ class TrackDownloadManager internal constructor(
         }
     }
 
-    private fun mergeWorkFileToTarget(id: Long, workDir: File, targetUri: Uri) {
-        val source = File(workDir, SINGLE_PART_FILE_NAME)
+    private fun mergeWorkFileToTarget(id: Long, source: File, targetUri: Uri) {
         if (!source.exists() || source.length() <= 0L) {
             throw IOException("下载缓存为空")
         }
@@ -776,15 +739,6 @@ class TrackDownloadManager internal constructor(
         ) ?: throw IOException("无法创建下载文件")
     }
 
-    private fun scheduleArtworkDownload(track: Track, treeUri: Uri?) {
-        if (track.albumArtUri == null) {
-            return
-        }
-        submitCustomTask {
-            saveArtworkForTrack(track, treeUri)
-        }
-    }
-
     private fun submitCustomTask(task: () -> Unit): Boolean {
         if (shutdown || customExecutor.isShutdown) {
             return false
@@ -797,10 +751,14 @@ class TrackDownloadManager internal constructor(
         }
     }
 
-    private fun saveArtworkForTrack(track: Track, treeUri: Uri?) {
+    private fun saveArtworkForTrack(
+        track: Track,
+        treeUri: Uri?,
+        downloadedSource: ArtworkDownloadSource? = null
+    ) {
         runCatching {
             val artworkUri = track.albumArtUri ?: return
-            val source = readArtworkBytes(artworkUri) ?: return
+            val source = downloadedSource ?: readArtworkBytes(artworkUri) ?: return
             val targetUri = createArtworkTargetUri(treeUri, track, artworkUri, source.mimeType)
             try {
                 openTargetOutputStream(targetUri)?.use { output ->
@@ -925,10 +883,6 @@ class TrackDownloadManager internal constructor(
         }
         return preferences.getString(KEY_CUSTOM_TREE_URI, null)?.let(Uri::parse)
     }
-
-    private fun shouldUseAppManagedDownload(track: Track): Boolean =
-        track.dataPath.startsWith("streaming:", ignoreCase = true) ||
-            streamingHeaders.forDataPath(track.dataPath).isNotEmpty()
 
     private fun safeFileName(track: Track): String {
         return TrackDownloadFileNamePolicy.audioFileName(track, extensionFor(track))

@@ -5,6 +5,7 @@ import kotlinx.coroutines.CancellationException
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -41,6 +42,13 @@ class LocalLuoxueStreamingClientTest {
                                             .put("album_audio_id", 33)
                                             .put("songname", "Kugou Song")
                                             .put("singername", "Kugou Artist")
+                                            .put(
+                                                "trans_param",
+                                                JSONObject().put(
+                                                    "union_cover",
+                                                    "http://imge.kugou.com/stdmusic/{size}/cover.jpg"
+                                                )
+                                            )
                                             .put("HQFileHash", "abcdef0123456789")
                                     )
                                 )
@@ -59,6 +67,7 @@ class LocalLuoxueStreamingClientTest {
             result.tracks[0].coverUrl
         )
         assertEquals("kg:0123456789abcdef0123456789abcdef.22.33", result.tracks[1].providerTrackId)
+        assertEquals("https://imge.kugou.com/stdmusic/400/cover.jpg", result.tracks[1].coverUrl)
         assertTrue(result.tracks[1].playbackCandidates.any { it.label == "LX/酷狗" })
     }
 
@@ -140,14 +149,21 @@ class LocalLuoxueStreamingClientTest {
             searchResolver = { _, sourceKey, _, _, _ ->
                 searchedKeys += sourceKey
                 LuoxueScriptSearchPage(
-                    items = listOf(
+                    items = (1..2).map { index ->
+                        val idField = when (sourceKey) {
+                            "kw" -> "DC_TARGETID"
+                            "kg" -> "hash"
+                            "tx" -> "songmid"
+                            "mg" -> "copyrightId"
+                            else -> "id"
+                        }
                         mapOf(
                             "source" to sourceKey,
-                            "id" to "id-$sourceKey",
-                            "name" to "Song $sourceKey",
+                            idField to "id-$sourceKey-$index",
+                            "name" to "Song $sourceKey $index",
                             "artist" to "Artist"
                         )
-                    )
+                    }
                 )
             },
             resolver = { _, _, _, _ -> "https://script.example.test/song.mp3" }
@@ -159,7 +175,7 @@ class LocalLuoxueStreamingClientTest {
         val sourceKinds = listOf("kw", "kg", "tx", "wy", "mg", "git", "local")
 
         val result = client.search(
-            StreamingSearchRequest(StreamingProviderName.LUOXUE, "NPC", pageSize = 20),
+            StreamingSearchRequest(StreamingProviderName.LUOXUE, "NPC", pageSize = 10),
             listOf(
                 LuoxueImportedSource(
                     id = "all-sources",
@@ -171,8 +187,12 @@ class LocalLuoxueStreamingClientTest {
         )
 
         assertEquals(sourceKinds, searchedKeys)
-        assertEquals(sourceKinds.size, result.tracks.size)
-        assertTrue(result.tracks.any { it.providerTrackId == "git:id-git" })
+        assertEquals(10, result.tracks.size)
+        assertEquals(
+            sourceKinds + sourceKinds.take(3),
+            result.tracks.map { it.providerTrackId.substringBefore(':') }
+        )
+        assertTrue(result.tracks.any { it.providerTrackId == "git:id-git-1" })
     }
 
     @Test
@@ -355,6 +375,35 @@ class LocalLuoxueStreamingClientTest {
     }
 
     @Test
+    fun importedSourceDowngradesQualityWhenHiResUrlIsUnavailable() = runTest {
+        val attemptedQualities = mutableListOf<String>()
+        val client = LocalLuoxueStreamingClient(
+            scriptRuntime = FakeScriptRuntime { _, sourceKey, _, quality ->
+                assertEquals("kg", sourceKey)
+                attemptedQualities += quality
+                if (quality == "flac24bit") {
+                    "Error: upstream returned 500"
+                } else {
+                    "http://script.example.test/music.flac"
+                }
+            }
+        )
+
+        val source = client.resolvePlayback(
+            StreamingPlaybackRequest(
+                provider = StreamingProviderName.LUOXUE,
+                providerTrackId = "kg:3cdd57a2b1af8f9eaedde3047648c3a0.1.2",
+                quality = StreamingAudioQuality.HIRES
+            ),
+            listOf(LuoxueImportedSource("script-1", "酷狗脚本", sourceKinds = listOf("kg")))
+        )
+
+        assertEquals(listOf("flac24bit", "flac"), attemptedQualities)
+        assertEquals("http://script.example.test/music.flac", source.url)
+        assertEquals(900, source.bitrate)
+    }
+
+    @Test
     fun importedPlaybackScriptFallsBackToLocalActionWhenNativeSubSourceIsMissing() = runTest {
         val attemptedKeys = mutableListOf<String>()
         val client = LocalLuoxueStreamingClient(
@@ -452,6 +501,45 @@ class LocalLuoxueStreamingClientTest {
     }
 
     @Test
+    fun shiqianjiangKugouSourceUsesScopedCompatibilityEndpointWhenScriptFails() = runTest {
+        val hash = "0123456789abcdef0123456789abcdef"
+        val http = FakeLuoxueHttpClient(
+            mapOf(
+                "source.shiqianjiang.cn/api/music/url" to JSONObject()
+                    .put("code", 200)
+                    .put("url", "https://media.example.test/kg-song.flac")
+                    .toString()
+            )
+        )
+        val client = LocalLuoxueStreamingClient(
+            httpClient = http,
+            scriptRuntime = FakeScriptRuntime { _, _, _, _ ->
+                throw IllegalStateException("链接获取失败,数字专辑")
+            }
+        )
+
+        val source = client.resolvePlayback(
+            StreamingPlaybackRequest(
+                provider = StreamingProviderName.LUOXUE,
+                providerTrackId = "kg:$hash.22.33",
+                quality = StreamingAudioQuality.LOSSLESS
+            ),
+            listOf(
+                LuoxueImportedSource(
+                    id = "script-1",
+                    name = "测试脚本",
+                    origin = "https://source.shiqianjiang.cn/api/script/lx?key=test-key",
+                    sourceKinds = listOf("kg")
+                )
+            )
+        )
+
+        assertEquals("https://media.example.test/kg-song.flac", source.url)
+        assertTrue(http.urls.single().contains("songId=$hash"))
+        assertTrue(http.urls.single().contains("key=test-key"))
+    }
+
+    @Test
     fun reportsScriptFailureWhenBuiltInResolverAlsoFails() = runTest {
         val client = LocalLuoxueStreamingClient(
             scriptRuntime = FakeScriptRuntime { _, sourceKey, _, _ ->
@@ -475,6 +563,35 @@ class LocalLuoxueStreamingClientTest {
             assertTrue(error.message.orEmpty().contains("测试脚本/mg"))
             assertTrue(error.message.orEmpty().contains("远端接口返回 403"))
             assertTrue(error.message.orEmpty().contains("本机兜底也不可用"))
+        }
+    }
+
+    @Test
+    fun scriptFailureHidesOriginCredentialAndCollapsesDigitalAlbumErrors() = runTest {
+        val client = LocalLuoxueStreamingClient(
+            scriptRuntime = FakeScriptRuntime { _, _, _, _ ->
+                throw IllegalStateException(
+                    "链接获取失败,数字专辑\n" +
+                        "at handleGetMusicUrl (https://source.example/api/script/lx?key=secret-value:38)"
+                )
+            }
+        )
+
+        try {
+            client.resolvePlayback(
+                StreamingPlaybackRequest(
+                    provider = StreamingProviderName.LUOXUE,
+                    providerTrackId = "mg:copyright-1"
+                ),
+                listOf(LuoxueImportedSource("script-1", "测试脚本", sourceKinds = listOf("mg")))
+            )
+            fail("Expected LX playback resolution to fail")
+        } catch (error: StreamingGatewayException) {
+            val message = error.message.orEmpty()
+            assertTrue(message.contains("该数字专辑暂不支持此音源"))
+            assertFalse(message.contains("secret-value"))
+            assertFalse(message.contains("handleGetMusicUrl"))
+            assertEquals(1, Regex("该数字专辑暂不支持此音源").findAll(message).count())
         }
     }
 

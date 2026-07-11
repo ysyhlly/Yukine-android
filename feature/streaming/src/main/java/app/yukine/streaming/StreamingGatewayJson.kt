@@ -690,7 +690,8 @@ internal object StreamingGatewayJson {
                 quality = value.optionalString("quality")?.let(StreamingAudioQuality::fromWireName),
                 label = value.optionalString("label") ?: value.optionalString("name") ?: provider.wireName,
                 providerTrackId = value.optionalString("providerTrackId") ?: value.optionalString("id"),
-                available = value.optBoolean("available", true)
+                available = value.optBoolean("available", true),
+                luoxueMusicInfoJson = luoxueMusicInfoJson(value)
             )
         }
     }
@@ -803,6 +804,7 @@ internal object StreamingGatewayJson {
             .put("label", candidate.label)
             .put("providerTrackId", candidate.providerTrackId)
             .put("available", candidate.available)
+            .put("luoxueMusicInfo", candidate.luoxueMusicInfoJson)
     }
 
     private fun albumJson(album: StreamingAlbum): JSONObject {

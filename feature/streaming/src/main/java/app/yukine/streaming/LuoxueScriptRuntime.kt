@@ -253,15 +253,27 @@ internal class QuickJsLuoxueScriptRuntime(
                 actionInfo = musicActionInfo(musicInfo, quality)
             )
         )
-        val url = extractUrl(value).orEmpty().trim()
-        if (url.isBlank()) {
+        val url = extractUrl(value)?.let(::normalizeHttpUrlCandidate)
+        if (url.isNullOrBlank()) {
             throw StreamingGatewayException(
-                "LX 音源「${source.name}」未返回 HTTP 播放地址",
+                "LX 音源「${source.name}」未返回有效 HTTP 播放地址",
                 code = StreamingErrorCode.SOURCE_UNAVAILABLE,
                 retryable = true
             )
         }
         return url
+    }
+
+    private fun normalizeHttpUrlCandidate(value: String): String? {
+        val clean = value.trim().trim('"', '\'').replace("\\/", "/")
+        val candidate = when {
+            clean.startsWith("//") -> "https:$clean"
+            else -> clean
+        }
+        return runCatching {
+            val protocol = URL(candidate).protocol.lowercase()
+            candidate.takeIf { protocol == "http" || protocol == "https" }
+        }.getOrNull()
     }
 
     override suspend fun resolveLyrics(
@@ -321,8 +333,9 @@ internal class QuickJsLuoxueScriptRuntime(
                 delay(args.firstOrNull()?.toString()?.toLongOrNull()?.coerceIn(1L, 250L) ?: 25L)
                 true
             }
-            quickJs.evaluate<Any?>(bootstrap(source), source.origin.ifBlank { "lx-source.js" })
-            quickJs.evaluate<Any?>(source.script, source.origin.ifBlank { "lx-source.js" })
+            val sourceName = safeScriptSourceName(source)
+            quickJs.evaluate<Any?>(bootstrap(source), sourceName)
+            quickJs.evaluate<Any?>(source.script, sourceName)
             awaitSourceInitialization(quickJs)
             validateInitializedSource(quickJs, source, sourceKey, action)
             quickJs.evaluate<String>(
@@ -465,6 +478,16 @@ internal class QuickJsLuoxueScriptRuntime(
               return JSON.stringify(typeof result === 'undefined' ? null : result);
             })()
         """.trimIndent()
+    }
+
+    /** Keeps access keys and other query credentials out of QuickJS stack traces. */
+    private fun safeScriptSourceName(source: LuoxueImportedSource): String {
+        return source.origin
+            .substringBefore('?')
+            .substringAfterLast('/')
+            .trim()
+            .takeIf { it.isNotBlank() }
+            ?: "lx-source.js"
     }
 
     private fun musicActionInfo(musicInfo: Map<String, Any?>, quality: String? = null): JSONObject {

@@ -254,7 +254,8 @@ object StreamingPlaybackAdapter : StreamingDataPathParser {
             quality = null,
             label = metadata.provider.wireName,
             providerTrackId = metadata.providerTrackId,
-            available = metadata.playable
+            available = metadata.playable,
+            luoxueMusicInfoJson = metadata.luoxueMusicInfoJson
         )
         distinctPlaybackCandidates(
             metadata.provider,
@@ -269,6 +270,7 @@ object StreamingPlaybackAdapter : StreamingDataPathParser {
                     .put("quality", candidate.quality?.wireName)
                     .put("label", candidate.label.ifBlank { candidate.provider.wireName })
                     .put("available", candidate.available)
+                    .put("luoxueMusicInfo", candidate.luoxueMusicInfoJson)
             )
         }
         return if (array.length() > 1) array.toString() else ""
@@ -294,7 +296,10 @@ object StreamingPlaybackAdapter : StreamingDataPathParser {
                     ?.let(StreamingAudioQuality::fromWireName),
                 label = option.optString("label").trim().ifBlank { provider.wireName },
                 providerTrackId = providerTrackId,
-                available = option.optBoolean("available", true)
+                available = option.optBoolean("available", true),
+                luoxueMusicInfoJson = normalizeLuoxueMusicInfoJson(
+                    option.optString("luoxueMusicInfo").takeIf { it.isNotBlank() }
+                )
             )
         }
     }

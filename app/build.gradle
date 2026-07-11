@@ -131,6 +131,7 @@ dependencies {
     implementation libs.androidx.browser
     implementation libs.androidx.work.runtime.ktx
     implementation libs.wechat.opensdk
+    implementation libs.jaudiotagger
 
     // Media3
     implementation libs.androidx.media3.exoplayer

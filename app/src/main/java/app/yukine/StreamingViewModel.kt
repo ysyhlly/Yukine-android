@@ -570,7 +570,12 @@ class StreamingViewModel @Inject constructor(
                 ?: return
             val normalized = candidate.copy(
                 providerTrackId = providerTrackId,
-                available = candidate.available && providerSupportsPlayback(candidate.provider)
+                available = candidate.available && providerSupportsPlayback(candidate.provider),
+                luoxueMusicInfoJson = candidate.luoxueMusicInfoJson
+                    ?: sourceTrack.luoxueMusicInfoJson.takeIf {
+                        candidate.provider == sourceTrack.provider &&
+                            providerTrackId == sourceTrack.providerTrackId
+                    }
             )
             val identity = "${normalized.provider.wireName}:$providerTrackId:${normalized.quality?.wireName.orEmpty()}"
             if (seenCandidates.add(identity)) {
@@ -587,7 +592,8 @@ class StreamingViewModel @Inject constructor(
                         quality = null,
                         label = track.provider.wireName,
                         providerTrackId = track.providerTrackId,
-                        available = track.playable
+                        available = track.playable,
+                        luoxueMusicInfoJson = track.luoxueMusicInfoJson
                     ),
                     track
                 )

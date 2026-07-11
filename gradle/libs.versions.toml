@@ -29,6 +29,7 @@ androidx-test-core      = "1.6.1"
 androidx-test-junit     = "1.2.1"
 androidx-test-runner    = "1.6.2"
 quickjs-kt              = "1.0.0-alpha13"
+jaudiotagger            = "3.0.1"
 
 
 [libraries]
@@ -90,6 +91,7 @@ androidx-test-core                      = { group = "androidx.test",            
 androidx-test-junit                     = { group = "androidx.test.ext",           name = "junit",                        version.ref = "androidx-test-junit" }
 androidx-test-runner                    = { group = "androidx.test",               name = "runner",                       version.ref = "androidx-test-runner" }
 quickjs-kt                              = { module = "io.github.dokar3:quickjs-kt", version.ref = "quickjs-kt" }
+jaudiotagger                            = { module = "net.jthink:jaudiotagger",     version.ref = "jaudiotagger" }
 
 
 [plugins]

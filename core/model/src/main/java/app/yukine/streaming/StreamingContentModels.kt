@@ -37,7 +37,9 @@ data class StreamingPlaybackCandidate(
     val quality: StreamingAudioQuality? = null,
     val label: String = provider.wireName,
     val providerTrackId: String? = null,
-    val available: Boolean = true
+    val available: Boolean = true,
+    /** Complete LX musicInfo for this specific alternate source, when applicable. */
+    val luoxueMusicInfoJson: String? = null
 )
 
 data class StreamingTrack(

@@ -306,7 +306,7 @@ class StreamingRepository(
                 return@forEach
             }
             if (seen.add("${candidate.provider.wireName}:$candidateTrackId")) {
-                val candidatePayload = metadata
+                val candidatePayload = candidate.luoxueMusicInfoJson ?: metadata
                     ?.takeIf {
                         it.provider == candidate.provider &&
                             it.providerTrackId == candidateTrackId

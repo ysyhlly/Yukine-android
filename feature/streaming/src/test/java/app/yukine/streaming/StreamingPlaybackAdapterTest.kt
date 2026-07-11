@@ -130,6 +130,7 @@ class StreamingPlaybackAdapterTest {
 
     @Test
     fun playbackCandidatesDecodePrimaryAndAlternatesWithoutDuplicates() {
+        val musicInfo = """{"hash":"lx-hash","album_id":"22"}"""
         val placeholder = StreamingPlaybackAdapter.placeholderTrack(
             StreamingTrack(
                 provider = StreamingProviderName.NETEASE,
@@ -144,10 +145,11 @@ class StreamingPlaybackAdapterTest {
                         providerTrackId = "qq-1"
                     ),
                     StreamingPlaybackCandidate(
-                        provider = StreamingProviderName.KUGOU,
+                        provider = StreamingProviderName.LUOXUE,
                         quality = StreamingAudioQuality.LOSSLESS,
-                        label = "酷狗音乐",
-                        providerTrackId = "kugou-1"
+                        label = "LX/酷狗",
+                        providerTrackId = "kg:lx-hash.22.0",
+                        luoxueMusicInfoJson = musicInfo
                     ),
                     StreamingPlaybackCandidate(
                         provider = StreamingProviderName.QQ_MUSIC,
@@ -165,7 +167,7 @@ class StreamingPlaybackAdapterTest {
             listOf(
                 "netease:netease-1:",
                 "qqmusic:qq-1:high",
-                "kugou:kugou-1:lossless"
+                "luoxue:kg:lx-hash.22.0:lossless"
             ),
             candidates.map { candidate ->
                 "${candidate.provider.wireName}:${candidate.providerTrackId}:${candidate.quality?.wireName.orEmpty()}"
@@ -173,5 +175,6 @@ class StreamingPlaybackAdapterTest {
         )
         assertEquals("QQ 音乐", candidates[1].label)
         assertEquals(StreamingAudioQuality.HIGH, candidates[1].quality)
+        assertEquals(normalizeLuoxueMusicInfoJson(musicInfo), candidates[2].luoxueMusicInfoJson)
     }
 }
