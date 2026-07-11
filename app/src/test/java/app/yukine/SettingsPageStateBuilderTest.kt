@@ -281,8 +281,20 @@ class SettingsPageStateBuilderTest {
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "off"), content.uiState.metrics[1].value)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "enabled"), content.uiState.metrics[2].value)
         assertEquals(9, content.actions.size)
+        assertEquals("Choose background: All pages", content.actions[1].label)
+        assertEquals("Clear background: All pages", content.actions[2].label)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "page.background.all.description"), content.actions[1].description)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "page.background.single.description"), content.actions[3].description)
+
+        val chineseContent = SettingsPageStateBuilder.pageBackgrounds(
+            languageMode = AppLanguage.MODE_CHINESE,
+            pageBackgrounds = backgrounds,
+            onNavigate = { },
+            onChoosePageBackground = { },
+            onClearPageBackground = { }
+        )
+        assertEquals("选择背景：全部页面", chineseContent.actions[1].label)
+        assertEquals("清除背景：全部页面", chineseContent.actions[2].label)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()

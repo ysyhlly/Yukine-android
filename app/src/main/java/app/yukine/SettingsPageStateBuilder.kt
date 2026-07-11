@@ -1192,7 +1192,7 @@ internal object SettingsPageStateBuilder {
         val pageLabel = pageBackgroundPageLabel(page, languageMode)
         add(
             SettingsAction(
-                label = text(languageMode, "choose.page.background") + " 路 " + pageLabel,
+                label = pageBackgroundActionLabel(languageMode, "choose.page.background", pageLabel),
                 onClick = Runnable { onChoosePageBackground(page) },
                 description = backgroundActionDescription(page, languageMode),
                 style = SettingsActionStyle.Navigation,
@@ -1202,12 +1202,17 @@ internal object SettingsPageStateBuilder {
         if (uri.isNotBlank()) {
             add(
                 SettingsAction(
-                    label = text(languageMode, "clear.page.background") + " 路 " + pageLabel,
+                    label = pageBackgroundActionLabel(languageMode, "clear.page.background", pageLabel),
                     onClick = Runnable { onClearPageBackground(page) },
                     style = SettingsActionStyle.Destructive
                 )
             )
         }
+    }
+
+    private fun pageBackgroundActionLabel(languageMode: String, actionKey: String, pageLabel: String): String {
+        val separator = if (AppLanguage.isChinese(languageMode)) "：" else ": "
+        return text(languageMode, actionKey) + separator + pageLabel
     }
 
     private fun pageBackgroundPageLabel(page: String, languageMode: String): String {
