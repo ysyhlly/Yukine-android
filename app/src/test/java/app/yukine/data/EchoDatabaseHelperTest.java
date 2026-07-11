@@ -38,6 +38,7 @@ public final class EchoDatabaseHelperTest {
     private static final String TRANSACTION_DATABASE = "test-echo-transaction.db";
     private static final String CONCURRENT_DATABASE = "test-echo-concurrent.db";
     private static final String SETTINGS_DATABASE = "test-echo-settings.db";
+    private static final String EXCLUSION_DATABASE = "test-echo-exclusions.db";
 
     private EchoDatabaseHelper helper;
 
@@ -52,6 +53,7 @@ public final class EchoDatabaseHelperTest {
         deleteDatabase(context, TRANSACTION_DATABASE);
         deleteDatabase(context, CONCURRENT_DATABASE);
         deleteDatabase(context, SETTINGS_DATABASE);
+        deleteDatabase(context, EXCLUSION_DATABASE);
     }
 
     @Test
@@ -63,6 +65,36 @@ public final class EchoDatabaseHelperTest {
         helper.saveSystemMediaLyricsTitleEnabled(true);
 
         Assert.assertTrue(helper.loadSystemMediaLyricsTitleEnabled());
+    }
+
+    @Test
+    public void hiddenTrackStaysExcludedUntilItIsRestored() {
+        helper = new EchoDatabaseHelper(ApplicationProvider.getApplicationContext(), EXCLUSION_DATABASE);
+        Track track = localTrack(701L, "Hidden");
+        helper.upsertTracks(Collections.singletonList(track));
+
+        Assert.assertEquals(1, helper.hideTracks(Collections.singletonList(track)));
+        Assert.assertTrue(helper.loadTracks().isEmpty());
+        Assert.assertEquals(1, helper.loadLibraryExclusions().size());
+
+        helper.upsertTracks(Collections.singletonList(track));
+        Assert.assertTrue(helper.loadTracks().isEmpty());
+
+        String key = helper.loadLibraryExclusions().get(0).sourceKey;
+        Assert.assertTrue(helper.restoreLibraryExclusion(key));
+        helper.upsertTracks(Collections.singletonList(track));
+        Assert.assertEquals(1, helper.loadTracks().size());
+    }
+
+    @Test
+    public void networkTracksAreNotPersistedAsLocalExclusions() {
+        helper = new EchoDatabaseHelper(ApplicationProvider.getApplicationContext(), EXCLUSION_DATABASE);
+        Track track = streamingTrack(702L);
+        helper.upsertTracks(Collections.singletonList(track));
+
+        Assert.assertEquals(0, helper.hideTracks(Collections.singletonList(track)));
+        Assert.assertTrue(helper.loadLibraryExclusions().isEmpty());
+        Assert.assertEquals(1, helper.loadTracks().size());
     }
 
     @Test
@@ -132,6 +164,7 @@ public final class EchoDatabaseHelperTest {
         Assert.assertTrue(tableExists(database, "remote_sources"));
         Assert.assertTrue(tableExists(database, "playback_queue"));
         Assert.assertTrue(tableExists(database, "streaming_track_matches"));
+        Assert.assertTrue(tableExists(database, "library_exclusions"));
         Assert.assertTrue(columnExists(database, "tracks", "codec"));
         Assert.assertTrue(columnExists(database, "tracks", "replay_gain_album_db"));
         Assert.assertTrue(columnExists(database, "favorites", "created_at"));

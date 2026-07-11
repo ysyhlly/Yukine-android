@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import app.yukine.LibraryTrackListDestinationState
+import app.yukine.ui.LibraryActionHandler
 import app.yukine.TrackDownloadItem
 import app.yukine.ui.TrackListScreen
 import app.yukine.ui.YukineOrbAudioMotion
@@ -24,7 +25,9 @@ fun LibraryTrackListDestination(
     onSearch: Runnable = Runnable { },
     activeDownload: TrackDownloadItem? = null,
     playbackQuality: String = "",
-    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
+    actionHandler: LibraryActionHandler = LibraryActionHandler { },
+    libraryControlsEnabled: Boolean = false
 ) {
     val uiState by state.collectAsState()
     val backAction = uiState.headerActions.firstOrNull { action ->
@@ -46,6 +49,9 @@ fun LibraryTrackListDestination(
         activeDownload,
         playbackQuality,
         audioMotion,
-        uiState.footerAlbums
+        uiState.footerAlbums,
+        uiState.libraryUi,
+        actionHandler,
+        libraryControlsEnabled
     )
 }

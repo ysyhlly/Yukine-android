@@ -9,8 +9,9 @@ import app.yukine.ui.TrackListLabels
 import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.TrackRowActions
 import app.yukine.ui.TrackRowUiState
+import app.yukine.ui.LibraryUiState
 
-data class LibraryTrackListDestinationState(
+data class LibraryTrackListDestinationState @JvmOverloads constructor(
     val title: String = "",
     val rows: List<TrackRowUiState> = emptyList(),
     val footerAlbums: List<TrackListAlbumCardUiState> = emptyList(),
@@ -19,13 +20,15 @@ data class LibraryTrackListDestinationState(
     val headerActions: List<TrackListHeaderAction> = emptyList(),
     val emptyText: String = "",
     val modeActions: List<TrackListModeAction> = emptyList(),
-    val labels: TrackListLabels = TrackListLabels()
+    val labels: TrackListLabels = TrackListLabels(),
+    val libraryUi: LibraryUiState = LibraryUiState()
 )
 
-data class LibraryGroupsDestinationState(
+data class LibraryGroupsDestinationState @JvmOverloads constructor(
     val title: String = "",
     val rows: List<LibraryGroupUiState> = emptyList(),
     val actions: List<LibraryGroupActions> = emptyList(),
     val emptyText: String = "",
-    val modeActions: List<TrackListModeAction> = emptyList()
+    val modeActions: List<TrackListModeAction> = emptyList(),
+    val libraryUi: LibraryUiState = LibraryUiState()
 )

@@ -9,6 +9,11 @@ import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
 import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.LibraryGroupUiState
+import app.yukine.ui.LibraryAction
+import app.yukine.ui.LibraryFilter
+import app.yukine.ui.LibraryMode
+import app.yukine.ui.LibraryUiLabels
+import app.yukine.ui.LibraryUiState
 import app.yukine.ui.TrackListAlbumCardUiState
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
@@ -40,6 +45,7 @@ sealed interface LibraryEvent {
     data class Search(val query: String) : LibraryEvent
     data object ImportFiles : LibraryEvent
     data object ScanLibrary : LibraryEvent
+    data class DeleteTracks(val tracks: List<Track>) : LibraryEvent
 }
 
 interface LibraryGateway {
@@ -54,6 +60,9 @@ interface LibraryGateway {
     fun search(query: String)
     fun importFiles()
     fun scanLibrary()
+    fun refreshLibrary() = Unit
+    fun requestDeleteTracks(tracks: List<Track>) = Unit
+    fun downloadTracks(tracks: List<Track>) = Unit
 }
 
 fun interface LibraryPlaylistTrackLoader {
@@ -187,6 +196,12 @@ class LibraryViewModel @JvmOverloads constructor(
     private val libraryGroupsState = MutableStateFlow(LibraryGroupsDestinationState())
     val libraryGroups: StateFlow<LibraryGroupsDestinationState> = libraryGroupsState.asStateFlow()
 
+    private val libraryUiState = MutableStateFlow(LibraryUiState())
+    val libraryUi: StateFlow<LibraryUiState> = libraryUiState.asStateFlow()
+
+    private var visibleTrackTargets: LinkedHashMap<String, Track> = LinkedHashMap()
+    private var visibleGroupTargets: LinkedHashMap<String, List<Track>> = LinkedHashMap()
+
     private var gateway: LibraryGateway? = null
     private var playlistTrackLoader: LibraryPlaylistTrackLoader? = null
     private var favoriteWriter: LibraryFavoriteWriter? = null
@@ -247,7 +262,189 @@ class LibraryViewModel @JvmOverloads constructor(
             is LibraryEvent.Search -> gateway?.search(event.query)
             LibraryEvent.ImportFiles -> gateway?.importFiles()
             LibraryEvent.ScanLibrary -> gateway?.scanLibrary()
+            is LibraryEvent.DeleteTracks -> gateway?.requestDeleteTracks(event.tracks)
         }
+    }
+
+    fun onLibraryAction(action: LibraryAction) {
+        when (action) {
+            is LibraryAction.QueryChanged -> {
+                libraryUiState.value = libraryUiState.value.copy(
+                    query = action.query,
+                    revealedRowKey = null,
+                    selectedTrackKeys = emptySet(),
+                    selectedGroupKeys = emptySet()
+                )
+                publishInteractionState()
+                gateway?.search(action.query)
+            }
+            is LibraryAction.SortChanged -> {
+                libraryUiState.value = libraryUiState.value.copy(sort = action.sort, revealedRowKey = null)
+                publishInteractionState()
+                gateway?.refreshLibrary()
+            }
+            is LibraryAction.FilterChanged -> {
+                libraryUiState.value = libraryUiState.value.copy(
+                    filter = action.filter,
+                    revealedRowKey = null,
+                    selectedTrackKeys = emptySet(),
+                    selectedGroupKeys = emptySet()
+                )
+                publishInteractionState()
+                gateway?.refreshLibrary()
+            }
+            is LibraryAction.ModeChanged -> {
+                libraryUiState.value = libraryUiState.value.copy(
+                    mode = action.mode,
+                    revealedRowKey = null,
+                    selectedTrackKeys = emptySet(),
+                    selectedGroupKeys = emptySet()
+                )
+                publishInteractionState()
+                gateway?.changeGroupMode(action.mode.routeKey)
+            }
+            is LibraryAction.RevealTrack -> {
+                libraryUiState.value = libraryUiState.value.copy(revealedRowKey = action.key)
+                publishInteractionState()
+            }
+            is LibraryAction.ToggleTrackSelection -> toggleTrackSelection(action.key)
+            is LibraryAction.ToggleGroupSelection -> toggleGroupSelection(action.key)
+            LibraryAction.SelectAllVisible -> selectAllVisible()
+            LibraryAction.ClearSelection -> clearSelection()
+            LibraryAction.PlaySelected -> selectedTracks().takeIf { it.isNotEmpty() }
+                ?.let { gateway?.playTrackList(it, 0) }
+            LibraryAction.FavoriteSelected -> favoriteSelectedTracks()
+            LibraryAction.AddSelectedToPlaylist -> addSelectedTracksToDefaultPlaylist()
+            LibraryAction.DownloadSelected -> selectedTracks().takeIf { it.isNotEmpty() }
+                ?.let { gateway?.downloadTracks(it) }
+            LibraryAction.DeleteSelected -> selectedTracks().takeIf { it.isNotEmpty() }
+                ?.let { gateway?.requestDeleteTracks(it) }
+            LibraryAction.ScanLibrary -> gateway?.scanLibrary()
+            LibraryAction.ImportFiles -> gateway?.importFiles()
+        }
+    }
+
+    fun updateVisibleTrackTargets(tracks: List<Track>, keys: List<String>) {
+        visibleTrackTargets = LinkedHashMap<String, Track>(tracks.size).apply {
+            for (index in tracks.indices) {
+                put(keys.getOrElse(index) { tracks[index].id.toString() }, tracks[index])
+            }
+        }
+        val valid = visibleTrackTargets.keys
+        val selected = libraryUiState.value.selectedTrackKeys.intersect(valid)
+        if (selected != libraryUiState.value.selectedTrackKeys) {
+            libraryUiState.value = libraryUiState.value.copy(selectedTrackKeys = selected)
+            publishInteractionState()
+        }
+    }
+
+    fun updateVisibleGroupTargets(groups: Map<String, List<Track>>) {
+        visibleGroupTargets = LinkedHashMap(groups)
+        val selected = libraryUiState.value.selectedGroupKeys.intersect(visibleGroupTargets.keys)
+        if (selected != libraryUiState.value.selectedGroupKeys) {
+            libraryUiState.value = libraryUiState.value.copy(selectedGroupKeys = selected)
+            publishInteractionState()
+        }
+    }
+
+    fun syncLibraryMode(routeKey: String) {
+        val mode = LibraryMode.fromRouteKey(routeKey)
+        if (libraryUiState.value.mode != mode) {
+            libraryUiState.value = libraryUiState.value.copy(
+                mode = mode,
+                revealedRowKey = null,
+                selectedTrackKeys = emptySet(),
+                selectedGroupKeys = emptySet()
+            )
+            publishInteractionState()
+        }
+    }
+
+    fun updateLibraryLabels(labels: LibraryUiLabels) {
+        if (libraryUiState.value.labels == labels) return
+        libraryUiState.value = libraryUiState.value.copy(labels = labels)
+        publishInteractionState()
+    }
+
+    private fun toggleTrackSelection(key: String) {
+        if (!visibleTrackTargets.containsKey(key)) return
+        val selected = libraryUiState.value.selectedTrackKeys.toMutableSet()
+        if (!selected.add(key)) selected.remove(key)
+        libraryUiState.value = libraryUiState.value.copy(
+            selectedTrackKeys = selected,
+            selectedGroupKeys = emptySet(),
+            revealedRowKey = null
+        )
+        publishInteractionState()
+    }
+
+    private fun toggleGroupSelection(key: String) {
+        if (!visibleGroupTargets.containsKey(key)) return
+        val selected = libraryUiState.value.selectedGroupKeys.toMutableSet()
+        if (!selected.add(key)) selected.remove(key)
+        libraryUiState.value = libraryUiState.value.copy(
+            selectedGroupKeys = selected,
+            selectedTrackKeys = emptySet(),
+            revealedRowKey = null
+        )
+        publishInteractionState()
+    }
+
+    private fun selectAllVisible() {
+        libraryUiState.value = if (visibleGroupTargets.isNotEmpty() && libraryGroupsState.value.title.isNotBlank()) {
+            libraryUiState.value.copy(selectedGroupKeys = visibleGroupTargets.keys, selectedTrackKeys = emptySet(), revealedRowKey = null)
+        } else {
+            libraryUiState.value.copy(selectedTrackKeys = visibleTrackTargets.keys, selectedGroupKeys = emptySet(), revealedRowKey = null)
+        }
+        publishInteractionState()
+    }
+
+    private fun clearSelection() {
+        libraryUiState.value = libraryUiState.value.copy(
+            selectedTrackKeys = emptySet(),
+            selectedGroupKeys = emptySet(),
+            revealedRowKey = null
+        )
+        publishInteractionState()
+    }
+
+    private fun selectedTracks(): List<Track> {
+        val direct = libraryUiState.value.selectedTrackKeys.mapNotNull(visibleTrackTargets::get)
+        if (direct.isNotEmpty()) return direct.distinctBy { it.id to it.dataPath }
+        return libraryUiState.value.selectedGroupKeys
+            .flatMap { visibleGroupTargets[it].orEmpty() }
+            .distinctBy { it.id to it.dataPath }
+    }
+
+    private fun favoriteSelectedTracks() {
+        val writer = favoriteWriter ?: return
+        val tracks = selectedTracks()
+        if (tracks.isEmpty()) return
+        viewModelScope.launch {
+            withContext(ioDispatcher) {
+                tracks.forEach { track -> writer.writeFavorite(track, true) }
+            }
+            favoriteTrackIds = favoriteTrackIds + tracks.map { it.id }
+            gateway?.refreshLibrary()
+        }
+    }
+
+    private fun addSelectedTracksToDefaultPlaylist() {
+        val actionGateway = playlistActionGateway ?: return
+        val tracks = selectedTracks()
+        if (tracks.isEmpty()) return
+        viewModelScope.launch {
+            withContext(ioDispatcher) {
+                tracks.forEach { track -> actionGateway.addToDefaultPlaylist(track) }
+            }
+            gateway?.showStatusKey("added.to.playlist")
+        }
+    }
+
+    private fun publishInteractionState() {
+        val ui = libraryUiState.value
+        trackListState.value = trackListState.value.copy(libraryUi = ui)
+        libraryGroupsState.value = libraryGroupsState.value.copy(libraryUi = ui)
     }
 
     private fun toggleFavorite(track: Track?) {
@@ -763,7 +960,8 @@ class LibraryViewModel @JvmOverloads constructor(
             headerActions = headerActions,
             emptyText = emptyText,
             modeActions = modeActions,
-            labels = labels
+            labels = labels,
+            libraryUi = libraryUiState.value
         )
     }
 
@@ -774,7 +972,8 @@ class LibraryViewModel @JvmOverloads constructor(
     fun updateLibraryGroups(title: String, rows: List<LibraryGroupUiState>) {
         libraryGroupsState.value = libraryGroupsState.value.copy(
             title = title,
-            rows = rows.toList()
+            rows = rows.toList(),
+            libraryUi = libraryUiState.value
         )
     }
 

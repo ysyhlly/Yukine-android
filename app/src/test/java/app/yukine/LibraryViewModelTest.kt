@@ -3,6 +3,9 @@ package app.yukine
 import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.ui.LibraryGroupUiState
+import app.yukine.ui.LibraryAction
+import app.yukine.ui.LibraryFilter
+import app.yukine.ui.LibrarySort
 import app.yukine.ui.TrackRowUiState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +17,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
@@ -24,6 +28,44 @@ import org.junit.runners.model.Statement
 class LibraryViewModelTest {
     @get:Rule
     val mainDispatcherRule = LibraryMainDispatcherRule()
+
+    @Test
+    fun libraryInteractionOwnsRevealSelectionAndBatchDelete() {
+        val gateway = FakeGateway()
+        val viewModel = LibraryViewModel()
+        val tracks = listOf(track(1L), track(2L))
+        viewModel.bindGateway(gateway)
+        viewModel.updateVisibleTrackTargets(tracks, listOf("one", "two"))
+
+        viewModel.onLibraryAction(LibraryAction.RevealTrack("one"))
+        assertEquals("one", viewModel.libraryUi.value.revealedRowKey)
+
+        viewModel.onLibraryAction(LibraryAction.ToggleTrackSelection("one"))
+        assertTrue(viewModel.libraryUi.value.selectionActive)
+        assertEquals(null, viewModel.libraryUi.value.revealedRowKey)
+
+        viewModel.onLibraryAction(LibraryAction.SelectAllVisible)
+        assertEquals(setOf("one", "two"), viewModel.libraryUi.value.selectedTrackKeys)
+        viewModel.onLibraryAction(LibraryAction.DeleteSelected)
+
+        assertEquals("delete:1,2", gateway.calls.last())
+        viewModel.onLibraryAction(LibraryAction.ClearSelection)
+        assertFalse(viewModel.libraryUi.value.selectionActive)
+    }
+
+    @Test
+    fun sortAndFilterUpdateOneStateAndRequestRefresh() {
+        val gateway = FakeGateway()
+        val viewModel = LibraryViewModel()
+        viewModel.bindGateway(gateway)
+
+        viewModel.onLibraryAction(LibraryAction.SortChanged(LibrarySort.DurationDescending))
+        viewModel.onLibraryAction(LibraryAction.FilterChanged(LibraryFilter.Local))
+
+        assertEquals(LibrarySort.DurationDescending, viewModel.libraryUi.value.sort)
+        assertEquals(LibraryFilter.Local, viewModel.libraryUi.value.filter)
+        assertEquals(listOf("refresh", "refresh"), gateway.calls)
+    }
 
     @Test
     fun trackEventsCallGateway() {
@@ -678,6 +720,18 @@ class LibraryViewModelTest {
 
         override fun scanLibrary() {
             calls.add("scan")
+        }
+
+        override fun refreshLibrary() {
+            calls.add("refresh")
+        }
+
+        override fun requestDeleteTracks(tracks: List<Track>) {
+            calls.add("delete:" + tracks.joinToString(",") { it.id.toString() })
+        }
+
+        override fun downloadTracks(tracks: List<Track>) {
+            calls.add("download:" + tracks.size)
         }
     }
 }

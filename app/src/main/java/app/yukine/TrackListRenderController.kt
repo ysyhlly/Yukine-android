@@ -7,6 +7,7 @@ import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListAlbumCardUiState
 import app.yukine.ui.TrackListLabels
 import app.yukine.ui.TrackListModeAction
+import app.yukine.ui.LibraryMode
 import app.yukine.ui.TrackRowActions
 import app.yukine.ui.TrackRowUiState
 import androidx.lifecycle.viewModelScope
@@ -53,11 +54,19 @@ internal class TrackListRenderController(
         favoriteIds: Set<Long>,
         footerAlbums: List<TrackListAlbumCardUiState> = emptyList()
     ) {
-        publishTrackList(title, tracks.size) {
+        val presented = LibraryTrackPresentationPolicy.present(
+            tracks,
+            details,
+            viewModel.libraryUi.value,
+            favoriteIds
+        )
+        val visibleTracks = presented.map { it.track }
+        val visibleDetails = presented.map { it.detail }
+        publishTrackList(title, visibleTracks.size) {
             buildTrackListContent(
-                tracks,
+                visibleTracks,
                 showPlaylistAction,
-                details,
+                visibleDetails,
                 showStreamActions,
                 headerMetrics,
                 headerActions,
@@ -84,7 +93,11 @@ internal class TrackListRenderController(
             AppLanguage.text(languageMode, "add.to.playlist"),
             AppLanguage.text(languageMode, "edit"),
             AppLanguage.text(languageMode, "delete"),
-            AppLanguage.text(languageMode, "download")
+            AppLanguage.text(languageMode, "download"),
+            AppLanguage.text(languageMode, "download.current.list"),
+            AppLanguage.text(languageMode, "all.albums"),
+            AppLanguage.text(languageMode, "play.all"),
+            AppLanguage.text(languageMode, "shuffle")
         )
         publishTrackList(title, tracks.size) {
             buildRecommendationContent(tracks, headerMetrics, headerActions, labels)
@@ -109,6 +122,7 @@ internal class TrackListRenderController(
     }
 
     private fun publishTrackListContent(title: String, content: BuiltTrackListContent) {
+        viewModel.updateVisibleTrackTargets(content.tracks, content.rows.map { it.key })
         viewModel.updateTrackListContentAndChrome(
             title,
             content.rows,
@@ -139,8 +153,29 @@ internal class TrackListRenderController(
         val rows = ArrayList<TrackRowUiState>(tracks.size)
         val actions = ArrayList<TrackRowActions>(tracks.size)
         val effectiveHeaderActions = ArrayList(headerActions)
-        if (tracks.isNotEmpty() && effectiveHeaderActions.none { it.label == "下载当前列表" }) {
-            effectiveHeaderActions.add(TrackListHeaderAction("下载当前列表", Runnable { listener.downloadTracks(tracks) }))
+        val libraryMode = viewModel.libraryUi.value.mode
+        val isSongsRoot = libraryMode == LibraryMode.Songs && modeActions.isNotEmpty()
+        if (tracks.isNotEmpty() && isSongsRoot) {
+            if (effectiveHeaderActions.none { it.label == labels.playAllLabel }) {
+                effectiveHeaderActions.add(
+                    TrackListHeaderAction(labels.playAllLabel, Runnable { listener.playTrackList(tracks, 0) })
+                )
+            }
+            if (effectiveHeaderActions.none { it.label == labels.shuffleLabel }) {
+                effectiveHeaderActions.add(
+                    TrackListHeaderAction(
+                        labels.shuffleLabel,
+                        Runnable { listener.playTrackList(tracks.shuffled(), 0) }
+                    )
+                )
+            }
+        }
+        if (tracks.isNotEmpty() && !isSongsRoot &&
+            effectiveHeaderActions.none { it.label == labels.downloadCurrentListLabel }
+        ) {
+            effectiveHeaderActions.add(
+                TrackListHeaderAction(labels.downloadCurrentListLabel, Runnable { listener.downloadTracks(tracks) })
+            )
         }
         val currentTrack = playbackState?.currentTrack
         val rowKeys = TrackRowKeyPolicy.occurrenceKeys(tracks)
@@ -163,11 +198,12 @@ internal class TrackListRenderController(
                     Runnable { listener.showAddToPlaylist(track) },
                     Runnable { listener.downloadTrack(track) },
                     if (showStreamActions) Runnable { listener.showEditStream(track) } else null,
-                    if (showStreamActions) Runnable { listener.confirmDeleteTrack(track) } else null
+                    Runnable { listener.confirmDeleteTrack(track) }
                 )
             )
         }
         return BuiltTrackListContent(
+            tracks,
             rows,
             footerAlbums,
             actions,
@@ -201,6 +237,7 @@ internal class TrackListRenderController(
             )
         }
         return BuiltTrackListContent(
+            tracks,
             rows,
             emptyList(),
             actions,
@@ -213,6 +250,7 @@ internal class TrackListRenderController(
     }
 
     private data class BuiltTrackListContent(
+        val tracks: List<Track>,
         val rows: List<TrackRowUiState>,
         val footerAlbums: List<TrackListAlbumCardUiState>,
         val actions: List<TrackRowActions>,

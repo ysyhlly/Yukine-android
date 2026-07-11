@@ -26,6 +26,31 @@ public final class AppLanguage {
         put("tab.search", "Search", "\u641c\u7d22");
         put("tab.settings", "Settings", "\u8bbe\u7f6e");
         put("search.music", "Search music", "\u641c\u7d22\u97f3\u4e50");
+        put("library.search", "Search library", "\u641c\u7d22\u66f2\u5e93");
+        put("library.sort", "Sort", "\u6392\u5e8f");
+        put("library.filter", "Filter", "\u7b5b\u9009");
+        put("library.filter.all", "All", "\u5168\u90e8");
+        put("library.filter.local", "Local", "\u672c\u5730");
+        put("library.filter.network", "Network", "\u7f51\u7edc");
+        put("library.select.all", "Select all", "\u5168\u9009");
+        put("library.selected.suffix", " selected", " \u9879\u5df2\u9009\u62e9");
+        put("library.sort.title.asc", "Title A-Z", "\u6807\u9898 A-Z");
+        put("library.sort.title.desc", "Title Z-A", "\u6807\u9898 Z-A");
+        put("library.sort.artist", "Artist", "\u6b4c\u624b");
+        put("library.sort.album", "Album", "\u4e13\u8f91");
+        put("library.sort.duration.asc", "Duration: shortest", "\u65f6\u957f\u5347\u5e8f");
+        put("library.sort.duration.desc", "Duration: longest", "\u65f6\u957f\u964d\u5e8f");
+        put("library.delete.choose.title", "Remove songs", "\u79fb\u9664\u6b4c\u66f2");
+        put("library.delete.choose.message", "Choose how to handle %d selected songs. Hiding keeps the files; deleting files cannot be undone.", "\u8bf7\u9009\u62e9\u5982\u4f55\u5904\u7406\u5df2\u9009\u7684 %d \u9996\u6b4c\u66f2\u3002\u4ece\u66f2\u5e93\u9690\u85cf\u4f1a\u4fdd\u7559\u6587\u4ef6\uff1b\u5220\u9664\u6587\u4ef6\u65e0\u6cd5\u64a4\u9500\u3002");
+        put("library.hide.action", "Hide from library", "\u4ece\u66f2\u5e93\u9690\u85cf");
+        put("library.delete.file.action", "Delete files permanently", "\u6c38\u4e45\u5220\u9664\u6587\u4ef6");
+        put("library.delete.records.title", "Delete library records", "\u5220\u9664\u66f2\u5e93\u8bb0\u5f55");
+        put("library.delete.records.message", "Delete %d selected network records? Remote files will not be changed.", "\u5220\u9664\u5df2\u9009\u7684 %d \u6761\u7f51\u7edc\u8bb0\u5f55\uff1f\u8fdc\u7a0b\u6587\u4ef6\u4e0d\u4f1a\u88ab\u5220\u9664\u3002");
+        put("library.remove.playlist.title", "Remove from playlist", "\u4ece\u6b4c\u5355\u79fb\u9664");
+        put("library.remove.playlist.message", "Remove %d selected songs from this playlist?", "\u4ece\u5f53\u524d\u6b4c\u5355\u79fb\u9664\u5df2\u9009\u7684 %d \u9996\u6b4c\u66f2\uff1f");
+        put("library.delete.result", "Removed %d, failed %f, skipped %s", "\u5df2\u79fb\u9664 %d \u9879\uff0c\u5931\u8d25 %f \u9879\uff0c\u8df3\u8fc7 %s \u9879");
+        put("library.hidden.restore", "Restore hidden song", "\u6062\u590d\u5df2\u9690\u85cf\u6b4c\u66f2");
+        put("library.hidden.restore.all", "Restore all hidden songs", "\u6062\u590d\u5168\u90e8\u5df2\u9690\u85cf\u6b4c\u66f2");
         put("search.no.results", "No matching songs found", "\u6ca1\u6709\u627e\u5230\u76f8\u5173\u6b4c\u66f2");
         put("app.name", "YUKINE", "YUKINE");
         put("onboarding.enter", "Enter YUKINE", "\u8fdb\u5165 YUKINE");
@@ -198,6 +223,7 @@ public final class AppLanguage {
         put("play.group", "Play group", "\u64ad\u653e\u5206\u7ec4");
         put("play.artist", "Play artist", "\u64ad\u653e\u8be5\u6b4c\u624b");
         put("artist.info", "Artist info", "\u6b4c\u624b\u4ecb\u7ecd");
+        put("all.albums", "All albums", "\u5168\u90e8\u4e13\u8f91");
         put("artist.albums", "All albums", "\u5168\u90e8\u4e13\u8f91");
         put("artist.albums.empty", "No album information in local library yet.", "\u672c\u5730\u66f2\u5e93\u6682\u65e0\u4e13\u8f91\u4fe1\u606f\u3002");
         put("data.source", "Source", "\u8d44\u6599\u6765\u6e90");
@@ -324,6 +350,7 @@ public final class AppLanguage {
         put("favorite", "Favorite", "\u6536\u85cf");
         put("favorited", "Favorited", "\u5df2\u6536\u85cf");
         put("shuffle", "Shuffle", "\u968f\u673a");
+        put("play.all", "Play all", "\u64ad\u653e\u5168\u90e8");
         put("in.order", "In order", "\u987a\u5e8f");
 
         put("favorites", "Favorites", "\u6536\u85cf");

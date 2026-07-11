@@ -2,6 +2,9 @@
 
 import android.net.Uri
 import app.yukine.TrackDownloadItem
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,12 +13,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Surface
@@ -23,13 +31,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -40,6 +54,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import app.yukine.feature.uicommon.R
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
+import androidx.compose.runtime.snapshotFlow
+import kotlin.math.roundToInt
 
 data class TrackRowUiState(
     val id: Long,
@@ -109,7 +128,11 @@ data class TrackListLabels(
     val addToPlaylistLabel: String = "\u52a0\u5165\u6b4c\u5355",
     val editLabel: String = "\u7f16\u8f91",
     val deleteLabel: String = "\u5220\u9664",
-    val downloadLabel: String = "\u4e0b\u8f7d"
+    val downloadLabel: String = "\u4e0b\u8f7d",
+    val downloadCurrentListLabel: String = "\u4e0b\u8f7d\u5f53\u524d\u5217\u8868",
+    val allAlbumsLabel: String = "\u5168\u90e8\u4e13\u8f91",
+    val playAllLabel: String = "\u64ad\u653e\u5168\u90e8",
+    val shuffleLabel: String = "\u968f\u673a\u64ad\u653e"
 )
 
 private data class TrackActionSheetState(
@@ -132,12 +155,16 @@ fun TrackListScreen(
     activeDownload: TrackDownloadItem? = null,
     playbackQuality: String = "",
     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
-    footerAlbums: List<TrackListAlbumCardUiState> = emptyList()
+    footerAlbums: List<TrackListAlbumCardUiState> = emptyList(),
+    libraryUi: LibraryUiState = LibraryUiState(),
+    libraryActionHandler: LibraryActionHandler = LibraryActionHandler { },
+    libraryControlsEnabled: Boolean = false
 ) {
     val p = EchoTheme.colors()
     var actionSheetState by remember { mutableStateOf<TrackActionSheetState?>(null) }
     val actionSheet = actionSheetState
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val listState = rememberLazyListState()
     val titleBackAction = headerActions.firstOrNull { isBackAction(it.label) }
     val visibleHeaderActions = if (titleBackAction != null) headerActions.drop(1) else headerActions
     if (actionSheet != null) {
@@ -155,20 +182,36 @@ fun TrackListScreen(
             )
         }
     }
+    LaunchedEffect(listState, libraryControlsEnabled) {
+        if (!libraryControlsEnabled) return@LaunchedEffect
+        snapshotFlow { listState.isScrollInProgress }
+            .distinctUntilChanged()
+            .filter { it }
+            .collect { libraryActionHandler.onAction(LibraryAction.RevealTrack(null)) }
+    }
     CollapsibleSearchHeader(
+        enabled = !libraryControlsEnabled,
         header = { TrackListSearchRow(onSearch, activeDownload, playbackQuality, audioMotion) }
     ) { contentModifier, _ ->
         LazyColumn(
             modifier = contentModifier,
+            state = listState,
             contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
         ) {
-            item(key = "title") {
-                EchoPageTitle(
-                    title,
-                    backLabel = titleBackAction?.label,
-                    onBack = titleBackAction?.onClick
-                )
+            if (!libraryControlsEnabled || titleBackAction != null) {
+                item(key = "title") {
+                    EchoPageTitle(
+                        title,
+                        backLabel = titleBackAction?.label,
+                        onBack = titleBackAction?.onClick
+                    )
+                }
+            }
+            if (libraryControlsEnabled) {
+                item(key = "libraryControls") {
+                    LibraryTrackControls(libraryUi, libraryActionHandler)
+                }
             }
             if (modeActions.isNotEmpty()) {
                 item(key = "modes") {
@@ -180,7 +223,7 @@ fun TrackListScreen(
                 key = { index, metric -> "metric:${metric.label}:$index" }
             ) { _, metric ->
                 if (metric.label == "歌手介绍" || metric.label == "Artist info") {
-                    ArtistIntroRow(metric.value)
+                    ArtistIntroRow(metric.label, metric.value)
                 } else {
                     HeaderMetricRow(metric)
                 }
@@ -196,13 +239,25 @@ fun TrackListScreen(
                 key = { index, track -> track.key.ifBlank { "${track.id}:$index" } }
             ) { i, track ->
                 actions.getOrNull(i)?.let { action ->
-                    TrackRow(
-                        track,
-                        action,
-                        labels,
-                        Modifier.echoEnter(i.coerceAtMost(8)),
-                        onLongPress = { actionSheetState = TrackActionSheetState(track, action) }
-                    )
+                    if (libraryControlsEnabled) {
+                        SwipeRevealTrackRow(
+                            track = track,
+                            actions = action,
+                            labels = labels,
+                            libraryUi = libraryUi,
+                            actionHandler = libraryActionHandler,
+                            modifier = Modifier.echoEnter(i.coerceAtMost(8)),
+                            onMore = { actionSheetState = TrackActionSheetState(track, action) }
+                        )
+                    } else {
+                        TrackRow(
+                            track,
+                            action,
+                            labels,
+                            Modifier.echoEnter(i.coerceAtMost(8)),
+                            onLongPress = { actionSheetState = TrackActionSheetState(track, action) }
+                        )
+                    }
                 }
             }
             if (tracks.isEmpty() && emptyText.isNotBlank()) {
@@ -212,7 +267,7 @@ fun TrackListScreen(
             }
             if (footerAlbums.isNotEmpty()) {
                 item(key = "artistAlbumsTitle") {
-                    FooterAlbumsTitle()
+                    FooterAlbumsTitle(labels.allAlbumsLabel)
                 }
                 itemsIndexed(
                     items = footerAlbums,
@@ -237,6 +292,254 @@ private fun TrackListSearchRow(
         playbackQuality = playbackQuality,
         audioMotion = audioMotion
     ) { onSearch.run() }
+}
+
+@Composable
+private fun LibraryTrackControls(
+    state: LibraryUiState,
+    actionHandler: LibraryActionHandler
+) {
+    val p = EchoTheme.colors()
+    var sortExpanded by remember { mutableStateOf(false) }
+    var filterExpanded by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = state.query,
+            onValueChange = { actionHandler.onAction(LibraryAction.QueryChanged(it)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            leadingIcon = { EchoIcon(EchoIconKind.Search, Modifier.size(18.dp), p.accent) },
+            placeholder = { Text(state.labels.search, color = p.muted) },
+            shape = EchoShapes.medium
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box {
+                LibraryControlChip(
+                    label = state.labels.sort + ": " + sortLabel(state, state.sort),
+                    onClick = { sortExpanded = true }
+                )
+                DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
+                    LibrarySort.entries.forEach { sort ->
+                        DropdownMenuItem(
+                            text = { Text(sortLabel(state, sort)) },
+                            onClick = {
+                                sortExpanded = false
+                                actionHandler.onAction(LibraryAction.SortChanged(sort))
+                            }
+                        )
+                    }
+                }
+            }
+            Box {
+                LibraryControlChip(
+                    label = state.labels.filter + ": " + filterLabel(state),
+                    onClick = { filterExpanded = true }
+                )
+                DropdownMenu(expanded = filterExpanded, onDismissRequest = { filterExpanded = false }) {
+                    LibraryFilter.entries.forEach { filter ->
+                        DropdownMenuItem(
+                            text = { Text(filterLabel(state, filter)) },
+                            onClick = {
+                                filterExpanded = false
+                                actionHandler.onAction(LibraryAction.FilterChanged(filter))
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        if (state.selectionActive) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = EchoShapes.medium,
+                color = p.accentSoft.copy(alpha = 0.72f)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        (state.selectedTrackKeys.size + state.selectedGroupKeys.size).toString() + state.labels.selectedSuffix,
+                        style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = p.text
+                    )
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        LibraryControlChip(state.labels.selectAll) {
+                            actionHandler.onAction(LibraryAction.SelectAllVisible)
+                        }
+                        LibraryControlChip(state.labels.play) {
+                            actionHandler.onAction(LibraryAction.PlaySelected)
+                        }
+                        LibraryControlChip(state.labels.addToPlaylist) {
+                            actionHandler.onAction(LibraryAction.AddSelectedToPlaylist)
+                        }
+                        LibraryControlChip(state.labels.favorite) {
+                            actionHandler.onAction(LibraryAction.FavoriteSelected)
+                        }
+                        LibraryControlChip(state.labels.download) {
+                            actionHandler.onAction(LibraryAction.DownloadSelected)
+                        }
+                        LibraryControlChip(state.labels.delete, dangerous = true) {
+                            actionHandler.onAction(LibraryAction.DeleteSelected)
+                        }
+                        LibraryControlChip(state.labels.cancel) {
+                            actionHandler.onAction(LibraryAction.ClearSelection)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryControlChip(
+    label: String,
+    dangerous: Boolean = false,
+    onClick: () -> Unit
+) {
+    val p = EchoTheme.colors()
+    val danger = Color(0xFFB3261E)
+    Surface(
+        onClick = onClick,
+        shape = EchoShapes.small,
+        color = if (dangerous) danger.copy(alpha = 0.16f) else p.surfaceVariant.copy(alpha = 0.72f),
+        modifier = Modifier.semantics { contentDescription = label }
+    ) {
+        Text(
+            label,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+            style = EchoTypography.caption,
+            color = if (dangerous) danger else p.text
+        )
+    }
+}
+
+private fun sortLabel(state: LibraryUiState, sort: LibrarySort): String = when (sort) {
+    LibrarySort.TitleAscending -> state.labels.sortTitleAscending
+    LibrarySort.TitleDescending -> state.labels.sortTitleDescending
+    LibrarySort.Artist -> state.labels.sortArtist
+    LibrarySort.Album -> state.labels.sortAlbum
+    LibrarySort.DurationAscending -> state.labels.sortDurationAscending
+    LibrarySort.DurationDescending -> state.labels.sortDurationDescending
+}
+
+private fun filterLabel(state: LibraryUiState): String = filterLabel(state, state.filter)
+
+private fun filterLabel(state: LibraryUiState, filter: LibraryFilter): String = when (filter) {
+    LibraryFilter.All -> state.labels.all
+    LibraryFilter.Favorites -> state.labels.favorites
+    LibraryFilter.Local -> state.labels.local
+    LibraryFilter.Network -> state.labels.network
+}
+
+@Composable
+private fun SwipeRevealTrackRow(
+    track: TrackRowUiState,
+    actions: TrackRowActions,
+    labels: TrackListLabels,
+    libraryUi: LibraryUiState,
+    actionHandler: LibraryActionHandler,
+    modifier: Modifier,
+    onMore: () -> Unit
+) {
+    val p = EchoTheme.colors()
+    val danger = Color(0xFFB3261E)
+    val density = LocalDensity.current
+    val revealWidthPx = with(density) { 152.dp.toPx() }
+    val expanded = libraryUi.revealedRowKey == track.key
+    var gestureOffset by remember(track.key) { mutableStateOf<Float?>(null) }
+    val targetOffset = if (expanded) -revealWidthPx else 0f
+    val animatedOffset by animateFloatAsState(targetOffset, label = "librarySwipeReveal")
+    val offset = gestureOffset ?: animatedOffset
+    val revealedWidth = with(density) { (-offset).coerceIn(0f, revealWidthPx).toDp() }
+    val selected = libraryUi.selectedTrackKeys.contains(track.key)
+
+    Box(modifier = modifier.fillMaxWidth().clipToBounds()) {
+        if (revealedWidth > 0.dp) Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .width(revealedWidth)
+                .height(62.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .width(152.dp)
+                    .fillMaxHeight()
+                    .clipToBounds(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Surface(
+                    onClick = {
+                        actionHandler.onAction(LibraryAction.RevealTrack(null))
+                        onMore()
+                    },
+                    modifier = Modifier.width(74.dp).fillMaxHeight(),
+                    shape = EchoShapes.small,
+                    color = p.surfaceVariant
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        EchoIcon(EchoIconKind.More, Modifier.size(18.dp), p.accent)
+                        Text(libraryUi.labels.more, style = EchoTypography.small, color = p.text)
+                    }
+                }
+                Surface(
+                    onClick = {
+                        actionHandler.onAction(LibraryAction.RevealTrack(null))
+                        actions.onDelete?.run()
+                    },
+                    modifier = Modifier.width(74.dp).fillMaxHeight(),
+                    shape = EchoShapes.small,
+                    color = danger.copy(alpha = 0.18f)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        EchoIcon(EchoIconKind.Delete, Modifier.size(18.dp), danger)
+                        Text(libraryUi.labels.delete, style = EchoTypography.small, color = danger)
+                    }
+                }
+            }
+        }
+        TrackRow(
+            track = track,
+            actions = actions,
+            labels = labels,
+            modifier = Modifier
+                .offset { IntOffset(offset.roundToInt(), 0) }
+                .pointerInput(track.key, libraryUi.selectionActive) {
+                    if (libraryUi.selectionActive) return@pointerInput
+                    detectHorizontalDragGestures(
+                        onDragStart = { gestureOffset = targetOffset },
+                        onHorizontalDrag = { _, amount ->
+                            gestureOffset = ((gestureOffset ?: targetOffset) + amount).coerceIn(-revealWidthPx, 0f)
+                        },
+                        onDragEnd = {
+                            val reveal = (gestureOffset ?: targetOffset) <= -revealWidthPx * 0.25f
+                            gestureOffset = null
+                            actionHandler.onAction(LibraryAction.RevealTrack(if (reveal) track.key else null))
+                        },
+                        onDragCancel = { gestureOffset = null }
+                    )
+                },
+            selected = selected,
+            onClick = {
+                when {
+                    libraryUi.selectionActive -> actionHandler.onAction(LibraryAction.ToggleTrackSelection(track.key))
+                    expanded -> actionHandler.onAction(LibraryAction.RevealTrack(null))
+                    else -> actions.onPlay.run()
+                }
+            },
+            onLongPress = { actionHandler.onAction(LibraryAction.ToggleTrackSelection(track.key)) }
+        )
+    }
 }
 
 @Composable
@@ -325,7 +628,7 @@ private fun TrackActionSheetRow(
 }
 
 @Composable
-private fun ArtistIntroRow(intro: String) {
+private fun ArtistIntroRow(label: String, intro: String) {
     val p = EchoTheme.colors()
     Surface(
         modifier = Modifier
@@ -342,7 +645,7 @@ private fun ArtistIntroRow(intro: String) {
                 EchoIcon(EchoIconKind.Artist, Modifier.size(20.dp), p.accent)
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "歌手介绍",
+                    label,
                     style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = p.text
                 )
@@ -358,10 +661,10 @@ private fun ArtistIntroRow(intro: String) {
 }
 
 @Composable
-private fun FooterAlbumsTitle() {
+private fun FooterAlbumsTitle(label: String) {
     val p = EchoTheme.colors()
     Text(
-        "全部专辑",
+        label,
         style = EchoTypography.title,
         color = p.text,
         modifier = Modifier.padding(top = 12.dp, bottom = 2.dp)
@@ -424,14 +727,14 @@ private fun FooterAlbumCard(album: TrackListAlbumCardUiState, modifier: Modifier
 private fun ModeSelectorRow(modes: List<TrackListModeAction>) {
     val p = EchoTheme.colors()
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         for (mode in modes) {
             Surface(
                 onClick = { mode.onClick.run() },
                 modifier = Modifier
-                    .weight(1f)
+                    .widthIn(min = 104.dp)
                     .height(40.dp)
                     .then(if (mode.selected) Modifier else Modifier.echoGlassLayer(p, EchoShapes.medium))
                     .semantics { contentDescription = mode.label },
@@ -448,16 +751,14 @@ private fun ModeSelectorRow(modes: List<TrackListModeAction>) {
                         modifier = Modifier.size(if (mode.selected) 18.dp else 20.dp),
                         color = if (mode.selected) p.accent else p.muted
                     )
-                    if (mode.selected) {
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            mode.label,
-                            style = EchoTypography.caption,
-                            color = p.accent,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        mode.label,
+                        style = EchoTypography.caption,
+                        color = if (mode.selected) p.accent else p.muted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
@@ -517,7 +818,7 @@ private fun HeaderActionRow(action: TrackListHeaderAction) {
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            EchoIcon(iconForHeaderAction(action.label), Modifier.size(22.dp), p.accent)
+            EchoIcon(iconForTrackHeaderAction(action.label), Modifier.size(22.dp), p.accent)
             Spacer(Modifier.width(12.dp))
             Text(
                 action.label,
@@ -543,13 +844,15 @@ private fun TrackRow(
     actions: TrackRowActions,
     labels: TrackListLabels,
     modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    onClick: (() -> Unit)? = null,
     onLongPress: (() -> Unit)? = null
 ) {
     val p = EchoTheme.colors()
     val interaction = remember { MutableInteractionSource() }
     var menuExpanded by remember { mutableStateOf(false) }
     val bg by androidx.compose.animation.animateColorAsState(
-        targetValue = if (track.current) p.accentSoft else p.surface,
+        targetValue = if (track.current || selected) p.accentSoft else p.surface,
         animationSpec = EchoMotion.colorSpring(),
         label = "trackRowBg"
     )
@@ -558,13 +861,13 @@ private fun TrackRow(
             .combinedClickable(
                 interactionSource = interaction,
                 indication = androidx.compose.foundation.LocalIndication.current,
-                onClick = { actions.onPlay.run() },
+                onClick = { onClick?.invoke() ?: actions.onPlay.run() },
                 onLongClick = { onLongPress?.invoke() ?: run { menuExpanded = true } }
             )
             .echoPressScale(interaction)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
-        color = if (track.current) bg else Color.Transparent
+        color = if (track.current || selected) bg else Color.Transparent
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
@@ -771,9 +1074,11 @@ private fun MiniIconBtn(
     }
 }
 
-private fun iconForHeaderAction(label: String): EchoIconKind = when {
+internal fun iconForTrackHeaderAction(label: String): EchoIconKind = when {
     isBackAction(label) -> EchoIconKind.Back
     label.contains("Play", ignoreCase = true) || label.contains("\u64ad\u653e") -> EchoIconKind.Play
+    label.contains("Shuffle", ignoreCase = true) || label.contains("\u968f\u673a") -> EchoIconKind.Shuffle
+    label.contains("Download", ignoreCase = true) || label.contains("\u4e0b\u8f7d") -> EchoIconKind.Download
     label.contains("Sync", ignoreCase = true) || label.contains("\u540c\u6b65") -> EchoIconKind.Sync
     label.contains("Delete", ignoreCase = true) || label.contains("\u5220\u9664") -> EchoIconKind.Delete
     label.contains("Import", ignoreCase = true) || label.contains("\u5bfc\u5165") || label.contains("\u5bfc\u51fa") -> EchoIconKind.Import

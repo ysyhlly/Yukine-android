@@ -2891,7 +2891,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(mainActivity.contains("playHistoryActionController.clearPlayHistory();"));
         assertFalse(mainActivity.contains("new TrackListRenderController.Listener()"));
         assertTrue(mainActivity.contains("track -> networkDialogController.showEditStream(track)"));
-        assertTrue(mainActivity.contains("track -> confirmationDialogController.confirmDeleteTrack(track)"));
+        assertFalse(mainActivity.contains("track -> confirmationDialogController.confirmDeleteTrack(track)"));
+        assertTrue(mainActivity.contains("track -> libraryFileDeleteLauncher.request("));
         assertTrue(mainActivity.contains("(title, tracks) -> confirmationDialogController.confirmDeleteTracks(title, tracks)"));
         assertTrue(mainActivity.contains("networkRequestController.deleteAllStreams();"));
         assertTrue(mainActivity.contains("networkRequestController.deleteTrack(trackId, status);"));
@@ -7368,6 +7369,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(service.contains("playbackQueueRuntimeStateManager::setPlayerMirrorsQueue"));
         assertTrue(service.contains("playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(true)"));
         assertTrue(service.contains("playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false)"));
+        assertTrue(service.contains("playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(true);\n        // Repeat-all only maps"));
+        assertTrue(service.contains("playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false);\n        // A single-source player"));
+        assertTrue(service.contains("// into a list whose Now Bar already reports list repeat.\n        applyPlaybackModeToPlayer();"));
+        assertTrue(service.contains("// Reapply here as well so the Media3 mode always matches the app-visible repeat mode.\n        applyPlaybackModeToPlayer();"));
         assertFalse(service.contains("playbackQueueRuntimeStateManager.currentIndex()"));
         assertFalse(service.contains("playbackQueueRuntimeStateManager.setCurrentIndex(index)"));
         assertFalse(service.contains("playbackQueueRuntimeStateManager.setClampedCurrentIndex(index, queue.size())"));

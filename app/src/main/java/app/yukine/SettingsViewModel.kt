@@ -59,8 +59,11 @@ data class RuntimeSettingsStatus(
     val libraryAlbumCount: Int = 0,
     val libraryArtistCount: Int = 0,
     val streamingGatewayEndpoint: String = StreamingGatewaySettingsStore.UNCONFIGURED_ENDPOINT,
-    val streamingGatewayConfigured: Boolean = false
+    val streamingGatewayConfigured: Boolean = false,
+    val hiddenLibraryItems: List<HiddenLibraryItemUi> = emptyList()
 )
+
+data class HiddenLibraryItemUi(val sourceKey: String, val label: String)
 
 data class SettingsState(
     val page: SettingsPage = SettingsPage.Home,
@@ -122,6 +125,8 @@ sealed interface SettingsEffect {
     data object ExportBackup : SettingsEffect
     data object ImportBackup : SettingsEffect
     data class ApplyStreamingGatewayEndpoint(val endpoint: String) : SettingsEffect
+    data class RestoreHiddenLibraryItem(val sourceKey: String) : SettingsEffect
+    data object RestoreAllHiddenLibraryItems : SettingsEffect
 }
 
 sealed interface SettingsEvent {
@@ -132,6 +137,8 @@ sealed interface SettingsEvent {
     data object LoadLibrary : SettingsEvent
     data object OpenAudioFilePicker : SettingsEvent
     data object OpenAudioFolderPicker : SettingsEvent
+    data class RestoreHiddenLibraryItem(val sourceKey: String) : SettingsEvent
+    data object RestoreAllHiddenLibraryItems : SettingsEvent
     data class SetOnlineLyricsEnabled(val enabled: Boolean) : SettingsEvent
     data object ReloadCurrentLyrics : SettingsEvent
     data class ApplyLyricsOffset(val offsetMs: Long) : SettingsEvent
@@ -277,6 +284,9 @@ class SettingsViewModel @JvmOverloads constructor(
             SettingsEvent.LoadLibrary -> emitEffect(SettingsEffect.LoadLibrary)
             SettingsEvent.OpenAudioFilePicker -> emitEffect(SettingsEffect.OpenAudioFilePicker)
             SettingsEvent.OpenAudioFolderPicker -> emitEffect(SettingsEffect.OpenAudioFolderPicker)
+            is SettingsEvent.RestoreHiddenLibraryItem ->
+                emitEffect(SettingsEffect.RestoreHiddenLibraryItem(event.sourceKey))
+            SettingsEvent.RestoreAllHiddenLibraryItems -> emitEffect(SettingsEffect.RestoreAllHiddenLibraryItems)
             is SettingsEvent.SetOnlineLyricsEnabled -> setOnlineLyricsEnabled(event.enabled)
             SettingsEvent.ReloadCurrentLyrics -> emitEffect(SettingsEffect.ReloadCurrentLyrics)
             is SettingsEvent.ApplyLyricsOffset -> applyLyricsOffset(event.offsetMs)
@@ -368,7 +378,10 @@ class SettingsViewModel @JvmOverloads constructor(
                     onNavigate = ::navigateSettingsPage,
                     onLoadLibrary = { onEvent(SettingsEvent.LoadLibrary) },
                     onOpenAudioFilePicker = { onEvent(SettingsEvent.OpenAudioFilePicker) },
-                    onOpenAudioFolderPicker = { onEvent(SettingsEvent.OpenAudioFolderPicker) }
+                    onOpenAudioFolderPicker = { onEvent(SettingsEvent.OpenAudioFolderPicker) },
+                    hiddenItems = runtime.hiddenLibraryItems,
+                    onRestoreHidden = { sourceKey -> onEvent(SettingsEvent.RestoreHiddenLibraryItem(sourceKey)) },
+                    onRestoreAllHidden = { onEvent(SettingsEvent.RestoreAllHiddenLibraryItems) }
                 )
             SettingsPage.LyricsGroup ->
                 SettingsPageStateBuilder.lyricsGroup(

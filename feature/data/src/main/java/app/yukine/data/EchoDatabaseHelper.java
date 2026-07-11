@@ -24,7 +24,7 @@ import app.yukine.playback.AudioEffectSettings;
 
 public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME = "echo_next.db";
-    private static final int DATABASE_VERSION = 13;
+    private static final int DATABASE_VERSION = 14;
 
     private static final String TABLE_TRACKS = "tracks";
     private static final String TABLE_FAVORITES = "favorites";
@@ -36,6 +36,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     private static final String TABLE_REMOTE_SOURCES = "remote_sources";
     private static final String TABLE_PLAYBACK_QUEUE = "playback_queue";
     private static final String TABLE_STREAMING_TRACK_MATCHES = "streaming_track_matches";
+    private static final String TABLE_LIBRARY_EXCLUSIONS = "library_exclusions";
     private static final String SETTING_THEME_MODE = "theme_mode";
     private static final String SETTING_ACCENT_MODE = "accent_mode";
     private static final String SETTING_LANGUAGE_MODE = "language_mode";
@@ -89,6 +90,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         createRemoteSourceTables(db);
         createPlaybackQueueTable(db);
         createStreamingTrackMatchTable(db);
+        createLibraryExclusionTable(db);
         ensurePlaybackQueueColumns(db);
         ensureTrackIndexes(db);
     }
@@ -106,6 +108,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         createRemoteSourceTables(db);
         createPlaybackQueueTable(db);
         createStreamingTrackMatchTable(db);
+        createLibraryExclusionTable(db);
         ensurePlaybackQueueColumns(db);
         ensureTrackIndexes(db);
     }
@@ -466,6 +469,17 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         saveSetting(SETTING_STATUS_BAR_LYRICS, enabled ? "true" : "false");
     }
 
+    private void createLibraryExclusionTable(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_LIBRARY_EXCLUSIONS + " ("
+                + "source_key TEXT PRIMARY KEY,"
+                + "content_uri TEXT NOT NULL DEFAULT '',"
+                + "data_path TEXT NOT NULL DEFAULT '',"
+                + "created_at INTEGER NOT NULL"
+                + ")");
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_library_exclusions_created_at "
+                + "ON " + TABLE_LIBRARY_EXCLUSIONS + " (created_at DESC)");
+    }
+
     public boolean loadSystemMediaLyricsTitleEnabled() {
         return "true".equals(loadSetting(SETTING_SYSTEM_MEDIA_LYRICS_TITLE, "false"));
     }
@@ -607,9 +621,13 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
             SQLiteStatement insert = db.compileStatement(trackInsertSql());
             try {
                 int index = 0;
+                HashSet<String> exclusions = loadLibraryExclusionKeys(db);
                 for (Track track : tracks) {
                     if ((index++ & 63) == 0) {
                         throwIfInterrupted();
+                    }
+                    if (exclusions.contains(librarySourceKey(track))) {
+                        continue;
                     }
                     bindTrack(insert, track, now);
                     insert.executeInsert();
@@ -634,7 +652,11 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         db.beginTransaction();
         try {
             long now = System.currentTimeMillis();
+            HashSet<String> exclusions = loadLibraryExclusionKeys(db);
             for (Track track : tracks) {
+                if (exclusions.contains(librarySourceKey(track))) {
+                    continue;
+                }
                 db.insertWithOnConflict(TABLE_TRACKS, null, trackValues(track, now), SQLiteDatabase.CONFLICT_REPLACE);
             }
             db.setTransactionSuccessful();
@@ -1288,6 +1310,110 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         } finally {
             db.endTransaction();
         }
+    }
+
+    public int hideTracks(List<Track> tracks) {
+        if (tracks == null || tracks.isEmpty()) {
+            return 0;
+        }
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            int removed = 0;
+            long now = System.currentTimeMillis();
+            for (Track track : tracks) {
+                if (track == null) {
+                    continue;
+                }
+                String sourceKey = librarySourceKey(track);
+                if (sourceKey.isEmpty()) {
+                    continue;
+                }
+                ContentValues values = new ContentValues();
+                values.put("source_key", sourceKey);
+                values.put("content_uri", track.contentUri == null ? "" : track.contentUri.toString());
+                values.put("data_path", track.dataPath == null ? "" : track.dataPath);
+                values.put("created_at", now);
+                db.insertWithOnConflict(TABLE_LIBRARY_EXCLUSIONS, null, values, SQLiteDatabase.CONFLICT_REPLACE);
+                removed += deleteTracksWhere(db, "id = ?", new String[]{String.valueOf(track.id)});
+            }
+            db.setTransactionSuccessful();
+            return removed;
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    public List<LibraryExclusion> loadLibraryExclusions() {
+        ArrayList<LibraryExclusion> values = new ArrayList<>();
+        SQLiteDatabase db = getReadableDatabase();
+        try (Cursor cursor = db.query(
+                TABLE_LIBRARY_EXCLUSIONS,
+                new String[]{"source_key", "content_uri", "data_path", "created_at"},
+                null,
+                null,
+                null,
+                null,
+                "created_at DESC"
+        )) {
+            while (cursor.moveToNext()) {
+                values.add(new LibraryExclusion(
+                        cursor.getString(0),
+                        cursor.getString(1),
+                        cursor.getString(2),
+                        cursor.getLong(3)
+                ));
+            }
+        }
+        return values;
+    }
+
+    public boolean restoreLibraryExclusion(String sourceKey) {
+        if (sourceKey == null || sourceKey.trim().isEmpty()) {
+            return false;
+        }
+        return getWritableDatabase().delete(
+                TABLE_LIBRARY_EXCLUSIONS,
+                "source_key = ?",
+                new String[]{sourceKey.trim()}
+        ) > 0;
+    }
+
+    public int restoreAllLibraryExclusions() {
+        return getWritableDatabase().delete(TABLE_LIBRARY_EXCLUSIONS, null, null);
+    }
+
+    private HashSet<String> loadLibraryExclusionKeys(SQLiteDatabase db) {
+        HashSet<String> keys = new HashSet<>();
+        try (Cursor cursor = db.query(
+                TABLE_LIBRARY_EXCLUSIONS,
+                new String[]{"source_key"},
+                null,
+                null,
+                null,
+                null,
+                null
+        )) {
+            while (cursor.moveToNext()) {
+                keys.add(cursor.getString(0));
+            }
+        }
+        return keys;
+    }
+
+    static String librarySourceKey(Track track) {
+        if (track == null) {
+            return "";
+        }
+        String dataPath = track.dataPath == null ? "" : track.dataPath.trim();
+        if (dataPath.startsWith("stream:") || dataPath.startsWith("streaming:") || dataPath.startsWith("webdav:")) {
+            return "";
+        }
+        String uri = track.contentUri == null ? "" : track.contentUri.toString().trim();
+        if (!uri.isEmpty()) {
+            return "uri:" + uri;
+        }
+        return dataPath.isEmpty() ? "" : "path:" + dataPath;
     }
 
     private int deleteTracksWhere(SQLiteDatabase db, String whereClause, String[] whereArgs) {

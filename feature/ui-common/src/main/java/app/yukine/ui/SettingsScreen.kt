@@ -193,7 +193,7 @@ private fun SettingsActionRow(action: SettingsAction, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         EchoIcon(
-            kind = iconForAction(action.label),
+            kind = iconForSettingsAction(action),
             modifier = Modifier.size(22.dp),
             color = if (action.style == SettingsActionStyle.Destructive) p.muted else p.accent
         )
@@ -312,42 +312,44 @@ private fun SettingsOverviewCard(metrics: List<SettingsMetric>) {
     }
 }
 
-private fun iconForAction(label: String): EchoIconKind {
+internal fun iconForSettingsAction(action: SettingsAction): EchoIconKind {
+    val label = action.label
     fun has(vararg keys: String) = keys.any { label.contains(it, ignoreCase = true) }
-    if (isBackAction(label)) {
-        return EchoIconKind.Back
-    }
+    if (isBackAction(label)) return EchoIconKind.Back
     return when {
-        // Navigation (startsWith avoids matching "playback")
-        label.startsWith("Back", ignoreCase = true) || label.contains("返回") -> EchoIconKind.Back
-        // Appearance / theme / accent / language
         has("Accent", "强调色") -> EchoIconKind.Swatch
         has("Appearance", "Theme", "外观", "主题") -> EchoIconKind.Palette
         has("Language", "语言") -> EchoIconKind.Language
-        // Playback controls
+        has("Advanced", "高级") -> EchoIconKind.Sparkle
+        has("background", "背景") -> EchoIconKind.Palette
         has("audio effects", "equalizer", "eq", "bass", "virtualizer", "loudness", "音效", "均衡", "低音", "响度") -> EchoIconKind.Gauge
         has("speed", "播放速度", "速度") || label.endsWith("x") || label.endsWith("X") -> EchoIconKind.Gauge
         has("volume", "音量") || label.endsWith("%") -> EchoIconKind.Volume
         has("sleep", "timer", "睡眠", "定时") || label.endsWith("min") || label.contains("分钟") -> EchoIconKind.Timer
         has("lyrics", "offset", "歌词", "偏移") -> EchoIconKind.Lyrics
-        // Verb-based actions (checked before the broad network/stream category
-        // so "删除串流"/"播放串流" get their action icon, not the network icon)
+        has("quality", "lossless", "Hi-Res", "standard", "音质", "无损", "标准") -> EchoIconKind.Gauge
+        has("gesture", "手势") -> EchoIconKind.More
+        has("permission", "access", "权限", "授予", "访问") -> EchoIconKind.Permission
+        has("About", "Version", "关于", "版本") -> EchoIconKind.Info
+        has("Download", "下载") -> EchoIconKind.Download
+        has("Restore", "恢复") -> EchoIconKind.Refresh
+        has("Share", "Export", "分享", "导出") -> EchoIconKind.Upload
         has("clear", "delete", "cancel", "disable", "清空", "删除", "取消", "关闭") -> EchoIconKind.Delete
         has("scan", "reload", "sync", "扫描", "重新加载", "同步") -> EchoIconKind.Sync
-        has("import", "export", "导入", "导出") -> EchoIconKind.Import
+        has("import", "导入") -> EchoIconKind.Import
         has("play", "播放") -> EchoIconKind.Play
         has("browse", "浏览") -> EchoIconKind.Collections
         has("manage", "edit", "管理", "编辑") -> EchoIconKind.Edit
-        // Network / sources (gateway, remote, and the bare "Streaming" entry)
         has("WebDAV") -> EchoIconKind.Folder
-        has("remote", "network", "gateway", "远程", "网络", "网关", "流媒体") ||
+        has("remote", "network", "gateway", "provider", "endpoint", "source", "远程", "网络", "网关", "流媒体", "音源") ||
             label.trim().equals("Streaming", ignoreCase = true) || label.trim() == "串流" -> EchoIconKind.Network
-        // Library
         has("folder", "文件夹") -> EchoIconKind.Folder
         has("library", "song", "track", "曲库", "歌曲", "曲目") -> EchoIconKind.Library
-        // Create / enable
-        has("add", "enable", "new", "添加", "开启", "新建") -> EchoIconKind.Action
-        else -> EchoIconKind.Action
+        // Keep the plus only for actions that really create a new item.
+        has("add", "new", "create", "添加", "新建", "创建") -> EchoIconKind.Action
+        action.style == SettingsActionStyle.Destructive -> EchoIconKind.Delete
+        action.style == SettingsActionStyle.Toggle || action.style == SettingsActionStyle.Choice -> EchoIconKind.Check
+        else -> EchoIconKind.Settings
     }
 }
 

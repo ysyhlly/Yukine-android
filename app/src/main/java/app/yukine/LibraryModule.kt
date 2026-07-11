@@ -103,7 +103,9 @@ internal object LibraryModule {
                 routeActions,
                 searchApplier,
                 audioImporter,
-                libraryScanner ->
+                libraryScanner,
+                deleteRequester,
+                tracksDownloader ->
             MainLibraryGateway(
                 trackListPlayer,
                 languageModeProvider,
@@ -116,7 +118,9 @@ internal object LibraryModule {
                 routeActions,
                 searchApplier,
                 audioImporter,
-                libraryScanner
+                libraryScanner,
+                deleteRequester,
+                tracksDownloader
             )
         }
 

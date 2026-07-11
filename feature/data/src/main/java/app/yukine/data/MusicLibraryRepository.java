@@ -591,6 +591,22 @@ public final class MusicLibraryRepository {
         return database.deleteTrack(trackId);
     }
 
+    public int hideTracks(List<Track> tracks) {
+        return database.hideTracks(tracks);
+    }
+
+    public List<LibraryExclusion> loadLibraryExclusions() {
+        return database.loadLibraryExclusions();
+    }
+
+    public boolean restoreLibraryExclusion(String sourceKey) {
+        return database.restoreLibraryExclusion(sourceKey);
+    }
+
+    public int restoreAllLibraryExclusions() {
+        return database.restoreAllLibraryExclusions();
+    }
+
     public String loadThemeMode() {
         return database.loadThemeMode();
     }

@@ -1295,6 +1295,10 @@ public final class EchoPlaybackService extends MediaLibraryService
         player.clearMediaItems();
         player.setMediaSources(mediaSources, queuePreparation.startIndex(), Math.max(0L, startPositionMs));
         playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(true);
+        // Repeat-all only maps to Media3 REPEAT_MODE_ALL while the player mirrors the queue.
+        // Reapply after changing that fact so a previous single-track REPEAT_MODE_ONE cannot leak
+        // into a list whose Now Bar already reports list repeat.
+        applyPlaybackModeToPlayer();
         player.setPlayWhenReady(playWhenReady);
         try {
             player.prepare();
@@ -1334,6 +1338,9 @@ public final class EchoPlaybackService extends MediaLibraryService
         player.stop();
         player.clearMediaItems();
         playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false);
+        // A single-source player uses the service's manual queue completion path for list repeat.
+        // Reapply here as well so the Media3 mode always matches the app-visible repeat mode.
+        applyPlaybackModeToPlayer();
         applyPlaybackParametersToPlayer();
         player.setMediaSource(mediaSource);
         player.setPlayWhenReady(playWhenReady);

@@ -2,6 +2,8 @@
 
 import android.net.Uri
 import app.yukine.TrackDownloadItem
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,13 +16,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -55,10 +65,14 @@ fun LibraryGroupsScreen(
     onSearch: Runnable = Runnable { },
     activeDownload: TrackDownloadItem? = null,
     playbackQuality: String = "",
-    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
+    libraryUi: LibraryUiState = LibraryUiState(),
+    libraryActionHandler: LibraryActionHandler = LibraryActionHandler { },
+    libraryControlsEnabled: Boolean = false
 ) {
     val p = EchoTheme.colors()
     CollapsibleSearchHeader(
+        enabled = !libraryControlsEnabled,
         header = { LibrarySearchRow(onSearch, activeDownload, playbackQuality, audioMotion) }
     ) { contentModifier, _ ->
         LazyColumn(
@@ -66,8 +80,15 @@ fun LibraryGroupsScreen(
             contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
         ) {
-            item(key = "title") {
-                EchoPageTitle(title)
+            if (!libraryControlsEnabled) {
+                item(key = "title") {
+                    EchoPageTitle(title)
+                }
+            }
+            if (libraryControlsEnabled) {
+                item(key = "libraryGroupControls") {
+                    LibraryGroupControls(libraryUi, libraryActionHandler)
+                }
             }
             if (modeActions.isNotEmpty()) {
                 item(key = "modes") {
@@ -79,7 +100,23 @@ fun LibraryGroupsScreen(
                 key = { index, group -> "group:${group.id}:$index" }
             ) { i, group ->
                 actions.getOrNull(i)?.let { action ->
-                    LibraryGroupRow(group, action)
+                    val selectableGroup = libraryControlsEnabled && libraryUi.mode != LibraryMode.Playlists
+                    LibraryGroupRow(
+                        group = group,
+                        actions = action,
+                        selected = libraryUi.selectedGroupKeys.contains(group.id),
+                        onClick = {
+                            if (selectableGroup && libraryUi.selectionActive) {
+                                libraryActionHandler.onAction(LibraryAction.ToggleGroupSelection(group.id))
+                            } else {
+                                action.onOpen.run()
+                            }
+                        },
+                        onLongPress = if (selectableGroup) {
+                            { libraryActionHandler.onAction(LibraryAction.ToggleGroupSelection(group.id)) }
+                        } else action.onLongPress?.let { callback -> { callback.run() } },
+                        playDescription = libraryUi.labels.play
+                    )
                 }
             }
             if (groups.isEmpty() && emptyText.isNotBlank()) {
@@ -106,17 +143,116 @@ private fun LibrarySearchRow(
 }
 
 @Composable
+private fun LibraryGroupControls(state: LibraryUiState, actionHandler: LibraryActionHandler) {
+    val p = EchoTheme.colors()
+    var filterExpanded by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = state.query,
+            onValueChange = { actionHandler.onAction(LibraryAction.QueryChanged(it)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            leadingIcon = { EchoIcon(EchoIconKind.Search, Modifier.size(18.dp), p.accent) },
+            placeholder = { Text(state.labels.search, color = p.muted) },
+            shape = EchoShapes.medium
+        )
+        Box {
+            Surface(
+                onClick = { filterExpanded = true },
+                shape = EchoShapes.small,
+                color = p.surfaceVariant.copy(alpha = 0.72f)
+            ) {
+                Text(
+                    state.labels.filter + ": " + groupFilterLabel(state, state.filter),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                    style = EchoTypography.caption,
+                    color = p.text
+                )
+            }
+            DropdownMenu(expanded = filterExpanded, onDismissRequest = { filterExpanded = false }) {
+                LibraryFilter.entries.forEach { filter ->
+                    DropdownMenuItem(
+                        text = { Text(groupFilterLabel(state, filter)) },
+                        onClick = {
+                            filterExpanded = false
+                            actionHandler.onAction(LibraryAction.FilterChanged(filter))
+                        }
+                    )
+                }
+            }
+        }
+        if (state.selectedGroupKeys.isNotEmpty()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = EchoShapes.medium,
+                color = p.accentSoft.copy(alpha = 0.72f)
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        state.selectedGroupKeys.size.toString() + state.labels.selectedSuffix,
+                        style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = p.text
+                    )
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        GroupActionChip(state.labels.selectAll) {
+                            actionHandler.onAction(LibraryAction.SelectAllVisible)
+                        }
+                        GroupActionChip(state.labels.play) {
+                            actionHandler.onAction(LibraryAction.PlaySelected)
+                        }
+                        GroupActionChip(state.labels.delete, dangerous = true) {
+                            actionHandler.onAction(LibraryAction.DeleteSelected)
+                        }
+                        GroupActionChip(state.labels.cancel) {
+                            actionHandler.onAction(LibraryAction.ClearSelection)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupActionChip(label: String, dangerous: Boolean = false, onClick: () -> Unit) {
+    val p = EchoTheme.colors()
+    val danger = Color(0xFFB3261E)
+    Surface(
+        onClick = onClick,
+        shape = EchoShapes.small,
+        color = if (dangerous) danger.copy(alpha = 0.16f) else p.surfaceVariant
+    ) {
+        Text(
+            label,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+            style = EchoTypography.caption,
+            color = if (dangerous) danger else p.text
+        )
+    }
+}
+
+private fun groupFilterLabel(state: LibraryUiState, filter: LibraryFilter): String = when (filter) {
+    LibraryFilter.All -> state.labels.all
+    LibraryFilter.Favorites -> state.labels.favorites
+    LibraryFilter.Local -> state.labels.local
+    LibraryFilter.Network -> state.labels.network
+}
+
+@Composable
 private fun GroupModeSelector(modes: List<TrackListModeAction>) {
     val p = EchoTheme.colors()
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         for (mode in modes) {
             Surface(
                 onClick = { mode.onClick.run() },
                 modifier = Modifier
-                    .weight(1f)
+                    .widthIn(min = 104.dp)
                     .height(40.dp)
                     .then(if (mode.selected) Modifier else Modifier.echoGlassLayer(p, EchoShapes.medium))
                     .semantics { contentDescription = mode.label },
@@ -133,16 +269,14 @@ private fun GroupModeSelector(modes: List<TrackListModeAction>) {
                         Modifier.size(if (mode.selected) 18.dp else 20.dp),
                         if (mode.selected) p.accent else p.muted
                     )
-                    if (mode.selected) {
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            mode.label,
-                            style = EchoTypography.caption,
-                            color = p.accent,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        mode.label,
+                        style = EchoTypography.caption,
+                        color = if (mode.selected) p.accent else p.muted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
@@ -163,7 +297,14 @@ private fun GroupMessage(message: String) {
 }
 
 @Composable
-private fun LibraryGroupRow(group: LibraryGroupUiState, actions: LibraryGroupActions) {
+private fun LibraryGroupRow(
+    group: LibraryGroupUiState,
+    actions: LibraryGroupActions,
+    selected: Boolean = false,
+    onClick: (() -> Unit)? = null,
+    onLongPress: (() -> Unit)? = null,
+    playDescription: String = "\u64ad\u653e"
+) {
     val p = EchoTheme.colors()
     val interaction = androidx.compose.runtime.remember { MutableInteractionSource() }
     Surface(
@@ -171,13 +312,13 @@ private fun LibraryGroupRow(group: LibraryGroupUiState, actions: LibraryGroupAct
             .combinedClickable(
                 interactionSource = interaction,
                 indication = androidx.compose.foundation.LocalIndication.current,
-                onClick = { actions.onOpen.run() },
-                onLongClick = actions.onLongPress?.let { action -> { action.run() } }
+                onClick = { onClick?.invoke() ?: actions.onOpen.run() },
+                onLongClick = onLongPress ?: actions.onLongPress?.let { action -> { action.run() } }
             )
             .echoPressScale(interaction)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
-        color = Color.Transparent
+        color = if (selected) p.accentSoft else Color.Transparent
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -207,7 +348,7 @@ private fun LibraryGroupRow(group: LibraryGroupUiState, actions: LibraryGroupAct
                     modifier = Modifier
                         .size(40.dp)
                         .echoGlassLayer(p, EchoShapes.small)
-                        .semantics { contentDescription = "播放" },
+                        .semantics { contentDescription = playDescription },
                     shape = EchoShapes.small,
                     color = Color.Transparent
                 ) {

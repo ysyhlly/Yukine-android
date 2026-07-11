@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import app.yukine.LibraryGroupsDestinationState
+import app.yukine.ui.LibraryActionHandler
 import app.yukine.TrackDownloadItem
 import app.yukine.ui.LibraryGroupsScreen
 import app.yukine.ui.YukineOrbAudioMotion
@@ -22,7 +23,9 @@ fun LibraryGroupsDestination(
     onSearch: Runnable = Runnable { },
     activeDownload: TrackDownloadItem? = null,
     playbackQuality: String = "",
-    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
+    actionHandler: LibraryActionHandler = LibraryActionHandler { },
+    libraryControlsEnabled: Boolean = false
 ) {
     val uiState by state.collectAsState()
     LibraryGroupsScreen(
@@ -34,6 +37,9 @@ fun LibraryGroupsDestination(
         onSearch,
         activeDownload,
         playbackQuality,
-        audioMotion
+        audioMotion,
+        uiState.libraryUi,
+        actionHandler,
+        libraryControlsEnabled
     )
 }

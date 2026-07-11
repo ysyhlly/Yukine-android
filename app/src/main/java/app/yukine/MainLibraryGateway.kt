@@ -15,7 +15,9 @@ internal fun interface MainLibraryGatewayFactory {
         routeActions: LibraryRouteActions,
         searchApplier: MainLibraryGateway.SearchApplier,
         audioImporter: MainLibraryGateway.AudioImporter,
-        libraryScanner: MainLibraryGateway.LibraryScanner
+        libraryScanner: MainLibraryGateway.LibraryScanner,
+        deleteRequester: MainLibraryGateway.DeleteRequester,
+        tracksDownloader: MainLibraryGateway.TracksDownloader
     ): LibraryGateway
 }
 
@@ -39,7 +41,9 @@ internal class MainLibraryGateway(
     private val routeActions: LibraryRouteActions,
     private val searchApplier: SearchApplier,
     private val audioImporter: AudioImporter,
-    private val libraryScanner: LibraryScanner
+    private val libraryScanner: LibraryScanner,
+    private val deleteRequester: DeleteRequester = DeleteRequester { },
+    private val tracksDownloader: TracksDownloader = TracksDownloader { }
 ) : LibraryGateway {
     fun interface TrackListPlayer {
         fun playTrackList(tracks: List<Track>, index: Int)
@@ -137,5 +141,25 @@ internal class MainLibraryGateway(
 
     override fun scanLibrary() {
         libraryScanner.scanLibrary(false)
+    }
+
+    fun interface DeleteRequester {
+        fun request(tracks: List<Track>)
+    }
+
+    fun interface TracksDownloader {
+        fun download(tracks: List<Track>)
+    }
+
+    override fun refreshLibrary() {
+        selectedTabRenderer.renderSelectedTab()
+    }
+
+    override fun requestDeleteTracks(tracks: List<Track>) {
+        deleteRequester.request(tracks)
+    }
+
+    override fun downloadTracks(tracks: List<Track>) {
+        tracksDownloader.download(tracks)
     }
 }

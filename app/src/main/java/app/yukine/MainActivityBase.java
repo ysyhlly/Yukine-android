@@ -16,6 +16,7 @@ import java.util.Set;
 import javax.inject.Inject;
 
 import app.yukine.data.MusicLibraryRepository;
+import app.yukine.ui.LibraryUiLabels;
 import app.yukine.model.Playlist;
 import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
@@ -147,6 +148,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject MainPlayHistoryActionControllerFactory playHistoryActionControllerFactory;
     @Inject MainNetworkActionsListenerFactory networkActionsListenerFactory;
     @Inject MainLibraryGatewayFactory libraryGatewayFactory;
+    @Inject LibraryDeletionUseCase libraryDeletionUseCase;
     @Inject ArtistInfoRepository artistInfoRepository;
     @Inject MainLibraryGroupsRenderListenerFactory libraryGroupsRenderListenerFactory;
     @Inject MainCollectionsRenderListenerFactory collectionsRenderListenerFactory;
@@ -155,6 +157,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private MainPermissionController permissionController;
     private MainUiShellController uiShellController;
     private TrackShareLauncher trackShareLauncher;
+    private LibraryFileDeleteLauncher libraryFileDeleteLauncher;
     private DocumentPickerController documentPickerController;
     private BackgroundImagePickerController backgroundImagePickerController;
     private BackupRestoreLauncher backupRestoreLauncher;
@@ -330,7 +333,9 @@ public abstract class MainActivityBase extends ComponentActivity {
                 routeController,
                 this::applySearch,
                 () -> documentPickerController.openAudioFilePicker(),
-                allowCachedFirst -> loadLibrary(allowCachedFirst)
+                allowCachedFirst -> loadLibrary(allowCachedFirst),
+                tracks -> libraryFileDeleteLauncher.request(tracks, selectedPlaylistId()),
+                tracks -> downloadRequestController.downloadTracks(tracks)
         ));
     }
 
@@ -403,6 +408,30 @@ public abstract class MainActivityBase extends ComponentActivity {
                 task -> executors.io(task),
                 task -> mainHandler.post(task),
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()
+        );
+        libraryFileDeleteLauncher = new LibraryFileDeleteLauncher(
+                this,
+                libraryDeletionUseCase,
+                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                result -> {
+                    java.util.Set<Long> removedIds = new java.util.HashSet<>();
+                    for (Track track : result.getRemoved()) {
+                        removedIds.add(track.id);
+                    }
+                    nowPlayingViewModel.removeQueueTracks(removedIds);
+                    libraryViewModel.onLibraryAction(app.yukine.ui.LibraryAction.ClearSelection.INSTANCE);
+                    int removed = result.getRemoved().size();
+                    int failed = result.getFailed().size();
+                    int skipped = result.getSkipped().size();
+                    statusMessageController.setStatus(
+                            AppLanguage.text(settingsStore.languageMode(), "library.delete.result")
+                                    .replace("%d", String.valueOf(removed))
+                                    .replace("%f", String.valueOf(failed))
+                                    .replace("%s", String.valueOf(skipped))
+                    );
+                    loadLibrary(true);
+                    return kotlin.Unit.INSTANCE;
+                }
         );
         backupRestoreLauncher = new BackupRestoreLauncher(
                 this,
@@ -512,7 +541,10 @@ public abstract class MainActivityBase extends ComponentActivity {
                 track -> downloadRequestController.downloadTrack(track),
                 tracks -> downloadRequestController.downloadTracks(tracks),
                 track -> networkDialogController.showEditStream(track),
-                track -> confirmationDialogController.confirmDeleteTrack(track)
+                track -> libraryFileDeleteLauncher.request(
+                        java.util.Collections.singletonList(track),
+                        selectedPlaylistId()
+                )
         ));
     }
 
@@ -704,6 +736,12 @@ public abstract class MainActivityBase extends ComponentActivity {
                 backupRestoreLauncher.importBackup();
             } else if (effect instanceof SettingsEffect.ApplyStreamingGatewayEndpoint) {
                 applyStreamingGatewayEndpoint(((SettingsEffect.ApplyStreamingGatewayEndpoint) effect).getEndpoint());
+            } else if (effect instanceof SettingsEffect.RestoreHiddenLibraryItem) {
+                repository.restoreLibraryExclusion(((SettingsEffect.RestoreHiddenLibraryItem) effect).getSourceKey());
+                refreshAfterHiddenLibraryRestore();
+            } else if (effect == SettingsEffect.RestoreAllHiddenLibraryItems.INSTANCE) {
+                repository.restoreAllLibraryExclusions();
+                refreshAfterHiddenLibraryRestore();
             }
         });
     }
@@ -988,7 +1026,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                 playbackServiceConnectionController,
                 playbackStore,
                 lyricsViewModel,
-                streamingGatewaySettingsStore
+                streamingGatewaySettingsStore,
+                repository
         );
         refreshSettingsContext();
         DialogLanguageProvider dialogLanguageProvider =
@@ -1369,7 +1408,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 request.getHeaderActions(),
                 "",
                 new ArrayList<TrackListModeAction>(),
-                new TrackListLabels(),
+                trackListLabels(),
                 request.getFooterAlbums()
         );
     }
@@ -1490,7 +1529,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                         if (visible) {
                             bindQueueViewModelInputs(true);
                         }
-                    }
+                    },
+                    libraryViewModel::onLibraryAction
             );
             return;
         }
@@ -2220,6 +2260,32 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void renderLibrary() {
+        String languageMode = settingsStore.languageMode();
+        libraryViewModel.updateLibraryLabels(new LibraryUiLabels(
+                AppLanguage.text(languageMode, "library.search"),
+                AppLanguage.text(languageMode, "library.sort"),
+                AppLanguage.text(languageMode, "library.filter"),
+                AppLanguage.text(languageMode, "library.filter.all"),
+                AppLanguage.text(languageMode, "favorite"),
+                AppLanguage.text(languageMode, "library.filter.local"),
+                AppLanguage.text(languageMode, "library.filter.network"),
+                AppLanguage.text(languageMode, "library.select.all"),
+                AppLanguage.text(languageMode, "cancel"),
+                AppLanguage.text(languageMode, "play"),
+                AppLanguage.text(languageMode, "add.to.playlist"),
+                AppLanguage.text(languageMode, "favorite"),
+                AppLanguage.text(languageMode, "download"),
+                AppLanguage.text(languageMode, "delete"),
+                AppLanguage.text(languageMode, "more"),
+                AppLanguage.text(languageMode, "library.selected.suffix"),
+                AppLanguage.text(languageMode, "library.sort.title.asc"),
+                AppLanguage.text(languageMode, "library.sort.title.desc"),
+                AppLanguage.text(languageMode, "library.sort.artist"),
+                AppLanguage.text(languageMode, "library.sort.album"),
+                AppLanguage.text(languageMode, "library.sort.duration.asc"),
+                AppLanguage.text(languageMode, "library.sort.duration.desc")
+        ));
+        libraryViewModel.syncLibraryMode(libraryMode());
         if (!permissionController.hasAudioPermission()) {
             statusMessageController.setStatus(
                     AppLanguage.text(settingsStore.languageMode(), "audio.permission.required") + ": "
@@ -2291,7 +2357,23 @@ public abstract class MainActivityBase extends ComponentActivity {
             String emptyText,
             List<TrackListModeAction> modeActions
     ) {
-        renderComposeTrackList(title, tracks, showPlaylistAction, details, showStreamActions, headerMetrics, headerActions, emptyText, modeActions, new TrackListLabels());
+        renderComposeTrackList(title, tracks, showPlaylistAction, details, showStreamActions, headerMetrics, headerActions, emptyText, modeActions, trackListLabels());
+    }
+
+    private TrackListLabels trackListLabels() {
+        String languageMode = settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode();
+        return new TrackListLabels(
+                AppLanguage.text(languageMode, "favorite"),
+                AppLanguage.text(languageMode, "remove.favorite"),
+                AppLanguage.text(languageMode, "add.to.playlist"),
+                AppLanguage.text(languageMode, "edit"),
+                AppLanguage.text(languageMode, "delete"),
+                AppLanguage.text(languageMode, "download"),
+                AppLanguage.text(languageMode, "download.current.list"),
+                AppLanguage.text(languageMode, "all.albums"),
+                AppLanguage.text(languageMode, "play.all"),
+                AppLanguage.text(languageMode, "shuffle")
+        );
     }
 
     private void renderComposeTrackList(
@@ -2406,7 +2488,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                 libraryMode(),
                 selectedLibraryGroupKey(),
                 selectedLibraryGroupTitle(),
-                libraryModeActions()
+                libraryModeActions(),
+                libraryStore.favoriteIds()
         );
     }
 
@@ -2584,6 +2667,11 @@ public abstract class MainActivityBase extends ComponentActivity {
                 settingsContextProvider.preferencesSnapshot(),
                 settingsContextProvider.runtimeStatus()
         );
+    }
+
+    private void refreshAfterHiddenLibraryRestore() {
+        loadLibrary(true);
+        refreshSettingsContext();
     }
 
     private List<Track> heartbeatLibraryContextTracks() {

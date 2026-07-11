@@ -328,7 +328,9 @@ class EchoNavGraphTest {
         composeRule.onNode(hasContentDescription("Settings") and hasClickAction()).performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Appearance").assertIsDisplayed()
+        // Assert the first settings group: later groups are lazily composed and can sit outside
+        // Robolectric's compact viewport.
+        composeRule.onNodeWithText("Library").assertIsDisplayed()
     }
 
     @Test

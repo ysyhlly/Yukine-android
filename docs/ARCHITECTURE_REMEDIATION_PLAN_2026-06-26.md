@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-07-11 已完成切片：曲库子页
+
+- 曲库展示状态继续由 `LibraryViewModel` 发布，并新增类型化交互状态；未引入通用 Manager、Coordinator、Bindings 或事件总线。
+- 平台文件删除独立为 Activity 作用域 launcher，数据库隐藏/删除保持在 use case 和 repository 边界，播放队列继续通过既有播放 gateway/owner 更新。
+- 数据库迁移保持增量 SQLite helper 方案；版本 14 只新增 exclusions 表，没有 Room 重写或破坏性迁移。
+
 ## 1. 文档定位
 
 这份文档不是替代现有迁移文档，而是对外部审查结论做一次当前工作树复核后，产出的执行计划表。

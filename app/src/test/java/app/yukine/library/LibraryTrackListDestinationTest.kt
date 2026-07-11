@@ -6,12 +6,15 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performTextInput
 import app.yukine.LibraryTrackListDestinationState
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackRowActions
 import app.yukine.ui.TrackRowUiState
 import app.yukine.ui.YukineOrbAudioMotion
+import app.yukine.ui.LibraryAction
+import app.yukine.ui.LibraryActionHandler
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -85,6 +88,34 @@ class LibraryTrackListDestinationTest {
 
         composeRule.onNodeWithText("Songs").assertIsDisplayed()
         composeRule.onAllNodesWithText("Echo").assertCountEquals(2)
+    }
+
+    @Test
+    fun libraryControlsExposeInlineSearchAndTypedQueryAction() {
+        val calls = ArrayList<LibraryAction>()
+        val state = MutableStateFlow(
+            LibraryTrackListDestinationState(
+                title = "Songs",
+                rows = listOf(row(1L, "First")),
+                actions = actions(1)
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                LibraryTrackListDestination(
+                    state = state,
+                    audioMotion = staticMotion,
+                    actionHandler = LibraryActionHandler { calls.add(it) },
+                    libraryControlsEnabled = true
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("搜索曲库").performTextInput("rock")
+        composeRule.runOnIdle {
+            assertEquals(LibraryAction.QueryChanged("rock"), calls.last())
+        }
     }
 
     @Test

@@ -66,6 +66,7 @@ flowchart TD
 
 ## 最新更新
 
+- **曲库交互重写（2026-07-11）**：曲库增加页内搜索、排序、来源筛选、播放全部/随机播放、歌曲与分组多选；单曲左滑会停靠显示“更多/删除”，不会全滑误删。删除会区分歌单移除、曲库隐藏、网络记录删除和经系统授权的本地文件永久删除；隐藏歌曲写入排除表，重新扫描不会恢复，并可在“设置 → 曲库”逐项或全部恢复。
 - **播放边界统一（2026-06-25）**: 新增 `PlaybackController` 接口隔离 EchoPlaybackService 实现细节，提供 `PlaybackServiceController` 适配器和 `FakePlaybackController` 测试实现，便于 ViewModel 测试和未来播放引擎替换。
 - **曲库状态收敛（2026-06-25）**: `MainLibraryStore` 写接口已移除（setFavorite, toggleFavorite, clearPlayHistory），退化为只读兼容facade，收藏状态由 `MainActivityViewModel` 统一管理，通过单向同步保证一致性。
 - **测试稳定性修复（2026-06-25）**: `LyricsViewModel` 与 `StreamingViewModel` 改为注入 `ioDispatcher`（默认仍 `Dispatchers.IO`），替换硬编码后台调度，消除完整单测套件并行运行时的偶发失败；完整套件连续清运行已稳定全绿。
@@ -95,6 +96,7 @@ flowchart TD
 
 - 首次启动引导：权限、扫描、歌单导入、流媒体连接入口。
 - 本地曲库：歌曲、专辑、艺人、文件夹、歌单分组。
+- 曲库操作：页内搜索、排序、来源筛选、左滑更多/删除、多选批量操作、隐藏/恢复及系统授权文件删除。
 - 收藏歌单：曲库歌单页提供 `收藏歌单` 入口，收藏歌曲集中查看。
 - 播放队列：顺序播放、列表循环、单曲循环、随机、关闭循环播完停止。
 - 后台播放：Media3 前台服务、MediaSession、媒体通知、耳机控制、开机恢复入口。
@@ -277,6 +279,7 @@ flowchart TD
 
 ## Latest Updates
 
+- **Library interaction rewrite (2026-07-11):** The Library now supports inline search, sorting, source filters, play-all/shuffle, and track/group multi-select. Swiping a track reveals docked More/Delete actions without full-swipe deletion. Removal distinguishes playlist-only removal, persistent library hiding, network-record deletion, and system-authorized local file deletion; hidden tracks stay excluded from rescans and can be restored individually or together from Settings → Library.
 - **Playback boundary unified (2026-06-25)**: a new `PlaybackController` interface isolates EchoPlaybackService internals, with a `PlaybackServiceController` adapter and a `FakePlaybackController` test double, making ViewModels testable and the playback engine replaceable.
 - **Library state convergence (2026-06-25)**: `MainLibraryStore` write methods (setFavorite, toggleFavorite, clearPlayHistory) were removed; it is now a read-only compatibility facade, and favorite state is owned by `MainActivityViewModel` with one-way synchronization.
 - **Test stability fix (2026-06-25)**: `LyricsViewModel` and `StreamingViewModel` now inject an `ioDispatcher` (still defaulting to `Dispatchers.IO`) instead of hardcoding the background dispatcher, removing intermittent failures when the full unit-test suite runs in parallel; repeated clean runs of the suite are now consistently green.
@@ -306,6 +309,7 @@ flowchart TD
 
 - First-run onboarding for permissions, scanning, playlist import, and streaming connection.
 - Local library by songs, albums, artists, folders, and playlists.
+- Library actions include inline search, sorting, source filters, swipe-reveal More/Delete, batch selection, persistent hide/restore, and system-authorized file deletion.
 - Favorites collection entry from the playlist grouping page.
 - Queue modes: sequential playback, repeat all, repeat one, shuffle, and repeat off that stops after the current track.
 - Background playback through Media3 foreground service, MediaSession, notifications, headset controls, and boot restore entry.

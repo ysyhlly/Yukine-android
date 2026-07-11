@@ -7,7 +7,8 @@ internal class SettingsContextProvider(
     private val playbackConnectionController: PlaybackServiceConnectionController,
     private val playbackStore: MainPlaybackStore,
     private val lyricsViewModel: LyricsViewModel?,
-    private val streamingGatewaySettingsStore: StreamingGatewaySettingsStore
+    private val streamingGatewaySettingsStore: StreamingGatewaySettingsStore,
+    private val repository: app.yukine.data.MusicLibraryRepository
 ) {
     fun preferencesSnapshot(): SettingsPreferencesSnapshot =
         SettingsPreferencesSnapshot(
@@ -43,7 +44,10 @@ internal class SettingsContextProvider(
             libraryAlbumCount = LibraryGrouping.uniqueAlbumCount(allTracks),
             libraryArtistCount = LibraryGrouping.uniqueArtistCount(allTracks),
             streamingGatewayEndpoint = streamingGatewaySettingsStore.endpoint(),
-            streamingGatewayConfigured = streamingGatewaySettingsStore.configured()
+            streamingGatewayConfigured = streamingGatewaySettingsStore.configured(),
+            hiddenLibraryItems = repository.loadLibraryExclusions().map { exclusion ->
+                HiddenLibraryItemUi(exclusion.sourceKey, exclusion.displayName())
+            }
         )
     }
 }

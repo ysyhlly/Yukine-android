@@ -3,6 +3,7 @@ package app.yukine
 import app.yukine.model.Track
 import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.LibraryGroupUiState
+import app.yukine.ui.LibraryAction
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListModeAction
@@ -77,7 +78,8 @@ internal class LibraryGroupsRenderController(
         libraryMode: String,
         selectedLibraryGroupKey: String,
         selectedLibraryGroupTitle: String,
-        modeActions: List<TrackListModeAction>
+        modeActions: List<TrackListModeAction>,
+        favoriteIds: Set<Long> = emptySet()
     ) {
         render(
             AppLanguage.MODE_CHINESE,
@@ -85,7 +87,8 @@ internal class LibraryGroupsRenderController(
             libraryMode,
             selectedLibraryGroupKey,
             selectedLibraryGroupTitle,
-            modeActions
+            modeActions,
+            favoriteIds
         )
     }
 
@@ -95,9 +98,16 @@ internal class LibraryGroupsRenderController(
         libraryMode: String,
         selectedLibraryGroupKey: String,
         selectedLibraryGroupTitle: String,
-        modeActions: List<TrackListModeAction>
+        modeActions: List<TrackListModeAction>,
+        favoriteIds: Set<Long> = emptySet()
     ) {
-        val groups = LibraryGrouping.groupTracks(visibleTracks, libraryMode)
+        val filteredTracks = LibraryTrackPresentationPolicy.present(
+            visibleTracks,
+            emptyList(),
+            viewModel.libraryUi.value,
+            favoriteIds
+        ).map { it.track }
+        val groups = LibraryGrouping.groupTracks(filteredTracks, libraryMode)
         if (selectedLibraryGroupKey.isNotEmpty()) {
             val selectedTracks = groups[selectedLibraryGroupKey]
             if (selectedTracks != null) {
@@ -145,10 +155,14 @@ internal class LibraryGroupsRenderController(
                     Runnable { listener.selectLibraryGroup(key, title) },
                     Runnable { listener.playTrackList(tracks, 0) },
                     true,
-                    Runnable { listener.confirmDeleteGroup(title, tracks) }
+                    Runnable { viewModel.onLibraryAction(LibraryAction.ToggleGroupSelection(rowId)) }
                 )
             )
         }
+
+        viewModel.updateVisibleGroupTargets(groups.mapKeys { (key, _) ->
+            "$libraryMode:${if (key.isEmpty()) "unknown" else key}"
+        })
 
         val title = LibraryGrouping.modeTitle(libraryMode, languageMode)
         val emptyText = AppLanguage.text(languageMode, "no.library.groups").replace("%s", title)

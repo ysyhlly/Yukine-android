@@ -41,6 +41,10 @@ enum class EchoIconKind {
     Delete,
     Remove,
     Import,
+    Download,
+    Upload,
+    Permission,
+    Info,
     Folder,
     Check,
     ArrowUp,
@@ -241,11 +245,27 @@ fun EchoIcon(
                 drawCircle(color, radius = w * 0.32f, center = Offset(w * 0.5f, h * 0.5f), style = stroke)
                 drawLine(color, Offset(w * 0.32f, h * 0.5f), Offset(w * 0.68f, h * 0.5f), strokeWidth = stroke.width, cap = StrokeCap.Round)
             }
-            EchoIconKind.Import -> {
+            EchoIconKind.Import, EchoIconKind.Download -> {
                 drawLine(color, Offset(w * 0.5f, h * 0.18f), Offset(w * 0.5f, h * 0.62f), strokeWidth = stroke.width, cap = StrokeCap.Round)
                 drawLine(color, Offset(w * 0.34f, h * 0.46f), Offset(w * 0.5f, h * 0.62f), strokeWidth = stroke.width, cap = StrokeCap.Round)
                 drawLine(color, Offset(w * 0.66f, h * 0.46f), Offset(w * 0.5f, h * 0.62f), strokeWidth = stroke.width, cap = StrokeCap.Round)
                 drawRoundRect(color, Offset(w * 0.24f, h * 0.72f), Size(w * 0.52f, h * 0.08f), CornerRadius(w * 0.04f, w * 0.04f))
+            }
+            EchoIconKind.Upload -> {
+                drawLine(color, Offset(w * 0.5f, h * 0.68f), Offset(w * 0.5f, h * 0.24f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+                drawLine(color, Offset(w * 0.34f, h * 0.4f), Offset(w * 0.5f, h * 0.24f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+                drawLine(color, Offset(w * 0.66f, h * 0.4f), Offset(w * 0.5f, h * 0.24f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+                drawRoundRect(color, Offset(w * 0.24f, h * 0.72f), Size(w * 0.52f, h * 0.08f), CornerRadius(w * 0.04f, w * 0.04f))
+            }
+            EchoIconKind.Permission -> {
+                drawRoundRect(color, Offset(w * 0.24f, h * 0.44f), Size(w * 0.52f, h * 0.4f), CornerRadius(w * 0.07f, w * 0.07f), style = stroke)
+                drawArc(color, 180f, 180f, false, Offset(w * 0.32f, h * 0.16f), Size(w * 0.36f, h * 0.5f), style = stroke)
+                drawCircle(color, radius = w * 0.045f, center = Offset(w * 0.5f, h * 0.62f))
+            }
+            EchoIconKind.Info -> {
+                drawCircle(color, radius = w * 0.34f, center = Offset(w * 0.5f, h * 0.5f), style = stroke)
+                drawCircle(color, radius = w * 0.045f, center = Offset(w * 0.5f, h * 0.32f))
+                drawLine(color, Offset(w * 0.5f, h * 0.46f), Offset(w * 0.5f, h * 0.7f), strokeWidth = stroke.width, cap = StrokeCap.Round)
             }
             EchoIconKind.Folder -> {
                 drawLine(color, Offset(w * 0.16f, h * 0.36f), Offset(w * 0.4f, h * 0.36f), strokeWidth = stroke.width, cap = StrokeCap.Round)

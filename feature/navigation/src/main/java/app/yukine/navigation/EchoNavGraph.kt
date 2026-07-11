@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import app.yukine.LibraryGroupsDestinationState
 import app.yukine.StreamingSearchState
 import app.yukine.LibraryTrackListDestinationState
+import app.yukine.ui.LibraryActionHandler
 import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.collections.CollectionsDestination
 import app.yukine.downloads.DownloadsDestination
@@ -280,7 +281,8 @@ fun EchoNavGraph(
                         openSearchAction = openSearchAction,
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
-                        audioMotion = audioMotion
+                        audioMotion = audioMotion,
+                        actionHandler = hostState.libraryActionHandler
                     )
                     QueueTab -> NowPlayingDestination(
                         state = hostState.nowPlayingUiState,
@@ -339,7 +341,8 @@ private fun LibraryDestination(
     openSearchAction: Runnable,
     activeDownload: TrackDownloadItem?,
     playbackQuality: String,
-    audioMotion: YukineOrbAudioMotion
+    audioMotion: YukineOrbAudioMotion,
+    actionHandler: LibraryActionHandler
 ) {
     // The child destinations own full list collection. The parent only needs to know which
     // destination is active, so row/action updates in a large list do not recompose this branch.
@@ -356,7 +359,9 @@ private fun LibraryDestination(
             onSearch = openSearchAction,
             activeDownload = activeDownload,
             playbackQuality = playbackQuality,
-            audioMotion = audioMotion
+            audioMotion = audioMotion,
+            actionHandler = actionHandler,
+            libraryControlsEnabled = true
         )
         return
     }
@@ -365,7 +370,9 @@ private fun LibraryDestination(
         onSearch = openSearchAction,
         activeDownload = activeDownload,
         playbackQuality = playbackQuality,
-        audioMotion = audioMotion
+        audioMotion = audioMotion,
+        actionHandler = actionHandler,
+        libraryControlsEnabled = true
     )
 }
 

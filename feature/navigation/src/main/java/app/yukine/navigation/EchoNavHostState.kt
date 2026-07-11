@@ -11,6 +11,7 @@ import app.yukine.LibraryGroupsDestinationState
 import app.yukine.NavigationRouteState
 import app.yukine.StreamingSearchState
 import app.yukine.LibraryTrackListDestinationState
+import app.yukine.ui.LibraryActionHandler
 import app.yukine.NetworkMenuUiState
 import app.yukine.NetworkSourcesUiState
 import app.yukine.NowPlayingScreenStateProvider
@@ -58,7 +59,8 @@ class EchoNavHostState @JvmOverloads constructor(
     val realtimeBandsProvider: () -> FloatArray = { EmptyRealtimeBands },
     val visualMotionEnabled: Boolean = true,
     private val queueSheetVisibilityListener: QueueSheetVisibilityListener =
-        QueueSheetVisibilityListener { }
+        QueueSheetVisibilityListener { },
+    val libraryActionHandler: LibraryActionHandler = LibraryActionHandler { }
 ) {
     val nowBarStateProvider: NowPlayingScreenStateProvider = nowPlayingStateProvider
     val nowPlayingUiState: StateFlow<app.yukine.NowPlayingUiState> = nowPlayingStateProvider.uiState

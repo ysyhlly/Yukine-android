@@ -29,9 +29,14 @@ private val SearchHeaderHeight = 76.dp
 
 @Composable
 fun CollapsibleSearchHeader(
+    enabled: Boolean = true,
     header: @Composable () -> Unit,
     content: @Composable (Modifier, Boolean) -> Unit
 ) {
+    if (!enabled) {
+        content(Modifier.fillMaxSize(), false)
+        return
+    }
     var expanded by remember { mutableStateOf(true) }
     val headerOffset by animateDpAsState(
         targetValue = if (expanded) 0.dp else -SearchHeaderHeight,

@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-07-11 曲库交互与删除边界
+
+- `LibraryViewModel` 新增唯一的曲库交互状态，统一管理模式、查询、排序、筛选、左滑展开和歌曲/分组选择；Compose 通过类型化 `LibraryAction` 发送事件。
+- 曲库左滑和多选不直接操作数据库。隐藏/记录删除由 `LibraryDeletionUseCase` 处理，MediaStore/SAF 文件授权由 Activity 作用域 `LibraryFileDeleteLauncher` 处理。
+- `EchoDatabaseHelper` 数据库版本升级到 14，新增 `library_exclusions`；扫描替换和文档导入写入都会过滤排除项，设置页可以恢复单项或全部恢复。
+- 删除成功后通过 `NowPlayingViewModel` 的窄队列命令同步内存队列；`MainActivityBase` 仅负责平台 launcher 组装、结果转发和刷新。
+
 ## 2026-06-29 Codex continuation note
 
 - Launcher component `.MainActivity` now resolves to Kotlin `MainActivity.kt`;

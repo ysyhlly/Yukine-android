@@ -819,7 +819,10 @@ internal object SettingsPageStateBuilder {
         onNavigate: (SettingsPage) -> Unit,
         onLoadLibrary: () -> Unit,
         onOpenAudioFilePicker: () -> Unit,
-        onOpenAudioFolderPicker: () -> Unit
+        onOpenAudioFolderPicker: () -> Unit,
+        hiddenItems: List<HiddenLibraryItemUi> = emptyList(),
+        onRestoreHidden: (String) -> Unit = {},
+        onRestoreAllHidden: () -> Unit = {}
     ): SettingsPageStateContent {
         val metrics = listOf(
             SettingsMetric(text(languageMode, "songs"), songCount.toString()),
@@ -827,12 +830,24 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "artists"), artistCount.toString()),
             SettingsMetric(text(languageMode, "audio.permission"), permissionLabel(audioPermissionGranted, languageMode))
         )
-        val actions = listOf(
-            navigationAction(text(languageMode, "back"), backPage, onNavigate),
-            SettingsAction(text(languageMode, "scan.library"), Runnable { onLoadLibrary() }),
-            SettingsAction(text(languageMode, "import.audio.files"), Runnable { onOpenAudioFilePicker() }),
-            SettingsAction(text(languageMode, "import.audio.folder"), Runnable { onOpenAudioFolderPicker() })
-        )
+        val actions = buildList {
+            add(navigationAction(text(languageMode, "back"), backPage, onNavigate))
+            add(SettingsAction(text(languageMode, "scan.library"), Runnable { onLoadLibrary() }))
+            add(SettingsAction(text(languageMode, "import.audio.files"), Runnable { onOpenAudioFilePicker() }))
+            add(SettingsAction(text(languageMode, "import.audio.folder"), Runnable { onOpenAudioFolderPicker() }))
+            if (hiddenItems.isNotEmpty()) {
+                add(SettingsAction(
+                    text(languageMode, "library.hidden.restore.all") + " (${hiddenItems.size})",
+                    Runnable { onRestoreAllHidden() }
+                ))
+                hiddenItems.forEach { item ->
+                    add(SettingsAction(
+                        text(languageMode, "library.hidden.restore") + ": " + item.label,
+                        Runnable { onRestoreHidden(item.sourceKey) }
+                    ))
+                }
+            }
+        }
         return buildContent(text(languageMode, "library"), metrics, actions)
     }
 

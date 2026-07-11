@@ -347,6 +347,11 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         }
     }
 
+    fun removeQueueTracks(trackIds: Set<Long>) {
+        if (trackIds.isEmpty()) return
+        playbackGateway?.removeTracksById(trackIds)
+    }
+
     fun updateQueuedTrackArtwork(trackId: Long, artworkUri: Uri?) {
         val safeUri = artworkUri ?: return
         playbackGateway?.updateQueuedTrackArtwork(trackId, safeUri)

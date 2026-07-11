@@ -3,10 +3,54 @@ package app.yukine
 import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.ui.TrackListLabels
+import app.yukine.ui.LibraryAction
+import app.yukine.ui.LibraryMode
+import app.yukine.ui.TrackListHeaderAction
+import app.yukine.ui.TrackListModeAction
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class TrackListRenderControllerTest {
+    @Test
+    fun songsRootKeepsPlayActionsButOmitsDownloadCurrentList() {
+        val viewModel = LibraryViewModel()
+        val controller = TrackListRenderController(viewModel, FakeListener())
+        val labels = TrackListLabels()
+
+        controller.render(
+            "Songs", listOf(track(1L)), true, listOf(""), false,
+            emptyList(), emptyList(), "",
+            listOf(TrackListModeAction("Songs", "songs", true, Runnable { })),
+            labels, null, emptySet()
+        )
+
+        assertEquals(
+            listOf(labels.playAllLabel, labels.shuffleLabel),
+            viewModel.trackList.value.headerActions.map { it.label }
+        )
+    }
+
+    @Test
+    fun playlistDetailDoesNotAddDuplicatePlayAllAction() {
+        val viewModel = LibraryViewModel()
+        viewModel.onLibraryAction(LibraryAction.ModeChanged(LibraryMode.Playlists))
+        val controller = TrackListRenderController(viewModel, FakeListener())
+        val labels = TrackListLabels()
+        val playPlaylist = TrackListHeaderAction("播放歌单", Runnable { })
+
+        controller.render(
+            "Playlist", listOf(track(1L)), true, listOf(""), false,
+            emptyList(), listOf(playPlaylist), "",
+            listOf(TrackListModeAction("Playlists", "playlists", true, Runnable { })),
+            labels, null, emptySet()
+        )
+
+        assertEquals(
+            listOf("播放歌单", labels.downloadCurrentListLabel),
+            viewModel.trackList.value.headerActions.map { it.label }
+        )
+    }
+
     @Test
     fun renderRecommendationPublishesLanguageAwareTrackMetric() {
         val viewModel = LibraryViewModel()
