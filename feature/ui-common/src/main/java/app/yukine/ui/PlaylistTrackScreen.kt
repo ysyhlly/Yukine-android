@@ -102,7 +102,9 @@ private fun PlaylistTrackRow(
     )
     Surface(
         onClick = { actions.onPlay.run() },
-        modifier = modifier.echoGlassLayer(p, EchoShapes.medium),
+        modifier = modifier
+            .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = if (track.current) bg else Color.Transparent
     ) {

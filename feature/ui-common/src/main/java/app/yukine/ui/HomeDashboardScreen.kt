@@ -311,6 +311,7 @@ private fun NowPlayingCard(state: HomeDashboardUiState, actions: HomeDashboardAc
         modifier = Modifier
             .echoPressScale(interaction)
             .fillMaxWidth()
+            .echoFloatingLayer(p, EchoShapes.large)
             .semantics { contentDescription = "正在播放" },
         shape = EchoShapes.large,
         color = echoCardColor(p.surface)
@@ -438,6 +439,7 @@ private fun StatCard(stat: HomeDashboardStatUiState, action: Runnable?, modifier
         modifier = modifier
             .echoPressScale(interaction)
             .heightIn(min = 80.dp)
+            .echoFloatingLayer(p, EchoShapes.medium)
             .semantics { contentDescription = stat.label },
         shape = EchoShapes.medium,
         color = echoCardColor(p.surface)
@@ -531,6 +533,7 @@ private fun CompactRecentCard(item: HomeDashboardRecentUiState, action: Runnable
         modifier = Modifier
             .echoPressScale(interaction)
             .width(120.dp)
+            .echoFloatingLayer(p, EchoShapes.medium)
             .semantics { contentDescription = item.title },
         shape = EchoShapes.medium,
         color = p.surfaceVariant.copy(alpha = 0.5f)
@@ -580,7 +583,9 @@ private fun WeeklyRecapSection(state: HomeDashboardUiState) {
         )
         // Content card
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .echoFloatingLayer(p, EchoShapes.medium),
             shape = EchoShapes.medium,
             color = echoCardColor(p.surface)
         ) {
@@ -816,6 +821,7 @@ private fun RecommendationCard(
         modifier = modifier
             .echoPressScale(interaction)
             .alpha(alpha)
+            .echoFloatingLayer(p, EchoShapes.medium)
             .semantics { contentDescription = title },
         shape = EchoShapes.medium,
         color = echoCardColor(p.surface)
@@ -865,6 +871,7 @@ private fun StreamingGuideCard(onConnect: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .echoPressScale(interaction)
+            .echoFloatingLayer(p, EchoShapes.medium)
             .semantics { contentDescription = "连接流媒体账号" },
         shape = EchoShapes.medium,
         color = p.accent.copy(alpha = 0.12f)

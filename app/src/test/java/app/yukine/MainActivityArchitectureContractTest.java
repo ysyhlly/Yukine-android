@@ -4717,12 +4717,15 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(streamingPlaybackController.contains("nowPlayingViewModel.precacheTrack(resolved)"));
         assertFalse(streamingPlaybackController.contains("nowPlayingViewModel::precacheTrack"));
         assertTrue(streamingPlaybackController.contains("fun resolveAndPlayStreamingTrack(tracks: List<Track>?, index: Int): Boolean"));
+        assertTrue(streamingPlaybackController.contains("fun resolveAndResumeCurrentStreamingTrack("));
+        assertTrue(streamingPlaybackController.contains("nowPlayingViewModel.replaceCurrentSourceAndResume("));
         assertTrue(streamingPlaybackController.contains("streamingViewModel.resolveStreamingTrackListForPlayback("));
         assertTrue(streamingPlaybackController.contains("listener.applyPlaybackActionResult("));
         assertTrue(streamingPlaybackController.contains("fun recoverStreamingBuffering(snapshot: PlaybackStateSnapshot?)"));
         assertTrue(streamingPlaybackController.contains("streamingViewModel.recoverStreamingBuffering("));
         assertTrue(streamingPlaybackController.contains("streamingViewModel.prepareStreamingPlaybackStatusText("));
         assertTrue(streamingPlaybackController.contains("nowPlayingViewModel.replaceCurrentTrackAndResume(resolved.track, resolved.positionMs)"));
+        assertTrue(mainActivity.contains("streamingPlaybackController.resolveAndResumeCurrentStreamingTrack("));
         assertFalse(mainActivity.contains("new StreamingPlaybackBindings("));
         assertTrue(mainStreamingPlaybackListener.contains("internal class MainStreamingPlaybackListener("));
         assertTrue(mainStreamingPlaybackListener.contains(": StreamingPlaybackController.Listener"));

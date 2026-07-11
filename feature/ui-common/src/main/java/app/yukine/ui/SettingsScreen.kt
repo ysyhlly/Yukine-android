@@ -207,6 +207,7 @@ private fun SettingsActionButton(action: SettingsAction, modifier: Modifier = Mo
     val interaction = remember { MutableInteractionSource() }
     val cardModifier = modifier
         .fillMaxWidth()
+        .echoFloatingLayer(p, EchoShapes.medium)
         .echoGlassLayer(p, EchoShapes.medium)
 
     if (action.style == SettingsActionStyle.Toggle) {
@@ -317,6 +318,7 @@ private fun SettingsOverviewCard(metrics: List<SettingsMetric>) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = Color.Transparent

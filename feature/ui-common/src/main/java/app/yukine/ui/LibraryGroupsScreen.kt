@@ -183,7 +183,9 @@ private fun LibraryGroupControls(state: LibraryUiState, actionHandler: LibraryAc
         }
         if (state.selectedGroupKeys.isNotEmpty()) {
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .echoFloatingLayer(p, EchoShapes.medium),
                 shape = EchoShapes.medium,
                 color = p.accentSoft.copy(alpha = 0.72f)
             ) {
@@ -316,6 +318,7 @@ private fun LibraryGroupRow(
                 onLongClick = onLongPress ?: actions.onLongPress?.let { action -> { action.run() } }
             )
             .echoPressScale(interaction)
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = if (selected) p.accentSoft else Color.Transparent

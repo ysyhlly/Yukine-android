@@ -134,3 +134,12 @@
 # release build 会自动生成 app/build/outputs/mapping/release/mapping.txt
 # 上传到 Firebase Crashlytics 或保存归档，用于解混淆线上崩溃栈
 # -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# 十三、jaudiotagger 的桌面图像兼容分支
+# Android 运行路径只读取 Artwork 二进制数据，不调用 StandardArtwork.getImage()；
+# 该方法签名仍引用仅桌面 JRE 提供的 AWT/ImageIO 类型，R8 需显式忽略这些不可达类型。
+# -----------------------------------------------------------------------------
+-dontwarn java.awt.image.BufferedImage
+-dontwarn javax.imageio.ImageIO
+-dontwarn javax.imageio.stream.ImageInputStream

@@ -13,21 +13,43 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 @Composable
 fun EchoGlassSurface(
     modifier: Modifier = Modifier,
     shape: Shape = EchoShapes.medium,
+    elevation: Dp = EchoElevations.card,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     content: @Composable BoxScope.() -> Unit
 ) {
     val p = EchoTheme.colors()
     Box(
         modifier = modifier
+            .echoFloatingLayer(p, shape, elevation)
             .echoGlassLayer(p, shape)
             .padding(contentPadding),
         content = content
+    )
+}
+
+@Composable
+fun Modifier.echoFloatingLayer(
+    palette: EchoPalette = EchoTheme.colors(),
+    shape: Shape = EchoShapes.medium,
+    elevation: Dp = EchoElevations.card
+): Modifier {
+    if (elevation <= 0.dp) return this
+    val dark = palette.background.luminance() < 0.5f
+    val ambientAlpha = if (dark) 0.24f else 0.12f
+    val spotAlpha = if (dark) 0.34f else 0.18f
+    return shadow(
+        elevation = elevation,
+        shape = shape,
+        clip = false,
+        ambientColor = palette.shadow.copy(alpha = ambientAlpha),
+        spotColor = palette.shadow.copy(alpha = spotAlpha)
     )
 }
 
@@ -46,8 +68,8 @@ fun echoCardColor(base: Color = EchoTheme.colors().surface): Color {
 }
 
 /**
- * Paper-like card surface. Light themes get a minimal drop shadow + subtle border for definition.
- * Dark themes get a hairline border only. The result is a clean, print-quality card feel.
+ * Paper-like card material. Elevation is owned by [EchoGlassSurface] or [echoFloatingLayer], while
+ * this modifier owns clipping, fill, and border treatment.
  *
  * When a custom background image is active ([LocalEchoCustomBackground]), cards switch to a
  * frosted, semi-transparent fill so the wallpaper shows through, with a brighter hairline border
@@ -80,13 +102,6 @@ fun Modifier.echoGlassLayer(
             .border(1.dp, palette.border.copy(alpha = 0.4f), shape)
     } else {
         this
-            .shadow(
-                elevation = 1.dp,
-                shape = shape,
-                clip = false,
-                ambientColor = palette.shadow.copy(alpha = 0.05f),
-                spotColor = palette.shadow.copy(alpha = 0.05f)
-            )
             .clip(shape)
             .background(palette.surface)
     }

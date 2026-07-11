@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.animation.core.animateFloatAsState
@@ -99,17 +100,38 @@ private fun EchoBottomNav(
     if (tabs.isEmpty()) {
         return
     }
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        tabs.forEach { item ->
-            EchoBottomNavItem(
-                item = item,
-                selected = item.tab.route == selectedTab.route,
-                modifier = Modifier.weight(1f),
-                onClick = { onTabSelected(item.tab) }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(
+                start = EchoMobileLayoutMetrics.floatingChromeHorizontalPadding,
+                top = EchoMobileLayoutMetrics.floatingChromeGap,
+                end = EchoMobileLayoutMetrics.floatingChromeHorizontalPadding,
+                bottom = EchoMobileLayoutMetrics.floatingChromeBottomPadding
             )
+    ) {
+        EchoGlassSurface(
+            modifier = Modifier
+                .fillMaxWidth(),
+            shape = EchoShapes.pill,
+            elevation = EchoMobileLayoutMetrics.floatingChromeElevation
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                tabs.forEach { item ->
+                    EchoBottomNavItem(
+                        item = item,
+                        selected = item.tab.route == selectedTab.route,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onTabSelected(item.tab) }
+                    )
+                }
+            }
         }
     }
 }

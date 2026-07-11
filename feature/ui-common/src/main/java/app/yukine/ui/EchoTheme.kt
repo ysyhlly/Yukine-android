@@ -147,6 +147,12 @@ object EchoShapes {
     val medium = RoundedCornerShape(14.dp)
     val large = RoundedCornerShape(20.dp)
     val full = RoundedCornerShape(28.dp)
+    val pill = RoundedCornerShape(percent = 50)
+}
+
+object EchoElevations {
+    val card = 6.dp
+    val chrome = 10.dp
 }
 
 // ── Main theme object (Java-facing state holder) ────────────────────────────

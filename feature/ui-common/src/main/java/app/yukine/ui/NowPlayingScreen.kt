@@ -425,6 +425,7 @@ private fun SongInfoPanel(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = Color.Transparent
@@ -707,7 +708,9 @@ private fun AlbumArtHero(
 private fun MetricCard(label: String, value: String, modifier: Modifier) {
     val p = EchoTheme.colors()
     Surface(
-        modifier = modifier.echoGlassLayer(p, EchoShapes.medium),
+        modifier = modifier
+            .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = Color.Transparent
     ) {

@@ -21,6 +21,8 @@ class EchoMobileLayoutContractTest {
 
     @Test
     fun mobileShellMetricsMatchDesktopInspiredP0LayoutContract() {
+        assertEquals(6f, EchoElevations.card.value)
+        assertEquals(10f, EchoElevations.chrome.value)
         assertEquals(148f, EchoMobileLayoutMetrics.nowBarHeight.value)
         assertEquals(EchoMobileLayoutMetrics.nowBarHeight, EchoMobileLayoutMetrics.nowBarExpandedHeight)
         assertEquals(48f, EchoMobileLayoutMetrics.nowBarArtworkSize.value)
@@ -28,6 +30,10 @@ class EchoMobileLayoutContractTest {
         assertEquals(18f, EchoMobileLayoutMetrics.nowBarProgressHeight.value)
         assertEquals(22f, EchoMobileLayoutMetrics.bottomTabIconSize.value)
         assertEquals(8f, EchoMobileLayoutMetrics.bottomTabVerticalPadding.value)
+        assertEquals(12f, EchoMobileLayoutMetrics.floatingChromeHorizontalPadding.value)
+        assertEquals(6f, EchoMobileLayoutMetrics.floatingChromeGap.value)
+        assertEquals(10f, EchoMobileLayoutMetrics.floatingChromeBottomPadding.value)
+        assertEquals(10f, EchoMobileLayoutMetrics.floatingChromeElevation.value)
         assertEquals(220f, EchoMobileLayoutMetrics.nowPlayingArtworkSize.value)
         assertEquals(12f, EchoMobileLayoutMetrics.nowPlayingArtworkCornerRadius.value)
         assertEquals(300f, EchoMobileLayoutMetrics.lyricsPanelMinHeight.value)

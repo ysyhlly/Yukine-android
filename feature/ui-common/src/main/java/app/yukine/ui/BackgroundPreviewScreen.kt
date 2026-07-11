@@ -245,7 +245,9 @@ fun BackgroundPreviewScreen(
 private fun PreviewTopHint(title: String, hint: String, modifier: Modifier = Modifier) {
     val p = EchoTheme.colors()
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .echoFloatingLayer(p, EchoShapes.large),
         shape = EchoShapes.large,
         color = p.surface
     ) {
@@ -269,7 +271,9 @@ private fun PreviewTopHint(title: String, hint: String, modifier: Modifier = Mod
 private fun PreviewSampleCard(label: String, modifier: Modifier = Modifier) {
     val p = EchoTheme.colors()
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .echoFloatingLayer(p, EchoShapes.large),
         shape = EchoShapes.large,
         color = p.surface
     ) {

@@ -42,13 +42,7 @@ internal class StreamingPlaybackController(
             listener.adaptiveStreamingQuality()
         ) { resolved ->
             if (resolved == null) {
-                val error = streamingViewModel.state.errorMessage?.takeIf { it.isNotBlank() }
-                listener.setStatus(
-                    error ?: streamingViewModel.prepareStreamingPlaybackStatusText(
-                        listener.languageMode(),
-                        null
-                    ).resolveFailed
-                )
+                publishResolveFailure()
                 return@resolveStreamingTrackListForPlayback
             }
             listener.applyPlaybackActionResult(
@@ -57,11 +51,57 @@ internal class StreamingPlaybackController(
             resolved.tracks.getOrNull(resolved.index)?.let(nowPlayingViewModel::warmPlaybackTrack)
         }
         if (scheduled) {
-            listener.setStatus(
-                streamingViewModel.prepareStreamingPlaybackStatusText(listener.languageMode(), null).resolving
-            )
+            publishResolving()
         }
         return scheduled
+    }
+
+    fun resolveAndResumeCurrentStreamingTrack(
+        tracks: List<Track>?,
+        index: Int,
+        expectedTrackId: Long,
+        positionMs: Long
+    ): Boolean {
+        val scheduled = streamingViewModel.resolveStreamingTrackListForPlayback(
+            tracks,
+            index,
+            listener.adaptiveStreamingQuality()
+        ) { resolved ->
+            if (resolved == null) {
+                publishResolveFailure()
+                return@resolveStreamingTrackListForPlayback
+            }
+            val refreshed = resolved.tracks.getOrNull(resolved.index)
+                ?: return@resolveStreamingTrackListForPlayback
+            // URL refresh is recovery for the current logical song, not a new queue action.
+            // Replacing only the active source preserves the queue, position and play intent.
+            nowPlayingViewModel.replaceCurrentSourceAndResume(
+                expectedTrackId,
+                refreshed,
+                positionMs
+            )
+            nowPlayingViewModel.warmPlaybackTrack(refreshed)
+        }
+        if (scheduled) {
+            publishResolving()
+        }
+        return scheduled
+    }
+
+    private fun publishResolveFailure() {
+        val error = streamingViewModel.state.errorMessage?.takeIf { it.isNotBlank() }
+        listener.setStatus(
+            error ?: streamingViewModel.prepareStreamingPlaybackStatusText(
+                listener.languageMode(),
+                null
+            ).resolveFailed
+        )
+    }
+
+    private fun publishResolving() {
+        listener.setStatus(
+            streamingViewModel.prepareStreamingPlaybackStatusText(listener.languageMode(), null).resolving
+        )
     }
 
     fun preResolveNextStreamingTrack(snapshot: PlaybackStateSnapshot?) {

@@ -49,6 +49,7 @@ fun YukineSearchBar(
         modifier = Modifier
             .fillMaxWidth()
             .height(48.dp)
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium)
             .semantics { contentDescription = label },
         shape = EchoShapes.medium,

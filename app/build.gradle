@@ -26,8 +26,8 @@ android {
         buildConfigField "String", "YUKINE_WECHAT_APP_ID", "\"${yukineWechatAppId}\""
         // versionCode comes from CI when available; local builds use the current release baseline.
         def echoRunNumber = System.getenv("GITHUB_RUN_NUMBER")
-        versionCode echoRunNumber ? echoRunNumber.toInteger() : 3
-        versionName "0.1.11"
+        versionCode echoRunNumber ? echoRunNumber.toInteger() : 4
+        versionName "0.1.12"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 

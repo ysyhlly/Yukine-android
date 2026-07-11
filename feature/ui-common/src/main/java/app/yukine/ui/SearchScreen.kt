@@ -247,6 +247,7 @@ private fun SearchInput(
             color = Color.Transparent,
             modifier = Modifier
                 .height(56.dp)
+                .echoFloatingLayer(p, EchoShapes.medium)
                 .echoGlassLayer(p, EchoShapes.medium)
         ) {
             Row(
@@ -360,6 +361,7 @@ private fun ResultRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = Color.Transparent
@@ -553,7 +555,9 @@ private fun SearchActionButton(label: String, icon: EchoIconKind, onClick: () ->
         onClick = onClick,
         shape = EchoShapes.medium,
         color = Color.Transparent,
-        modifier = Modifier.echoGlassLayer(p, EchoShapes.medium)
+        modifier = Modifier
+            .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGlassLayer(p, EchoShapes.medium)
     ) {
         Row(
             modifier = Modifier

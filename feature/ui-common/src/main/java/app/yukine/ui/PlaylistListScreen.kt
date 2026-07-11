@@ -59,7 +59,9 @@ private fun PlaylistRow(playlist: PlaylistRowUiState, actions: PlaylistRowAction
     )
     Surface(
         onClick = { actions.onSelect.run() },
-        modifier = modifier.echoGlassLayer(p, EchoShapes.medium),
+        modifier = modifier
+            .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = if (playlist.selected) bg else Color.Transparent
     ) {

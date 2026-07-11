@@ -233,6 +233,7 @@ private fun ActionRow(label: String, action: Runnable?) {
         modifier = Modifier
             .fillMaxWidth()
             .echoPressScale(interaction)
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium)
             .semantics { contentDescription = label },
         shape = EchoShapes.medium,
@@ -270,7 +271,9 @@ private fun CollectionTrackRow(track: TrackRowUiState, actions: TrackRowActions,
     )
     Surface(
         onClick = { actions.onPlay.run() },
-        modifier = modifier.echoGlassLayer(p, EchoShapes.medium),
+        modifier = modifier
+            .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = if (track.current) bg else Color.Transparent
     ) {
@@ -315,7 +318,9 @@ private fun CollectionPlaylistRow(playlist: PlaylistRowUiState, actions: Playlis
     )
     Surface(
         onClick = { actions.onSelect.run() },
-        modifier = modifier.echoGlassLayer(p, EchoShapes.medium),
+        modifier = modifier
+            .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = if (playlist.selected) bg else Color.Transparent
     ) {
@@ -342,7 +347,9 @@ private fun CollectionPlaylistTrackRow(track: PlaylistTrackUiState, actions: Pla
     )
     Surface(
         onClick = { actions.onPlay.run() },
-        modifier = modifier.echoGlassLayer(p, EchoShapes.medium),
+        modifier = modifier
+            .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = if (track.current) bg else Color.Transparent
     ) {

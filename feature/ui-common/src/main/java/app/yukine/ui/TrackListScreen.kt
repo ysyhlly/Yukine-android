@@ -355,7 +355,9 @@ private fun LibraryTrackControls(
         }
         if (state.selectionActive) {
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .echoFloatingLayer(p, EchoShapes.medium),
                 shape = EchoShapes.medium,
                 color = p.accentSoft.copy(alpha = 0.72f)
             ) {
@@ -633,6 +635,7 @@ private fun ArtistIntroRow(label: String, intro: String) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = Color.Transparent
@@ -682,6 +685,7 @@ private fun FooterAlbumCard(album: TrackListAlbumCardUiState, modifier: Modifier
             .then(modifier)
             .fillMaxWidth()
             .echoPressScale(interaction)
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = Color.Transparent
@@ -771,6 +775,7 @@ private fun HeaderMetricRow(metric: TrackListHeaderMetric) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = Color.Transparent
@@ -809,6 +814,7 @@ private fun HeaderActionRow(action: TrackListHeaderAction) {
         modifier = Modifier
             .fillMaxWidth()
             .echoPressScale(interaction)
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium)
             .semantics { contentDescription = action.label },
         shape = EchoShapes.medium,
@@ -865,6 +871,7 @@ private fun TrackRow(
                 onLongClick = { onLongPress?.invoke() ?: run { menuExpanded = true } }
             )
             .echoPressScale(interaction)
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = if (track.current || selected) bg else Color.Transparent

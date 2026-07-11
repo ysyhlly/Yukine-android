@@ -557,6 +557,7 @@ private fun ProviderRow(
         onClick = onSelect,
         modifier = Modifier
             .fillMaxWidth()
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium)
             .semantics { contentDescription = name },
         shape = EchoShapes.medium,
@@ -686,7 +687,9 @@ private fun StreamingInfoRow(
     if (onClick != null) {
         Surface(
             onClick = onClick,
-            modifier = rowModifier.echoGlassLayer(p, EchoShapes.medium),
+            modifier = rowModifier
+                .echoFloatingLayer(p, EchoShapes.medium)
+                .echoGlassLayer(p, EchoShapes.medium),
             shape = EchoShapes.medium,
             color = Color.Transparent
         ) {
@@ -694,7 +697,9 @@ private fun StreamingInfoRow(
         }
     } else {
         Surface(
-            modifier = rowModifier.echoGlassLayer(p, EchoShapes.medium),
+            modifier = rowModifier
+                .echoFloatingLayer(p, EchoShapes.medium)
+                .echoGlassLayer(p, EchoShapes.medium),
             shape = EchoShapes.medium,
             color = Color.Transparent
         ) {
@@ -749,7 +754,9 @@ private fun StreamingTrackRow(track: StreamingTrack, playable: Boolean, onPlay: 
     if (playable) {
         Surface(
             onClick = onPlay,
-            modifier = modifier.echoGlassLayer(p, EchoShapes.medium),
+            modifier = modifier
+                .echoFloatingLayer(p, EchoShapes.medium)
+                .echoGlassLayer(p, EchoShapes.medium),
             shape = EchoShapes.medium,
             color = Color.Transparent
         ) {
@@ -757,7 +764,9 @@ private fun StreamingTrackRow(track: StreamingTrack, playable: Boolean, onPlay: 
         }
     } else {
         Surface(
-            modifier = modifier.echoGlassLayer(p, EchoShapes.medium),
+            modifier = modifier
+                .echoFloatingLayer(p, EchoShapes.medium)
+                .echoGlassLayer(p, EchoShapes.medium),
             shape = EchoShapes.medium,
             color = Color.Transparent
         ) {
@@ -820,6 +829,7 @@ private fun ActionRow(label: String, icon: EchoIconKind, onClick: () -> Unit) {
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium)
             .semantics { contentDescription = label },
         shape = EchoShapes.medium,
@@ -850,6 +860,7 @@ private fun MetricRow(label: String, value: String) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = Color.Transparent
@@ -885,6 +896,7 @@ private fun MessageRow(message: String) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = Color.Transparent

@@ -2735,11 +2735,20 @@ public abstract class MainActivityBase extends ComponentActivity {
         if (playbackService == null) {
             return false;
         }
+        PlaybackStateSnapshot snapshot = playbackService.snapshot();
         StreamingQueueResolveTarget target = streamingViewModel.prepareCurrentStreamingQueueResolveTarget(
-                playbackService.snapshot(),
+                snapshot,
                 playbackService.queueSnapshot()
         );
-        return target != null && streamingPlaybackController.resolveAndPlayStreamingTrack(target.getTracks(), target.getIndex());
+        Track currentTrack = snapshot == null ? null : snapshot.currentTrack;
+        return target != null
+                && currentTrack != null
+                && streamingPlaybackController.resolveAndResumeCurrentStreamingTrack(
+                        target.getTracks(),
+                        target.getIndex(),
+                        currentTrack.id,
+                        snapshot.positionMs
+                );
     }
 
     /**

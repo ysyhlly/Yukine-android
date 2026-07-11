@@ -152,6 +152,7 @@ fun QueueScreen(
                     onClick = { onClearQueue.run() },
                     modifier = Modifier
                         .fillMaxWidth()
+                        .echoFloatingLayer(p, EchoShapes.medium)
                         .echoGlassLayer(p, EchoShapes.medium)
                         .semantics { contentDescription = labels.clearQueue },
                     shape = EchoShapes.medium,
@@ -214,6 +215,7 @@ private fun QueueHeader(labels: QueueScreenLabels, trackCount: Int, onBack: Runn
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = Color.Transparent
@@ -272,7 +274,9 @@ private fun QueueTrackRow(
     )
     Surface(
         onClick = { actions.onPlay.run() },
-        modifier = modifier.echoGlassLayer(p, EchoShapes.medium),
+        modifier = modifier
+            .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = if (track.current) bg else Color.Transparent
     ) {

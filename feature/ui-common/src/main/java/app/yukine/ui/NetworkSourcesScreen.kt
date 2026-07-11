@@ -132,7 +132,9 @@ private fun isBackAction(label: String): Boolean =
 private fun SourceCard(source: NetworkSourceUiState, actions: NetworkSourceActions, labels: NetworkSourceLabels) {
     val p = EchoTheme.colors()
     Surface(
-        modifier = Modifier.echoGlassLayer(p, EchoShapes.medium),
+        modifier = Modifier
+            .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
         color = Color.Transparent
     ) {

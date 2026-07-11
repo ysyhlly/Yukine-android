@@ -10,6 +10,10 @@ object EchoMobileLayoutMetrics {
     val nowBarProgressHeight = 18.dp
     val bottomTabIconSize = 22.dp
     val bottomTabVerticalPadding = 8.dp
+    val floatingChromeHorizontalPadding = 12.dp
+    val floatingChromeGap = 6.dp
+    val floatingChromeBottomPadding = 10.dp
+    val floatingChromeElevation = EchoElevations.chrome
     val nowPlayingArtworkSize = 220.dp
     val nowPlayingArtworkCornerRadius = 12.dp
     val lyricsPanelMinHeight = 300.dp

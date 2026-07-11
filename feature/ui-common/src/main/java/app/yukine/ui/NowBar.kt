@@ -243,72 +243,83 @@ fun NowBar(
         queueLabel = state.queueLabel,
         repeatMode = state.repeatMode
     )
-    EchoGlassSurface(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(barHeight),
-        shape = EchoShapes.large
+            .padding(
+                start = EchoMobileLayoutMetrics.floatingChromeHorizontalPadding,
+                top = EchoMobileLayoutMetrics.floatingChromeGap,
+                end = EchoMobileLayoutMetrics.floatingChromeHorizontalPadding
+            )
     ) {
-        Box(
+        EchoGlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(barHeight)
+                .height(barHeight),
+            shape = EchoShapes.large,
+            elevation = EchoMobileLayoutMetrics.floatingChromeElevation
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(barHeight)
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                MiniLyricsStrip(state)
-                NowBarProgressSection(
-                    slice = progressSlice,
-                    waveformExpanded = waveformExpanded,
-                    onExpandWaveform = onExpandWaveform,
-                    onCollapseWaveform = onCollapseWaveform,
-                    onSeek = onSeek
-                )
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(EchoMobileLayoutMetrics.nowBarArtworkSize),
-                    verticalAlignment = Alignment.CenterVertically
+                        .height(barHeight)
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    NowBarTrackSection(
-                        slice = trackSlice,
-                        onOpenNowPlaying = onOpenNowPlaying,
+                    MiniLyricsStrip(state)
+                    NowBarProgressSection(
+                        slice = progressSlice,
+                        waveformExpanded = waveformExpanded,
+                        onExpandWaveform = onExpandWaveform,
                         onCollapseWaveform = onCollapseWaveform,
-                        modifier = Modifier.weight(1f)
+                        onSeek = onSeek
                     )
-                    NowBarTransportControls(
-                        slice = NowBarTransportSlice(
-                            playing = state.playing,
-                            previousLabel = state.previousLabel,
-                            playLabel = state.playLabel,
-                            pauseLabel = state.pauseLabel,
-                            nextLabel = state.nextLabel
-                        ),
-                        onPrevious = onPrevious,
-                        onPlayPause = onPlayPause,
-                        onNext = onNext,
-                        onCollapseWaveform = onCollapseWaveform
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(EchoMobileLayoutMetrics.nowBarArtworkSize),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        NowBarTrackSection(
+                            slice = trackSlice,
+                            onOpenNowPlaying = onOpenNowPlaying,
+                            onCollapseWaveform = onCollapseWaveform,
+                            modifier = Modifier.weight(1f)
+                        )
+                        NowBarTransportControls(
+                            slice = NowBarTransportSlice(
+                                playing = state.playing,
+                                previousLabel = state.previousLabel,
+                                playLabel = state.playLabel,
+                                pauseLabel = state.pauseLabel,
+                                nextLabel = state.nextLabel
+                            ),
+                            onPrevious = onPrevious,
+                            onPlayPause = onPlayPause,
+                            onNext = onNext,
+                            onCollapseWaveform = onCollapseWaveform
+                        )
+                    }
+                    if (!waveformExpanded) {
+                        Spacer(Modifier.height(2.dp))
+                        NowBarModeControls(modeSlice, onFavorite, onShuffle, onRepeat, onOpenQueue, onCollapseWaveform)
+                    }
+                }
+                if (waveformExpanded) {
+                    BottomWaveformProgress(
+                        slice = progressSlice,
+                        onSeek = onSeek,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp)
                     )
                 }
-                if (!waveformExpanded) {
-                    Spacer(Modifier.height(2.dp))
-                    NowBarModeControls(modeSlice, onFavorite, onShuffle, onRepeat, onOpenQueue, onCollapseWaveform)
-                }
-            }
-            if (waveformExpanded) {
-                BottomWaveformProgress(
-                    slice = progressSlice,
-                    onSeek = onSeek,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
-                )
             }
         }
     }
