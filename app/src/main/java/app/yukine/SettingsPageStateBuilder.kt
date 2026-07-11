@@ -136,7 +136,7 @@ internal object SettingsPageStateBuilder {
         onImportBackup: () -> Unit
     ): SettingsPageStateContent {
         val metrics = listOf(
-            SettingsMetric(text(languageMode, "version"), "0.1.0"),
+            SettingsMetric(text(languageMode, "version"), BuildConfig.VERSION_NAME),
             SettingsMetric(text(languageMode, "audio.permission"), permissionLabel(audioPermissionGranted, languageMode)),
             SettingsMetric(text(languageMode, "notification.permission"), permissionLabel(notificationPermissionGranted, languageMode)),
             SettingsMetric(text(languageMode, "playback.service"), if (playbackServiceConnected) text(languageMode, "connected") else text(languageMode, "disconnected"))

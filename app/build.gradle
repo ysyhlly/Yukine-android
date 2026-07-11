@@ -24,10 +24,10 @@ android {
         targetSdk 35
         buildConfigField "String", "YUKINE_QQ_APP_ID", "\"${yukineQqAppId}\""
         buildConfigField "String", "YUKINE_WECHAT_APP_ID", "\"${yukineWechatAppId}\""
-        // versionCode comes from CI when available; local debug builds fall back to 1.
+        // versionCode comes from CI when available; local builds use the current release baseline.
         def echoRunNumber = System.getenv("GITHUB_RUN_NUMBER")
-        versionCode echoRunNumber ? echoRunNumber.toInteger() : 1
-        versionName "0.1.0"
+        versionCode echoRunNumber ? echoRunNumber.toInteger() : 2
+        versionName "0.1.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
