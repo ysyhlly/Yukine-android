@@ -5,6 +5,7 @@ import app.yukine.playback.AudioEffectSettings
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.SettingsActionStyle
+import app.yukine.ui.SettingsImageDialog
 import app.yukine.ui.SettingsMetric
 import app.yukine.ui.EchoTheme
 import java.util.Locale
@@ -143,6 +144,20 @@ internal object SettingsPageStateBuilder {
         )
         val actions = listOf(
             navigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
+            SettingsAction(
+                label = text(languageMode, "qq.group"),
+                onClick = Runnable { },
+                description = text(languageMode, "qq.group.hint"),
+                value = "1013122077",
+                style = SettingsActionStyle.Navigation,
+                imageDialog = SettingsImageDialog(
+                    title = text(languageMode, "qq.group"),
+                    message = text(languageMode, "qq.group.number"),
+                    imageResId = R.drawable.qq_group_qr,
+                    imageContentDescription = text(languageMode, "qq.group.qr.description"),
+                    dismissLabel = text(languageMode, "close")
+                )
+            ),
             SettingsAction(text(languageMode, "backup.export"), Runnable { onExportBackup() }),
             SettingsAction(
                 label = text(languageMode, "backup.import"),

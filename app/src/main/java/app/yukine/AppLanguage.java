@@ -127,6 +127,10 @@ public final class AppLanguage {
         put("backup.export", "Export backup", "\u5bfc\u51fa\u5907\u4efd");
         put("backup.import", "Import backup", "\u5bfc\u5165\u5907\u4efd");
         put("backup.import.description", "Replaces the current library, history, and settings.", "\u5c06\u8986\u76d6\u5f53\u524d\u66f2\u5e93\u3001\u64ad\u653e\u8bb0\u5f55\u548c\u8bbe\u7f6e\u3002");
+        put("qq.group", "Yukine QQ group", "Yukine QQ \u7fa4");
+        put("qq.group.hint", "Tap to view the group QR code", "\u70b9\u51fb\u67e5\u770b\u7fa4\u4e8c\u7ef4\u7801");
+        put("qq.group.number", "Group number: 1013122077", "\u7fa4\u53f7\uff1a1013122077");
+        put("qq.group.qr.description", "QQ group QR code for 1013122077", "QQ \u7fa4 1013122077 \u4e8c\u7ef4\u7801");
         put("backup.export.success", "Backup exported", "\u5907\u4efd\u5df2\u5bfc\u51fa");
         put("backup.export.failed", "Export failed", "\u5bfc\u51fa\u5931\u8d25");
         put("backup.import.success", "Backup imported, restart to apply", "\u5907\u4efd\u5df2\u5bfc\u5165\uff0c\u8bf7\u91cd\u542f\u5e94\u7528");

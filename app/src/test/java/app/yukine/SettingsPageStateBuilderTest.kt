@@ -100,14 +100,16 @@ class SettingsPageStateBuilderTest {
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.about"), content.uiState.title)
         assertEquals(4, content.uiState.metrics.size)
-        assertEquals(3, content.actions.size)
+        assertEquals(4, content.actions.size)
         assertTrue(content.actions[0].isBack)
-        assertEquals(SettingsActionStyle.Destructive, content.actions[2].style)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "backup.import.description"), content.actions[2].description)
+        assertEquals("1013122077", content.actions[1].value)
+        assertEquals(R.drawable.qq_group_qr, content.actions[1].imageDialog?.imageResId)
+        assertEquals(SettingsActionStyle.Destructive, content.actions[3].style)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "backup.import.description"), content.actions[3].description)
 
         content.actions[0].onClick.run()
-        content.actions[1].onClick.run()
         content.actions[2].onClick.run()
+        content.actions[3].onClick.run()
 
         assertEquals(listOf(SettingsPage.Home), navigated)
         assertEquals(true, exported)

@@ -21,6 +21,7 @@ class ActionIconMappingTest {
         assertEquals(EchoIconKind.Permission, iconForSettingsAction(action("授予音乐访问权限")))
         assertEquals(EchoIconKind.Upload, iconForSettingsAction(action("导出备份")))
         assertEquals(EchoIconKind.Info, iconForSettingsAction(action("关于")))
+        assertEquals(EchoIconKind.Network, iconForSettingsAction(action("Yukine QQ 群")))
         assertEquals(EchoIconKind.Refresh, iconForSettingsAction(action("恢复已隐藏歌曲")))
         assertEquals(EchoIconKind.Settings, iconForSettingsAction(action("其他选项")))
         assertEquals(EchoIconKind.Check, iconForSettingsAction(action("开启功能", SettingsActionStyle.Toggle)))
