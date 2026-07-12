@@ -15,9 +15,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -302,10 +304,16 @@ class EchoScaffoldTest {
                             onSeek = SeekAction {}
                         )
                     }
-                ) { Text("content") }
+                ) { contentModifier ->
+                    Column(contentModifier) {
+                        Text("content")
+                    }
+                }
             }
         }
 
+        val initialContentTop = composeRule.onNodeWithText("content")
+            .fetchSemanticsNode().boundsInRoot.top
         composeRule.onNodeWithText("Dock track").performTouchInput {
             val center = Offset(visibleSize.width / 2f, visibleSize.height / 2f)
             down(center)
@@ -316,11 +324,18 @@ class EchoScaffoldTest {
         val directTopBounds = composeRule.onNodeWithContentDescription("Play")
             .fetchSemanticsNode().boundsInRoot
         assertTrue(directTopBounds.top > 0f)
+        val compactTopContentTop = composeRule.onNodeWithText("content")
+            .fetchSemanticsNode().boundsInRoot.top
+        assertTrue(compactTopContentTop > initialContentTop)
 
         val compactCloudWidth = composeRule.onNodeWithContentDescription("Expand cloud")
             .fetchSemanticsNode().boundsInRoot.width
         composeRule.onNodeWithContentDescription("Expand cloud").performClick()
         composeRule.waitForIdle()
+        composeRule.onNodeWithTag("top-cloud-artwork").assertIsDisplayed()
+        val expandedTopContentTop = composeRule.onNodeWithText("content")
+            .fetchSemanticsNode().boundsInRoot.top
+        assertTrue(expandedTopContentTop > compactTopContentTop)
         val expandedCloudWidth = composeRule.onNodeWithContentDescription("Compact cloud")
             .fetchSemanticsNode().boundsInRoot.width
         assertTrue(expandedCloudWidth > compactCloudWidth)
@@ -333,8 +348,6 @@ class EchoScaffoldTest {
             moveTo(Offset(center.x, center.y + 180f), 300L)
             up()
         }
-        composeRule.waitForIdle()
-        composeRule.onNodeWithContentDescription("Expand Now Bar").performClick()
         composeRule.waitForIdle()
 
         composeRule.onNodeWithText("Dock track").performTouchInput {
@@ -406,11 +419,9 @@ class EchoScaffoldTest {
         }
         composeRule.waitForIdle()
 
-        val restoredLeftDockCenter = composeRule.onNodeWithContentDescription("Play")
-            .fetchSemanticsNode().boundsInRoot.center.x
-        assertTrue(restoredLeftDockCenter < rightDockCenter)
+        composeRule.onAllNodesWithContentDescription("Expand Now Bar").assertCountEquals(0)
 
-        composeRule.onNodeWithContentDescription("Expand Now Bar").performTouchInput {
+        composeRule.onNodeWithText("Dock track").performTouchInput {
             val center = Offset(visibleSize.width / 2f, visibleSize.height / 2f)
             down(center)
             moveTo(Offset(center.x, center.y - 180f), 300L)
@@ -444,11 +455,9 @@ class EchoScaffoldTest {
         }
         composeRule.waitForIdle()
 
-        val restoredRightDockCenter = composeRule.onNodeWithContentDescription("Play")
-            .fetchSemanticsNode().boundsInRoot.center.x
-        assertTrue(restoredRightDockCenter > leftDockCenter)
+        composeRule.onAllNodesWithContentDescription("Expand Now Bar").assertCountEquals(0)
 
-        composeRule.onNodeWithContentDescription("Expand Now Bar").performTouchInput {
+        composeRule.onNodeWithText("Dock track").performTouchInput {
             val center = Offset(visibleSize.width / 2f, visibleSize.height / 2f)
             down(center)
             moveTo(Offset(center.x, center.y - 180f), 300L)
@@ -465,7 +474,7 @@ class EchoScaffoldTest {
 
         val diagonalLeftDockCenter = composeRule.onNodeWithContentDescription("Play")
             .fetchSemanticsNode().boundsInRoot.center.x
-        assertTrue(diagonalLeftDockCenter < restoredRightDockCenter)
+        assertTrue(diagonalLeftDockCenter < returnedRightDockCenter)
     }
 
     @Test

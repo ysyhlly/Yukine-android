@@ -25,6 +25,7 @@ object EchoMobileLayoutMetrics {
     val nowBarTopCloudHeight = 38.dp
     val nowBarTopCloudExpandedWidth = 304.dp
     val nowBarTopCloudExpandedHeight = 52.dp
+    val nowBarTopCloudExpandedArtworkSize = 36.dp
     val nowBarTopCloudCollapsedWidth = 72.dp
     val nowBarTopCloudCollapsedHeight = 8.dp
     val nowBarTopCloudOffset = 8.dp

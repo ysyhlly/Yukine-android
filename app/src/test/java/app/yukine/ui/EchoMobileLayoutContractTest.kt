@@ -60,6 +60,7 @@ class EchoMobileLayoutContractTest {
         assertEquals(38f, EchoMobileLayoutMetrics.nowBarTopCloudHeight.value)
         assertEquals(304f, EchoMobileLayoutMetrics.nowBarTopCloudExpandedWidth.value)
         assertEquals(52f, EchoMobileLayoutMetrics.nowBarTopCloudExpandedHeight.value)
+        assertEquals(36f, EchoMobileLayoutMetrics.nowBarTopCloudExpandedArtworkSize.value)
         assertEquals(72f, EchoMobileLayoutMetrics.nowBarTopCloudCollapsedWidth.value)
         assertEquals(8f, EchoMobileLayoutMetrics.nowBarTopCloudCollapsedHeight.value)
         assertEquals(8f, EchoMobileLayoutMetrics.nowBarTopCloudOffset.value)

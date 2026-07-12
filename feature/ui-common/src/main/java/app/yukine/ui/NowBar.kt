@@ -97,7 +97,6 @@ val LocalEchoNowBarCompactProgress = staticCompositionLocalOf { 0f }
 val LocalEchoNowBarScrollProgress = staticCompositionLocalOf { 0f }
 val LocalEchoNowBarPageScrollEvent = staticCompositionLocalOf { 0 }
 val LocalEchoNowBarBottomInset = staticCompositionLocalOf { 0.dp }
-val LocalEchoNowBarTopCloudChanged = staticCompositionLocalOf<(Boolean) -> Unit> { {} }
 val LocalEchoNowBarTopCloudClearanceChanged = staticCompositionLocalOf<(androidx.compose.ui.unit.Dp) -> Unit> { {} }
 
 private enum class NowBarDockPosition {
@@ -289,11 +288,8 @@ fun NowBar(
     val scrollStretchProgress = (-scrollProgress).coerceIn(0f, 1f)
     val bottomInset = LocalEchoNowBarBottomInset.current
     val pageScrollEvent = LocalEchoNowBarPageScrollEvent.current
-    var acknowledgedPageScrollEvent by remember { mutableIntStateOf(pageScrollEvent) }
-    val onTopCloudChanged = LocalEchoNowBarTopCloudChanged.current
     val onTopCloudClearanceChanged = LocalEchoNowBarTopCloudClearanceChanged.current
     SideEffect {
-        onTopCloudChanged(topCloudVisible)
         onTopCloudClearanceChanged(
             when {
                 topCloudExpanded -> EchoMobileLayoutMetrics.nowBarTopCloudExpandedContentClearance
@@ -303,6 +299,7 @@ fun NowBar(
             }
         )
     }
+    var acknowledgedPageScrollEvent by remember { mutableIntStateOf(pageScrollEvent) }
     val dockBottomLeft = {
         previousBottomDockName = NowBarDockPosition.BottomLeft.name
         dockName = NowBarDockPosition.BottomLeft.name
@@ -347,6 +344,9 @@ fun NowBar(
                 (it == NowBarDockPosition.BottomLeft || it == NowBarDockPosition.BottomRight)
         } ?: NowBarDockPosition.BottomRight
         dockName = restored.name
+    }
+    val restoreNowBar = {
+        dockName = NowBarDockPosition.Expanded.name
     }
     LaunchedEffect(pageScrollEvent) {
         val pageScrolled = pageScrollEvent != acknowledgedPageScrollEvent
@@ -711,7 +711,7 @@ fun NowBar(
                             onDockLeft = dockBottomLeft,
                             onDockRight = dockBottomRight,
                             onDockTop = dockTop,
-                            onRestoreBottom = restoreBottom,
+                            onRestoreBottom = restoreNowBar,
                             onCollapseTopCloud = collapseTopCloud,
                             onPreviewTopCloudFold = previewTopCloudFold,
                             onPlayPause = onPlayPause,
@@ -838,16 +838,34 @@ private fun DockedNowBarCapsule(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Box(
+            Row(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .then(expandInteraction)
+                    .then(expandInteraction),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (expandedTopCloud) {
+                    val artworkSize = EchoMobileLayoutMetrics.nowBarTopCloudExpandedArtworkSize
+                    AsyncArtwork(
+                        uri = state.albumArtUri,
+                        title = state.title,
+                        subtitle = state.subtitle,
+                        modifier = Modifier
+                            .size(artworkSize)
+                            .testTag("top-cloud-artwork"),
+                        cornerRadius = artworkSize / 2f,
+                        fallbackTextSize = 12.sp,
+                        targetSize = artworkSize,
+                        backgroundColor = p.surfaceVariant,
+                        fallbackResId = R.drawable.ic_stat_echo
+                    )
+                }
                 Column(
                     modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .padding(horizontal = 4.dp),
+                        .weight(1f)
+                        .padding(horizontal = if (expandedTopCloud) 0.dp else 4.dp),
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(
