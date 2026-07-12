@@ -16,10 +16,6 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     tasks.withType(JavaCompile).configureEach {
         options.encoding = "UTF-8"
     }
@@ -28,6 +24,12 @@ android {
         unitTests {
             returnDefaultValues = true
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 

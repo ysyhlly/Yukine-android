@@ -96,6 +96,15 @@ internal object NowBarStateFactory {
                 playbackErrorTitle = AppLanguage.text(languageMode, "playback.error.title"),
                 playbackErrorMessage = PlaybackErrorMessageLocalizer.localize(playbackState.errorMessage, languageMode),
                 retryLabel = AppLanguage.text(languageMode, "retry.playback"),
+                dockLeftLabel = AppLanguage.text(languageMode, "now.bar.dock.left"),
+                dockRightLabel = AppLanguage.text(languageMode, "now.bar.dock.right"),
+                expandNowBarLabel = AppLanguage.text(languageMode, "now.bar.expand"),
+                dockTopLabel = AppLanguage.text(languageMode, "now.bar.dock.top"),
+                restoreBottomLabel = AppLanguage.text(languageMode, "now.bar.restore.bottom"),
+                collapseTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.collapse"),
+                showTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.show"),
+                expandTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.expand"),
+                compactTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.compact"),
                 lyrics = emptyList()
             )
         }
@@ -146,6 +155,15 @@ internal object NowBarStateFactory {
             playbackErrorTitle = AppLanguage.text(languageMode, "playback.error.title"),
             playbackErrorMessage = PlaybackErrorMessageLocalizer.localize(playbackState.errorMessage, languageMode),
             retryLabel = AppLanguage.text(languageMode, "retry.playback"),
+            dockLeftLabel = AppLanguage.text(languageMode, "now.bar.dock.left"),
+            dockRightLabel = AppLanguage.text(languageMode, "now.bar.dock.right"),
+            expandNowBarLabel = AppLanguage.text(languageMode, "now.bar.expand"),
+            dockTopLabel = AppLanguage.text(languageMode, "now.bar.dock.top"),
+            restoreBottomLabel = AppLanguage.text(languageMode, "now.bar.restore.bottom"),
+            collapseTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.collapse"),
+            showTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.show"),
+            expandTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.expand"),
+            compactTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.compact"),
             lyrics = lyricRows
         )
     }

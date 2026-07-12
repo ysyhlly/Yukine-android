@@ -196,7 +196,7 @@ fun TrackListScreen(
         LazyColumn(
             modifier = contentModifier,
             state = listState,
-            contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 100.dp),
+            contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = echoPageBottomPadding()),
             verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
         ) {
             if (!libraryControlsEnabled || titleBackAction != null) {

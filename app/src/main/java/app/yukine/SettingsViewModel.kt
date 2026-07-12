@@ -44,6 +44,11 @@ data class SettingsPreferencesSnapshot(
     val playbackRestoreEnabled: Boolean = true,
     val replayGainEnabled: Boolean = true,
     val debugPromptsEnabled: Boolean = false,
+    val customBackgroundBlurEnabled: Boolean = false,
+    val customBackgroundBlurRadiusDp: Float = app.yukine.ui.EchoBackgroundBlurDefaults.DEFAULT_RADIUS_DP,
+    val glassBlurEnabled: Boolean = false,
+    val glassBlurRadiusDp: Float = app.yukine.ui.EchoGlassDefaults.BLUR_RADIUS_DP,
+    val glassSurfaceOpacity: Float = app.yukine.ui.EchoGlassDefaults.SURFACE_OPACITY,
     val shareStyle: String = TrackShareStyle.defaultValue(),
     val pageBackgrounds: PageBackgrounds = PageBackgrounds.empty()
 )
@@ -160,6 +165,11 @@ sealed interface SettingsEvent {
     data class SetPlaybackRestoreEnabled(val enabled: Boolean) : SettingsEvent
     data class SetReplayGainEnabled(val enabled: Boolean) : SettingsEvent
     data class SetDebugPromptsEnabled(val enabled: Boolean) : SettingsEvent
+    data class SetCustomBackgroundBlurEnabled(val enabled: Boolean) : SettingsEvent
+    data class SetCustomBackgroundBlurRadiusDp(val radiusDp: Float) : SettingsEvent
+    data class SetGlassBlurEnabled(val enabled: Boolean) : SettingsEvent
+    data class SetGlassBlurRadiusDp(val radiusDp: Float) : SettingsEvent
+    data class SetGlassSurfaceOpacity(val opacity: Float) : SettingsEvent
     data class ChoosePageBackground(val page: String) : SettingsEvent
     data class ClearPageBackground(val page: String) : SettingsEvent
     data object ExportBackup : SettingsEvent
@@ -309,6 +319,13 @@ class SettingsViewModel @JvmOverloads constructor(
             is SettingsEvent.SetPlaybackRestoreEnabled -> setPlaybackRestoreEnabled(event.enabled)
             is SettingsEvent.SetReplayGainEnabled -> setReplayGainEnabled(event.enabled)
             is SettingsEvent.SetDebugPromptsEnabled -> setDebugPromptsEnabled(event.enabled)
+            is SettingsEvent.SetCustomBackgroundBlurEnabled ->
+                setCustomBackgroundBlurEnabled(event.enabled)
+            is SettingsEvent.SetCustomBackgroundBlurRadiusDp ->
+                setCustomBackgroundBlurRadiusDp(event.radiusDp)
+            is SettingsEvent.SetGlassBlurEnabled -> setGlassBlurEnabled(event.enabled)
+            is SettingsEvent.SetGlassBlurRadiusDp -> setGlassBlurRadiusDp(event.radiusDp)
+            is SettingsEvent.SetGlassSurfaceOpacity -> setGlassSurfaceOpacity(event.opacity)
             is SettingsEvent.ChoosePageBackground -> emitEffect(SettingsEffect.ChoosePageBackground(event.page))
             is SettingsEvent.ClearPageBackground -> clearPageBackground(event.page)
             is SettingsEvent.ExportBackup -> emitEffect(SettingsEffect.ExportBackup)
@@ -342,6 +359,26 @@ class SettingsViewModel @JvmOverloads constructor(
                     preferences.themeMode,
                     preferences.accentMode,
                     preferences.pageBackgrounds,
+                    preferences.customBackgroundBlurEnabled,
+                    preferences.customBackgroundBlurRadiusDp,
+                    preferences.glassBlurEnabled,
+                    preferences.glassBlurRadiusDp,
+                    preferences.glassSurfaceOpacity,
+                    onCustomBackgroundBlurEnabledChange = { enabled ->
+                        onEvent(SettingsEvent.SetCustomBackgroundBlurEnabled(enabled))
+                    },
+                    onCustomBackgroundBlurRadiusChange = { radiusDp ->
+                        onEvent(SettingsEvent.SetCustomBackgroundBlurRadiusDp(radiusDp))
+                    },
+                    onGlassBlurEnabledChange = { enabled ->
+                        onEvent(SettingsEvent.SetGlassBlurEnabled(enabled))
+                    },
+                    onGlassBlurRadiusChange = { radiusDp ->
+                        onEvent(SettingsEvent.SetGlassBlurRadiusDp(radiusDp))
+                    },
+                    onGlassSurfaceOpacityChange = { opacity ->
+                        onEvent(SettingsEvent.SetGlassSurfaceOpacity(opacity))
+                    },
                     onNavigate = ::navigateSettingsPage
                 )
             SettingsPage.PlaybackGroup ->
@@ -657,7 +694,12 @@ class SettingsViewModel @JvmOverloads constructor(
     private fun syncChromeState(preferences: SettingsPreferencesSnapshot) {
         _chromeState.value = SettingsChromeState(
             pageBackgrounds = preferences.pageBackgrounds,
-            nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled
+            nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled,
+            customBackgroundBlurEnabled = preferences.customBackgroundBlurEnabled,
+            customBackgroundBlurRadiusDp = preferences.customBackgroundBlurRadiusDp,
+            glassBlurEnabled = preferences.glassBlurEnabled,
+            glassBlurRadiusDp = preferences.glassBlurRadiusDp,
+            glassSurfaceOpacity = preferences.glassSurfaceOpacity
         )
     }
 
@@ -867,6 +909,34 @@ class SettingsViewModel @JvmOverloads constructor(
             )
         )
         savePreference(SettingsPreferenceKey.DebugPromptsEnabled, enabled)
+    }
+
+    fun setGlassBlurEnabled(enabled: Boolean) {
+        updatePreferences { it.copy(glassBlurEnabled = enabled) }
+        savePreference(SettingsPreferenceKey.GlassBlurEnabled, enabled)
+    }
+
+    fun setCustomBackgroundBlurEnabled(enabled: Boolean) {
+        updatePreferences { it.copy(customBackgroundBlurEnabled = enabled) }
+        savePreference(SettingsPreferenceKey.CustomBackgroundBlurEnabled, enabled)
+    }
+
+    fun setCustomBackgroundBlurRadiusDp(radiusDp: Float) {
+        val normalized = app.yukine.ui.EchoBackgroundBlurDefaults.normalizeRadius(radiusDp)
+        updatePreferences { it.copy(customBackgroundBlurRadiusDp = normalized) }
+        savePreference(SettingsPreferenceKey.CustomBackgroundBlurRadiusDp, normalized)
+    }
+
+    fun setGlassBlurRadiusDp(radiusDp: Float) {
+        val normalized = app.yukine.ui.EchoGlassDefaults.normalizeBlurRadius(radiusDp)
+        updatePreferences { it.copy(glassBlurRadiusDp = normalized) }
+        savePreference(SettingsPreferenceKey.GlassBlurRadiusDp, normalized)
+    }
+
+    fun setGlassSurfaceOpacity(opacity: Float) {
+        val normalized = app.yukine.ui.EchoGlassDefaults.normalizeSurfaceOpacity(opacity)
+        updatePreferences { it.copy(glassSurfaceOpacity = normalized) }
+        savePreference(SettingsPreferenceKey.GlassSurfaceOpacity, normalized)
     }
 
     fun applyPageBackgrounds(backgrounds: PageBackgrounds, page: String, cleared: Boolean) {

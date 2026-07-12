@@ -27,6 +27,11 @@ internal class SettingsContextProvider(
             playbackRestoreEnabled = settingsStore.playbackRestoreEnabled(),
             replayGainEnabled = settingsStore.replayGainEnabled(),
             debugPromptsEnabled = settingsStore.debugPromptsEnabled(),
+            customBackgroundBlurEnabled = settingsStore.customBackgroundBlurEnabled(),
+            customBackgroundBlurRadiusDp = settingsStore.customBackgroundBlurRadiusDp(),
+            glassBlurEnabled = settingsStore.glassBlurEnabled(),
+            glassBlurRadiusDp = settingsStore.glassBlurRadiusDp(),
+            glassSurfaceOpacity = settingsStore.glassSurfaceOpacity(),
             shareStyle = settingsStore.shareStyle(),
             pageBackgrounds = settingsStore.pageBackgrounds()
         )

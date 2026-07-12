@@ -183,6 +183,16 @@ internal object SettingsPageStateBuilder {
         themeMode: String,
         accentMode: String,
         pageBackgrounds: PageBackgrounds,
+        customBackgroundBlurEnabled: Boolean,
+        customBackgroundBlurRadiusDp: Float,
+        glassBlurEnabled: Boolean,
+        glassBlurRadiusDp: Float,
+        glassSurfaceOpacity: Float,
+        onCustomBackgroundBlurEnabledChange: (Boolean) -> Unit,
+        onCustomBackgroundBlurRadiusChange: (Float) -> Unit,
+        onGlassBlurEnabledChange: (Boolean) -> Unit,
+        onGlassBlurRadiusChange: (Float) -> Unit,
+        onGlassSurfaceOpacityChange: (Float) -> Unit,
         onNavigate: (SettingsPage) -> Unit
     ): SettingsPageStateContent {
         val metrics = listOf(
@@ -221,6 +231,60 @@ internal object SettingsPageStateBuilder {
                 onNavigate,
                 text(languageMode, "page.background.hint"),
                 pageBackgroundSummary(pageBackgrounds, languageMode)
+            ),
+            SettingsAction(
+                label = text(languageMode, "background.blur"),
+                onClick = Runnable {
+                    onCustomBackgroundBlurEnabledChange(!customBackgroundBlurEnabled)
+                },
+                description = text(languageMode, "background.blur.hint"),
+                style = SettingsActionStyle.Toggle,
+                checked = customBackgroundBlurEnabled
+            ),
+            SettingsAction(
+                label = text(languageMode, "background.blur.intensity"),
+                onClick = Runnable { },
+                description = text(languageMode, "background.blur.intensity.hint"),
+                value = "${customBackgroundBlurRadiusDp.roundToInt()} dp",
+                style = SettingsActionStyle.Slider,
+                enabled = customBackgroundBlurEnabled,
+                sliderValue = app.yukine.ui.EchoBackgroundBlurDefaults.normalizeRadius(
+                    customBackgroundBlurRadiusDp
+                ),
+                sliderRangeStart = app.yukine.ui.EchoBackgroundBlurDefaults.MIN_RADIUS_DP,
+                sliderRangeEnd = app.yukine.ui.EchoBackgroundBlurDefaults.MAX_RADIUS_DP,
+                onSliderValueChange = onCustomBackgroundBlurRadiusChange
+            ),
+            SettingsAction(
+                label = text(languageMode, "glass.blur"),
+                onClick = Runnable { onGlassBlurEnabledChange(!glassBlurEnabled) },
+                description = text(languageMode, "glass.blur.hint"),
+                style = SettingsActionStyle.Toggle,
+                checked = glassBlurEnabled
+            ),
+            SettingsAction(
+                label = text(languageMode, "glass.blur.intensity"),
+                onClick = Runnable { },
+                description = text(languageMode, "glass.blur.intensity.hint"),
+                value = "${glassBlurRadiusDp.roundToInt()} dp",
+                style = SettingsActionStyle.Slider,
+                enabled = glassBlurEnabled,
+                sliderValue = app.yukine.ui.EchoGlassDefaults.normalizeBlurRadius(glassBlurRadiusDp),
+                sliderRangeStart = app.yukine.ui.EchoGlassDefaults.MIN_BLUR_RADIUS_DP,
+                sliderRangeEnd = app.yukine.ui.EchoGlassDefaults.MAX_BLUR_RADIUS_DP,
+                onSliderValueChange = onGlassBlurRadiusChange
+            ),
+            SettingsAction(
+                label = text(languageMode, "glass.card.opacity"),
+                onClick = Runnable { },
+                description = text(languageMode, "glass.card.opacity.hint"),
+                value = "${(app.yukine.ui.EchoGlassDefaults.normalizeSurfaceOpacity(glassSurfaceOpacity) * 100f).roundToInt()}%",
+                style = SettingsActionStyle.Slider,
+                enabled = glassBlurEnabled,
+                sliderValue = app.yukine.ui.EchoGlassDefaults.normalizeSurfaceOpacity(glassSurfaceOpacity) * 100f,
+                sliderRangeStart = app.yukine.ui.EchoGlassDefaults.MIN_SURFACE_OPACITY * 100f,
+                sliderRangeEnd = app.yukine.ui.EchoGlassDefaults.MAX_SURFACE_OPACITY * 100f,
+                onSliderValueChange = { value -> onGlassSurfaceOpacityChange(value / 100f) }
             )
         )
         return buildContent(groupTitle(languageMode, "appearance"), metrics, actions)

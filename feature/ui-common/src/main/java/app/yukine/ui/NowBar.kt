@@ -11,48 +11,72 @@ import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,11 +86,28 @@ import app.yukine.feature.uicommon.R
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackRepeatMode
 import kotlin.math.sqrt
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
 private const val WAVEFORM_TWO_PI = 6.2831855f
+
+val LocalEchoNowBarCompactProgress = staticCompositionLocalOf { 0f }
+val LocalEchoNowBarScrollProgress = staticCompositionLocalOf { 0f }
+val LocalEchoNowBarPageScrollEvent = staticCompositionLocalOf { 0 }
+val LocalEchoNowBarBottomInset = staticCompositionLocalOf { 0.dp }
+val LocalEchoNowBarTopCloudChanged = staticCompositionLocalOf<(Boolean) -> Unit> { {} }
+val LocalEchoNowBarTopCloudClearanceChanged = staticCompositionLocalOf<(androidx.compose.ui.unit.Dp) -> Unit> { {} }
+
+private enum class NowBarDockPosition {
+    Expanded,
+    BottomLeft,
+    BottomRight,
+    TopCloud,
+    TopCloudExpanded,
+    TopCloudCollapsed
+}
 
 data class NowBarState @JvmOverloads constructor(
     val title: String,
@@ -114,6 +155,15 @@ data class NowBarState @JvmOverloads constructor(
     val playbackErrorTitle: String = "",
     val playbackErrorMessage: String = "",
     val retryLabel: String = "",
+    val dockLeftLabel: String = "",
+    val dockRightLabel: String = "",
+    val expandNowBarLabel: String = "",
+    val dockTopLabel: String = "",
+    val restoreBottomLabel: String = "",
+    val collapseTopCloudLabel: String = "",
+    val showTopCloudLabel: String = "",
+    val expandTopCloudLabel: String = "",
+    val compactTopCloudLabel: String = "",
     val lyrics: List<LyricUiLine> = emptyList()
 )
 
@@ -210,6 +260,109 @@ fun NowBar(
     onSeek: SeekAction
 ) {
     val p = EchoTheme.colors()
+    val density = LocalDensity.current
+    var dockName by rememberSaveable { mutableStateOf(NowBarDockPosition.Expanded.name) }
+    var previousBottomDockName by rememberSaveable {
+        mutableStateOf(NowBarDockPosition.BottomRight.name)
+    }
+    var previousTopCloudName by rememberSaveable {
+        mutableStateOf(NowBarDockPosition.TopCloud.name)
+    }
+    val dockPosition = NowBarDockPosition.entries.firstOrNull { it.name == dockName }
+        ?: NowBarDockPosition.Expanded
+    val docked = dockPosition != NowBarDockPosition.Expanded
+    val topCloud = dockPosition == NowBarDockPosition.TopCloud
+    val topCloudExpanded = dockPosition == NowBarDockPosition.TopCloudExpanded
+    val topCloudCollapsed = dockPosition == NowBarDockPosition.TopCloudCollapsed
+    val topCloudVisible = topCloud || topCloudExpanded
+    val topCloudPosition = topCloudVisible || topCloudCollapsed
+    var cloudFoldPreview by remember { mutableStateOf<Float?>(null) }
+    val settledCloudFoldProgress by animateFloatAsState(
+        targetValue = if (topCloudCollapsed) 1f else 0f,
+        animationSpec = tween(240, easing = FastOutSlowInEasing),
+        label = "topCloudSettledFold"
+    )
+    val cloudFoldProgress = cloudFoldPreview ?: settledCloudFoldProgress
+    val compactProgress = if (docked) 0f else LocalEchoNowBarCompactProgress.current.coerceIn(0f, 1f)
+    val scrollProgress = if (topCloudPosition) 0f else LocalEchoNowBarScrollProgress.current.coerceIn(-1f, 1f)
+    val scrollCompactProgress = scrollProgress.coerceIn(0f, 1f)
+    val scrollStretchProgress = (-scrollProgress).coerceIn(0f, 1f)
+    val bottomInset = LocalEchoNowBarBottomInset.current
+    val pageScrollEvent = LocalEchoNowBarPageScrollEvent.current
+    var acknowledgedPageScrollEvent by remember { mutableIntStateOf(pageScrollEvent) }
+    val onTopCloudChanged = LocalEchoNowBarTopCloudChanged.current
+    val onTopCloudClearanceChanged = LocalEchoNowBarTopCloudClearanceChanged.current
+    SideEffect {
+        onTopCloudChanged(topCloudVisible)
+        onTopCloudClearanceChanged(
+            when {
+                topCloudExpanded -> EchoMobileLayoutMetrics.nowBarTopCloudExpandedContentClearance
+                topCloud -> EchoMobileLayoutMetrics.nowBarTopCloudContentClearance
+                topCloudCollapsed -> EchoMobileLayoutMetrics.nowBarTopCloudCollapsedContentClearance
+                else -> 0.dp
+            }
+        )
+    }
+    val dockBottomLeft = {
+        previousBottomDockName = NowBarDockPosition.BottomLeft.name
+        dockName = NowBarDockPosition.BottomLeft.name
+    }
+    val dockBottomRight = {
+        previousBottomDockName = NowBarDockPosition.BottomRight.name
+        dockName = NowBarDockPosition.BottomRight.name
+    }
+    val dockTop = {
+        if (dockPosition == NowBarDockPosition.BottomLeft ||
+            dockPosition == NowBarDockPosition.BottomRight
+        ) {
+            previousBottomDockName = dockPosition.name
+        }
+        dockName = NowBarDockPosition.TopCloud.name
+    }
+    val collapseTopCloud = {
+        if (topCloudVisible) {
+            previousTopCloudName = dockPosition.name
+        }
+        dockName = NowBarDockPosition.TopCloudCollapsed.name
+    }
+    val showTopCloud = {
+        dockName = NowBarDockPosition.entries.firstOrNull {
+            it.name == previousTopCloudName &&
+                (it == NowBarDockPosition.TopCloud || it == NowBarDockPosition.TopCloudExpanded)
+        }?.name ?: NowBarDockPosition.TopCloud.name
+    }
+    val toggleTopCloudExpansion = {
+        dockName = if (topCloudExpanded) {
+            NowBarDockPosition.TopCloud.name
+        } else {
+            NowBarDockPosition.TopCloudExpanded.name
+        }
+    }
+    val previewTopCloudFold: (Float?) -> Unit = { progress ->
+        cloudFoldPreview = progress?.coerceIn(0f, 1f)
+    }
+    val restoreBottom = {
+        val restored = NowBarDockPosition.entries.firstOrNull {
+            it.name == previousBottomDockName &&
+                (it == NowBarDockPosition.BottomLeft || it == NowBarDockPosition.BottomRight)
+        } ?: NowBarDockPosition.BottomRight
+        dockName = restored.name
+    }
+    LaunchedEffect(pageScrollEvent) {
+        val pageScrolled = pageScrollEvent != acknowledgedPageScrollEvent
+        acknowledgedPageScrollEvent = pageScrollEvent
+        if (pageScrolled) {
+            when {
+                pageScrollEvent < 0 && topCloudVisible -> collapseTopCloud()
+                pageScrollEvent > 0 && topCloudCollapsed -> showTopCloud()
+            }
+        }
+    }
+    val dockMorphProgress by animateFloatAsState(
+        targetValue = if (docked) 1f else 0f,
+        animationSpec = EchoMotion.floatSpring(),
+        label = "nowBarDockMorph"
+    )
     val barHeight = if (waveformExpanded) EchoMobileLayoutMetrics.nowBarExpandedHeight else EchoMobileLayoutMetrics.nowBarHeight
     val progressSlice = NowBarProgressSlice(
         positionMs = state.positionMs,
@@ -225,6 +378,11 @@ fun NowBar(
         waveformCachedProgress = state.waveformCachedProgress,
         playbackProgressLabel = state.playbackProgressLabel,
         expandWaveformLabel = state.expandWaveformLabel
+    )
+    val playbackScrub = rememberScrubbablePlaybackPosition(
+        positionMs = progressSlice.positionMs,
+        durationMs = progressSlice.durationMs,
+        playing = progressSlice.playing
     )
     val trackSlice = NowBarTrackSlice(
         artUriString = state.albumArtUri?.toString(),
@@ -246,82 +404,355 @@ fun NowBar(
         queueLabel = state.queueLabel,
         repeatMode = state.repeatMode
     )
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                start = EchoMobileLayoutMetrics.floatingChromeHorizontalPadding,
-                top = EchoMobileLayoutMetrics.floatingChromeGap,
-                end = EchoMobileLayoutMetrics.floatingChromeHorizontalPadding
-            )
+            .fillMaxSize()
     ) {
+        val availableWidth = (maxWidth - EchoMobileLayoutMetrics.floatingChromeHorizontalPadding * 2)
+            .coerceAtLeast(0.dp)
+        val topCloudBaseWidth = if (topCloudExpanded) {
+            EchoMobileLayoutMetrics.nowBarTopCloudExpandedWidth
+        } else {
+            EchoMobileLayoutMetrics.nowBarTopCloudWidth
+        }
+        val topCloudBaseHeight = if (topCloudExpanded) {
+            EchoMobileLayoutMetrics.nowBarTopCloudExpandedHeight
+        } else {
+            EchoMobileLayoutMetrics.nowBarTopCloudHeight
+        }
+        val targetSurfaceWidth = when (dockPosition) {
+            NowBarDockPosition.Expanded -> availableWidth
+            NowBarDockPosition.BottomLeft,
+            NowBarDockPosition.BottomRight -> EchoMobileLayoutMetrics.nowBarDockedWidth
+            NowBarDockPosition.TopCloud,
+            NowBarDockPosition.TopCloudExpanded,
+            NowBarDockPosition.TopCloudCollapsed -> topCloudBaseWidth +
+                (EchoMobileLayoutMetrics.nowBarTopCloudCollapsedWidth -
+                    topCloudBaseWidth) * cloudFoldProgress
+        }
+        val targetSurfaceHeight = when (dockPosition) {
+            NowBarDockPosition.Expanded -> barHeight
+            NowBarDockPosition.BottomLeft,
+            NowBarDockPosition.BottomRight -> EchoMobileLayoutMetrics.nowBarDockedHeight
+            NowBarDockPosition.TopCloud,
+            NowBarDockPosition.TopCloudExpanded,
+            NowBarDockPosition.TopCloudCollapsed -> topCloudBaseHeight +
+                (EchoMobileLayoutMetrics.nowBarTopCloudCollapsedHeight -
+                    topCloudBaseHeight) * cloudFoldProgress
+        }
+        val surfaceWidth by animateDpAsState(
+            targetValue = targetSurfaceWidth,
+            animationSpec = if (cloudFoldPreview != null) snap() else tween(
+                durationMillis = EchoMobileLayoutMetrics.nowBarDockSizeDurationMs,
+                easing = FastOutSlowInEasing
+            ),
+            label = "nowBarDockWidth"
+        )
+        val surfaceHeight by animateDpAsState(
+            targetValue = targetSurfaceHeight,
+            animationSpec = if (cloudFoldPreview != null) snap() else tween(
+                durationMillis = EchoMobileLayoutMetrics.nowBarDockSizeDurationMs,
+                easing = FastOutSlowInEasing
+            ),
+            label = "nowBarDockHeight"
+        )
+        val dockTravel = ((availableWidth - EchoMobileLayoutMetrics.nowBarDockedWidth)
+            .coerceAtLeast(0.dp)) / 2
+        val surfaceHorizontalOffset by animateDpAsState(
+            targetValue = when (dockPosition) {
+                NowBarDockPosition.BottomLeft -> -dockTravel
+                NowBarDockPosition.BottomRight -> dockTravel
+                NowBarDockPosition.Expanded,
+                NowBarDockPosition.TopCloud,
+                NowBarDockPosition.TopCloudExpanded,
+                NowBarDockPosition.TopCloudCollapsed -> 0.dp
+            },
+            animationSpec = tween(
+                durationMillis = EchoMobileLayoutMetrics.nowBarDockMoveDurationMs,
+                easing = FastOutSlowInEasing
+            ),
+            label = "nowBarDockHorizontalOffset"
+        )
+        val topCloudY = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
+            if (topCloudCollapsed) {
+                EchoMobileLayoutMetrics.nowBarTopCloudCollapsedOffset
+            } else {
+                EchoMobileLayoutMetrics.nowBarTopCloudOffset
+            }
+        val bottomY = (maxHeight - bottomInset - targetSurfaceHeight -
+            if (docked) EchoMobileLayoutMetrics.nowBarDockedBottomPadding else 0.dp)
+            .coerceAtLeast(0.dp)
+        val surfaceVerticalOffset by animateDpAsState(
+            targetValue = if (topCloudPosition) topCloudY else bottomY,
+            animationSpec = tween(
+                durationMillis = EchoMobileLayoutMetrics.nowBarDockMoveDurationMs,
+                easing = FastOutSlowInEasing
+            ),
+            label = "nowBarDockVerticalOffset"
+        )
         EchoGlassSurface(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(barHeight),
-            shape = EchoShapes.large,
-            elevation = EchoMobileLayoutMetrics.floatingChromeElevation
+                .align(Alignment.TopCenter)
+                .offset(x = surfaceHorizontalOffset, y = surfaceVerticalOffset)
+                .width(surfaceWidth)
+                .height(surfaceHeight)
+                .testTag("echo-now-bar-surface")
+                .blockPointerInputBehind()
+                .graphicsLayer {
+                    translationY = with(density) {
+                        EchoMobileLayoutMetrics.nowBarScrollTranslation.toPx() * scrollCompactProgress +
+                            EchoMobileLayoutMetrics.nowBarScrollStretchTranslation.toPx() * scrollStretchProgress
+                    }
+                    scaleY = 1f -
+                        (1f - EchoMobileLayoutMetrics.nowBarScrollScale) * scrollCompactProgress +
+                        (EchoMobileLayoutMetrics.nowBarScrollStretchScale - 1f) * scrollStretchProgress
+                }
+                .semantics {
+                    customActions = if (topCloudCollapsed) {
+                        listOf(
+                            CustomAccessibilityAction(
+                                state.showTopCloudLabel.ifBlank { "显示流体云" }
+                            ) {
+                                showTopCloud()
+                                true
+                            },
+                            CustomAccessibilityAction(
+                                state.restoreBottomLabel.ifBlank { "恢复到底部" }
+                            ) {
+                                restoreBottom()
+                                true
+                            }
+                        )
+                    } else if (topCloudVisible) {
+                        listOf(
+                            CustomAccessibilityAction(
+                                if (topCloudExpanded) {
+                                    state.compactTopCloudLabel.ifBlank { "收起流体云内容" }
+                                } else {
+                                    state.expandTopCloudLabel.ifBlank { "展开流体云内容" }
+                                }
+                            ) {
+                                toggleTopCloudExpansion()
+                                true
+                            },
+                            CustomAccessibilityAction(
+                                state.expandNowBarLabel.ifBlank { "展开 Now Bar" }
+                            ) {
+                                dockName = NowBarDockPosition.Expanded.name
+                                true
+                            },
+                            CustomAccessibilityAction(
+                                state.restoreBottomLabel.ifBlank { "恢复到底部" }
+                            ) {
+                                restoreBottom()
+                                true
+                            },
+                            CustomAccessibilityAction(
+                                state.collapseTopCloudLabel.ifBlank { "折叠流体云" }
+                            ) {
+                                collapseTopCloud()
+                                true
+                            },
+                            CustomAccessibilityAction(
+                                state.dockLeftLabel.ifBlank { "停靠左侧" }
+                            ) {
+                                dockBottomLeft()
+                                true
+                            },
+                            CustomAccessibilityAction(
+                                state.dockRightLabel.ifBlank { "停靠右侧" }
+                            ) {
+                                dockBottomRight()
+                                true
+                            }
+                        )
+                    } else if (docked) {
+                        listOf(
+                            CustomAccessibilityAction(
+                                state.expandNowBarLabel.ifBlank { "展开 Now Bar" }
+                            ) {
+                                dockName = NowBarDockPosition.Expanded.name
+                                true
+                            },
+                            CustomAccessibilityAction(
+                                state.dockTopLabel.ifBlank { "停靠顶部" }
+                            ) {
+                                dockTop()
+                                true
+                            },
+                            CustomAccessibilityAction(
+                                if (dockPosition == NowBarDockPosition.BottomRight) {
+                                    state.dockLeftLabel.ifBlank { "停靠左侧" }
+                                } else {
+                                    state.dockRightLabel.ifBlank { "停靠右侧" }
+                                }
+                            ) {
+                                if (dockPosition == NowBarDockPosition.BottomRight) {
+                                    dockBottomLeft()
+                                } else {
+                                    dockBottomRight()
+                                }
+                                true
+                            }
+                        )
+                    } else {
+                        listOf(
+                            CustomAccessibilityAction(
+                                state.dockLeftLabel.ifBlank { "停靠左侧" }
+                            ) {
+                                onCollapseWaveform()
+                                dockBottomLeft()
+                                true
+                            },
+                            CustomAccessibilityAction(
+                                state.dockRightLabel.ifBlank { "停靠右侧" }
+                            ) {
+                                onCollapseWaveform()
+                                dockBottomRight()
+                                true
+                            }
+                        )
+                    }
+                },
+            shape = if (docked) EchoShapes.pill else EchoShapes.large,
+            elevation = EchoMobileLayoutMetrics.floatingChromeElevation *
+                (if (topCloudPosition) 0.72f else 1f) *
+                (1f - compactProgress * (1f - EchoMobileLayoutMetrics.nowBarCompactShadowFactor))
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(barHeight)
+                    .fillMaxSize()
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(barHeight)
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    MiniLyricsStrip(state)
-                    NowBarProgressSection(
-                        slice = progressSlice,
-                        waveformExpanded = waveformExpanded,
-                        onExpandWaveform = onExpandWaveform,
-                        onCollapseWaveform = onCollapseWaveform,
-                        onSeek = onSeek
-                    )
-                    Row(
+                if (!docked || dockMorphProgress < 0.99f) {
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(EchoMobileLayoutMetrics.nowBarArtworkSize),
-                        verticalAlignment = Alignment.CenterVertically
+                            .height(barHeight)
+                            .graphicsLayer {
+                                alpha = 1f - dockMorphProgress
+                                scaleX = 1f - dockMorphProgress * 0.08f
+                                scaleY = 1f - dockMorphProgress * 0.08f
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        NowBarTrackSection(
-                            slice = trackSlice,
-                            onOpenNowPlaying = onOpenNowPlaying,
+                        MiniLyricsStrip(state, compactProgress)
+                        NowBarProgressSection(
+                            slice = progressSlice,
+                            scrub = playbackScrub,
+                            waveformExpanded = waveformExpanded,
+                            onExpandWaveform = onExpandWaveform,
                             onCollapseWaveform = onCollapseWaveform,
-                            modifier = Modifier.weight(1f)
+                            onSeek = onSeek
                         )
-                        NowBarTransportControls(
-                            slice = NowBarTransportSlice(
-                                playing = state.playing,
-                                previousLabel = state.previousLabel,
-                                playLabel = state.playLabel,
-                                pauseLabel = state.pauseLabel,
-                                nextLabel = state.nextLabel
-                            ),
-                            onPrevious = onPrevious,
-                            onPlayPause = onPlayPause,
-                            onNext = onNext,
-                            onCollapseWaveform = onCollapseWaveform
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(EchoMobileLayoutMetrics.nowBarArtworkSize),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            NowBarTrackSection(
+                                slice = trackSlice,
+                                onOpenNowPlaying = onOpenNowPlaying,
+                                onCollapseWaveform = onCollapseWaveform,
+                                onDockLeft = {
+                                    onCollapseWaveform()
+                                    dockBottomLeft()
+                                },
+                                onDockRight = {
+                                    onCollapseWaveform()
+                                    dockBottomRight()
+                                },
+                                onDockTop = {
+                                    onCollapseWaveform()
+                                    dockTop()
+                                },
+                                dockGesturesEnabled = !docked,
+                                modifier = Modifier.weight(1f)
+                            )
+                            NowBarTransportControls(
+                                slice = NowBarTransportSlice(
+                                    playing = state.playing,
+                                    previousLabel = state.previousLabel,
+                                    playLabel = state.playLabel,
+                                    pauseLabel = state.pauseLabel,
+                                    nextLabel = state.nextLabel
+                                ),
+                                onPrevious = onPrevious,
+                                onPlayPause = onPlayPause,
+                                onNext = onNext,
+                                onCollapseWaveform = onCollapseWaveform
+                            )
+                        }
+                        if (!waveformExpanded) {
+                            Spacer(Modifier.height(2.dp))
+                            NowBarModeControls(modeSlice, onFavorite, onShuffle, onRepeat, onOpenQueue, onCollapseWaveform)
+                        }
                     }
-                    if (!waveformExpanded) {
-                        Spacer(Modifier.height(2.dp))
-                        NowBarModeControls(modeSlice, onFavorite, onShuffle, onRepeat, onOpenQueue, onCollapseWaveform)
+                    if (waveformExpanded) {
+                        BottomWaveformProgress(
+                            slice = progressSlice,
+                            scrub = playbackScrub,
+                            onSeek = onSeek,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp)
+                        )
                     }
                 }
-                if (waveformExpanded) {
-                    BottomWaveformProgress(
-                        slice = progressSlice,
-                        onSeek = onSeek,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp)
-                    )
+                if (dockMorphProgress > 0.01f) {
+                    if (topCloudPosition) {
+                        DockedNowBarCapsule(
+                            state = state,
+                            dockPosition = dockPosition,
+                            expandedTopCloud = topCloudExpanded,
+                            onExpand = toggleTopCloudExpansion,
+                            onDockLeft = dockBottomLeft,
+                            onDockRight = dockBottomRight,
+                            onDockTop = dockTop,
+                            onRestoreBottom = restoreBottom,
+                            onCollapseTopCloud = collapseTopCloud,
+                            onPreviewTopCloudFold = previewTopCloudFold,
+                            onPlayPause = onPlayPause,
+                            interactive = !topCloudCollapsed,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    alpha = dockMorphProgress * (1f - cloudFoldProgress)
+                                }
+                        )
+                        CollapsedTopCloudHandle(
+                            state = state,
+                            onShowTopCloud = showTopCloud,
+                            onRestoreBottom = restoreBottom,
+                            onPreviewTopCloudFold = previewTopCloudFold,
+                            interactive = topCloudCollapsed,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    alpha = dockMorphProgress * cloudFoldProgress
+                                }
+                        )
+                    } else {
+                        DockedNowBarCapsule(
+                            state = state,
+                            dockPosition = dockPosition,
+                            expandedTopCloud = false,
+                            onExpand = { dockName = NowBarDockPosition.Expanded.name },
+                            onDockLeft = dockBottomLeft,
+                            onDockRight = dockBottomRight,
+                            onDockTop = dockTop,
+                            onRestoreBottom = restoreBottom,
+                            onCollapseTopCloud = collapseTopCloud,
+                            onPreviewTopCloudFold = previewTopCloudFold,
+                            onPlayPause = onPlayPause,
+                            interactive = docked,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { alpha = dockMorphProgress }
+                        )
+                    }
                 }
             }
         }
@@ -329,7 +760,200 @@ fun NowBar(
 }
 
 @Composable
-private fun MiniLyricsStrip(state: NowBarState) {
+private fun DockedNowBarCapsule(
+    state: NowBarState,
+    dockPosition: NowBarDockPosition,
+    expandedTopCloud: Boolean,
+    onExpand: () -> Unit,
+    onDockLeft: () -> Unit,
+    onDockRight: () -> Unit,
+    onDockTop: () -> Unit,
+    onRestoreBottom: () -> Unit,
+    onCollapseTopCloud: () -> Unit,
+    onPreviewTopCloudFold: (Float?) -> Unit,
+    onPlayPause: Runnable,
+    interactive: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val p = EchoTheme.colors()
+    val progress = if (state.durationMs > 0L) {
+        (state.positionMs.toFloat() / state.durationMs.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val capsuleLyrics = state.lyrics.firstOrNull { it.active }?.text
+        ?: state.lyrics.firstOrNull()?.text
+        ?: state.lyricsStatus.takeIf { it.isNotBlank() }
+        ?: state.title
+    val interactionLabel = when (dockPosition) {
+        NowBarDockPosition.TopCloud ->
+            state.expandTopCloudLabel.ifBlank { "展开流体云内容" }
+        NowBarDockPosition.TopCloudExpanded ->
+            state.compactTopCloudLabel.ifBlank { "收起流体云内容" }
+        else -> state.expandNowBarLabel.ifBlank { "展开 Now Bar" }
+    }
+    val expandInteraction = if (interactive) {
+        Modifier
+            .nowBarDockGesture(
+                enabled = true,
+                dockPosition = dockPosition,
+                onDockLeft = onDockLeft,
+                onDockRight = onDockRight,
+                onDockTop = onDockTop,
+                onRestoreBottom = onRestoreBottom,
+                onCollapseTopCloud = onCollapseTopCloud,
+                onPreviewTopCloudFold = onPreviewTopCloudFold,
+                onTap = onExpand
+            )
+            .semantics {
+                contentDescription = interactionLabel
+                onClick(interactionLabel) {
+                    onExpand()
+                    true
+                }
+                customActions = listOf(
+                    CustomAccessibilityAction(
+                        interactionLabel
+                    ) {
+                        onExpand()
+                        true
+                    }
+                )
+            }
+    } else {
+        Modifier
+    }
+    Box(modifier = modifier) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawRoundRect(
+                color = p.accentSoft.copy(alpha = 0.52f),
+                size = Size(size.width * progress, size.height),
+                cornerRadius = CornerRadius(size.height / 2f, size.height / 2f)
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 10.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .then(expandInteraction)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(horizontal = 4.dp),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = capsuleLyrics.replace('\n', ' '),
+                        style = EchoTypography.small.copy(fontWeight = FontWeight.SemiBold),
+                        color = p.text,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (expandedTopCloud) {
+                        Text(
+                            text = listOf(state.title, state.subtitle)
+                                .filter { it.isNotBlank() }
+                                .joinToString(" · "),
+                            style = EchoTypography.small,
+                            color = p.muted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+            val playbackIcon = if (state.playing) EchoIconKind.Pause else EchoIconKind.Play
+            if (interactive) {
+                IconButton(
+                    icon = playbackIcon,
+                    desc = if (state.playing) state.pauseLabel else state.playLabel,
+                    accent = true
+                ) {
+                    onPlayPause.run()
+                }
+            } else {
+                DockedPlaybackIndicator(playbackIcon)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CollapsedTopCloudHandle(
+    state: NowBarState,
+    onShowTopCloud: () -> Unit,
+    onRestoreBottom: () -> Unit,
+    onPreviewTopCloudFold: (Float?) -> Unit,
+    interactive: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val p = EchoTheme.colors()
+    val interaction = if (interactive) {
+        Modifier
+            .nowBarDockGesture(
+                enabled = true,
+                dockPosition = NowBarDockPosition.TopCloudCollapsed,
+                onDockLeft = {},
+                onDockRight = {},
+                onRestoreBottom = onRestoreBottom,
+                onShowTopCloud = onShowTopCloud,
+                onPreviewTopCloudFold = onPreviewTopCloudFold,
+                onTap = onShowTopCloud
+            )
+            .semantics {
+                contentDescription = state.showTopCloudLabel.ifBlank { "显示流体云" }
+                onClick(state.showTopCloudLabel.ifBlank { "显示流体云" }) {
+                    onShowTopCloud()
+                    true
+                }
+                customActions = listOf(
+                    CustomAccessibilityAction(
+                        state.restoreBottomLabel.ifBlank { "恢复到底部" }
+                    ) {
+                        onRestoreBottom()
+                        true
+                    }
+                )
+            }
+    } else {
+        Modifier
+    }
+    Box(
+        modifier = modifier.then(interaction)
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawRoundRect(
+                color = p.accent.copy(alpha = 0.58f),
+                cornerRadius = CornerRadius(size.height / 2f, size.height / 2f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DockedPlaybackIndicator(icon: EchoIconKind) {
+    val p = EchoTheme.colors()
+    Surface(
+        modifier = Modifier.size(34.dp),
+        shape = CircleShape,
+        color = p.accent
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            EchoIcon(icon, Modifier.size(18.dp), p.onAccent)
+        }
+    }
+}
+
+@Composable
+private fun MiniLyricsStrip(state: NowBarState, compactProgress: Float) {
     val activeLine = state.lyrics.firstOrNull { it.active }?.text
         ?: state.lyrics.firstOrNull()?.text
         ?: state.lyricsStatus
@@ -344,6 +968,9 @@ private fun MiniLyricsStrip(state: NowBarState) {
         modifier = Modifier
             .fillMaxWidth()
             .height(20.dp)
+            .graphicsLayer {
+                alpha = 1f - compactProgress * (1f - EchoMobileLayoutMetrics.nowBarCompactLyricsAlpha)
+            }
             .clickable {
                 clipboard.setText(AnnotatedString(activeLine))
                 Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
@@ -368,6 +995,7 @@ private fun MiniLyricsStrip(state: NowBarState) {
 @Composable
 private fun NowBarProgressSection(
     slice: NowBarProgressSlice,
+    scrub: ScrubbablePlaybackPosition,
     waveformExpanded: Boolean,
     onExpandWaveform: () -> Unit,
     onCollapseWaveform: () -> Unit,
@@ -376,9 +1004,7 @@ private fun NowBarProgressSection(
     val p = EchoTheme.colors()
     if (waveformExpanded) {
         CollapsedProgress(
-            positionMs = slice.positionMs,
-            durationMs = slice.durationMs,
-            playing = slice.playing,
+            scrub = scrub,
             cachedProgress = slice.waveformCachedProgress,
             progressLabel = slice.playbackProgressLabel,
             onSeek = onSeek,
@@ -388,9 +1014,7 @@ private fun NowBarProgressSection(
         )
     } else {
         CollapsedProgress(
-            positionMs = slice.positionMs,
-            durationMs = slice.durationMs,
-            playing = slice.playing,
+            scrub = scrub,
             cachedProgress = slice.waveformCachedProgress,
             progressLabel = slice.playbackProgressLabel,
             onSeek = onSeek,
@@ -409,7 +1033,7 @@ private fun NowBarProgressSection(
             .padding(top = 0.dp, bottom = 1.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(slice.elapsed, style = EchoTypography.caption, color = p.muted)
+        Text(Track.formatDuration(scrub.displayPosition.value), style = EchoTypography.caption, color = p.muted)
         Text(slice.duration, style = EchoTypography.caption, color = p.muted)
     }
 }
@@ -417,6 +1041,7 @@ private fun NowBarProgressSection(
 @Composable
 private fun BottomWaveformProgress(
     slice: NowBarProgressSlice,
+    scrub: ScrubbablePlaybackPosition,
     onSeek: SeekAction,
     modifier: Modifier = Modifier
 ) {
@@ -426,7 +1051,7 @@ private fun BottomWaveformProgress(
             .clipToBounds()
     ) {
         WaveformProgress(
-            positionMs = slice.positionMs,
+            scrub = scrub,
             durationMs = slice.durationMs,
             playing = slice.playing,
             trackId = slice.trackId,
@@ -446,16 +1071,13 @@ private fun BottomWaveformProgress(
 
 @Composable
 private fun CollapsedProgress(
-    positionMs: Long,
-    durationMs: Long,
-    playing: Boolean,
+    scrub: ScrubbablePlaybackPosition,
     cachedProgress: Float,
     progressLabel: String,
     onSeek: SeekAction,
     modifier: Modifier = Modifier
 ) {
     val p = EchoTheme.colors()
-    val scrub = rememberScrubbablePlaybackPosition(positionMs, durationMs, playing)
     Canvas(
         modifier = modifier
             .semantics {
@@ -512,6 +1134,10 @@ private fun NowBarTrackSection(
     slice: NowBarTrackSlice,
     onOpenNowPlaying: Runnable,
     onCollapseWaveform: () -> Unit,
+    onDockLeft: () -> Unit,
+    onDockRight: () -> Unit,
+    onDockTop: () -> Unit,
+    dockGesturesEnabled: Boolean,
     modifier: Modifier = Modifier
 ) {
     val p = EchoTheme.colors()
@@ -524,19 +1150,26 @@ private fun NowBarTrackSection(
             .joinToString(" ")
     }
     Row(
-        modifier = modifier.combinedClickable(
-            enabled = slice.canExpand,
-            onClick = {
-                onCollapseWaveform()
-                onOpenNowPlaying.run()
-            },
-            onLongClick = {
-                if (copyText.isNotBlank()) {
-                    clipboard.setText(AnnotatedString(copyText))
-                    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+        modifier = modifier
+            .nowBarDockGesture(
+                enabled = dockGesturesEnabled && slice.canExpand,
+                onDockLeft = onDockLeft,
+                onDockRight = onDockRight,
+                onDockTop = onDockTop
+            )
+            .combinedClickable(
+                enabled = slice.canExpand,
+                onClick = {
+                    onCollapseWaveform()
+                    onOpenNowPlaying.run()
+                },
+                onLongClick = {
+                    if (copyText.isNotBlank()) {
+                        clipboard.setText(AnnotatedString(copyText))
+                        Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                    }
                 }
-            }
-        ),
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AlbumArtThumb(uri, slice.title, slice.subtitle)
@@ -687,19 +1320,190 @@ private fun Modifier.playbackSeekGesture(
             return@awaitEachGesture
         }
         var targetPosition = scrub.scrubTo(down.position.x, size.width.toFloat())
-        onSeek.seekTo(targetPosition)
-        drag(down.id) { change ->
-            targetPosition = scrub.scrubTo(change.position.x, size.width.toFloat())
-            onSeek.seekTo(targetPosition)
-            change.consume()
+        try {
+            val completed = drag(down.id) { change ->
+                targetPosition = scrub.scrubTo(change.position.x, size.width.toFloat())
+                change.consume()
+            }
+            if (completed) {
+                onSeek.seekTo(targetPosition)
+            }
+        } finally {
+            scrub.clearScrub()
         }
-        scrub.clearScrub()
+    }
+}
+
+private fun Modifier.nowBarDockGesture(
+    enabled: Boolean,
+    dockPosition: NowBarDockPosition = NowBarDockPosition.Expanded,
+    onDockLeft: () -> Unit,
+    onDockRight: () -> Unit,
+    onDockTop: () -> Unit = {},
+    onRestoreBottom: () -> Unit = {},
+    onCollapseTopCloud: () -> Unit = {},
+    onShowTopCloud: () -> Unit = {},
+    onPreviewTopCloudFold: (Float?) -> Unit = {},
+    onTap: () -> Unit = {}
+): Modifier = composed {
+    if (!enabled) return@composed this
+    val density = LocalDensity.current
+    val distanceThresholdPx = with(density) {
+        EchoMobileLayoutMetrics.nowBarDockSwipeDistance.toPx()
+    }
+    val velocityThresholdPx = with(density) {
+        EchoMobileLayoutMetrics.nowBarDockSwipeVelocityDpPerSecond.dp.toPx()
+    }
+    val topCloudEnterDistanceThresholdPx = with(density) {
+        EchoMobileLayoutMetrics.nowBarTopCloudEnterDistance.toPx()
+    }
+    val topCloudVelocityThresholdPx = with(density) {
+        EchoMobileLayoutMetrics.nowBarTopCloudSwipeVelocityDpPerSecond.dp.toPx()
+    }
+    val restoreDistanceThresholdPx = with(density) {
+        EchoMobileLayoutMetrics.nowBarTopCloudRestoreDistance.toPx()
+    }
+    pointerInput(
+        dockPosition,
+        onDockLeft,
+        onDockRight,
+        onDockTop,
+        onRestoreBottom,
+        onCollapseTopCloud,
+        onShowTopCloud,
+        onPreviewTopCloudFold,
+        onTap,
+        distanceThresholdPx,
+        topCloudEnterDistanceThresholdPx,
+        restoreDistanceThresholdPx,
+        velocityThresholdPx,
+        topCloudVelocityThresholdPx
+    ) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val velocityTracker = VelocityTracker()
+            velocityTracker.addPosition(down.uptimeMillis, down.position)
+            var deltaX = 0f
+            var deltaY = 0f
+            var gestureAxis = 0
+
+            while (true) {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                velocityTracker.addPosition(change.uptimeMillis, change.position)
+                deltaX = change.position.x - down.position.x
+                deltaY = change.position.y - down.position.y
+
+                if (gestureAxis == 0) {
+                    val topCloudDiagonalDown =
+                        (dockPosition == NowBarDockPosition.TopCloud ||
+                            dockPosition == NowBarDockPosition.TopCloudExpanded) &&
+                            deltaY > viewConfiguration.touchSlop &&
+                            abs(deltaY) > abs(deltaX) / EchoMobileLayoutMetrics.nowBarDockHorizontalRatio
+                    gestureAxis = when {
+                        abs(deltaX) > viewConfiguration.touchSlop &&
+                            abs(deltaX) > EchoMobileLayoutMetrics.nowBarDockHorizontalRatio * abs(deltaY) -> 1
+                        topCloudDiagonalDown -> 2
+                        abs(deltaY) > viewConfiguration.touchSlop &&
+                            abs(deltaY) > EchoMobileLayoutMetrics.nowBarDockVerticalRatio * abs(deltaX) -> 2
+                        else -> 0
+                    }
+                }
+                if (gestureAxis != 0) change.consume()
+                if (gestureAxis == 2) {
+                    when {
+                        (dockPosition == NowBarDockPosition.TopCloud ||
+                            dockPosition == NowBarDockPosition.TopCloudExpanded) && deltaY < 0f ->
+                            onPreviewTopCloudFold(
+                                (abs(deltaY) / topCloudEnterDistanceThresholdPx).coerceIn(0f, 1f)
+                            )
+                        dockPosition == NowBarDockPosition.TopCloudCollapsed && deltaY > 0f ->
+                            onPreviewTopCloudFold(
+                                (1f - abs(deltaY) / restoreDistanceThresholdPx).coerceIn(0f, 1f)
+                            )
+                    }
+                }
+
+                if (!change.pressed) {
+                    val velocity = velocityTracker.calculateVelocity()
+                    val horizontalDominant =
+                        abs(deltaX) > EchoMobileLayoutMetrics.nowBarDockHorizontalRatio * abs(deltaY)
+                    val verticalDominant =
+                        abs(deltaY) > EchoMobileLayoutMetrics.nowBarDockVerticalRatio * abs(deltaX)
+                    val horizontalThreshold =
+                        abs(deltaX) >= distanceThresholdPx || abs(velocity.x) >= velocityThresholdPx
+                    if (dockPosition != NowBarDockPosition.TopCloud &&
+                        dockPosition != NowBarDockPosition.TopCloudExpanded &&
+                        dockPosition != NowBarDockPosition.TopCloudCollapsed &&
+                        horizontalDominant && horizontalThreshold
+                    ) {
+                        val direction = if (abs(deltaX) >= distanceThresholdPx) deltaX else velocity.x
+                        if (direction > 0f) onDockRight() else onDockLeft()
+                    } else if (gestureAxis == 2 || verticalDominant) {
+                        val direction = if (abs(deltaY) > viewConfiguration.touchSlop) {
+                            deltaY
+                        } else {
+                            velocity.y
+                        }
+                        val verticalDistance = if (
+                            dockPosition == NowBarDockPosition.TopCloudCollapsed ||
+                            ((dockPosition == NowBarDockPosition.TopCloud ||
+                                dockPosition == NowBarDockPosition.TopCloudExpanded) && direction > 0f)
+                        ) {
+                            restoreDistanceThresholdPx
+                        } else {
+                            topCloudEnterDistanceThresholdPx
+                        }
+                        val verticalThreshold =
+                            abs(deltaY) >= verticalDistance ||
+                                abs(velocity.y) >= topCloudVelocityThresholdPx
+                        if (verticalThreshold) {
+                            val resolvedDirection = if (abs(deltaY) >= verticalDistance) deltaY else velocity.y
+                            when {
+                                dockPosition == NowBarDockPosition.Expanded && resolvedDirection < 0f ->
+                                    onDockTop()
+                                (dockPosition == NowBarDockPosition.TopCloud ||
+                                    dockPosition == NowBarDockPosition.TopCloudExpanded) && resolvedDirection > 0f -> {
+                                    val diagonalThreshold = abs(deltaY) *
+                                        EchoMobileLayoutMetrics.nowBarTopCloudDiagonalDockRatio
+                                    when {
+                                        deltaX <= -diagonalThreshold -> onDockLeft()
+                                        deltaX >= diagonalThreshold -> onDockRight()
+                                        else -> onRestoreBottom()
+                                    }
+                                }
+                                (dockPosition == NowBarDockPosition.TopCloud ||
+                                    dockPosition == NowBarDockPosition.TopCloudExpanded) && resolvedDirection < 0f ->
+                                    onCollapseTopCloud()
+                                dockPosition == NowBarDockPosition.TopCloudCollapsed && resolvedDirection > 0f ->
+                                    onShowTopCloud()
+                                (dockPosition == NowBarDockPosition.BottomLeft ||
+                                    dockPosition == NowBarDockPosition.BottomRight) && resolvedDirection < 0f ->
+                                    onDockTop()
+                            }
+                        }
+                    } else if (gestureAxis == 0 &&
+                        abs(deltaX) <= viewConfiguration.touchSlop &&
+                        abs(deltaY) <= viewConfiguration.touchSlop
+                    ) {
+                        onTap()
+                    }
+                    if (dockPosition == NowBarDockPosition.TopCloud ||
+                        dockPosition == NowBarDockPosition.TopCloudExpanded ||
+                        dockPosition == NowBarDockPosition.TopCloudCollapsed
+                    ) {
+                        onPreviewTopCloudFold(null)
+                    }
+                    break
+                }
+            }
+        }
     }
 }
 
 @Composable
 private fun WaveformProgress(
-    positionMs: Long,
+    scrub: ScrubbablePlaybackPosition,
     durationMs: Long,
     playing: Boolean,
     trackId: Long,
@@ -752,7 +1556,6 @@ private fun WaveformProgress(
     val visiblePeakRange = remember(waveform, generatedBars) {
         visibleWaveformPeakRange(waveform, generatedBars)
     }
-    val scrub = rememberScrubbablePlaybackPosition(positionMs, durationMs, playing)
     val waveformMotionPhase = rememberLiveWaveformPhase(playing)
     Box(
         modifier = modifier

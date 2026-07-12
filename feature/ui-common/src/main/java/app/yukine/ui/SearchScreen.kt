@@ -129,7 +129,7 @@ fun UnifiedSearchScreen(
         LazyColumn(
             state = listState,
             modifier = contentModifier,
-            contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 104.dp),
+            contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = echoPageBottomPadding()),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item("header") {

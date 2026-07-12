@@ -20,6 +20,11 @@ internal data class LoadedSettingsPreferences(
     val playbackRestoreEnabled: Boolean,
     val replayGainEnabled: Boolean,
     val debugPromptsEnabled: Boolean,
+    val customBackgroundBlurEnabled: Boolean,
+    val customBackgroundBlurRadiusDp: Float,
+    val glassBlurEnabled: Boolean,
+    val glassBlurRadiusDp: Float,
+    val glassSurfaceOpacity: Float,
     val shareStyle: String,
     val pageBackgrounds: PageBackgrounds
 )
@@ -40,6 +45,11 @@ internal interface SettingsPreferenceLoadOperations {
     fun loadPlaybackRestoreEnabled(): Boolean
     fun loadReplayGainEnabled(): Boolean
     fun loadDebugPromptsEnabled(): Boolean
+    fun loadCustomBackgroundBlurEnabled(): Boolean
+    fun loadCustomBackgroundBlurRadiusDp(): Float
+    fun loadGlassBlurEnabled(): Boolean
+    fun loadGlassBlurRadiusDp(): Float
+    fun loadGlassSurfaceOpacity(): Float
     fun loadShareStyle(): String
     fun loadPageBackgrounds(): PageBackgrounds
 }
@@ -86,6 +96,17 @@ internal class MusicLibrarySettingsPreferenceLoadOperations(
     override fun loadDebugPromptsEnabled(): Boolean =
         repository.loadDebugPromptsEnabled()
 
+    override fun loadCustomBackgroundBlurEnabled(): Boolean =
+        repository.loadCustomBackgroundBlurEnabled()
+
+    override fun loadCustomBackgroundBlurRadiusDp(): Float =
+        repository.loadCustomBackgroundBlurRadiusDp()
+
+    override fun loadGlassBlurEnabled(): Boolean = repository.loadGlassBlurEnabled()
+
+    override fun loadGlassBlurRadiusDp(): Float = repository.loadGlassBlurRadiusDp()
+    override fun loadGlassSurfaceOpacity(): Float = repository.loadGlassSurfaceOpacity()
+
     override fun loadShareStyle(): String = repository.loadShareStyle()
 
     override fun loadPageBackgrounds(): PageBackgrounds = repository.loadPageBackgrounds()
@@ -121,6 +142,13 @@ internal class LoadSettingsPreferencesUseCase(
             playbackRestoreEnabled = operations.loadPlaybackRestoreEnabled(),
             replayGainEnabled = operations.loadReplayGainEnabled(),
             debugPromptsEnabled = operations.loadDebugPromptsEnabled(),
+            customBackgroundBlurEnabled = operations.loadCustomBackgroundBlurEnabled(),
+            customBackgroundBlurRadiusDp = app.yukine.ui.EchoBackgroundBlurDefaults.normalizeRadius(
+                operations.loadCustomBackgroundBlurRadiusDp()
+            ),
+            glassBlurEnabled = operations.loadGlassBlurEnabled(),
+            glassBlurRadiusDp = app.yukine.ui.EchoGlassDefaults.normalizeBlurRadius(operations.loadGlassBlurRadiusDp()),
+            glassSurfaceOpacity = app.yukine.ui.EchoGlassDefaults.normalizeSurfaceOpacity(operations.loadGlassSurfaceOpacity()),
             shareStyle = TrackShareStyle.normalize(operations.loadShareStyle()),
             pageBackgrounds = operations.loadPageBackgrounds()
         )

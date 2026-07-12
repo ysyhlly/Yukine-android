@@ -21,6 +21,11 @@ enum class SettingsPreferenceKey {
     PlaybackRestoreEnabled,
     ReplayGainEnabled,
     DebugPromptsEnabled,
+    CustomBackgroundBlurEnabled,
+    CustomBackgroundBlurRadiusDp,
+    GlassBlurEnabled,
+    GlassBlurRadiusDp,
+    GlassSurfaceOpacity,
     ShareStyle,
     PageBackgrounds
 }
@@ -48,6 +53,11 @@ internal interface SettingsPreferenceOperations {
     fun savePlaybackRestoreEnabled(enabled: Boolean)
     fun saveReplayGainEnabled(enabled: Boolean)
     fun saveDebugPromptsEnabled(enabled: Boolean)
+    fun saveCustomBackgroundBlurEnabled(enabled: Boolean)
+    fun saveCustomBackgroundBlurRadiusDp(radiusDp: Float)
+    fun saveGlassBlurEnabled(enabled: Boolean)
+    fun saveGlassBlurRadiusDp(radiusDp: Float)
+    fun saveGlassSurfaceOpacity(opacity: Float)
     fun saveShareStyle(style: String)
     fun savePageBackgrounds(backgrounds: PageBackgrounds)
 }
@@ -100,6 +110,17 @@ internal class MusicLibrarySettingsPreferenceOperations(
     override fun saveDebugPromptsEnabled(enabled: Boolean) =
         repository.saveDebugPromptsEnabled(enabled)
 
+    override fun saveCustomBackgroundBlurEnabled(enabled: Boolean) =
+        repository.saveCustomBackgroundBlurEnabled(enabled)
+
+    override fun saveCustomBackgroundBlurRadiusDp(radiusDp: Float) =
+        repository.saveCustomBackgroundBlurRadiusDp(radiusDp)
+
+    override fun saveGlassBlurEnabled(enabled: Boolean) = repository.saveGlassBlurEnabled(enabled)
+
+    override fun saveGlassBlurRadiusDp(radiusDp: Float) = repository.saveGlassBlurRadiusDp(radiusDp)
+    override fun saveGlassSurfaceOpacity(opacity: Float) = repository.saveGlassSurfaceOpacity(opacity)
+
     override fun saveShareStyle(style: String) =
         repository.saveShareStyle(style)
 
@@ -140,6 +161,16 @@ internal class ApplySettingsPreferenceUseCase(
                 operations.saveReplayGainEnabled(update.value as Boolean)
             SettingsPreferenceKey.DebugPromptsEnabled ->
                 operations.saveDebugPromptsEnabled(update.value as Boolean)
+            SettingsPreferenceKey.CustomBackgroundBlurEnabled ->
+                operations.saveCustomBackgroundBlurEnabled(update.value as Boolean)
+            SettingsPreferenceKey.CustomBackgroundBlurRadiusDp ->
+                operations.saveCustomBackgroundBlurRadiusDp(update.value as Float)
+            SettingsPreferenceKey.GlassBlurEnabled ->
+                operations.saveGlassBlurEnabled(update.value as Boolean)
+            SettingsPreferenceKey.GlassBlurRadiusDp ->
+                operations.saveGlassBlurRadiusDp(update.value as Float)
+            SettingsPreferenceKey.GlassSurfaceOpacity ->
+                operations.saveGlassSurfaceOpacity(update.value as Float)
             SettingsPreferenceKey.ShareStyle ->
                 operations.saveShareStyle(update.value as String)
             SettingsPreferenceKey.PageBackgrounds ->

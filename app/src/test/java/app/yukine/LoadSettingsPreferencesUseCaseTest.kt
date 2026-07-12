@@ -25,6 +25,11 @@ class LoadSettingsPreferencesUseCaseTest {
         operations.playbackRestoreEnabled = true
         operations.replayGainEnabled = false
         operations.debugPromptsEnabled = true
+        operations.customBackgroundBlurEnabled = true
+        operations.customBackgroundBlurRadiusDp = 32f
+        operations.glassBlurEnabled = true
+        operations.glassBlurRadiusDp = 24f
+        operations.glassSurfaceOpacity = 1f
         operations.shareStyle = TrackShareStyle.PLATFORM_CARD
         operations.pageBackgrounds = PageBackgrounds(sharedUri = "content://all")
 
@@ -45,10 +50,15 @@ class LoadSettingsPreferencesUseCaseTest {
         assertEquals(true, result.playbackRestoreEnabled)
         assertFalse(result.replayGainEnabled)
         assertEquals(true, result.debugPromptsEnabled)
+        assertEquals(true, result.customBackgroundBlurEnabled)
+        assertEquals(32f, result.customBackgroundBlurRadiusDp)
+        assertEquals(true, result.glassBlurEnabled)
+        assertEquals(24f, result.glassBlurRadiusDp)
+        assertEquals(1f, result.glassSurfaceOpacity)
         assertEquals(TrackShareStyle.PLATFORM_CARD, result.shareStyle)
         assertEquals("content://all", result.pageBackgrounds.sharedUri)
         assertEquals(
-            listOf("theme", "accent", "language", "speed", "volume", "quality", "concurrent", "effects", "statusLyrics", "floatingLyrics", "systemMediaTitle", "gestures", "restore", "replayGain", "debugPrompts", "shareStyle", "backgrounds"),
+            listOf("theme", "accent", "language", "speed", "volume", "quality", "concurrent", "effects", "statusLyrics", "floatingLyrics", "systemMediaTitle", "gestures", "restore", "replayGain", "debugPrompts", "customBackgroundBlurEnabled", "customBackgroundBlurRadius", "glassBlurEnabled", "glassBlurRadius", "glassSurfaceOpacity", "shareStyle", "backgrounds"),
             operations.events
         )
     }
@@ -82,6 +92,11 @@ class LoadSettingsPreferencesUseCaseTest {
         var playbackRestoreEnabled = true
         var replayGainEnabled = true
         var debugPromptsEnabled = false
+        var customBackgroundBlurEnabled = false
+        var customBackgroundBlurRadiusDp = 24f
+        var glassBlurEnabled = false
+        var glassBlurRadiusDp = 18f
+        var glassSurfaceOpacity = 0.62f
         var shareStyle = TrackShareStyle.TEXT
         var pageBackgrounds = PageBackgrounds.empty()
 
@@ -158,6 +173,31 @@ class LoadSettingsPreferencesUseCaseTest {
         override fun loadDebugPromptsEnabled(): Boolean {
             events.add("debugPrompts")
             return debugPromptsEnabled
+        }
+
+        override fun loadCustomBackgroundBlurEnabled(): Boolean {
+            events.add("customBackgroundBlurEnabled")
+            return customBackgroundBlurEnabled
+        }
+
+        override fun loadCustomBackgroundBlurRadiusDp(): Float {
+            events.add("customBackgroundBlurRadius")
+            return customBackgroundBlurRadiusDp
+        }
+
+        override fun loadGlassBlurEnabled(): Boolean {
+            events.add("glassBlurEnabled")
+            return glassBlurEnabled
+        }
+
+        override fun loadGlassBlurRadiusDp(): Float {
+            events.add("glassBlurRadius")
+            return glassBlurRadiusDp
+        }
+
+        override fun loadGlassSurfaceOpacity(): Float {
+            events.add("glassSurfaceOpacity")
+            return glassSurfaceOpacity
         }
 
         override fun loadShareStyle(): String {

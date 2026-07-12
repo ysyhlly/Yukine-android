@@ -136,7 +136,7 @@ fun HomeDashboardScreen(
     ) { contentModifier, _ ->
         LazyColumn(
             modifier = contentModifier,
-            contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 100.dp),
+            contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = echoPageBottomPadding()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Hero section with Now Playing card
@@ -312,6 +312,7 @@ private fun NowPlayingCard(state: HomeDashboardUiState, actions: HomeDashboardAc
             .echoPressScale(interaction)
             .fillMaxWidth()
             .echoFloatingLayer(p, EchoShapes.large)
+            .echoGaussianBackdrop(p, EchoShapes.large)
             .semantics { contentDescription = "正在播放" },
         shape = EchoShapes.large,
         color = echoCardColor(p.surface)
@@ -440,6 +441,7 @@ private fun StatCard(stat: HomeDashboardStatUiState, action: Runnable?, modifier
             .echoPressScale(interaction)
             .heightIn(min = 80.dp)
             .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGaussianBackdrop(p, EchoShapes.medium)
             .semantics { contentDescription = stat.label },
         shape = EchoShapes.medium,
         color = echoCardColor(p.surface)
@@ -498,7 +500,9 @@ private fun RecentActivitySection(state: HomeDashboardUiState, actions: HomeDash
         // Content
         if (state.recent.isEmpty()) {
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .echoGaussianBackdrop(p, EchoShapes.medium),
                 shape = EchoShapes.medium,
                 color = echoCardColor(p.surface)
             ) {
@@ -585,7 +589,8 @@ private fun WeeklyRecapSection(state: HomeDashboardUiState) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .echoFloatingLayer(p, EchoShapes.medium),
+                .echoFloatingLayer(p, EchoShapes.medium)
+                .echoGaussianBackdrop(p, EchoShapes.medium),
             shape = EchoShapes.medium,
             color = echoCardColor(p.surface)
         ) {
@@ -822,6 +827,7 @@ private fun RecommendationCard(
             .echoPressScale(interaction)
             .alpha(alpha)
             .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGaussianBackdrop(p, EchoShapes.medium)
             .semantics { contentDescription = title },
         shape = EchoShapes.medium,
         color = echoCardColor(p.surface)

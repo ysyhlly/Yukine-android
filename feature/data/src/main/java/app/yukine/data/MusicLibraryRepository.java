@@ -178,6 +178,46 @@ public final class MusicLibraryRepository {
         database.saveDebugPromptsEnabled(enabled);
     }
 
+    public boolean loadCustomBackgroundBlurEnabled() {
+        return database.loadCustomBackgroundBlurEnabled();
+    }
+
+    public float loadCustomBackgroundBlurRadiusDp() {
+        return database.loadCustomBackgroundBlurRadiusDp();
+    }
+
+    public void saveCustomBackgroundBlurEnabled(boolean enabled) {
+        database.saveCustomBackgroundBlurEnabled(enabled);
+    }
+
+    public void saveCustomBackgroundBlurRadiusDp(float radiusDp) {
+        database.saveCustomBackgroundBlurRadiusDp(radiusDp);
+    }
+
+    public boolean loadGlassBlurEnabled() {
+        return database.loadGlassBlurEnabled();
+    }
+
+    public float loadGlassBlurRadiusDp() {
+        return database.loadGlassBlurRadiusDp();
+    }
+
+    public void saveGlassBlurEnabled(boolean enabled) {
+        database.saveGlassBlurEnabled(enabled);
+    }
+
+    public void saveGlassBlurRadiusDp(float radiusDp) {
+        database.saveGlassBlurRadiusDp(radiusDp);
+    }
+
+    public float loadGlassSurfaceOpacity() {
+        return database.loadGlassSurfaceOpacity();
+    }
+
+    public void saveGlassSurfaceOpacity(float opacity) {
+        database.saveGlassSurfaceOpacity(opacity);
+    }
+
     public String loadShareStyle() {
         return TrackShareStyle.normalize(database.loadShareStyle());
     }

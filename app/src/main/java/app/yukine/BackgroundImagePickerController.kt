@@ -65,7 +65,7 @@ internal class BackgroundImagePickerController @JvmOverloads constructor(
         if (result.resultCode != android.app.Activity.RESULT_OK || uri == null || target.isBlank()) {
             return
         }
-        takePersistableReadPermission(result.data, uri)
+        takePersistableReadPermission(uri)
         prepareInternalCopyAndPreview(target, uri)
     }
 
@@ -114,12 +114,11 @@ internal class BackgroundImagePickerController @JvmOverloads constructor(
         })
     }
 
-    private fun takePersistableReadPermission(data: Intent?, uri: Uri) {
-        val flags = data?.flags?.and(Intent.FLAG_GRANT_READ_URI_PERMISSION) ?: 0
+    private fun takePersistableReadPermission(uri: Uri) {
         try {
             activity.contentResolver.takePersistableUriPermission(
                 uri,
-                if (flags == 0) Intent.FLAG_GRANT_READ_URI_PERMISSION else flags
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
             )
         } catch (ignored: SecurityException) {
             // Some providers return readable URIs without granting persistable permission.

@@ -26,8 +26,8 @@ android {
         buildConfigField "String", "YUKINE_WECHAT_APP_ID", "\"${yukineWechatAppId}\""
         // versionCode comes from CI when available; local builds use the current release baseline.
         def echoRunNumber = System.getenv("GITHUB_RUN_NUMBER")
-        versionCode echoRunNumber ? echoRunNumber.toInteger() : 4
-        versionName "0.1.12"
+        versionCode echoRunNumber ? echoRunNumber.toInteger() : 5
+        versionName "0.1.20"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -35,10 +35,6 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
         coreLibraryDesugaringEnabled true
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
     }
 
     tasks.withType(JavaCompile).configureEach {
@@ -58,10 +54,6 @@ android {
     }
 
     lint {
-        // AGP 8.7 lint crashes in androidx.lifecycle's NullSafeMutableLiveData detector
-        // while analyzing Kotlin UAST in release builds. Keep lintVital enabled and
-        // disable only the broken detector so assembleRelease remains a usable gate.
-        disable "NullSafeMutableLiveData"
         // Existing lint issues are recorded in lint-baseline.xml. New issues outside the baseline fail the build.
         baseline = file("lint-baseline.xml")
     }
@@ -86,6 +78,12 @@ android {
                 signingConfig signingConfigs.release
             }
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 

@@ -27,6 +27,11 @@ class ApplySettingsPreferenceUseCaseTest {
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.PlaybackRestoreEnabled, true))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.ReplayGainEnabled, false))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.DebugPromptsEnabled, true))
+        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.CustomBackgroundBlurEnabled, true))
+        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.CustomBackgroundBlurRadiusDp, 32f))
+        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.GlassBlurEnabled, true))
+        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.GlassBlurRadiusDp, 24f))
+        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.GlassSurfaceOpacity, 1f))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.ShareStyle, TrackShareStyle.PLATFORM_CARD))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.PageBackgrounds, PageBackgrounds(sharedUri = "content://bg")))
 
@@ -49,6 +54,11 @@ class ApplySettingsPreferenceUseCaseTest {
                 "restore:true",
                 "replayGain:false",
                 "debugPrompts:true",
+                "customBackgroundBlurEnabled:true",
+                "customBackgroundBlurRadius:32.0",
+                "glassBlurEnabled:true",
+                "glassBlurRadius:24.0",
+                "glassSurfaceOpacity:1.0",
                 "shareStyle:${TrackShareStyle.PLATFORM_CARD}",
                 "background:content://bg"
             ),
@@ -125,6 +135,26 @@ class ApplySettingsPreferenceUseCaseTest {
 
         override fun saveDebugPromptsEnabled(enabled: Boolean) {
             events.add("debugPrompts:$enabled")
+        }
+
+        override fun saveCustomBackgroundBlurEnabled(enabled: Boolean) {
+            events.add("customBackgroundBlurEnabled:$enabled")
+        }
+
+        override fun saveCustomBackgroundBlurRadiusDp(radiusDp: Float) {
+            events.add("customBackgroundBlurRadius:$radiusDp")
+        }
+
+        override fun saveGlassBlurEnabled(enabled: Boolean) {
+            events.add("glassBlurEnabled:$enabled")
+        }
+
+        override fun saveGlassBlurRadiusDp(radiusDp: Float) {
+            events.add("glassBlurRadius:$radiusDp")
+        }
+
+        override fun saveGlassSurfaceOpacity(opacity: Float) {
+            events.add("glassSurfaceOpacity:$opacity")
         }
 
         override fun saveShareStyle(style: String) {

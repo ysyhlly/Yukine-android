@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,21 +14,43 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import app.yukine.BackgroundTransform
 import app.yukine.ui.EchoGlassSurface
+import app.yukine.ui.EchoBackgroundBlurDefaults
+import app.yukine.ui.EchoGlassDefaults
 import app.yukine.ui.EchoIcon
 import app.yukine.ui.EchoIconKind
 import app.yukine.ui.EchoMobileLayoutMetrics
@@ -38,7 +59,22 @@ import app.yukine.ui.EchoPageBackground
 import app.yukine.ui.EchoShapes
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.EchoTypography
+import app.yukine.ui.LocalEchoGlassEnabled
+import app.yukine.ui.LocalEchoGlassBlurRadius
+import app.yukine.ui.LocalEchoGlassOpacity
+import app.yukine.ui.EchoCompositeBackdrop
+import app.yukine.ui.LocalEchoCompositeBackdrop
+import app.yukine.ui.LocalEchoNowBarCompactProgress
+import app.yukine.ui.LocalEchoNowBarScrollProgress
+import app.yukine.ui.LocalEchoNowBarPageScrollEvent
+import app.yukine.ui.LocalEchoNowBarBottomInset
+import app.yukine.ui.LocalEchoNowBarTopCloudClearanceChanged
+import app.yukine.ui.blockPointerInputBehind
 import app.yukine.ui.echoPressScale
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /**
  * A single bottom-navigation entry: the tab it selects plus its localized label.
@@ -47,6 +83,12 @@ data class EchoTabItem(
     val tab: TabRoute,
     val label: String
 )
+
+private enum class ChromeScrollMotion {
+    Idle,
+    CompactDown,
+    StretchApart
+}
 
 /**
  * Single-Activity Compose scaffold for Yukine.
@@ -71,22 +113,170 @@ fun EchoScaffold(
     backgroundUri: String = "",
     backgroundTransform: BackgroundTransform = BackgroundTransform.IDENTITY,
     customBackgroundVisible: Boolean = true,
+    customBackgroundBlurEnabled: Boolean = false,
+    customBackgroundBlurRadiusDp: Float = EchoBackgroundBlurDefaults.DEFAULT_RADIUS_DP,
+    glassBlurEnabled: Boolean = false,
+    glassBlurRadiusDp: Float = EchoGlassDefaults.BLUR_RADIUS_DP,
+    glassSurfaceOpacity: Float = EchoGlassDefaults.SURFACE_OPACITY,
     content: @Composable (Modifier) -> Unit
 ) {
+    var chromeScrollMotion by remember { mutableStateOf(ChromeScrollMotion.Idle) }
+    var pageScrollEvent by remember { mutableStateOf(0) }
+    var chromeRestoreJob by remember { mutableStateOf<Job?>(null) }
+    val chromeScope = rememberCoroutineScope()
+    val chromeScrollConnection = remember(chromeScope) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
+                if (abs(available.y) < 0.5f) return Offset.Zero
+                if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) {
+                    val nextDirection = if (available.y > 0f) 1 else -1
+                    val currentDirection = when {
+                        pageScrollEvent > 0 -> 1
+                        pageScrollEvent < 0 -> -1
+                        else -> 0
+                    }
+                    if (chromeScrollMotion == ChromeScrollMotion.Idle ||
+                        nextDirection != currentDirection
+                    ) {
+                        val nextSequence = abs(pageScrollEvent) + 1
+                        pageScrollEvent = if (nextDirection > 0) nextSequence else -nextSequence
+                    }
+                }
+                chromeScrollMotion = if (available.y < 0f) {
+                    ChromeScrollMotion.StretchApart
+                } else {
+                    ChromeScrollMotion.CompactDown
+                }
+                chromeRestoreJob?.cancel()
+                chromeRestoreJob = chromeScope.launch {
+                    delay(EchoMobileLayoutMetrics.nowBarScrollRestoreDelayMs)
+                    chromeScrollMotion = ChromeScrollMotion.Idle
+                }
+                return Offset.Zero
+            }
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose { chromeRestoreJob?.cancel() }
+    }
+    val chromeScrollProgress by animateFloatAsState(
+        targetValue = when (chromeScrollMotion) {
+            ChromeScrollMotion.Idle -> 0f
+            ChromeScrollMotion.CompactDown -> 1f
+            ChromeScrollMotion.StretchApart -> -1f
+        },
+        animationSpec = EchoMotion.floatSpring(),
+        label = "floatingChromeScrollMotion"
+    )
+    val chromeCompactProgress = chromeScrollProgress.coerceIn(0f, 1f)
+    val chromeStretchProgress = (-chromeScrollProgress).coerceIn(0f, 1f)
+    val density = LocalDensity.current
+    val contentLayer = rememberGraphicsLayer()
+    var contentOrigin by remember { mutableStateOf(Offset.Zero) }
+    val compositeBackdrop = remember(contentLayer) {
+        EchoCompositeBackdrop(contentLayer) { contentOrigin }
+    }
+    var requestedTopCloudClearance by remember { mutableStateOf(0.dp) }
+    var bottomNavHeightPx by remember { mutableStateOf(0) }
+    val bottomNavHeight = with(density) { bottomNavHeightPx.toDp() }
+    val topCloudClearance by animateDpAsState(
+        targetValue = requestedTopCloudClearance,
+        animationSpec = tween(EchoMobileLayoutMetrics.nowBarDockSizeDurationMs),
+        label = "topCloudContentClearance"
+    )
     EchoPageBackground(
         backgroundUri = backgroundUri,
         modifier = Modifier.fillMaxSize(),
         transform = backgroundTransform,
-        customBackgroundVisible = customBackgroundVisible
+        customBackgroundVisible = customBackgroundVisible,
+        customBackgroundBlurEnabled = customBackgroundBlurEnabled,
+        customBackgroundBlurRadiusDp = customBackgroundBlurRadiusDp
     ) {
-        Column(modifier = Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.statusBars)
+        CompositionLocalProvider(
+            LocalEchoGlassEnabled provides glassBlurEnabled,
+            LocalEchoGlassBlurRadius provides glassBlurRadiusDp,
+            LocalEchoGlassOpacity provides EchoGlassDefaults.normalizeSurfaceOpacity(glassSurfaceOpacity)
         ) {
-            topBar()
-            content(Modifier.weight(1f).fillMaxWidth())
-            nowBar()
-            EchoBottomNav(tabs, selectedTab, onTabSelected)
+          Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (glassBlurEnabled) {
+                            Modifier
+                                .onGloballyPositioned { contentOrigin = it.positionInRoot() }
+                                .drawWithContent {
+                                    contentLayer.renderEffect = null
+                                    contentLayer.record {
+                                        this@drawWithContent.drawContent()
+                                    }
+                                    drawLayer(contentLayer)
+                                }
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+              Column(
+                  modifier = Modifier
+                      .fillMaxSize()
+                      .windowInsetsPadding(WindowInsets.statusBars)
+              ) {
+                topBar()
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    content(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(top = topCloudClearance)
+                            .nestedScroll(chromeScrollConnection)
+                    )
+                }
+              }
+            }
+            CompositionLocalProvider(
+                LocalEchoCompositeBackdrop provides if (glassBlurEnabled) compositeBackdrop else null
+            ) {
+              Box(
+                  modifier = Modifier
+                      .fillMaxSize()
+                      .zIndex(1f)
+              ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .onGloballyPositioned { bottomNavHeightPx = it.size.height }
+                        .graphicsLayer {
+                            translationY = with(density) {
+                                -EchoMobileLayoutMetrics.bottomTabScrollTranslation.toPx() * chromeCompactProgress -
+                                    EchoMobileLayoutMetrics.bottomTabScrollStretchTranslation.toPx() * chromeStretchProgress
+                            }
+                            scaleY = 1f -
+                                (1f - EchoMobileLayoutMetrics.bottomTabScrollScale) * chromeCompactProgress +
+                                (EchoMobileLayoutMetrics.bottomTabScrollStretchScale - 1f) * chromeStretchProgress
+                            transformOrigin = TransformOrigin.Center
+                        }
+                ) {
+                    EchoBottomNav(
+                        tabs = tabs,
+                        selectedTab = selectedTab,
+                        onTabSelected = onTabSelected
+                    )
+                }
+                CompositionLocalProvider(
+                    LocalEchoNowBarCompactProgress provides chromeCompactProgress,
+                    LocalEchoNowBarScrollProgress provides chromeScrollProgress,
+                    LocalEchoNowBarPageScrollEvent provides pageScrollEvent,
+                    LocalEchoNowBarBottomInset provides bottomNavHeight,
+                    LocalEchoNowBarTopCloudClearanceChanged provides { clearance ->
+                        requestedTopCloudClearance = clearance
+                    }
+                ) {
+                    nowBar()
+                }
+              }
+            }
+          }
         }
     }
 }
@@ -113,7 +303,9 @@ private fun EchoBottomNav(
     ) {
         EchoGlassSurface(
             modifier = Modifier
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .testTag("echo-bottom-nav-surface")
+                .blockPointerInputBehind(),
             shape = EchoShapes.pill,
             elevation = EchoMobileLayoutMetrics.floatingChromeElevation
         ) {

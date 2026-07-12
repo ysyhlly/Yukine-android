@@ -61,6 +61,11 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     private static final String SETTING_PLAYBACK_RESTORE_ENABLED = "playback_restore_enabled";
     private static final String SETTING_REPLAY_GAIN_ENABLED = "replay_gain_enabled";
     private static final String SETTING_DEBUG_PROMPTS_ENABLED = "debug_prompts_enabled";
+    private static final String SETTING_CUSTOM_BACKGROUND_BLUR_ENABLED = "custom_background_blur_enabled";
+    private static final String SETTING_CUSTOM_BACKGROUND_BLUR_RADIUS_DP = "custom_background_blur_radius_dp";
+    private static final String SETTING_GLASS_BLUR_ENABLED = "glass_blur_enabled";
+    private static final String SETTING_GLASS_BLUR_RADIUS_DP = "glass_blur_radius_dp";
+    private static final String SETTING_GLASS_SURFACE_OPACITY = "glass_surface_opacity";
     private static final String SETTING_SHARE_STYLE = "share_style";
     private static final String SETTING_PAGE_BACKGROUND_SHARED = "page_background_shared";
     private static final String SETTING_PAGE_BACKGROUND_HOME = "page_background_home";
@@ -527,6 +532,87 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
 
     public void saveDebugPromptsEnabled(boolean enabled) {
         saveSetting(SETTING_DEBUG_PROMPTS_ENABLED, enabled ? "true" : "false");
+    }
+
+    public boolean loadCustomBackgroundBlurEnabled() {
+        return "true".equals(loadSetting(SETTING_CUSTOM_BACKGROUND_BLUR_ENABLED, "false"));
+    }
+
+    public float loadCustomBackgroundBlurRadiusDp() {
+        try {
+            return normalizeCustomBackgroundBlurRadius(Float.parseFloat(
+                    loadSetting(SETTING_CUSTOM_BACKGROUND_BLUR_RADIUS_DP, "24")
+            ));
+        } catch (NumberFormatException ignored) {
+            return 24f;
+        }
+    }
+
+    public void saveCustomBackgroundBlurEnabled(boolean enabled) {
+        saveSetting(SETTING_CUSTOM_BACKGROUND_BLUR_ENABLED, enabled ? "true" : "false");
+    }
+
+    public void saveCustomBackgroundBlurRadiusDp(float radiusDp) {
+        saveSetting(
+                SETTING_CUSTOM_BACKGROUND_BLUR_RADIUS_DP,
+                String.valueOf(normalizeCustomBackgroundBlurRadius(radiusDp))
+        );
+    }
+
+    public boolean loadGlassBlurEnabled() {
+        return "true".equals(loadSetting(SETTING_GLASS_BLUR_ENABLED, "false"));
+    }
+
+    public float loadGlassBlurRadiusDp() {
+        try {
+            return normalizeGlassBlurRadius(Float.parseFloat(loadSetting(SETTING_GLASS_BLUR_RADIUS_DP, "18")));
+        } catch (NumberFormatException ignored) {
+            return 18f;
+        }
+    }
+
+    public void saveGlassBlurEnabled(boolean enabled) {
+        saveSetting(SETTING_GLASS_BLUR_ENABLED, enabled ? "true" : "false");
+    }
+
+    public void saveGlassBlurRadiusDp(float radiusDp) {
+        saveSetting(
+                SETTING_GLASS_BLUR_RADIUS_DP,
+                String.valueOf(normalizeGlassBlurRadius(radiusDp))
+        );
+    }
+
+    public float loadGlassSurfaceOpacity() {
+        try {
+            return normalizeGlassSurfaceOpacity(Float.parseFloat(loadSetting(SETTING_GLASS_SURFACE_OPACITY, "0.62")));
+        } catch (NumberFormatException ignored) {
+            return 0.62f;
+        }
+    }
+
+    public void saveGlassSurfaceOpacity(float opacity) {
+        saveSetting(SETTING_GLASS_SURFACE_OPACITY, String.valueOf(normalizeGlassSurfaceOpacity(opacity)));
+    }
+
+    private static float normalizeGlassBlurRadius(float radiusDp) {
+        if (Float.isNaN(radiusDp) || Float.isInfinite(radiusDp)) {
+            return 18f;
+        }
+        return Math.max(4f, Math.min(36f, radiusDp));
+    }
+
+    private static float normalizeCustomBackgroundBlurRadius(float radiusDp) {
+        if (Float.isNaN(radiusDp) || Float.isInfinite(radiusDp)) {
+            return 24f;
+        }
+        return Math.max(4f, Math.min(64f, radiusDp));
+    }
+
+    private static float normalizeGlassSurfaceOpacity(float opacity) {
+        if (Float.isNaN(opacity) || Float.isInfinite(opacity)) {
+            return 0.62f;
+        }
+        return Math.max(0.4f, Math.min(1f, opacity));
     }
 
     public String loadShareStyle() {

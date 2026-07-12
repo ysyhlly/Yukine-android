@@ -1045,7 +1045,10 @@ class StreamingViewModel @Inject constructor(
         if (snapshot?.currentTrack == null) {
             return null
         }
-        if (!StreamingPlaybackAdapter.isStreamingTrack(snapshot.currentTrack)) {
+        // A paused stream with a concrete playback URI is already loaded by ExoPlayer and must
+        // resume directly. Re-resolving it here turns a simple play command into an asynchronous
+        // source replacement and can leave the player paused when the resolver declines/retries.
+        if (!StreamingPlaybackAdapter.isUnresolvedStreamingTrack(snapshot.currentTrack)) {
             return null
         }
         if (queue.isNullOrEmpty()) {

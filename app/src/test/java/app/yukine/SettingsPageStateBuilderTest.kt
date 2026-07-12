@@ -126,6 +126,10 @@ class SettingsPageStateBuilderTest {
     @Test
     fun appearanceGroupBuildsNavigationActions() {
         val navigated = mutableListOf<SettingsPage>()
+        var blurEnabled = true
+        var blurRadius = 0f
+        var backgroundBlurEnabled = true
+        var backgroundBlurRadius = 0f
         val backgrounds = PageBackgrounds(
             sharedUri = "",
             homeUri = "content://home",
@@ -139,18 +143,36 @@ class SettingsPageStateBuilderTest {
             themeMode = "dark",
             accentMode = "green",
             pageBackgrounds = backgrounds,
+            customBackgroundBlurEnabled = true,
+            customBackgroundBlurRadiusDp = 24f,
+            glassBlurEnabled = true,
+            glassBlurRadiusDp = 24f,
+            glassSurfaceOpacity = 0.62f,
+            onCustomBackgroundBlurEnabledChange = { backgroundBlurEnabled = it },
+            onCustomBackgroundBlurRadiusChange = { backgroundBlurRadius = it },
+            onGlassBlurEnabledChange = { blurEnabled = it },
+            onGlassBlurRadiusChange = { blurRadius = it },
+            onGlassSurfaceOpacityChange = { },
             onNavigate = { page -> navigated += page }
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.appearance"), content.uiState.title)
         assertEquals(5, content.uiState.metrics.size)
         assertEquals("2" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "page.background.custom.count"), content.uiState.metrics[3].value)
-        assertEquals(5, content.actions.size)
+        assertEquals(10, content.actions.size)
 
         content.actions[0].onClick.run()
         content.actions[4].onClick.run()
+        content.actions[5].onClick.run()
+        content.actions[6].onSliderValueChange?.invoke(36f)
+        content.actions[7].onClick.run()
+        content.actions[8].onSliderValueChange?.invoke(28f)
 
         assertEquals(listOf(SettingsPage.Home, SettingsPage.PageBackground), navigated)
+        assertEquals(false, backgroundBlurEnabled)
+        assertEquals(36f, backgroundBlurRadius)
+        assertEquals(false, blurEnabled)
+        assertEquals(28f, blurRadius)
     }
 
     @Test

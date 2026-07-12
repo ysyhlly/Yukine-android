@@ -1,8 +1,8 @@
 [versions]
 # ── Android Gradle Plugin & Kotlin ──────────────────────────────────────────
-agp                     = "8.7.0"
-kotlin                  = "2.0.21"
-ksp                     = "2.0.21-1.0.28"
+agp                     = "8.10.1"
+kotlin                  = "2.2.21"
+ksp                     = "2.2.21-2.0.5"
 
 # ── Hilt ────────────────────────────────────────────────────────────────────
 hilt                    = "2.57.2"
@@ -19,6 +19,7 @@ media3                  = "1.4.1"
 room                    = "2.7.2"
 wechat-opensdk          = "6.8.0"
 desugar-jdk-libs       = "2.1.5"
+haze                    = "1.1.1"
 
 # ── Test ────────────────────────────────────────────────────────────────────
 junit                   = "4.13.2"
@@ -44,6 +45,7 @@ androidx-compose-ui-tooling-preview     = { group = "androidx.compose.ui",      
 androidx-compose-ui-test-junit4         = { group = "androidx.compose.ui",         name = "ui-test-junit4" }
 androidx-compose-ui-test-manifest       = { group = "androidx.compose.ui",         name = "ui-test-manifest" }
 androidx-compose-ui-tooling             = { group = "androidx.compose.ui",         name = "ui-tooling" }
+haze                                    = { group = "dev.chrisbanes.haze",         name = "haze",                         version.ref = "haze" }
 
 # ── Activity ─────────────────────────────────────────────────────────────────
 androidx-activity-compose               = { group = "androidx.activity",           name = "activity-compose",             version.ref = "activity-compose" }

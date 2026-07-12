@@ -140,7 +140,7 @@ fun QueueScreen(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = echoPagePadding(top = 6.dp, bottom = 84.dp),
+        contentPadding = echoPagePadding(top = 6.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item(key = "title") {

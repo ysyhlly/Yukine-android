@@ -195,7 +195,12 @@ fun EchoNavGraph(
         topBar = topBar,
         backgroundUri = settingsChromeState.pageBackgrounds.uriFor(backgroundPageForTab(selectedTab)),
         backgroundTransform = settingsChromeState.pageBackgrounds.transformFor(backgroundPageForTab(selectedTab)),
-        customBackgroundVisible = !playerPageSelected || !nowPlayingImmersive
+        customBackgroundVisible = !playerPageSelected || !nowPlayingImmersive,
+        customBackgroundBlurEnabled = settingsChromeState.customBackgroundBlurEnabled,
+        customBackgroundBlurRadiusDp = settingsChromeState.customBackgroundBlurRadiusDp,
+        glassBlurEnabled = settingsChromeState.glassBlurEnabled,
+        glassBlurRadiusDp = settingsChromeState.glassBlurRadiusDp,
+        glassSurfaceOpacity = settingsChromeState.glassSurfaceOpacity
     ) { contentModifier ->
         if (!selectedInPager) {
             // Routes that live outside the 4-tab pager (Collections / Network / Now),

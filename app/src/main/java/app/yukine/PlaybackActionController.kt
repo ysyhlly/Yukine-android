@@ -28,11 +28,14 @@ internal class PlaybackActionController(
     }
 
     fun togglePlayback() {
-        if (listener.resolveCurrentStreamingQueueTrackIfNeeded()) {
+        val snapshot = listener.playbackSnapshot()
+        // Pausing must be immediate. Resolving the current streaming URL first can complete
+        // asynchronously and resume playback after the user has just paused it.
+        if (snapshot?.playing != true && listener.resolveCurrentStreamingQueueTrackIfNeeded()) {
             return
         }
         listener.applyPlaybackActionResult(
-            viewModel.togglePlayback(listener.playbackSnapshot(), listener.fallbackTracks())
+            viewModel.togglePlayback(snapshot, listener.fallbackTracks())
         )
     }
 

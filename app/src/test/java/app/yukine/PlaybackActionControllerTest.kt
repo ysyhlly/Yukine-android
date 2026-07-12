@@ -50,8 +50,24 @@ class PlaybackActionControllerTest {
         assertEquals(emptyList<String?>(), listener.appliedStatuses)
     }
 
+    @Test
+    fun togglePlaybackPausesPlayingTrackWithoutSchedulingStreamingResolve() {
+        val playbackGateway = FakePlaybackGateway()
+        val viewModel = NowPlayingViewModel()
+        viewModel.bindPlaybackGateway(playbackGateway)
+        val listener = FakeListener(resolveCurrent = true, playing = true)
+        val controller = PlaybackActionController(viewModel, listener)
+
+        controller.togglePlayback()
+
+        assertEquals(emptyList<String>(), listener.resolveCalls)
+        assertEquals(listOf("pause"), playbackGateway.calls)
+        assertEquals(listOf<String?>(null), listener.appliedStatuses)
+    }
+
     private class FakeListener(
-        private val resolveCurrent: Boolean = false
+        private val resolveCurrent: Boolean = false,
+        private val playing: Boolean = false
     ) : PlaybackActionController.Listener {
         val resolveCalls = mutableListOf<String>()
         val appliedStatuses = mutableListOf<String?>()
@@ -68,7 +84,7 @@ class PlaybackActionControllerTest {
                 1,
                 100L,
                 1000L,
-                false,
+                playing,
                 false,
                 "",
                 false,

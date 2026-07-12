@@ -20,6 +20,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -28,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,6 +54,7 @@ enum class SettingsActionStyle {
     Default,
     Navigation,
     Toggle,
+    Slider,
     Choice,
     Destructive
 }
@@ -62,6 +66,12 @@ data class SettingsAction(
     val value: String = "",
     val style: SettingsActionStyle = SettingsActionStyle.Default,
     val checked: Boolean = false,
+    val enabled: Boolean = true,
+    val sliderValue: Float = 0f,
+    val sliderRangeStart: Float = 0f,
+    val sliderRangeEnd: Float = 1f,
+    val sliderSteps: Int = 0,
+    val onSliderValueChange: ((Float) -> Unit)? = null,
     val section: String = "",
     val isBack: Boolean = false,
     val imageDialog: SettingsImageDialog? = null
@@ -210,7 +220,15 @@ private fun SettingsActionButton(action: SettingsAction, modifier: Modifier = Mo
         .echoFloatingLayer(p, EchoShapes.medium)
         .echoGlassLayer(p, EchoShapes.medium)
 
-    if (action.style == SettingsActionStyle.Toggle) {
+    if (action.style == SettingsActionStyle.Slider) {
+        Surface(
+            modifier = cardModifier,
+            shape = EchoShapes.medium,
+            color = Color.Transparent
+        ) {
+            SettingsSliderAction(action)
+        }
+    } else if (action.style == SettingsActionStyle.Toggle) {
         Surface(
             modifier = cardModifier,
             shape = EchoShapes.medium,
@@ -230,6 +248,54 @@ private fun SettingsActionButton(action: SettingsAction, modifier: Modifier = Mo
         ) {
             SettingsActionRow(action, onClick)
         }
+    }
+}
+
+@Composable
+private fun SettingsSliderAction(action: SettingsAction) {
+    val p = EchoTheme.colors()
+    var pendingValue by remember(action.sliderValue) { mutableFloatStateOf(action.sliderValue) }
+    Column(
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            EchoIcon(EchoIconKind.Gauge, Modifier.size(22.dp), if (action.enabled) p.accent else p.muted)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    action.label,
+                    style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = if (action.enabled) p.text else p.muted
+                )
+                if (action.description.isNotBlank()) {
+                    Text(action.description, style = EchoTypography.caption, color = p.muted)
+                }
+            }
+            if (action.value.isNotBlank()) {
+                Text(
+                    if (action.value.isBlank()) "${pendingValue.toInt()}" else action.value.replace(action.sliderValue.toInt().toString(), pendingValue.toInt().toString()),
+                    style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+                    color = p.muted
+                )
+            }
+        }
+        Slider(
+            value = pendingValue.coerceIn(action.sliderRangeStart, action.sliderRangeEnd),
+            onValueChange = { value -> pendingValue = value },
+            onValueChangeFinished = { action.onSliderValueChange?.invoke(pendingValue) },
+            valueRange = action.sliderRangeStart..action.sliderRangeEnd,
+            steps = action.sliderSteps,
+            enabled = action.enabled && action.onSliderValueChange != null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics { contentDescription = action.label },
+            colors = SliderDefaults.colors(
+                thumbColor = p.accent,
+                activeTrackColor = p.accent,
+                inactiveTrackColor = p.border
+            )
+        )
     }
 }
 
@@ -293,6 +359,7 @@ private fun SettingsActionTrailing(action: SettingsAction, onClick: () -> Unit) 
                 Spacer(Modifier.width(18.dp))
             }
         }
+        SettingsActionStyle.Slider -> Unit
         SettingsActionStyle.Navigation,
         SettingsActionStyle.Default -> {
             if (action.value.isNotBlank()) {
@@ -398,6 +465,7 @@ internal fun iconForSettingsAction(action: SettingsAction): EchoIconKind {
         // Keep the plus only for actions that really create a new item.
         has("add", "new", "create", "添加", "新建", "创建") -> EchoIconKind.Action
         action.style == SettingsActionStyle.Destructive -> EchoIconKind.Delete
+        action.style == SettingsActionStyle.Slider -> EchoIconKind.Gauge
         action.style == SettingsActionStyle.Toggle || action.style == SettingsActionStyle.Choice -> EchoIconKind.Check
         else -> EchoIconKind.Settings
     }

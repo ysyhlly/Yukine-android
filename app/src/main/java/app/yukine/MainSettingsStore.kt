@@ -20,6 +20,12 @@ internal class MainSettingsStore {
     private var playbackRestoreEnabled: Boolean = true
     private var replayGainEnabled: Boolean = true
     private var debugPromptsEnabled: Boolean = false
+    private var customBackgroundBlurEnabled: Boolean = false
+    private var customBackgroundBlurRadiusDp: Float =
+        app.yukine.ui.EchoBackgroundBlurDefaults.DEFAULT_RADIUS_DP
+    private var glassBlurEnabled: Boolean = false
+    private var glassBlurRadiusDp: Float = app.yukine.ui.EchoGlassDefaults.BLUR_RADIUS_DP
+    private var glassSurfaceOpacity: Float = app.yukine.ui.EchoGlassDefaults.SURFACE_OPACITY
     private var shareStyle: String = TrackShareStyle.defaultValue()
     private var pageBackgrounds: PageBackgrounds = PageBackgrounds.empty()
 
@@ -39,6 +45,13 @@ internal class MainSettingsStore {
         playbackRestoreEnabled = preferences.playbackRestoreEnabled
         replayGainEnabled = preferences.replayGainEnabled
         debugPromptsEnabled = preferences.debugPromptsEnabled
+        customBackgroundBlurEnabled = preferences.customBackgroundBlurEnabled
+        customBackgroundBlurRadiusDp = app.yukine.ui.EchoBackgroundBlurDefaults.normalizeRadius(
+            preferences.customBackgroundBlurRadiusDp
+        )
+        glassBlurEnabled = preferences.glassBlurEnabled
+        glassBlurRadiusDp = app.yukine.ui.EchoGlassDefaults.normalizeBlurRadius(preferences.glassBlurRadiusDp)
+        glassSurfaceOpacity = app.yukine.ui.EchoGlassDefaults.normalizeSurfaceOpacity(preferences.glassSurfaceOpacity)
         shareStyle = preferences.shareStyle
         pageBackgrounds = preferences.pageBackgrounds
         EchoTheme.setMode(themeMode)
@@ -61,6 +74,13 @@ internal class MainSettingsStore {
         playbackRestoreEnabled = preferences.playbackRestoreEnabled
         replayGainEnabled = preferences.replayGainEnabled
         debugPromptsEnabled = preferences.debugPromptsEnabled
+        customBackgroundBlurEnabled = preferences.customBackgroundBlurEnabled
+        customBackgroundBlurRadiusDp = app.yukine.ui.EchoBackgroundBlurDefaults.normalizeRadius(
+            preferences.customBackgroundBlurRadiusDp
+        )
+        glassBlurEnabled = preferences.glassBlurEnabled
+        glassBlurRadiusDp = app.yukine.ui.EchoGlassDefaults.normalizeBlurRadius(preferences.glassBlurRadiusDp)
+        glassSurfaceOpacity = app.yukine.ui.EchoGlassDefaults.normalizeSurfaceOpacity(preferences.glassSurfaceOpacity)
         shareStyle = TrackShareStyle.normalize(preferences.shareStyle)
         pageBackgrounds = preferences.pageBackgrounds
     }
@@ -124,6 +144,15 @@ internal class MainSettingsStore {
     fun debugPromptsEnabled(): Boolean {
         return debugPromptsEnabled
     }
+
+    fun customBackgroundBlurEnabled(): Boolean = customBackgroundBlurEnabled
+
+    fun customBackgroundBlurRadiusDp(): Float = customBackgroundBlurRadiusDp
+
+    fun glassBlurEnabled(): Boolean = glassBlurEnabled
+
+    fun glassBlurRadiusDp(): Float = glassBlurRadiusDp
+    fun glassSurfaceOpacity(): Float = glassSurfaceOpacity
 
     fun shareStyle(): String {
         return shareStyle
@@ -191,6 +220,27 @@ internal class MainSettingsStore {
 
     fun setDebugPromptsEnabled(enabled: Boolean) {
         this.debugPromptsEnabled = enabled
+    }
+
+    fun setCustomBackgroundBlurEnabled(enabled: Boolean) {
+        this.customBackgroundBlurEnabled = enabled
+    }
+
+    fun setCustomBackgroundBlurRadiusDp(radiusDp: Float) {
+        this.customBackgroundBlurRadiusDp =
+            app.yukine.ui.EchoBackgroundBlurDefaults.normalizeRadius(radiusDp)
+    }
+
+    fun setGlassBlurEnabled(enabled: Boolean) {
+        this.glassBlurEnabled = enabled
+    }
+
+    fun setGlassBlurRadiusDp(radiusDp: Float) {
+        this.glassBlurRadiusDp = app.yukine.ui.EchoGlassDefaults.normalizeBlurRadius(radiusDp)
+    }
+
+    fun setGlassSurfaceOpacity(opacity: Float) {
+        this.glassSurfaceOpacity = app.yukine.ui.EchoGlassDefaults.normalizeSurfaceOpacity(opacity)
     }
 
     fun setShareStyle(style: String) {

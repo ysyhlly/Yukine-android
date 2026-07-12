@@ -293,6 +293,8 @@ class SettingsViewModelTest {
         viewModel.onEvent(SettingsEvent.SetPlaybackRestoreEnabled(true))
         viewModel.onEvent(SettingsEvent.SetReplayGainEnabled(false))
         viewModel.onEvent(SettingsEvent.SetDebugPromptsEnabled(true))
+        viewModel.onEvent(SettingsEvent.SetCustomBackgroundBlurEnabled(true))
+        viewModel.onEvent(SettingsEvent.SetCustomBackgroundBlurRadiusDp(80f))
         advanceUntilIdle()
 
         assertEquals(
@@ -348,7 +350,9 @@ class SettingsViewModelTest {
                 "gestures:false",
                 "restore:true",
                 "replayGain:false",
-                "debugPrompts:true"
+                "debugPrompts:true",
+                "customBackgroundBlurEnabled:true",
+                "customBackgroundBlurRadius:64.0"
             ),
             preferenceGateway.events
         )
@@ -368,6 +372,10 @@ class SettingsViewModelTest {
         assertEquals(false, state.preferences.nowPlayingGesturesEnabled)
         assertEquals(true, state.preferences.playbackRestoreEnabled)
         assertEquals(true, state.preferences.debugPromptsEnabled)
+        assertEquals(true, state.preferences.customBackgroundBlurEnabled)
+        assertEquals(64f, state.preferences.customBackgroundBlurRadiusDp)
+        assertEquals(true, viewModel.chromeState.value.customBackgroundBlurEnabled)
+        assertEquals(64f, viewModel.chromeState.value.customBackgroundBlurRadiusDp)
         assertEquals(5000L, state.runtime.lyricsOffsetMs)
         assertEquals(state.ui, viewModel.uiState.value)
     }
@@ -734,6 +742,13 @@ class SettingsViewModelTest {
                 SettingsPreferenceKey.PlaybackRestoreEnabled -> "restore:${update.value}"
                 SettingsPreferenceKey.ReplayGainEnabled -> "replayGain:${update.value}"
                 SettingsPreferenceKey.DebugPromptsEnabled -> "debugPrompts:${update.value}"
+                SettingsPreferenceKey.CustomBackgroundBlurEnabled ->
+                    "customBackgroundBlurEnabled:${update.value}"
+                SettingsPreferenceKey.CustomBackgroundBlurRadiusDp ->
+                    "customBackgroundBlurRadius:${update.value}"
+                SettingsPreferenceKey.GlassBlurEnabled -> "glassBlurEnabled:${update.value}"
+                SettingsPreferenceKey.GlassBlurRadiusDp -> "glassBlurRadius:${update.value}"
+                SettingsPreferenceKey.GlassSurfaceOpacity -> "glassSurfaceOpacity:${update.value}"
                 SettingsPreferenceKey.ShareStyle -> "shareStyle:${update.value}"
                 SettingsPreferenceKey.PageBackgrounds -> {
                     val backgrounds = update.value as PageBackgrounds

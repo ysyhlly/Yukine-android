@@ -10,11 +10,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -34,6 +39,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -44,13 +50,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.yukine.BackgroundTransform
 import app.yukine.BackgroundTransformLayout
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
 
 object EchoPageDefaults {
     val horizontalPadding: Dp = 18.dp
     val topPadding: Dp = 16.dp
-    val bottomPadding: Dp = 100.dp
+    // Clears the floating 148dp NowBar and bottom navigation; system navigation insets are added below.
+    val bottomPadding: Dp = 244.dp
     val itemSpacing: Dp = 16.dp
     val sectionSpacing: Dp = 22.dp
+}
+
+object EchoBackgroundBlurDefaults {
+    const val DEFAULT_RADIUS_DP = 24f
+    const val MIN_RADIUS_DP = 4f
+    const val MAX_RADIUS_DP = 64f
+
+    fun normalizeRadius(radiusDp: Float): Float = when {
+        !radiusDp.isFinite() -> DEFAULT_RADIUS_DP
+        else -> radiusDp.coerceIn(MIN_RADIUS_DP, MAX_RADIUS_DP)
+    }
 }
 
 @Composable
@@ -74,9 +94,12 @@ fun EchoPageBackground(
     modifier: Modifier = Modifier,
     transform: BackgroundTransform = BackgroundTransform.IDENTITY,
     customBackgroundVisible: Boolean = true,
+    customBackgroundBlurEnabled: Boolean = false,
+    customBackgroundBlurRadiusDp: Float = EchoBackgroundBlurDefaults.DEFAULT_RADIUS_DP,
     content: @Composable () -> Unit
 ) {
     val p = EchoTheme.colors()
+    val hazeState = remember { HazeState() }
     val hasCustomBackground = backgroundUri.isNotBlank()
     val backgroundAlpha by animateFloatAsState(
         targetValue = if (customBackgroundVisible) 1f else 0f,
@@ -87,20 +110,51 @@ fun EchoPageBackground(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { alpha = backgroundAlpha }
+                .haze(hazeState)
+                // The Haze source must contain the theme gradient too. Otherwise cards have no
+                // pixels to sample when the user has not selected a custom background image.
+                .echoPageBackground()
         ) {
-            AsyncPageBackgroundImage(backgroundUri, transform)
-            if (hasCustomBackground) {
-                // 轻一点的整页蒙版：磨砂卡片本身半透，过重的蒙版会让背景看不见。
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        alpha = backgroundAlpha
+                    }
+            ) {
                 Box(
-                    Modifier
+                    modifier = Modifier
                         .fillMaxSize()
-                        .background(p.background.copy(alpha = 0.34f))
-                )
+                        .then(
+                            if (hasCustomBackground && customBackgroundBlurEnabled) {
+                                Modifier
+                                    .testTag("custom-background-blur-layer")
+                                    .blur(
+                                        radius = EchoBackgroundBlurDefaults.normalizeRadius(
+                                            customBackgroundBlurRadiusDp
+                                        ).dp,
+                                        edgeTreatment = BlurredEdgeTreatment.Unbounded
+                                    )
+                            } else {
+                                Modifier
+                            }
+                        )
+                ) {
+                    AsyncPageBackgroundImage(backgroundUri, transform)
+                }
+                if (hasCustomBackground) {
+                    // 轻一点的整页蒙版：磨砂卡片本身半透，过重的蒙版会让背景看不见。
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(p.background.copy(alpha = 0.34f))
+                    )
+                }
             }
         }
         CompositionLocalProvider(
-            LocalEchoCustomBackground provides (hasCustomBackground && customBackgroundVisible)
+            LocalEchoCustomBackground provides (hasCustomBackground && customBackgroundVisible),
+            LocalEchoHazeState provides hazeState
         ) {
             content()
         }
@@ -194,6 +248,7 @@ private fun AsyncPageBackgroundImage(
     }
 }
 
+@Composable
 fun echoPagePadding(
     top: Dp = EchoPageDefaults.topPadding,
     bottom: Dp = EchoPageDefaults.bottomPadding
@@ -201,8 +256,14 @@ fun echoPagePadding(
     start = EchoPageDefaults.horizontalPadding,
     top = top,
     end = EchoPageDefaults.horizontalPadding,
-    bottom = bottom
+    bottom = bottom + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 )
+
+@Composable
+fun echoPageBottomPadding(extra: Dp = 0.dp): Dp =
+    EchoPageDefaults.bottomPadding +
+        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
+        extra
 
 @Composable
 fun EchoPageTitle(

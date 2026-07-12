@@ -20,14 +20,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.yukine.feature.uicommon.R
+import dev.chrisbanes.haze.HazeState
 
 // ── Public palette (used by Java interop and Compose surfaces) ──────────────
 
 object EchoGlassDefaults {
     const val RENDER_EFFECT_MIN_API = Build.VERSION_CODES.S
     const val BLUR_RADIUS_DP = 18f
+    const val MIN_BLUR_RADIUS_DP = 4f
+    const val MAX_BLUR_RADIUS_DP = 64f
+    const val SURFACE_OPACITY = 0.62f
+    const val MIN_SURFACE_OPACITY = 0.40f
+    const val MAX_SURFACE_OPACITY = 1f
     const val SATURATION = 1.08f
     const val ALPHA = 0.72f
+
+    @JvmStatic
+    fun normalizeBlurRadius(radiusDp: Float): Float =
+        if (radiusDp.isFinite()) radiusDp.coerceIn(MIN_BLUR_RADIUS_DP, MAX_BLUR_RADIUS_DP) else BLUR_RADIUS_DP
+
+    @JvmStatic
+    fun normalizeSurfaceOpacity(opacity: Float): Float =
+        if (opacity.isFinite()) opacity.coerceIn(MIN_SURFACE_OPACITY, MAX_SURFACE_OPACITY) else SURFACE_OPACITY
 }
 
 data class EchoGlassSpec(
@@ -78,6 +92,10 @@ val LocalEchoPalette = staticCompositionLocalOf<EchoPalette?> { null }
  * through. Defaults to false (no custom background).
  */
 val LocalEchoCustomBackground = staticCompositionLocalOf { false }
+val LocalEchoGlassEnabled = staticCompositionLocalOf { false }
+val LocalEchoGlassOpacity = staticCompositionLocalOf { EchoGlassDefaults.SURFACE_OPACITY }
+val LocalEchoGlassBlurRadius = staticCompositionLocalOf { EchoGlassDefaults.BLUR_RADIUS_DP }
+val LocalEchoHazeState = staticCompositionLocalOf<HazeState?> { null }
 
 // ── Typography scale ────────────────────────────────────────────────────────
 

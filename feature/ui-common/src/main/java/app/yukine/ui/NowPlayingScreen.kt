@@ -284,7 +284,7 @@ private fun NowPlayingNormalView(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = echoPagePadding(top = 12.dp, bottom = 120.dp),
+        contentPadding = echoPagePadding(top = 12.dp),
         verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.sectionSpacing)
     ) {
         item(key = "page-title") {
