@@ -5,7 +5,9 @@ import app.yukine.model.Track
 import app.yukine.ui.TrackListLabels
 import app.yukine.ui.LibraryAction
 import app.yukine.ui.LibraryMode
+import app.yukine.ui.EchoIconKind
 import app.yukine.ui.TrackListHeaderAction
+import app.yukine.ui.TrackListHeaderActionKind
 import app.yukine.ui.TrackListModeAction
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -47,6 +49,31 @@ class TrackListRenderControllerTest {
 
         assertEquals(
             listOf("播放歌单", labels.downloadCurrentListLabel),
+            viewModel.trackList.value.headerActions.map { it.label }
+        )
+    }
+
+    @Test
+    fun headerActionDeduplicationUsesSemanticKindNotLabel() {
+        val viewModel = LibraryViewModel()
+        val controller = TrackListRenderController(viewModel, FakeListener())
+        val labels = TrackListLabels()
+        val existingPlayAll = TrackListHeaderAction(
+            "本地化播放全部",
+            Runnable { },
+            icon = EchoIconKind.Play,
+            kind = TrackListHeaderActionKind.PlayAll
+        )
+
+        controller.render(
+            "Songs", listOf(track(1L)), true, listOf(""), false,
+            emptyList(), listOf(existingPlayAll), "",
+            listOf(TrackListModeAction("Songs", "songs", true, Runnable { })),
+            labels, null, emptySet()
+        )
+
+        assertEquals(
+            listOf(existingPlayAll.label, labels.shuffleLabel),
             viewModel.trackList.value.headerActions.map { it.label }
         )
     }

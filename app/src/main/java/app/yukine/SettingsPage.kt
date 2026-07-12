@@ -1,5 +1,6 @@
 package app.yukine
 
+/** Typed settings destination; [route] is the legacy saved-state serialization boundary. */
 sealed class SettingsPage(
     @JvmField val route: String
 ) {

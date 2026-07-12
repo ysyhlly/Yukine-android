@@ -111,6 +111,9 @@ internal class MainRouteController(
         return state.settingsPage
     }
 
+    /** Typed settings boundary; the route string is kept only for saved-state compatibility. */
+    fun settingsPageModel(): SettingsPage = SettingsPage.fromRoute(state.settingsPage)
+
     fun selectedRemoteSourceId(): Long {
         return state.selectedRemoteSourceId
     }
@@ -264,6 +267,10 @@ internal class MainRouteController(
             settingsPage,
             selectedRemoteSourceId()
         )
+    }
+
+    fun setSettingsPage(page: SettingsPage) {
+        setSettingsPage(page.route)
     }
 
     fun clearSelectedRemoteSource() {

@@ -1,7 +1,5 @@
 package app.yukine
 
-import android.content.Intent
-import android.os.Bundle
 import androidx.activity.viewModels
 import app.yukine.queue.QueueViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -53,23 +51,4 @@ class MainActivity : MainActivityBase() {
             networkSourcesViewModel = networkSourcesViewModel
         )
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-    }
-
-    override fun onResume() {
-        super.onResume()
-    }
-
-    override fun onPause() {
-        super.onPause()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-    }
 }

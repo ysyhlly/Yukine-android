@@ -71,6 +71,7 @@ internal object SettingsPageStateBuilder {
                         onClick = Runnable { onRequestNeededPermissions() },
                         description = text(languageMode, "settings.grant.music.access.hint"),
                         style = SettingsActionStyle.Navigation,
+                        icon = EchoIconKind.Permission,
                         section = text(languageMode, "settings.section.start")
                     )
                 )
@@ -115,6 +116,7 @@ internal object SettingsPageStateBuilder {
                 onClick = Runnable { onOpenDownloads() },
                 description = text(languageMode, "download.manager.hint"),
                 style = SettingsActionStyle.Navigation,
+                icon = EchoIconKind.Download,
                 section = text(languageMode, "settings.section.more")
             ))
             add(groupNavigationAction(
@@ -146,13 +148,14 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "playback.service"), if (playbackServiceConnected) text(languageMode, "connected") else text(languageMode, "disconnected"))
         )
         val actions = listOf(
-            navigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
+            backNavigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
             SettingsAction(
                 label = text(languageMode, "qq.group"),
                 onClick = Runnable { },
                 description = text(languageMode, "qq.group.hint"),
                 value = "1013122077",
                 style = SettingsActionStyle.Navigation,
+                icon = EchoIconKind.Network,
                 imageDialog = SettingsImageDialog(
                     title = text(languageMode, "qq.group"),
                     message = text(languageMode, "qq.group.number"),
@@ -168,12 +171,17 @@ internal object SettingsPageStateBuilder {
                 style = SettingsActionStyle.Toggle,
                 checked = debugPromptsEnabled
             ),
-            SettingsAction(text(languageMode, "backup.export"), Runnable { onExportBackup() }),
+            SettingsAction(
+                label = text(languageMode, "backup.export"),
+                onClick = Runnable { onExportBackup() },
+                icon = EchoIconKind.Upload
+            ),
             SettingsAction(
                 label = text(languageMode, "backup.import"),
                 onClick = Runnable { onImportBackup() },
                 description = text(languageMode, "backup.import.description"),
-                style = SettingsActionStyle.Destructive
+                style = SettingsActionStyle.Destructive,
+                icon = EchoIconKind.Import
             )
         )
         return buildContent(groupTitle(languageMode, "about"), metrics, actions)
@@ -204,7 +212,7 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "description"), groupDescription(languageMode, "appearance"))
         )
         val actions = listOf(
-            navigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
+            backNavigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
             navigationAction(
                 text(languageMode, "appearance"),
                 SettingsPage.Appearance,
@@ -307,24 +315,27 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "description"), groupDescription(languageMode, "sources"))
         )
         val actions = listOf(
-            navigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
+            backNavigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
             SettingsAction(
                 label = text(languageMode, "streaming"),
                 onClick = Runnable { onOpenNetworkPage(MainRoutes.NETWORK_STREAMING) },
                 description = text(languageMode, "settings.sources.streaming.hint"),
-                style = SettingsActionStyle.Navigation
+                style = SettingsActionStyle.Navigation,
+                icon = EchoIconKind.Network
             ),
             SettingsAction(
                 label = text(languageMode, "webdav"),
                 onClick = Runnable { onOpenNetworkPage(MainRoutes.NETWORK_WEBDAV) },
                 description = text(languageMode, "settings.sources.webdav.hint"),
-                style = SettingsActionStyle.Navigation
+                style = SettingsActionStyle.Navigation,
+                icon = EchoIconKind.Folder
             ),
             SettingsAction(
                 label = text(languageMode, "remote.music.sources"),
                 onClick = Runnable { onOpenNetworkPage(MainRoutes.NETWORK_SOURCES) },
                 description = text(languageMode, "remote.music.sources.hint"),
-                style = SettingsActionStyle.Navigation
+                style = SettingsActionStyle.Navigation,
+                icon = EchoIconKind.Network
             ),
             navigationAction(
                 text(languageMode, "streaming.audio.quality"),
@@ -378,7 +389,7 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "sleep.timer"), sleepTimerLabel(remainingMs, languageMode))
         )
         val actions = listOf(
-            navigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
+            backNavigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
             navigationAction(
                 text(languageMode, "playback.speed"),
                 SettingsPage.PlaybackSpeed,
@@ -405,6 +416,7 @@ internal object SettingsPageStateBuilder {
                 onClick = Runnable { onReplayGainEnabledChange(!replayGainEnabled) },
                 description = text(languageMode, "replay.gain.hint"),
                 style = SettingsActionStyle.Toggle,
+                icon = EchoIconKind.Gauge,
                 checked = replayGainEnabled
             ),
             SettingsAction(
@@ -412,6 +424,7 @@ internal object SettingsPageStateBuilder {
                 onClick = Runnable { onNowPlayingGesturesEnabledChange(!nowPlayingGesturesEnabled) },
                 description = text(languageMode, "now.playing.gestures.hint"),
                 style = SettingsActionStyle.Toggle,
+                icon = EchoIconKind.More,
                 checked = nowPlayingGesturesEnabled
             ),
             SettingsAction(
@@ -419,6 +432,7 @@ internal object SettingsPageStateBuilder {
                 onClick = Runnable { onPlaybackRestoreEnabledChange(!playbackRestoreEnabled) },
                 description = text(languageMode, "playback.restore.hint"),
                 style = SettingsActionStyle.Toggle,
+                icon = EchoIconKind.Refresh,
                 checked = playbackRestoreEnabled
             ),
             SettingsAction(
@@ -426,6 +440,7 @@ internal object SettingsPageStateBuilder {
                 onClick = Runnable { onAudioExclusiveEnabledChange(concurrentPlaybackEnabled) },
                 description = text(languageMode, "audio.exclusive.hint"),
                 style = SettingsActionStyle.Toggle,
+                icon = EchoIconKind.Gauge,
                 checked = !concurrentPlaybackEnabled
             ),
             navigationAction(
@@ -446,7 +461,7 @@ internal object SettingsPageStateBuilder {
         onApplyTheme: (String) -> Unit
     ): SettingsPageStateContent {
         val actions = buildList {
-            add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.Appearance), onNavigate))
+            add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.Appearance), onNavigate))
             EchoTheme.primaryModeOptions().forEach { mode ->
                 add(themeOption(languageMode, themeMode, mode, onApplyTheme))
             }
@@ -478,7 +493,7 @@ internal object SettingsPageStateBuilder {
         onApplyTheme: (String) -> Unit
     ): SettingsPageStateContent {
         val actions = buildList {
-            add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.AdvancedTheme), onNavigate))
+            add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.AdvancedTheme), onNavigate))
             EchoTheme.advancedModeOptions().forEach { mode ->
                 add(themeOption(languageMode, themeMode, mode, onApplyTheme))
             }
@@ -514,7 +529,7 @@ internal object SettingsPageStateBuilder {
             EchoTheme.ACCENT_PEACH
         )
         val actions = buildList {
-            add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.Accent), onNavigate))
+            add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.Accent), onNavigate))
             accentOptions.forEach { accent ->
                 add(accentOption(languageMode, accentMode, accent, onApplyAccent))
             }
@@ -535,7 +550,7 @@ internal object SettingsPageStateBuilder {
         onApplyLanguage: (String) -> Unit
     ): SettingsPageStateContent {
         val actions = buildList {
-            add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.Language), onNavigate))
+            add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.Language), onNavigate))
             listOf(AppLanguage.MODE_SYSTEM, AppLanguage.MODE_CHINESE, AppLanguage.MODE_ENGLISH).forEach { option ->
                 add(languageOption(languageMode, option, onApplyLanguage))
             }
@@ -568,7 +583,7 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(pageBackgroundPageLabel(page, languageMode), backgroundStateLabel(uri, languageMode))
         } + SettingsMetric(text(languageMode, "description"), text(languageMode, "page.background.description"))
         val actions = buildList {
-            add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.PageBackground), onNavigate))
+            add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.PageBackground), onNavigate))
             backgroundPages.forEach { (page, uri) ->
                 addPageBackgroundActions(languageMode, page, uri, onChoosePageBackground, onClearPageBackground)
             }
@@ -660,13 +675,14 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "description"), text(languageMode, "audio.effects.description"))
         )
         val actions = buildList {
-            add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.AudioEffects), onNavigate))
+            add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.AudioEffects), onNavigate))
             add(
                 SettingsAction(
                     label = text(languageMode, "audio.effects"),
                     onClick = Runnable { onApplyAudioEffects(effects.withEnabled(!effects.enabled)) },
                     description = text(languageMode, "audio.effects.description"),
                     style = SettingsActionStyle.Toggle,
+                    icon = EchoIconKind.Gauge,
                     checked = effects.enabled
                 )
             )
@@ -717,14 +733,15 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "description"), text(languageMode, "floating.lyrics.description"))
         )
         val actions = buildList {
-            add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.FloatingLyrics), onNavigate))
+            add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.FloatingLyrics), onNavigate))
             if (!overlayPermissionGranted) {
                 add(
                     SettingsAction(
                         label = text(languageMode, "grant.overlay.permission"),
                         onClick = Runnable { onOpenPermission() },
                         description = text(languageMode, "floating.lyrics.description"),
-                        style = SettingsActionStyle.Navigation
+                        style = SettingsActionStyle.Navigation,
+                        icon = EchoIconKind.Permission
                     )
                 )
             }
@@ -734,6 +751,7 @@ internal object SettingsPageStateBuilder {
                     onClick = Runnable { onToggle(!enabled) },
                     description = text(languageMode, "floating.lyrics.description"),
                     style = SettingsActionStyle.Toggle,
+                    icon = EchoIconKind.Lyrics,
                     checked = enabled,
                     enabled = overlayPermissionGranted || enabled
                 )
@@ -754,13 +772,14 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "description"), text(languageMode, "sleep.timer.description"))
         )
         val actions = buildList {
-            add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.SleepTimer), onNavigate))
+            add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.SleepTimer), onNavigate))
             listOf(15, 30, 45, 60, 90).forEach { minutes ->
                 add(
                     SettingsAction(
                         label = minutes.toString() + text(languageMode, "min"),
                         onClick = Runnable { onStartTimer(minutes) },
                         style = SettingsActionStyle.Choice,
+                        icon = EchoIconKind.Timer,
                         checked = remainingMs > 0L && abs(remainingMs - minutes * 60_000L) < 60_000L
                     )
                 )
@@ -770,7 +789,8 @@ internal object SettingsPageStateBuilder {
                     SettingsAction(
                         label = text(languageMode, "cancel.sleep.timer"),
                         onClick = Runnable { onCancelTimer() },
-                        style = SettingsActionStyle.Destructive
+                        style = SettingsActionStyle.Destructive,
+                        icon = EchoIconKind.Delete
                     )
                 )
             }
@@ -789,13 +809,14 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "description"), text(languageMode, "speed.description"))
         )
         val actions = buildList {
-            add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.PlaybackSpeed), onNavigate))
+            add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.PlaybackSpeed), onNavigate))
             listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { speed ->
                 add(
                     SettingsAction(
                         label = playbackSpeedLabel(speed),
                         onClick = Runnable { onApplySpeed(speed) },
                         style = SettingsActionStyle.Choice,
+                        icon = EchoIconKind.Gauge,
                         checked = abs(normalizePlaybackSpeed(playbackSpeed) - normalizePlaybackSpeed(speed)) < 0.01f
                     )
                 )
@@ -815,13 +836,14 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "description"), text(languageMode, "volume.description"))
         )
         val actions = buildList {
-            add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.AppVolume), onNavigate))
+            add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.AppVolume), onNavigate))
             listOf(0.5f, 0.7f, 0.85f, 1.0f).forEach { volume ->
                 add(
                     SettingsAction(
                         label = appVolumeLabel(volume),
                         onClick = Runnable { onApplyVolume(volume) },
                         style = SettingsActionStyle.Choice,
+                        icon = EchoIconKind.Volume,
                         checked = abs(normalizeAppVolume(appVolume) - normalizeAppVolume(volume)) < 0.01f
                     )
                 )
@@ -843,7 +865,7 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "quality.platform.mapping"), text(languageMode, "quality.platform.mapping.summary"), compact = true)
         )
         val actions = buildList {
-            add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.StreamingAudioQuality), onNavigate))
+            add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.StreamingAudioQuality), onNavigate))
             StreamingQualityPreference.options().forEach { option ->
                 val normalizedOption = StreamingQualityPreference.normalize(option)
                 val audioQuality = StreamingAudioQuality.fromWireName(normalizedOption)
@@ -853,6 +875,7 @@ internal object SettingsPageStateBuilder {
                         onClick = Runnable { onApplyQuality(normalizedOption) },
                         description = audioQuality?.let { StreamingQualityPlatformMapping.explanation(it, languageMode) }.orEmpty(),
                         style = SettingsActionStyle.Choice,
+                        icon = EchoIconKind.Gauge,
                         checked = StreamingQualityPreference.normalize(normalizedQuality) ==
                             StreamingQualityPreference.normalize(normalizedOption)
                     )
@@ -874,7 +897,7 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "description"), text(languageMode, "share.style.description"))
         )
         val actions = buildList {
-            add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.ShareStyle), onNavigate))
+            add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.ShareStyle), onNavigate))
             TrackShareStyle.options().forEach { option ->
                 val normalizedOption = TrackShareStyle.normalize(option)
                 add(
@@ -882,6 +905,7 @@ internal object SettingsPageStateBuilder {
                         label = shareStyleLabel(normalizedOption, languageMode),
                         onClick = Runnable { onApplyStyle(normalizedOption) },
                         style = SettingsActionStyle.Choice,
+                        icon = EchoIconKind.Upload,
                         checked = TrackShareStyle.normalize(normalizedStyle) == TrackShareStyle.normalize(normalizedOption)
                     )
                 )
@@ -903,7 +927,7 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "description"), text(languageMode, "streaming.gateway.description"))
         )
         val actions = buildList {
-            add(navigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.StreamingGateway), onNavigate))
+            add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.StreamingGateway), onNavigate))
             add(streamingGatewayOption(languageMode, endpoint, StreamingGatewaySettingsStore.EMULATOR_HOST_ENDPOINT, "streaming.gateway.emulator", onApplyEndpoint))
             add(streamingGatewayOption(languageMode, endpoint, StreamingGatewaySettingsStore.LOCALHOST_ENDPOINT, "streaming.gateway.localhost", onApplyEndpoint))
             add(streamingGatewayOption(languageMode, endpoint, StreamingGatewaySettingsStore.UNCONFIGURED_ENDPOINT, "disable", onApplyEndpoint))
@@ -933,19 +957,33 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "audio.permission"), permissionLabel(audioPermissionGranted, languageMode))
         )
         val actions = buildList {
-            add(navigationAction(text(languageMode, "back"), backPage, onNavigate))
-            add(SettingsAction(text(languageMode, "scan.library"), Runnable { onLoadLibrary() }))
-            add(SettingsAction(text(languageMode, "import.audio.files"), Runnable { onOpenAudioFilePicker() }))
-            add(SettingsAction(text(languageMode, "import.audio.folder"), Runnable { onOpenAudioFolderPicker() }))
+            add(backNavigationAction(text(languageMode, "back"), backPage, onNavigate))
+            add(SettingsAction(
+                label = text(languageMode, "scan.library"),
+                onClick = Runnable { onLoadLibrary() },
+                icon = EchoIconKind.Sync
+            ))
+            add(SettingsAction(
+                label = text(languageMode, "import.audio.files"),
+                onClick = Runnable { onOpenAudioFilePicker() },
+                icon = EchoIconKind.Import
+            ))
+            add(SettingsAction(
+                label = text(languageMode, "import.audio.folder"),
+                onClick = Runnable { onOpenAudioFolderPicker() },
+                icon = EchoIconKind.Folder
+            ))
             if (hiddenItems.isNotEmpty()) {
                 add(SettingsAction(
                     text(languageMode, "library.hidden.restore.all") + " (${hiddenItems.size})",
-                    Runnable { onRestoreAllHidden() }
+                    Runnable { onRestoreAllHidden() },
+                    icon = EchoIconKind.Refresh
                 ))
                 hiddenItems.forEach { item ->
                     add(SettingsAction(
                         text(languageMode, "library.hidden.restore") + ": " + item.label,
-                        Runnable { onRestoreHidden(item.sourceKey) }
+                        Runnable { onRestoreHidden(item.sourceKey) },
+                        icon = EchoIconKind.Refresh
                     ))
                 }
             }
@@ -1045,22 +1083,28 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "local.lyrics"), text(languageMode, "same.name.lrc"))
         )
         val actions = buildList {
-            add(navigationAction(text(languageMode, "back"), backPage, onNavigate))
+            add(backNavigationAction(text(languageMode, "back"), backPage, onNavigate))
             add(
                 SettingsAction(
                     label = text(languageMode, "online.lyrics"),
                     onClick = Runnable { onOnlineLyricsEnabledChange(!onlineLyricsEnabled) },
                     style = SettingsActionStyle.Toggle,
+                    icon = EchoIconKind.Lyrics,
                     checked = onlineLyricsEnabled
                 )
             )
-            add(SettingsAction(text(languageMode, "reload.lyrics"), Runnable { onReloadLyrics() }))
+            add(SettingsAction(
+                label = text(languageMode, "reload.lyrics"),
+                onClick = Runnable { onReloadLyrics() },
+                icon = EchoIconKind.Sync
+            ))
             add(
                 SettingsAction(
                     label = text(languageMode, "status.bar.lyrics"),
                     onClick = Runnable { onStatusBarLyricsEnabledChange(!statusBarLyricsEnabled) },
                     description = text(languageMode, "status.bar.lyrics.description"),
                     style = SettingsActionStyle.Toggle,
+                    icon = EchoIconKind.Lyrics,
                     checked = statusBarLyricsEnabled
                 )
             )
@@ -1070,6 +1114,7 @@ internal object SettingsPageStateBuilder {
                     onClick = Runnable { onSystemMediaLyricsTitleEnabledChange(!systemMediaLyricsTitleEnabled) },
                     description = text(languageMode, "system.media.lyrics.title.description"),
                     style = SettingsActionStyle.Toggle,
+                    icon = EchoIconKind.Lyrics,
                     checked = systemMediaLyricsTitleEnabled
                 )
             )
@@ -1107,33 +1152,38 @@ internal object SettingsPageStateBuilder {
     private fun navigationAction(
         label: String,
         page: SettingsPage,
-        onNavigate: (SettingsPage) -> Unit
+        onNavigate: (SettingsPage) -> Unit,
+        isBack: Boolean = false
     ): SettingsAction = SettingsAction(
         label = label,
         onClick = Runnable { onNavigate(page) },
         style = SettingsActionStyle.Navigation,
-        icon = if (isBackLabel(label)) EchoIconKind.Back else settingsIconForPage(page),
-        isBack = isBackLabel(label)
+        icon = if (isBack) EchoIconKind.Back else settingsIconForPage(page),
+        isBack = isBack
     )
+
+    private fun backNavigationAction(
+        label: String,
+        page: SettingsPage,
+        onNavigate: (SettingsPage) -> Unit
+    ): SettingsAction = navigationAction(label, page, onNavigate, isBack = true)
 
     private fun navigationAction(
         label: String,
         page: SettingsPage,
         onNavigate: (SettingsPage) -> Unit,
         description: String,
-        value: String = ""
+        value: String = "",
+        isBack: Boolean = false
     ): SettingsAction = SettingsAction(
         label = label,
         onClick = Runnable { onNavigate(page) },
         description = description,
         value = value,
         style = SettingsActionStyle.Navigation,
-        icon = if (isBackLabel(label)) EchoIconKind.Back else settingsIconForPage(page),
-        isBack = isBackLabel(label)
+        icon = if (isBack) EchoIconKind.Back else settingsIconForPage(page),
+        isBack = isBack
     )
-
-    private fun isBackLabel(label: String): Boolean =
-        label.startsWith("Back", ignoreCase = true) || label.contains("返回")
 
     private fun settingsIconForPage(page: SettingsPage): EchoIconKind = when (page) {
         SettingsPage.AppearanceGroup, SettingsPage.Appearance, SettingsPage.PageBackground -> EchoIconKind.Palette
@@ -1177,12 +1227,13 @@ internal object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "description"), text(languageMode, descriptionKey))
         )
         val actions = listOf(
-            navigationAction(text(languageMode, "back"), SettingsBackStack.parent(currentPage), onNavigate),
+            backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(currentPage), onNavigate),
             SettingsAction(
                 label = text(languageMode, titleKey),
                 onClick = Runnable { onToggle(!enabled) },
                 description = text(languageMode, descriptionKey),
                 style = SettingsActionStyle.Toggle,
+                icon = settingsIconForPage(currentPage),
                 checked = enabled
             )
         )
@@ -1218,6 +1269,7 @@ internal object SettingsPageStateBuilder {
         label = selectedEndpointLabel(text(languageMode, labelKey), currentEndpoint, endpoint, languageMode),
         onClick = Runnable { onApplyEndpoint(endpoint) },
         style = SettingsActionStyle.Choice,
+        icon = EchoIconKind.Network,
         checked = StreamingGatewaySettingsStore.normalize(currentEndpoint) ==
             StreamingGatewaySettingsStore.normalize(endpoint)
     )
@@ -1237,6 +1289,7 @@ internal object SettingsPageStateBuilder {
             label = label,
             onClick = Runnable { onApplyTheme(mode) },
             style = SettingsActionStyle.Choice,
+            icon = EchoIconKind.Palette,
             checked = EchoTheme.normalizeMode(currentMode) == EchoTheme.normalizeMode(mode)
         )
     }
@@ -1256,6 +1309,7 @@ internal object SettingsPageStateBuilder {
             label = label,
             onClick = Runnable { onApplyAccent(accent) },
             style = SettingsActionStyle.Choice,
+            icon = EchoIconKind.Swatch,
             checked = EchoTheme.normalizeAccent(currentAccent) == EchoTheme.normalizeAccent(accent)
         )
     }
@@ -1274,6 +1328,7 @@ internal object SettingsPageStateBuilder {
             label = label,
             onClick = Runnable { onApplyLanguage(optionMode) },
             style = SettingsActionStyle.Choice,
+            icon = EchoIconKind.Language,
             checked = AppLanguage.normalizeMode(languageMode) == AppLanguage.normalizeMode(optionMode)
         )
     }
@@ -1300,6 +1355,7 @@ internal object SettingsPageStateBuilder {
                 onClick = Runnable { onChoosePageBackground(page) },
                 description = backgroundActionDescription(page, languageMode),
                 style = SettingsActionStyle.Navigation,
+                icon = EchoIconKind.Palette,
                 value = backgroundStateLabel(uri, languageMode)
             )
         )
@@ -1308,7 +1364,8 @@ internal object SettingsPageStateBuilder {
                 SettingsAction(
                     label = pageBackgroundActionLabel(languageMode, "clear.page.background", pageLabel),
                     onClick = Runnable { onClearPageBackground(page) },
-                    style = SettingsActionStyle.Destructive
+                    style = SettingsActionStyle.Destructive,
+                    icon = EchoIconKind.Delete
                 )
             )
         }
@@ -1355,6 +1412,7 @@ internal object SettingsPageStateBuilder {
             label = label,
             onClick = Runnable { onApplyAudioEffects(settings.withEnabled(true).withPreset(preset)) },
             style = SettingsActionStyle.Choice,
+            icon = EchoIconKind.Gauge,
             checked = settings.preset == preset
         )
     }
@@ -1388,6 +1446,7 @@ internal object SettingsPageStateBuilder {
                 onApplyAudioEffects(next)
             },
             style = SettingsActionStyle.Choice,
+            icon = EchoIconKind.Gauge,
             checked = selected
         )
     }
@@ -1407,6 +1466,7 @@ internal object SettingsPageStateBuilder {
             label = label,
             onClick = Runnable { onApplyAudioEffects(settings.withEnabled(true).withLoudnessGainMb(gainMb)) },
             style = SettingsActionStyle.Choice,
+            icon = EchoIconKind.Gauge,
             checked = settings.loudnessGainMb == gainMb
         )
     }
@@ -1426,6 +1486,7 @@ internal object SettingsPageStateBuilder {
             label = label,
             onClick = Runnable { onApplyLyricsOffset(offsetMs) },
             style = SettingsActionStyle.Choice,
+            icon = EchoIconKind.Gauge,
             checked = normalizeLyricsOffsetMs(currentOffsetMs) == normalizeLyricsOffsetMs(offsetMs)
         )
     }

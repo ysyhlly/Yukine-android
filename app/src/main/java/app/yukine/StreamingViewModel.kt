@@ -72,14 +72,18 @@ class StreamingViewModel @Inject constructor(
     )
     private val queueWindowPreResolveInFlight =
         ConcurrentHashMap.newKeySet<StreamingQueuePreResolveKey>()
-    private val sessionMaintenanceInFlight =
-        ConcurrentHashMap.newKeySet<StreamingProviderName>()
+    private val authSessionMaintenance by lazy {
+        StreamingAuthSessionMaintenance(
+            scope = viewModelScope,
+            refresh = { provider -> streamingRepository.refreshAuthSession(provider) },
+            diagnostics = { streamingRepository.diagnostics() },
+            onAuthState = ::updateStreamingAuthState,
+            onDiagnostics = ::updateStreamingDiagnostics
+        )
+    }
     val streaming: StateFlow<StreamingSearchState> = streamingState.asStateFlow()
-    var state: StreamingSearchState
+    val state: StreamingSearchState
         get() = streamingState.value
-        set(value) {
-            streamingState.value = value
-        }
 
     fun bindStreamingRepository(repository: StreamingRepository) {
         streamingRepository = repository
@@ -938,23 +942,7 @@ class StreamingViewModel @Inject constructor(
      * the app never feels blocked by a background cookie check.
      */
     fun maintainStreamingAuthSessions(): Job {
-        return viewModelScope.launch {
-            listOf(StreamingProviderName.NETEASE, StreamingProviderName.QQ_MUSIC).forEach { provider ->
-                if (!sessionMaintenanceInFlight.add(provider)) {
-                    return@forEach
-                }
-                try {
-                    runCatching {
-                        streamingRepository.refreshAuthSession(provider)
-                    }.onSuccess { authState ->
-                        updateStreamingAuthState(provider, authState)
-                    }
-                } finally {
-                    sessionMaintenanceInFlight.remove(provider)
-                }
-            }
-            updateStreamingDiagnostics(streamingRepository.diagnostics())
-        }
+        return authSessionMaintenance.maintain()
     }
 
     fun preResolveStreamingQueueWindowBatch(

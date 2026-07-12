@@ -6,6 +6,7 @@ import app.yukine.ui.NetworkSourceActions
 import app.yukine.ui.NetworkSourceLabels
 import app.yukine.ui.NetworkSourceUiState
 import app.yukine.ui.TrackListHeaderAction
+import app.yukine.ui.EchoIconKind
 import java.util.ArrayList
 
 internal class NetworkSourcesRenderController(
@@ -33,7 +34,9 @@ internal class NetworkSourcesRenderController(
         headerActions.add(
             TrackListHeaderAction(
                 AppLanguage.text(languageMode, "back.to.network"),
-                Runnable { listener.backToNetwork() }
+                Runnable { listener.backToNetwork() },
+                icon = EchoIconKind.Back,
+                isBack = true
             )
         )
 

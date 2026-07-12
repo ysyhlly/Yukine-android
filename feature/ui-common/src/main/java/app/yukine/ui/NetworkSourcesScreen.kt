@@ -53,7 +53,7 @@ fun NetworkSourcesScreen(
     labels: NetworkSourceLabels
 ) {
     val p = EchoTheme.colors()
-    val titleBackAction = headerActions.firstOrNull { isBackAction(it.label) }
+    val titleBackAction = headerActions.firstOrNull { it.isBack }
     val visibleHeaderActions = if (titleBackAction != null) headerActions.drop(1) else headerActions
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -105,7 +105,7 @@ private fun SourceHeaderAction(action: TrackListHeaderAction) {
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            EchoIcon(EchoIconKind.Back, Modifier.size(22.dp), p.accent)
+            EchoIcon(action.icon, Modifier.size(22.dp), p.accent)
             Spacer(Modifier.width(12.dp))
             Text(
                 action.label,
@@ -124,9 +124,6 @@ private fun SourceHeaderAction(action: TrackListHeaderAction) {
 private fun SourceMessage(message: String) {
     EchoEmptyCard(message)
 }
-
-private fun isBackAction(label: String): Boolean =
-    label.contains("Back", ignoreCase = true) || label.contains("\u8fd4\u56de")
 
 @Composable
 private fun SourceCard(source: NetworkSourceUiState, actions: NetworkSourceActions, labels: NetworkSourceLabels) {

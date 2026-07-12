@@ -3,8 +3,10 @@ package app.yukine
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.ui.TrackListHeaderAction
+import app.yukine.ui.TrackListHeaderActionKind
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListAlbumCardUiState
+import app.yukine.ui.EchoIconKind
 import app.yukine.ui.TrackListLabels
 import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.LibraryMode
@@ -86,7 +88,14 @@ internal class TrackListRenderController(
 
     fun renderRecommendation(title: String, tracks: List<Track>, languageMode: String) {
         val headerMetrics = listOf(TrackListHeaderMetric(AppLanguage.text(languageMode, "tracks"), "${tracks.size}"))
-        val headerActions = listOf(TrackListHeaderAction(AppLanguage.text(languageMode, "download.current.list"), Runnable { listener.downloadTracks(tracks) }))
+        val headerActions = listOf(
+            TrackListHeaderAction(
+                AppLanguage.text(languageMode, "download.current.list"),
+                Runnable { listener.downloadTracks(tracks) },
+                icon = EchoIconKind.Download,
+                kind = TrackListHeaderActionKind.DownloadCurrentList
+            )
+        )
         val labels = TrackListLabels(
             AppLanguage.text(languageMode, "favorite"),
             AppLanguage.text(languageMode, "remove.favorite"),
@@ -156,25 +165,37 @@ internal class TrackListRenderController(
         val libraryMode = viewModel.libraryUi.value.mode
         val isSongsRoot = libraryMode == LibraryMode.Songs && modeActions.isNotEmpty()
         if (tracks.isNotEmpty() && isSongsRoot) {
-            if (effectiveHeaderActions.none { it.label == labels.playAllLabel }) {
+            if (effectiveHeaderActions.none { it.kind == TrackListHeaderActionKind.PlayAll }) {
                 effectiveHeaderActions.add(
-                    TrackListHeaderAction(labels.playAllLabel, Runnable { listener.playTrackList(tracks, 0) })
+                    TrackListHeaderAction(
+                        labels.playAllLabel,
+                        Runnable { listener.playTrackList(tracks, 0) },
+                        icon = EchoIconKind.Play,
+                        kind = TrackListHeaderActionKind.PlayAll
+                    )
                 )
             }
-            if (effectiveHeaderActions.none { it.label == labels.shuffleLabel }) {
+            if (effectiveHeaderActions.none { it.kind == TrackListHeaderActionKind.Shuffle }) {
                 effectiveHeaderActions.add(
                     TrackListHeaderAction(
                         labels.shuffleLabel,
-                        Runnable { listener.playTrackList(tracks.shuffled(), 0) }
+                        Runnable { listener.playTrackList(tracks.shuffled(), 0) },
+                        icon = EchoIconKind.Shuffle,
+                        kind = TrackListHeaderActionKind.Shuffle
                     )
                 )
             }
         }
         if (tracks.isNotEmpty() && !isSongsRoot &&
-            effectiveHeaderActions.none { it.label == labels.downloadCurrentListLabel }
+            effectiveHeaderActions.none { it.kind == TrackListHeaderActionKind.DownloadCurrentList }
         ) {
             effectiveHeaderActions.add(
-                TrackListHeaderAction(labels.downloadCurrentListLabel, Runnable { listener.downloadTracks(tracks) })
+                TrackListHeaderAction(
+                    labels.downloadCurrentListLabel,
+                    Runnable { listener.downloadTracks(tracks) },
+                    icon = EchoIconKind.Download,
+                    kind = TrackListHeaderActionKind.DownloadCurrentList
+                )
             )
         }
         val currentTrack = playbackState?.currentTrack

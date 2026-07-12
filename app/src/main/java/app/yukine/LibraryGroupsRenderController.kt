@@ -8,6 +8,7 @@ import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.TrackListAlbumCardUiState
+import app.yukine.ui.EchoIconKind
 import app.yukine.streaming.StreamingPlaybackAdapter
 import java.util.ArrayList
 import java.util.LinkedHashMap
@@ -205,12 +206,12 @@ internal class LibraryGroupsRenderController(
         headerActions.add(
             TrackListHeaderAction(AppLanguage.text(languageMode, "back"), Runnable {
                 listener.closeLibraryGroup()
-            })
+            }, icon = EchoIconKind.Back, isBack = true)
         )
         headerActions.add(
             TrackListHeaderAction(if (libraryMode == LibraryGrouping.ARTISTS) AppLanguage.text(languageMode, "play.artist") else AppLanguage.text(languageMode, "play.group"), Runnable {
                 listener.playTrackList(tracks, 0)
-            })
+            }, icon = EchoIconKind.Play)
         )
         listener.renderTrackList(
             selectedLibraryGroupTitle,

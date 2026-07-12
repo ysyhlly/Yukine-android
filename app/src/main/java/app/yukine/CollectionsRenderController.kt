@@ -11,6 +11,7 @@ import app.yukine.ui.CollectionTrackSectionUiState
 import app.yukine.ui.CollectionsActions
 import app.yukine.ui.CollectionsUiState
 import app.yukine.ui.emptyCollectionsActions
+import app.yukine.ui.EchoIconKind
 import app.yukine.ui.PlaylistRowActions
 import app.yukine.ui.PlaylistRowUiState
 import app.yukine.ui.PlaylistTrackActions
@@ -95,22 +96,22 @@ internal class CollectionsRenderController(
 
         val topActionRows = ArrayList<CollectionActionUiState>()
         val topActions = ArrayList<Runnable>()
-        addCollectionAction(topActionRows, topActions, text(languageMode, "new.playlist"), Runnable {
+        addCollectionAction(topActionRows, topActions, text(languageMode, "new.playlist"), EchoIconKind.Action, Runnable {
             listener.showCreatePlaylist()
         })
-        addCollectionAction(topActionRows, topActions, text(languageMode, "import.playlist.m3u"), Runnable {
+        addCollectionAction(topActionRows, topActions, text(languageMode, "import.playlist.m3u"), EchoIconKind.Import, Runnable {
             listener.openPlaylistM3uFilePicker()
         })
         if (favoriteTracks.isNotEmpty()) {
-            addCollectionAction(topActionRows, topActions, text(languageMode, "import.favorites.to.streaming"), Runnable {
+            addCollectionAction(topActionRows, topActions, text(languageMode, "import.favorites.to.streaming"), EchoIconKind.Import, Runnable {
                 listener.importFavoritesToStreaming()
             })
         }
-        addCollectionAction(topActionRows, topActions, text(languageMode, "streaming.import.liked"), Runnable {
+        addCollectionAction(topActionRows, topActions, text(languageMode, "streaming.import.liked"), EchoIconKind.Import, Runnable {
             listener.importStreamingFavorites()
         })
         if (recentRecords.isNotEmpty() || mostPlayedRecords.isNotEmpty()) {
-            addCollectionAction(topActionRows, topActions, text(languageMode, "clear.play.history"), Runnable {
+            addCollectionAction(topActionRows, topActions, text(languageMode, "clear.play.history"), EchoIconKind.Delete, Runnable {
                 listener.confirmClearPlayHistory()
             })
         }
@@ -193,16 +194,16 @@ internal class CollectionsRenderController(
         val selectedPlaylistRows = ArrayList<PlaylistTrackUiState>()
         val selectedPlaylistTrackActions = ArrayList<PlaylistTrackActions>()
         if (selectedPlaylistId >= 0L && selectedPlaylistTracks.isNotEmpty()) {
-            addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "play.playlist"), Runnable {
+            addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "play.playlist"), EchoIconKind.Play, Runnable {
                 listener.playTrackList(selectedPlaylistTracks, 0)
             })
-            addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "download.playlist"), Runnable {
+            addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "download.playlist"), EchoIconKind.Download, Runnable {
                 listener.downloadTracks(selectedPlaylistTracks)
             })
-            addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "export.playlist"), Runnable {
+            addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "export.playlist"), EchoIconKind.Upload, Runnable {
                 listener.openSelectedPlaylistExportDocument()
             })
-            addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "import.playlist.to.streaming"), Runnable {
+            addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "import.playlist.to.streaming"), EchoIconKind.Import, Runnable {
                 listener.importSelectedPlaylistToStreaming()
             })
             buildSelectedPlaylistRows(
@@ -216,7 +217,7 @@ internal class CollectionsRenderController(
         }
         // Sync button for streaming-linked playlists (even if empty)
         if (selectedPlaylistId >= 0L) {
-            addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "sync.streaming.playlist"), Runnable {
+            addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "sync.streaming.playlist"), EchoIconKind.Sync, Runnable {
                 listener.syncSelectedPlaylistFromStreaming()
             })
         }
@@ -262,9 +263,10 @@ internal class CollectionsRenderController(
         rows: ArrayList<CollectionActionUiState>,
         actions: ArrayList<Runnable>,
         label: String,
+        icon: EchoIconKind,
         action: Runnable
     ) {
-        rows.add(CollectionActionUiState(label))
+        rows.add(CollectionActionUiState(label, icon))
         actions.add(action)
     }
 

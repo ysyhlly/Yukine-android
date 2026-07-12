@@ -67,6 +67,7 @@ data class SettingsAction(
     val description: String = "",
     val value: String = "",
     val style: SettingsActionStyle = SettingsActionStyle.Default,
+    /** Semantic icon supplied by the feature; null falls back only to the action style. */
     val icon: EchoIconKind? = null,
     val checked: Boolean = false,
     val enabled: Boolean = true,
@@ -121,7 +122,7 @@ fun SettingsScreen(
     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
     var activeImageDialog by remember { mutableStateOf<SettingsImageDialog?>(null) }
-    val titleBackAction = actions.firstOrNull { it.isBack || isBackAction(it.label) }
+    val titleBackAction = actions.firstOrNull { it.isBack }
     val visibleActions = settingsContentActions(actions)
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = scrollState.firstVisibleItemIndex.coerceAtLeast(0),
@@ -392,9 +393,7 @@ private fun SettingsActionTrailing(action: SettingsAction, onClick: () -> Unit) 
 }
 
 internal fun settingsContentActions(actions: List<SettingsAction>): List<SettingsAction> {
-    val backActionIndex = actions.indexOfFirst { action ->
-        action.isBack || isBackAction(action.label)
-    }
+    val backActionIndex = actions.indexOfFirst { action -> action.isBack }
     if (backActionIndex < 0) {
         return actions
     }
@@ -451,50 +450,11 @@ private fun SettingsOverviewCard(metrics: List<SettingsMetric>) {
 }
 
 internal fun iconForSettingsAction(action: SettingsAction): EchoIconKind {
-    action.icon?.let { return it }
-    val label = action.label
-    fun has(vararg keys: String) = keys.any { label.contains(it, ignoreCase = true) }
-    if (isBackAction(label)) return EchoIconKind.Back
-    return when {
-        has("Accent", "强调色") -> EchoIconKind.Swatch
-        has("Appearance", "Theme", "外观", "主题") -> EchoIconKind.Palette
-        has("Language", "语言") -> EchoIconKind.Language
-        has("Advanced", "高级") -> EchoIconKind.Sparkle
-        has("background", "背景") -> EchoIconKind.Palette
-        has("audio effects", "equalizer", "eq", "bass", "virtualizer", "loudness", "音效", "均衡", "低音", "响度") -> EchoIconKind.Gauge
-        has("speed", "播放速度", "速度") || label.endsWith("x") || label.endsWith("X") -> EchoIconKind.Gauge
-        has("volume", "音量") || label.endsWith("%") -> EchoIconKind.Volume
-        has("sleep", "timer", "睡眠", "定时") || label.endsWith("min") || label.contains("分钟") -> EchoIconKind.Timer
-        has("lyrics", "offset", "歌词", "偏移") -> EchoIconKind.Lyrics
-        has("quality", "lossless", "Hi-Res", "standard", "音质", "无损", "标准") -> EchoIconKind.Gauge
-        has("gesture", "手势") -> EchoIconKind.More
-        has("permission", "access", "权限", "授予", "访问") -> EchoIconKind.Permission
-        has("About", "Version", "关于", "版本") -> EchoIconKind.Info
-        has("QQ", "群号", "群聊") -> EchoIconKind.Network
-        has("Download", "下载") -> EchoIconKind.Download
-        has("Restore", "恢复") -> EchoIconKind.Refresh
-        has("Share", "Export", "分享", "导出") -> EchoIconKind.Upload
-        has("clear", "delete", "cancel", "disable", "清空", "删除", "取消", "关闭") -> EchoIconKind.Delete
-        has("scan", "reload", "sync", "扫描", "重新加载", "同步") -> EchoIconKind.Sync
-        has("import", "导入") -> EchoIconKind.Import
-        has("play", "播放") -> EchoIconKind.Play
-        has("browse", "浏览") -> EchoIconKind.Collections
-        has("manage", "edit", "管理", "编辑") -> EchoIconKind.Edit
-        has("WebDAV") -> EchoIconKind.Folder
-        has("remote", "network", "gateway", "provider", "endpoint", "source", "远程", "网络", "网关", "流媒体", "音源") ||
-            label.trim().equals("Streaming", ignoreCase = true) || label.trim() == "串流" -> EchoIconKind.Network
-        has("folder", "文件夹") -> EchoIconKind.Folder
-        has("library", "song", "track", "曲库", "歌曲", "曲目") -> EchoIconKind.Library
-        // Keep the plus only for actions that really create a new item.
-        has("add", "new", "create", "添加", "新建", "创建") -> EchoIconKind.Action
-        action.style == SettingsActionStyle.Destructive -> EchoIconKind.Delete
-        action.style == SettingsActionStyle.Slider -> EchoIconKind.Gauge
-        action.style == SettingsActionStyle.Toggle || action.style == SettingsActionStyle.Choice -> EchoIconKind.Check
+    return action.icon ?: when (action.style) {
+        SettingsActionStyle.Destructive -> EchoIconKind.Delete
+        SettingsActionStyle.Slider -> EchoIconKind.Gauge
+        SettingsActionStyle.Toggle,
+        SettingsActionStyle.Choice -> EchoIconKind.Check
         else -> EchoIconKind.Settings
     }
 }
-
-private fun isBackAction(label: String): Boolean =
-    label.startsWith("Back", ignoreCase = true) ||
-        label.contains("\u8fd4\u56de") ||
-        label.contains("返回")

@@ -142,7 +142,6 @@ class SettingsViewModelTest {
             SettingsEffect.ApplyStreamingGatewayEndpoint("http://127.0.0.1:43990")
         )
         assertEquals(expected, effects)
-        assertEquals(expected, viewModel.drainEffects())
         assertEquals(emptyList<SettingsEffect>(), viewModel.drainEffects())
     }
 
@@ -177,7 +176,7 @@ class SettingsViewModelTest {
             ),
             effects
         )
-        assertEquals(effects, viewModel.drainEffects())
+        assertEquals(emptyList<SettingsEffect>(), viewModel.drainEffects())
     }
 
     @Test
@@ -395,6 +394,7 @@ class SettingsViewModelTest {
         viewModel.onEvent(SettingsEvent.ApplyThemeMode(EchoTheme.MODE_DARK))
         advanceUntilIdle()
 
+        assertEquals(EchoTheme.MODE_SYSTEM, viewModel.state.value.preferences.themeMode)
         val statuses = viewModel.drainEffects()
             .filterIsInstance<SettingsEffect.ShowStatus>()
             .map { it.message }

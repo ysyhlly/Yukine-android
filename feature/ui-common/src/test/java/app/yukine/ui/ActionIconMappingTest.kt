@@ -7,27 +7,34 @@ class ActionIconMappingTest {
     private val noOp = Runnable { }
 
     @Test
-    fun trackHeaderActionsUseSemanticIconsInChineseAndEnglish() {
-        assertEquals(EchoIconKind.Shuffle, iconForTrackHeaderAction("随机"))
-        assertEquals(EchoIconKind.Shuffle, iconForTrackHeaderAction("Shuffle"))
-        assertEquals(EchoIconKind.Download, iconForTrackHeaderAction("下载当前列表"))
-        assertEquals(EchoIconKind.Download, iconForTrackHeaderAction("Download current list"))
+    fun trackHeaderActionsCarrySemanticIconsWithoutLabelParsing() {
+        assertEquals(
+            EchoIconKind.Shuffle,
+            TrackListHeaderAction("任意文案", noOp, icon = EchoIconKind.Shuffle).icon
+        )
+        assertEquals(
+            EchoIconKind.Download,
+            TrackListHeaderAction("同一文案", noOp, icon = EchoIconKind.Download).icon
+        )
+        assertEquals(
+            EchoIconKind.Back,
+            TrackListHeaderAction("任意返回文案", noOp, icon = EchoIconKind.Back, isBack = true).icon
+        )
     }
 
     @Test
-    fun settingsActionsReservePlusForRealCreation() {
-        assertEquals(EchoIconKind.Palette, iconForSettingsAction(action("外观")))
-        assertEquals(EchoIconKind.Download, iconForSettingsAction(action("下载管理")))
-        assertEquals(EchoIconKind.Permission, iconForSettingsAction(action("授予音乐访问权限")))
-        assertEquals(EchoIconKind.Upload, iconForSettingsAction(action("导出备份")))
-        assertEquals(EchoIconKind.Info, iconForSettingsAction(action("关于")))
-        assertEquals(EchoIconKind.Network, iconForSettingsAction(action("Yukine QQ 群")))
-        assertEquals(EchoIconKind.Refresh, iconForSettingsAction(action("恢复已隐藏歌曲")))
-        assertEquals(EchoIconKind.Settings, iconForSettingsAction(action("其他选项")))
-        assertEquals(EchoIconKind.Check, iconForSettingsAction(action("开启功能", SettingsActionStyle.Toggle)))
-        assertEquals(EchoIconKind.Action, iconForSettingsAction(action("新建项目")))
+    fun settingsActionsUseExplicitIconsBeforeStyleFallback() {
+        assertEquals(EchoIconKind.Palette, iconForSettingsAction(action("任意本地化文案", icon = EchoIconKind.Palette)))
+        assertEquals(EchoIconKind.Network, iconForSettingsAction(action("同一文案", icon = EchoIconKind.Network)))
+        assertEquals(EchoIconKind.Check, iconForSettingsAction(action("任意开关", SettingsActionStyle.Toggle)))
+        assertEquals(EchoIconKind.Gauge, iconForSettingsAction(action("任意滑杆", SettingsActionStyle.Slider)))
+        assertEquals(EchoIconKind.Delete, iconForSettingsAction(action("任意危险操作", SettingsActionStyle.Destructive)))
+        assertEquals(EchoIconKind.Settings, iconForSettingsAction(action("任意默认操作")))
     }
 
-    private fun action(label: String, style: SettingsActionStyle = SettingsActionStyle.Navigation) =
-        SettingsAction(label = label, onClick = noOp, style = style)
+    private fun action(
+        label: String,
+        style: SettingsActionStyle = SettingsActionStyle.Navigation,
+        icon: EchoIconKind? = null
+    ) = SettingsAction(label = label, onClick = noOp, style = style, icon = icon)
 }

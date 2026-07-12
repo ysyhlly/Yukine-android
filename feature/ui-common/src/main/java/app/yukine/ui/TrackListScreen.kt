@@ -114,7 +114,20 @@ data class TrackRowActions(
 }
 
 data class TrackListHeaderMetric(val label: String, val value: String)
-data class TrackListHeaderAction(val label: String, val onClick: Runnable)
+enum class TrackListHeaderActionKind {
+    Custom,
+    PlayAll,
+    Shuffle,
+    DownloadCurrentList
+}
+
+data class TrackListHeaderAction(
+    val label: String,
+    val onClick: Runnable,
+    val icon: EchoIconKind = EchoIconKind.Action,
+    val isBack: Boolean = false,
+    val kind: TrackListHeaderActionKind = TrackListHeaderActionKind.Custom
+)
 data class TrackListModeAction(val label: String, val mode: String, val selected: Boolean, val onClick: Runnable)
 data class TrackListAlbumCardUiState(
     val title: String,
@@ -165,7 +178,7 @@ fun TrackListScreen(
     val actionSheet = actionSheetState
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val listState = rememberLazyListState()
-    val titleBackAction = headerActions.firstOrNull { isBackAction(it.label) }
+    val titleBackAction = headerActions.firstOrNull { it.isBack }
     val visibleHeaderActions = if (titleBackAction != null) headerActions.drop(1) else headerActions
     if (actionSheet != null) {
         ModalBottomSheet(
@@ -824,7 +837,7 @@ private fun HeaderActionRow(action: TrackListHeaderAction) {
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            EchoIcon(iconForTrackHeaderAction(action.label), Modifier.size(22.dp), p.accent)
+            EchoIcon(action.icon, Modifier.size(22.dp), p.accent)
             Spacer(Modifier.width(12.dp))
             Text(
                 action.label,
@@ -1080,20 +1093,6 @@ private fun MiniIconBtn(
         }
     }
 }
-
-internal fun iconForTrackHeaderAction(label: String): EchoIconKind = when {
-    isBackAction(label) -> EchoIconKind.Back
-    label.contains("Play", ignoreCase = true) || label.contains("\u64ad\u653e") -> EchoIconKind.Play
-    label.contains("Shuffle", ignoreCase = true) || label.contains("\u968f\u673a") -> EchoIconKind.Shuffle
-    label.contains("Download", ignoreCase = true) || label.contains("\u4e0b\u8f7d") -> EchoIconKind.Download
-    label.contains("Sync", ignoreCase = true) || label.contains("\u540c\u6b65") -> EchoIconKind.Sync
-    label.contains("Delete", ignoreCase = true) || label.contains("\u5220\u9664") -> EchoIconKind.Delete
-    label.contains("Import", ignoreCase = true) || label.contains("\u5bfc\u5165") || label.contains("\u5bfc\u51fa") -> EchoIconKind.Import
-    else -> EchoIconKind.Action
-}
-
-private fun isBackAction(label: String): Boolean =
-    label.contains("Back", ignoreCase = true) || label.contains("\u8fd4\u56de")
 
 private fun iconForLibraryMode(mode: String): EchoIconKind = when (mode) {
     "albums" -> EchoIconKind.Collections

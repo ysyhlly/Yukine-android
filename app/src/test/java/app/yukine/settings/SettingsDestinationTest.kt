@@ -101,7 +101,7 @@ class SettingsDestinationTest {
         val state = MutableStateFlow(
             SettingsState(
                 actions = listOf(
-                    SettingsAction("返回", Runnable { backCount++ }),
+                    SettingsAction("返回", Runnable { backCount++ }, isBack = true),
                     SettingsAction("扫描曲库", Runnable {})
                 ),
                 ui = SettingsUiState(
@@ -136,7 +136,7 @@ class SettingsDestinationTest {
         val state = MutableStateFlow(
             SettingsState(
                 actions = listOf(
-                    SettingsAction("返回", Runnable { backCount++ }),
+                    SettingsAction("返回", Runnable { backCount++ }, isBack = true),
                     SettingsAction("扫描曲库", Runnable {})
                 ),
                 ui = SettingsUiState(

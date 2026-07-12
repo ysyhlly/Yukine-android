@@ -1,7 +1,9 @@
 package app.yukine
 
 import app.yukine.ui.SettingsAction
+import app.yukine.ui.SettingsActionStyle
 import app.yukine.ui.SettingsMetric
+import app.yukine.ui.EchoIconKind
 import java.util.ArrayList
 
 internal class NetworkMenuRenderController(
@@ -38,15 +40,21 @@ internal class NetworkMenuRenderController(
         metrics.add(SettingsMetric(text(languageMode, "webdav.sources"), webDavSourceCount.toString()))
 
         val actions = ArrayList<SettingsAction>()
-        actions.add(SettingsAction(text(languageMode, "streaming"), Runnable {
-            listener.navigateNetworkPage(MainRoutes.NETWORK_STREAMING)
-        }))
-        actions.add(SettingsAction(text(languageMode, "webdav"), Runnable {
-            listener.navigateNetworkPage(MainRoutes.NETWORK_WEBDAV)
-        }))
-        actions.add(SettingsAction(text(languageMode, "remote.sources"), Runnable {
-            listener.navigateNetworkPage(MainRoutes.NETWORK_SOURCES)
-        }))
+        actions.add(SettingsAction(
+            label = text(languageMode, "streaming"),
+            onClick = Runnable { listener.navigateNetworkPage(MainRoutes.NETWORK_STREAMING) },
+            icon = EchoIconKind.Network
+        ))
+        actions.add(SettingsAction(
+            label = text(languageMode, "webdav"),
+            onClick = Runnable { listener.navigateNetworkPage(MainRoutes.NETWORK_WEBDAV) },
+            icon = EchoIconKind.Folder
+        ))
+        actions.add(SettingsAction(
+            label = text(languageMode, "remote.sources"),
+            onClick = Runnable { listener.navigateNetworkPage(MainRoutes.NETWORK_SOURCES) },
+            icon = EchoIconKind.Network
+        ))
         val title = text(languageMode, "settings.group.sources")
         listener.publishNetworkMenu(title, metrics, actions)
     }
@@ -57,27 +65,43 @@ internal class NetworkMenuRenderController(
         metrics.add(SettingsMetric(text(languageMode, "source"), text(languageMode, "direct.url.m3u")))
 
         val actions = ArrayList<SettingsAction>()
-        actions.add(SettingsAction(text(languageMode, "back"), Runnable {
-            listener.backFromNetworkPage()
-        }))
-        actions.add(SettingsAction(text(languageMode, "add.stream.url"), Runnable {
-            listener.showAddStream()
-        }))
-        actions.add(SettingsAction(text(languageMode, "import.m3u.url"), Runnable {
-            listener.showImportM3u()
-        }))
-        actions.add(SettingsAction(text(languageMode, "import.m3u.file"), Runnable {
-            listener.openM3uFilePicker()
-        }))
-        actions.add(SettingsAction(text(languageMode, "play.streams"), Runnable {
-            listener.playAllStreams()
-        }))
-        actions.add(SettingsAction(text(languageMode, "browse.streams"), Runnable {
-            listener.navigateNetworkPage(MainRoutes.NETWORK_STREAM_LIST)
-        }))
-        actions.add(SettingsAction(text(languageMode, "delete.streams"), Runnable {
-            listener.confirmDeleteAllStreams()
-        }))
+        actions.add(SettingsAction(
+            label = text(languageMode, "back"),
+            onClick = Runnable { listener.backFromNetworkPage() },
+            icon = EchoIconKind.Back,
+            isBack = true
+        ))
+        actions.add(SettingsAction(
+            label = text(languageMode, "add.stream.url"),
+            onClick = Runnable { listener.showAddStream() },
+            icon = EchoIconKind.Action
+        ))
+        actions.add(SettingsAction(
+            label = text(languageMode, "import.m3u.url"),
+            onClick = Runnable { listener.showImportM3u() },
+            icon = EchoIconKind.Import
+        ))
+        actions.add(SettingsAction(
+            label = text(languageMode, "import.m3u.file"),
+            onClick = Runnable { listener.openM3uFilePicker() },
+            icon = EchoIconKind.Folder
+        ))
+        actions.add(SettingsAction(
+            label = text(languageMode, "play.streams"),
+            onClick = Runnable { listener.playAllStreams() },
+            icon = EchoIconKind.Play
+        ))
+        actions.add(SettingsAction(
+            label = text(languageMode, "browse.streams"),
+            onClick = Runnable { listener.navigateNetworkPage(MainRoutes.NETWORK_STREAM_LIST) },
+            icon = EchoIconKind.Collections
+        ))
+        actions.add(SettingsAction(
+            label = text(languageMode, "delete.streams"),
+            onClick = Runnable { listener.confirmDeleteAllStreams() },
+            icon = EchoIconKind.Delete,
+            style = SettingsActionStyle.Destructive
+        ))
         val title = text(languageMode, "streaming")
         listener.publishNetworkMenu(title, metrics, actions)
     }
@@ -89,24 +113,37 @@ internal class NetworkMenuRenderController(
         metrics.add(SettingsMetric(text(languageMode, "sync.mode"), text(languageMode, "sync.mode.library")))
 
         val actions = ArrayList<SettingsAction>()
-        actions.add(SettingsAction(text(languageMode, "back"), Runnable {
-            listener.backFromNetworkPage()
-        }))
-        actions.add(SettingsAction(text(languageMode, "add.webdav"), Runnable {
-            listener.showAddWebDav()
-        }))
-        actions.add(SettingsAction(text(languageMode, "sync.all"), Runnable {
-            listener.syncAllWebDavSources()
-        }))
-        actions.add(SettingsAction(text(languageMode, "play.webdav"), Runnable {
-            listener.playAllWebDavTracks()
-        }))
-        actions.add(SettingsAction(text(languageMode, "browse.tracks"), Runnable {
-            listener.navigateNetworkPage(MainRoutes.NETWORK_WEBDAV_TRACKS)
-        }))
-        actions.add(SettingsAction(text(languageMode, "manage.sources"), Runnable {
-            listener.navigateNetworkPage(MainRoutes.NETWORK_SOURCES)
-        }))
+        actions.add(SettingsAction(
+            label = text(languageMode, "back"),
+            onClick = Runnable { listener.backFromNetworkPage() },
+            icon = EchoIconKind.Back,
+            isBack = true
+        ))
+        actions.add(SettingsAction(
+            label = text(languageMode, "add.webdav"),
+            onClick = Runnable { listener.showAddWebDav() },
+            icon = EchoIconKind.Action
+        ))
+        actions.add(SettingsAction(
+            label = text(languageMode, "sync.all"),
+            onClick = Runnable { listener.syncAllWebDavSources() },
+            icon = EchoIconKind.Sync
+        ))
+        actions.add(SettingsAction(
+            label = text(languageMode, "play.webdav"),
+            onClick = Runnable { listener.playAllWebDavTracks() },
+            icon = EchoIconKind.Play
+        ))
+        actions.add(SettingsAction(
+            label = text(languageMode, "browse.tracks"),
+            onClick = Runnable { listener.navigateNetworkPage(MainRoutes.NETWORK_WEBDAV_TRACKS) },
+            icon = EchoIconKind.Collections
+        ))
+        actions.add(SettingsAction(
+            label = text(languageMode, "manage.sources"),
+            onClick = Runnable { listener.navigateNetworkPage(MainRoutes.NETWORK_SOURCES) },
+            icon = EchoIconKind.Edit
+        ))
         val title = text(languageMode, "webdav")
         listener.publishNetworkMenu(title, metrics, actions)
     }

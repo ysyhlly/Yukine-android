@@ -14,11 +14,8 @@ import app.yukine.ui.nowBarEmptyState
 import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicLong
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
@@ -103,9 +100,6 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
     override val nowBarState: StateFlow<NowBarState> = _uiState
         .map { it.overlayState }
         .stateIn(viewModelScope, SharingStarted.Eagerly, nowBarEmptyState())
-
-    private val _effects = MutableSharedFlow<NowPlayingEffect>(extraBufferCapacity = 8)
-    val effects: SharedFlow<NowPlayingEffect> = _effects.asSharedFlow()
 
     private val pendingEffects = ArrayDeque<NowPlayingEffect>()
     private var gateway: NowPlayingGateway? = null
@@ -542,7 +536,6 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     private fun emitEffect(effect: NowPlayingEffect) {
         pendingEffects.add(effect)
-        _effects.tryEmit(effect)
     }
 
     private fun repeatModeUi(repeatMode: Int): RepeatModeUi {

@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
 import app.yukine.LibraryTrackListDestinationState
 import app.yukine.ui.EchoTheme
+import app.yukine.ui.EchoIconKind
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackRowActions
 import app.yukine.ui.TrackRowUiState
@@ -127,7 +128,7 @@ class LibraryTrackListDestinationTest {
                 rows = listOf(row(1L, "First")),
                 actions = actions(1),
                 headerActions = listOf(
-                    TrackListHeaderAction("返回", Runnable { backCount++ }),
+                    TrackListHeaderAction("返回", Runnable { backCount++ }, isBack = true, icon = EchoIconKind.Back),
                     TrackListHeaderAction("播放分组", Runnable {})
                 )
             )

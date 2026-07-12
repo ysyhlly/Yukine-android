@@ -28,9 +28,7 @@ fun SettingsDestination(
     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
     val settingsState by state.collectAsState()
-    val backAction = settingsState.destinationActions.firstOrNull { action ->
-        action.isBack || isSettingsBackAction(action.label)
-    }
+    val backAction = settingsState.destinationActions.firstOrNull { action -> action.isBack }
     BackHandler(enabled = backAction != null) {
         backAction?.onClick?.run()
     }
@@ -44,6 +42,3 @@ fun SettingsDestination(
         audioMotion = audioMotion
     )
 }
-
-private fun isSettingsBackAction(label: String): Boolean =
-    label.startsWith("Back", ignoreCase = true) || label.contains("返回")

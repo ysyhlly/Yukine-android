@@ -8,6 +8,7 @@ import app.yukine.ui.LibraryGroupUiState
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListModeAction
+import app.yukine.ui.EchoIconKind
 import java.util.ArrayList
 
 internal class LibraryPlaylistsRenderController(
@@ -149,13 +150,13 @@ internal class LibraryPlaylistsRenderController(
         headerActions.add(
             TrackListHeaderAction(AppLanguage.text(languageMode, "back.to.playlists"), Runnable {
                 listener.backFromPlaylist()
-            })
+            }, icon = EchoIconKind.Back, isBack = true)
         )
         if (tracks.isNotEmpty()) {
             headerActions.add(
                 TrackListHeaderAction(AppLanguage.text(languageMode, "play.recent"), Runnable {
                     listener.playTrackList(tracks, 0)
-                })
+                }, icon = EchoIconKind.Play)
             )
         }
         listener.renderPlaylistTracks(
@@ -183,13 +184,13 @@ internal class LibraryPlaylistsRenderController(
         headerActions.add(
             TrackListHeaderAction(AppLanguage.text(languageMode, "back.to.playlists"), Runnable {
                 listener.backFromPlaylist()
-            })
+            }, icon = EchoIconKind.Back, isBack = true)
         )
         if (tracks.isNotEmpty()) {
             headerActions.add(
                 TrackListHeaderAction(AppLanguage.text(languageMode, "play.favorites"), Runnable {
                     listener.playTrackList(tracks, 0)
-                })
+                }, icon = EchoIconKind.Play)
             )
         }
         listener.renderPlaylistTracks(
@@ -217,13 +218,13 @@ internal class LibraryPlaylistsRenderController(
         headerActions.add(
             TrackListHeaderAction(AppLanguage.text(languageMode, "back.to.playlists"), Runnable {
                 listener.backFromPlaylist()
-            })
+            }, icon = EchoIconKind.Back, isBack = true)
         )
         if (tracks.isNotEmpty()) {
             headerActions.add(
                 TrackListHeaderAction(AppLanguage.text(languageMode, "play.playlist"), Runnable {
                     listener.playTrackList(tracks, 0)
-                })
+                }, icon = EchoIconKind.Play)
             )
         }
         listener.renderPlaylistTracks(

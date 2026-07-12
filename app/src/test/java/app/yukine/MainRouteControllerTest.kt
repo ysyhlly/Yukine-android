@@ -7,6 +7,16 @@ import org.junit.Test
 
 class MainRouteControllerTest {
     @Test
+    fun typedSettingsPageBoundaryKeepsLegacyRouteStorage() {
+        val controller = controllerWith(selectedTab = MainRoutes.TAB_SETTINGS)
+
+        controller.setSettingsPage(SettingsPage.Appearance)
+
+        assertEquals(SettingsPage.Appearance, controller.settingsPageModel())
+        assertEquals(MainRoutes.SETTINGS_APPEARANCE, controller.current().settingsPage)
+    }
+
+    @Test
     fun nonUserTabNavigationPreservesNetworkSubpage() {
         val controller = controllerWith(
             selectedTab = MainRoutes.TAB_SETTINGS,

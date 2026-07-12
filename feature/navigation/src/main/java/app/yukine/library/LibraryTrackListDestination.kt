@@ -30,9 +30,7 @@ fun LibraryTrackListDestination(
     libraryControlsEnabled: Boolean = false
 ) {
     val uiState by state.collectAsState()
-    val backAction = uiState.headerActions.firstOrNull { action ->
-        action.label.contains("Back", ignoreCase = true) || action.label.contains("返回")
-    }
+    val backAction = uiState.headerActions.firstOrNull { action -> action.isBack }
     BackHandler(enabled = backAction != null) {
         backAction?.onClick?.run()
     }

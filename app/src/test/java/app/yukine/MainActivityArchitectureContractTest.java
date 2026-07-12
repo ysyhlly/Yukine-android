@@ -69,6 +69,9 @@ public final class MainActivityArchitectureContractTest {
         String repository = read("feature/data/src/main/java/app/yukine/data/MusicLibraryRepository.java");
         String streaming = read("app/src/main/java/app/yukine/StreamingViewModel.kt");
         String playlistCoordinator = read("app/src/main/java/app/yukine/StreamingPlaylistDataCoordinator.kt");
+        String settingsScreen = read("feature/ui-common/src/main/java/app/yukine/ui/SettingsScreen.kt");
+        String settingsDestination = read("feature/navigation/src/main/java/app/yukine/settings/SettingsDestination.kt");
+        String routeController = read("app/src/main/java/app/yukine/MainRouteController.kt");
 
         assertTrue(settings.contains("private val preferenceWriteMutex = Mutex()"));
         assertTrue(settings.contains("preferenceWriteMutex.withLock"));
@@ -77,6 +80,26 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(settingsGateway.contains("Owns the settings-table boundary"));
         assertTrue(streaming.contains("streamingPlaylistDataCoordinator"));
         assertTrue(playlistCoordinator.contains("class StreamingPlaylistDataCoordinator"));
+        assertTrue(streaming.contains("val state: StreamingSearchState"));
+        assertFalse(streaming.contains("var state: StreamingSearchState"));
+        assertTrue(settingsScreen.contains("action.icon ?:"));
+        assertFalse(settingsScreen.contains("label.contains"));
+        assertTrue(settingsDestination.contains("action.isBack"));
+        assertFalse(settingsDestination.contains("isSettingsBackAction"));
+        assertTrue(routeController.contains("fun settingsPageModel(): SettingsPage"));
+    }
+
+    @Test
+    public void actionPresentationUsesSemanticMetadata() throws Exception {
+        String collections = read("feature/ui-common/src/main/java/app/yukine/ui/CollectionsScreen.kt");
+        String trackList = read("feature/ui-common/src/main/java/app/yukine/ui/TrackListScreen.kt");
+        String trackListController = read("app/src/main/java/app/yukine/TrackListRenderController.kt");
+
+        assertFalse(collections.contains("iconForCollectionAction"));
+        assertTrue(collections.contains("action.icon"));
+        assertFalse(trackList.contains("iconForTrackHeaderAction"));
+        assertFalse(trackListController.contains("it.label == labels."));
+        assertTrue(trackListController.contains("TrackListHeaderActionKind"));
     }
 
     @Test

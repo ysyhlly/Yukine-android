@@ -32,7 +32,11 @@ import androidx.compose.ui.unit.sp
 import app.yukine.feature.uicommon.R
 
 data class CollectionMetricUiState(val label: String, val value: String)
-data class CollectionActionUiState(val label: String)
+data class CollectionActionUiState(
+    val label: String,
+    /** Semantic icon supplied by the feature; labels remain display-only. */
+    val icon: EchoIconKind = EchoIconKind.Action
+)
 
 data class CollectionTrackSectionUiState(
     val key: String,
@@ -116,7 +120,7 @@ fun CollectionsScreen(state: CollectionsUiState, actions: CollectionsActions) {
             }
         }
         itemsIndexed(state.topActions, key = { index, action -> "top:${action.label}:$index" }) { index, action ->
-            ActionRow(action.label, actions.topActions.getOrNull(index))
+            ActionRow(action, actions.topActions.getOrNull(index))
         }
         for (sectionIndex in state.trackSections.indices) {
             val section = state.trackSections[sectionIndex]
@@ -130,7 +134,7 @@ fun CollectionsScreen(state: CollectionsUiState, actions: CollectionsActions) {
             } else {
                 item(key = "section-action:${section.key}") {
                     ActionRow(
-                        section.playActionLabel,
+                        CollectionActionUiState(section.playActionLabel, EchoIconKind.Play),
                         actions.trackSections.getOrNull(sectionIndex)?.onPlayAll
                     )
                 }
@@ -172,11 +176,11 @@ fun CollectionsScreen(state: CollectionsUiState, actions: CollectionsActions) {
                     MessageRow(state.selectedPlaylistEmptyText, state.selectedPlaylistEmptyDescription, EchoIconKind.Queue)
                 }
             } else {
-                itemsIndexed(
-                    items = state.selectedPlaylistTopActions,
-                    key = { index, action -> "selected-action:${action.label}:$index" }
-                ) { index, action ->
-                    ActionRow(action.label, actions.selectedPlaylistTopActions.getOrNull(index))
+                    itemsIndexed(
+                        items = state.selectedPlaylistTopActions,
+                        key = { index, action -> "selected-action:${action.label}:$index" }
+                    ) { index, action ->
+                    ActionRow(action, actions.selectedPlaylistTopActions.getOrNull(index))
                 }
                 itemsIndexed(
                     items = state.selectedPlaylistTracks,
@@ -191,7 +195,6 @@ fun CollectionsScreen(state: CollectionsUiState, actions: CollectionsActions) {
         }
     }
 }
-
 @Composable
 private fun MetricGrid(metrics: List<CollectionMetricUiState>) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -224,18 +227,18 @@ private fun MetricRow(metric: CollectionMetricUiState, modifier: Modifier = Modi
 }
 
 @Composable
-private fun ActionRow(label: String, action: Runnable?) {
+private fun ActionRow(action: CollectionActionUiState, onClick: Runnable?) {
     val p = EchoTheme.colors()
     val interaction = remember { MutableInteractionSource() }
     Surface(
-        onClick = { action?.run() },
+        onClick = { onClick?.run() },
         interactionSource = interaction,
         modifier = Modifier
             .fillMaxWidth()
             .echoPressScale(interaction)
             .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium)
-            .semantics { contentDescription = label },
+            .semantics { contentDescription = action.label },
         shape = EchoShapes.medium,
         color = Color.Transparent
     ) {
@@ -243,9 +246,9 @@ private fun ActionRow(label: String, action: Runnable?) {
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            EchoIcon(iconForCollectionAction(label), Modifier.size(22.dp), p.accent)
+            EchoIcon(action.icon, Modifier.size(22.dp), p.accent)
             Spacer(Modifier.width(12.dp))
-            Text(label, style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = p.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(action.label, style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = p.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             EchoIcon(EchoIconKind.Next, Modifier.size(16.dp), p.muted)
         }
     }
@@ -426,12 +429,4 @@ private fun MiniIconButton(
             )
         }
     }
-}
-
-private fun iconForCollectionAction(label: String): EchoIconKind = when {
-    label.contains("Import", ignoreCase = true) || label.contains("\u5bfc\u5165") -> EchoIconKind.Import
-    label.contains("Clear", ignoreCase = true) || label.contains("\u6e05\u7a7a") -> EchoIconKind.Delete
-    label.contains("Play", ignoreCase = true) || label.contains("\u64ad\u653e") -> EchoIconKind.Play
-    label.contains("Export", ignoreCase = true) || label.contains("\u5bfc\u51fa") -> EchoIconKind.Import
-    else -> EchoIconKind.Action
 }

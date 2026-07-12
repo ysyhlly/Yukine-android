@@ -214,6 +214,13 @@ class SettingsViewModel @JvmOverloads constructor(
     private var effectListener: SettingsEffectListener? = null
     private var runtimeEffectListener: SettingsRuntimeEffectListener? = null
     private val preferenceWriteMutex = Mutex()
+    /**
+     * Last values confirmed by the persistence gateway. UI state is optimistic so controls remain
+     * responsive, but a failed write must not leave the in-memory mirrors claiming a value that
+     * will disappear after the next process restart.
+     */
+    private var persistedValues: Map<SettingsPreferenceKey, Any> = emptyMap()
+    private var persistenceBaselineReady = false
 
     fun bindPreferenceGateway(nextGateway: SettingsPreferenceGateway?) {
         preferenceGateway = nextGateway
@@ -239,6 +246,8 @@ class SettingsViewModel @JvmOverloads constructor(
         preferences: SettingsPreferencesSnapshot,
         runtime: RuntimeSettingsStatus
     ) {
+        persistedValues = persistentValues(preferences, runtime)
+        persistenceBaselineReady = true
         storeMirror?.sync(preferences)
         _state.value = _state.value.copy(
             preferences = preferences,
@@ -252,6 +261,10 @@ class SettingsViewModel @JvmOverloads constructor(
         preferences: SettingsPreferencesSnapshot,
         runtime: RuntimeSettingsStatus
     ): SettingsPageStateContent {
+        if (!persistenceBaselineReady) {
+            persistedValues = persistentValues(preferences, runtime)
+            persistenceBaselineReady = true
+        }
         val content = buildPageContent(page, preferences, runtime)
         _state.value = _state.value.copy(
             page = page,
@@ -638,8 +651,15 @@ class SettingsViewModel @JvmOverloads constructor(
     }
 
     private fun emitEffect(effect: SettingsEffect) {
-        pendingEffects.add(effect)
-        effectListener?.onEffect(effect)
+        val listener = effectListener
+        // The Activity listener is the production delivery path. Keep the pull queue only for
+        // callers/tests that have not installed a listener yet; otherwise every effect would be
+        // delivered twice and the queue would grow for the entire ViewModel lifetime.
+        if (listener == null) {
+            pendingEffects.add(effect)
+        } else {
+            listener.onEffect(effect)
+        }
     }
 
     private fun applyRuntimeEffect(effect: SettingsRuntimeEffect): Boolean {
@@ -1027,9 +1047,160 @@ class SettingsViewModel @JvmOverloads constructor(
                     }
                 }
             }
-            result.onFailure {
+            result.onSuccess {
+                persistedValues = persistedValues + (key to value)
+            }.onFailure {
+                if (persistenceBaselineReady && currentPersistedValue(key) == value) {
+                    persistedValues[key]?.let { restorePersistedValue(key, it) }
+                }
                 emitEffect(SettingsEffect.ShowStatus(preferenceSaveFailedStatus()))
             }
+        }
+    }
+
+    private fun persistentValues(
+        preferences: SettingsPreferencesSnapshot,
+        runtime: RuntimeSettingsStatus
+    ): Map<SettingsPreferenceKey, Any> = mapOf(
+        SettingsPreferenceKey.ThemeMode to preferences.themeMode,
+        SettingsPreferenceKey.AccentMode to preferences.accentMode,
+        SettingsPreferenceKey.LanguageMode to preferences.languageMode,
+        SettingsPreferenceKey.PlaybackSpeed to preferences.playbackSpeed,
+        SettingsPreferenceKey.AppVolume to preferences.appVolume,
+        SettingsPreferenceKey.StreamingAudioQuality to preferences.streamingAudioQuality,
+        SettingsPreferenceKey.OnlineLyricsEnabled to runtime.onlineLyricsEnabled,
+        SettingsPreferenceKey.ConcurrentPlaybackEnabled to preferences.concurrentPlaybackEnabled,
+        SettingsPreferenceKey.LyricsOffsetMs to runtime.lyricsOffsetMs,
+        SettingsPreferenceKey.AudioEffectSettings to preferences.audioEffectSettings,
+        SettingsPreferenceKey.StatusBarLyricsEnabled to preferences.statusBarLyricsEnabled,
+        SettingsPreferenceKey.SystemMediaLyricsTitleEnabled to preferences.systemMediaLyricsTitleEnabled,
+        SettingsPreferenceKey.FloatingLyricsEnabled to preferences.floatingLyricsEnabled,
+        SettingsPreferenceKey.NowPlayingGesturesEnabled to preferences.nowPlayingGesturesEnabled,
+        SettingsPreferenceKey.PlaybackRestoreEnabled to preferences.playbackRestoreEnabled,
+        SettingsPreferenceKey.ReplayGainEnabled to preferences.replayGainEnabled,
+        SettingsPreferenceKey.DebugPromptsEnabled to preferences.debugPromptsEnabled,
+        SettingsPreferenceKey.CustomBackgroundBlurEnabled to preferences.customBackgroundBlurEnabled,
+        SettingsPreferenceKey.CustomBackgroundBlurRadiusDp to preferences.customBackgroundBlurRadiusDp,
+        SettingsPreferenceKey.GlassBlurEnabled to preferences.glassBlurEnabled,
+        SettingsPreferenceKey.GlassBlurRadiusDp to preferences.glassBlurRadiusDp,
+        SettingsPreferenceKey.GlassSurfaceOpacity to preferences.glassSurfaceOpacity,
+        SettingsPreferenceKey.ShareStyle to preferences.shareStyle,
+        SettingsPreferenceKey.PageBackgrounds to preferences.pageBackgrounds
+    )
+
+    private fun currentPersistedValue(key: SettingsPreferenceKey): Any = when (key) {
+        SettingsPreferenceKey.ThemeMode -> _state.value.preferences.themeMode
+        SettingsPreferenceKey.AccentMode -> _state.value.preferences.accentMode
+        SettingsPreferenceKey.LanguageMode -> _state.value.preferences.languageMode
+        SettingsPreferenceKey.PlaybackSpeed -> _state.value.preferences.playbackSpeed
+        SettingsPreferenceKey.AppVolume -> _state.value.preferences.appVolume
+        SettingsPreferenceKey.StreamingAudioQuality -> _state.value.preferences.streamingAudioQuality
+        SettingsPreferenceKey.OnlineLyricsEnabled -> _state.value.runtime.onlineLyricsEnabled
+        SettingsPreferenceKey.ConcurrentPlaybackEnabled -> _state.value.preferences.concurrentPlaybackEnabled
+        SettingsPreferenceKey.LyricsOffsetMs -> _state.value.runtime.lyricsOffsetMs
+        SettingsPreferenceKey.AudioEffectSettings -> _state.value.preferences.audioEffectSettings
+        SettingsPreferenceKey.StatusBarLyricsEnabled -> _state.value.preferences.statusBarLyricsEnabled
+        SettingsPreferenceKey.SystemMediaLyricsTitleEnabled -> _state.value.preferences.systemMediaLyricsTitleEnabled
+        SettingsPreferenceKey.FloatingLyricsEnabled -> _state.value.preferences.floatingLyricsEnabled
+        SettingsPreferenceKey.NowPlayingGesturesEnabled -> _state.value.preferences.nowPlayingGesturesEnabled
+        SettingsPreferenceKey.PlaybackRestoreEnabled -> _state.value.preferences.playbackRestoreEnabled
+        SettingsPreferenceKey.ReplayGainEnabled -> _state.value.preferences.replayGainEnabled
+        SettingsPreferenceKey.DebugPromptsEnabled -> _state.value.preferences.debugPromptsEnabled
+        SettingsPreferenceKey.CustomBackgroundBlurEnabled -> _state.value.preferences.customBackgroundBlurEnabled
+        SettingsPreferenceKey.CustomBackgroundBlurRadiusDp -> _state.value.preferences.customBackgroundBlurRadiusDp
+        SettingsPreferenceKey.GlassBlurEnabled -> _state.value.preferences.glassBlurEnabled
+        SettingsPreferenceKey.GlassBlurRadiusDp -> _state.value.preferences.glassBlurRadiusDp
+        SettingsPreferenceKey.GlassSurfaceOpacity -> _state.value.preferences.glassSurfaceOpacity
+        SettingsPreferenceKey.ShareStyle -> _state.value.preferences.shareStyle
+        SettingsPreferenceKey.PageBackgrounds -> _state.value.preferences.pageBackgrounds
+    }
+
+    private fun restorePersistedValue(key: SettingsPreferenceKey, value: Any) {
+        val current = _state.value
+        var preferences = current.preferences
+        var runtime = current.runtime
+        when (key) {
+            SettingsPreferenceKey.ThemeMode -> {
+                val mode = value as String
+                EchoTheme.setMode(mode)
+                preferences = preferences.copy(themeMode = mode)
+            }
+            SettingsPreferenceKey.AccentMode -> {
+                val accent = value as String
+                EchoTheme.setAccent(accent)
+                preferences = preferences.copy(accentMode = accent)
+            }
+            SettingsPreferenceKey.LanguageMode -> preferences = preferences.copy(languageMode = value as String)
+            SettingsPreferenceKey.PlaybackSpeed -> preferences = preferences.copy(playbackSpeed = value as Float)
+            SettingsPreferenceKey.AppVolume -> preferences = preferences.copy(appVolume = value as Float)
+            SettingsPreferenceKey.StreamingAudioQuality ->
+                preferences = preferences.copy(streamingAudioQuality = value as String)
+            SettingsPreferenceKey.OnlineLyricsEnabled ->
+                runtime = runtime.copy(onlineLyricsEnabled = value as Boolean)
+            SettingsPreferenceKey.ConcurrentPlaybackEnabled ->
+                preferences = preferences.copy(concurrentPlaybackEnabled = value as Boolean)
+            SettingsPreferenceKey.LyricsOffsetMs -> runtime = runtime.copy(lyricsOffsetMs = value as Long)
+            SettingsPreferenceKey.AudioEffectSettings ->
+                preferences = preferences.copy(audioEffectSettings = value as AudioEffectSettings)
+            SettingsPreferenceKey.StatusBarLyricsEnabled ->
+                preferences = preferences.copy(statusBarLyricsEnabled = value as Boolean)
+            SettingsPreferenceKey.SystemMediaLyricsTitleEnabled ->
+                preferences = preferences.copy(systemMediaLyricsTitleEnabled = value as Boolean)
+            SettingsPreferenceKey.FloatingLyricsEnabled ->
+                preferences = preferences.copy(floatingLyricsEnabled = value as Boolean)
+            SettingsPreferenceKey.NowPlayingGesturesEnabled ->
+                preferences = preferences.copy(nowPlayingGesturesEnabled = value as Boolean)
+            SettingsPreferenceKey.PlaybackRestoreEnabled ->
+                preferences = preferences.copy(playbackRestoreEnabled = value as Boolean)
+            SettingsPreferenceKey.ReplayGainEnabled ->
+                preferences = preferences.copy(replayGainEnabled = value as Boolean)
+            SettingsPreferenceKey.DebugPromptsEnabled ->
+                preferences = preferences.copy(debugPromptsEnabled = value as Boolean)
+            SettingsPreferenceKey.CustomBackgroundBlurEnabled ->
+                preferences = preferences.copy(customBackgroundBlurEnabled = value as Boolean)
+            SettingsPreferenceKey.CustomBackgroundBlurRadiusDp ->
+                preferences = preferences.copy(customBackgroundBlurRadiusDp = value as Float)
+            SettingsPreferenceKey.GlassBlurEnabled ->
+                preferences = preferences.copy(glassBlurEnabled = value as Boolean)
+            SettingsPreferenceKey.GlassBlurRadiusDp ->
+                preferences = preferences.copy(glassBlurRadiusDp = value as Float)
+            SettingsPreferenceKey.GlassSurfaceOpacity ->
+                preferences = preferences.copy(glassSurfaceOpacity = value as Float)
+            SettingsPreferenceKey.ShareStyle -> preferences = preferences.copy(shareStyle = value as String)
+            SettingsPreferenceKey.PageBackgrounds ->
+                preferences = preferences.copy(pageBackgrounds = value as PageBackgrounds)
+        }
+        storeMirror?.sync(preferences)
+        renderCurrentPage(current.page, preferences, runtime)
+        when (key) {
+            SettingsPreferenceKey.ThemeMode -> applyRuntimeEffect(SettingsRuntimeEffect.ApplyThemeSurface)
+            SettingsPreferenceKey.PlaybackSpeed ->
+                applyRuntimeEffect(SettingsRuntimeEffect.ApplyPlaybackSpeed(preferences.playbackSpeed))
+            SettingsPreferenceKey.AppVolume ->
+                applyRuntimeEffect(SettingsRuntimeEffect.ApplyAppVolume(preferences.appVolume))
+            SettingsPreferenceKey.OnlineLyricsEnabled ->
+                applyRuntimeEffect(SettingsRuntimeEffect.SetOnlineLyricsEnabled(runtime.onlineLyricsEnabled))
+            SettingsPreferenceKey.ConcurrentPlaybackEnabled ->
+                applyRuntimeEffect(SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(preferences.concurrentPlaybackEnabled))
+            SettingsPreferenceKey.AudioEffectSettings ->
+                applyRuntimeEffect(SettingsRuntimeEffect.ApplyAudioEffects(preferences.audioEffectSettings))
+            SettingsPreferenceKey.StatusBarLyricsEnabled ->
+                applyRuntimeEffect(SettingsRuntimeEffect.SetStatusBarLyrics(preferences.statusBarLyricsEnabled))
+            SettingsPreferenceKey.SystemMediaLyricsTitleEnabled ->
+                applyRuntimeEffect(
+                    SettingsRuntimeEffect.SetSystemMediaLyricsTitleEnabled(
+                        preferences.systemMediaLyricsTitleEnabled
+                    )
+                )
+            SettingsPreferenceKey.FloatingLyricsEnabled ->
+                applyRuntimeEffect(SettingsRuntimeEffect.ApplyFloatingLyrics(preferences.floatingLyricsEnabled))
+            SettingsPreferenceKey.PlaybackRestoreEnabled ->
+                applyRuntimeEffect(SettingsRuntimeEffect.SetPlaybackRestoreEnabled(preferences.playbackRestoreEnabled))
+            SettingsPreferenceKey.ReplayGainEnabled ->
+                applyRuntimeEffect(SettingsRuntimeEffect.SetReplayGainEnabled(preferences.replayGainEnabled))
+            SettingsPreferenceKey.LyricsOffsetMs ->
+                applyRuntimeEffect(SettingsRuntimeEffect.SetLyricsOffsetMs(runtime.lyricsOffsetMs))
+            else -> Unit
         }
     }
 

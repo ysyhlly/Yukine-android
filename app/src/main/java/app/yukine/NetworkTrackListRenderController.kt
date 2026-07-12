@@ -5,6 +5,7 @@ import app.yukine.model.Track
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListLabels
+import app.yukine.ui.EchoIconKind
 import java.util.ArrayList
 
 internal data class NetworkTrackListRequest(
@@ -50,9 +51,9 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
     ) {
         val headerActions = ArrayList<TrackListHeaderAction>()
         headerActions.add(
-            TrackListHeaderAction(AppLanguage.text(languageMode, "back")) {
+            TrackListHeaderAction(AppLanguage.text(languageMode, "back"), Runnable {
                 listener.navigateNetworkPage(MainRoutes.NETWORK_STREAMING)
-            }
+            }, icon = EchoIconKind.Back, isBack = true)
         )
         val headerMetrics = ArrayList<TrackListHeaderMetric>()
         headerMetrics.add(
@@ -86,9 +87,9 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
     ) {
         val headerActions = ArrayList<TrackListHeaderAction>()
         headerActions.add(
-            TrackListHeaderAction(AppLanguage.text(languageMode, "back.to.webdav")) {
+            TrackListHeaderAction(AppLanguage.text(languageMode, "back.to.webdav"), Runnable {
                 listener.navigateNetworkPage(MainRoutes.NETWORK_WEBDAV)
-            }
+            }, icon = EchoIconKind.Back, isBack = true)
         )
         val headerMetrics = ArrayList<TrackListHeaderMetric>()
         headerMetrics.add(
@@ -123,9 +124,9 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
     ) {
         val headerActions = ArrayList<TrackListHeaderAction>()
         headerActions.add(
-            TrackListHeaderAction(AppLanguage.text(languageMode, "back.to.sources")) {
+            TrackListHeaderAction(AppLanguage.text(languageMode, "back.to.sources"), Runnable {
                 listener.clearRemoteSourceAndNavigateNetworkPage(MainRoutes.NETWORK_SOURCES)
-            }
+            }, icon = EchoIconKind.Back, isBack = true)
         )
         if (source == null) {
             listener.renderTrackList(
@@ -151,14 +152,14 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
             )
         )
         headerActions.add(
-            TrackListHeaderAction(AppLanguage.text(languageMode, "sync.source")) {
+            TrackListHeaderAction(AppLanguage.text(languageMode, "sync.source"), Runnable {
                 listener.syncRemoteSource(source.id)
-            }
+            }, icon = EchoIconKind.Sync)
         )
         headerActions.add(
-            TrackListHeaderAction(AppLanguage.text(languageMode, "play.source")) {
+            TrackListHeaderAction(AppLanguage.text(languageMode, "play.source"), Runnable {
                 listener.playRemoteSourceTracks(source)
-            }
+            }, icon = EchoIconKind.Play)
         )
         listener.renderTrackList(
             AppLanguage.text(languageMode, "songs"),

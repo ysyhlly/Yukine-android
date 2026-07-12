@@ -211,7 +211,6 @@ class LibraryViewModel @JvmOverloads constructor(
     private var documentGateway: LibraryDocumentGateway? = null
     private var playlistActionGateway: LibraryPlaylistActionGateway? = null
     private var audioSpecParsingRunning = false
-    private var favoriteTrackIds: Set<Long> = emptySet()
     private var libraryLoadJob: Job? = null
     private var libraryLoadWatchdogJob: Job? = null
     private var nextLibraryLoadId: Long = 0L
@@ -424,7 +423,6 @@ class LibraryViewModel @JvmOverloads constructor(
             withContext(ioDispatcher) {
                 tracks.forEach { track -> writer.writeFavorite(track, true) }
             }
-            favoriteTrackIds = favoriteTrackIds + tracks.map { it.id }
             gateway?.refreshLibrary()
         }
     }
@@ -451,16 +449,8 @@ class LibraryViewModel @JvmOverloads constructor(
         if (track == null || track.id < 0L) {
             return
         }
-        val liveFavoriteIds = favoriteIdsProvider?.favoriteIds()
-        if (liveFavoriteIds != null) {
-            favoriteTrackIds = liveFavoriteIds.toSet()
-        }
-        val nextFavorite = !favoriteTrackIds.contains(track.id)
-        favoriteTrackIds = if (nextFavorite) {
-            favoriteTrackIds + track.id
-        } else {
-            favoriteTrackIds - track.id
-        }
+        val favoriteIds = favoriteIdsProvider?.favoriteIds().orEmpty()
+        val nextFavorite = track.id !in favoriteIds
         val writer = favoriteWriter
         if (writer == null) {
             gateway?.applyFavorite(track.id, nextFavorite)

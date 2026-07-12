@@ -706,7 +706,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             if (effect instanceof SettingsEffect.ShowStatus) {
                 statusMessageController.setStatus(((SettingsEffect.ShowStatus) effect).getMessage());
             } else if (effect instanceof SettingsEffect.NavigatePage) {
-                routeController.setSettingsPage(SettingsPage.route(((SettingsEffect.NavigatePage) effect).getPage()));
+                routeController.setSettingsPage(((SettingsEffect.NavigatePage) effect).getPage());
                 renderSelectedTabAfterStateChange();
             } else if (effect instanceof SettingsEffect.OpenNetworkPage) {
                 navigateToNetworkTabPage(((SettingsEffect.OpenNetworkPage) effect).getPage());
@@ -2642,7 +2642,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             return;
         }
         settingsViewModel.renderPageFromHost(
-                SettingsPage.fromRoute(settingsPage()),
+                routeController.settingsPageModel(),
                 settingsContextProvider.preferencesSnapshot(),
                 settingsContextProvider.runtimeStatus()
         );
